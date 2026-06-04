@@ -98,14 +98,14 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn, uint64
 
 /*
  * __block_disagg_header_version_compatible --
- *     Return whether a reader at the given version can read a header whose oldest-compatible reader
- *     version is compatible_version. A reader can read the header when its own version is at least
- *     the header's compatible version.
+ *     Return whether this build can read a header whose oldest-compatible reader version is
+ *     compatible_version. This build can read the header when its own version is at least the
+ *     header's compatible version.
  */
 static bool
-__block_disagg_header_version_compatible(uint8_t reader_version, uint8_t compatible_version)
+__block_disagg_header_version_compatible(uint8_t compatible_version)
 {
-    return (compatible_version <= reader_version);
+    return (compatible_version <= WT_BLOCK_DISAGG_VERSION);
 }
 
 /*
@@ -218,8 +218,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       expected_magic);
                     goto corrupt;
                 }
-                if (!__block_disagg_header_version_compatible(
-                      WT_BLOCK_DISAGG_VERSION, swap.compatible_version)) {
+                if (!__block_disagg_header_version_compatible(swap.compatible_version)) {
                     __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
                       size, page_id, lsn, is_delta, result,
                       "compatible version error, the block's compatible version %" PRIu8
@@ -395,8 +394,8 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
  *     Unit-test wrapper for __block_disagg_header_version_compatible.
  */
 bool
-__ut_block_disagg_header_version_compatible(uint8_t reader_version, uint8_t compatible_version)
+__ut_block_disagg_header_version_compatible(uint8_t compatible_version)
 {
-    return (__block_disagg_header_version_compatible(reader_version, compatible_version));
+    return (__block_disagg_header_version_compatible(compatible_version));
 }
 #endif

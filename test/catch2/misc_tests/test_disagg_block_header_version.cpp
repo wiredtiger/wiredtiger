@@ -12,32 +12,26 @@
 #include "wt_internal.h"
 
 /*
- * A reader can read a disagg block header iff its own version is at least the header's
- * compatible_version. The read path used to compare against WT_BLOCK_DISAGG_COMPATIBLE_VERSION (the
- * reader's own oldest-compatible bound) instead of WT_BLOCK_DISAGG_VERSION (the reader's own
- * version), incorrectly rejecting readable blocks once the writer version diverges from the
- * compatible version.
+ * This build can read a disagg block header iff its own version is at least the header's
+ * compatible_version. The read path used to compare against WT_BLOCK_DISAGG_COMPATIBLE_VERSION (this
+ * build's own oldest-compatible bound) instead of WT_BLOCK_DISAGG_VERSION (this build's version),
+ * incorrectly rejecting readable blocks once the writer version diverges from the compatible
+ * version. The check is currently equivalent because the two macros are equal; this test fails the
+ * moment WT_BLOCK_DISAGG_VERSION is bumped past WT_BLOCK_DISAGG_COMPATIBLE_VERSION and the wrong
+ * macro is used, which is exactly when the bug can be observed.
  */
 TEST_CASE("disagg block header version compatibility", "[block_disagg]")
 {
-    /* A reader can read a header that only requires an older or equal version. */
-    REQUIRE(__ut_block_disagg_header_version_compatible(1, 1));
-    REQUIRE(__ut_block_disagg_header_version_compatible(2, 1));
-    REQUIRE(__ut_block_disagg_header_version_compatible(5, 3));
+    /* This build can read a header that only requires an older or equal version. */
+    REQUIRE(__ut_block_disagg_header_version_compatible(1));
+    REQUIRE(__ut_block_disagg_header_version_compatible(WT_BLOCK_DISAGG_COMPATIBLE_VERSION));
 
     /*
-     * Reader version 2 reading a block that requires compatible_version 2: the case the buggy check
-     * got wrong, rejecting a block the v2 reader is allowed to read.
+     * This build must read a header whose compatible version equals its own version. This is the
+     * case the buggy check got wrong once the writer version diverges from the compatible version.
      */
-    REQUIRE(__ut_block_disagg_header_version_compatible(2, 2));
+    REQUIRE(__ut_block_disagg_header_version_compatible(WT_BLOCK_DISAGG_VERSION));
 
-    /* A reader cannot read a header that requires a newer reader than the reader's own version. */
-    REQUIRE_FALSE(__ut_block_disagg_header_version_compatible(1, 2));
-    REQUIRE_FALSE(__ut_block_disagg_header_version_compatible(3, 5));
-
-    /* The current build must be able to read everything it writes. */
-    REQUIRE(__ut_block_disagg_header_version_compatible(
-      WT_BLOCK_DISAGG_VERSION, WT_BLOCK_DISAGG_COMPATIBLE_VERSION));
-    REQUIRE(__ut_block_disagg_header_version_compatible(
-      WT_BLOCK_DISAGG_VERSION, WT_BLOCK_DISAGG_VERSION));
+    /* This build cannot read a header that requires a newer reader than its own version. */
+    REQUIRE_FALSE(__ut_block_disagg_header_version_compatible(WT_BLOCK_DISAGG_VERSION + 1));
 }
