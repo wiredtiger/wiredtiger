@@ -612,7 +612,7 @@ class DisaggCorruptionMixin:
             self.reopen_conn()
         self.fail(fail_msg)
 
-    def _pick_any_row(self):
+    def _pick_one_row(self):
         """Pick one row from the palite pages table across all shards.
         Returns its (table_id, page_id, lsn)  i.e. one page image."""
         row = self._scan_shards(
@@ -650,7 +650,7 @@ class DisaggCorruptionMixin:
         pages table) and overwrite the first byte of its stored data
         with 0xff. Other images in the same delta chain are untouched.
         Returns the (table_id, page_id, lsn) of the corrupted image."""
-        table_id, page_id, lsn = self._pick_any_row()
+        table_id, page_id, lsn = self._pick_one_row()
         self.close_conn()
         sql = (
             f"UPDATE pages SET page_data = x'ff' || substr(page_data, 2) "
@@ -666,7 +666,7 @@ class DisaggCorruptionMixin:
         pages table) and DELETE it. Other images in the same delta
         chain are untouched. Returns the (table_id, page_id, lsn) of
         the deleted image."""
-        table_id, page_id, lsn = self._pick_any_row()
+        table_id, page_id, lsn = self._pick_one_row()
         self.close_conn()
         sql = (
             f"DELETE FROM pages "
@@ -683,7 +683,7 @@ class DisaggCorruptionMixin:
         column, marking that single image as a tombstone. Other images
         in the same delta chain are untouched. Returns the (table_id,
         page_id, lsn) of the modified image."""
-        table_id, page_id, lsn = self._pick_any_row()
+        table_id, page_id, lsn = self._pick_one_row()
         self.close_conn()
         sql = (
             f"UPDATE pages SET flags = flags | {self.WT_PAGE_LOG_DISCARDED} "
