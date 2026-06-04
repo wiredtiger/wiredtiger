@@ -317,6 +317,7 @@ MSDN
 MSVC
 MSan
 MUTEX
+MVCC
 MacOS
 MapViewOfFile
 Marsaglia's
@@ -939,6 +940,7 @@ dlsym
 dmalloc
 dmb
 dmsg
+drainable
 drealloc
 dropUntilSuccess
 dryrun
@@ -1217,6 +1219,7 @@ keyids
 keylen
 keynum
 keyp
+keysp
 keystr
 keyv
 kp
@@ -1410,6 +1413,7 @@ novalue
 nowait
 np
 npos
+nranges
 nrecords
 nrows
 ns
@@ -1417,6 +1421,7 @@ nsec
 nsecs
 nset
 ntimes
+ntruncates
 nul
 nullptr
 num
@@ -1465,6 +1470,7 @@ packv
 pagesize
 pali
 palite
+parallelized
 param
 params
 parens
@@ -1523,6 +1529,7 @@ probabilistically
 proc
 progname
 programmatically
+proto
 prout
 proxied
 prunable
@@ -1569,6 +1576,7 @@ rebalancing
 recency
 recno
 recnos
+reconciler
 reconfig
 reconfigurations
 reconfigures
@@ -1665,6 +1673,7 @@ sortable
 sp
 spinlock
 spinlocks
+splitsp
 sqlite
 src
 srch
@@ -1770,6 +1779,7 @@ testutil
 th
 there'll
 tid
+tids
 timeslice
 timespec
 timestamper
@@ -1792,6 +1802,7 @@ toml
 toolchain
 toolchains
 totalsec
+touchpoint
 tp
 traceapi
 tracepat
@@ -1838,6 +1849,7 @@ undef
 undeferred
 undefers
 undeleted
+undercounted
 underflowed
 unencoded
 unencrypted
@@ -1868,6 +1880,7 @@ unredacts
 unreferenced
 unsetting
 unsized
+unsynchronized
 unterminated
 untyped
 unvisited

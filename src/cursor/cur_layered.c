@@ -945,6 +945,7 @@ __clayered_stable_replay_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, 
     WT_UNUSED(modify_type);
 
     session = CUR2S(cbt);
+
     WT_RET(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &upd, NULL));
     upd->txnid = session->replay_trunc_ctx.txn_id;
     upd->upd_start_ts = session->replay_trunc_ctx.commit_ts;

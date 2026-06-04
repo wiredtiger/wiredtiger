@@ -606,16 +606,6 @@ struct __wt_name_flag {
 };
 
 /*
- * WT_LAYERED_DRAIN_ENTRY --
- *	Queue entry for layered table drain threads. Holds a pinned ingest btree dhandle
- *	(via session_inuse) so the dhandle stays open while the work item is processed.
- */
-struct __wt_layered_drain_entry {
-    WT_DATA_HANDLE *ingest_dhandle;
-    TAILQ_ENTRY(__wt_layered_drain_entry) q;
-};
-
-/*
  * WT_CONN_CAPACITY --
  *	I/O capacity subsystem fields, grouping the WT_THROTTLE throttle
  *	configuration with the session, thread, and condition variable that drive the
@@ -1043,11 +1033,10 @@ struct __wt_connection_impl {
 
     /* Data pertaining to disaggregated storage step up. */
     struct __wt_layered_drain_data {
-        WT_THREAD_GROUP threads;
-        WT_SPINLOCK queue_lock;
-        TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
-        bool running;
+        WT_SPINLOCK fix_prepared_lock; /* Serializes __layered_fix_prepared_transaction across
+                                          drain workers; see comment at the call site. */
         uint32_t thread_count;
+        uint64_t total_keys_drained; /* Atomic: cumulative keys moved across all ranges/tables. */
     } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;

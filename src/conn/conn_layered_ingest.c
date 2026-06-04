@@ -21,7 +21,6 @@ static WT_INLINE void
 __layered_assert_stable_btree_state(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
-    WT_UPDATE *upd;
     bool has_value;
 
     if (cbt->compare != 0) {
@@ -29,10 +28,23 @@ __layered_assert_stable_btree_state(
             return;
         /* No on-page value to check; rely solely on visibility. */
         has_value = false;
+    } else if (cbt->ins != NULL) {
+        /*
+         * The key was found via the insert list rather than the on-page binary-search array. This
+         * is legitimate when the stable btree page was reconciled during the leader's last
+         * checkpoint but not yet evicted: in-memory WT_INSERT nodes survive reconciliation until
+         * the page is evicted. Derive has_value by scanning the insert's update chain for any
+         * committed non-tombstone update.
+         */
+        WT_UPDATE *ins_upd;
+        has_value = false;
+        for (ins_upd = cbt->ins->upd; ins_upd != NULL; ins_upd = ins_upd->next)
+            if (ins_upd->txnid != WT_TXN_ABORTED && ins_upd->type != WT_UPDATE_TOMBSTONE) {
+                has_value = true;
+                break;
+            }
     } else {
-        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
-          "The stable btree should not contain inserts prior to draining");
-
+        WT_UPDATE *upd = NULL;
         if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         else
@@ -84,7 +96,7 @@ __layered_assert_stable_btree_state(
  */
 static int
 __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts)
+  WT_UPDATE *upds, WT_UPDATE *last_upd)
 {
     WT_DECL_RET;
 
@@ -94,13 +106,17 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      */
     __wt_btree_disable_bulk(session);
 
-    /* Search the page. */
+    /*
+     * Re-search and retry on WT_RESTART: concurrent drain workers inserting into the same stable
+     * btree page can cause __wt_insert_serial to return WT_RESTART. The standard WiredTiger pattern
+     * is to re-search before every retry. Reset the cursor first to release the hazard pointer
+     * acquired by the previous __wt_row_search, then search again.
+     */
+retry:
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    /* We only need to check on the first pass. */
-    if (from_ts == WT_TS_NONE)
-        __layered_assert_stable_btree_state(session, cbt, last_upd);
+    __layered_assert_stable_btree_state(session, cbt, last_upd);
 
     /*
      * If the oldest update being moved is an aborted prepared update and the stable btree has no
@@ -110,15 +126,25 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      * prepared update, leaving an orphaned prepared value on the disk image. The tombstone keeps
      * the post-rollback state well-defined (the key never existed).
      */
-    if (cbt->compare != 0 && last_upd->txnid == WT_TXN_ABORTED) {
+    if (cbt->compare != 0 && last_upd->txnid == WT_TXN_ABORTED && last_upd->next == NULL) {
+        /*
+         * Don't reallocate on a WT_RESTART-driven retry: cbt->compare and last_upd->txnid are
+         * stable across retries for the same key, so without the next-NULL guard each retry would
+         * allocate a fresh tombstone and orphan the previous one.
+         */
         WT_ASSERT(session, last_upd->prepared_id != WT_PREPARED_ID_NONE);
         WT_UPDATE *tombstone;
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         last_upd->next = tombstone;
     }
 
-    /* Apply the modification. */
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
+    ret = __wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false);
+    if (ret == WT_RESTART) {
+        /* Release the hazard pointer before searching again. */
+        WT_ERR(__wt_btcur_reset(cbt));
+        goto retry;
+    }
+    WT_ERR(ret);
 
 err:
     WT_TRET(__wt_btcur_reset(cbt));
@@ -374,6 +400,7 @@ static int
 __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BTREE *ingest_btree,
   WT_BTREE *stable_btree, uint64_t txnid, uint64_t prepared_id)
 {
+    WT_DECL_RET;
     WT_FIX_PREPARED_COOKIE cookie;
 
     cookie.key = key;
@@ -382,60 +409,65 @@ __layered_fix_prepared_transaction(WT_SESSION_IMPL *session, WT_ITEM *key, WT_BT
     cookie.txnid = txnid;
     cookie.prepared_id = prepared_id;
 
-    return (
-      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie));
+    /*
+     * Serialize across parallel drain workers. Each worker can independently encounter a key
+     * belonging to a still-in-flight prepared transaction and call into here -- the callback then
+     * walks every session in the connection and writes op->btree / op->u.op_upd->txnid for the
+     * matching op. Workers fix different ops (one per key) but they iterate the same txn->mod[]
+     * array, so an unguarded concurrent walk produces an unsynchronized read+write on each
+     * op->btree as workers scan past the other worker's op. The lock is held only across the walk;
+     * rare path, no measurable contention.
+     */
+    __wt_spin_lock(session, &S2C(session)->layered_drain_data.fix_prepared_lock);
+    ret =
+      __wt_session_array_walk(session, __layered_fix_prepared_transaction_callback, true, &cookie);
+    __wt_spin_unlock(session, &S2C(session)->layered_drain_data.fix_prepared_lock);
+    return (ret);
 }
 
+/* Buffer large enough for 255 bytes of key as hex plus NUL. */
+#define WT_LAYERED_KEY_HEX_BUFSIZE 512
+
 /*
- * __layered_apply_truncate_to_stable --
- *     Replay a single follower-recorded truncate against stable. This needs to be done after all
- *     older ingest updates have been drained.
+ * __layered_key_hex --
+ *     Write the full hex encoding of a key bound into buf for logging. A zero-size item (unbounded
+ *     range end) is rendered as "(none)".
  */
-static int
-__layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
+static void
+__layered_key_hex(const WT_ITEM *key, char *buf, size_t bufsize)
 {
-    WT_DECL_RET;
+    static const char hex[] = "0123456789abcdef";
+    const uint8_t *data;
+    size_t i, pos;
 
-    WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
-    WT_ASSERT(session, t->start_ts > WT_TS_NONE);
-    WT_ASSERT(session, t->durable_ts >= t->start_ts);
+    if (key->size == 0) {
+        WT_IGNORE_RET(__wt_snprintf(buf, bufsize, "(none)"));
+        return;
+    }
 
-    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
-    WT_CURSOR *trunc_start = NULL, *trunc_stop = NULL;
-    WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
-    WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
-
-    trunc_start->set_key(trunc_start, &t->start_key);
-    trunc_stop->set_key(trunc_stop, &t->stop_key);
-
-    session->replay_trunc_ctx.txn_id = t->txn_id;
-    session->replay_trunc_ctx.commit_ts = t->start_ts;
-    session->replay_trunc_ctx.durable_ts = t->durable_ts;
-
-    F_SET(session, WT_SESSION_INGEST_REPLAY);
-    ret = __wt_session_range_truncate(session, NULL, trunc_start, trunc_stop);
-    F_CLR(session, WT_SESSION_INGEST_REPLAY);
-
-err:
-    if (trunc_start != NULL)
-        WT_TRET(trunc_start->close(trunc_start));
-    if (trunc_stop != NULL)
-        WT_TRET(trunc_stop->close(trunc_stop));
-    return (ret);
+    data = (const uint8_t *)key->data;
+    for (i = 0, pos = 0; i < key->size && pos + 2 < bufsize; i++) {
+        buf[pos++] = hex[(data[i] >> 4) & 0xf];
+        buf[pos++] = hex[data[i] & 0xf];
+    }
+    buf[pos] = '\0';
 }
 
 /*
  * __layered_copy_ingest_table --
- *     Move ingest updates whose durable timestamp falls in (from_ts, to_ts) to the corresponding
- *     stable table.
+ *     Copy all data from a single ingest table (or a key-range sub-section) to the corresponding
+ *     stable table. key_start and key_stop are optional inclusive-lower / exclusive-upper bounds;
+ *     NULL means unbounded at that end.
  */
 static int
-__layered_copy_ingest_table(
-  WT_SESSION_IMPL *session, const char *ingest_uri, wt_timestamp_t from_ts, wt_timestamp_t to_ts)
+__layered_copy_ingest_table(WT_SESSION_IMPL *session, const char *ingest_uri,
+  const WT_ITEM *key_start, const WT_ITEM *key_stop, wt_timestamp_t from_ts, wt_timestamp_t to_ts,
+  uint64_t *nkeysp)
 {
     WT_BTREE *ingest_btree, *stable_btree;
     WT_CURSOR *ingest_btree_cursor, *ingest_version_cursor, *prepare_cursor, *stable_cursor;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(first_key);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp_key);
@@ -452,12 +484,15 @@ __layered_copy_ingest_table(
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
     const char *open_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-    bool in_ts_range, is_prepare_rollback, prepare_resolved, preserve_prepared, prepare_txn_fixed;
+    char hex1[WT_LAYERED_KEY_HEX_BUFSIZE], hex2[WT_LAYERED_KEY_HEX_BUFSIZE];
+    bool first_key_set, in_ts_range, is_prepare_rollback, preserve_prepared, prepare_resolved,
+      prepare_txn_fixed, skip_first_next;
 
     ingest_version_cursor = prepare_cursor = stable_cursor = NULL;
     last_upd = prev_upd = upd = upds = NULL;
-    prepare_resolved = prepare_txn_fixed = false;
+    first_key_set = prepare_resolved = prepare_txn_fixed = skip_first_next = false;
     preserve_prepared = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED);
+    *nkeysp = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
     WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
@@ -486,18 +521,51 @@ __layered_copy_ingest_table(
     ingest_btree_cursor = ((WT_CURSOR_VERSION *)ingest_version_cursor)->file_cursor;
     ingest_btree = CUR2BT(ingest_btree_cursor);
 
+    WT_ERR(__wt_scr_alloc(session, 0, &first_key));
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
     WT_ERR(__wt_scr_alloc(session, 0, &value));
 
+    /*
+     * If a start key is supplied, position the version cursor at the first key at or after
+     * key_start that has a version visible in this slice. A plain exact search is not enough under
+     * timestamp-sliced drain: a split key may have no version in a given slice's timestamp range,
+     * so we search_near and skip forward to the first qualifying key.
+     *
+     * search_near can also return WT_NOTFOUND when the only keys at or after key_start are visible
+     * solely as prepared (uncommitted) updates: its anchor walk skips a key whose only version is
+     * filtered out by the slice's start timestamp, even though a plain next() walk would surface
+     * that prepared version. In that case fall back to an unbounded scan from the start and skip
+     * keys below key_start in the main loop, so a range whose lower keys are prepared-only is still
+     * drained (and its prepared transactions still fixed). A genuinely empty range drains nothing
+     * either way -- the from-start scan simply finds no key in [key_start, key_stop).
+     */
+    if (key_start != NULL) {
+        int start_exact;
+        ingest_version_cursor->set_key(ingest_version_cursor, key_start);
+        WT_ERR_NOTFOUND_OK(
+          ingest_version_cursor->search_near(ingest_version_cursor, &start_exact), true);
+        if (ret == WT_NOTFOUND)
+            WT_ERR(ingest_version_cursor->reset(ingest_version_cursor));
+        else {
+            WT_ERR(ret);
+            /* Positioned strictly below key_start: advance into the range on the first next(). */
+            skip_first_next = start_exact >= 0;
+        }
+    }
+
     for (;;) {
         upd = NULL;
-        WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
+        if (skip_first_next)
+            skip_first_next = false;
+        else
+            WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd));
                 WT_ERR(ret);
+                ++(*nkeysp);
                 upds = NULL;
             } else
                 ret = 0;
@@ -505,6 +573,43 @@ __layered_copy_ingest_table(
         }
 
         WT_ERR(ingest_version_cursor->get_key(ingest_version_cursor, tmp_key));
+
+        /*
+         * Skip keys strictly below key_start. The cursor is normally already positioned at or after
+         * key_start, so this never fires; it matters only on the from-start fallback taken when
+         * search_near could not anchor on a prepared-only boundary key. No pending updates can have
+         * accumulated yet (the skipped keys precede any in-range key), so there is nothing to
+         * flush.
+         */
+        if (key_start != NULL) {
+            WT_ERR(__wt_compare(session, stable_btree->collator, tmp_key, key_start, &cmp));
+            if (cmp < 0)
+                continue;
+        }
+
+        /*
+         * If a stop key is set for this range, check whether the current key has reached or passed
+         * it. Flush any pending updates accumulated for the previous key, then exit the range
+         * without processing the current key (it belongs to the next range worker).
+         */
+        if (key_stop != NULL) {
+            WT_ERR(__wt_compare(session, stable_btree->collator, tmp_key, key_stop, &cmp));
+            if (cmp >= 0) {
+                __layered_key_hex(tmp_key, hex1, sizeof(hex1));
+                __layered_key_hex(key_stop, hex2, sizeof(hex2));
+                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+                  "Drain range stop_boundary: table=%s at=%s stop=%s", ingest_uri, hex1, hex2);
+                if (upds != NULL) {
+                    WT_WITH_DHANDLE(session, cbt->dhandle,
+                      ret = __layered_move_updates(session, cbt, key, upds, last_upd));
+                    WT_ERR(ret);
+                    ++(*nkeysp);
+                    upds = NULL;
+                }
+                goto err;
+            }
+        }
+
         WT_ERR(__wt_compare(session, stable_btree->collator, key, tmp_key, &cmp));
         if (cmp != 0) {
             /*
@@ -513,10 +618,16 @@ __layered_copy_ingest_table(
              */
             WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
+            if (!first_key_set) {
+                WT_ERR(__wt_buf_set(session, first_key, tmp_key->data, tmp_key->size));
+                first_key_set = true;
+            }
+
             if (upds != NULL) {
                 WT_WITH_DHANDLE(session, cbt->dhandle,
-                  ret = __layered_move_updates(session, cbt, key, upds, last_upd, from_ts));
+                  ret = __layered_move_updates(session, cbt, key, upds, last_upd));
                 WT_ERR(ret);
+                ++(*nkeysp);
             }
 
             upds = NULL;
@@ -533,8 +644,10 @@ __layered_copy_ingest_table(
 
         is_prepare_rollback = start_txn == WT_TXN_ABORTED;
         /*
-         * Only process updates whose durable timestamp falls in the range. Prepared updates are
-         * included only in the final pass since their commit timestamp is not yet resolved.
+         * Only process updates whose durable timestamp falls in (from_ts, to_ts]. Prepared updates
+         * are included only in the final pass since their commit timestamp is not yet resolved.
+         * This is what lets truncate replays interleave at their timestamp: a key's updates reach
+         * the stable table oldest-first across slices, so each prepend is genuinely the newest.
          */
         in_ts_range = prepare ? (to_ts == WT_TS_MAX) :
                                 (durable_start_ts > from_ts && durable_start_ts <= to_ts);
@@ -557,7 +670,6 @@ __layered_copy_ingest_table(
                     }
                 } else if (!prepare_resolved) {
                     /* Only resolve the updates from the same prepared transaction once. */
-                    WT_ASSERT(session, to_ts == WT_TS_MAX);
                     if (is_prepare_rollback) {
                         /*
                          * The original transaction id is stored in start timestamp and the rollback
@@ -673,6 +785,14 @@ __layered_copy_ingest_table(
     }
 
 err:
+    if (*nkeysp > 0) {
+        __layered_key_hex(first_key, hex1, sizeof(hex1));
+        __layered_key_hex(key, hex2, sizeof(hex2));
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+          "Drain range extent: table=%s keys=%" PRIu64 " first=%s last=%s", ingest_uri, *nkeysp,
+          hex1, hex2);
+    }
+    __wt_scr_free(session, &first_key);
     if (upd != NULL)
         __wt_free(session, upd);
     if (upds != NULL)
@@ -687,6 +807,139 @@ err:
         WT_TRET(prepare_cursor->close(prepare_cursor));
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
+    return (ret);
+}
+
+/*
+ * __layered_ingest_table_is_empty --
+ *     Return true if the ingest table has no records.
+ */
+static int
+__layered_ingest_table_is_empty(WT_SESSION_IMPL *session, const char *ingest_uri, bool *emptyp)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+
+    *emptyp = false;
+    cursor = NULL;
+
+    if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
+        /*
+         * With preserve_prepared, a rolled-back prepared insert on the ingest btree leaves the key
+         * with an [aborted-prepared-upd -> globally-visible-tombstone] chain. A regular read-
+         * uncommitted cursor walks past the aborted update and sees the tombstone, so it reports
+         * the key as deleted and the ingest btree as empty -- but the corresponding claim-prepared
+         * cell on the stable btree is still unresolved, and only the drain main loop (which
+         * iterates a version cursor with show_prepared_rollback=true) will resolve it. We can't
+         * cheaply distinguish "ingest btree truly empty" from "ingest btree contains only rolled-
+         * back prepares" without running roughly the same scan the drain itself would do, so just
+         * treat the table as non-empty whenever preserve_prepared is enabled. The cost is running
+         * the drain main loop once over a genuinely empty btree -- a single version-cursor next()
+         * returning WT_NOTFOUND.
+         */
+        *emptyp = false;
+    } else {
+        WT_RET(__wt_open_cursor(session, ingest_uri, NULL, NULL, &cursor));
+        /* Set WT_TXN_IGNORE_PREPARE so prepared updates don't cause WT_PREPARE_CONFLICT. */
+        F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+        F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
+        /*
+         * WT_ROLLBACK here means the cursor hit a modify update that read-uncommitted cannot
+         * reconstruct (WT_MODIFY_READ_UNCOMMITTED). A record exists; the table is not empty.
+         */
+        if (ret == WT_ROLLBACK)
+            *emptyp = false;
+        else if (ret != 0 && ret != WT_NOTFOUND)
+            WT_ERR(ret);
+        else
+            *emptyp = (ret == WT_NOTFOUND);
+    }
+    ret = 0;
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __layered_apply_truncate_to_stable --
+ *     Replay a single committed follower truncate against the stable btree over its full key range.
+ *     Installs the txn/ts context and issues a range truncate via the INGEST_REPLAY path so that
+ *     tombstones carry the original timestamps.
+ */
+static int
+__layered_apply_truncate_to_stable(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
+{
+    WT_CURSOR *trunc_start, *trunc_stop;
+    WT_DECL_RET;
+    const char *open_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "raw=true", NULL};
+
+    WT_ASSERT(session, t->start_key.size > 0 && t->stop_key.size > 0);
+    WT_ASSERT(session, t->start_ts > WT_TS_NONE);
+    WT_ASSERT(session, t->durable_ts >= t->start_ts);
+
+    trunc_start = trunc_stop = NULL;
+    WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_start));
+    WT_ERR(__wt_open_cursor(session, t->layered_table->stable_uri, NULL, open_cfg, &trunc_stop));
+
+    trunc_start->set_key(trunc_start, &t->start_key);
+    trunc_stop->set_key(trunc_stop, &t->stop_key);
+
+    session->replay_trunc_ctx.txn_id = t->txn_id;
+    session->replay_trunc_ctx.commit_ts = t->start_ts;
+    session->replay_trunc_ctx.durable_ts = t->durable_ts;
+
+    F_SET(session, WT_SESSION_INGEST_REPLAY);
+    ret = __wt_session_range_truncate(session, NULL, trunc_start, trunc_stop);
+    F_CLR(session, WT_SESSION_INGEST_REPLAY);
+
+err:
+    if (trunc_start != NULL)
+        WT_TRET(trunc_start->close(trunc_start));
+    if (trunc_stop != NULL)
+        WT_TRET(trunc_stop->close(trunc_stop));
+    return (ret);
+}
+
+/*
+ * __layered_apply_and_clear_truncates --
+ *     After all ingest ranges for a table have been drained, apply every committed follower
+ *     truncate from the truncate list to the stable btree (covering keys that only exist in stable
+ *     and were never in the ingest btree), then clear the list. Must be called once per table after
+ *     all parallel drain workers for that table have finished.
+ */
+static int
+__layered_apply_and_clear_truncates(WT_SESSION_IMPL *session, const char *layered_uri)
+{
+    WT_DATA_HANDLE *layered_dhandle;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered_table;
+    WT_TRUNCATE *t;
+
+    layered_dhandle = NULL;
+
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT)
+        return (0);
+    layered_dhandle = session->dhandle;
+    layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
+
+    __wt_readlock(session, &layered_table->truncate_lock);
+    TAILQ_FOREACH (t, &layered_table->truncateqh, q) {
+        /* Match the release-store at __wt_txn_truncate_commit. */
+        if (!__wt_atomic_load_bool_acquire(&t->committed))
+            continue;
+        __wt_readunlock(session, &layered_table->truncate_lock);
+        WT_TRET(__layered_apply_truncate_to_stable(session, t));
+        __wt_readlock(session, &layered_table->truncate_lock);
+    }
+    __wt_readunlock(session, &layered_table->truncate_lock);
+
+    __wt_layered_table_truncate_clear(session, layered_table);
+
+    WT_WITH_DHANDLE(session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
     return (ret);
 }
 
@@ -752,261 +1005,302 @@ err:
 }
 
 /*
- * __layered_drain_ingest_table_and_truncate_list --
- *     Drain ingest to stable in timestamp order, interleaving committed follower truncates.
+ * WT_LAYERED_INTERLEAVE_COPY_ARG --
+ *     Per-range argument for a parallel slice copy in the interleaved drain. Each spawned thread
+ *     copies one key range of one timestamp slice and records its result code.
+ */
+typedef struct {
+    WT_SESSION_IMPL *session; /* Worker's own session; never the calling thread's. */
+    const char *ingest_uri;
+    const WT_ITEM *key_start; /* Inclusive lower bound, NULL = unbounded. */
+    const WT_ITEM *key_stop;  /* Exclusive upper bound, NULL = unbounded. */
+    wt_timestamp_t from_ts;   /* Slice is (from_ts, to_ts]. */
+    wt_timestamp_t to_ts;
+    uint64_t nkeys;
+    int result;
+} WT_LAYERED_INTERLEAVE_COPY_ARG;
+
+/*
+ * __layered_drain_interleave_copy_thread --
+ *     Thread callback for the interleaved drain: copy one key range of one timestamp slice. Errors
+ *     are stored in the argument, not returned, so the spawning thread can aggregate them after the
+ *     join. The slice ordering delivers a key's updates oldest-first, so the single-threaded
+ *     truncate replay between slices is always newest.
+ */
+static WT_THREAD_RET
+__layered_drain_interleave_copy_thread(void *arg)
+{
+    WT_LAYERED_INTERLEAVE_COPY_ARG *a;
+
+    a = (WT_LAYERED_INTERLEAVE_COPY_ARG *)arg;
+    a->result = __layered_copy_ingest_table(
+      a->session, a->ingest_uri, a->key_start, a->key_stop, a->from_ts, a->to_ts, &a->nkeys);
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * __layered_drain_table_interleaved --
+ *     Drain one ingest table to its stable table for the interleaved-drain proto path. The COPY of
+ *     each timestamp slice is parallelized across K disjoint key ranges; the truncate replays
+ *     between slices run single-threaded. Serializing the truncate-applies is the whole point: the
+ *     concurrent per-worker replay of Structure A conflicted with the ingest fast-truncate clear.
+ *     Here every slice's copies fully finish (their version-cursor snapshots released at the join)
+ *     before the single replay runs, and the fast-truncate clear runs only after every slice with
+ *     no concurrent transaction in flight.
  */
 static int
-__layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const char *ingest_uri)
+__layered_drain_table_interleaved(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry, uint64_t *nkeysp)
 {
-    WT_DATA_HANDLE *layered_dhandle = NULL;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *layered_dhandle;
     WT_DECL_ITEM(layered_uri_buf);
     WT_DECL_RET;
-    WT_LAYERED_TABLE *layered_table = NULL;
-    WT_TRUNCATE **sorted_truncates = NULL;
-    wt_timestamp_t prev_ts = WT_TS_NONE;
+    WT_ITEM *split_keys;
+    WT_LAYERED_INTERLEAVE_COPY_ARG *args;
+    WT_LAYERED_TABLE *layered_table;
+    WT_SESSION_IMPL **worker_sessions;
+    WT_TRUNCATE **sorted_truncates;
+    wt_thread_t *tids;
+    wt_timestamp_t prev_ts, to_ts;
+    size_t s, ntruncates;
+    uint32_t actual_splits, j, k, nranges;
+    const char *ingest_uri;
+    bool empty;
 
-    WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
-    WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+    conn = S2C(session);
+    ingest_uri = entry->ingest_uri;
+    layered_dhandle = NULL;
+    layered_table = NULL;
+    split_keys = NULL;
+    sorted_truncates = NULL;
+    args = NULL;
+    tids = NULL;
+    worker_sessions = NULL;
+    ntruncates = 0;
+    actual_splits = 0;
+    nranges = 0;
 
-    WT_ERR_ERROR_OK(
-      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), ENOENT, true);
-    if (ret == ENOENT) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "No layered handle found for ingest table \"%s\", only performing ingest drain",
-          ingest_uri);
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, WT_TS_NONE, WT_TS_MAX));
-        ret = 0;
-        goto err;
-    }
+    /* Empty tables: leave their truncates to the post-loop apply-and-clear pass. */
+    WT_RET(__layered_ingest_table_is_empty(session, ingest_uri, &empty));
+    if (empty)
+        return (0);
+
     /*
-     * For each committed truncate, copy ingest updates with upper and lower bounds. The lower bound
-     * is the timestamp of the previous truncate and the upper bound is the timestamp of the current
-     * truncate. After copying ingest updates, apply the range truncate.
+     * Single range per table for now; key-range sampling is added in a follow-up. With no split
+     * keys, actual_splits stays 0 and every slice copies its whole keyspace as one range.
      */
+    nranges = actual_splits + 1;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
+    WT_ERR(__wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0));
     layered_dhandle = session->dhandle;
     layered_table = (WT_LAYERED_TABLE *)layered_dhandle;
-    size_t ntruncates;
+
     WT_ERR(
       __layered_build_sorted_truncates(session, layered_table, &sorted_truncates, &ntruncates));
 
-    for (size_t i = 0; i < ntruncates; i++) {
-        WT_TRUNCATE *t = sorted_truncates[i];
-        WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, t->start_ts));
-        WT_ERR(__layered_apply_truncate_to_stable(session, t));
-        prev_ts = t->start_ts;
+    WT_ERR(__wt_calloc_def(session, nranges, &args));
+    /*
+     * The calling thread copies range 0 inline; only ranges 1..nranges-1 need their own thread and
+     * session. Allocate the full arrays for index symmetry but populate only the spawned slots.
+     */
+    WT_ERR(__wt_calloc_def(session, nranges, &tids));
+    WT_ERR(__wt_calloc_def(session, nranges, &worker_sessions));
+    for (k = 1; k < nranges; k++)
+        WT_ERR(__wt_open_internal_session(conn, "disagg-drain-interleave", false,
+          WT_SESSION_CAN_WAIT, session->lock_flags, &worker_sessions[k]));
+
+    /*
+     * Walk slices oldest-first. Slice s covers (prev_ts, to_ts]; the tail slice (s == ntruncates)
+     * runs to WT_TS_MAX and is where prepared updates drain. After each non-tail slice's copies
+     * complete, apply that truncate single-threaded.
+     */
+    prev_ts = WT_TS_NONE;
+    for (s = 0; s <= ntruncates; s++) {
+        uint32_t spawned;
+
+        to_ts = (s < ntruncates) ? sorted_truncates[s]->start_ts : WT_TS_MAX;
+
+        for (k = 0; k < nranges; k++) {
+            args[k].session = (k == 0) ? session : worker_sessions[k];
+            args[k].ingest_uri = ingest_uri;
+            args[k].key_start = (k == 0) ? NULL : &split_keys[k - 1];
+            args[k].key_stop = (k == nranges - 1) ? NULL : &split_keys[k];
+            args[k].from_ts = prev_ts;
+            args[k].to_ts = to_ts;
+            args[k].nkeys = 0;
+            args[k].result = 0;
+        }
+
+        /*
+         * Spawn ranges 1..nranges-1; the join below is the barrier for this slice. Threads are
+         * created in order and we stop at the first failure, so the spawned threads are always the
+         * contiguous prefix tids[1..spawned].
+         */
+        spawned = 1;
+        for (k = 1; k < nranges; k++) {
+            ret = __wt_thread_create(
+              session, &tids[k], __layered_drain_interleave_copy_thread, &args[k]);
+            if (ret != 0)
+                break;
+            spawned = k + 1;
+        }
+
+        /* Copy range 0 inline only if no spawn failed; otherwise go straight to the join. */
+        if (ret == 0)
+            args[0].result = __layered_copy_ingest_table(session, ingest_uri, args[0].key_start,
+              args[0].key_stop, prev_ts, to_ts, &args[0].nkeys);
+
+        /* Join every thread we actually created, even on a mid-slice error, to avoid a leak. */
+        for (k = 1; k < spawned; k++)
+            WT_TRET(__wt_thread_join(session, &tids[k]));
+
+        /* First non-zero result wins: thread-create errors, then per-range copy errors. */
+        for (k = 0; ret == 0 && k < nranges; k++)
+            ret = args[k].result;
+        WT_ERR(ret);
+
+        for (k = 0; k < nranges; k++)
+            *nkeysp += args[k].nkeys;
+
+        /* Single-threaded full-range replay between slices, now that all snapshots are released. */
+        if (s < ntruncates)
+            WT_ERR(__layered_apply_truncate_to_stable(session, sorted_truncates[s]));
+        prev_ts = to_ts;
     }
-    WT_ERR(__layered_copy_ingest_table(session, ingest_uri, prev_ts, WT_TS_MAX));
+
+    /*
+     * The workers applied no truncates (we did, single-threaded), so just clear the list. The fast-
+     * truncate clear of the ingest table is safe here: no drain transaction is in flight.
+     */
+    __wt_layered_table_truncate_clear(session, layered_table);
+    WT_WITH_DHANDLE(session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
+    layered_dhandle = NULL;
+
+    WT_ERR(__layered_clear_ingest_table(session, ingest_uri));
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__layered_assert_ingest_table_empty(session, ingest_uri));
+#endif
+    WT_ERR(__layered_reset_ingest_table_prune_timestamp(session, ingest_uri));
 
 err:
-    if (layered_table != NULL)
-        __wt_layered_table_truncate_clear(session, layered_table);
-
+    if (worker_sessions != NULL) {
+        for (k = 1; k < nranges; k++)
+            if (worker_sessions[k] != NULL)
+                WT_TRET(__wt_session_close_internal(worker_sessions[k]));
+        __wt_free(session, worker_sessions);
+    }
+    __wt_free(session, tids);
+    __wt_free(session, args);
     __wt_free(session, sorted_truncates);
-    /*
-     * Cursor opens and closes can leave session->dhandle pointing at a file dhandle, so scope the
-     * release explicitly back onto the layered dhandle we acquired above.
-     */
     if (layered_dhandle != NULL)
         WT_WITH_DHANDLE(session, layered_dhandle, WT_TRET(__wt_session_release_dhandle(session)));
+    if (split_keys != NULL) {
+        for (j = 0; j < actual_splits; j++)
+            __wt_buf_free(session, &split_keys[j]);
+        __wt_free(session, split_keys);
+    }
     __wt_scr_free(session, &layered_uri_buf);
     return (ret);
 }
 
 /*
- * __layered_drain_worker_run --
- *     Run function for drain workers.
- */
-static int
-__layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
-{
-    WT_DECL_RET;
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_UNUSED(ctx);
-    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-    /* If the queue is empty we are done. */
-    if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
-        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-        return (0);
-    }
-
-    WT_LAYERED_DRAIN_ENTRY *work_item = TAILQ_FIRST(&conn->layered_drain_data.work_queue);
-    WT_ASSERT(session, work_item != NULL);
-    TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
-    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-
-    const char *ingest_uri = work_item->ingest_dhandle->name;
-    WT_ERR_MSG_CHK(session, __layered_drain_ingest_table_and_truncate_list(session, ingest_uri),
-      "Failed to drain ingest and truncate list for \"%s\"", ingest_uri);
-    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, ingest_uri),
-      "Failed to clear ingest table \"%s\"", ingest_uri);
-
-#ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__layered_assert_ingest_table_empty(session, ingest_uri));
-#endif
-
-    WT_ERR_MSG_CHK(session, __layered_reset_ingest_table_prune_timestamp(session, ingest_uri),
-      "Failed to reset ingest table prune timestamp \"%s\"", ingest_uri);
-
-err:
-    /*
-     * Balance the pin acquired when queueing. The work item has already been removed from the
-     * queue, so the cleanup helper won't see it on the error path either.
-     */
-    WT_WITH_DHANDLE(session, work_item->ingest_dhandle, __wt_cursor_dhandle_decr_use(session));
-    __wt_free(session, work_item);
-    return (ret);
-}
-
-/*
- * __layered_drain_worker_check --
- *     Check function for drain workers.
- */
-static bool
-__layered_drain_worker_check(WT_SESSION_IMPL *session)
-{
-    return (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_drain_data.running));
-}
-
-/*
- * __layered_drain_clear_work_queue --
- *     Clear the work queue for ingest table drain.
- */
-static void
-__layered_drain_clear_work_queue(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-    if (!TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
-        WT_LAYERED_DRAIN_ENTRY *work_item = NULL, *work_item_tmp = NULL;
-        TAILQ_FOREACH_SAFE(work_item, &conn->layered_drain_data.work_queue, q, work_item_tmp)
-        {
-            TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
-            if (work_item->ingest_dhandle != NULL)
-                WT_WITH_DHANDLE(
-                  session, work_item->ingest_dhandle, __wt_cursor_dhandle_decr_use(session));
-            __wt_free(session, work_item);
-        }
-    }
-    WT_ASSERT_ALWAYS(session, TAILQ_EMPTY(&conn->layered_drain_data.work_queue),
-      "Layered drain work queue failed to drain");
-    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-    __wt_spin_destroy(session, &conn->layered_drain_data.queue_lock);
-}
-
-/*
- * __layered_queue_ingest_dhandles --
- *     Walk the connection's open dhandle list, queue any open ingest btrees for draining, and pin
- *     each via session_inuse so it survives until the worker processes it. Sourcing the work list
- *     from the dhandle list catches ingest btrees that have been touched (e.g. by prepared
- *     discovery) without their parent `layered:` URI ever being opened.
- */
-static int
-__layered_queue_ingest_dhandles(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
-    WT_LAYERED_DRAIN_ENTRY *work_item;
-
-    conn = S2C(session);
-
-    for (dhandle = NULL;;) {
-        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
-        if (dhandle == NULL)
-            break;
-
-        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-            continue;
-        if (!WT_URI_IS_INGEST(dhandle->name))
-            continue;
-
-        /*
-         * Pin via session_inuse so the dhandle survives sweep across the lock release and worker
-         * processing. The worker decrements after the drain completes.
-         */
-        WT_WITH_DHANDLE(session, dhandle, __wt_cursor_dhandle_incr_use(session));
-
-        if ((ret = __wt_calloc_one(session, &work_item)) != 0) {
-            WT_WITH_DHANDLE(session, dhandle, __wt_cursor_dhandle_decr_use(session));
-            WT_RET(ret);
-        }
-        work_item->ingest_dhandle = dhandle;
-        __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-        TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
-        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-    }
-    return (0);
-}
-
-/*
  * __wti_layered_drain_ingest_tables --
- *     Moving all the data from the ingest tables to the stable tables
+ *     Move all data from ingest tables to stable tables. Tables are processed sequentially; within
+ *     each non-empty table the per-timestamp-slice copy is parallelized across key ranges while the
+ *     truncate replays between slices run single-threaded (see __layered_drain_table_interleaved).
  */
 int
 __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-
-    bool empty, group_created;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
+    size_t i, table_count;
+    uint64_t nkeys, t_start;
+    int64_t bytes_after, bytes_before;
+    bool lock_initialized;
 
     conn = S2C(session);
-    group_created = false;
-
-    /* Initialize the work queue. */
-    TAILQ_INIT(&conn->layered_drain_data.work_queue);
-    WT_RET(__wt_spin_init(
-      session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
-
-    __wt_atomic_store_bool(&conn->layered_drain_data.running, true);
-
-    bool multithreaded = conn->layered_drain_data.thread_count > 1;
+    manager = &conn->layered_table_manager;
+    entries = NULL;
+    bytes_before = 0;
+    t_start = 0;
+    lock_initialized = false;
 
     /*
-     * Create the thread group. The application thread is also a drain thread so the configured
-     * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
-     * work for single threaded mode, as such single threaded is only recommended for testing.
+     * Snapshot the table manager's entry array under the lock so we don't race with entries being
+     * added, removed, or the array being reallocated (fixes FIXME-WT-14734). Capture the calloc
+     * return value and check it only after unlocking so we never take the error path with the lock
+     * held.
      */
-    if (multithreaded) {
-        WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads, "disagg-drain",
-          conn->layered_drain_data.thread_count - 1, conn->layered_drain_data.thread_count - 1,
-          WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __layered_drain_worker_check,
-          __layered_drain_worker_run, NULL));
-        group_created = true;
+    __wt_spin_lock(session, &manager->layered_table_lock);
+    table_count = manager->open_layered_table_count;
+    if (table_count > 0) {
+        ret = __wt_calloc_def(session, table_count, &entries);
+        if (ret == 0)
+            for (i = 0; i < table_count; i++)
+                entries[i] = manager->entries[i];
     }
-
-    /* FIXME-WT-14735: skip empty ingest tables. */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, ret = __layered_queue_ingest_dhandles(session));
+    __wt_spin_unlock(session, &manager->layered_table_lock);
     WT_ERR(ret);
 
+    bytes_before = WT_STAT_CONN_READ(conn->stats, block_byte_read);
+    __wt_atomic_store_uint64(&conn->layered_drain_data.total_keys_drained, 0);
+    t_start = __wt_clock(session);
+
     /*
-     * We can be lazy here and use the current thread as a worker thread. Then once this loop exits
-     * we can kill our thread group.
+     * The per-slice copies of a table are run on internal worker sessions that call into
+     * __layered_fix_prepared_transaction; serialize those calls with the fix-prepared lock.
      */
-    while (true) {
-        __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-        empty = TAILQ_EMPTY(&conn->layered_drain_data.work_queue);
-        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-        if (empty) {
-            /*
-             * Notify the other threads to exit. Relaxed is okay here as the worker threads will
-             * observe this change eventually.
-             */
-            __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, false);
-            break;
-        }
-        WT_ERR(__layered_drain_worker_run(session, NULL));
+    WT_ERR(__wt_spin_init(
+      session, &conn->layered_drain_data.fix_prepared_lock, "layered drain fix-prepared lock"));
+    lock_initialized = true;
+
+    /*
+     * Drain each non-empty table with the timestamp-interleaved algorithm, which clears that
+     * table's truncate list itself. Empty/skipped tables are left for the post-loop apply-and-clear
+     * pass.
+     */
+    for (i = 0; i < table_count; i++) {
+        if (entries[i] == NULL)
+            continue;
+        nkeys = 0;
+        WT_ERR(__layered_drain_table_interleaved(session, entries[i], &nkeys));
+        (void)__wt_atomic_add_uint64(&conn->layered_drain_data.total_keys_drained, nkeys);
     }
 
 err:
-    /* Let any running threads finish up. */
-    if (group_created) {
-        __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
-        __wt_writelock(session, &conn->layered_drain_data.threads.lock);
-        WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
+    /*
+     * Apply committed follower truncates to the stable btree and clear the truncate list for every
+     * table whose ingest btree was empty (and therefore skipped above). Keys that only exist in
+     * stable never written to the ingest btree are not covered by ingest tombstones; the explicit
+     * range truncate replay is the only path that stamps them deleted. For drained tables the list
+     * was already cleared, so this is a no-op (apply nothing, clear nothing).
+     */
+    if (entries != NULL) {
+        for (i = 0; i < table_count; i++) {
+            WT_LAYERED_TABLE_MANAGER_ENTRY *e = entries[i];
+            if (e == NULL)
+                continue;
+            WT_TRET(__layered_apply_and_clear_truncates(session, e->layered_uri));
+        }
     }
-    /* Cleanup and release resources. */
-    __layered_drain_clear_work_queue(session);
+
+    bytes_after = WT_STAT_CONN_READ(conn->stats, block_byte_read);
+    if (t_start > 0)
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_INFO,
+          "Drain complete: %" WT_SIZET_FMT " table(s) drained_keys=%" PRIu64
+          " block_bytes_read=%" PRId64 " total_ms=%" PRIu64,
+          table_count, __wt_atomic_load_uint64(&conn->layered_drain_data.total_keys_drained),
+          bytes_after - bytes_before, WT_CLOCKDIFF_MS(__wt_clock(session), t_start));
+
+    if (lock_initialized)
+        __wt_spin_destroy(session, &conn->layered_drain_data.fix_prepared_lock);
+    __wt_free(session, entries);
     return (ret);
 }
 
