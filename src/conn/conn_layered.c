@@ -1634,7 +1634,11 @@ __disagg_follower_verify_latest_checkpoint(WT_SESSION_IMPL *session)
      * The metadata_lsn embedded in the checkpoint_metadata blob is the correct value to compare
      * against last_checkpoint_meta_lsn.
      */
-    WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_lsn", &cval), true);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
 
     latest_meta_lsn = (uint64_t)cval.val;
     last_checkpoint_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn);
