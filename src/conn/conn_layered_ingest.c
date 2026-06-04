@@ -708,35 +708,33 @@ __truncate_cmp_by_start_ts(const void *a, const void *b)
 
 /*
  * __layered_build_sorted_truncates --
- *     Create a sorted array of committed truncates from the table's truncate list.
+ *     Create a timestamp-sorted array of committed truncates from the table's truncate list.
  */
 static int
 __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
   WT_TRUNCATE ***sortedp, size_t *ntruncatesp)
 {
     WT_DECL_RET;
-    WT_TRUNCATE *t = NULL, **sorted = NULL;
-    size_t i = 0, ntruncates = 0;
+    WT_TRUNCATE *t, **sorted;
+    size_t i, ntruncates;
 
     *sortedp = NULL;
     *ntruncatesp = 0;
+    sorted = NULL;
+    i = ntruncates = 0;
 
     __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (t, &layered_table->truncateqh, q)
-        if (t->txn_id != WT_TXN_NONE)
+        if (__wt_atomic_load_bool_acquire(&t->committed))
             ++ntruncates;
-
-    /* Early exit if there are no committed truncates. */
     if (ntruncates == 0)
         goto err;
 
     WT_ERR(__wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted));
-    /* Populate the array with committed truncates. */
     TAILQ_FOREACH (t, &layered_table->truncateqh, q)
-        if (t->txn_id != WT_TXN_NONE)
+        if (__wt_atomic_load_bool_acquire(&t->committed))
             sorted[i++] = t;
 
-    /* Sort the array of committed truncates by start timestamp. */
     __wt_qsort(sorted, ntruncates, sizeof(WT_TRUNCATE *), __truncate_cmp_by_start_ts);
     *sortedp = sorted;
     *ntruncatesp = ntruncates;
