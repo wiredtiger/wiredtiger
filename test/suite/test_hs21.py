@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 # Test we don't lose any data when idle files with an active history are closed/sweeped.
 # Files with active history, ie content newer than the oldest timestamp can be closed when idle.
 # We want to ensure that when an active history file is idle closed we can continue reading the
-# correct version of data and their base write generation hasn't changed (since we haven't
+# correct version of data and their run write generation hasn't changed (since we haven't
 # restarted the system).
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_hs21(wttest.WiredTigerTestCase):
@@ -117,9 +117,9 @@ class test_hs21(wttest.WiredTigerTestCase):
             ds.populate()
             # Checkpoint to ensure we write the files metadata checkpoint value.
             self.session.checkpoint()
-            # Get the base write gen of the file so we can compare after the handles get closed.
-            base_write_gen = self.parse_run_write_gen(file_uri)
-            active_files.append((base_write_gen, ds))
+            # Get the run write gen of the file so we can compare after the handles get closed.
+            run_write_gen = self.parse_run_write_gen(file_uri)
+            active_files.append((run_write_gen, ds))
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -200,14 +200,15 @@ class test_hs21(wttest.WiredTigerTestCase):
 
         # Perform a series of checks over our files to ensure that our transactions have been written
         # before the dhandles were closed/sweeped.
-        # Also despite the dhandle is being re-opened, we don't expect the base write generation
-        # to have changed since we haven't actually restarted the system. This assumption only holds
-        # for non-disagg mode - in disagg, reopening may re-initialize the base write generation.
-        for idx, (initial_base_write_gen, ds) in enumerate(active_files):
+        # Also despite the dhandle being re-opened, (in non-disagg mode) we don't expect the run
+        # write generation to have changed since we haven't actually restarted the system.
+        # In disagg mode, the run_write_gen may need be updated anyways to maintain proper
+        # visibility.
+        for idx, (initial_run_write_gen, ds) in enumerate(active_files):
             # Check that the most recent transaction has the correct data.
             self.check(self.session, value2, ds.uri, self.nrows, 100)
             if not self.runningHook('disagg'):
-                # Get the current base_write_gen and ensure it hasn't changed since being closed.
+                # Get the current run_write_gen and ensure it hasn't changed since being closed.
                 file_uri = 'file:%s.%d.wt' % (self.file_name, idx)
-                base_write_gen = self.parse_run_write_gen(file_uri)
-                self.assertEqual(initial_base_write_gen, base_write_gen)
+                run_write_gen = self.parse_run_write_gen(file_uri)
+                self.assertEqual(initial_run_write_gen, run_write_gen)
