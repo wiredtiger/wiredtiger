@@ -624,9 +624,21 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
 
     /* Free any backing fast-truncate memory. */
 #ifdef HAVE_DIAGNOSTIC
-    if (ref->page_del != NULL)
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "fast-truncate block free (split): ref=%p", (void *)ref);
+    if (ref->page_del != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+        WT_ADDR_COPY __diag_addr;
+        WT_BLOCK_DISAGG_ADDRESS_COOKIE __diag_cookie;
+        const uint8_t *__diag_ptr;
+        if (__wt_ref_addr_copy(session, ref, &__diag_addr)) {
+            __diag_ptr = __diag_addr.addr;
+            if (__wt_block_disagg_addr_unpack(
+                  session, &__diag_ptr, __diag_addr.size, &__diag_cookie) == 0)
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "fast-truncate block free (split): ref=%p page_id=%" PRIu64
+                  " lsn=%" PRIu64 " base_lsn=%" PRIu64,
+                  (void *)ref, __diag_cookie.page_id, __diag_cookie.lsn,
+                  __diag_cookie.base_lsn);
+        }
+    }
 #endif
     __wt_free(session, ref->page_del);
 

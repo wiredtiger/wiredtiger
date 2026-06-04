@@ -34,8 +34,21 @@ __rec_child_deleted(
      */
     if (page_del == NULL) {
 #ifdef HAVE_DIAGNOSTIC
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "fast-truncate block free (page_del=NULL): ref=%p", (void *)ref);
+        if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+            WT_ADDR_COPY __diag_addr;
+            WT_BLOCK_DISAGG_ADDRESS_COOKIE __diag_cookie;
+            const uint8_t *__diag_ptr;
+            if (__wt_ref_addr_copy(session, ref, &__diag_addr)) {
+                __diag_ptr = __diag_addr.addr;
+                if (__wt_block_disagg_addr_unpack(
+                      session, &__diag_ptr, __diag_addr.size, &__diag_cookie) == 0)
+                    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "fast-truncate block free (page_del=NULL): ref=%p page_id=%" PRIu64
+                      " lsn=%" PRIu64 " base_lsn=%" PRIu64,
+                      (void *)ref, __diag_cookie.page_id, __diag_cookie.lsn,
+                      __diag_cookie.base_lsn);
+            }
+        }
 #endif
         return (__wt_ref_block_free(session, ref, true));
     }
@@ -187,8 +200,21 @@ __rec_child_deleted(
      * an entirely new page.)
      */
 #ifdef HAVE_DIAGNOSTIC
-    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "fast-truncate block free (visible_all): ref=%p", (void *)ref);
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+        WT_ADDR_COPY __diag_addr;
+        WT_BLOCK_DISAGG_ADDRESS_COOKIE __diag_cookie;
+        const uint8_t *__diag_ptr;
+        if (__wt_ref_addr_copy(session, ref, &__diag_addr)) {
+            __diag_ptr = __diag_addr.addr;
+            if (__wt_block_disagg_addr_unpack(
+                  session, &__diag_ptr, __diag_addr.size, &__diag_cookie) == 0)
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "fast-truncate block free (visible_all): ref=%p page_id=%" PRIu64
+                  " lsn=%" PRIu64 " base_lsn=%" PRIu64,
+                  (void *)ref, __diag_cookie.page_id, __diag_cookie.lsn,
+                  __diag_cookie.base_lsn);
+        }
+    }
 #endif
     WT_RET(__wt_ref_block_free(session, ref, true));
 

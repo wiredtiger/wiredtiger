@@ -1449,8 +1449,17 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             }
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 #ifdef HAVE_DIAGNOSTIC
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "proxy cell instantiated from disk: ref=%p", (void *)ref);
+            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+                WT_BLOCK_DISAGG_ADDRESS_COOKIE __diag_cookie;
+                const uint8_t *__diag_ptr = unpack.data;
+                if (__wt_block_disagg_addr_unpack(
+                      session, &__diag_ptr, unpack.size, &__diag_cookie) == 0)
+                    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "proxy cell instantiated from disk: ref=%p page_id=%" PRIu64
+                      " lsn=%" PRIu64 " base_lsn=%" PRIu64,
+                      (void *)ref, __diag_cookie.page_id, __diag_cookie.lsn,
+                      __diag_cookie.base_lsn);
+            }
 #endif
 
             /*
