@@ -682,16 +682,56 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             /*
              * Neither the local nor the shared metadata has a layered: entry for this table name.
              * This is the normal path for non-layered tables in shared storage and for file-only
-             * disaggregated entries. Update the file: entry's checkpoint information and insert any
-             * entries that are in the shared metadata but not yet in the local metadata.
+             * disaggregated entries.
              */
+
+            /* Skip the shared metadata file, as it has already been processed. */
             if (sh_has[WT_DISAGG_CURSOR_FILE] &&
-              strcmp(sh_keys[WT_DISAGG_CURSOR_FILE], WT_DISAGG_METADATA_URI) == 0) {
-                /*
-                 * Skip the shared metadata file, as it has already been processed.
-                 */
+              strcmp(sh_keys[WT_DISAGG_CURSOR_FILE], WT_DISAGG_METADATA_URI) == 0)
                 continue;
-            } else if (sh_has[WT_DISAGG_CURSOR_FILE] && !md_has[WT_DISAGG_CURSOR_FILE]) {
+
+            /*
+             * Process any table: entries for shared non-layered tables and for local-only tables
+             * This is uncommon, but it is used in WiredTiger's testing.
+             */
+            if (sh_has[WT_DISAGG_CURSOR_TABLE] && !md_has[WT_DISAGG_CURSOR_TABLE])
+                /*
+                 * Insert the shared table metadata into the local metadata. We could end up here if
+                 * the leader created a table: object without the corresponding layered: object by
+                 * specifying the disagg block manager.
+                 *
+                 * We do not check the metadata operations queue as we do for layered tables,
+                 * because we don't currently support the publish API for non-layered tables.
+                 */
+                WT_ERR(__disagg_insert_meta(
+                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor));
+            else if (!sh_has[WT_DISAGG_CURSOR_TABLE] && md_has[WT_DISAGG_CURSOR_TABLE])
+                /*
+                 * The local metadata has a table: entry but the shared metadata does not. This
+                 * happens for local (non-disaggregated) tables. We could also end up here if the
+                 * leader dropped a shared non-layered table. We currently don't handle this case.
+                 */
+                __wt_verbose_debug3(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Local table metadata for \"%s\" has no corresponding shared metadata", current);
+
+            /*
+             * Insert any colgroup: entries that are in the shared metadata but not yet in the local
+             * metadata. This is likewise uncommon, but it is used in WiredTiger's testing.
+             *
+             * If a table has more than one column group, it may arrive across multiple iterations.
+             * This is not supported by the publish API, but we should still handle it gracefully.
+             */
+            if (sh_has[WT_DISAGG_CURSOR_COLGROUP] && !md_has[WT_DISAGG_CURSOR_COLGROUP])
+                WT_ERR(__disagg_insert_meta(
+                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
+
+            /*
+             * Update the file: entry's checkpoint information and insert any entries that are in
+             * the shared metadata but not yet in the local metadata. This is, for example, how we
+             * handle the shared history store, which is a file: object without the corresponding
+             * table: or layered: object.
+             */
+            if (sh_has[WT_DISAGG_CURSOR_FILE] && !md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
                  * The shared metadata table has an entry for this file. Add it to the local
                  * metadata.
@@ -708,26 +748,18 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR(__disagg_update_file_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
                 ++existing_tables;
-            }
-
-            /*
-             * Insert any table: or colgroup: entries that are in the shared metadata but not yet in
-             * the local metadata. This is uncommon, but it is used in WiredTiger's testing.
-             *
-             * We could end up here if the leader created a table: object without the corresponding
-             * layered: object by specifying the disagg block manager. We do not support the publish
-             * API for such objects.
-             *
-             * If a table has more than one column group, it may arrive across multiple iterations.
-             * This is likewise not supported by the publish API, but we should still handle it
-             * gracefully.
-             */
-            if (sh_has[WT_DISAGG_CURSOR_TABLE] && !md_has[WT_DISAGG_CURSOR_TABLE])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor));
-            if (sh_has[WT_DISAGG_CURSOR_COLGROUP] && !md_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
+            } else if (!sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE])
+                /*
+                 * The local metadata has an entry for this file, but the shared metadata does not.
+                 * This happens for local (non-disaggregated) tables and btrees. Note that we should
+                 * not hit this case for the ingest components of layered tables, because we skipped
+                 * them right after advancing the cursors above.
+                 *
+                 * We could also end up here if the leader dropped a shared non-layered table or a
+                 * btree. We currently don't handle this case.
+                 */
+                __wt_verbose_debug3(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Local file metadata for \"%s\" has no corresponding shared metadata", current);
         }
     }
 
