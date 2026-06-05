@@ -1,0 +1,312 @@
+/*
+ * State dependency diagram for layered cursor test planning.
+ *
+ * Render with:
+ *   dot -Tsvg layered_cursor_states.dot -o layered_cursor_states.svg
+ *   dot -Tpng layered_cursor_states.dot -o layered_cursor_states.png
+ *
+ * Main flow runs top→bottom through the shaded clusters.
+ * Orthogonal multipliers live on the right; dashed arrows show which part of
+ * the main flow each multiplier cross-products with.  constraint=false on
+ * those edges keeps them from distorting the TB layout.
+ */
+
+digraph layered_cursor_states {
+
+    rankdir=TB;
+    compound=true;
+    nodesep=0.5;
+    ranksep=0.75;
+    fontname="Helvetica";
+
+    node [fontname="Helvetica", fontsize=10, style="filled,rounded", shape=box];
+    edge [fontname="Helvetica", fontsize=9];
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 1. ROLE  (top-level split)
+     * ───────────────────────────────────────────────────────────────── */
+
+    role [
+        label="Role",
+        shape=diamond,
+        fillcolor="#FFD54F",
+        style=filled,
+        width=1.4
+    ];
+
+    leader_defer [
+        label="Leader  (R-2)\n──────────────────\nstable cursor writable\ningest skipped for reads\n\nStep 6 – deferred",
+        shape=note,
+        style="filled,dashed",
+        fillcolor="#F5F5F5",
+        fontcolor="#888888"
+    ];
+
+    role -> leader_defer [style=dashed, color="#AAAAAA", label="R-2  Leader",
+                          constraint=false, minlen=1];
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 2. CONSTITUENT AVAILABILITY
+     * ───────────────────────────────────────────────────────────────── */
+
+    subgraph cluster_ca {
+        label="Constituent Availability";
+        labeljust=l;
+        style=filled;
+        fillcolor="#E3F2FD";
+
+        ca_both [
+            label="CA-1  Both open\ningest + stable cursors",
+            fillcolor="#BBDEFB"
+        ];
+        ca_ingest [
+            label="CA-2  Ingest only\n(no checkpoint yet)",
+            fillcolor="#BBDEFB"
+        ];
+    }
+
+    role -> ca_both  [label="R-1 Follower\n(checkpoint exists)"];
+    role -> ca_ingest [label="R-1 Follower\n(no checkpoint yet)"];
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 3. TABLE CONTENT
+     *    These four scenarios are mutually exclusive (one per test setup).
+     *    Each determines which single-key states (K-*) and range states
+     *    (R-*) are reachable.
+     * ───────────────────────────────────────────────────────────────── */
+
+    subgraph cluster_content {
+        label="Table Content  –  pick one per test setup";
+        labeljust=l;
+        style=filled;
+        fillcolor="#E8F5E9";
+
+        c_empty [
+            label="Both empty\n──────────────\nK-1  key not found\nR-3  empty iteration",
+            fillcolor="#C8E6C9"
+        ];
+        c_ingest [
+            label="Ingest has data, stable empty\n──────────────────────────\nK-2  live value in ingest\nK-3  tombstone in ingest\nR-4  iterate ingest only",
+            fillcolor="#C8E6C9"
+        ];
+        c_stable [
+            label="Stable has data, ingest empty\n──────────────────────────\nK-4  live value in stable\nR-5  iterate stable only",
+            fillcolor="#C8E6C9"
+        ];
+        c_both [
+            label="Both have data\n(key distribution below)",
+            fillcolor="#A5D6A7"
+        ];
+    }
+
+    ca_both   -> c_empty;
+    ca_both   -> c_ingest;
+    ca_both   -> c_stable;
+    ca_both   -> c_both;
+    ca_ingest -> c_ingest [label="stable cursor\nnot open"];
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 4. KEY DISTRIBUTION  (expansion of c_both only)
+     *    These four scenarios are mutually exclusive within the
+     *    "both have data" case.
+     * ───────────────────────────────────────────────────────────────── */
+
+    subgraph cluster_keydist {
+        label="Key Distribution  (when both non-empty)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#F3E5F5";
+
+        kd_disjoint [
+            label="Disjoint ranges\n──────────────────────────\nR-6  all ingest keys < all stable\nR-7  all stable keys < all ingest",
+            fillcolor="#E1BEE7"
+        ];
+        kd_interleaved [
+            label="Interleaved\n──────────────────────────\nR-8  keys alternate between\n       ingest and stable",
+            fillcolor="#E1BEE7"
+        ];
+        kd_overlap [
+            label="Same keys in both\n──────────────────────────\nK-5  ingest wins (same value)\nK-6  ingest wins (different value)\nR-9  ingest wins every merge step",
+            fillcolor="#CE93D8"
+        ];
+        kd_shadow [
+            label="Partial overlap + ingest tombstones\n──────────────────────────────────\nK-7  tombstone shadows stable value  ← KEY invariant\nK-8  truncate list hides stable key\nK-9  double deletion\nR-10, R-11  tombstones skipped in iteration",
+            fillcolor="#BA68C8",
+            fontcolor="#FFFFFF"
+        ];
+    }
+
+    c_both -> kd_disjoint;
+    c_both -> kd_interleaved;
+    c_both -> kd_overlap;
+    c_both -> kd_shadow;
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 5. CURSOR POSITION STATE
+     *    All content scenarios produce a fresh cursor on open.
+     *    The test then runs an operation and lands in one of these states.
+     * ───────────────────────────────────────────────────────────────── */
+
+    subgraph cluster_pos {
+        label="Cursor Position State  (after running an operation)";
+        labeljust=l;
+        style=filled;
+        fillcolor="#FFF9C4";
+
+        p_fresh [
+            label="P-1  Fresh / unpositioned\ncursor just opened or reset\nno KEY_INT, no KEY_EXT",
+            fillcolor="#FFF176"
+        ];
+        p_search [
+            label="P-2  After search()\nKEY_INT + VALUE_INT set\ncurrent_cursor = ingest or stable",
+            fillcolor="#FFF176"
+        ];
+        p_iter [
+            label="P-3..P-6  During next() / prev()\nKEY_INT + VALUE_INT\n+ ITERATE_NEXT or ITERATE_PREV",
+            fillcolor="#FFF176"
+        ];
+        p_exhausted [
+            label="P-9, P-10  One constituent exhausted\ncurrent_cursor stays on the live one\n(needs asymmetric content: S-8 or S-9)",
+            fillcolor="#F9A825"
+        ];
+    }
+
+    /* All four content scenarios → fresh cursor */
+    c_empty        -> p_fresh [label="open cursor"];
+    c_ingest       -> p_fresh [label="open cursor"];
+    c_stable       -> p_fresh [label="open cursor"];
+    kd_disjoint    -> p_fresh [label="open cursor"];
+    kd_interleaved -> p_fresh [label="open cursor"];
+    kd_overlap     -> p_fresh [label="open cursor"];
+    kd_shadow      -> p_fresh [label="open cursor"];
+
+    p_fresh -> p_search    [label="search()"];
+    p_fresh -> p_iter      [label="next() /\nprev()"];
+    p_iter  -> p_exhausted [label="keep iterating\npast last key\nin one constituent"];
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 6. ITERATION DIRECTION  (subcases of p_iter)
+     * ───────────────────────────────────────────────────────────────── */
+
+    subgraph cluster_dir {
+        label="Iteration Direction";
+        labeljust=l;
+        style=filled;
+        fillcolor="#FCE4EC";
+
+        d_fwd [
+            label="D-1, D-3  Forward only\nnext() sequences",
+            fillcolor="#F8BBD0"
+        ];
+        d_back [
+            label="D-2, D-4  Backward only\nprev() sequences",
+            fillcolor="#F8BBD0"
+        ];
+        d_rev [
+            label="D-5, D-6  Direction reversal\nnext() after prev()  or  vice versa\nforces reposition of alternate cursor\nvia __clayered_position_alternate",
+            fillcolor="#F48FB1"
+        ];
+    }
+
+    p_iter -> d_fwd;
+    p_iter -> d_back;
+    d_fwd  -> d_rev [label="then prev()"];
+    d_back -> d_rev [label="then next()"];
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 7. OUTPUT INVARIANTS  (assert after every operation)
+     * ───────────────────────────────────────────────────────────────── */
+
+    out [
+        label="Assert after each op\n──────────────────────────────────────\n• current_cursor == ingest or stable  (CC-1..CC-7)\n• KEY_INT + VALUE_INT set on success\n• neither KEY_INT nor KEY_EXT on not-found\n• value bytes from the winning constituent\n• ITERATE_* flag matches requested direction\n• return code: 0 or WT_NOTFOUND as expected",
+        shape=note,
+        fillcolor="#B2EBF2",
+        style=filled
+    ];
+
+    p_search    -> out;
+    p_iter      -> out;
+    p_exhausted -> out;
+    d_rev       -> out;
+
+    /* ─────────────────────────────────────────────────────────────────
+     * 8. ORTHOGONAL MULTIPLIERS
+     *    Each multiplier is independent of the others and of the main
+     *    flow above.  Apply as a full cross-product with the cluster
+     *    indicated by each dashed arrow.  constraint=false prevents
+     *    these edges from affecting the TB layout of the main flow.
+     * ───────────────────────────────────────────────────────────────── */
+
+    subgraph cluster_ortho {
+        label="Orthogonal Multipliers\neach × the target cluster  (full cross-product)";
+        labeljust=l;
+        style="filled,dashed";
+        fillcolor="#FAFAFA";
+        fontcolor="#555555";
+
+        o_size [
+            label="S-1..S-9  Size classes\n──────────────────────\n0 · 1 · 2–5 · >100 elements\nAsymmetric (large×small)\n× all content scenarios",
+            shape=note, fillcolor="#EEEEEE"
+        ];
+        o_txn [
+            label="T-1..T-7  Transaction context\n──────────────────────\nImplicit (auto-commit)\nExplicit begin/commit\nWith read_timestamp\nSnapshot gen changes between ops\nRead-committed isolation\n× all operations",
+            shape=note, fillcolor="#EEEEEE"
+        ];
+        o_bounds [
+            label="B-1..B-5  Cursor bounds\n──────────────────────\nNone · lower · upper · both\nMust survive stable cursor reopen\n× iteration states",
+            shape=note, fillcolor="#EEEEEE"
+        ];
+        o_encoding [
+            label="E-1..E-4  Tombstone value encoding\n──────────────────────\nNormal value\nValue starting with tombstone bytes\n  (escaped on write, unescaped on read)\nEmpty value (must not look like tombstone)\n× insert / update operations",
+            shape=note, fillcolor="#EEEEEE"
+        ];
+        o_ckpt [
+            label="CK-1..CK-5  Checkpoint advancement\n──────────────────────\nNo checkpoint (stable cursor NULL)\nCurrent checkpoint (no reopen)\nNew checkpoint → reopen triggered\nReopen with stable cursor positioned\n  → position preserved or cleared\n× follower + CA-1",
+            shape=note, fillcolor="#EEEEEE"
+        ];
+        o_trunclist [
+            label="TL-1..TL-6  Truncate list visibility\n──────────────────────\nEmpty list\nCommitted entry covers searched key\nUncommitted entry (key still visible)\nEntry not covering searched key\nOverlapping committed entries\nEntry at stable cursor position during scan\n× stable lookups and scans",
+            shape=note, fillcolor="#EEEEEE"
+        ];
+    }
+
+    /*
+     * Invisible anchoring edges pull the ortho cluster to the vertical midpoint
+     * of the main flow (around the content/key-distribution level) without
+     * adding a visible arrow.
+     */
+    c_both -> o_size     [style=invis];
+    p_fresh -> o_txn     [style=invis];
+    p_iter  -> o_bounds  [style=invis];
+    p_fresh -> o_encoding [style=invis];
+    ca_both -> o_ckpt    [style=invis];
+    kd_shadow -> o_trunclist [style=invis];
+
+    /*
+     * Dashed arrows into the main flow.  lhead=cluster_X makes the arrowhead
+     * land on the cluster boundary rather than an interior node.
+     * constraint=false keeps the ortho cluster from further distorting the layout.
+     */
+    o_size      -> c_empty    [style=dashed, color="#999999",
+                                label="× content\nscenarios",
+                                lhead=cluster_content,
+                                constraint=false];
+    o_txn       -> p_fresh    [style=dashed, color="#999999",
+                                label="× all ops",
+                                lhead=cluster_pos,
+                                constraint=false];
+    o_bounds    -> d_fwd      [style=dashed, color="#999999",
+                                label="× iteration",
+                                lhead=cluster_dir,
+                                constraint=false];
+    o_encoding  -> c_ingest   [style=dashed, color="#999999",
+                                label="× insert /\nupdate ops",
+                                constraint=false];
+    o_ckpt      -> ca_both    [style=dashed, color="#999999",
+                                label="× follower\n+ CA-1",
+                                lhead=cluster_ca,
+                                constraint=false];
+    o_trunclist -> kd_shadow  [style=dashed, color="#999999",
+                                label="× stable\nlookup / scan",
+                                constraint=false];
+}
