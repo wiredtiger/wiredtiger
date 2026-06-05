@@ -384,14 +384,69 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertIn('%08d' % (self.nentries - 1), emitted)
         self.assertLess(len(emitted), self.nentries)
 
-    # Multi-URI continuation and wide-corruption / subtree-skip tests
-    # were drafted but removed: multi-URI dump requires JSON output
-    # (util_dump.c rejects multiple URIs in non-JSON mode) so the
-    # per-URI continue path is unreachable today; wide corruption
-    # typically also damages blocks read during dhandle open and the
-    # end-of-file extent lists, which the current session-level quiet
-    # mechanism cannot suppress (a connection-level quiet flag is
-    # needed to handle dhandle-open failures gracefully).
+    # ---------- multi-URI -q -j continuation across corrupt-root tables ----------
+
+    def test_dump_q_j_multi_uri_skips_corrupt_root_table(self):
+        # Build 3 tables, corrupt the middle one's root (so its open_cursor
+        # returns WT_ERROR), run wt -q dump -j across all three. Expect:
+        #   1. rc == 1 (graceful non-zero, one table was skipped)
+        #   2. stdout is valid JSON
+        #   3. The corrupt table is absent from the JSON
+        #   4. The two clean tables are present with their full record sets
+        #   5. stderr has the per-URI "cursor open(...) failed" line
+        # Pins the contract that multi-URI dump under -q + -j survives a
+        # corrupt-root table by skipping it and continuing.
+        self.skip_test_if_disagg()
+        import re
+        import json
+        # Need a layout that places the root at a predictable offset.
+        # The page-size knobs match the test_util_read_corrupt fixture but
+        # we use only ~50 records per table so the root lands on the file's
+        # last few KB and is easy to overwrite without touching leaves.
+        for t in ('A', 'B', 'C'):
+            self.session.create('table:demo' + t,
+                'key_format=S,value_format=S,'
+                'allocation_size=512,leaf_page_max=512,internal_page_max=512')
+            cur = self.session.open_cursor('table:demo' + t, None, None)
+            for i in range(500):
+                cur['%s_k%04d' % (t, i)] = '%s_v_%04d' % (t, i)
+            cur.close()
+        self.session.checkpoint()
+        self.close_conn()
+
+        # Find the root for the middle table via verify -d dump_address.
+        import subprocess
+        out = subprocess.run(
+            [self._wt_path(), 'verify', '-d', 'dump_address', 'table:demoB'],
+            capture_output=True, text=True).stdout
+        m = re.search(r'addr: \[0: (\d+)-(\d+), \d+, \d+\]', out)
+        root_start, root_end = int(m.group(1)), int(m.group(2))
+        with open('demoB.wt', 'r+b') as f:
+            f.seek(root_start)
+            f.write(b'\xde\xad\xbe\xef' * ((root_end - root_start) // 4))
+
+        # Run multi-URI -q dump -j.
+        argv = [self._wt_path(), '-q', 'dump', '-j',
+                'table:demoA', 'table:demoB', 'table:demoC']
+        with open('multi_q.out', 'w') as o, open('multi_q.err', 'w') as e:
+            rc = subprocess.call(argv, stdout=o, stderr=e)
+        self.assertEqual(rc, 1, 'multi-URI -q dump rc=%d, expected 1' % rc)
+        with open('multi_q.err') as f:
+            err = f.read()
+        self.assertIn('cursor open(table:demoB) failed', err,
+            'expected per-URI open failure logged on stderr for demoB')
+        with open('multi_q.out') as f:
+            doc = json.load(f)   # raises if JSON is malformed
+        tables = sorted(k for k in doc if k.startswith('table:'))
+        self.assertEqual(tables, ['table:demoA', 'table:demoC'],
+            'expected demoA and demoC present, demoB absent; got %r' % tables)
+        for t in ('A', 'C'):
+            records = doc['table:demo' + t][1]['data']
+            keys = [r['key0'] for r in records]
+            self.assertEqual(len(keys), 500,
+                '%s expected 500 records, got %d' % (t, len(keys)))
+            self.assertEqual(keys[0], '%s_k0000' % t)
+            self.assertEqual(keys[-1], '%s_k0499' % t)
 
     # ---------- dump_record return-code regressions (no corruption) outside scope ----------
 
