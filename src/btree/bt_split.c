@@ -2351,6 +2351,14 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
           &parent_incr, i == 0, closing));
 
     /*
+     * Check before publishing: each disaggregated child must be re-instantiated in memory.
+     * Once the new refs are published to other threads the state can change.
+     */
+    for (i = 0; i < new_entries; ++i)
+        WT_ASSERT(session,
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM);
+
+    /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
@@ -2361,12 +2369,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      *
      * Finalize the move, discarding moved update lists from the original page.
      */
-    for (i = 0; i < new_entries; ++i) {
+    for (i = 0; i < new_entries; ++i)
         __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
-        /* A non-closing disaggregated child must be re-instantiated in memory. */
-        WT_ASSERT(session,
-          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM);
-    }
 
     /*
      * Page with changes not written in this reconciliation is not marked as clean, do it now, then
