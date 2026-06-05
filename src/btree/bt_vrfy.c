@@ -35,6 +35,18 @@ typedef struct {
     bool dump_pages;
     bool read_corrupt;
 
+    /*
+     * Uncompressed size accounting, accumulated per checkpoint and reported as a database-level
+     * summary for the most recent checkpoint. Only collected when the "log_size" option is set, and
+     * only meaningful for row-store objects.
+     */
+    bool log_size;
+    uint64_t leaf_cnt, internal_cnt, overflow_cnt;
+    uint64_t leaf_mem, internal_mem, overflow_mem;
+    uint64_t key_bytes, value_bytes;
+    uint64_t key_prefix_savings; /* Logical key bytes elided by prefix compression. */
+    uint64_t fullness_leaf[11], fullness_internal[11];
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -93,6 +105,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "log_size", &cval));
+    vs->log_size = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
     vs->read_corrupt = cval.val != 0;
@@ -189,6 +204,97 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
             vs->depth_leaf[i] = 0;
         }
     return (0);
+}
+
+/*
+ * __dump_size --
+ *     Report the database-level uncompressed size breakdown: overhead bytes versus user data, and
+ *     page-fullness relative to the target page sizes.
+ */
+static int
+__dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
+{
+    WT_BTREE *btree;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    size_t i;
+    uint64_t internal_cap, leaf_cap, leaf_fullness, overhead, overhead_pct, physical_user,
+      total_mem, user_data;
+
+    btree = S2BT(session);
+
+    total_mem = vs->leaf_mem + vs->internal_mem + vs->overflow_mem;
+
+    /*
+     * Keys are counted at their logical (pre-prefix-compression) length, so user data is the data
+     * the application stored. Overhead is structural (page headers, cell descriptors, validity
+     * windows, internal and overflow pages, free space), which only exists in the page image, so it
+     * is measured against the bytes physically present: the elided key-prefix bytes are a
+     * compression saving, not present in the image, and excluding them keeps overhead non-negative.
+     */
+    user_data = vs->key_bytes + vs->value_bytes;
+    physical_user = (vs->key_bytes - vs->key_prefix_savings) + vs->value_bytes;
+    overhead = total_mem > physical_user ? total_mem - physical_user : 0;
+    leaf_cap = vs->leaf_cnt * (uint64_t)btree->maxleafpage;
+    internal_cap = vs->internal_cnt * (uint64_t)btree->maxintlpage;
+    /* Leaf fullness and overhead are reported to two decimals, so carry them as hundredths of a
+     * percent. */
+    leaf_fullness = leaf_cap == 0 ? 0 : (vs->leaf_mem * 10000) / leaf_cap;
+    overhead_pct = user_data == 0 ? 0 : (overhead * 10000) / user_data;
+
+    /*
+     * The headline summary always goes to the application via the message handler: user data, the
+     * total image size, leaf-page fullness, and overhead. The full breakdown (per-page-type counts
+     * and bytes, overhead bytes, and the fullness histograms) is only of interest when debugging,
+     * so it is logged at the verify verbose level.
+     */
+    WT_RET(__wt_msg(session,
+      "%s: Size metrics (uncompressed image): data bytes=%" PRIu64 ", total bytes=%" PRIu64
+      ", leaf fullness=%" PRIu64 ".%02" PRIu64 "%%, overhead=%" PRIu64 ".%02" PRIu64
+      "%% of user data",
+      session->dhandle->name, user_data, total_mem, leaf_fullness / 100, leaf_fullness % 100,
+      overhead_pct / 100, overhead_pct % 100));
+
+    if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
+        return (0);
+
+    /* The detail line is a single comma-separated message, not a multi-line block. */
+    WT_RET(__wt_scr_alloc(session, 0, &buf));
+
+    WT_ERR(__wt_buf_fmt(session, buf,
+      "%s: Size metrics detail: leaf pages=%" PRIu64 ", internal pages=%" PRIu64
+      ", overflow pages=%" PRIu64 ", key bytes=%" PRIu64 " (logical), value bytes=%" PRIu64
+      ", prefix-compression savings=%" PRIu64 ", overhead bytes=%" PRIu64,
+      session->dhandle->name, vs->leaf_cnt, vs->internal_cnt, vs->overflow_cnt, vs->key_bytes,
+      vs->value_bytes, vs->key_prefix_savings, overhead));
+
+    if (user_data != 0)
+        WT_ERR(__wt_buf_catfmt(session, buf,
+          ", overhead=%" PRIu64 "%% of user data (logical; prefix-compression savings excluded)",
+          (overhead * 100) / user_data));
+
+    if (internal_cap != 0)
+        WT_ERR(
+          __wt_buf_catfmt(session, buf, ", avg internal fullness=%" PRIu64 "%% of %" PRIu32 "B",
+            (vs->internal_mem * 100) / internal_cap, btree->maxintlpage));
+
+    /* Fullness deciles (last bucket is >=100%); printed inline as "<decile>%:<page count>". */
+    WT_ERR(__wt_buf_catfmt(session, buf, ", leaf fullness deciles="));
+    for (i = 0; i < WT_ELEMENTS(vs->fullness_leaf); ++i)
+        if (vs->fullness_leaf[i] != 0)
+            WT_ERR(__wt_buf_catfmt(
+              session, buf, " %" WT_SIZET_FMT "0%%:%" PRIu64, i, vs->fullness_leaf[i]));
+    WT_ERR(__wt_buf_catfmt(session, buf, ", internal fullness deciles="));
+    for (i = 0; i < WT_ELEMENTS(vs->fullness_internal); ++i)
+        if (vs->fullness_internal[i] != 0)
+            WT_ERR(__wt_buf_catfmt(
+              session, buf, " %" WT_SIZET_FMT "0%%:%" PRIu64, i, vs->fullness_internal[i]));
+
+    __wt_verbose(session, WT_VERB_VERIFY, "%s", (const char *)buf->data);
+
+err:
+    __wt_scr_free(session, &buf);
+    return (ret);
 }
 
 /*
@@ -584,6 +690,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         /* Display the tree shape. */
         if (vs->dump_layout)
             WT_ERR(__dump_layout(session, vs));
+
+        /*
+         * The checkpoints are in time-order; report the size summary only for the most recent one,
+         * which reflects the current on-disk shape of the database.
+         */
+        if (vs->log_size && (ckpt + 1)->name == NULL)
+            WT_ERR(__dump_size(session, vs));
     }
 
 done:
@@ -627,6 +740,14 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
 
     /* Accumulated size of all blocks in the btree. */
     vs->total_block_size = 0;
+
+    /* Size metrics are accumulated per checkpoint. */
+    vs->leaf_cnt = vs->internal_cnt = vs->overflow_cnt = 0;
+    vs->leaf_mem = vs->internal_mem = vs->overflow_mem = 0;
+    vs->key_bytes = vs->value_bytes = 0;
+    vs->key_prefix_savings = 0;
+    memset(vs->fullness_leaf, 0, sizeof(vs->fullness_leaf));
+    memset(vs->fullness_internal, 0, sizeof(vs->fullness_internal));
 }
 
 /*
@@ -772,6 +893,14 @@ __stat_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uin
 }
 
 /*
+ * Overflow item kinds, identifying what an overflow page's payload represents for the size summary.
+ * Only leaf key/value payloads are user data; internal-page overflow keys are tree overhead.
+ */
+#define WT_VRFY_OVFL_OVERHEAD 0
+#define WT_VRFY_OVFL_KEY 1
+#define WT_VRFY_OVFL_VALUE 2
+
+/*
  * __tree_stack --
  *     Format page tree stack.
  */
@@ -810,6 +939,7 @@ __verify_tree(
     WT_PAGE *page;
     WT_REF *child_ref;
     size_t my_stack_level, next_stack_level;
+    uint64_t fullness_bucket, page_max, page_mem;
     uint32_t entry;
 
     btree = S2BT(session);
@@ -972,6 +1102,32 @@ __verify_tree(
                 break;
             default:
                 break; /* Shouldn't even be here */
+            }
+        }
+
+        /*
+         * Accumulate page counts, sizes, and fullness for the database-level summary, measured from
+         * the on-disk page image (dsk->mem_size, the bytes the image occupies when instantiated).
+         * This block runs only when a disk image exists: a page created in memory and never written
+         * has a NULL dsk and no on-disk footprint, so it is skipped and has no bearing on fullness.
+         * Verify is expected to run against a quiescent, non-live database. Internal pages are pure
+         * overhead; leaf key and value bytes are accumulated from the same image in the
+         * page-content checks above, piggybacking on their cell walks.
+         */
+        if (vs->log_size) {
+            page_mem = page->dsk->mem_size;
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+                ++vs->internal_cnt;
+                vs->internal_mem += page_mem;
+                page_max = btree->maxintlpage;
+                fullness_bucket = page_max == 0 ? 0 : WT_MIN((page_mem * 10) / page_max, 10);
+                ++vs->fullness_internal[fullness_bucket];
+            } else {
+                ++vs->leaf_cnt;
+                vs->leaf_mem += page_mem;
+                page_max = btree->maxleafpage;
+                fullness_bucket = page_max == 0 ? 0 : WT_MIN((page_mem * 10) / page_max, 10);
+                ++vs->fullness_leaf[fullness_bucket];
             }
         }
     }
@@ -1272,7 +1428,8 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
  *     Read in an overflow page and check it.
  */
 static int
-__verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_VSTUFF *vs)
+__verify_overflow(
+  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, int kind, WT_VSTUFF *vs)
 {
     WT_BM *bm;
     const WT_PAGE_HEADER *dsk;
@@ -1293,6 +1450,22 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
     if (dsk->type != WT_PAGE_OVFL)
         WT_RET_MSG(session, WT_ERROR, "overflow referenced page at %s is not an overflow page",
           __wt_addr_string(session, addr, addr_size, vs->tmp1));
+
+    /*
+     * Count the overflow page against the totals. The payload (datalen) is user data when it backs
+     * a leaf key or value; the page header and the on-page cookie are overhead. The cookie lives on
+     * the referencing page and is already part of that page's image.
+     */
+    if (vs->log_size) {
+        ++vs->overflow_cnt;
+        vs->overflow_mem += dsk->mem_size;
+        if (S2BT(session)->type == BTREE_ROW) {
+            if (kind == WT_VRFY_OVFL_KEY)
+                vs->key_bytes += dsk->u.datalen;
+            else if (kind == WT_VRFY_OVFL_VALUE)
+                vs->value_bytes += dsk->u.datalen;
+        }
+    }
 
     WT_RET(bm->verify_addr(bm, session, addr, addr_size));
     return (0);
@@ -1452,7 +1625,8 @@ __verify_page_content_int(
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
-            if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
+            if ((ret = __verify_overflow(
+                   session, unpack.data, unpack.size, WT_VRFY_OVFL_OVERHEAD, vs)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
@@ -1529,13 +1703,34 @@ __verify_page_content_leaf(
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
             found_ovfl = true;
-            if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
+            if ((ret = __verify_overflow(session, unpack.data, unpack.size,
+                   unpack.type == WT_CELL_KEY_OVFL ? WT_VRFY_OVFL_KEY : WT_VRFY_OVFL_VALUE, vs)) !=
+              0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
                   __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
             break;
+        }
+
+        /*
+         * Accumulate user data bytes for the size summary, piggybacking on this walk. Row-store
+         * only; overflow payloads are counted against their pages in __verify_overflow above.
+         *
+         * Keys are prefix-compressed on the page: the cell stores only the suffix that follows the
+         * bytes shared with the preceding key. Reconstruct the logical key length by adding back
+         * the shared-prefix count (unpack.prefix), which the unpack already provides, so the figure
+         * reflects the key the application stored rather than its compressed on-page footprint. The
+         * elided prefix bytes are a compression saving, not part of the page image, so user data
+         * can legitimately exceed the bytes physically present.
+         */
+        if (vs->log_size && page->type == WT_PAGE_ROW_LEAF) {
+            if (unpack.type == WT_CELL_KEY) {
+                vs->key_bytes += unpack.prefix + unpack.size;
+                vs->key_prefix_savings += unpack.prefix;
+            } else if (unpack.type == WT_CELL_VALUE)
+                vs->value_bytes += unpack.size;
         }
 
         switch (unpack.type) {
