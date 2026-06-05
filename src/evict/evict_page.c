@@ -664,7 +664,10 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * to the page and rewrite it in memory.
          */
         if (mod->mod_multi_entries == 1) {
-            WT_ASSERT(session, closing == false);
+            WT_ASSERT(session, !closing);
+            /* A disaggregated page must have a retained image to re-instantiate from. */
+            WT_ASSERT(
+              session, ref->page->disagg_info == NULL || mod->mod_multi[0].disk_image != NULL);
             WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
@@ -691,6 +694,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             } else
                 WT_ASSERT(
                   session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
+            /* A non-closing disaggregated page must be re-instantiated, not discarded to disk. */
+            WT_ASSERT(session, ref->page->disagg_info == NULL || closing);
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);

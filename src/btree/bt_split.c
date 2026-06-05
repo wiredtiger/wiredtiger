@@ -2361,8 +2361,12 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      *
      * Finalize the move, discarding moved update lists from the original page.
      */
-    for (i = 0; i < new_entries; ++i)
+    for (i = 0; i < new_entries; ++i) {
         __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
+        /* A non-closing disaggregated child must be re-instantiated in memory. */
+        WT_ASSERT(session,
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM);
+    }
 
     /*
      * Page with changes not written in this reconciliation is not marked as clean, do it now, then
