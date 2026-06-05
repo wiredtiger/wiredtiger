@@ -3182,7 +3182,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 if (F_ISSET(r, WT_REC_SCRUB)) {
                     mod->mod_disk_image = r->multi->disk_image;
                     r->multi->disk_image = NULL;
-                }
+                } else
+                    WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT));
             }
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
