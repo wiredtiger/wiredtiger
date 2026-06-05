@@ -1103,60 +1103,6 @@ err:
 }
 
 /*
- * __conn_check_early_load_extensions --
- *     Detect every early_load=true extension in the base configuration file that was not also
- *     passed to the open call.
- */
-static int
-__conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
-{
-    WT_CONFIG subconfig;
-    WT_CONFIG_ITEM cval, skey, sval;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(exconfig);
-    WT_DECL_RET;
-    WT_DLH *dlh;
-    const char *sub_cfg[] = {WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL};
-    bool strict;
-
-    conn = S2C(session);
-    WT_ERR(__wt_config_gets(session, cfg, "extensions_strict", &cval));
-    strict = cval.val != 0;
-
-    WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
-    WT_ERR(__wt_config_gets(session, cfg, "extensions", &cval));
-    __wt_config_subinit(session, &subconfig, &cval);
-    while ((ret = __wt_config_next(&subconfig, &skey, &sval)) == 0) {
-        if (sval.len == 0)
-            continue;
-        WT_ERR(__wt_buf_fmt(session, exconfig, "%.*s", (int)sval.len, sval.str));
-        sub_cfg[1] = exconfig->data;
-        WT_ERR(__wt_config_gets(session, sub_cfg, "early_load", &cval));
-        if (cval.val == 0)
-            continue;
-
-        TAILQ_FOREACH (dlh, &conn->dlhqh, q)
-            if (dlh->name != NULL && WT_CONFIG_MATCH(dlh->name, skey))
-                break;
-        if (dlh == NULL) {
-            if (strict)
-                WT_ERR_MSG(session, EINVAL,
-                  "early_load=true extension \"%.*s\" was not passed in the open configuration",
-                  (int)skey.len, skey.str);
-            else
-                __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
-                  "early_load=true extension \"%.*s\" was not passed in the open configuration",
-                  (int)skey.len, skey.str);
-        }
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-err:
-    __wt_scr_free(session, &exconfig);
-    return (ret);
-}
-
-/*
  * __conn_get_home --
  *     WT_CONNECTION.get_home method.
  */
@@ -2935,7 +2881,6 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
       "encryption=(secretkey=),"
       "error_prefix=,"
       "exclusive=,"
-      "extensions_strict=,"
       "in_memory=,"
       "log=(recover=),"
       "readonly=,"
@@ -3478,9 +3423,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Merge the full configuration stack and save it for reconfiguration.
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
-
-    /* Verify that the early-loaded extensions in basecfg were also passed in. */
-    WT_ERR(__conn_check_early_load_extensions(session, cfg));
 
     /*
      * Read-only and in-memory settings may have been set in a configuration file (not optimal, but
