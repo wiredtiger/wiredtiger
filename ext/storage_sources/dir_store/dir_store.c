@@ -72,7 +72,7 @@ typedef struct {
     uint32_t rand_w, rand_z;
 
     /*
-     * Locks are used to protect the file handle queue and flush queue.
+     * Locks are used to protect the file handle and file system queues.
      */
     pthread_rwlock_t file_handle_lock;
 
@@ -101,12 +101,13 @@ typedef struct {
     uint64_t read_ops;
     uint64_t write_ops;
 
-    /* Queue of file handles */
+    /* Queues of file handles and file systems. */
     TAILQ_HEAD(dir_store_file_handle_qh, dir_store_file_handle) fileq;
+    TAILQ_HEAD(dir_store_file_system_qh, dir_store_file_system) fsq;
 
 } DIR_STORE;
 
-typedef struct {
+typedef struct dir_store_file_system {
     /* Must come first - this is the interface for the file system we are implementing. */
     WT_FILE_SYSTEM file_system;
     DIR_STORE *dir_store;
@@ -118,6 +119,8 @@ typedef struct {
     char *bucket_dir;     /* Directory that stands in for cloud storage bucket */
     char *cache_dir;      /* Directory for cached objects */
     const char *home_dir; /* Owned by the connection */
+
+    TAILQ_ENTRY(dir_store_file_system) q; /* Queue of file systems */
 } DIR_STORE_FILE_SYSTEM;
 
 typedef struct dir_store_file_handle {
@@ -629,6 +632,19 @@ dir_store_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *s
     fs->file_system.fs_size = dir_store_size;
     fs->file_system.terminate = dir_store_fs_terminate;
 
+    if ((ret = pthread_rwlock_wrlock(&dir_store->file_handle_lock)) != 0) {
+        ret = dir_store_err(dir_store, session, ret, "customize_file_system: rwlock_wrlock");
+        goto err;
+    }
+
+    TAILQ_INSERT_HEAD(&dir_store->fsq, fs, q);
+
+    if ((ret = pthread_rwlock_unlock(&dir_store->file_handle_lock)) != 0) {
+        TAILQ_REMOVE(&dir_store->fsq, fs, q);
+        ret = dir_store_err(dir_store, session, ret, "customize_file_system: rwlock_unlock");
+        goto err;
+    }
+
 err:
     if (ret == 0)
         *file_systemp = &fs->file_system;
@@ -1021,18 +1037,28 @@ err:
 static int
 dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
+    DIR_STORE *dir_store;
     DIR_STORE_FILE_SYSTEM *dir_store_fs;
-
-    (void)session; /* unused */
+    int ret;
 
     dir_store_fs = (DIR_STORE_FILE_SYSTEM *)file_system;
-    FS2DS(file_system)->op_count++;
+    dir_store = FS2DS(file_system);
+    dir_store->op_count++;
+
+    if ((ret = pthread_rwlock_wrlock(&dir_store->file_handle_lock)) != 0)
+        return (dir_store_err(dir_store, session, ret, "fs_terminate: rwlock_wrlock"));
+
+    TAILQ_REMOVE(&dir_store->fsq, dir_store_fs, q);
+
+    if ((ret = pthread_rwlock_unlock(&dir_store->file_handle_lock)) != 0)
+        ret = dir_store_err(dir_store, session, ret, "fs_terminate: rwlock_unlock");
+
     free(dir_store_fs->auth_token);
     free(dir_store_fs->bucket_dir);
     free(dir_store_fs->cache_dir);
     free(file_system);
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1306,6 +1332,7 @@ static int
 dir_store_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 {
     DIR_STORE_FILE_HANDLE *dir_store_fh, *safe_fh;
+    DIR_STORE_FILE_SYSTEM *dir_store_fs, *safe_fs;
     DIR_STORE *dir_store;
     int ret;
 
@@ -1319,13 +1346,21 @@ dir_store_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
 
     /*
      * We should be single threaded at this point, so it is safe to destroy the lock and access the
-     * file handle list without locking it.
+     * file handle and file system queues without locking.
      */
     if ((ret = pthread_rwlock_destroy(&dir_store->file_handle_lock)) != 0)
         (void)dir_store_err(dir_store, session, ret, "terminate: pthread_rwlock_destroy");
 
     TAILQ_FOREACH_SAFE(dir_store_fh, &dir_store->fileq, q, safe_fh)
     dir_store_file_close_internal(dir_store, session, dir_store_fh);
+
+    TAILQ_FOREACH_SAFE(dir_store_fs, &dir_store->fsq, q, safe_fs)
+    {
+        free(dir_store_fs->auth_token);
+        free(dir_store_fs->bucket_dir);
+        free(dir_store_fs->cache_dir);
+        free(dir_store_fs);
+    }
 
     free(dir_store);
     return (ret);
