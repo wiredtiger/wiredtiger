@@ -304,7 +304,7 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     uint64_t max_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *config, *saved_session_name, *uri;
-    bool have_cursor, rts_threads_started;
+    bool have_cursor, quiet_was_set, rts_threads_started;
 
     __rts_progress_init(session);
     __wt_atomic_store_uint32_relaxed(
@@ -346,9 +346,12 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
         WT_ERR(cursor->get_value(cursor, &config));
         __rts_progress_msg(session);
 
+        /* Save-and-restore: preserve a caller-set quiet-corrupt flag across this scope. */
+        quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wti_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
-        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+        if (!quiet_was_set)
+            F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         WT_ERR(ret);
     }

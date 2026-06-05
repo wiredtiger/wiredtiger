@@ -212,11 +212,12 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
       *filestripped;
     char *fileconf, *filemeta;
     uint32_t allocsize, fileid;
-    bool against_stable, exists, import, import_repair, is_metadata, is_shared;
+    bool against_stable, exists, import, import_repair, is_metadata, is_shared, quiet_we_set;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
     import = F_ISSET(session, WT_SESSION_IMPORT);
+    quiet_we_set = false;
 
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
@@ -290,8 +291,10 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
              * error on this specific file in their own way (such as another call with repair=true).
              */
             if (__wt_config_getones(session, config, "import.panic_corrupt", &cval) == 0 &&
-              cval.val == 0)
+              cval.val == 0) {
+                quiet_we_set = !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
                 F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+            }
 
             if (__wt_config_getones(session, config, "import.file_metadata", &cval) == 0 &&
               cval.len != 0) {
@@ -395,7 +398,9 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         WT_ERR(__wt_session_release_dhandle(session));
 
 err:
-    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+    /* Only clear the flag if we set it (the caller may have already had it set). */
+    if (quiet_we_set)
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     __wt_scr_free(session, &buf);
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);

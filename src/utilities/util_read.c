@@ -54,6 +54,13 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     /*
+     * Enter quiet-corrupt mode BEFORE open_cursor so dhandle-open block reads also return errors
+     * instead of panicking on corruption.
+     */
+    if (quiet_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
+
+    /*
      * Open the object; free allocated memory immediately to simplify future error handling.
      */
     if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0)
@@ -61,10 +68,6 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     util_free(uri);
     if (ret != 0)
         return (ret);
-
-    /* Enter quiet-corrupt mode now that the dhandle is open. */
-    if (quiet_corrupt)
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     /*
      * A simple search only makes sense if the key format is a string or a record number, and the

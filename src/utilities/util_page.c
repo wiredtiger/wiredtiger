@@ -78,10 +78,11 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     if ((uri = util_uri(session, *argv, "file")) == NULL)
         return (1);
 
-    WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
-    /* Enter quiet-corrupt mode now that the dhandle is open. */
+    /* Enter quiet-corrupt mode BEFORE acquiring the dhandle so dhandle-open reads are also covered.
+     */
     if (quiet_corrupt)
         F_SET(session_impl, WT_SESSION_QUIET_CORRUPT_FILE);
+    WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
 #ifdef HAVE_DIAGNOSTIC
     ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
 #else

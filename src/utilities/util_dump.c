@@ -244,17 +244,18 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (quiet_corrupt)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "read_corrupt=true,"));
         WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
+        /*
+         * Enter quiet-corrupt mode BEFORE open_cursor so dhandle-open block reads (root and
+         * second-level internal pages preloaded by __btree_preload) return errors instead of
+         * panicking on corruption.
+         */
+        if (quiet_corrupt)
+            F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));
             goto err;
         }
-        /*
-         * Enter quiet-corrupt mode now that the dhandle is open. In this mode, an error will report
-         * the error and exit gracefully. The dump cannot be continued.
-         */
-        if (quiet_corrupt)
-            F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         if ((simpleuri = util_strdup(uri)) == NULL) {
             (void)util_err(session, errno, NULL);

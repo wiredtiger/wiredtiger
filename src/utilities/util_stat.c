@@ -90,26 +90,16 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * The dhandle-open path unconditionally clears the WT_SESSION_QUIET_CORRUPT_FILE flag on exit.
-     * Pre-loading the dhandle (caches the dhandle), then setting the flag before opening the
-     * statistics cursor reuses the cached dhandle and skips the scoped clear.
+     * Enter quiet-corrupt mode BEFORE open_cursor so dhandle-open block reads (including the root
+     * page and any preloaded internal pages) return errors instead of panicking. The scoped pairs
+     * in bt_handle.c and others save-and-restore the flag, so this setting survives across the
+     * dhandle-open path.
      *
-     * Only covers leaf-page corruption. If the pre-load fails because the root or other
-     * dhandle-open block is corrupt, the dhandle is not cached, the subsequent statistics cursor
-     * open enters scoped-clear path, the flag is wiped, and the walk panics.
-     */
-    if (quiet_corrupt && objname_free) {
-        WT_CURSOR *prewarm;
-        if (session->open_cursor(session, objname, NULL, NULL, &prewarm) == 0)
-            (void)prewarm->close(prewarm);
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
-    }
-
-    /*
      * Tack read_corrupt=true onto whatever stats config was selected, so the stat cursor's tree
-     * walk opts into corruption-skip when -q is in effect.
+     * walk also opts into per-walk skip semantics.
      */
     if (quiet_corrupt) {
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
         if (config == NULL)
             config = "read_corrupt=true";
         else if (strcmp(config, "statistics=(fast)") == 0)

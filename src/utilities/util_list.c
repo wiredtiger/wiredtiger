@@ -148,6 +148,10 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
     const char *key, *value;
     bool found;
 
+    /* Enter quiet-corrupt mode BEFORE open_cursor so metadata-dhandle reads are also covered. */
+    if (quiet_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
+
     /* Open the metadata file. */
     if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL,
            quiet_corrupt ? "read_corrupt=true" : NULL, &cursor)) != 0) {
@@ -160,9 +164,6 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
         return (util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
     }
-    /* Enter quiet-corrupt mode now that the metadata dhandle is open. */
-    if (quiet_corrupt)
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     found = uri == NULL;
     while ((ret = cursor->next(cursor)) == 0) {

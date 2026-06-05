@@ -206,6 +206,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     wt_timestamp_t pinned_timestamp, rollback_timestamp, stable_timestamp;
     uint64_t time_diff_ms;
     char *config;
+    bool quiet_was_set;
 
     conn = S2C(session);
 
@@ -239,9 +240,12 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
           "the stable timestamp is not set; set the rollback timestamp to the maximum timestamp");
     }
 
+    /* Save-and-restore: preserve a caller-set quiet-corrupt flag across this scope. */
+    quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     ret = __wti_rts_btree_walk_btree_apply(session, uri, config, rollback_timestamp);
-    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+    if (!quiet_was_set)
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, stable_timestamp);
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
