@@ -139,7 +139,7 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     cfg[2] = NULL;
     WT_ERR(__wt_config_collapse(session, cfg, &cfg_new));
 
-    /* Put our new config in */
+    /* Put in our new config. */
     WT_ERR(__wt_metadata_insert(session, metadata_key, cfg_new));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -237,8 +237,8 @@ __disagg_cursor_next(WT_CURSOR *cursor, const char **keyp)
 /*
  * __disagg_table_name --
  *     Return the table name embedded in a metadata key, stripping the URI prefix and any
- *     scheme-specific suffix. The result is a pointer into the key buffer with a separate length it
- *     is not null-terminated at that boundary.
+ *     scheme-specific suffix. The result is a pointer into the key buffer with a separate length.
+ *     It is not null-terminated at that boundary.
  */
 static void
 __disagg_table_name(const char *key, int idx, const char **namep, size_t *lenp)
@@ -271,9 +271,10 @@ __disagg_file_skip_local(WT_CURSOR *cursor, const char **keyp)
     const char *name;
 
     while (*keyp != NULL) {
+        WT_ASSERT((WT_SESSION_IMPL *)cursor->session, WT_PREFIX_MATCH(*keyp, "file:"));
         key_name_len = strlen(*keyp + __disagg_cursor_prefix_lengths[WT_DISAGG_CURSOR_FILE]);
         __disagg_table_name(*keyp, WT_DISAGG_CURSOR_FILE, &name, &name_len);
-        if (name_len < key_name_len) /* a recognized suffix was stripped */
+        if (name_len < key_name_len) /* A recognized suffix was stripped. */
             break;
         WT_RET(__disagg_cursor_next(cursor, keyp));
     }
@@ -294,7 +295,7 @@ __disagg_update_min(const char *key, int idx, const char **currentp, size_t *cur
     if (key == NULL)
         return;
     __disagg_table_name(key, idx, &name, &name_len);
-    if (*currentp == NULL || __wt_string_len_cmp(name, name_len, *currentp, *current_lenp) < 0) {
+    if (*currentp == NULL || __wt_string_slice_cmp(name, name_len, *currentp, *current_lenp) < 0) {
         *currentp = name;
         *current_lenp = name_len;
     }
@@ -314,7 +315,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
     if (key == NULL)
         return (false);
     __disagg_table_name(key, idx, &name, &name_len);
-    return (__wt_string_len_cmp(name, name_len, current, current_len) == 0);
+    return (__wt_string_slice_cmp(name, name_len, current, current_len) == 0);
 }
 
 /*
@@ -411,7 +412,7 @@ __disagg_update_file_meta(
      * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live btrees
      * after step-up.
      *
-     * TODO: This is better done at step-up or step-down to force close all live btrees.
+     * FIXME-WT-17772: This is better done at step-up or step-down to force close all live btrees.
      */
     WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, sh_file_key));
     WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"", sh_file_key);

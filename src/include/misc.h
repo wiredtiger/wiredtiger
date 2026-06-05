@@ -349,11 +349,11 @@ __wt_string_match(const char *str, const char *bytes, size_t len)
 }
 
 /*
- * __wt_string_len_cmp --
+ * __wt_string_slice_cmp --
  *     Compare two length-delimited strings.
  */
 static WT_INLINE int
-__wt_string_len_cmp(const char *a, size_t a_len, const char *b, size_t b_len)
+__wt_string_slice_cmp(const char *a, size_t a_len, const char *b, size_t b_len)
 {
     int cmp;
 
