@@ -690,8 +690,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
             LF_SET(WT_READ_VISIBLE_ALL);
 
-        /* Under -q: ask the walk to skip refs whose page-read fails on corruption. */
-        if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+        /* The cursor's read_corrupt config opts into skipping corrupt refs during the walk. */
+        if (F_ISSET(&cbt->iface, WT_CURSTD_READ_CORRUPT))
             LF_SET(WT_READ_SKIP_CORRUPT);
 
         /*

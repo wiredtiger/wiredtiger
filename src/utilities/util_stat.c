@@ -106,6 +106,17 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
+     * Tack read_corrupt=true onto whatever stats config was selected, so the stat cursor's tree
+     * walk opts into corruption-skip when -q is in effect.
+     */
+    if (quiet_corrupt) {
+        if (config == NULL)
+            config = "read_corrupt=true";
+        else if (strcmp(config, "statistics=(fast)") == 0)
+            config = "statistics=(fast),read_corrupt=true";
+    }
+
+    /*
      * Corrupt reads are caught here. Unless fast mode is enabled, the cursor walks the entire btree
      * including the leaf pages, which could be corrupt.
      */

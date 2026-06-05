@@ -799,9 +799,10 @@ struct __wt_cursor {
 #define WT_CURSTD_OVERWRITE     0x020000000ull
 #define WT_CURSTD_RAW           0x040000000ull
 #define WT_CURSTD_RAW_SEARCH        0x080000000ull
-#define WT_CURSTD_VALUE_EXT     0x100000000ull /* Value points out of tree. */
-#define WT_CURSTD_VALUE_INT     0x200000000ull /* Value points into tree. */
-#define WT_CURSTD_VERSION_CURSOR    0x400000000ull /* Version cursor. */
+#define WT_CURSTD_READ_CORRUPT      0x100000000ull
+#define WT_CURSTD_VALUE_EXT     0x200000000ull /* Value points out of tree. */
+#define WT_CURSTD_VALUE_INT     0x400000000ull /* Value points into tree. */
+#define WT_CURSTD_VERSION_CURSOR    0x800000000ull /* Version cursor. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
 #define WT_CURSTD_KEY_SET   (WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define WT_CURSTD_VALUE_SET (WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -1040,6 +1041,12 @@ struct __wt_session {
      * the record does not exist., a boolean flag; default \c true.}
      * @config{raw, ignore the encodings for the key and value\, manage data as if the formats were
      * \c "u". See @ref cursor_raw for details., a boolean flag; default \c false.}
+     * @config{read_corrupt, A mode that allows iteration over a cursor (via @ref WT_CURSOR::next
+     * and @ref WT_CURSOR::prev) to continue past a checksum error on a tree page.  The corrupt
+     * subtree is skipped and iteration resumes at the next valid sibling.  Intended for diagnostic
+     * walks over a damaged file.  The caller must also arrange to suppress the block layer's
+     * panic-on-corruption behavior (the @ref util_dump and related commands do this via a
+     * session-internal mechanism)., a boolean flag; default \c false.}
      * @config{read_once, results that are brought into cache from disk by this cursor will be given
      * less priority in the cache., a boolean flag; default \c false.}
      * @config{readonly, only query operations are supported by this cursor.  An error is returned

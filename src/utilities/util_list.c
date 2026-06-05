@@ -149,7 +149,9 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
     bool found;
 
     /* Open the metadata file. */
-    if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
+    if ((ret = session->open_cursor(
+           session, WT_METADATA_URI, NULL, quiet_corrupt ? "read_corrupt=true" : NULL, &cursor)) !=
+      0) {
         /*
          * If there is no metadata (yet), this will return ENOENT. Treat that the same as an empty
          * metadata.

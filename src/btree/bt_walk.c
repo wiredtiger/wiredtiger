@@ -410,8 +410,7 @@ done:
      * it. *refp == NULL is the WT_NOTFOUND-equivalent; intermediate leaves must still flow through
      * with ret = 0. One-shot: clear after consuming.
      */
-    if (LF_ISSET(WT_READ_SKIP_CORRUPT) && *refp == NULL &&
-      session->corrupt_skip_first_err != 0) {
+    if (LF_ISSET(WT_READ_SKIP_CORRUPT) && *refp == NULL && session->corrupt_skip_first_err != 0) {
         ret = session->corrupt_skip_first_err;
         session->corrupt_skip_first_err = 0;
     }
