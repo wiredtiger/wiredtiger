@@ -271,7 +271,8 @@ err:
  *     Add the provided update to the head of the update list.
  */
 static WT_INLINE int
-__rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, WT_ITEM *key)
+__rts_btree_row_modify(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, WT_UPDATE **updp, WT_ITEM *key)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -282,8 +283,14 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    /* Search the page. */
-    WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
+    /*
+     * The caller already holds the slot, so position the cursor directly instead of searching the
+     * page for the key. With compare == 0 and ins == NULL, __wt_row_modify targets
+     * mod_row_update[slot] and never reaches the insert path that needs the key.
+     */
+    cbt.ref = ref;
+    cbt.slot = WT_ROW_SLOT(ref->page, rip);
+    cbt.compare = 0;
 
     /* Apply the modification. */
     if (!dryrun)
@@ -626,7 +633,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     }
 
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
+        WT_ERR(__rts_btree_row_modify(session, ref, rip, &upd, key));
     else
         WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
@@ -833,7 +840,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
+        WT_ERR(__rts_btree_row_modify(session, ref, rip, &upd, key));
     else
         WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
