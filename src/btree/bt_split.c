@@ -2354,10 +2354,9 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
          * backing block must be behind the materialization frontier so it can be read back safely.
          */
         WT_ASSERT(session,
-          page->disagg_info == NULL || closing ||
-          WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM ||
-          (mod->mod_multi[i].block_meta != NULL &&
-            __wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)));
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM ||
+            (mod->mod_multi[i].block_meta != NULL &&
+              __wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)));
     }
 
     /*
