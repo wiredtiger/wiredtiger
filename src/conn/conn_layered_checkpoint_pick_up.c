@@ -515,7 +515,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         WT_ERR(__disagg_bound_cursor(session, sh_cursors[i], __disagg_cursor_prefixes[i]));
     }
 
-    /* Initialize the cursor state arrays, so that the first iteration works correctly. */
+    /*
+     * Initialize the cursor state arrays so that the first iteration calls next on every cursor.
+     * Calling next on a cursor with no position moves it to the first entry within its bounds.
+     */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         md_has[i] = sh_has[i] = true;
         md_keys[i] = sh_keys[i] = NULL;
