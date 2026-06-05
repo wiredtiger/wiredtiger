@@ -200,13 +200,12 @@ class test_hs21(wttest.WiredTigerTestCase):
 
         # Perform a series of checks over our files to ensure that our transactions have been written
         # before the dhandles were closed/sweeped.
-        # Also despite the dhandle being re-opened, (in non-disagg mode) we don't expect the run
-        # write generation to have changed since we haven't actually restarted the system.
-        # In disagg mode, the run_write_gen may need be updated anyways to maintain proper
-        # visibility.
+        # Also despite the dhandle being re-opened, we don't expect the run write generation to have
+        # changed since we haven't actually restarted the system.
         for idx, (initial_run_write_gen, ds) in enumerate(active_files):
             # Check that the most recent transaction has the correct data.
             self.check(self.session, value2, ds.uri, self.nrows, 100)
+            # FIXME-WT-17763: The run_write_gen shouldn't change in disagg mode either.
             if not self.runningHook('disagg'):
                 # Get the current run_write_gen and ensure it hasn't changed since being closed.
                 file_uri = 'file:%s.%d.wt' % (self.file_name, idx)
