@@ -345,10 +345,10 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
                   __wt_realloc_def(session, &dirallocsz, count_dest + count_src + 1, &entries));
                 WT_ERR(__wt_strdup(session, dirlist_src[i], &entries[count_dest + count_src]));
                 ++count_src;
-            }
 
-            if (single)
-                goto done;
+                if (single)
+                    goto done;
+            }
         }
     }
 
