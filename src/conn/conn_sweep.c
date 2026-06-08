@@ -144,7 +144,8 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
     if (btree != NULL && btree->modified) {
         /*
          * We check that there are no cursors open that can be adding new content, and we hold the
-         * dhandle write lock, which blocks new opens.
+         * dhandle write lock, which blocks new opens. Open transaction modifications also bump the
+         * in use counter, so we won't close trees in that state.
          */
         if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) ||
           __wt_atomic_load_int32_acquire(&dhandle->session_inuse) != 0)

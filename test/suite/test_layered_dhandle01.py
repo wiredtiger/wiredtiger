@@ -27,16 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_dhandle01.py
-#   Regression for WT-17323: a follower's layered-table ingest btrees must be
-#   reclaimed once their data is durable in the stable table.
+# A follower's layered-table ingest btrees can be reclaimed once their data
+# is durable in the stable table.
 #
-# A follower never checkpoints its ingest btrees, so a written-to ingest btree
-# stays dirty for its whole lifetime. The sweep server refuses to close dirty
-# trees, so without a fix the ingest file descriptors accumulate monotonically -
-# one per distinct table written - and are never reclaimed while the node stays a
-# follower. The fix lets sweep discard a dirty ingest btree once every update it
-# holds is durable in the stable table (max_ingest_write_ts <= last checkpoint
-# timestamp); the data is then served from the stable component.
+# A follower never checkpoints its ingest btrees, so an ingest btree, once
+# written to, stays dirty forever. The sweep server now understands that ingest
+# btrees with content can be closed if their most recent durable change is older
+# than the latest checkpoint (making all content in the ingest redundant relative
+# to the matching stable table).
 
 import os, sys, time
 import wttest

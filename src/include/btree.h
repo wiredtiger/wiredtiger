@@ -195,7 +195,7 @@ struct __wt_btree {
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
 
-    /* For an ingest btree, an upper bound on the commit timestamp of any update it holds. */
+    /* For an ingest btree, an upper bound on the durable timestamp of any update it holds. */
     wt_shared wt_timestamp_t max_ingest_write_ts;
 
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
