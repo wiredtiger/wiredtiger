@@ -2676,6 +2676,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     for (i = 0; i < (uint32_t)conn->hash_size; i++)
         TAILQ_INIT(&session_ret->cursor_cache[i]);
     session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+    /* Nominal first period for the shared 1/1000 hot-path sampler; it randomizes on first reset. */
+    session_ret->random_hotpath_counter_1000 = 1000;
 
     /* Initialize transaction support: default to snapshot. */
     session_ret->isolation = WT_ISO_SNAPSHOT;

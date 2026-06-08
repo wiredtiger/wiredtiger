@@ -328,6 +328,9 @@ struct __wt_btree {
     wt_shared uint64_t rec_lsn_max;
     WT_BTREE_STORAGE_TIER storage_tier; /* Disaggregated storage tier type */
 
+    /* Compact usage statistics collected via session-level sampling. */
+    WT_BTREE_USAGE_STATS usage;
+
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an
  * explanation.

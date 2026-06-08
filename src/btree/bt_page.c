@@ -1027,6 +1027,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     WT_DECL_RET;
     WT_PAGE *page;
     const WT_PAGE_HEADER *dsk;
+    WT_PAGE_INDEX *pindex;
     size_t size;
     uint32_t alloc_entries;
 
@@ -1143,6 +1144,25 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
           ", write generation %" PRIu64 ", entries %" PRIu32,
           dsk->type, dsk->mem_size, dsk->write_gen, dsk->u.entries);
         WT_ERR(__wt_illegal_value(session, page->type));
+    }
+
+    /* Propagate left and right edge flags to the freshly built child refs of an internal page. */
+    if (ref != NULL && WT_PAGE_IS_INTERNAL(page)) {
+        WT_INTL_INDEX_GET(session, page, pindex);
+        if (pindex->entries > 0) {
+#ifdef HAVE_DIAGNOSTIC
+            {
+                uint32_t i;
+                for (i = 0; i < pindex->entries; ++i)
+                    WT_ASSERT(session,
+                      !F_ISSET(pindex->index[i], WT_REF_FLAG_LEFTMOST | WT_REF_FLAG_RIGHTMOST));
+            }
+#endif
+            if (FLD_ISSET(ref->flags, WT_REF_FLAG_LEFTMOST))
+                F_SET(pindex->index[0], WT_REF_FLAG_LEFTMOST);
+            if (FLD_ISSET(ref->flags, WT_REF_FLAG_RIGHTMOST))
+                F_SET(pindex->index[pindex->entries - 1], WT_REF_FLAG_RIGHTMOST);
+        }
     }
 
     /*
@@ -1386,8 +1406,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     WT_DECL_RET;
     WT_PAGE_INDEX *pindex;
     WT_REF *ref, **refp;
+    uint64_t key_count, key_sum, key_sumsq;
     uint32_t hint;
-    bool overflow_keys;
+    bool child_leaf, overflow_keys;
 
     btree = S2BT(session);
 
@@ -1401,6 +1422,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     refp = pindex->index;
     overflow_keys = false;
     hint = 0;
+    /* Key size statistics used for usage samples. */
+    key_count = key_sum = key_sumsq = 0;
+    child_leaf = true;
     WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
         ref = *refp;
         ref->home = page;
@@ -1409,6 +1433,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
         switch (unpack.type) {
         case WT_CELL_ADDR_INT:
             F_SET(ref, WT_REF_FLAG_INTERNAL);
+            child_leaf = false; /* Children are internal pages: this page is above level 1. */
             break;
         case WT_CELL_ADDR_DEL:
         case WT_CELL_ADDR_LEAF:
@@ -1420,6 +1445,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
         switch (unpack.type) {
         case WT_CELL_KEY:
             __wt_ref_key_onpage_set(page, ref, &unpack);
+            ++key_count;
+            key_sum += unpack.size;
+            key_sumsq += (uint64_t)unpack.size * unpack.size;
             break;
         case WT_CELL_KEY_OVFL:
             /*
@@ -1433,6 +1461,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 
             *sizep += sizeof(WT_IKEY) + current->size;
             overflow_keys = true;
+            ++key_count;
+            key_sum += current->size;
+            key_sumsq += (uint64_t)current->size * current->size;
             break;
         case WT_CELL_ADDR_DEL:
             /*
@@ -1481,6 +1512,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
      */
     if (overflow_keys)
         F_SET_ATOMIC_16(page, WT_PAGE_INTL_OVERFLOW_KEYS);
+
+    if (key_count > 0)
+        __wti_btree_usage_int_keys(session, child_leaf ? 1 : 2, key_count, key_sum, key_sumsq);
 
 err:
     __wt_scr_free(session, &current);

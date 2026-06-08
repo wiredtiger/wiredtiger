@@ -156,11 +156,13 @@ struct __wt_session_impl {
     WT_CURSOR_LIST cursors;          /* Cursors closed with the session */
     u_int ncursors;                  /* Count of active file cursors. */
     uint32_t cursor_sweep_countdown; /* Countdown to cursor sweep */
-    uint32_t cursor_sweep_position;  /* Position in cursor_cache for sweep */
-    uint64_t last_cursor_big_sweep;  /* Last big sweep for dead cursors */
-    uint64_t last_cursor_sweep;      /* Last regular sweep for dead cursors */
-    u_int sweep_warning_5min;        /* Whether the session was without sweep for 5 min. */
-    u_int sweep_warning_60min;       /* Whether the session was without sweep for 60 min. */
+    int32_t
+      random_hotpath_counter_1000;  /* Shared countdown for __wt_random_hotpath_1000 (~1/1000) */
+    uint32_t cursor_sweep_position; /* Position in cursor_cache for sweep */
+    uint64_t last_cursor_big_sweep; /* Last big sweep for dead cursors */
+    uint64_t last_cursor_sweep;     /* Last regular sweep for dead cursors */
+    u_int sweep_warning_5min;       /* Whether the session was without sweep for 5 min. */
+    u_int sweep_warning_60min;      /* Whether the session was without sweep for 60 min. */
 
 #ifdef HAVE_DIAGNOSTIC
     bool cursor_open_timer_running; /* Flag used to track timer across nested calls. */

@@ -103,6 +103,10 @@ struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
 typedef struct __wt_btree WT_BTREE;
+struct __wt_btree_usage_snapshot;
+typedef struct __wt_btree_usage_snapshot WT_BTREE_USAGE_SNAPSHOT;
+struct __wt_btree_usage_stats;
+typedef struct __wt_btree_usage_stats WT_BTREE_USAGE_STATS;
 struct __wt_bucket_storage;
 typedef struct __wt_bucket_storage WT_BUCKET_STORAGE;
 struct __wt_cache;
@@ -617,6 +621,7 @@ typedef uint64_t wt_timestamp_t;
 #include "block.h"
 #include "block_cache.h"
 #include "btmem.h"
+#include "btree_usage.h" /* required by btree.h, connection.h */
 #include "btree.h"
 #include "cache.h"
 #include "../evict/evict.h"
@@ -680,11 +685,13 @@ typedef uint64_t wt_timestamp_t;
 #include "cell_inline.h"       /* required by btree_inline.h */
 #include "mutex_inline.h"      /* required by btree_inline.h */
 #include "session_inline.h"    /* required by api.h macros */
+#include "rand_inline.h"       /* required by btree_usage_inline.h */
 #include "txn_inline.h"        /* required by btree_inline.h */
 
 #include "bitstring_inline.h"
 #include "block_inline.h"
-#include "btree_inline.h" /* required by cursor_inline.h */
+#include "btree_inline.h"       /* required by cursor_inline.h */
+#include "btree_usage_inline.h" /* required by cursor hot paths */
 #include "btree_cmp_inline.h"
 #include "column_inline.h"
 #include "conf_inline.h"

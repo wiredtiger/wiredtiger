@@ -476,6 +476,12 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
+
+        /* Propogate edge positions. */
+        if (i == 0 && F_ISSET(root->pg_intl_parent_ref, WT_REF_FLAG_LEFTMOST))
+            F_SET(ref, WT_REF_FLAG_LEFTMOST);
+        if (i == children - 1 && F_ISSET(root->pg_intl_parent_ref, WT_REF_FLAG_RIGHTMOST))
+            F_SET(ref, WT_REF_FLAG_RIGHTMOST);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -664,7 +670,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
-    uint8_t dirty_state;
+    uint8_t dirty_state, src_flags;
     bool empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -683,6 +689,17 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     /* Mark the page dirty. */
     WT_RET(__wt_page_modify_init(session, parent));
     __wt_page_modify_set(session, parent);
+
+    /* Determine new edge positions. */
+    if (ref_new != NULL && new_entries > 0) {
+        src_flags = ref->flags;
+        for (i = 0; i < new_entries; ++i)
+            F_CLR(ref_new[i], WT_REF_FLAG_LEFTMOST | WT_REF_FLAG_RIGHTMOST);
+        if (FLD_ISSET(src_flags, WT_REF_FLAG_LEFTMOST))
+            F_SET(ref_new[0], WT_REF_FLAG_LEFTMOST);
+        if (FLD_ISSET(src_flags, WT_REF_FLAG_RIGHTMOST))
+            F_SET(ref_new[new_entries - 1], WT_REF_FLAG_RIGHTMOST);
+    }
 
     /*
      * We've locked the parent, which means it cannot split (which is the only reason to worry about
@@ -2226,6 +2243,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
             WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
+        __wti_btree_usage_split_sample(session, page, right, 2);
         return (0);
     }
 
@@ -2355,6 +2373,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
+
+    __wti_btree_usage_split_sample(session, page, NULL, new_entries);
 
     /*
      * The split succeeded, we can no longer fail.
