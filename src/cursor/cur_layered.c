@@ -2815,8 +2815,12 @@ __clayered_modify_follower(
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
+    const char *trace_name;
+    int trace_branch;
 
     WT_CLEAR(value);
+    trace_branch = 0;
+    trace_name = ((WT_LAYERED_TABLE *)clayered->dhandle)->iface.name;
 
     /* Do a search if we're not positioned. */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))
@@ -2829,6 +2833,7 @@ __clayered_modify_follower(
          * Cursor is positioned on the stable table. Compute a full value and write it to the ingest
          * table.
          */
+        trace_branch = 1;
         ingest->set_key(ingest, &cursor->key);
         __clayered_deleted_decode(&value);
         WT_ITEM_SET(ingest->value, value);
@@ -2845,13 +2850,16 @@ __clayered_modify_follower(
          */
         if (ret == WT_NOTFOUND || __wt_clayered_deleted(&ingest->value) ||
           __clayered_is_deleted_encoded(&ingest->value)) {
+            trace_branch = 2;
             __clayered_deleted_decode(&ingest->value);
             WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));
             WT_ERR(__clayered_deleted_encode(session, &ingest->value, &ingest->value, &buf));
             F_SET(ingest, WT_CURSTD_VALUE_EXT);
             WT_ERR(ingest->update(ingest));
-        } else
+        } else {
+            trace_branch = 3;
             WT_ERR(ingest->modify(ingest, entries, nentries));
+        }
     }
 
     /*
@@ -2863,6 +2871,18 @@ __clayered_modify_follower(
     clayered->current_cursor = ingest;
 
 err:
+    /*
+     * Follower ingest-apply trace (FIM), scoped to the table that reproduces the validation
+     * mismatch to keep volume down: record which branch handled the modify and the result. b:
+     * 1=stable->full, 2=ingest->full, 3=ingest->modify, 0=errored before the branch. A hit for the
+     * divergent keyno in the follower log means the modify reached the ingest apply, so a later
+     * absence is a downstream loss; no hit means it never applied here.
+     */
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_PAGE_DELTA, WT_VERBOSE_DEBUG_2) &&
+      trace_name != NULL && strstr(trace_name, "T00003") != NULL)
+        __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA, "FIM key=%.*s b=%d ret=%d",
+          (int)cursor->key.size, (const char *)cursor->key.data, trace_branch, ret);
+
     __wt_scr_free(session, &buf);
     if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
