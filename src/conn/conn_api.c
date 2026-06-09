@@ -2416,6 +2416,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CURSOR_REPOSITION);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_slow_truncate_follower", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
@@ -2442,6 +2448,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT);
+
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_truncate", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.stress_skiplist", &cval));
     if (cval.val)
@@ -2927,8 +2939,11 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
         WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
 
     WT_ERR(__wt_config_gets(session, cfg, "version", &cval));
-    if (cval.val == 1)
+    if (cval.val == 1) {
         F_SET(conn, WT_CONN_KEY_PROVIDER_PUSH);
+        /* Install the WT-implemented set_key for the module to call. */
+        key_provider->set_key = __wti_disagg_set_crypt_key;
+    }
 
     conn->key_provider = key_provider;
 

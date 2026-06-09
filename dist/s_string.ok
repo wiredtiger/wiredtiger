@@ -27,6 +27,7 @@ Alakuijala
 Alexandrescu's
 Alloc
 Alves
+AssertionError
 Async
 Athlon
 Auth
@@ -73,6 +74,7 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
 CMAKE
 CMP
@@ -80,6 +82,7 @@ CMake
 CMakeFiles
 CMakeLists
 CMakePresets
+CONCAT
 CONF
 CONFIG
 CPP
@@ -124,6 +127,7 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
@@ -139,6 +143,7 @@ DeleteFileW
 Deterministically
 DisAgg
 Disagg
+DisaggCorruptionMixin
 Disaggregated
 Dk
 DmpeRkvXx
@@ -328,6 +333,7 @@ Munge
 Mutex
 Mutexes
 MySecret
+NN
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -377,6 +383,7 @@ PSD
 PSE
 PTR
 PYTHONMALLOC
+Palite
 Palites
 Pe
 PlatformSDK
@@ -439,6 +446,8 @@ RuntimeError
 SCons
 SDK
 SIGABRT
+SIGBUS
+SIGSEGV
 SIMD
 SLS
 SLVG
@@ -657,6 +666,7 @@ autoconf
 aws
 az
 bInheritHandle
+backends
 backlink
 backoff
 badsize
@@ -821,6 +831,7 @@ createsets
 crypto
 cryptobad
 cryptographic
+cst
 cstring
 csuite
 csv
@@ -1636,6 +1647,7 @@ sii
 sizeof
 sizep
 sizev
+skipTest
 skipTests
 skiplist
 skiplists
@@ -1673,6 +1685,7 @@ stdin
 stdout
 stepback
 stepp
+stepup
 stlr
 stlrb
 stlrh
@@ -1696,6 +1709,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration

@@ -335,13 +335,139 @@ TEST_CASE_METHOD(kp_fixture, "set_key_provider version selects push mode", "[key
     /* version=0 (default): push flag stays clear. */
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=0") == 0);
     REQUIRE(!F_ISSET(conn_impl, WT_CONN_KEY_PROVIDER_PUSH));
+    REQUIRE(stub.set_key == nullptr);  /* No WT-supplied set_key in pull mode. */
     conn_impl->key_provider = nullptr; /* Allow reconfiguration. */
 
     /* version=1: push flag is set. */
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
     REQUIRE(F_ISSET(conn_impl, WT_CONN_KEY_PROVIDER_PUSH));
+    REQUIRE(stub.set_key != nullptr); /* WiredTiger installs its set_key. */
 
     /* Cleanup so the fixture destructor doesn't see a stale provider. */
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+/*
+ * push_key --
+ *     Build a WT_CRYPT_KEYS and invoke the provider's set_key, returning its error code so the
+ *     caller can assert both success and failure paths.
+ */
+static int
+push_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const std::string &key_bytes, uint64_t timestamp)
+{
+    WT_CRYPT_KEYS crypt = {};
+    crypt.keys.data = key_bytes.data();
+    crypt.keys.size = key_bytes.size();
+    crypt.timestamp = timestamp;
+    return kp->set_key(kp, session, &crypt);
+}
+
+TEST_CASE_METHOD(kp_fixture, "set_key stores the pushed key as the active key", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    REQUIRE(TAILQ_EMPTY(&conn_impl->disaggregated_storage.pending_crypt_key_qh));
+
+    const std::string key_bytes = "push-mode-test-key-0123456789";
+    REQUIRE(push_key(&stub, session, key_bytes, 1) == 0);
+
+    WT_DISAGG_PENDING_CRYPT_KEY *entry =
+      TAILQ_FIRST(&conn_impl->disaggregated_storage.pending_crypt_key_qh);
+    REQUIRE(entry != nullptr);
+    REQUIRE(entry->timestamp == 1);
+    REQUIRE(entry->keys.size == key_bytes.size());
+    REQUIRE(memcmp(entry->keys.data, key_bytes.data(), key_bytes.size()) == 0);
+    REQUIRE(TAILQ_NEXT(entry, q) == nullptr);
+
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "set_key accumulates monotonic entries", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    const std::string keys[3] = {"key-one-0123456789", "key-two-9876543210", "key-three-55555"};
+    const uint64_t timestamps[3] = {10, 20, 30};
+    for (int i = 0; i < 3; i++)
+        REQUIRE(push_key(&stub, session, keys[i], timestamps[i]) == 0);
+
+    int n = 0;
+    WT_DISAGG_PENDING_CRYPT_KEY *entry;
+    TAILQ_FOREACH (entry, &conn_impl->disaggregated_storage.pending_crypt_key_qh, q) {
+        REQUIRE(entry->timestamp == timestamps[n]);
+        REQUIRE(entry->keys.size == keys[n].size());
+        REQUIRE(memcmp(entry->keys.data, keys[n].data(), keys[n].size()) == 0);
+        n++;
+    }
+    REQUIRE(n == 3);
+
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "set_key rejects non-monotonic timestamp", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    const std::string key_bytes = "push-mode-key-monotonic";
+    REQUIRE(push_key(&stub, session, key_bytes, 10) == 0);
+    REQUIRE(push_key(&stub, session, key_bytes, 10) == EINVAL); /* Equal rejected. */
+    REQUIRE(push_key(&stub, session, key_bytes, 5) == EINVAL);  /* Smaller rejected. */
+    REQUIRE(push_key(&stub, session, key_bytes, 11) == 0);      /* Larger accepted. */
+
+    /* Only the two successful pushes are queued. */
+    int n = 0;
+    WT_DISAGG_PENDING_CRYPT_KEY *entry;
+    TAILQ_FOREACH (entry, &conn_impl->disaggregated_storage.pending_crypt_key_qh, q)
+        n++;
+    REQUIRE(n == 2);
+
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "set_key rejects timestamp <= stable", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    REQUIRE(wt_conn->set_timestamp(wt_conn, "stable_timestamp=14") == 0); /* 0x14 == 20. */
+
+    const std::string key_bytes = "push-mode-stable-check";
+    REQUIRE(push_key(&stub, session, key_bytes, 20) == EINVAL); /* Equal to stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 10) == EINVAL); /* Below stable. */
+    REQUIRE(push_key(&stub, session, key_bytes, 30) == 0);      /* Strictly above stable. */
+
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "set_key rejects empty input", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    WT_CRYPT_KEYS crypt = {};
+    crypt.keys.data = nullptr;
+    crypt.keys.size = 0;
+    crypt.timestamp = 1;
+    REQUIRE(stub.set_key(&stub, session, &crypt) == EINVAL);
+
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }

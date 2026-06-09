@@ -197,7 +197,7 @@ struct __wt_session_impl {
     /* Enforce the contract that a session is only used by a single thread at a time. */
     struct __wt_thread_check {
         WT_SPINLOCK lock;
-        uintmax_t owning_thread;
+        wt_shared uintmax_t owning_thread;
         uint32_t entry_count;
     } thread_check;
 
@@ -353,7 +353,6 @@ struct __wt_session_impl {
 #define WT_SESSION_ROLLBACK_TO_STABLE 0x04000000u
 #define WT_SESSION_SAVE_ERRORS 0x08000000u
 #define WT_SESSION_SCHEMA_TXN 0x10000000u
-#define WT_SESSION_SKIP_CACHE_INCR 0x20000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

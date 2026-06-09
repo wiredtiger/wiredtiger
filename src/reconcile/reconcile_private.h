@@ -196,9 +196,6 @@ struct __wti_reconcile {
     /* Track if there is any update chain with its updates all aborted. */
     bool has_upd_chain_all_aborted;
 
-    /* Track if any key is removed from the disk image due to its delete is globally visible. */
-    bool key_removed_from_disk_image;
-
     /* Track if we write anything that is newer than the previous reconciliation. */
     bool newer_updates_than_last_rec_used;
 
@@ -277,8 +274,10 @@ struct __wti_reconcile {
      * current min/max of the timestamps. Those values are packaged here rather than passing
      * pointers to stack locations around the code.
      */
-    uint64_t recno;         /* Current record number */
-    uint32_t entries;       /* Current number of entries */
+    uint64_t recno;   /* Current record number */
+    uint32_t entries; /* Current number of entries */
+    /* Keys omitted from the disk image; used to decide whether to write a delta or a full page. */
+    uint32_t keys_removed_from_disk_image_count;
     uint8_t *first_free;    /* Current first free byte */
     size_t space_avail;     /* Remaining space in this chunk */
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
@@ -444,6 +443,7 @@ struct __wti_update_select {
     bool no_ts_tombstone;             /* Tombstone without a timestamp */
     bool skip_aborted_prepared_value; /* Skip a non-tombstone aborted prepared update on the
                                           update chain */
+    bool was_modify;                  /* There was a MODIFY on the update chain */
 };
 
 #define WTI_UPDATE_SELECT_INIT(upd_select)                 \
@@ -453,6 +453,7 @@ struct __wti_update_select {
         (upd_select)->upd_saved = false;                   \
         (upd_select)->no_ts_tombstone = false;             \
         (upd_select)->skip_aborted_prepared_value = false; \
+        (upd_select)->was_modify = false;                  \
         WT_TIME_WINDOW_INIT(&(upd_select)->tw);            \
     } while (0)
 
@@ -548,7 +549,8 @@ static WT_INLINE int __wti_rec_get_row_leaf_key(WT_SESSION_IMPL *session, WT_BTR
   WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip, WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  WT_ADDR *addr, WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del);
+  WT_ADDR *addr, WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del,
+  bool is_prepared_fast_truncate);
 static WT_INLINE void __wti_rec_image_copy(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv);
 static WT_INLINE void __wti_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WTI_REC_KV *kv);

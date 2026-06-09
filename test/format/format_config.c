@@ -1466,11 +1466,21 @@ config_disagg_storage(void)
     if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
         testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
-    if (strcmp(mode, "switch") == 0)
+    if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-    else
+        /*
+         * FIXME-WT-17564: Switch mode forces follower-side slow truncate until proper write
+         * conflict detection is implemented on fast truncate.
+         */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
+    } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
+        /* Leader and follower modes always exercise fast truncate. */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=off", false);
+    }
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");
@@ -1571,11 +1581,11 @@ config_transaction(void)
         config_off(NULL, "precise_checkpoint");
         config_off(NULL, "preserve_prepared");
     }
-    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    /* FIXME-WT-17277 Write prepared truncate operation to disk. */
     if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
         if (config_explicit(NULL, "ops.truncate"))
             WARN("%s", "turning off ops.truncate to work with ops.prepare and precise checkpoint");
-        config_off(NULL, "ops.truncate");
+        config_off_all("ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */

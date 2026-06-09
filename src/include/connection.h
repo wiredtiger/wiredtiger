@@ -31,8 +31,7 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
-    bool tiered_shared_2023;        /* tiered shared run-time configuration */
-    bool disagg_slow_truncate_2026; /* use slow truncate run-time configuration */
+    bool tiered_shared_2023; /* tiered shared run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
@@ -200,6 +199,16 @@ struct __wt_disagg_metadata_op {
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
+/*
+ * WT_DISAGG_PENDING_CRYPT_KEY --
+ *      A pushed key waiting to be persisted at the next checkpoint.
+ */
+struct __wt_disagg_pending_crypt_key {
+    WT_ITEM keys;
+    uint64_t timestamp;
+    TAILQ_ENTRY(__wt_disagg_pending_crypt_key) q;
+};
+
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
 /*
@@ -220,6 +229,7 @@ struct __wt_page_delta_config {
     wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
 
     u_int delta_pct;             /* Delta page percent (of full page size) */
+    u_int delete_pct;            /* Max delete fraction (%) before forcing full page */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_INTERNAL_PAGE_DELTA 0x1u
@@ -284,6 +294,14 @@ struct __wt_disaggregated_storage {
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
+
+    /*
+     * Keys pushed since the last checkpoint, drained at the next checkpoint. The lock serializes
+     * pushes from user threads against the checkpoint drain.
+     */
+    TAILQ_HEAD(__wt_disagg_pending_crypt_key_qh, __wt_disagg_pending_crypt_key)
+    pending_crypt_key_qh;
+    WT_SPINLOCK pending_crypt_key_lock;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
@@ -799,15 +817,17 @@ struct __wt_conn_debug {
 #define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
 #define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
 #define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
+#define WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER 0x00200u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00400u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00800u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x01000u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x02000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x04000u
+#define WT_CONN_DEBUG_SLOW_TRUNCATE 0x08000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x10000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x20000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x40000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x80000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
