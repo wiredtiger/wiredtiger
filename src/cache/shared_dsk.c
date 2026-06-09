@@ -162,6 +162,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 
     *shared_dsk_retp = shared_dsk_store;
     cache_inserted = true;
+    (void)__wt_atomic_add_uint64_relaxed(&shared_dsk_cache->num_items, 1);
 
     /* Update disk image statistics.*/
     __wt_cache_shared_dsk_inmem_incr(session, ((WT_PAGE_HEADER *)data)->type, data_size);
@@ -184,9 +185,9 @@ err:
 /*
  * __wt_shared_dsk_cache_release --
  *     Release a disk image from the shared disk cache, removing it when the reference count reaches
- *     zero.
+ *     zero. Returns true if this was the last item in the cache.
  */
-void
+bool
 __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shared_dsk_item)
 {
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
@@ -198,7 +199,10 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     WT_ASSERT(session, shared_dsk_item != NULL);
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    WT_ASSERT(session, shared_dsk_cache->enabled);
+    /*
+     * Release must work even after the cache is disabled on step-up, since pages loaded during the
+     * follower phase may still hold live references and will release them as they evict.
+     */
     hash = __wt_hash_city64(shared_dsk_item->addr, shared_dsk_item->addr_size);
     bucket = hash % shared_dsk_cache->hash_size;
     lock_idx = bucket % shared_dsk_cache->hash_lock_size;
@@ -221,20 +225,23 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
           shared_dsk_item->addr, shared_dsk_item->addr_size);
         __wt_overwrite_and_free_len(session, shared_dsk_item->data, shared_dsk_item->data_size);
         __wt_free(session, shared_dsk_item);
+
+        return (__wt_atomic_sub_uint64_relaxed(&shared_dsk_cache->num_items, 1) == 0);
     } else {
         __wt_spin_unlock(session, &shared_dsk_cache->hash_locks[lock_idx]);
         __shared_dsk_cache_verbose(session, WT_VERBOSE_DEBUG_2,
           "release: disk image ref decremented in shared dsk cache", hash, bucket, lock_idx,
           shared_dsk_item->addr, shared_dsk_item->addr_size);
+        return (false);
     }
 }
 
 /*
- * __wti_shared_dsk_cache_init --
+ * __wt_shared_dsk_cache_init --
  *     Initialize the shared disk cache.
  */
 int
-__wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
+__wt_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
 {
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
@@ -262,16 +269,16 @@ __wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
     return (0);
 
 err:
-    __wti_shared_dsk_cache_destroy(session);
+    __wt_shared_dsk_cache_destroy(session);
     return (ret);
 }
 
 /*
- * __wti_shared_dsk_cache_destroy --
+ * __wt_shared_dsk_cache_destroy --
  *     Destroy the shared disk cache and free all memory.
  */
 void
-__wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
+__wt_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
 {
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
     WT_SHARED_DSK_ITEM *shared_dsk_item;

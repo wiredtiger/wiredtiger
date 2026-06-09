@@ -1673,6 +1673,13 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_ERR_MSG_CHK(session, __wti_layered_drain_ingest_tables(internal_session),
       "Failed to drain ingest tables");
 
+    /*
+     * Disable cross-checkpoint caching on step-up. Leaders operate on a single live B-tree and will
+     * not benefit from reusing disk images across checkpoints. The cache is destroyed lazily in
+     * __wt_shared_dsk_cache_release once all follower-phase references have drained.
+     */
+    conn->cache->shared_dsk_cache.enabled = false;
+
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
@@ -1743,6 +1750,16 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
+
+    /*
+     * Re-enable the shared disk cache on step-down. As a follower, block addresses are stable
+     * across checkpoints so the cache will see hits. Re-initialize the hash table fresh.
+     */
+    if (S2C(session)->cache->shared_dsk_cache.hash == NULL) {
+        u_int hash_size = WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session);
+        WT_IGNORE_RET(__wt_shared_dsk_cache_init(session, hash_size));
+        S2C(session)->cache->shared_dsk_cache.enabled = true;
+    }
 }
 
 /*

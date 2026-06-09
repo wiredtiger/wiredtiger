@@ -86,9 +86,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);
     S2C(session)->cache->shared_dsk_cache.enabled = false;
     if (S2C(session)->cache->shared_dsk_cache.enabled) {
-        /* FIXME-WT-17066: We should pick a hash size wisely. */
-        hash_size = (u_int)WT_MAX(S2C(session)->cache_size / 500 / 100, 512);
-        WT_RET(__wti_shared_dsk_cache_init(session, hash_size));
+        hash_size = WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session);
+        WT_RET(__wt_shared_dsk_cache_init(session, hash_size));
         WT_STAT_CONN_SET(session, cache_shared_dsk_hash_size, hash_size);
     }
 
@@ -268,7 +267,7 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 
     /* Destroy the shared disk cache if it was initialized. */
     if (conn->cache->shared_dsk_cache.enabled)
-        __wti_shared_dsk_cache_destroy(session);
+        __wt_shared_dsk_cache_destroy(session);
 
     __wt_free(session, conn->cache);
     return (0);

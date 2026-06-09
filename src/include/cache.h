@@ -60,8 +60,13 @@ struct __wt_shared_dsk_item {
 /* Maximum number of shared disk cache hash locks. */
 #define WT_SHARED_DSK_CACHE_MAX_LOCKS 8192
 
+/* FIXME-WT-17066: We should pick a hash size wisely. */
+#define WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session) \
+    ((u_int)WT_MAX(S2C(session)->cache_size / 500 / 100, 512))
+
 struct __wt_shared_dsk_cache {
     bool enabled;
+    wt_shared uint64_t num_items;
 
     TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
     /* FIXME-WT-17168: Investigate whether spinlock should be changed to rwlock. */

@@ -502,9 +502,12 @@ err:
         disk_image_set = page->dsk != NULL;
         __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
-    } else if (shared_dsk_item != NULL)
+    } else if (shared_dsk_item != NULL) {
         /* If the page build failed, release our reference to the shared disk item. */
-        __wt_shared_dsk_cache_release(session, shared_dsk_item);
+        if (__wt_shared_dsk_cache_release(session, shared_dsk_item) &&
+          !S2C(session)->cache->shared_dsk_cache.enabled)
+            __wt_shared_dsk_cache_destroy(session);
+    }
 
     /* Free any disk images or delta buffers we allocated or read. */
     if (tmp != NULL) {
