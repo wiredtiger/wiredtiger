@@ -68,6 +68,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     u_int hash_size;
+    bool leader;
 
     WT_ASSERT(session, S2C(session)->cache == NULL);
     WT_RET(__wt_calloc_one(session, &S2C(session)->cache));
@@ -76,19 +77,19 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_cache_config(session, cfg, false));
 
     /*
-     * Initialize the shared disk hash table only on disaggregated nodes. Size the hash table at
-     * 0.2% of cache size divided by ~100B per entry (cache_size / 500 / 100), with a minimum of 512
-     * buckets.
+     * Initialize the shared disk hash table only on disagg standby nodes.
      *
-     * The standard disagg check requires page_log_meta to be initialized, which hasn't happened
-     * yet at this point in connection setup. Read the config directly instead.
-     *
-     * FIXME-WT-14721: Once the disagg config init is reordered to run before cache creation,
-     * replace this config lookup with the standard disagg check.
+     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+     * which depends on having run recovery, so the config hack is the simplest way to break that
+     * dependency.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
-    S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);
-    S2C(session)->cache->shared_dsk_cache.enabled = false;
+    if (cval.len != 0) {
+        WT_RET(__wt_disagg_config_get_role(session, cfg, &leader));
+        S2C(session)->cache->shared_dsk_cache.enabled = !leader;
+    } else
+        S2C(session)->cache->shared_dsk_cache.enabled = false;
+
     if (S2C(session)->cache->shared_dsk_cache.enabled) {
         /*
          * Best-effort sizing: budget 0.2% of the cache and assume one item per bucket, so dividing
