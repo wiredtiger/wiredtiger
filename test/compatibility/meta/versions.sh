@@ -38,7 +38,6 @@ export IMPORT_RELEASE_BRANCHES="develop mongodb-8.3 mongodb-8.2 mongodb-8.0 mong
 
 export NEWER_RELEASE_BRANCHES="develop mongodb-8.3 mongodb-8.2 mongodb-8.0 mongodb-7.0 mongodb-6.0"
 
-
 # This array is used to configure the release branches we'd like to run patch version
 # upgrade/downgrade test.
 export PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES="mongodb-8.3 mongodb-8.2 mongodb-8.0 mongodb-7.0 mongodb-6.0"

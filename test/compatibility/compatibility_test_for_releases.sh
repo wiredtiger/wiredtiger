@@ -521,7 +521,6 @@ upgrade_downgrade()
     done
 }
 
-
 # Run test/format from $src_branch, and crash. Recover using test/format from $dst_branch.
 test_dirty_restart()
 {
@@ -1278,7 +1277,6 @@ if [ "$newer" = true ]; then
                                  ${test_checkpoint_release_branches[$((i+1))]} "row")
     done
 fi
-
 
 if [ "${wt_standalone}" = true ]; then
     (verify_branches develop "$wt1" "row" true)
