@@ -6158,6 +6158,30 @@ tasks:
         vars:
           test-name: cache_workload_update_trigger.py
 
+  - name: perf-disagg-many-dhandle-startup
+    depends_on:
+      - name: compile
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 86400
+          timeout_secs: 86400
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: disagg_many_dhandle_startup_perf.py
+          maxruns: 1
+          wtarg: -ops ['"wiredtiger_open_no_pickup", "reconfigure_pickup"'] -args '["--num-tables", "500000"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: disagg_many_dhandle_startup_perf.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: disagg_many_dhandle_startup_perf.py
+
     ###########################################
     # Performance Tests for log consolidation #
     ###########################################
