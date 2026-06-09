@@ -94,9 +94,8 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
             previous_ts = timestamp
 
     def test_multiple_pushes_across_checkpoints(self):
-        # A checkpoint persists the pushed key whose timestamp the stable timestamp has reached.
-        # The test key provider stamps each pushed key with a per-checkpoint counter, so advancing
-        # stable by one before each checkpoint lets a new key become durable every time.
+        # Each checkpoint pushes a fresh key onto the pending list and drains it, persisting one
+        # new key-provider page.
         if self.ds_name != "palite":
             self.skipTest("Must use PALite to verify contents")
 
