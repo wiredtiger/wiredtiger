@@ -77,7 +77,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_cache_config(session, cfg, false));
 
     /*
-     * Initialize the shared disk hash table only on disagg nodes.
+     * Initialize the shared disk hash table only on disagg standby nodes.
      *
      * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
      * which depends on having run recovery, so the config hack is the simplest way to break that
