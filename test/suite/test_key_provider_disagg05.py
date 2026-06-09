@@ -109,8 +109,7 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
         baseline = len(self.key_provider_pages())
         self.assertGreaterEqual(baseline, 1)
 
-        # Write and checkpoint a few more times; each checkpoint persists another page with a
-        # strictly higher timestamp and LSN.
+        # Write and checkpoint a few more times; each checkpoint persists another page.
         cursor = self.session.open_cursor(self.uri)
         for i in range(4):
             cursor[ds.key(100 + i)] = ds.value(100 + i)
