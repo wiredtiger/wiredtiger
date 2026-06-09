@@ -290,10 +290,11 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
              * allows the system to not panic the entire database but lets the caller handle the
              * error on this specific file in their own way (such as another call with repair=true).
              */
+            /* Track our own set so the cleanup path can clear without wiping a caller-set flag. */
             if (__wt_config_getones(session, config, "import.panic_corrupt", &cval) == 0 &&
-              cval.val == 0) {
-                quiet_we_set = !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+              cval.val == 0 && !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
                 F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+                quiet_we_set = true;
             }
 
             if (__wt_config_getones(session, config, "import.file_metadata", &cval) == 0 &&
@@ -398,7 +399,6 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         WT_ERR(__wt_session_release_dhandle(session));
 
 err:
-    /* Only clear the flag if we set it (the caller may have already had it set). */
     if (quiet_we_set)
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     __wt_scr_free(session, &buf);

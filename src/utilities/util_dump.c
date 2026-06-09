@@ -218,11 +218,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
     for (i = 0; i < argc; i++) {
-        /*
-         * JSON separator is deferred until after open_cursor succeeds: if the cursor open fails
-         * under -q we skip this URI entirely, and emitting the separator first would leave a
-         * dangling "," in the output.
-         */
+        /* JSON separator is deferred until open_cursor succeeds; emitting it earlier would
+         * leave a dangling "," in the output if we then skip this URI on failure. */
 
         util_free(uri);
         util_free(simpleuri);
@@ -247,19 +244,15 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (quiet_corrupt)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "read_corrupt=true,"));
         WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
-        /*
-         * Enter quiet-corrupt mode BEFORE open_cursor so dhandle-open block reads (root and
-         * second-level internal pages preloaded by __btree_preload) return errors instead of
-         * panicking on corruption.
-         */
+        /* Set the session flag before open_cursor so dhandle-open block reads stay quiet too. */
         if (quiet_corrupt)
             F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             const char *errmsg = session->strerror(session, ret);
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri, errmsg);
             /*
-             * Emit a JSON placeholder for this URI so the operator can see exactly which tables
-             * failed and why. Done regardless of -q; -q controls whether we continue afterward.
+             * Emit a JSON placeholder so the operator can see which URIs failed. The placeholder is
+             * emitted regardless of -q; -q controls whether we continue afterward.
              */
             if (json) {
                 if (have_emitted_table && dump_json_separator(session) != 0)
@@ -304,9 +297,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         }
 
         /*
-         * Track iteration failure for per-URI continuation under -q + JSON. The JSON preamble has
-         * already been written by dump_config; dump_json_table_end below closes the braces cleanly,
-         * so the partial output for this URI stays well-formed and we can move on.
+         * Track iteration failure for per-URI continuation under -q + JSON. dump_json_table_end
+         * below closes the JSON braces for whatever was already emitted.
          */
         ret = 0;
         if (explore) {
@@ -338,8 +330,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             if (quiet_corrupt && json) {
                 if (multi_uri_err == 0)
                     multi_uri_err = ret;
-                /* Fall through: dump_json_table_end + close below clean up and the loop continues.
-                 */
+                /* Fall through; dump_json_table_end + close below clean up. */
             } else
                 goto err;
         }
@@ -393,10 +384,7 @@ err:
             ret = 1;
     }
 
-    /*
-     * If any URI failed under -q + JSON and the loop continued, surface the first such error as the
-     * command exit code so the operator can tell something was elided.
-     */
+    /* Surface the first per-URI failure as the exit code so partial output is signaled. */
     if (ret == 0 && multi_uri_err != 0)
         ret = 1;
 
@@ -515,9 +503,7 @@ dump_json_separator(WT_SESSION *session)
 
 /*
  * dump_json_error_table --
- *     Emit a JSON placeholder for a URI we couldn't dump: the URI's array contains a single object
- *     with an "error" field carrying the strerror text. Lets the operator see exactly which tables
- *     failed and why, alongside the ones that succeeded.
+ *     Emit "<uri>" : [{"error": "<msg>"}] as a placeholder for a URI we couldn't dump.
  */
 static int
 dump_json_error_table(WT_SESSION *session, const char *uri, const char *errmsg)

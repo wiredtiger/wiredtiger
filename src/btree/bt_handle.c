@@ -303,11 +303,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             /* Warm the cache, if possible. */
             if (!__wt_conn_is_disagg(session)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-                /*
-                 * Preload is best-effort under quiet-corrupt; if a second-level internal page is
-                 * unreadable the cursor walk will fetch it lazily (and engage the read_corrupt skip
-                 * arm). Don't fail dhandle open for a preload miss.
-                 */
+                /* Preload is best-effort under quiet-corrupt; the cursor walk fetches misses
+                 * lazily. */
                 if (ret != 0 && F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
                     ret = 0;
                 WT_ERR(ret);
@@ -900,7 +897,7 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
-    /* Save-and-restore: don't wipe a caller-set quiet-corrupt flag at the end of this scope. */
+    /* Save-and-restore: preserve a caller-set quiet-corrupt flag across this scope. */
     quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if ((ret = __wt_blkcache_read(session, &dsk, &block_meta, addr, addr_size)) == 0)

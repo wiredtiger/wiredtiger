@@ -151,7 +151,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
     per_entry_err = 0;
 
-    /* Enter quiet-corrupt mode BEFORE open_cursor so metadata-dhandle reads are also covered. */
+    /* Set the session flag before open_cursor so metadata-dhandle reads stay quiet too. */
     if (quiet_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 
@@ -170,10 +170,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
     found = uri == NULL;
     while ((ret = cursor->next(cursor)) == 0) {
-        /*
-         * Get the key. Under -q, a per-entry failure is logged and we move on to the next entry
-         * rather than aborting the whole listing; without -q, abort as before.
-         */
+        /* Under -q, per-entry failures are logged and skipped instead of aborting the listing. */
         if ((ret = cursor->get_key(cursor, &key)) != 0) {
             if (quiet_corrupt) {
                 (void)util_cerr(cursor, "get_key", ret);
@@ -235,7 +232,6 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
         return (1);
     }
 
-    /* If any per-entry failure was logged under -q, surface it as a non-zero exit. */
     return (per_entry_err == 0 ? 0 : 1);
 }
 

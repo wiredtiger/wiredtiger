@@ -90,13 +90,8 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * Enter quiet-corrupt mode BEFORE open_cursor so dhandle-open block reads (including the root
-     * page and any preloaded internal pages) return errors instead of panicking. The scoped pairs
-     * in bt_handle.c and others save-and-restore the flag, so this setting survives across the
-     * dhandle-open path.
-     *
-     * Tack read_corrupt=true onto whatever stats config was selected, so the stat cursor's tree
-     * walk also opts into per-walk skip semantics.
+     * Set the session flag before open_cursor so dhandle-open reads stay quiet. Add
+     * read_corrupt=true to the cursor config so the stat cursor's tree walk also opts into skip.
      */
     if (quiet_corrupt) {
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);

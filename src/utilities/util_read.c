@@ -53,10 +53,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 
-    /*
-     * Enter quiet-corrupt mode BEFORE open_cursor so dhandle-open block reads also return errors
-     * instead of panicking on corruption.
-     */
+    /* Set the session flag before open_cursor so dhandle-open block reads stay quiet too. */
     if (quiet_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
 

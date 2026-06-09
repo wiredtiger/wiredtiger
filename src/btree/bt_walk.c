@@ -380,9 +380,8 @@ descend:
                 goto restart;
 
             /*
-             * Skippable corruption (gated by WT_READ_SKIP_CORRUPT): the swap kept the parent pinned
-             * for us. Record the first such error so it can be surfaced at done: in place of the
-             * clean exit, and break out so the outer loop advances to the next sibling.
+             * Skippable corruption: the swap kept the parent pinned. Record the first error, break,
+             * and the outer loop advances to the next sibling; done: surfaces the error.
              */
             if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO)) {
                 if (session->corrupt_skip_first_err == 0)
@@ -406,9 +405,8 @@ done:
           "tree walk took more than 10 seconds (%" PRIu64 "ms)", time_diff_ms);
 
     /*
-     * Surface the first corruption skip at end-of-iteration so the cursor's terminal next() reports
-     * it. *refp == NULL is the WT_NOTFOUND-equivalent; intermediate leaves must still flow through
-     * with ret = 0. One-shot: clear after consuming.
+     * Surface the first corruption skip at end-of-iteration in place of WT_NOTFOUND so the cursor's
+     * terminal next() reports it. One-shot: clear after consuming.
      */
     if (LF_ISSET(WT_READ_SKIP_CORRUPT) && *refp == NULL && session->corrupt_skip_first_err != 0) {
         ret = session->corrupt_skip_first_err;
