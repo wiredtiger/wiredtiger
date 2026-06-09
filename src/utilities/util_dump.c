@@ -24,6 +24,7 @@ static int dump_explore_bookmark_select(WT_CURSOR *, char **, uint64_t);
 static void dump_explore_bookmarks_list(char **);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
+static int dump_json_error_table(WT_SESSION *, const char *, const char *);
 static int dump_json_separator(WT_SESSION *);
 static int dump_json_table_end(WT_SESSION *);
 static const char *get_dump_type(bool, bool, bool);
@@ -254,19 +255,24 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (quiet_corrupt)
             F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
-            fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
-              session->strerror(session, ret));
+            const char *errmsg = session->strerror(session, ret);
+            fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri, errmsg);
             /*
-             * Under -q in JSON mode, treat cursor-open failure as per-URI: record the error so the
-             * command exits non-zero and continue with the next URI. No JSON content has been
-             * emitted for this URI yet, so the output stays well-formed.
+             * Emit a JSON placeholder for this URI so the operator can see exactly which tables
+             * failed and why. Done regardless of -q; -q controls whether we continue afterward.
              */
-            if (quiet_corrupt && json) {
-                if (multi_uri_err == 0)
-                    multi_uri_err = ret;
-                cursor = NULL;
-                continue;
+            if (json) {
+                if (have_emitted_table && dump_json_separator(session) != 0)
+                    goto err;
+                if (dump_json_error_table(session, uri, errmsg) != 0)
+                    goto err;
+                have_emitted_table = true;
             }
+            if (multi_uri_err == 0)
+                multi_uri_err = ret;
+            cursor = NULL;
+            if (quiet_corrupt)
+                continue;
             goto err;
         }
 
@@ -505,6 +511,32 @@ dump_json_separator(WT_SESSION *session)
     if (fprintf(fp, ",\n") < 0)
         return (util_err(session, EIO, NULL));
     return (0);
+}
+
+/*
+ * dump_json_error_table --
+ *     Emit a JSON placeholder for a URI we couldn't dump: the URI's array contains a single object
+ *     with an "error" field carrying the strerror text. Lets the operator see exactly which tables
+ *     failed and why, alongside the ones that succeeded.
+ */
+static int
+dump_json_error_table(WT_SESSION *session, const char *uri, const char *errmsg)
+{
+    WT_DECL_RET;
+    char *json_uri, *json_err;
+
+    json_uri = json_err = NULL;
+    if ((ret = dup_json_string(uri, &json_uri)) != 0)
+        return (util_err(session, ret, NULL));
+    if ((ret = dup_json_string(errmsg, &json_err)) != 0)
+        goto err;
+    if (fprintf(fp, "    \"%s\" : [\n        {\n            \"error\" : \"%s\"\n        }\n    ]",
+          json_uri, json_err) < 0)
+        ret = util_err(session, EIO, NULL);
+err:
+    util_free(json_uri);
+    util_free(json_err);
+    return (ret);
 }
 
 /*

@@ -438,8 +438,10 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         with open('multi_q.out') as f:
             doc = json.load(f)   # raises if JSON is malformed
         tables = sorted(k for k in doc if k.startswith('table:'))
-        self.assertEqual(tables, ['table:demoA', 'table:demoC'],
-            'expected demoA and demoC present, demoB absent; got %r' % tables)
+        self.assertEqual(tables, ['table:demoA', 'table:demoB', 'table:demoC'],
+            'expected all three table keys present, including an error marker for the middle '
+            'table; got %r' % tables)
+        # The first and third tables have full data.
         for t in ('A', 'C'):
             records = doc['table:demo' + t][1]['data']
             keys = [r['key0'] for r in records]
@@ -447,6 +449,12 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
                 '%s expected 500 records, got %d' % (t, len(keys)))
             self.assertEqual(keys[0], '%s_k0000' % t)
             self.assertEqual(keys[-1], '%s_k0499' % t)
+        # The middle table is a single-element array containing the error marker.
+        self.assertEqual(len(doc['table:demoB']), 1,
+            'expected one error-placeholder element; got %r' % doc['table:demoB'])
+        self.assertIn('error', doc['table:demoB'][0],
+            'expected "error" key in the placeholder; got keys %r'
+            % list(doc['table:demoB'][0].keys()))
 
     # ---------- dump_record return-code regressions (no corruption) outside scope ----------
 

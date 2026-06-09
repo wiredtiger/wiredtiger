@@ -100,8 +100,13 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 
         switch (ret = cursor->search(cursor)) {
         case 0:
-            if ((ret = cursor->get_value(cursor, &value)) != 0)
-                return (util_cerr(cursor, "get_value", ret));
+            if ((ret = cursor->get_value(cursor, &value)) != 0) {
+                (void)util_cerr(cursor, "get_value", ret);
+                if (!quiet_corrupt)
+                    return (1);
+                rval = true;
+                break;
+            }
             if (printf("%s\n", value) < 0)
                 return (util_err(session, EIO, NULL));
             break;

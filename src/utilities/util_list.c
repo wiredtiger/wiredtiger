@@ -145,8 +145,11 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    int per_entry_err;
     const char *key, *value;
     bool found;
+
+    per_entry_err = 0;
 
     /* Enter quiet-corrupt mode BEFORE open_cursor so metadata-dhandle reads are also covered. */
     if (quiet_corrupt)
@@ -167,9 +170,19 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
     found = uri == NULL;
     while ((ret = cursor->next(cursor)) == 0) {
-        /* Get the key. */
-        if ((ret = cursor->get_key(cursor, &key)) != 0)
+        /*
+         * Get the key. Under -q, a per-entry failure is logged and we move on to the next entry
+         * rather than aborting the whole listing; without -q, abort as before.
+         */
+        if ((ret = cursor->get_key(cursor, &key)) != 0) {
+            if (quiet_corrupt) {
+                (void)util_cerr(cursor, "get_key", ret);
+                if (per_entry_err == 0)
+                    per_entry_err = ret;
+                continue;
+            }
             return (util_cerr(cursor, "get_key", ret));
+        }
 
         /* If a name is specified, only show objects that match. */
         if (uri != NULL) {
@@ -192,11 +205,26 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
         if (!cflag && !vflag)
             continue;
 
-        if (cflag && (ret = list_print_checkpoint(session, key)) != 0)
+        if (cflag && (ret = list_print_checkpoint(session, key)) != 0) {
+            if (quiet_corrupt) {
+                fprintf(stderr, "%s: %s: list_print_checkpoint failed: %s\n", progname, key,
+                  session->strerror(session, ret));
+                if (per_entry_err == 0)
+                    per_entry_err = ret;
+                continue;
+            }
             return (ret);
+        }
         if (vflag) {
-            if ((ret = cursor->get_value(cursor, &value)) != 0)
+            if ((ret = cursor->get_value(cursor, &value)) != 0) {
+                if (quiet_corrupt) {
+                    (void)util_cerr(cursor, "get_value", ret);
+                    if (per_entry_err == 0)
+                        per_entry_err = ret;
+                    continue;
+                }
                 return (util_cerr(cursor, "get_value", ret));
+            }
             fprintf(fp, "%s\n", value);
         }
     }
@@ -207,7 +235,8 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
         return (1);
     }
 
-    return (0);
+    /* If any per-entry failure was logged under -q, surface it as a non-zero exit. */
+    return (per_entry_err == 0 ? 0 : 1);
 }
 
 /*
