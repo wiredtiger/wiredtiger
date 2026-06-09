@@ -786,11 +786,13 @@ __disagg_append_crypt_meta(WT_SESSION_IMPL *session, WT_ITEM *metadata_buf)
       conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] !=
         0);
 
-    return (__wt_buf_catfmt(session, metadata_buf,
+    WT_RET(__wt_buf_catfmt(session, metadata_buf,
       ",\n"
       "key_provider=(page.1=(page_id=%d,lsn=%" PRIu64 "),version=1)",
       WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
       conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID]));
+
+    return (0);
 }
 
 /*
