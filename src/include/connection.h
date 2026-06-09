@@ -229,6 +229,7 @@ struct __wt_page_delta_config {
     wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
 
     u_int delta_pct;             /* Delta page percent (of full page size) */
+    u_int delete_pct;            /* Max delete fraction (%) before forcing full page */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_INTERNAL_PAGE_DELTA 0x1u

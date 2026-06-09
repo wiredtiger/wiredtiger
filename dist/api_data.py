@@ -125,6 +125,12 @@ connection_page_delta_config_common = [
         When enabled, reconciliation may write deltas for leaf pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
+    Config('delete_pct', '20', r'''
+        when the number of keys removed from the disk image on a leaf page exceeds this
+        percentage of the total page entries, reconciliation writes a full page instead of
+        a delta to reclaim disk space. A removed key still occupies space as a tombstone in
+        the delta; the same key is simply absent from a full page.''',
+        min='1', max='100', type='int', undoc=True),
     Config('max_consecutive_delta', '32', r'''
         the max consecutive deltas allowed for a single page. The maximum value is set
         at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
@@ -1543,12 +1549,6 @@ wiredtiger_open = wiredtiger_open_common + [
         type='boolean'),
     Config('exclusive', 'false', r'''
         fail if the database already exists, generally used with the \c create option''',
-        type='boolean'),
-    Config('extensions_strict', 'false', r'''
-        if true, fail ::wiredtiger_open with \c EINVAL when an early-loaded extension
-        recorded in \c WiredTiger.basecfg is not passed in the open configuration. The
-        default is to log a warning and continue with the extension absent. See @ref
-        extensions_loadable''',
         type='boolean'),
     Config('in_memory', 'false', r'''
         keep data in memory only. See @ref in_memory for more information''',
