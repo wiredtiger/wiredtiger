@@ -94,8 +94,9 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
             previous_ts = timestamp
 
     def test_multiple_pushes_across_checkpoints(self):
-        # Each checkpoint pushes a fresh key onto the pending list and drains it, persisting one
-        # new key-provider page.
+        # A checkpoint persists the pushed key whose timestamp the stable timestamp has reached.
+        # The test key provider stamps each pushed key with a per-checkpoint counter, so advancing
+        # stable by one before each checkpoint lets a new key become durable every time.
         if self.ds_name != "palite":
             self.skipTest("Must use PALite to verify contents")
 
@@ -103,14 +104,19 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
         ds.populate()
 
         # The first checkpoint creates the page table; record the baseline page count.
+        stable = 1
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable))
         self.session.checkpoint()
         baseline = len(self.key_provider_pages())
         self.assertGreaterEqual(baseline, 1)
 
-        # Write and checkpoint a few more times; each checkpoint persists another page.
+        # Write and checkpoint a few more times; each checkpoint persists another page with a
+        # strictly higher timestamp and LSN.
         cursor = self.session.open_cursor(self.uri)
         for i in range(4):
             cursor[ds.key(100 + i)] = ds.value(100 + i)
+            stable += 1
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable))
             self.session.checkpoint()
         cursor.close()
 
