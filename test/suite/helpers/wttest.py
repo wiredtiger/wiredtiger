@@ -36,6 +36,7 @@
 from __future__ import print_function
 
 import unittest
+import warnings
 
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, threading, time, traceback, types, shutil
@@ -622,6 +623,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         dumped_error_log = False
         teardown_failed = False
         teardown_msg = None
+        verify_failed = False
         if not dueToRetry:
             for action in self.teardown_actions:
                 try:
@@ -641,7 +643,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         if passed and self.__module__.startswith("test_layered"):
-            self.verifyLayered()
+            try:
+                self.verifyLayered()
+            except Exception:
+                passed = False
+                dumped_error_log = True
+                verify_failed = True
 
         try:
             self.platform_api.tearDown(self)
@@ -716,6 +723,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if teardown_failed:
             self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+        if verify_failed:
+            self.fail(f'Verification failed')
         if close_failed:
             self.fail(f'Closing the connection failed')
         if (not passed or teardown_failed) and (not self.skipped):
@@ -1166,6 +1175,10 @@ def runsuite(suite, parallel):
         if not WiredTigerTestCase._globalSetup:
             WiredTigerTestCase.globalSetup({})
         WiredTigerTestCase._concurrent = True
+        # concurrencytest requests line buffering on its binary pipes, which results in a harmless warning.
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning,
+            message="line buffering .* isn't supported in binary mode")
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel), wrap_result=wrap_result_for_tags)
     try:
         if WiredTigerTestCase._randomseed:
