@@ -268,7 +268,8 @@ err:
 
 /*
  * __rts_btree_row_modify --
- *     Add the provided update to the head of the update list.
+ *     Add the provided update to the head of the update list. The caller supplies the row slot via
+ *     rip; the cursor is positioned directly without a page search.
  */
 static WT_INLINE int
 __rts_btree_row_modify(
@@ -285,8 +286,9 @@ __rts_btree_row_modify(
 
     /*
      * The caller already holds the slot, so position the cursor directly instead of searching the
-     * page for the key. With compare == 0 and ins == NULL, __wt_row_modify targets
-     * mod_row_update[slot] and never reaches the insert path that needs the key.
+     * page for the key. cbt.ins is NULL because __wt_btcur_init zeroes the struct; with compare ==
+     * 0 and ins == NULL, __wt_row_modify targets mod_row_update[slot] directly and never reaches
+     * the insert path that needs the key argument.
      */
     cbt.ref = ref;
     cbt.slot = WT_ROW_SLOT(ref->page, rip);
