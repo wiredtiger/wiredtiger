@@ -57,6 +57,15 @@ struct __wt_shared_dsk_item {
     uint8_t addr[];
 };
 
+/*
+ * Best-effort sizing: budget 0.2% of the cache and assume one item per bucket, so dividing that
+ * budget by the per-bucket cost gives the count, with a floor of a thousand buckets.
+ */
+#define WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)                                      \
+    ((u_int)WT_MAX(S2C(session)->cache_size / 500 /                                         \
+        (sizeof(WT_SHARED_DSK_ITEM) + sizeof(*S2C(session)->cache->shared_dsk_cache.hash)), \
+      WT_THOUSAND))
+
 struct __wt_shared_dsk_cache {
     bool enabled;
     wt_shared uint64_t num_items;
