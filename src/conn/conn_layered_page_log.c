@@ -479,9 +479,9 @@ __disagg_select_pending_crypt_key(WT_SESSION_IMPL *session, wt_timestamp_t check
     prev_timestamp = WT_TS_NONE;
 
     /*
-     * set_key enqueues in strictly ascending timestamp order, so the first entry past the
-     * checkpoint timestamp ends the search. Assert the ordering as we go rather than trusting the
-     * API.
+     * The queue is sorted in ascending timestamp order, so bail out on the first entry past the
+     * checkpoint timestamp. Assert the ordering as we scan rather than trusting the API to enforce
+     * it.
      */
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.pending_crypt_key_qh, q) {
         WT_ASSERT(session, entry->timestamp > prev_timestamp);
