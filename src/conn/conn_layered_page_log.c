@@ -472,16 +472,19 @@ __disagg_select_pending_crypt_key(WT_SESSION_IMPL *session, wt_timestamp_t check
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_PENDING_CRYPT_KEY *chosen, *entry;
-    wt_timestamp_t prev_timestamp;
+#ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t prev_timestamp = WT_TS_NONE;
+#endif
 
     conn = S2C(session);
     chosen = NULL;
-    prev_timestamp = WT_TS_NONE;
 
     /* The queue is sorted in ascending timestamp order; assert the ordering while scanning. */
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.pending_crypt_key_qh, q) {
+#ifdef HAVE_DIAGNOSTIC
         WT_ASSERT(session, entry->timestamp > prev_timestamp);
         prev_timestamp = entry->timestamp;
+#endif
         if (entry->timestamp > checkpoint_timestamp)
             break;
         chosen = entry;
