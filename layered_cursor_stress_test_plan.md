@@ -203,6 +203,72 @@ misbehavior**, on a usage the public `remove()` contract permits. Recommendation
 PENDING Ivan's decision to file. The stress test avoids it by re-positioning inside the write
 txn; the genuine iterate-and-delete-in-one-transaction case lands in Phase C.
 
+**Timestamp-model reframing (verified):** layered writes are **always timestamped by design** —
+the layered table AND both constituents are created with `log=(enabled=false)`
+(`schema_create.c:1186-1215`, "...to ensure we have timestamps"), and disagg rejects
+`write_timestamp_usage=never` (`schema_create.c:1599-1605`); the ordered timestamp-usage check
+then requires a commit_timestamp on any write whose key was previously timestamped
+(`txn_inline.h:647-652`). So a positional write MUST run in an explicit timestamped txn, and the
+**supported pattern is position + write in the SAME txn** (the doc contract
+`arch-disagg-layered-cursor.dox:42-45`; the test's re-search-in-txn does exactly this, so it is
+the *correct* pattern, not a hack). Consequences: (i) the autocommit "always use timestamps"
+rejection is EXPECTED, not a bug; (ii) Q1 is best classed as **unsupported cross-txn usage that
+fails UNSAFELY** (diagnostic assert / release stale-value read) rather than a bug in the
+supported flow — the gap is defensive handling: `__clayered_remove` enters with `reset=false`
+(`cur_layered.c:2422`) and never re-validates, so the fix is to re-read the constituent (the
+`__clayered_lookup` path the unpositioned branch already uses) or return a clean error.
+**Severity — RESOLVED EMPIRICALLY (release build, asserts off):** the cross-txn positional
+remove (with a commit_timestamp) is a **clean, CORRECT success** in release — `remove()` → 0,
+commit succeeds, key correctly removed (identical to the same-txn control). NOT silent
+corruption. The stale `c->value` buffer still held the live value, so the
+`__wt_clayered_deleted` short-circuit (`cur_layered.c:2174`) was not taken; it proceeded to the
+real tombstone update and the timestamp check passed. The autocommit no-timestamp case (Path A)
+correctly raises `EINVAL` and leaves data unchanged (NOT swallowed). So Q1 is NOT a correctness
+bug; it is **(1) an overly-strict diagnostic-only `WT_ASSERT`** that aborts a sequence release
+handles correctly (so diagnostic/CI builds crash on a legal timestamped cross-txn positional
+remove), plus **(2) a latent defensive-coding hazard**: `WT_ITEM_SET(value, c->value)` reads the
+ingest value with no `VALUE_INT` guarantee — harmless here, but would misfire (wrong
+`WT_NOTFOUND`) if that buffer ever held the 2-byte tombstone marker. Cleanest fix addresses
+both: when `VALUE_INT` isn't set, re-read via `__clayered_lookup` instead of asserting + trusting
+the buffer.
+
+#### FINDINGS — RESOLVED (Ivan's verdicts)
+
+**Q1 = REAL BUG. Fixed in branch `wt-17796-fix-cross-txn-positioned-remove` (WT-17796).**
+A positional `remove()` in a new txn after the positioning read committed reads the ingest
+constituent's value buffer when `VALUE_INT` is not set (the `WT_ASSERT` at
+`cur_layered.c:2166-2167` correctly flags this invariant violation). Diagnostic aborts; release
+reads an unguaranteed buffer (correct only by luck of leftover contents). The WT team confirmed
+and fixed it; our empirical "release happened to work" was the lucky case, not a refutation.
+Repros: `findings/repro_q1_cross_txn_positional_remove.py`, `findings/repro_q1_release_behavior.py`.
+
+**Q2 = NOT a bug — standard read-committed snapshot behavior, identical for ASC and DSC.**
+A *held* scan cursor pins the read-committed snapshot it took when iteration began, so it keeps
+seeing the pre-delete view (key 110 live) across its `next()` calls; a *separate* point
+`search()` takes a NEWER snapshot and sees the later ingest tombstone (`WT_NOTFOUND`). Scan and
+search read at DIFFERENT snapshots — NOT the same one (my earlier "same-snapshot inconsistency"
+framing was wrong). Plain read-committed semantics: a non-layered cursor behaves identically,
+and under `isolation=snapshot` the divergence disappears (one txn snapshot). Repro:
+`findings/repro_q2_pinned_scan_search.py`.
+
+**Why the ASC-vs-DSC oracle did NOT (and cannot) find Q2:** the oracle applies the SAME op to
+the layered (DSC) and reference (ASC) cursors, both opened on the SAME session (`compare_read`),
+so for any one operation they read under the SAME snapshot and agree — snapshot pinning hits
+both equally. Q2 never came from the oracle; it came from (a) the M3 scenario, which held a
+follower cursor across an advance and compared its old-snapshot reads against fresh reads, and
+(b) the standalone repro, which compares a held SCAN (old snapshot) vs a fresh SEARCH (new
+snapshot). Those are held-vs-fresh / different-snapshot comparisons, not ASC-vs-DSC. **The
+same-session oracle is therefore SOUND — immune to snapshot-pinning false positives by
+construction.** (Reinforces the design rule: always compare layered vs reference in the same
+session/snapshot.)
+
+- **G1** = `search_near_stable` counter impurity — already FIXME-WT-15545; the guard already
+  excludes it. No repro.
+- The other 9 accommodations are standard WT cursor/disagg-lifecycle semantics (search_near
+  either-neighbour, drain via ingest URI, ≥2-checkpoint prune gate, `oldest=stable`,
+  reset-before-advance, ignored redundant-checkpoint warning, `precise_checkpoint` non-adoption,
+  forward-looking write-rc compare, the merge floor) — cited contracts, no repro warranted.
+
 ### Phase C — Transactions, timestamps, isolation
 - [ ] C1. begin/commit/rollback applied at session level; cursors survive a txn switch
       mid-chain (commit/rollback in the middle, not just at the end).
