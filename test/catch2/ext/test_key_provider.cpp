@@ -523,8 +523,7 @@ TEST_CASE_METHOD(
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }
 
-TEST_CASE_METHOD(
-  kp_fixture, "checkpoint prune frees covered keys and retains newer ones", "[key_provider]")
+TEST_CASE_METHOD(kp_fixture, "checkpoint prune below the bound frees nothing", "[key_provider]")
 {
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
     WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
@@ -536,29 +535,80 @@ TEST_CASE_METHOD(
     __ut_disagg_prune_pending_crypt_keys(session_impl, 100);
     validate_pending_queue(conn_impl, {});
 
-    /* Distinct key bytes per entry so the surviving entries' keys can be validated. */
-    const std::string keys[5] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty",
-      "prune-key-forty", "prune-key-fifty"};
-    const uint64_t timestamps[5] = {10, 20, 30, 40, 50};
-    for (int i = 0; i < 5; i++)
+    const std::string keys[3] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty"};
+    const uint64_t timestamps[3] = {10, 20, 30};
+    for (int i = 0; i < 3; i++)
         REQUIRE(push_key(&stub, keys[i], timestamps[i]) == 0);
-    validate_pending_queue(
-      conn_impl, {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
 
     /* A bound below every entry frees nothing. */
     __ut_disagg_prune_pending_crypt_keys(session_impl, 5);
-    validate_pending_queue(
-      conn_impl, {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
+    validate_pending_queue(conn_impl, {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}});
+
+    __wti_disagg_pending_crypt_key_clear(session_impl);
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(
+  kp_fixture, "checkpoint prune at an exact boundary frees that key and older", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    const std::string keys[3] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty"};
+    const uint64_t timestamps[3] = {10, 20, 30};
+    for (int i = 0; i < 3; i++)
+        REQUIRE(push_key(&stub, keys[i], timestamps[i]) == 0);
 
     /* A bound exactly at an entry frees that entry and everything older. */
     __ut_disagg_prune_pending_crypt_keys(session_impl, 20);
-    validate_pending_queue(conn_impl, {{30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
+    validate_pending_queue(conn_impl, {{30, keys[2]}});
+
+    __wti_disagg_pending_crypt_key_clear(session_impl);
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(
+  kp_fixture, "checkpoint prune between entries frees the covered keys", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    const std::string keys[3] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty"};
+    const uint64_t timestamps[3] = {10, 20, 30};
+    for (int i = 0; i < 3; i++)
+        REQUIRE(push_key(&stub, keys[i], timestamps[i]) == 0);
 
     /* A bound between entries frees the two covered keys and retains the newer one. */
-    __ut_disagg_prune_pending_crypt_keys(session_impl, 45);
-    validate_pending_queue(conn_impl, {{50, keys[4]}});
+    __ut_disagg_prune_pending_crypt_keys(session_impl, 25);
+    validate_pending_queue(conn_impl, {{30, keys[2]}});
 
-    /* A bound at or above the last entry drains the queue. */
+    __wti_disagg_pending_crypt_key_clear(session_impl);
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "checkpoint prune above all drains the queue", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    const std::string keys[3] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty"};
+    const uint64_t timestamps[3] = {10, 20, 30};
+    for (int i = 0; i < 3; i++)
+        REQUIRE(push_key(&stub, keys[i], timestamps[i]) == 0);
+
+    /* A bound at or above every entry drains the whole queue at once. */
     __ut_disagg_prune_pending_crypt_keys(session_impl, 1000);
     validate_pending_queue(conn_impl, {});
 
