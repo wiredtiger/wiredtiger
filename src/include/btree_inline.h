@@ -2290,11 +2290,11 @@ __wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
 
 #if WT_TIMESTAMP_ASSUME_MONGODB_SECONDS
     /*
-     * MongoDB packs timestamps as <seconds : increment>, with the high 32 bits as wall-clock
-     * seconds. What we do here is round up to the start of the next second. Every commit within a
-     * second computes the same target, so only the first commit of each second will raise the
-     * bound. This generally minimizes contention except for a brief chance of collisions at the
-     * second boundary. This is safe, a conservative overestimate of the bound, preserving the
+     * Make the timestamp more conservative to reduce CAS calls, and thus reduce contention on the
+     * shared maximum timestamp field. MongoDB packs timestamps as <seconds : increment>, with the
+     * high 32 bits as wall-clock seconds. Round up to the start of the next second. Every commit
+     * within this second will round up to the same value, so only the first commit of each second
+     * will raise the bound. This is safe, a conservative overestimate of the bound, preserving the
      * requirement that needed data is never lost.
      *
      * Checkpoints generally happen at a fast pace, and continually raise the timestamp that sweep
