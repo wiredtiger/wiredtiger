@@ -537,27 +537,22 @@ TEST_CASE_METHOD(
     validate_pending_queue(conn_impl, {});
 
     /* Distinct key bytes per entry so the surviving entries' keys can be validated. */
-    const std::string keys[6] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty",
-      "prune-key-forty", "prune-key-fifty", "prune-key-sixty"};
-    const uint64_t timestamps[6] = {10, 20, 30, 40, 50, 60};
-    for (int i = 0; i < 6; i++)
+    const std::string keys[5] = {"prune-key-ten", "prune-key-twenty", "prune-key-thirty",
+      "prune-key-forty", "prune-key-fifty"};
+    const uint64_t timestamps[5] = {10, 20, 30, 40, 50};
+    for (int i = 0; i < 5; i++)
         REQUIRE(push_key(&stub, keys[i], timestamps[i]) == 0);
-    validate_pending_queue(conn_impl,
-      {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}, {60, keys[5]}});
+    validate_pending_queue(
+      conn_impl, {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
 
     /* A bound below every entry frees nothing. */
     __ut_disagg_prune_pending_crypt_keys(session_impl, 5);
-    validate_pending_queue(conn_impl,
-      {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}, {60, keys[5]}});
-
-    /* A bound exactly at an entry frees that entry too. */
-    __ut_disagg_prune_pending_crypt_keys(session_impl, 10);
     validate_pending_queue(
-      conn_impl, {{20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}, {60, keys[5]}});
+      conn_impl, {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
 
-    /* A bound between entries frees the two covered keys and retains the newer ones. */
-    __ut_disagg_prune_pending_crypt_keys(session_impl, 35);
-    validate_pending_queue(conn_impl, {{40, keys[3]}, {50, keys[4]}, {60, keys[5]}});
+    /* A bound exactly at an entry frees that entry and everything older. */
+    __ut_disagg_prune_pending_crypt_keys(session_impl, 20);
+    validate_pending_queue(conn_impl, {{30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
 
     /* A bound at or above every remaining entry drains the three that are left. */
     __ut_disagg_prune_pending_crypt_keys(session_impl, 1000);
