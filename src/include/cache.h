@@ -74,11 +74,9 @@ typedef enum {
     WT_DSK_CACHE_DEAD      /* Drained on a leader: both reads and writes are disabled. */
 } WT_DSK_CACHE_STATE;
 
-#define WT_DSK_CACHE_READABLE(state) \
-    ((state) == WT_DSK_CACHE_ACTIVE || (state) == WT_DSK_CACHE_READONLY)
-
-#define WT_DSK_CACHE_CAN_READ(state, btree) \
-    (WT_DSK_CACHE_READABLE(state) && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+#define WT_DSK_CACHE_CAN_READ(state, btree)                                  \
+    (((state) == WT_DSK_CACHE_ACTIVE || (state) == WT_DSK_CACHE_READONLY) && \
+      F_ISSET(btree, WT_BTREE_DISAGGREGATED))
 
 #define WT_DSK_CACHE_CAN_WRITE(state, btree) \
     ((state) == WT_DSK_CACHE_ACTIVE && F_ISSET(btree, WT_BTREE_DISAGGREGATED))

@@ -1675,9 +1675,9 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       "Failed to drain ingest tables");
 
     /*
-     * Step-up: block puts but keep serving reads so the new leader can reuse cached images, and
-     * stamp the time so the sweep marks the cache dead after the reuse grace. A follower's cache is
-     * always active.
+     * Mark the shared disk cache read-only: reads can still reuse cached images but puts are
+     * blocked. Record the transition time so the sweep server can mark the cache dead once the
+     * grace period elapses.
      */
     WT_ASSERT(session,
       __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state) == WT_DSK_CACHE_ACTIVE);
@@ -1768,13 +1768,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
         WT_IGNORE_RET(
           __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
 
-    /*
-     * Creation should never fail here; the assert catches it in diagnostic builds. In production a
-     * failure leaves the cache off so reads bypass it rather than dereferencing a NULL table.
-     */
     WT_ASSERT(session, shared_dsk_cache->hash != NULL);
     if (shared_dsk_cache->hash != NULL) {
-        /* Publish the table before the state so readers never see an active cache without it. */
         WT_RELEASE_BARRIER();
         __wt_atomic_store_uint8_relaxed(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
     }
