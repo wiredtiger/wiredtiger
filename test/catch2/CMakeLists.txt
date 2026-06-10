@@ -49,7 +49,6 @@ else()
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_put.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
-        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_role_switch.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp

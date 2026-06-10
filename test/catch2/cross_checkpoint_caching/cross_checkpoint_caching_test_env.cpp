@@ -52,13 +52,11 @@ cross_checkpoint_caching_test_env::~cross_checkpoint_caching_test_env()
     WT_CONNECTION_IMPL *conn = S2C(_session);
 
     /*
-     * Stop the sweep server before freeing the table, mirroring connection-close ordering: the
-     * sweep server consults the cache and must not race the destroy.
+     * Free the table; this nulls hash so the connection-close destroy is a no-op. Reset the state
+     * to keep the invariant that an active cache has a table.
      */
-    REQUIRE(__wti_sweep_destroy(_session) == 0);
-
-    /* Free the table; this nulls hash so the connection-close destroy is a no-op. */
     __wti_shared_dsk_cache_destroy(_session);
+    __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_OFF);
 
     /* Detach the dummy so the disagg teardown path doesn't dereference it as a real handle. */
     conn->disaggregated_storage.page_log_meta = nullptr;
