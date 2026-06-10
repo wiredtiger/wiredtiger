@@ -29,7 +29,6 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util07.py
 #    Utilities: wt read
 class test_util07(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util07.a'

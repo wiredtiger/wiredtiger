@@ -32,7 +32,6 @@ from compact_util import compact_util
 
 megabyte = 1024 * 1024
 
-# test_compact13.py
 # This test checks that background compaction resets statistics after being disabled.
 class test_compact13(compact_util):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'

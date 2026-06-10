@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate21.py
 #   When an instantiated fast-truncate leaf has its deletion become globally visible, the
 #   parent reconciliation must rebuild a full base image rather than a delta, so that
 #   dropping the leaf's proxy cell and freeing its block happen together. This keeps the

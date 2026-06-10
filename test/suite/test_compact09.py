@@ -32,7 +32,6 @@ from wiredtiger import stat
 
 megabyte = 1024 * 1024
 
-# test_compact09.py
 # This test creates tables with the first 90% of keys deleted.
 #
 # It checks that background compaction only compacts a table when it is not part of the exclude

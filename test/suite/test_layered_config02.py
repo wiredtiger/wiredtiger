@@ -31,7 +31,6 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_config02.py
 #    Test disaggregated storage with block cache.
 @disagg_test_class
 class test_layered_config02(wttest.WiredTigerTestCase):

@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_reconcile02.py
 #
 # Test removing existing deleted keys from the old disk image is
 # considered making progress in reconciliation.

@@ -29,7 +29,6 @@
 import random, wttest
 from wtdataset import SimpleDataSet
 
-# test_bug011.py
 #    Eviction working on more trees than the eviction server can walk
 #    simultaneously.  There is a builtin limit of 1000 trees, we open double
 #    that, which makes this a long-running test.

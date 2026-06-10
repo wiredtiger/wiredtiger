@@ -32,7 +32,6 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 import wiredtiger
 
-# test_leaf_delta_disagg01.py
 # Test we can build leaf delta disk image from base image and deltas correctly, the test covers
 # different scenarios, where the k/v pair on latest delta should overwrite the same k/v pair for
 # earlier delta, the unpacking during merging process for delta and base image should work properly.

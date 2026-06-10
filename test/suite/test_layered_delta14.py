@@ -30,7 +30,6 @@ import threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_delta14.py
 #    Test we skip write pages if reconciliation doesn't make progress.
 @disagg_test_class
 class test_layered_delta14(wttest.WiredTigerTestCase):

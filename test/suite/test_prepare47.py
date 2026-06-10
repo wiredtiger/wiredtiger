@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare47.py
 #   Prepared insert on top of an existing tombstone, rolled back with the rollback
 #   timestamp ahead of stable. The chain ends up with an unresolved aborted prepared
 #   update at the head and the committed tombstone behind it. Reconcile must keep the

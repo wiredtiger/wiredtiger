@@ -30,7 +30,6 @@
 # truncate:prepare
 # [END_TAGS]
 #
-# test_prepare13.py
 #   Fast-truncate fails when a page contains prepared updates.
 import wiredtiger, wttest
 from wtdataset import simple_key, simple_value

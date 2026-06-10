@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_follower15.py
 #   Test MODIFY dependent on a GC-eligible base value.
 #
 #   Covers reads via cursor.next and cursor.search, and the case where

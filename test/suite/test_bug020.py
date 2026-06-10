@@ -30,7 +30,6 @@ import os
 import wttest
 from wtdataset import SimpleDataSet
 
-# test_bug020.py
 #    Test that an existing set file will replace a missing turtle file.
 class test_bug020(wttest.WiredTigerTestCase):
     def test_bug020(self):

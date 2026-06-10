@@ -29,7 +29,6 @@
 import time, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs14.py
 # Ensure that point in time reads with few visible history store records don't
 # damage performance.
 class test_hs14(wttest.WiredTigerTestCase):

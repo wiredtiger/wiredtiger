@@ -30,7 +30,6 @@ import wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet, ComplexDataSet
 
-# test_stat05.py
 #    Statistics cursor using size only
 class test_stat_cursor_config(wttest.WiredTigerTestCase):
     pfx = 'test_stat_cursor_size'

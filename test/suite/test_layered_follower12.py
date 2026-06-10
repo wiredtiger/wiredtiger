@@ -30,7 +30,6 @@ import os, os.path, shutil, threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_follower12.py
 # Test the timestamps on the ingest tables are not cleared even they are globally
 # visible.
 @disagg_test_class

@@ -30,7 +30,6 @@ import wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
-# test_eviction01.py
 '''
 This test inserts (then rolls back) a large number of updates per key in the update chain to a
 point where only aborted updates are present in the chain. We then test whether these chains,

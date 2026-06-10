@@ -33,7 +33,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_hs09.py
 # Verify that we write the newest committed version to data store and the
 # second newest committed version to history store.
 class test_hs09(wttest.WiredTigerTestCase):

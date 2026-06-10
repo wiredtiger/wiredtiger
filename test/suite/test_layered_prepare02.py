@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wtscenario import make_scenarios
 
-# test_layered_prepare02.py
 #   Forward iteration after a search() or search_near() that returns
 #   WT_PREPARE_CONFLICT must yield correct results on a layered cursor.
 

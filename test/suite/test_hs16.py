@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_hs16.py
 # Ensure that we don't panic when inserting an update without timestamp to the history store.
 class test_hs16(wttest.WiredTigerTestCase):
     test_name = __qualname__

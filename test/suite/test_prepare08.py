@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_prepare08.py
 # Test to ensure prepared tombstones are properly aborted/committed even when they are written
 # to the data store.
 class test_prepare08(wttest.WiredTigerTestCase):

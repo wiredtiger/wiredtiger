@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_sweep01.py
 # Test lots of tables, number of open files and sweeping.  Run both
 # with and without checkpoints.
 #

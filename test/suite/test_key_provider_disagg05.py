@@ -33,7 +33,6 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg05.py
 #    Push-mode key provider: exercise the pending-key list across multiple checkpoints and
 #    verify each checkpoint persists a new key-provider page.
 @disagg_test_class

@@ -32,7 +32,6 @@
 
 import wttest
 
-# test_reconfig05.py
 #    Test WT_SESSION::reconfigure
 class test_reconfig05(wttest.WiredTigerTestCase):
 

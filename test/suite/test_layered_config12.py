@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_config12.py
 # Test that unsupported cursor and table operations return clear errors for layered tables:
 # - Reverse collator (FIXME-WT-14738)
 

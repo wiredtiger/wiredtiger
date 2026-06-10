@@ -30,7 +30,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
 
-# test_rollback_to_stable41.py
 # Test that the dry-run config for RTS only applies to a single call.
 class test_rollback_to_stable41(test_rollback_to_stable_base):
     test_name = __qualname__

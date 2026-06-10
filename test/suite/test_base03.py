@@ -28,7 +28,6 @@
 
 import wttest
 
-# test_base03.py
 #    Cursor operations
 class test_base03(wttest.WiredTigerTestCase):
     """

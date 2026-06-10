@@ -30,7 +30,6 @@ import wiredtiger, time, errno, wtthread, wttest
 from wttest import open_cursor
 from error_info_util import error_info_util
 
-# test_error_info03.py
 #   Test that the get_last_error() session API returns the last error to occur in the session,
 #   for the EBUSY during drop cases.
 

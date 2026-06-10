@@ -30,7 +30,6 @@ import os, shutil
 import wttest
 from wiredtiger import stat
 
-# test_log03.py
 #    test configuration for log.dirty_max
 class test_log03(wttest.WiredTigerTestCase):
     """

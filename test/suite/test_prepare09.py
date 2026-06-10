@@ -33,7 +33,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare09.py
 # Validate scenarios involving inserting tombstones when rolling back prepares
 class test_prepare09(wttest.WiredTigerTestCase):
     test_name = __qualname__

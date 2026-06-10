@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 
-# test_config13.py
 #    Test creating a fixed-length column-store table, should fail since FLCS is not supported.
 class test_config13(wttest.WiredTigerTestCase):
 

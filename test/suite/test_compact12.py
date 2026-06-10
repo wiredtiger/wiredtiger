@@ -33,7 +33,6 @@ from wiredtiger import stat
 
 kilobyte = 1024
 
-# test_compact12.py
 # This test creates:
 #
 # - One table with the first 1/4 of keys deleted and obsolete and the last 10th of the keys

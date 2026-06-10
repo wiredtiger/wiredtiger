@@ -32,7 +32,6 @@ from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 
-# test_rollback_to_stable29.py
 # Test that the rollback to stable to verify the history store order when an update without a
 # timestamp inserted to a tombstone.
 class test_rollback_to_stable29(test_rollback_to_stable_base):

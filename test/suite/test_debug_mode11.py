@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from helper import WiredTigerCursor
 
-# test_debug_mode11.py
 #   Verify shutdown checkpoint behavior with close config debug.skip_checkpoint.
 class test_debug_mode11(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'

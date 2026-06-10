@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_cursor16.py
 #   Test the reserve() operation on layered cursors for keys in different states:
 #   present in stable, present in ingest, present in both, or not present.
 

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover12.py
 #   A prepared insert that is rolled back on a follower must leave the key
 #   absent on the leader once the rollback timestamp becomes stable, even when
 #   the carrying page is evicted and re-read. The behavior must hold both when

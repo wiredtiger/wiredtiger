@@ -32,7 +32,6 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg03.py
 #    Push-mode key provider smoke test: verify the pushed key is durably persisted
 #    to the turtle key-provider page after a checkpoint.
 @disagg_test_class

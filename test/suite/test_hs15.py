@@ -34,7 +34,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs15.py
 # Ensure eviction doesn't clear the history store again after checkpoint has done so because of the same update without timestamp.
 class test_hs15(wttest.WiredTigerTestCase):
     test_name = __qualname__

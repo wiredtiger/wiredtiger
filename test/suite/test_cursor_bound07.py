@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound07.py
 # Test column store related scenarios with the bounds API.
 class test_cursor_bound07(bound_base):
     file_name = 'test_cursor_bound07'

@@ -30,7 +30,6 @@ import threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_config05.py
 #    Test that address cookies in disaggregated storage can be upgraded/downgraded safely.
 @disagg_test_class
 class test_layered_config05(wttest.WiredTigerTestCase):

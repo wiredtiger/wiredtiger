@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_checkpoint09.py
 # Checkpoint size verification
 
 @disagg_test_class

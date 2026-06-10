@@ -33,7 +33,6 @@ import os
 import time
 import wttest
 
-# test_checkpoint33.py
 #
 # Test that checkpoint will not skip tables that have available space at the end that can be
 # reclaimed through truncation.

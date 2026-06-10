@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_schema07.py
 #   Test WT_SESSION::publish for disaggregated storage.
 #
 #   Schema operations (create, drop) on a leader do not get included in the next checkpoint

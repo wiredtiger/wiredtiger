@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered_stepup04.py
 #   Verifies that a prepared transaction active on a follower at step-up time can be
 #   committed or rolled back after step-up completes.
 #

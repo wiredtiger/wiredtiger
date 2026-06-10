@@ -30,7 +30,6 @@ import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_config11.py
 # Simple read write testing with stepping down using the page log API
 
 @disagg_test_class

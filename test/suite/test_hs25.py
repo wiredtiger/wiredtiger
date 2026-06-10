@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_hs25.py
 # Ensure updates structure is correct when processing each key.
 class test_hs25(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'

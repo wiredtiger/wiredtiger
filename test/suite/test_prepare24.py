@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare24.py
 # Test prepare commit after eviction failure.
 class test_prepare24(wttest.WiredTigerTestCase):
     test_name = __qualname__

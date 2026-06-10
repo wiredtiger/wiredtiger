@@ -31,7 +31,6 @@ from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
-# test_tiered23.py
 #    Test delays in tiered operations.
 class test_tiered23(wttest.WiredTigerTestCase, TieredConfigMixin):
 

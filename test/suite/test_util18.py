@@ -31,7 +31,6 @@ from suite_subprocess import suite_subprocess
 import wttest
 from wtscenario import make_scenarios
 
-# test_util18.py
 #   Utilities: wt printlog
 class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util18.a'

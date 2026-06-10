@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound14.py
 # Test write operation calls on a bounded cursor. Test general use cases of bound API,
 # including setting lower bounds and upper bounds.
 class test_cursor_bound14(bound_base):

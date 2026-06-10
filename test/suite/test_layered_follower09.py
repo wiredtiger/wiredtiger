@@ -30,7 +30,6 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
-# test_layered_follower09.py
 # Test pinning the content in the ingest table
 @disagg_test_class
 class test_layered_follower09(wttest.WiredTigerTestCase):

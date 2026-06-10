@@ -31,7 +31,6 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound01.py
 #    Basic cursor bound API validation.
 class test_cursor_bound01(bound_base, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \

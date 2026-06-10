@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 
-# test_index01.py
 #    basic tests for indices
 class test_index01(wttest.WiredTigerTestCase):
     '''Test basic operations for indices'''

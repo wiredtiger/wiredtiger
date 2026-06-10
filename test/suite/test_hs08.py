@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_hs08.py
 # Verify modify insert into history store logic.
 class test_hs08(wttest.WiredTigerTestCase):
     test_name = __qualname__

@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound05.py
 # Test special scenario with cursor bound API. Make sure that internal cursor search properly
 # positions the cursor with bounds set as the prefix of the records.
 class test_cursor_bound05(bound_base):

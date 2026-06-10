@@ -33,7 +33,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_prepare12.py
 # Test update restore of a page with prepared update.
 class test_prepare12(wttest.WiredTigerTestCase):
     test_name = __qualname__

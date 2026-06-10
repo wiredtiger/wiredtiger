@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_assert07.py
 #   Verify that the resolved update assertion does not get triggered by having
 #   reserved updates at different locations in the update chain.
 #

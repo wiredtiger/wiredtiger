@@ -31,7 +31,6 @@ from compact_util import compact_util
 from wiredtiger import stat
 from wtbackup import backup_base
 
-# test_compact10.py
 # Verify compaction does not alter data by comparing full backups before/after compaction.
 class test_compact10(backup_base, compact_util):
 

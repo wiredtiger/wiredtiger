@@ -30,7 +30,6 @@ import re, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_verify_disagg02.py
 #    Verify that duplicate btree IDs among stable files are detected.
 
 @disagg_test_class

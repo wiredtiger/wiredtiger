@@ -30,7 +30,6 @@
 # truncate
 # [END_TAGS]
 #
-# test_truncate01.py
 #       session level operations on tables
 #
 

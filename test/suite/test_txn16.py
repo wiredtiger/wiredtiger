@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_txn16.py
 #   Recovery: Test that toggling between logging and not logging does not
 #   continue to generate more log files.
 #

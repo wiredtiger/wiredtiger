@@ -37,7 +37,6 @@ helper_disagg.disagg_ignore_expected_output = disagg_ignore_expected_output
 
 logdir = "log"
 
-# test_layered_config13.py
 #    Test deleting local files on restart.
 @disagg_test_class
 class test_layered_config13(wttest.WiredTigerTestCase):

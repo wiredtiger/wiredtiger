@@ -33,7 +33,6 @@ from wiredtiger import stat
 import time
 
 
-# test_layered_delta08.py
 # Test that we write internal page deltas with deleted leaf page
 # to the page log extension.
 

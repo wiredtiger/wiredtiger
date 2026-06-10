@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_base05.py
 #    Cursor operations
 class test_base05(wttest.WiredTigerTestCase):
     """

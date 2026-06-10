@@ -30,7 +30,6 @@
 # compression
 # [END_TAGS]
 #
-# test_dictionary04.py
 #       Test cells with same values are reused through the dictionary despite RLE and time window
 #       information.
 

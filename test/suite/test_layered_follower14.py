@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_follower14.py
 # Test that the sweep server does not close ingest table dhandles and layered dhandles on a follower
 # or during step-up. Closing the ingest dhandle discards all in-memory data for
 # that table (WT-16974, WT-16703).

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_compact03.py
 #   Test that compact doesn't reduce the file size when there are overflow values at the
 #   end of file.
 #

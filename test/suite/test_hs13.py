@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs13.py
 # Verify reverse modify traversal after eviction.
 class test_hs13(wttest.WiredTigerTestCase):
     test_name = __qualname__

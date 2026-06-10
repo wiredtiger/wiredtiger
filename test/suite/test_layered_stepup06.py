@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_stepup06.py
 #   When two prepared sessions share the same prepared_id, a follower
 #   stepping up to leader must resolve all of them.
 #

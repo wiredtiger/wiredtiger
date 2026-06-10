@@ -32,7 +32,6 @@ from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-# test_tiered07.py
 #    Basic tiered storage API for schema operations.
 class test_tiered07(wttest.WiredTigerTestCase, TieredConfigMixin):
 

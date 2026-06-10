@@ -32,7 +32,6 @@ from helpers.helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_leaf_delta_disagg02.py
 # Test that reconciliation writes a full page instead of a delta when too many keys have
 # been removed from the disk image. A removed key still occupies space as a tombstone in
 # the delta; the same key is simply absent from a full page. The threshold is controlled

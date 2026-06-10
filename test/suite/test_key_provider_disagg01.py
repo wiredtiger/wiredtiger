@@ -33,7 +33,6 @@ from wtdataset import SimpleDataSet
 
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg01.py
 #    Test basic key provider scenarios.
 @disagg_test_class
 class test_key_provider_disagg01(wttest.WiredTigerTestCase):

@@ -29,7 +29,6 @@
 import wttest
 from wiredtiger import stat
 
-# test_eviction04.py
 #
 # Test that reconciliation is performing in-memory restoration due to invisible updates
 # during eviction.

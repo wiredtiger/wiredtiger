@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wtscenario import make_scenarios
 
-# test_layered_prepare01.py
 #   Regression test for WT-17257: layered cursor forward iteration after a
 #   prepared remove is rolled back.
 

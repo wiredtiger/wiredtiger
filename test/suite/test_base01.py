@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_base01.py
 #    Basic operations
 class test_base01(wttest.WiredTigerTestCase):
     """

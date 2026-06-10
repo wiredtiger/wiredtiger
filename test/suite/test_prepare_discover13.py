@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_prepare_discover13.py
 # Regression tests for HS orphans surviving step-up drain due to two
 # independent issues with prepared update metadata on the ingest btree:
 #   Path 1: Version cursor truncation hides discovered prepared entries.

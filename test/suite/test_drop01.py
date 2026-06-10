@@ -28,7 +28,6 @@
 
 import wttest, unittest
 
-# test_drop01.py
 # Test WT_SESSION->drop should clean up history store.
 class test_drop01(wttest.WiredTigerTestCase):
     def add_timestamp_data(self, uri, key, val1, val2, timestamp):

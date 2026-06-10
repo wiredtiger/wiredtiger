@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_cursor11.py
 #   Test remove returns not found when deleting an non-existent key
 
 import wiredtiger, wttest

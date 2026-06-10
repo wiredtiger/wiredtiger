@@ -31,7 +31,6 @@ from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
-# test_tiered02.py
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase, TieredConfigMixin):
     complex_dataset = [

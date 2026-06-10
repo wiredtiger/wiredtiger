@@ -30,7 +30,6 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_cursor21.py
 #    Regression coverage for WT-15189: next_random on a layered table must
 #    return WT_NOTFOUND rather than spin when every reachable row is a
 #    tombstone. Covers the all-deleted-in-ingest case (stable empty) and the

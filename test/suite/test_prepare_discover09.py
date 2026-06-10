@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_prepare_discover09.py
 #   A single prepared transaction that touches both a layered table and a
 #   regular (non-layered) table must be discoverable via
 #   "prepared_discover:" on the follower. Resolving the claim (commit or

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor_tracker.py
 #       Tracker for testing cursor operations.  Keys and values
 #       are generated automatically based somewhat on position,
 #       and are stored simultaneously in the WT table and

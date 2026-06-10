@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from itertools import permutations, product
 
-# test_layered_cursor15.py
 #    Test layered cursor iteration.
 #
 # A follower layered table is more complex than on a leader. In a layered table on a follower

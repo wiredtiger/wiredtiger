@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_hs11.py
 # Ensure that updates without timestamps clear the history store records.
 class test_hs11(wttest.WiredTigerTestCase):
     test_name = __qualname__

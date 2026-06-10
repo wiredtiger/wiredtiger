@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_log06.py
 #   Reproduce a partial-log-record recovery scenario and verify it succeeds.
 #
 #   A pre-allocated log file can end up with a 128-byte-aligned block where

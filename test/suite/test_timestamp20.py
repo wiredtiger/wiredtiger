@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_timestamp20.py
 # Exercise fixing up of updates without timestamps in the history store.
 class test_timestamp20(wttest.WiredTigerTestCase):
     test_name = __qualname__

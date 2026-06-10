@@ -30,7 +30,6 @@ import wttest
 from suite_subprocess import suite_subprocess
 from helper import compare_files
 
-# test_util21.py
 # Ensure that wt dump can dump obsolete data in the history store.
 class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__

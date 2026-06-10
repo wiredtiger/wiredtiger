@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_sweep06.py
 # This test confirms that table dhandles are correctly retained and not
 # marked for sweep server expiry when file data dhandles are present.
 

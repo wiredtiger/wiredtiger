@@ -31,7 +31,6 @@ from wiredtiger import stat
 from helper import simulate_crash_restart
 from helper_disagg import disagg_test_class
 
-# test_disagg_checkpoint_size05.py
 #   Test that block_size statistic reflects the checkpoint size for disaggregated storage.
 #   For disaggregated tables there is no underlying file, so block_size is sourced from the
 #   most recent checkpoint size. The stat is updated via two code paths that are both exercised

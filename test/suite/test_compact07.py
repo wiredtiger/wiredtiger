@@ -32,7 +32,6 @@ from wiredtiger import stat
 
 megabyte = 1024 * 1024
 
-# test_compact07.py
 # This test creates:
 #
 # - One table with the first 20% of keys deleted.

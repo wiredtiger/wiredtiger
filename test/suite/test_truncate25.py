@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_truncate25.py
 # Ensure that any history store records are correctly removed when doing
 # a truncate operation with no timestamp.
 

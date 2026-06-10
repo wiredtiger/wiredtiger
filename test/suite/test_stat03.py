@@ -35,7 +35,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
-# test_stat03.py
 #    Statistics reset test.
 class test_stat_cursor_reset(wttest.WiredTigerTestCase):
     pfx = 'test_stat_cursor_reset'

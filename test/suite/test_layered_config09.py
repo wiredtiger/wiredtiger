@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_config09.py
 # Test that creating a tiered table fails when in disaggregated storage mode
 @disagg_test_class
 class test_layered_config09(wttest.WiredTigerTestCase, DisaggConfigMixin):

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_tiered15.py
 #   Test the "type" configuration in session.create with tiered storage.
 
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources

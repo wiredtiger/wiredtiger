@@ -30,7 +30,6 @@ import os, os.path, shutil, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_config01.py
 #    Test layered table metadata has logging disabled.
 @disagg_test_class
 class test_layered_config01(wttest.WiredTigerTestCase):

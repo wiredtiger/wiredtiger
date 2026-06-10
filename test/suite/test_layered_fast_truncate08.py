@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate08.py
 #   On a follower, range truncate must represent each delete as a standard
 #   update carrying the layered tombstone sentinel (\x14\x14) into the ingest
 #   file, rather than using cursor->remove() to create a WT_UPDATE_TOMBSTONE.

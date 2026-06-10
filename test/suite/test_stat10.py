@@ -30,7 +30,6 @@ import wttest
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_stat10.py
 #
 # Check the per-table-type btree stats.
 #

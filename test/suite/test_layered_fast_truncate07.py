@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate07.py
 #   Follower-initiated truncate stores a bounded range in the truncate list.
 #   Verifies NULL start/stop from the session API are resolved to the table's
 #   first/last visible key, both via the verbose log line and by the row set

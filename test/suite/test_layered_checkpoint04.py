@@ -30,7 +30,6 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_checkpoint04.py
 #    Check that we can create a checkpoint just to capture the stable timestamp update.
 @disagg_test_class
 class test_layered_checkpoint04(wttest.WiredTigerTestCase):

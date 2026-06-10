@@ -30,7 +30,6 @@ import wttest
 from wiredtiger import WiredTigerError
 from wtscenario import make_scenarios
 
-# test_truncate05.py
 # Test various fast truncate visibility scenarios
 class test_truncate05(wttest.WiredTigerTestCase):
     test_name = __qualname__

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_key_provider_disagg04.py
 #    Toggle the key_provider API version across restarts and verify the database stays readable.
 
 import wiredtiger, wttest

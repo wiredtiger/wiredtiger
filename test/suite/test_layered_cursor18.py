@@ -30,7 +30,6 @@ import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_cursor18.py
 #
 # Regression tests: when two transactions share an open layered cursor, the "alternate"
 # constituent cursor (the one not selected as current on the previous call, left parked at the

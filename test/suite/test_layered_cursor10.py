@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered_cursor10.py
 #   Test layered cursor prepare conflict handling
 #   - Verify cursor key state is preserved when WT_PREPARE_CONFLICT is returned
 #   - Ensure retry loops work correctly after prepare conflicts

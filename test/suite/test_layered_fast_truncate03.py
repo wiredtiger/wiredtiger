@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate03.py
 #   Tests that a follower correctly handles pages that were fast-truncated on the
 #   leader: stable pages must never be dirtied, and deleted state must survive
 #   eviction and reopen.

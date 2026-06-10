@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare23.py
 # Test prepare rollback with rollback to stable and failed eviction.
 class test_prepare23(wttest.WiredTigerTestCase):
     test_name = __qualname__

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover11.py
 #   A prepared transaction claimed and committed by a follower must be
 #   readable at its commit timestamp after the follower steps up to leader,
 #   even when the stable timestamp has advanced past the durable timestamp

@@ -30,7 +30,6 @@ import wiredtiger
 import wttest
 import time
 
-# test_stat12.py
 # Check for the presence of eviction-related statistics.
 # Triggers the conditions and verifies the counters increment
 

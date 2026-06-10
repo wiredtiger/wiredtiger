@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet, simple_key, simple_value
 from wtscenario import make_scenarios
 
-# test_colgap.py
 #    Test variable-length column-store gap performance.
 class test_column_store_gap(wttest.WiredTigerTestCase):
     nentries = 13

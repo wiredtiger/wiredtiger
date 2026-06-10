@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor25.py
 #   Test version cursor show_prepared_rollback config across prepared insert,
 #   update, and delete rollback scenarios.
 #

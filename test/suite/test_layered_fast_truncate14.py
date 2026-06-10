@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate14.py
 #   Ensure next() skips truncated stable keys after search_near lands on an ingest key.
 
 from helper_disagg import disagg_test_class, gen_disagg_storages

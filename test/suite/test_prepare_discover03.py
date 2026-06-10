@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover03.py
 #   Test that prepare discover cursor should return an error when closed with unclaimed prepared transactions
 
 import wiredtiger

@@ -28,7 +28,6 @@
 
 import wttest
 
-# test_bug015.py
 #    JIRA WT-2162: index drop in a certain order triggers NULL pointer deref
 class test_bug015(wttest.WiredTigerTestCase):
     def test_bug015(self):

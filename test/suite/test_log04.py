@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_log04.py
 #    Smoke test logging with timestamp configurations.
 class test_log04(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'

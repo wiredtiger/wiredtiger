@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from helper import simulate_crash_restart
 
-# test_txn29.py
 #   Test that transaction cannot be rolled back after being logged.
 class test_txn29(wttest.WiredTigerTestCase):
     conn_config = "log=(enabled=true)"

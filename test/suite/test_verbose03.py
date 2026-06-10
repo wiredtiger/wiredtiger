@@ -32,7 +32,6 @@ import wiredtiger, wttest
 from test_verbose01 import test_verbose_base
 import json
 
-# test_verbose03.py
 # Tests that when enabling JSON-encoded messages through the event handler interface, valid JSON
 # is produced. Valid messages are those that can be successfully parsed as JSON (meeting the JSON
 # standard) and subscribe to an expected schema (i.e. meet expected fields and types).

@@ -29,7 +29,6 @@
 import wiredtiger, wttest, sys
 from wtscenario import make_scenarios
 
-# test_hs20.py
 # Ensure we never reconstruct a reverse modify update in the history store based on the onpage overflow value
 class test_hs20(wttest.WiredTigerTestCase):
     # This test purposely uses a small cache to force eviction to occur

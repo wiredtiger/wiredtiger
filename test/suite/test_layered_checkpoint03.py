@@ -30,7 +30,6 @@ import errno, os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_checkpoint03.py
 #    Test pruning of ingest tables on the follower during checkpoint pick-ups.
 @disagg_test_class
 class test_layered_checkpoint03(wttest.WiredTigerTestCase):

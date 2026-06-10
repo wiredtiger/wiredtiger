@@ -31,7 +31,6 @@ from time import sleep
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_inmem01.py
 #    Test in-memory configuration.
 class test_inmem01(wttest.WiredTigerTestCase):
     uri = 'table:inmem01'

@@ -30,7 +30,6 @@ import time
 from wiredtiger import stat
 from compact_util import compact_util
 
-# test_compact14.py
 # This test checks that background compaction skips small files.
 class test_compact14(compact_util):
     test_name = __qualname__

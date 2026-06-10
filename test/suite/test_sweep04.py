@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_sweep04.py
 # Test lots of tables with more steadily created and dropped.
 # A core group of tables is used most often and hangs around.
 # Test that the total number of dhandles, while increasing,

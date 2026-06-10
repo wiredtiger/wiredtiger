@@ -28,7 +28,6 @@
 
 import wttest, test_base03
 
-# test_debug_mode08.py
 #   Test the debug mode setting for cursor_copy.
 # There's no great way to detect that cursor_copy is really working, as
 # the extra malloc/free that WT does cannot easily be detected.  However,

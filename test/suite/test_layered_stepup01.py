@@ -29,7 +29,6 @@
 import os, sys, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 
-# test_layered_stepup01.py
 #    Start a second WT that becomes leader and checks that content appears in the first.
 @disagg_test_class
 class test_layered_stepup01(wttest.WiredTigerTestCase):

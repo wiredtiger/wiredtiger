@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover04.py
 #   Test that prepare discover cursor can discover and commit a pending prepared delete
 
 import wiredtiger

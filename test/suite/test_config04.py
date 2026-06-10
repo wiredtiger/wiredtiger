@@ -30,7 +30,6 @@ import os, shutil
 import wiredtiger, wttest
 from wiredtiger import stat
 
-# test_config04.py
 #    Individually test config options
 class test_config04(wttest.WiredTigerTestCase):
     table_name1 = 'test_config04'

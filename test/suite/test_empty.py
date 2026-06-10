@@ -30,7 +30,6 @@ import os
 import wttest
 from wtscenario import make_scenarios
 
-# test_empty.py
 #       Test that empty objects don't write anything other than a single sector.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage; looks at wt file names and uses column store")
 class test_empty(wttest.WiredTigerTestCase):

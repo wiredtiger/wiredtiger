@@ -30,7 +30,6 @@ import os
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util14.py
 #    Utilities: wt truncate
 class test_util14(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util14.a'

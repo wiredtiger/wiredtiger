@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover08.py
 #   After reopening the connection, "prepared_discover:" must discover and
 #   allow claims of the persisted prepared transaction even when no cursor
 #   has yet been opened on the layered table on the new connection. Exercised

@@ -29,7 +29,6 @@
 import re, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
-# test_disagg_checkpoint_size.py
 #    Test that the checkpoint size field is stored to the metadata for stable tables.
 @disagg_test_class
 class test_disagg_checkpoint_size(wttest.WiredTigerTestCase):

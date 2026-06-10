@@ -33,7 +33,6 @@ from wtscenario import make_scenarios
 def encode_bytes(str):
     return bytes(str, 'utf-8')
 
-# test_layered_config07.py
 # Note that the APIs we are testing are not meant to be used directly
 # by any WiredTiger application, these APIs are used internally.
 # However, it is useful to do tests of this API independently.

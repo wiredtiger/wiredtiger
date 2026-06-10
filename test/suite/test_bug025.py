@@ -30,7 +30,6 @@ import wttest
 from wtdataset import ComplexDataSet
 import os
 
-# test_bug025.py
 # WT-7208: After a missing index is accessed, we return an error.
 # After a later access, we crash (null pointer access).
 #

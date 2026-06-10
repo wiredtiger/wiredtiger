@@ -31,7 +31,6 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_delta10.py
 # Test no page delta is generated on page split.
 
 @disagg_test_class

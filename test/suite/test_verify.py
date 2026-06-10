@@ -31,7 +31,6 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from helper import WiredTigerCursor
 
-# test_verify.py
 #    Utilities: wt verify
 class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_verify.a'

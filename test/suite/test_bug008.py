@@ -31,7 +31,6 @@
 # cursors:search
 # [END_TAGS]
 #
-#  test_bug008.py
 #       Regression tests for cursor search and cursor search near.
 
 import wiredtiger, wttest

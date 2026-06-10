@@ -31,7 +31,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_hs03.py
 # Ensure checkpoints don't read too unnecessary history store entries.
 class test_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.

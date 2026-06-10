@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_prepare01.py
 #    Transactions: basic functionality with prepare
 class test_prepare01(wttest.WiredTigerTestCase):
 

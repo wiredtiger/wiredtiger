@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare03.py
 #    Prepare: Cursor API usage generates expected error in prepared state.
 
 # Pattern of test script is to invoke cursor operations in prepared transaction

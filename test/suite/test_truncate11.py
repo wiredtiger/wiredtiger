@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_truncate11.py
 #   Check for checkpoint not reading the deleted pages that are marked by
 #   a fast-truncate which is not visible to the checkpoint.
 

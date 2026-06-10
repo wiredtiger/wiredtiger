@@ -30,7 +30,6 @@ import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_hs30.py
 #
 # Make sure that the history store works as intended for non-timestamped tables, both
 # logged and unlogged.

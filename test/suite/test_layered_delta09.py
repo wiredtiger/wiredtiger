@@ -33,7 +33,6 @@ from wiredtiger import stat
 import time
 
 
-# test_layered_delta09.py
 # Tests that prefix and suffix compression are working properly for page deltas.
 
 @disagg_test_class

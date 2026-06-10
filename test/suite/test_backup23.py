@@ -30,7 +30,6 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtbackup import backup_base
 
-# test_backup.py
 #   Test error message if verifying metadata on a backup restore.
 class test_backup23(backup_base):
     '''Test backup, verifying metadata and an error opening the backup'''

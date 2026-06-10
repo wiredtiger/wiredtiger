@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_stepup05.py
 #    Test that cursor operations on a layered cursor after step-up work correctly
 #    when the cursor was reset on the follower before the step-up.
 #

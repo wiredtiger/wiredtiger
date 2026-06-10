@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover10.py
 #   A prepared transaction reclaimed on a follower via claim_prepared_id must survive
 #   step-up. The reclaim session has no transaction id, so the ingest drain at step-up
 #   must match it by prepared id to patch its operations onto the stable btree.

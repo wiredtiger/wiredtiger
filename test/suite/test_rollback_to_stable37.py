@@ -31,7 +31,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
 
-# test_rollback_to_stable37.py
 # Test that the rollback to stable to restore proper stable update from history store when a no timestamp
 # update has rewritten the history store data.
 class test_rollback_to_stable37(test_rollback_to_stable_base):

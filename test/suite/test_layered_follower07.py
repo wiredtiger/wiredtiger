@@ -32,7 +32,6 @@ from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_layered_follower07.py
 # Test that checkpoint cleanup is not run on follower.
 @disagg_test_class
 class test_layered_follower07(DisaggConfigMixin, test_cc_base):

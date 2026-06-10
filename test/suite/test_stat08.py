@@ -30,7 +30,6 @@ import os
 from unittest import skip
 import wiredtiger, wttest
 
-# test_stat08.py
 #    Session statistics for bytes read into the cache.
 class test_stat08(wttest.WiredTigerTestCase):
 

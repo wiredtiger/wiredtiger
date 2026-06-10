@@ -32,7 +32,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_hs01.py
 # Test that update and modify operations are durable across crash and recovery.
 # Additionally test that checkpoint inserts content into the history store.
 class test_hs01(wttest.WiredTigerTestCase):

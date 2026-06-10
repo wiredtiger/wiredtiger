@@ -30,7 +30,6 @@ import os
 from wtscenario import make_scenarios
 from wtbackup import backup_base
 
-# test_backup22.py
 #    Test interaction between import and incremental backup.
 # Test the functionality of importing dropped tables in incremental backup.
 #

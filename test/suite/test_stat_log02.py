@@ -33,7 +33,6 @@
 import glob, json
 import wttest
 
-# test_stat_log02.py
 #    Statistics log sources argument and JSON testing.
 class test_stat_log02(wttest.WiredTigerTestCase):
 

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_durability01.py
 #   Durability: make sure the metadata is stable after exclusive operations
 #   cause files to be closed.
 #

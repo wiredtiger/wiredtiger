@@ -32,7 +32,6 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_follower01.py
 # Test a secondary can perform reads and writes to the ingest component
 # of a layered table, without the stable component.
 @disagg_test_class

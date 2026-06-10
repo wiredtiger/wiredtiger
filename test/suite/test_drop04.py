@@ -57,7 +57,6 @@
 from test_cc01 import test_cc_base
 import wttest
 
-# test_drop04.py
 # Test dropping a collection on empty logged table. The python test reproduces the WT-15225 bug.
 class test_drop04(test_cc_base):
     conn_config = 'log=(enabled=true)'

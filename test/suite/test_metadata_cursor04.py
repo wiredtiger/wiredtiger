@@ -28,7 +28,6 @@
 
 import wttest
 
-# test_metadata04.py
 #    Check metadata create cursors with complex tables.
 class test_metadata04(wttest.WiredTigerTestCase):
     # Turn logging on for the database but we will turn logging off for all tables.

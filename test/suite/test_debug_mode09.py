@@ -29,7 +29,6 @@
 from wiredtiger import stat
 import wttest
 
-# test_debug_mode09.py
 # Test the debug mode setting for update_restore_evict.
 # Force update restore eviction, whenever we evict a page. The debug mode
 # is only effective on high cache pressure as WiredTiger can potentially decide

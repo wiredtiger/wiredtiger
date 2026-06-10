@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp22.py
 # Misuse the timestamp API, making sure we don't crash.
 import wttest, re, suite_random
 from wtdataset import SimpleDataSet

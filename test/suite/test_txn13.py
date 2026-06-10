@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_txn13.py
 # Test very large log records.  Even with a small log file we should be
 # able to write them.  Expect an error over 4Gb.
 #

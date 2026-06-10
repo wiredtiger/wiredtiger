@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_metadata_cursor02.py
 #    Metadata cursor operations with invalid metadata
 #
 # Test metadata cursor semantics when the underlying metadata is invalid.

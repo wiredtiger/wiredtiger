@@ -28,7 +28,6 @@
 
 import wttest
 
-# test_debug_mode05.py
 #     As per WT-5046, the debug table logging settings prevent rollback to
 #     stable in the presence of prepared transactions.
 #

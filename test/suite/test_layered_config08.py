@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 
-# test_layered_config08.py
 # Note: This test focuses on validating the behavioral differences of
 # WiredTiger API calls when operating in a disaggregated storage environment.
 

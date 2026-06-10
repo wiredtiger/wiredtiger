@@ -30,7 +30,6 @@ import re, wttest
 from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
-# test_disagg_checkpoint_size03.py
 #   Test that the checkpoint size does not grow excessively due to a bytes_total
 #   leak in the disaggregated checkpoint code.
 @disagg_test_class

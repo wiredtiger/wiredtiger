@@ -31,7 +31,6 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_eviction01.py
 # Ensure that we don't evict pages ahead of the materialization frontier
 @disagg_test_class
 class test_layered_eviction01(wttest.WiredTigerTestCase):

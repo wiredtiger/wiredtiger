@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_config10.py
 #   Test valid behavior when starting WiredTiger with missing or empty
 #   WiredTiger version file.
 

@@ -32,7 +32,6 @@ from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_delta07.py
 # Entries have been durable are not included in the new delta
 
 @disagg_test_class

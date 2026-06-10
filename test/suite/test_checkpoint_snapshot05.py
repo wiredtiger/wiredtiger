@@ -35,7 +35,6 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from wtbackup import backup_base
 
-# test_checkpoint_snapshot05.py
 #   This test is to run checkpoint and eviction in parallel with timing
 #   stress for checkpoint and let eviction write more data than checkpoint
 #   after a bulk load on a table to check the backup recovery.

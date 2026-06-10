@@ -31,7 +31,6 @@
 # recovery
 # [END_TAGS]
 #
-# test_txn04.py
 #   Transactions: hot backup and recovery
 #
 

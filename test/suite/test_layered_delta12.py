@@ -33,7 +33,6 @@ from wiredtiger import stat
 import time
 
 
-# test_layered_delta12.py
 # Test that we write internal page deltas.
 
 @disagg_test_class

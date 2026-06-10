@@ -31,7 +31,6 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_layered_cursor19.py
 #   On a follower, insert/update on a layered cursor should only open the
 #   stable constituent when overwrite=false: with overwrite=true (the
 #   default) the write path skips the layered lookup and should open the

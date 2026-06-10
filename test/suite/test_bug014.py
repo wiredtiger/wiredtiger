@@ -31,7 +31,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from helper import copy_wiredtiger_home
 
-# test_bug014.py
 #    JIRA WT-2115: fast-delete pages can be incorrectly lost due to a crash.
 class test_bug014(wttest.WiredTigerTestCase):
     test_name = __qualname__

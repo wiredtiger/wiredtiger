@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_export01.py
 #   Tests basic export functionality.
 #   - Test that the WiredTiger.export file is correctly created and removed.
 #   - Test that the WiredTiger.export file contains the correct contents

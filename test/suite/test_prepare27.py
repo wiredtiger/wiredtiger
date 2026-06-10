@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_prepare27.py
 # Test that a prepared update that has been aborted is not selected as the base value.
 class test_prepare27(wttest.WiredTigerTestCase):
     test_name = __qualname__

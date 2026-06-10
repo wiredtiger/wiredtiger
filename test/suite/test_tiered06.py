@@ -32,7 +32,6 @@ from wtscenario import make_scenarios
 
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
-# test_tiered06.py
 # Note that the APIs we are testing are not meant to be used directly
 # by any WiredTiger application, these APIs are used internally.
 # However, it is useful to do tests of this API independently.

@@ -30,7 +30,6 @@
 # encryption
 # [END_TAGS]
 #
-# test_encrypt02.py
 #   Encryption using passwords
 #
 

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered_prepare09.py
 #   Tests that prepared transactions captured unresolved in a leader checkpoint are correctly
 #   resolved (committed or rolled back) on follower step-up. Covers seven operation types:
 #   - test_prepare_insert: prepared inserts on new keys

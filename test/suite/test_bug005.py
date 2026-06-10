@@ -30,7 +30,6 @@
 # session_api:verify
 # [END_TAGS]
 #
-# test_bug005.py
 #       Regression tests.
 
 import wttest

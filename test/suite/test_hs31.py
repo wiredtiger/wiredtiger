@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_hs31.py
 # Ensure that removal without a timestamp clears the history store records.
 class test_hs31(wttest.WiredTigerTestCase):
     test_name = __qualname__

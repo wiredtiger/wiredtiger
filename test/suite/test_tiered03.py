@@ -31,7 +31,6 @@ from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_con
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
-# test_tiered03.py
 #    Test block-log-structured tree configuration options.
 class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     K = 1024

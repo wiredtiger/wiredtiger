@@ -30,7 +30,6 @@ import os
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util17.py
 #    Utilities: wt stat
 class test_util17(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util17.a'

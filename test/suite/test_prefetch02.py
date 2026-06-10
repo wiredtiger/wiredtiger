@@ -33,7 +33,6 @@ from helper import WiredTigerCursor, statistic_uri
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
-# test_prefetch02.py
 #    Run multiple scenarios which are expected to benefit from pre-fetching and ensure that
 #    pre-fetching is running properly by checking various statistics. Additionally, run
 #    multiple scenarios which should not trigger pre-fetching and check that these pages are

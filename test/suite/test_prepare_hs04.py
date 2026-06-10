@@ -32,7 +32,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_prepare_hs04.py
 # Read prepared updates from on-disk with ignore_prepare.
 # Committing or aborting a prepared update when there exists a tombstone for that key already.
 @wttest.skip_for_hook("disagg", "This test relies on RTS, which is not used in disagg.")

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor26.py
 #   Version cursor with show_prepared_rollback=true must emit every
 #   version of a key that a caller would need to reconstruct its
 #   history: both rolled-back prepared values and any underlying

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_follower13.py
 #   Test that when a key is garbage collected during eviction on an ingest
 #   btree, its associated on-disk value is also deleted.
 

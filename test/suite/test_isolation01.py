@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_isolation01.py
 #   Transactions isolation mode: This test is to test for different isolation modes.
 #   The API reset_snapshot should return error when called with read committed isolation mode
 #   or when the session has performed any write operations.

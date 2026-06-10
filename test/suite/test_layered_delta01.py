@@ -33,7 +33,6 @@ from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_delta01.py
 # Simple read write testing for leaf page delta
 
 @disagg_test_class

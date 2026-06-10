@@ -142,7 +142,6 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         conn.close()
         self.cleanStdout()
 
-# test_verbose01.py
 # Verify basic uses of the verbose configuration API work as intended i.e. passing
 # single & multiple valid and invalid verbose categories. These tests are mainly focused on uses
 # of the interface prior to the introduction of verbosity levels, ensuring 'legacy'-style

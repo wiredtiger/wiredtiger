@@ -33,7 +33,6 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_truncate29.py
 # Test that verify handles timestamp usage checks correctly after timestamped fast truncate operations were enabled.
 
 class test_truncate29(wttest.WiredTigerTestCase):

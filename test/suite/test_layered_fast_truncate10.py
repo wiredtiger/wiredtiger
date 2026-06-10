@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate10.py
 #   Data location semantics (stable vs ingest).
 #
 #   Verify that fast-truncate on a follower behaves as a single operation over

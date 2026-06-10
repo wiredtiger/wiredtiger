@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare40.py
 # Test that checkpoint after opening a backup with prepared updates (preserve prepared on) doesn't crash by:
 # - Checkpoint writes prepared update to disk
 # - Rollback the transaction with rollback timestamp > stable timestamp

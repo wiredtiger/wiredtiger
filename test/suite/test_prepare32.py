@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from prepare_util import test_prepare_preserve_prepare_base
 
-# test_prepare32.py
 # Tests prepared transaction checkpoint behavior:
 # - Skip writing prepared updates if prepared timestamp is not stable
 # - Write committed prepared updates as prepared if prepared timestamp is stable but commit timestamp is not stable

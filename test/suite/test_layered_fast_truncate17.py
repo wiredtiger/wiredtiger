@@ -32,7 +32,6 @@ from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_fast_truncate17.py
 #   Verify that step-up replay uses fast page truncation (WT_REF_DELETED) when
 #   replaying follower truncates.
 @disagg_test_class

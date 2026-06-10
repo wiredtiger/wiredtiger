@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from time import sleep
 from wiredtiger import stat
 
-# test_stat06.py
 #    Check that statistics are started or stopped when intended
 class test_stat06(wttest.WiredTigerTestCase):
 

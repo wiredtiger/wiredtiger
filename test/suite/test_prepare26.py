@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare26.py
 # Test prepare rollback and then delete the key.
 class test_prepare26(wttest.WiredTigerTestCase):
     test_name = __qualname__

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_cursor17.py
 #   Test that cursor operations succeed (or fail) on a follower for keys that exist
 #   only in the stable table (i.e. written by the leader and checkpointed).
 

@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_hs06.py
 # Verify that triggering history store usage does not cause a spike in memory usage
 # to form an update chain from the history store contents.
 #

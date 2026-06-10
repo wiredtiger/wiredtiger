@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs18.py
 # Test various older reader scenarios
 class test_hs18(wttest.WiredTigerTestCase):
     test_name = __qualname__

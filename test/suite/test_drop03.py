@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from helper import confirm_does_not_exist, confirm_nonempty
 
-# test_drop03.py
 # Test dropping a collection under an active transaction. We should return EBUSY.
 class test_drop03(wttest.WiredTigerTestCase):
     uri = f'table:{__qualname__}'

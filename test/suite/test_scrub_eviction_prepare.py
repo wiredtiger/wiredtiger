@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wiredtiger import stat
 
-# test_scrub_eviction_prepare.py
 #
 # Test to do the following steps.
 # 1. Prepare an update with one key (key-2)

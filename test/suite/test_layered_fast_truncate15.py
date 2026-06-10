@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate15.py
 #   Validate edge scenario where no tombstones are written when ingest keys sit outside
 #   the range. Follower truncate tombstones ingest keys only inside the range.
 

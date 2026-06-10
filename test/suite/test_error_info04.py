@@ -29,7 +29,6 @@
 import wiredtiger
 from error_info_util import error_info_util
 
-# test_error_info04.py
 #   Test error information scenarios when an application thread gets pulled into eviction when
 #   committing or rolling back a transaction. The original error of the commit/rollback should
 #   be returned and not be saved inside the get_last_error() function call.

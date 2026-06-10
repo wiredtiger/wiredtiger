@@ -30,7 +30,6 @@
 # verify:prepare
 # [END_TAGS]
 #
-# test_timestamp18.py
 #   Mixing timestamped and non-timestamped writes.
 #
 

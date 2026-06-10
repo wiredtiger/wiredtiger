@@ -31,7 +31,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 
-# test_stat13.py
 # Check that btree_maximum_depth is computed correctly.
 
 class test_stat13(wttest.WiredTigerTestCase):

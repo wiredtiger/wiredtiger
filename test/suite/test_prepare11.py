@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_prepare11.py
 # Test prepare rollback with a reserved update between updates.
 class test_prepare11(wttest.WiredTigerTestCase):
     test_name = __qualname__

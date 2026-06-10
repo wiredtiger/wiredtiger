@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_schema10.py
 #   Test the publish API on followers and step-up behavior.
 #
 #   Schema operations (create, drop) queued on a follower are replayed during

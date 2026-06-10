@@ -29,7 +29,6 @@
 import random
 import wttest
 
-# test_stat09.py
 #    Check oldest active read timestamp statistic
 class test_stat09(wttest.WiredTigerTestCase):
     tablename = 'test_stat09'

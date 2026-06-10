@@ -36,7 +36,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_checkpoint_snapshot03.py
 #   This test is to check RTS skips the unnecessary pages when the table has more than the
 #   checkpoint snapshot.
 @wttest.skip_for_hook("disagg", "rollback to stable not expected to run on disagg; cache unable to evict pages due to invisible updates")

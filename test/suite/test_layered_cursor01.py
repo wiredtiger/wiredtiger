@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
-# test_layered_cursor01.py
 # Test different variations of cursor operations
 @disagg_test_class
 class test_layered_cursor01(wttest.WiredTigerTestCase):

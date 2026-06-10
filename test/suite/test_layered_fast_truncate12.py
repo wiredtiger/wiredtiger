@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate12.py
 #   Cursor iteration and searches over truncated ranges.
 #
 #   Verify that forward scans, backward scans, next_random, search, and

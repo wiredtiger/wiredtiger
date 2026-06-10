@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover16.py
 #   A prepared delete that is captured by a checkpoint and later rolled
 #   back via the follower discover/claim flow must not affect reads of the
 #   underlying committed value once the rollback timestamp is stable. A

@@ -35,7 +35,6 @@ from helper import WiredTigerCursor, statistic_uri
 import re
 import math
 
-# test_verbose05.py
 # Verify checkpoint progress verbose logging emits intermediate progress messages for
 # short checkpoints when page-write backoff thresholds are crossed.
 @wttest.skip_for_hook("disagg", "Checkpoint progress output is different under disagg")

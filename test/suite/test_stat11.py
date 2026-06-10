@@ -29,7 +29,6 @@
 import wiredtiger
 import wttest
 
-# test_stat11.py
 # Check for the presence of some stats, but does not actually check their values.
 
 

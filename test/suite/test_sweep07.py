@@ -31,7 +31,6 @@ from wiredtiger import stat
 
 import time
 
-# test_sweep07.py
 # Regression test for WT-15647
 class test_sweep07(wttest.WiredTigerTestCase):
     test_name = __qualname__

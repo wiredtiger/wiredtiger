@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover06.py
 #   Test layered cursor with prepared transaction discovery in disaggregated storage:
 #   - Setup layered cursor as leader, insert and commit data
 #   - Prepare transaction, advance stable timestamp, checkpoint

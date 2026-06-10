@@ -30,7 +30,6 @@ import platform, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_delta04.py
 # Test 32 consecutive deltas
 
 @disagg_test_class

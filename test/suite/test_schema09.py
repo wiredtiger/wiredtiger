@@ -30,7 +30,6 @@ import wttest, wiredtiger
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
-# test_schema09.py
 #    Test that incomplete tables are properly cleaned up during recovery.
 @wttest.skip_for_hook("tiered", "test depends on metadata recovery")
 @wttest.skip_for_hook("disagg", "log tables is not supported on disagg")

@@ -69,7 +69,6 @@ def custom_validator(data):
     if not found:
         raise Exception('Failed to find "{}" in stdout'.format(needle))
 
-# test_rollback_to_stable42.py
 # Test that rollback to stable on a missing file complains and bails.
 class test_rollback_to_stable42(test_rollback_to_stable_base):
     test_name = __qualname__

@@ -29,7 +29,6 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util08.py
 #    Utilities: wt copyright
 class test_util08(wttest.WiredTigerTestCase, suite_subprocess):
     def test_copyright(self):

@@ -31,7 +31,6 @@ from test_verbose01 import test_verbose_base
 from wtscenario import make_scenarios
 import wiredtiger, wttest
 
-# test_verbose04.py
 # Verify the use of the `all` field to set verbose categories.
 
 # Enabling tiered alters the logs produced by WiredTiger during this test,

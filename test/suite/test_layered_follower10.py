@@ -31,7 +31,6 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from test_layered_follower02 import Oplog
 from wtscenario import make_scenarios
 
-# test_layered_follower10.py
 # Test garbage collecting redundant content in the ingest table
 @disagg_test_class
 class test_layered_follower10(wttest.WiredTigerTestCase):

@@ -28,7 +28,6 @@
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 
-# test_layered_schema04.py
 # Test we can create a large number of layered tables
 @disagg_test_class
 class test_layered_schema04(wttest.WiredTigerTestCase):

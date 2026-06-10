@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_prepare48.py
 # Regression test. Under preserve_prepared + precise_checkpoint:
 #
 #   - Commit a value for key 2 and then a remove, so the on-disk image holds

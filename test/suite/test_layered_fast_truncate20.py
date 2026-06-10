@@ -32,7 +32,6 @@ from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_fast_truncate20.py
 #   Exercise the debug_mode.disagg_slow_truncate_follower connection knob:
 #   config-parsing smoke checks plus a follower-side truncate that asserts
 #   the knob actually selects the slow vs fast path.

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_bug022.py
 #       Testing that we don't allow modifies on top of tombstone updates.
 
 import wiredtiger, wttest

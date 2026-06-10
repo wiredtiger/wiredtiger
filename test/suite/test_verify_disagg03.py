@@ -30,7 +30,6 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_verify_disagg03.py
 #    Opening a disaggregated follower with verify_metadata=true must succeed when
 #    the database contains keys whose deletion was committed at a later timestamp
 #    than an earlier write.

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_prepare07.py
 #   Test that cursor.next(), cursor.prev(), and cursor.search() on a follower
 #   return committed values and do not raise WT_PREPARE_CONFLICT when the primary
 #   has checkpointed a prepared (uncommitted) transaction.

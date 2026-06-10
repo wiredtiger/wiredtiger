@@ -31,7 +31,6 @@ from test_verbose01 import test_verbose_base
 from wtscenario import make_scenarios
 import wiredtiger, wttest
 
-# test_verbose02.py
 # Verify basic uses of the verbose configuration API when categories and valid/invalid verbosity
 # levels are specified.
 class test_verbose02(test_verbose_base):

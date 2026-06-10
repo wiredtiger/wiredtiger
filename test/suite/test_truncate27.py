@@ -30,7 +30,6 @@ import wttest
 from helper import simulate_crash_restart
 from wiredtiger import stat
 
-# test_truncate27.py
 # Test that unstable updates preceding a stable fast truncate operation are restored with the correct
 # transaction IDs.
 class test_truncate27(wttest.WiredTigerTestCase):

@@ -31,7 +31,6 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_delta03.py
 # Test adjustable consecutive deltas
 
 @disagg_test_class

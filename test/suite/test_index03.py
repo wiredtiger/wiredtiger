@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 
-# test_index03.py
 # Make sure cursors cannot stay open while a new index is created.
 class test_index03(wttest.WiredTigerTestCase):
 

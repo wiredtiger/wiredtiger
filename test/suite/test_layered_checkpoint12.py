@@ -29,7 +29,6 @@
 import wttest
 from helper_disagg import disagg_test_class
 
-# test_layered_checkpoint12.py
 # Verify that startup database-size verification waits until checkpoint pickup.
 
 @disagg_test_class

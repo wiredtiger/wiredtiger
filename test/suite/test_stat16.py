@@ -29,7 +29,6 @@
 import wttest
 from wiredtiger import stat
 
-# test_stat16.py
 # Verify cache_read_internal and cache_read_leaf statistics track page reads
 # into cache separately by page type.
 class test_stat16(wttest.WiredTigerTestCase):

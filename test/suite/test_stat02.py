@@ -31,7 +31,6 @@ from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_stat02.py
 #    Statistics cursor configurations.
 class test_stat_cursor_config(wttest.WiredTigerTestCase):
     pfx = 'test_stat_cursor_config'

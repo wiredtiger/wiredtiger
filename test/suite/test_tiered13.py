@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_tiered13.py
 # Check that importing tiered tables returns an error.
 
 import os, shutil, wiredtiger

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_readonly03.py
 #   Readonly: Test connection readonly mode with modifying methods.  Confirm
 #   all return ENOTSUP.
 #

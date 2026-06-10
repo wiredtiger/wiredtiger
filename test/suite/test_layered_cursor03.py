@@ -29,7 +29,6 @@
 import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 
-# test_layered_cursor03.py
 #    Basic layered tree cursor creation
 @disagg_test_class
 class test_layered_cursor03(wttest.WiredTigerTestCase):

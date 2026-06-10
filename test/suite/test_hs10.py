@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs10.py
 # Verify modify read after eviction.
 class test_hs10(wttest.WiredTigerTestCase):
     test_name = __qualname__

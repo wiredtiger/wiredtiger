@@ -30,7 +30,6 @@
 # compression
 # [END_TAGS]
 #
-# test_dictionary01.py
 #       Smoke test dictionary compression.
 
 from wtscenario import make_scenarios

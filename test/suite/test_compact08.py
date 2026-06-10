@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 
-# test_compact08.py
 # Verify compaction for in-memory and readonly databases is not allowed.
 class test_compact08(wttest.WiredTigerTestCase):
     uri = f'file:{__qualname__}'

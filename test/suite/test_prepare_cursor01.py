@@ -34,7 +34,6 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_prepare_cursor01.py
 #    WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor01(wttest.WiredTigerTestCase):
 

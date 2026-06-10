@@ -33,7 +33,6 @@ from helper import WiredTigerCursor, statistic_uri
 from wiredtiger import stat
 
 
-# test_layered_delta13.py
 # Test that we write the page for update restore even when deltas are disabled.
 
 @disagg_test_class

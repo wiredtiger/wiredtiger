@@ -31,7 +31,6 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
-# test_layered_fast_truncate16.py
 #   Verify that pending follower truncates land on stable when the follower steps up,
 #   across the variety of per-key shapes and edge cases.
 @disagg_test_class

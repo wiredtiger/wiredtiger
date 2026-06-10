@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
-# test_alter03.py
 #    Check if app_metadata can be altered.
 class test_alter03(TieredConfigMixin, wttest.WiredTigerTestCase):
     name = "alter03"

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered_prepare06.py
 #   Test layered cursor walks on a follower with an advanced checkpoint, exercising the
 #   two-cursor merge path. Verifies correct behavior when:
 #   - An overwrite update positions only the ingest cursor, then next() forces the stable

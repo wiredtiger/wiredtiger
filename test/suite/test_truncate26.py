@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
-# test_cursor24.py
 # Check that WiredTiger returns an error when a session uses cursors not owned by that session.
 
 class test_cursor24(wttest.WiredTigerTestCase):

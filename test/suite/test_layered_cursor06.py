@@ -31,7 +31,6 @@ import wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_cursor06.py
 # Simple testing for layered random cursor
 @disagg_test_class
 class test_layered_cursor06(wttest.WiredTigerTestCase):

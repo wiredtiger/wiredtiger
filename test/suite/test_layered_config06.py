@@ -30,7 +30,6 @@ import os, wttest
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
 
-# test_layered_config06.py
 #    Make sure RTS does nothing in a disaggregated storage context.
 class test_layered_config06(wttest.WiredTigerTestCase):
     test_name = __qualname__

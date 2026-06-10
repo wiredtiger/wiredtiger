@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp19.py
 # Use the oldest timestamp in the metadata as the oldest timestamp on restart.
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet

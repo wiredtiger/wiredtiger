@@ -30,7 +30,6 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_prepare_hs01.py
 # test to ensure history store eviction is working for prepared transactions.
 class test_prepare_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.

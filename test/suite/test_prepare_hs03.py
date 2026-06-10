@@ -38,7 +38,6 @@ import os
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_prepare_hs03.py
 # test to ensure salvage, verify & simulating crash are working for prepared transactions.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 @wttest.skip_for_hook("disagg", "Salvage on disagg tables not yet implemented") # FIXME-WT-14740: Re-enable salvage once implemented.

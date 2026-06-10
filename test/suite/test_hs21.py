@@ -32,7 +32,6 @@ from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_hs21.py
 # Test we don't lose any data when idle files with an active history are closed/sweeped.
 # Files with active history, ie content newer than the oldest timestamp can be closed when idle.
 # We want to ensure that when an active history file is idle closed we can continue reading the

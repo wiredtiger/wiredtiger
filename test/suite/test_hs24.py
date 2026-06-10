@@ -32,7 +32,6 @@ import wttest, wtthread, wiredtiger
 from helper import simulate_crash_restart
 from wtscenario import make_scenarios
 
-# test_hs24.py
 # Test that missing timestamp fix racing with checkpointing the history store doesn't create
 # inconsistent checkpoint.
 class test_hs24(wttest.WiredTigerTestCase):

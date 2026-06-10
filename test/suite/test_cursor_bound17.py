@@ -30,7 +30,6 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound17.py
 #   Test cursor bound reset functionality with special internal reset scenario calls.
 class test_cursor_bound17(bound_base):
     file_name = 'test_cursor_bound17'

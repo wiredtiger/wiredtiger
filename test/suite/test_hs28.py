@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_hs28.py
 # Test that we insert a full update instead of a reverse modify to the
 # history store if a modify follows a squashed on page value.
 

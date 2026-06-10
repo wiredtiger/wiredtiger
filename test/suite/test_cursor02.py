@@ -30,7 +30,6 @@ import wiredtiger
 from test_cursor_tracker import TestCursorTracker
 from wtscenario import make_scenarios
 
-# test_cursor02.py
 #     Cursor operations on small tables.
 class test_cursor02(TestCursorTracker):
     """

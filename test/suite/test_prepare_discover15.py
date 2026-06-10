@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare_discover15.py
 #   Rolling back a follower-claimed prepared transaction is durable across
 #   checkpoints. After the rollback completes and a new checkpoint is taken,
 #   reopening prepared_discover against that checkpoint must not surface the

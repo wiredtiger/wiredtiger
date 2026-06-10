@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_prepare46.py
 # Regression test: a prepare rollback whose prepare timestamp is not yet stable
 # at the time of eviction should leave the prepared cell available for the next
 # checkpoint. Once the prepare timestamp becomes stable, the checkpoint must

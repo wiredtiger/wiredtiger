@@ -28,7 +28,6 @@
 
 import wttest
 
-# test_debug_mode10.py
 #   Test the debug mode settings. Test realloc_malloc use.
 class test_debug_mode10(wttest.WiredTigerTestCase):
     conn_config = 'debug_mode=(realloc_malloc=true)'

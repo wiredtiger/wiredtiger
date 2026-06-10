@@ -29,7 +29,6 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_util09.py
 #    Utilities: wt loadtext
 class test_util09(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util09.a'

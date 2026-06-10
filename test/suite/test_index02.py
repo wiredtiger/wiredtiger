@@ -41,7 +41,6 @@ def cmp(a, b):
     else:
         return 0
 
-# test_index02.py
 #    test search_near in indices
 class test_index02(wttest.WiredTigerTestCase):
     '''Test search_near in indices'''

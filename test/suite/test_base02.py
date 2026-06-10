@@ -30,7 +30,6 @@
 # config_api
 # [END_TAGS]
 #
-# test_base02.py
 #    Configuration
 #
 

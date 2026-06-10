@@ -29,7 +29,6 @@
 import wttest
 from wtscenario import make_scenarios
 
-# test_durable_ts03.py
 #    Check that the checkpoint honors the durable timestamp of updates.
 @wttest.skip_for_hook("tiered", "Tiered causes python crash")
 class test_durable_ts03(wttest.WiredTigerTestCase):

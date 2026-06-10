@@ -30,7 +30,6 @@ import os, os.path, shutil, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_follower04.py
 #    Make sure a secondary picking up a checkpoint adds in the stable
 #    component of the table.
 @disagg_test_class

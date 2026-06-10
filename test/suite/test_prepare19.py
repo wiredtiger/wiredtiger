@@ -30,7 +30,6 @@
 import wttest
 import wiredtiger
 
-# test_prepare19.py
 # Test that for in-memory configurations of WiredTiger if rolling back a prepared, reconciled
 # update results in an empty update chain then a tombstone is appended to the chain
 class test_prepare19(wttest.WiredTigerTestCase):
