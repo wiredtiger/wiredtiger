@@ -2417,36 +2417,49 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 }
 
 /*
- * __rec_merge_base_ta --
- *     Merge the base image's time aggregate into the given aggregate. The base image is the most
- *     recent image written for the page: the previous reconciliation result if the page was written
- *     while in cache, otherwise the on-disk address held by the reference. Used when writing a
- *     delta so the parent's reference covers cells that persist in the base but are absent from
- *     memory.
+ * __rec_base_ta_exceeds --
+ *     Return whether the page's base image carries durable timestamps newer than the given (current
+ *     reconciliation) aggregate. The base image is the most recent image written for the page: the
+ *     previous reconciliation result if the page was written while in cache, otherwise the on-disk
+ *     address held by the reference.
  */
-static void
-__rec_merge_base_ta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
+static bool
+__rec_base_ta_exceeds(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 {
+    WT_ADDR *ref_addr;
     WT_CELL_UNPACK_ADDR unpack_addr;
     WT_PAGE *home;
     WT_PAGE_MODIFY *mod;
+    WT_TIME_AGGREGATE *base;
 
     mod = r->page->modify;
+    base = NULL;
 
     if (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL)
-        WT_TIME_AGGREGATE_MERGE(session, ta, &mod->mod_replace.ta);
+        base = &mod->mod_replace.ta;
     else if (mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi_entries == 1 &&
       mod->mod_multi[0].addr.block_cookie != NULL)
-        WT_TIME_AGGREGATE_MERGE(session, ta, &mod->mod_multi[0].addr.ta);
-    else if (r->ref->addr != NULL) {
-        home = r->ref->home;
-        if (__wt_off_page(home, r->ref->addr))
-            WT_TIME_AGGREGATE_MERGE(session, ta, &((WT_ADDR *)r->ref->addr)->ta);
+        base = &mod->mod_multi[0].addr.ta;
+    else {
+        /*
+         * Read the reference's home and address with an acquire barrier between them, matching
+         * __wt_ref_addr_copy: a concurrent parent split can replace an on-page cell with an
+         * off-page address, and pairing a new home with an old address would misinterpret the cell.
+         */
+        home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&r->ref->home);
+        ref_addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&r->ref->addr);
+        if (ref_addr == NULL)
+            return (false);
+        if (__wt_off_page(home, ref_addr))
+            base = &ref_addr->ta;
         else {
-            __wt_cell_unpack_addr(session, home->dsk, (WT_CELL *)r->ref->addr, &unpack_addr);
-            WT_TIME_AGGREGATE_MERGE(session, ta, &unpack_addr.ta);
+            __wt_cell_unpack_addr(session, home->dsk, (WT_CELL *)ref_addr, &unpack_addr);
+            base = &unpack_addr.ta;
         }
     }
+
+    return (base->newest_start_durable_ts > ta->newest_start_durable_ts ||
+      base->newest_stop_durable_ts > ta->newest_stop_durable_ts);
 }
 
 /*
@@ -2653,6 +2666,19 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         }
     }
 
+    /*
+     * A delta layers on top of the page's existing base image, whose cells remain part of the
+     * materialized page: a delta can add or shadow a key but cannot remove one, only a full image
+     * can. If the base carries durable timestamps newer than the in-memory aggregate (for example a
+     * globally visible delete that was dropped on read), a delta would leave the parent advertising
+     * a narrower time window than the materialized page actually contains. Write a full image
+     * instead; it rewrites the base to match the in-memory content, so the aggregate is exact and
+     * reflects only stable content (important during RTS/recovery). The next reconciliation can
+     * resume building deltas.
+     */
+    if (build_delta && !WT_PAGE_IS_INTERNAL(page) && __rec_base_ta_exceeds(session, r, &chunk->ta))
+        build_delta = false;
+
     /* Write the disk image and get an address. */
     if (skip_write) {
         /* Copy the previous written page's address if we skip writing. */
@@ -2663,21 +2689,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     } else if (build_delta) {
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
-
-        /*
-         * A delta is layered on top of the page's existing base image, whose cells remain part of
-         * the materialized page: a delta can add or shadow a key but cannot remove one, only a full
-         * image can. The aggregate computed from the in-memory page can therefore be narrower than
-         * the materialized page when a base cell is absent from memory (for example, a globally
-         * visible delete that was not instantiated on read). Merge the base image's aggregate so
-         * the parent advertises a time window that covers the whole materialized page. The base
-         * address is the most recent image written for this page: the previous reconciliation
-         * result if the page was written while in cache, otherwise the on-disk address held by the
-         * reference. A full-image write recomputes the aggregate from scratch and so needs no such
-         * merge.
-         */
-        __rec_merge_base_ta(session, r, &multi->addr.ta);
-
         WT_RET(__rec_write_delta(session, r, chunk, addr, &addr_size, &compressed_size));
     } else {
         WT_RET(
