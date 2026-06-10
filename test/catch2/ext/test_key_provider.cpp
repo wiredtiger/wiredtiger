@@ -554,7 +554,11 @@ TEST_CASE_METHOD(
     __ut_disagg_prune_pending_crypt_keys(session_impl, 20);
     validate_pending_queue(conn_impl, {{30, keys[2]}, {40, keys[3]}, {50, keys[4]}});
 
-    /* A bound at or above every remaining entry drains the three that are left. */
+    /* A bound between entries frees the two covered keys and retains the newer one. */
+    __ut_disagg_prune_pending_crypt_keys(session_impl, 45);
+    validate_pending_queue(conn_impl, {{50, keys[4]}});
+
+    /* A bound at or above the last entry drains the queue. */
     __ut_disagg_prune_pending_crypt_keys(session_impl, 1000);
     validate_pending_queue(conn_impl, {});
 
