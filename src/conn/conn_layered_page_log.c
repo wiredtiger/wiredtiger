@@ -779,17 +779,9 @@ __disagg_append_crypt_meta(WT_SESSION_IMPL *session, WT_ITEM *metadata_buf)
         return (0);
 
     /*
-     * A brand-new database in push mode can reach a checkpoint before persisting a key, leaving no
-     * key-provider page to reference; skip the metadata in that case.
-     */
-    if (F_ISSET(conn, WT_CONN_KEY_PROVIDER_PUSH) &&
-      conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] ==
-        0)
-        return (0);
-
-    /*
-     * Every other case has a persisted page to reference: pull mode writes one at each checkpoint,
-     * and push mode only reaches here once a key has been persisted.
+     * A configured key provider always has a persisted KEK page by checkpoint time. Everything the
+     * checkpoint writes, including the metadata table, is encrypted, so a key must already exist;
+     * reaching here without one should be impossible.
      */
     WT_ASSERT(session,
       conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] !=
