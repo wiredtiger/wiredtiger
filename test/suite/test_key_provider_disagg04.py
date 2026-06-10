@@ -75,8 +75,7 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
 
         ds1 = SimpleDataSet(self, self.uri, self.nentries)
         ds1.populate()
-        # In push mode the first checkpoint must persist a key, so advance stable to cover the
-        # pushed key. Later parts already have a persisted page to reference after a restart.
+        # Advance stable so the first checkpoint persists a key.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
         ds1.check()
