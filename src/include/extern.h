@@ -43,8 +43,6 @@ extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_session_prefetch_check(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session,
-  WT_SHARED_DSK_ITEM *shared_dsk_item) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wti_block_disagg_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
@@ -1879,6 +1877,8 @@ extern void __wt_session_set_last_error(
 extern void __wt_shared_dsk_cache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size, WT_SHARED_DSK_ITEM **shared_dsk_retp);
+extern void __wt_shared_dsk_cache_release(
+  WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shared_dsk_item);
 extern void __wt_stash_discard(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
 extern void __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *to);

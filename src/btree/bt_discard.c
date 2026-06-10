@@ -164,13 +164,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
             WT_ASSERT(session, WT_PAGE_IS_SHARED_DSK(page));
             WT_ASSERT(session, page->disagg_info->shared_dsk_item->data == dsk);
             WT_ASSERT(session, page->disagg_info->shared_dsk_item->data_size == dsk->mem_size);
-            /*
-             * If this was the last cached item and the cache was disabled on step-up, destroy the
-             * cache structure now that all follower-phase references have drained.
-             */
-            if (__wt_shared_dsk_cache_release(session, page->disagg_info->shared_dsk_item) &&
-              !S2C(session)->cache->shared_dsk_cache.enabled)
-                __wt_shared_dsk_cache_destroy(session);
+            __wt_shared_dsk_cache_release(session, page->disagg_info->shared_dsk_item);
         } else if (!WT_PAGE_IS_SHARED_DSK(page))
             __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
     }

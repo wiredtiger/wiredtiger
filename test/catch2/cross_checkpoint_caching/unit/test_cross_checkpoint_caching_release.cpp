@@ -26,7 +26,7 @@ TEST_CASE("cross_checkpoint_caching_release: releasing when ref_count > 1 keeps 
     REQUIRE(got == put_item);
     REQUIRE(put_item->ref_count == 2);
 
-    REQUIRE(!__wt_shared_dsk_cache_release(env.session(), put_item));
+    __wt_shared_dsk_cache_release(env.session(), put_item);
 
     REQUIRE(put_item->ref_count == 1);
     REQUIRE(env.bucket_size(0) == 1);
@@ -49,7 +49,7 @@ TEST_CASE("cross_checkpoint_caching_release: ref_count reaching zero removes the
     REQUIRE(env.bucket_size(0) == 1);
 
     // Drop the only reference: the item is removed and freed.
-    REQUIRE(__wt_shared_dsk_cache_release(env.session(), put_item));
+    __wt_shared_dsk_cache_release(env.session(), put_item);
 
     REQUIRE(env.bucket_size(0) == 0);
 
@@ -75,7 +75,7 @@ TEST_CASE(
     WT_SHARED_DSK_ITEM *item_b = env.put(addr_b, sizeof(addr_b));
     REQUIRE(env.bucket_size(0) == 2);
 
-    REQUIRE(!__wt_shared_dsk_cache_release(env.session(), item_a));
+    __wt_shared_dsk_cache_release(env.session(), item_a);
 
     REQUIRE(env.bucket_size(0) == 1);
     // item_b is untouched.
@@ -109,13 +109,13 @@ TEST_CASE(
     REQUIRE(put_item->ref_count == 1 + ITERATIONS);
 
     for (int i = 0; i < ITERATIONS; i++) {
-        REQUIRE(!__wt_shared_dsk_cache_release(env.session(), put_item));
+        __wt_shared_dsk_cache_release(env.session(), put_item);
         REQUIRE(put_item->ref_count == ITERATIONS - i);
         REQUIRE(env.bucket_size(0) == 1);
     }
 
     // One final release drops ref_count to zero and removes the item.
-    REQUIRE(__wt_shared_dsk_cache_release(env.session(), put_item));
+    __wt_shared_dsk_cache_release(env.session(), put_item);
     REQUIRE(env.bucket_size(0) == 0);
 }
 
@@ -139,7 +139,7 @@ TEST_CASE(
 
     REQUIRE(env.bucket_size(0) == 2);
 
-    REQUIRE(!__wt_shared_dsk_cache_release(env.session(), item_a));
+    __wt_shared_dsk_cache_release(env.session(), item_a);
 
     REQUIRE(env.bucket_size(0) == 1);
     REQUIRE(item_b->ref_count == 1);
