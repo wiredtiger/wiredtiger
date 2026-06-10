@@ -2668,13 +2668,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     /*
      * A delta layers on top of the page's existing base image, whose cells remain part of the
-     * materialized page: a delta can add or shadow a key but cannot remove one, only a full image
-     * can. If the base carries durable timestamps newer than the in-memory aggregate (for example a
-     * globally visible delete that was dropped on read), a delta would leave the parent advertising
-     * a narrower time window than the materialized page actually contains. Write a full image
-     * instead; it rewrites the base to match the in-memory content, so the aggregate is exact and
-     * reflects only stable content (important during RTS/recovery). The next reconciliation can
-     * resume building deltas.
+     * materialized page: a delta can add or update a key but cannot remove one, only a full image
+     * can. When this reconciliation dropped a key from the disk image (a globally visible delete),
+     * that key is gone from memory but persists in the base, and a delta cannot remove it. If the
+     * base also carries durable timestamps newer than the in-memory aggregate, a delta would leave
+     * the parent advertising a narrower time window than the materialized page actually contains.
+     * Write a full image instead; it rewrites the base to match the in-memory content, so the
+     * aggregate is exact and reflects only stable content (important during RTS/recovery). The next
+     * reconciliation can resume building deltas. A key still present in memory and merely shadowed
+     * by the delta is unaffected, so this does not disturb the common delta path.
      */
     if (build_delta && !WT_PAGE_IS_INTERNAL(page) && __rec_base_ta_exceeds(session, r, &chunk->ta))
         build_delta = false;
