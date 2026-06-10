@@ -76,10 +76,8 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
     #
     # We step the high 32 bits (the seconds field of a MongoDB <seconds:increment>
     # timestamp) so the checkpoint timestamp crosses second boundaries. That matters
-    # because the bound may be rounded up to the next second (see
-    # WT_TIMESTAMP_ASSUME_MONGODB_SECONDS); a churn that only moved the increment
-    # field would never reach it. Callers' table data must live below the first
-    # second (timestamps < 2^32).
+    # because of the reduced-contention way that ingest btrees store timestamps that
+    # indicate when they can be closed.
     def churn_until(self, churn_uri, sfollow, conn_follow, predicate):
         for second in range(1, 41):
             ts = (second << 32) + 1
