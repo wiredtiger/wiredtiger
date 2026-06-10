@@ -599,6 +599,7 @@ __conn_dhandle_config_parse_ts(WT_SESSION_IMPL *session)
 int
 __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t flags)
 {
+    struct timespec tsp;
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
@@ -681,6 +682,14 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_BTREE_BULK)) {
         __wt_tsan_suppress_store_pointer((void *)&dhandle->excl_session, (void *)session);
         dhandle->excl_ref = 1;
+    }
+
+    /* Stress point to widen the disaggregated open / step-down sweep race window. */
+    if (WT_DHANDLE_BTREE(dhandle) && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      S2C(session)->layered_table_manager.init) {
+        tsp.tv_sec = 2;
+        tsp.tv_nsec = 0;
+        __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_OPEN_BTREE_SLOW, &tsp);
     }
     F_SET(dhandle, WT_DHANDLE_OPEN);
 
