@@ -502,21 +502,25 @@ TEST_CASE_METHOD(
     for (int i = 0; i < 4; i++)
         REQUIRE(push_key(&stub, keys[i], timestamps[i]) == 0);
 
-    /* The checkpoint timestamp straddles the queue; pick the highest entry not exceeding it. */
-    WT_DISAGG_PENDING_CRYPT_KEY *chosen = __ut_disagg_select_pending_crypt_key(session_impl, 25);
-    validate_chosen_key(chosen, 20, keys[1]);
+    SECTION("a timestamp that straddles the queue picks the highest entry not exceeding it")
+    {
+        validate_chosen_key(__ut_disagg_select_pending_crypt_key(session_impl, 25), 20, keys[1]);
+    }
 
-    /* An exact match on a queued timestamp is selected. */
-    chosen = __ut_disagg_select_pending_crypt_key(session_impl, 30);
-    validate_chosen_key(chosen, 30, keys[2]);
+    SECTION("an exact match on a queued timestamp is selected")
+    {
+        validate_chosen_key(__ut_disagg_select_pending_crypt_key(session_impl, 30), 30, keys[2]);
+    }
 
-    /* A checkpoint timestamp beyond the queue selects the newest entry. */
-    chosen = __ut_disagg_select_pending_crypt_key(session_impl, 100);
-    validate_chosen_key(chosen, 40, keys[3]);
+    SECTION("a timestamp beyond the queue selects the newest entry")
+    {
+        validate_chosen_key(__ut_disagg_select_pending_crypt_key(session_impl, 100), 40, keys[3]);
+    }
 
-    /* No entry qualifies when the checkpoint timestamp precedes the whole queue. */
-    chosen = __ut_disagg_select_pending_crypt_key(session_impl, 5);
-    REQUIRE(chosen == nullptr);
+    SECTION("a timestamp before the whole queue selects nothing")
+    {
+        REQUIRE(__ut_disagg_select_pending_crypt_key(session_impl, 5) == nullptr);
+    }
 
     __wti_disagg_pending_crypt_key_clear(session_impl);
     conn_impl->key_provider = nullptr;
@@ -545,16 +549,19 @@ TEST_CASE_METHOD(kp_fixture, "checkpoint prune scenarios", "[key_provider]")
         __ut_disagg_prune_pending_crypt_keys(session_impl, 5);
         validate_pending_queue(conn_impl, {{10, keys[0]}, {20, keys[1]}, {30, keys[2]}});
     }
+
     SECTION("a bound exactly at an entry frees that entry and everything older")
     {
         __ut_disagg_prune_pending_crypt_keys(session_impl, 20);
         validate_pending_queue(conn_impl, {{30, keys[2]}});
     }
+
     SECTION("a bound between entries frees the covered keys and retains the newer one")
     {
         __ut_disagg_prune_pending_crypt_keys(session_impl, 25);
         validate_pending_queue(conn_impl, {{30, keys[2]}});
     }
+
     SECTION("a bound at or above every entry drains the whole queue")
     {
         __ut_disagg_prune_pending_crypt_keys(session_impl, 1000);
