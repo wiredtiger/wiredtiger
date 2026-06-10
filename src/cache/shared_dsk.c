@@ -46,7 +46,11 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
     *shared_dsk_retp = NULL;
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    WT_ASSERT(session, shared_dsk_cache->enabled);
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
+#ifdef HAVE_DIAGNOSTIC
+    WT_DSK_CACHE_STATE state = __wt_atomic_load_uint8_relaxed(&shared_dsk_cache->state);
+    WT_ASSERT(session, WT_DSK_CACHE_READABLE(state));
+#endif
 
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % shared_dsk_cache->hash_size;
@@ -103,7 +107,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 #endif
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    WT_ASSERT(session, shared_dsk_cache->enabled);
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
     cache_inserted = false;
     shared_dsk_store = NULL;
     *shared_dsk_retp = NULL;
@@ -198,10 +202,6 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     WT_ASSERT(session, shared_dsk_item != NULL);
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    /*
-     * Release must work even after the cache is disabled on step-up, since pages loaded during the
-     * follower phase may still hold live references and will release them as they evict.
-     */
     hash = __wt_hash_city64(shared_dsk_item->addr, shared_dsk_item->addr_size);
     bucket = hash % shared_dsk_cache->hash_size;
     lock_idx = bucket % shared_dsk_cache->hash_lock_size;
@@ -264,16 +264,16 @@ __wt_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
     return (0);
 
 err:
-    __wt_shared_dsk_cache_destroy(session);
+    __wti_shared_dsk_cache_destroy(session);
     return (ret);
 }
 
 /*
- * __wt_shared_dsk_cache_destroy --
+ * __wti_shared_dsk_cache_destroy --
  *     Destroy the shared disk cache and free all memory.
  */
 void
-__wt_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
+__wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
 {
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
     WT_SHARED_DSK_ITEM *shared_dsk_item;

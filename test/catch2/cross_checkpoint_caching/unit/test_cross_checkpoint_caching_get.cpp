@@ -19,7 +19,8 @@ TEST_CASE("cross_checkpoint_caching_get: miss on empty cache returns NULL",
     const uint8_t addr[] = {0xde, 0xad, 0xbe, 0xef};
 
     WT_SHARED_DSK_ITEM *got = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
-    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr, sizeof(addr), &got);
 
     REQUIRE(env.stats()->cache_shared_dsk_miss == 1);
     REQUIRE(env.stats()->cache_shared_dsk_hit == 0);
@@ -35,7 +36,8 @@ TEST_CASE("cross_checkpoint_caching_get: hit returns inserted item and increment
     REQUIRE(put_item->ref_count == 1);
 
     WT_SHARED_DSK_ITEM *got = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr, sizeof(addr), &got);
 
     REQUIRE(got == put_item);
     REQUIRE(got->data == put_item->data);
@@ -57,7 +59,8 @@ TEST_CASE("cross_checkpoint_caching_get: different addr misses",
     WT_SHARED_DSK_ITEM *put_item = env.put(addr_a, sizeof(addr_a));
 
     WT_SHARED_DSK_ITEM *got = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr_b, sizeof(addr_b), &got);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr_b, sizeof(addr_b), &got);
 
     REQUIRE(got == nullptr);
     REQUIRE(put_item->ref_count == 1);
@@ -74,7 +77,8 @@ TEST_CASE("cross_checkpoint_caching_get: different addr_size misses",
     WT_SHARED_DSK_ITEM *put_item = env.put(addr_full, sizeof(addr_full));
 
     WT_SHARED_DSK_ITEM *got = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr_short, sizeof(addr_short), &got);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr_short, sizeof(addr_short), &got);
 
     REQUIRE(got == nullptr);
     REQUIRE(put_item->ref_count == 1);
@@ -94,7 +98,8 @@ TEST_CASE("cross_checkpoint_caching_get: different file id misses even with iden
     S2BT(env.session())->id = original_id + 1;
 
     WT_SHARED_DSK_ITEM *got = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr, sizeof(addr), &got);
 
     REQUIRE(got == nullptr);
     REQUIRE(put_item->ref_count == 1);
@@ -114,7 +119,8 @@ TEST_CASE("cross_checkpoint_caching_get: repeated hits accumulate ref_count and 
     constexpr int ITERATIONS = 5;
     for (int i = 0; i < ITERATIONS; i++) {
         WT_SHARED_DSK_ITEM *got = nullptr;
-        __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
+        __wt_shared_dsk_cache_get(
+          env.session(), addr, sizeof(addr), &got);
         REQUIRE(got == put_item);
         REQUIRE(got->ref_count == 2 + i);
     }
@@ -140,8 +146,10 @@ TEST_CASE("cross_checkpoint_caching_get: two entries in the same bucket are dist
 
     WT_SHARED_DSK_ITEM *got_a = nullptr;
     WT_SHARED_DSK_ITEM *got_b = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr_a, sizeof(addr_a), &got_a);
-    __wt_shared_dsk_cache_get(env.session(), addr_b, sizeof(addr_b), &got_b);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr_a, sizeof(addr_a), &got_a);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr_b, sizeof(addr_b), &got_b);
 
     REQUIRE(got_a == item_a);
     REQUIRE(got_b == item_b);
@@ -173,14 +181,16 @@ TEST_CASE(
 
     // fid_b is set, get returns item_b.
     WT_SHARED_DSK_ITEM *got_b = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_b);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr, sizeof(addr), &got_b);
     REQUIRE(got_b == item_b);
     REQUIRE(got_b->data == item_b->data);
 
     // switch to fid_a, get returns item_a.
     S2BT(env.session())->id = fid_a;
     WT_SHARED_DSK_ITEM *got_a = nullptr;
-    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_a);
+    __wt_shared_dsk_cache_get(
+      env.session(), addr, sizeof(addr), &got_a);
     REQUIRE(got_a == item_a);
     REQUIRE(got_a->data == item_a->data);
 }

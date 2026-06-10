@@ -25,19 +25,30 @@ count_items(WT_SHARED_DSK_CACHE *cache)
     return (count);
 }
 
+static WT_DSK_CACHE_STATE
+cache_state(WT_SHARED_DSK_CACHE *cache)
+{
+    return ((WT_DSK_CACHE_STATE)__wt_atomic_load_uint8_relaxed(&cache->state));
+}
+
 /*
- * Simulate step-up: disable the cache. New get and put calls are blocked by their callers checking
- * enabled, so only in-flight releases from follower-phase pages can still reach the cache.
+ * Simulate step-up: stop accepting puts but keep serving reads, and stamp the time the cache went
+ * read-only so the sweep can later mark it dead.
  */
 static void
 simulate_step_up(WT_SESSION_IMPL *session)
 {
-    S2C(session)->cache->shared_dsk_cache.enabled = false;
+    WT_SHARED_DSK_CACHE *cache = &S2C(session)->cache->shared_dsk_cache;
+    uint64_t now;
+
+    __wt_seconds(session, &now);
+    __wt_atomic_store_uint64_relaxed(&cache->readonly_since, now);
+    __wt_atomic_store_uint8_relaxed(&cache->state, WT_DSK_CACHE_READONLY);
 }
 
 /*
- * Simulate step-down: re-initialize the cache only if it has never been created, then re-enable it.
- * The table is kept for the connection's lifetime, so an ordinary step-down reuses it.
+ * Simulate step-down: create the table only if it has never existed, then reactivate it. The table
+ * is kept for the connection's lifetime, so an ordinary step-down reuses it.
  */
 static void
 simulate_step_down(WT_SESSION_IMPL *session)
@@ -45,7 +56,7 @@ simulate_step_down(WT_SESSION_IMPL *session)
     WT_SHARED_DSK_CACHE *cache = &S2C(session)->cache->shared_dsk_cache;
     if (cache->hash == NULL)
         REQUIRE(__wt_shared_dsk_cache_init(session, CROSS_CHECKPOINT_CACHING_TEST_HASH_SIZE) == 0);
-    cache->enabled = true;
+    __wt_atomic_store_uint8_relaxed(&cache->state, WT_DSK_CACHE_ACTIVE);
 }
 
 TEST_CASE("step_up_step_down: size increments on new insert and not on collision",
@@ -92,95 +103,82 @@ TEST_CASE("step_up_step_down: size increments on new insert and not on collision
     REQUIRE(count_items(cache) == 0);
 }
 
-TEST_CASE("step_up_step_down: step-up sets enabled to false",
+TEST_CASE("step_up_step_down: step-up moves the cache to read-only",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
 
-    REQUIRE(cache->enabled);
+    REQUIRE(cache_state(cache) == WT_DSK_CACHE_ACTIVE);
     simulate_step_up(env.session());
-    REQUIRE(!cache->enabled);
+    REQUIRE(cache_state(cache) == WT_DSK_CACHE_READONLY);
 }
 
-TEST_CASE("step_up_step_down: draining references after step-up keeps the cache structure alive",
+TEST_CASE("step_up_step_down: read-only still shares cached images for reuse",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
 
-    const uint8_t addr_a[] = {0x01, 0x02};
-    const uint8_t addr_b[] = {0x03, 0x04};
-
-    WT_SHARED_DSK_ITEM *item_a = env.put(addr_a, sizeof(addr_a));
-    WT_SHARED_DSK_ITEM *item_b = env.put(addr_b, sizeof(addr_b));
-    REQUIRE(count_items(cache) == 2);
-
-    simulate_step_up(env.session());
-    REQUIRE(!cache->enabled);
-    REQUIRE(cache->hash != nullptr);
-
-    /* Draining follower-phase references removes items but never tears down the table. */
-    __wt_shared_dsk_cache_release(env.session(), item_a);
-    REQUIRE(count_items(cache) == 1);
-    REQUIRE(cache->hash != nullptr);
-
-    __wt_shared_dsk_cache_release(env.session(), item_b);
-    REQUIRE(count_items(cache) == 0);
-    REQUIRE(cache->hash != nullptr);
-}
-
-TEST_CASE("step_up_step_down: step-down reuses the retained cache table",
-  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
-{
-    cross_checkpoint_caching_test_env env;
-    WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
-
-    const uint8_t addr[] = {0xde, 0xad};
+    const uint8_t addr[] = {0x01, 0x02};
     WT_SHARED_DSK_ITEM *item = env.put(addr, sizeof(addr));
-
-    auto *hash_before = cache->hash;
+    REQUIRE(item->ref_count == 1);
 
     simulate_step_up(env.session());
+
+    /* A read in read-only mode reuses the cached image, sharing it and taking a reference. */
+    WT_SHARED_DSK_ITEM *got = nullptr;
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
+    REQUIRE(got == item);
+    REQUIRE(got->ref_count == 2);
+    REQUIRE(count_items(cache) == 1);
+
+    __wt_shared_dsk_cache_release(env.session(), got);
     __wt_shared_dsk_cache_release(env.session(), item);
-
-    /* The table survives step-up and draining. */
-    REQUIRE(cache->hash != nullptr);
-    REQUIRE(!cache->enabled);
-
-    simulate_step_down(env.session());
-
-    /* Step-down re-enables and reuses the same table rather than reallocating. */
-    REQUIRE(cache->enabled);
-    REQUIRE(cache->hash == hash_before);
     REQUIRE(count_items(cache) == 0);
+    REQUIRE(cache->hash != nullptr);
 }
 
-TEST_CASE("step_up_step_down: full cycle keeps the table and repopulates after step-down",
+TEST_CASE("step_up_step_down: read-only get returns not-found on miss",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
+{
+    cross_checkpoint_caching_test_env env;
+    const uint8_t addr[] = {0xab, 0xcd};
+
+    simulate_step_up(env.session());
+
+    /* Set got to a fake value to ensure it is reset to nullptr on a miss. */
+    WT_SHARED_DSK_ITEM *got = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
+    REQUIRE(got == nullptr);
+}
+
+TEST_CASE("step_up_step_down: step-down reuses the retained table and reactivates it",
   "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
 
-    /* Follower phase: populate the cache. */
     const uint8_t addr[] = {0xca, 0xfe};
     WT_SHARED_DSK_ITEM *item = env.put(addr, sizeof(addr));
     REQUIRE(count_items(cache) == 1);
 
     auto *hash_before = cache->hash;
 
-    /* Step-up: disable and drain, but keep the table. */
+    /* Step-up, drain, and mark dead (as the sweep would once the reuse grace elapses). */
     simulate_step_up(env.session());
     __wt_shared_dsk_cache_release(env.session(), item);
-    REQUIRE(cache->hash != nullptr);
-    REQUIRE(count_items(cache) == 0);
-
-    /* Step-down: re-enable and reuse the same table. */
-    simulate_step_down(env.session());
-    REQUIRE(cache->enabled);
+    __wt_atomic_store_uint8_relaxed(&cache->state, WT_DSK_CACHE_DEAD);
+    REQUIRE(cache_state(cache) == WT_DSK_CACHE_DEAD);
     REQUIRE(cache->hash == hash_before);
 
-    /* New follower phase: cache is usable again. */
+    /* Step-down reactivates and reuses the same table rather than reallocating. */
+    simulate_step_down(env.session());
+    REQUIRE(cache_state(cache) == WT_DSK_CACHE_ACTIVE);
+    REQUIRE(cache->hash == hash_before);
+    REQUIRE(count_items(cache) == 0);
+
+    /* The cache is usable again as a follower. */
     const uint8_t addr2[] = {0xbe, 0xef};
     WT_SHARED_DSK_ITEM *item2 = env.put(addr2, sizeof(addr2));
     REQUIRE(count_items(cache) == 1);

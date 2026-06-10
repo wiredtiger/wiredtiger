@@ -66,11 +66,28 @@ struct __wt_shared_dsk_item {
         (sizeof(WT_SHARED_DSK_ITEM) + sizeof(*S2C(session)->cache->shared_dsk_cache.hash)), \
       WT_THOUSAND))
 
+/* Lifecycle state of the shared disk cache. */
+typedef enum {
+    WT_DSK_CACHE_OFF = 0,  /* No table: a leader that has never been a follower, or non-disagg. */
+    WT_DSK_CACHE_ACTIVE,   /* Standby: reads share and reference images, puts allowed. */
+    WT_DSK_CACHE_READONLY, /* Stepped-up leader: reads copy images, no puts or new references. */
+    WT_DSK_CACHE_DEAD      /* Drained on a leader: reads skip the table until step-down or close. */
+} WT_DSK_CACHE_STATE;
+
+#define WT_DSK_CACHE_READABLE(state) \
+    ((state) == WT_DSK_CACHE_ACTIVE || (state) == WT_DSK_CACHE_READONLY)
+
+#define WT_DSK_CACHE_CAN_READ(state, btree) \
+    (WT_DSK_CACHE_READABLE(state) && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+
+#define WT_DSK_CACHE_CAN_WRITE(state, btree) \
+    ((state) == WT_DSK_CACHE_ACTIVE && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+
 struct __wt_shared_dsk_cache {
-    bool enabled;
+    wt_shared uint8_t state;
+    uint64_t readonly_since; /* Seconds when the cache went read-only on step-up. */
 
     TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
-    /* FIXME-WT-17168: Investigate whether spinlock should be changed to rwlock. */
     WT_SPINLOCK *hash_locks;
     u_int hash_size;
     u_int hash_lock_size;

@@ -44,16 +44,21 @@ cross_checkpoint_caching_test_env::cross_checkpoint_caching_test_env(u_int hash_
       reinterpret_cast<WT_PAGE_LOG_HANDLE *>(&_disagg_sentinel);
 
     REQUIRE(__wt_shared_dsk_cache_init(_session, hash_size) == 0);
-    conn->cache->shared_dsk_cache.enabled = true;
+    __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_ACTIVE);
 }
 
 cross_checkpoint_caching_test_env::~cross_checkpoint_caching_test_env()
 {
     WT_CONNECTION_IMPL *conn = S2C(_session);
 
-    __wt_shared_dsk_cache_destroy(_session);
-    /* Prevent the connection-close cache destroy from running again. */
-    conn->cache->shared_dsk_cache.enabled = false;
+    /*
+     * Stop the sweep server before freeing the table, mirroring connection-close ordering: the
+     * sweep server consults the cache and must not race the destroy.
+     */
+    REQUIRE(__wti_sweep_destroy(_session) == 0);
+
+    /* Free the table; this nulls hash so the connection-close destroy is a no-op. */
+    __wti_shared_dsk_cache_destroy(_session);
 
     /* Detach the dummy so the disagg teardown path doesn't dereference it as a real handle. */
     conn->disaggregated_storage.page_log_meta = nullptr;

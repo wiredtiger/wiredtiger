@@ -1625,6 +1625,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session;
+    uint64_t now;
 
     conn = S2C(session);
 
@@ -1674,11 +1675,15 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       "Failed to drain ingest tables");
 
     /*
-     * Disable cross-checkpoint caching on step-up. Leaders operate on a single live B-tree and will
-     * not benefit from reusing disk images across checkpoints. The cache is destroyed lazily in
-     * __wt_shared_dsk_cache_release once all follower-phase references have drained.
+     * Step-up: block puts but keep serving reads so the new leader can reuse cached images, and
+     * stamp the time so the sweep marks the cache dead after the reuse grace. A follower's cache is
+     * always active.
      */
-    conn->cache->shared_dsk_cache.enabled = false;
+    WT_ASSERT(session,
+      __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state) == WT_DSK_CACHE_ACTIVE);
+    __wt_seconds(session, &now);
+    __wt_atomic_store_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since, now);
+    __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY);
 
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
@@ -1753,13 +1758,15 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /*
      * Re-enable the shared disk cache on step-down. As a follower, block addresses are stable
-     * across checkpoints so the cache will see hits. Re-initialize the hash table fresh.
+     * across checkpoints so the cache will see hits. Create the table only if this node never had
+     * one, otherwise it was kept alive and is reused.
      */
     if (S2C(session)->cache->shared_dsk_cache.hash == NULL) {
         u_int hash_size = WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session);
         WT_IGNORE_RET(__wt_shared_dsk_cache_init(session, hash_size));
-        S2C(session)->cache->shared_dsk_cache.enabled = true;
     }
+    __wt_atomic_store_uint8_relaxed(
+      &S2C(session)->cache->shared_dsk_cache.state, WT_DSK_CACHE_ACTIVE);
 }
 
 /*
