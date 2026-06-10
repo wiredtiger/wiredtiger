@@ -831,6 +831,16 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         WT_ERR(__wt_strdup(session, cfg[i], &cst->cfg[i]));
 
     /*
+     * The initial statistics snapshot below walks the btree, and bt_stat.c reads
+     * WT_CURSTD_READ_CORRUPT off the cursor to engage skip-on-corruption. __wt_cursor_init sets
+     * that flag, but it runs after the snapshot; opt the cursor in early so the snapshot walk sees
+     * it.
+     */
+    WT_ERR(__wt_config_gets_def(session, cfg, "read_corrupt", 0, &cval));
+    if (cval.val)
+        F_SET(cursor, WT_CURSTD_READ_CORRUPT);
+
+    /*
      * Do the initial statistics snapshot: there won't be cursor operations to trigger
      * initialization with aggregating statistics for upper-level objects like tables so we need a
      * valid set of statistics before the open returns.

@@ -31,15 +31,19 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_SESSION_IMPL *session_impl;
     size_t urilen;
+    int64_t skip_after, skip_before;
     int ch;
     char *objname, *uri;
     const char *config, *desc, *pval;
     bool objname_free;
 
+    session_impl = (WT_SESSION_IMPL *)session;
     objname_free = false;
     objname = uri = NULL;
     config = NULL;
+    skip_after = skip_before = 0;
     while ((ch = __wt_getopt(progname, argc, argv, "af?")) != EOF)
         switch (ch) {
         case 'a':
@@ -91,30 +95,24 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 
     /*
      * Set the session flag before open_cursor so dhandle-open reads stay quiet. Add
-     * read_corrupt=true to the cursor config so the stat cursor's tree walk also opts into skip.
+     * read_corrupt=true to the cursor config so the stat-cursor tree walk skips corrupt pages and
+     * surfaces partial counts instead of failing the cursor open.
      */
     if (quiet_corrupt) {
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_QUIET_CORRUPT_FILE);
+        F_SET(session_impl, WT_SESSION_QUIET_CORRUPT_FILE);
         if (config == NULL)
             config = "read_corrupt=true";
         else if (strcmp(config, "statistics=(fast)") == 0)
             config = "statistics=(fast),read_corrupt=true";
+        skip_before = WT_STAT_CONN_READ(S2C(session_impl)->stats, cursor_skip_corrupt);
     }
 
-    /*
-     * Corrupt reads are caught here. Unless fast mode is enabled, the cursor walks the entire btree
-     * including the leaf pages, which could be corrupt.
-     */
     if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
         fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
           session->strerror(session, ret));
         goto err;
     }
 
-    /*
-     * List the statistics. In quiet-corrupt mode a cursor error mid-iteration is reported and exits
-     * gracefully so any partial output is flushed.
-     */
     while ((ret = cursor->next(cursor)) == 0 &&
       (ret = cursor->get_value(cursor, &desc, &pval, NULL)) == 0)
         if (printf("%s=%s\n", desc, pval) < 0) {
@@ -127,9 +125,15 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     if (ret != 0) {
         fprintf(stderr, "%s: cursor get(%s) failed: %s\n", progname, objname,
           session->strerror(session, ret));
-        if (!quiet_corrupt)
-            goto err;
-        ret = 1;
+        goto err;
+    }
+
+    if (quiet_corrupt) {
+        skip_after = WT_STAT_CONN_READ(S2C(session_impl)->stats, cursor_skip_corrupt);
+        if (skip_after > skip_before)
+            fprintf(stderr,
+              "%s: %" PRId64 " pages skipped due to corruption; statistics are partial.\n",
+              progname, skip_after - skip_before);
     }
 
     if (0) {
