@@ -18,6 +18,34 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_metadata_scan_perf
+    SOURCES metadata_scan_perf/main.c
+    DIR_NAME metadata_scan_perf
+    # Smoke configuration: a small collection count exercises both phases quickly. Run the binary
+    # directly with -C/-c/-r for the 100K and 1M collection performance measurements.
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_metadata_scan_perf>/WT_HOME> -C 500 -S 100
+    DEPENDS "WT_POSIX"
+)
+
+# Disaggregated variant: compares the metadata scan against statistics=(size) point lookups for
+# reading each collection's checkpoint size. Requires the PALite page-log extension, so it is
+# labelled "disagg" and is told where the build directory is.
+define_c_test(
+    TARGET test_metadata_scan_perf_disagg
+    SOURCES metadata_scan_perf/main.c
+    DIR_NAME metadata_scan_perf
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_metadata_scan_perf_disagg>/WT_HOME_DISAGG> -b ${CMAKE_BINARY_DIR} -G -C 100
+    DEPENDS "WT_POSIX"
+    LABEL "disagg"
+)
+
+# Use the C++ linker for the disaggregated variant so sanitized builds link the C++ runtimes that
+# the PALite extension requires (matching test_wt16990_disagg_checkpoint_panic).
+if(TARGET test_metadata_scan_perf_disagg)
+    set_target_properties(test_metadata_scan_perf_disagg PROPERTIES LINKER_LANGUAGE CXX)
+endif()
+
+define_c_test(
     TARGET test_config
     SOURCES config/main.c
     DIR_NAME config
