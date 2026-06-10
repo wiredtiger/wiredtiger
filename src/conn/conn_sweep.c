@@ -151,6 +151,9 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
           __wt_atomic_load_int32_acquire(&dhandle->session_inuse) != 0)
             return (0);
 
+        /* Be certain that we're dealing with an ingest table. */
+        WT_ASSERT(session, WT_URI_IS_INGEST(dhandle->name));
+
         /*
          * The maximum write timestamp is a potentially conservative maximum of commit timestamps
          * made in this tree. Conservative or not, it guarantees that there are no writes newer than
