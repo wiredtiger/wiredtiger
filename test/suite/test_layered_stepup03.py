@@ -45,9 +45,6 @@ class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    def conn_config_follower(self):
-        return self.conn_base_config + 'disaggregated=(role="follower"),'
-
     def test_step_down_dirty_eviction(self):
         """
         Test that transitioning from leader to follower role doesn't crash when
@@ -80,9 +77,6 @@ class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
             'eviction_updates_target=1,eviction_updates_trigger=5'
         )
 
-        # Capture checkpoint metadata while still the leader.
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
-
         # Transition from leader to follower role.
         # Eviction threads running concurrently should not crash when they
         # encounter pages with pending split state during this transition.
@@ -91,14 +85,7 @@ class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
         # Allow time for eviction to process pages during the transition window.
         time.sleep(0.5)
 
-        self.close_conn()
-
-        # Reopen as follower with the captured checkpoint metadata.
-        config = (self.conn_config_follower() +
-                  f'disaggregated=(checkpoint_meta="{checkpoint_meta}"),')
-        self.open_conn(".", config)
-
-        # Verify all data is readable from the follower.
+        # Verify all data is readable on the demoted connection.
         cursor = self.session.open_cursor(self.uri, None, None)
         count = 0
         while cursor.next() == 0:

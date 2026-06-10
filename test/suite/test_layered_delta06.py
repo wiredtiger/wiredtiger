@@ -101,14 +101,8 @@ class test_layered_delta06(wttest.WiredTigerTestCase):
         # We should skip writing the page
         self.session.checkpoint()
 
-        # Specify "local_files_action=ignore" to avoid deleting local files on reopen.
-        # This is important for the disaggregated storage test, as we want to read the
-        # checkpoint meta file without deleting it.
-        # Error text:
-        # unable to read root page from file:WiredTigerShared.wt_stable: WT_ERROR: non-specific WiredTiger error
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}",local_files_action=ignore)'
-        self.reopen_conn(config = follower_config)
+        # Step down to a follower in place.
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         cursor = self.session.open_cursor(self.uri, None, None)
 

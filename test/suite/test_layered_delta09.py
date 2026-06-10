@@ -138,10 +138,8 @@ class test_layered_delta09(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
-        # Re-open the connection on follower.
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
+        # Step down to a follower in place.
+        self.conn.reconfigure('disaggregated=(role="follower")')
         # Verify the k/v pairs in the table.
         self.verify(kv, kv_modified)
         # Assert that we have constructed at least one internal page delta.

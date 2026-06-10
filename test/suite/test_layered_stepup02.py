@@ -60,12 +60,11 @@ class test_layered_stepup02(wttest.WiredTigerTestCase):
         ds.check()
 
         if role == 'leader':
-            # If we are the leader, we should be able to shut down and switch roles
-            # in the same directory, insert some new items and see them.
+            # If we are the leader, we should be able to step down to a follower
+            # in place, insert some new items and see them.
 
             self.session.checkpoint()
-            self.reopen_conn(config=self.conn_base_config +
-                    f'disaggregated=(role="follower",checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
+            self.conn.reconfigure('disaggregated=(role="follower")')
 
             first_row = ds.rows + 1
             ds.rows += 1000

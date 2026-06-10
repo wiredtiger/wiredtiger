@@ -74,8 +74,8 @@ class test_layered_checkpoint06(checkpoint_util):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
 
-        # Reopen the connection as a follower.
-        self.restart_without_local_files()
+        # Step down to a follower without restarting.
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         #
         # Part 1: Step up.

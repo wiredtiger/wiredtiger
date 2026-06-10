@@ -130,9 +130,8 @@ class test_layered_delta05(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
+        # Step down to a follower in place.
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         # Verify the updated values in the table.
         self.verify(kv_modified, inital_value)

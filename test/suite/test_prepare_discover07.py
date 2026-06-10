@@ -112,17 +112,14 @@ class test_prepare_discover07(wttest.WiredTigerTestCase):
         checkpoint_session.checkpoint()
         checkpoint_session.close()
 
-        # Step 3: Reopen as follower and pickup checkpoint
-
-        # Get the checkpoint metadata before closing
-        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
-
-        # Configure as follower with checkpoint pickup (not using backup)
-        follower_config = self.conn_base_config + \
-                         'disaggregated=(role="follower",' + \
-                         f'checkpoint_meta="{checkpoint_meta}")'
-        # Reopen connection as follower
-        self.reopen_conn(config=follower_config)
+        # Step 3: Step down to a follower in place. The restart this replaces
+        # used to discard the in-memory prepared transaction; the live
+        # step-down does not, so roll it back to mimic abandoning it. The
+        # prepared state remains in the checkpoint, where discovery must
+        # find it.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.session.rollback_transaction(
+            'rollback_timestamp=' + self.timestamp_str(210))
 
         # Verify committed data is visible but prepared data is not
         cursor = self.session.open_cursor(self.uri)

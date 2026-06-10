@@ -305,7 +305,9 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         sess.close()
         self.disagg_advance_checkpoint(self.follower_conn)
 
-    def switch_and_restart_follower(self):
+    def switch_follower_and_leader(self):
+        # The switch helper demotes the old leader in place; it keeps running
+        # as a follower and only needs to pick up the new leader's checkpoint.
         self.disagg_switch_follower_and_leader(self.follower_conn, self.conn)
         self.follower_conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(self.next_ts - 1))
@@ -313,8 +315,6 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
         ckpt.checkpoint()
         ckpt.close()
 
-        self.reopen_conn(directory=self.leader_dir,
-                         config=self.follower_config())
         self.disagg_advance_checkpoint(self.conn, self.follower_conn)
 
         # Swap self.conn and self.follower_conn. The old leader is now the follower and vice versa.
@@ -366,7 +366,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
             finally:
                 follow_session.close()
 
-            self.switch_and_restart_follower()
+            self.switch_follower_and_leader()
 
             # Validate on the new leader against the ValidationModel.
             verify_session = self.conn.open_session('')

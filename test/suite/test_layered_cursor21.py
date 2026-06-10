@@ -63,7 +63,7 @@ class test_layered_cursor21(wttest.WiredTigerTestCase):
         return cfg
 
     # Create the table on the leader and (optionally) populate the stable
-    # table, then reopen as a follower.
+    # table, then step down to a follower.
     def setup_follower(self, populate):
         self.session.create(self.uri, self.session_create_config())
         if populate:
@@ -77,11 +77,7 @@ class test_layered_cursor21(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         self.session.checkpoint()
 
-        follower_config = (
-            'disaggregated=(role="follower",'
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        )
-        self.reopen_conn(config=follower_config)
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
     def truncate_range(self, start, stop, ts):
         c1 = self.session.open_cursor(self.uri)
@@ -145,7 +141,7 @@ class test_layered_cursor21(wttest.WiredTigerTestCase):
     #   - On the leader, insert 0..2*nitems-1 then truncate the lower half so
     #     stable holds tombstones for 0..nitems-1 and live rows for the upper
     #     half. Checkpoint.
-    #   - Reopen as follower and truncate the upper half so ingest holds
+    #   - Step down to follower and truncate the upper half so ingest holds
     #     tombstones covering nitems..2*nitems-1.
     # Net: no visible rows, with tombstones residing in both ingest and
     # stable. next_random must return WT_NOTFOUND.
@@ -164,11 +160,7 @@ class test_layered_cursor21(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
         self.session.checkpoint()
 
-        follower_config = (
-            'disaggregated=(role="follower",'
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        )
-        self.reopen_conn(config=follower_config)
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         # Follower-side truncate: tombstones land in ingest.
         self.truncate_range(self.nitems, 2 * self.nitems - 1, 30)
@@ -191,11 +183,7 @@ class test_layered_cursor21(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
         self.session.checkpoint()
 
-        follower_config = (
-            'disaggregated=(role="follower",'
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        )
-        self.reopen_conn(config=follower_config)
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         # Follower-side remove: tombstones land in ingest.
         self.remove_range(self.nitems, 2 * self.nitems - 1, 30)

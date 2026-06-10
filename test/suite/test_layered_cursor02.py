@@ -68,9 +68,9 @@ class test_layered_cursor02(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.checkpoint()
 
-        # We don't need a second WT to test what we want -- reopen the existing
-        # one and tell it to grab the latest checkpoint.
-        self.reopen_conn(config=self.conn_base_config + f'disaggregated=(role="follower",checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
+        # We don't need a second WT to test what we want -- step down the
+        # existing one to a follower in place.
+        self.conn.reconfigure('disaggregated=(role="follower")')
         c = self.session.open_cursor(self.uri)
 
         for k in range(1000):

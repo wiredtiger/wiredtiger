@@ -75,9 +75,10 @@ class test_layered_fast_truncate20(LayeredFastTruncateConfigMixin, wttest.WiredT
 
     def setup_follower_with_knob(self, slow):
         knob = 'true' if slow else 'false'
-        self.reopen_disagg_conn(
+        # Step down to a follower in place; the knob is reconfigurable.
+        self.conn.reconfigure(
             f'disaggregated=(role="follower"),'
-            f'debug_mode=(disagg_slow_truncate_follower={knob}),')
+            f'debug_mode=(disagg_slow_truncate_follower={knob})')
 
     def test_slow_path_calls_cursor_remove_per_key(self):
         self.setup_leader(keys=range(self.nitems))

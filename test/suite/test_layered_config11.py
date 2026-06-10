@@ -75,12 +75,8 @@ class test_layered_config11(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.checkpoint()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
-        self.reopen_conn(config=follower_config)
+        # Step down to a follower in place.
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
         cursor = self.session.open_cursor(uri, None, None)
 

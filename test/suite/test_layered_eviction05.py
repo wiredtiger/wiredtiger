@@ -45,9 +45,6 @@ class test_layered_eviction05(eviction_util, wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    def conn_config_follower(self):
-        return self.conn_base_config + 'disaggregated=(role="follower"),'
-
     def read(self, nrows):
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(nrows):
@@ -68,9 +65,9 @@ class test_layered_eviction05(eviction_util, wttest.WiredTigerTestCase):
         self.populate(self.uri, 0, nrows, value)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows))
         self.session.checkpoint()
-        # Reopen as follower.
-        self.reopen_disagg_conn(self.conn_config_follower())
-        # Read data into cache.
+        # Step down to a follower in place; the btree becomes readonly.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        # Read the data.
         self.read(nrows)
 
         # Set oldest timestamp to an older value.
