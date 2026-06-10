@@ -253,6 +253,10 @@ __clayered_open_stable_int(WT_CURSOR_LAYERED *clayered, const char *stable_uri)
     if (F_ISSET(&clayered->iface, WT_CURSTD_DEBUG_RESET_EVICT))
         F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
 
+    /* Propagate read-corrupt: the stable cursor is the one that does the disk walk. */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_READ_CORRUPT))
+        F_SET(clayered->stable_cursor, WT_CURSTD_READ_CORRUPT);
+
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
         __clayered_seed_random(session, clayered, clayered->stable_cursor);
 
