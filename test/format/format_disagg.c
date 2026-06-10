@@ -230,32 +230,32 @@ disagg_is_mode_switch(void)
 void
 disagg_switch_roles(void)
 {
+    SAP sap;
+    WT_SESSION *session;
+
     /* Perform step-up or step-down. */
     g.disagg_leader = !g.disagg_leader;
 
-    /*
-     * FIXME-WT-15763: WT does not yet support graceful step-downs. Simply reconfiguring WT to step
-     * down may cause issues, so we reopen the connection when switching to follower mode.
-     */
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+
     if (!g.disagg_leader) {
         /*
          * Stepping down: [leader -> follower]. As part of reopening WT, we will reconfigure the
          * database as a follower based on the value of g.disagg_leader.
          */
         track("[role change] leader -> follower", 0ULL);
-        wts_reopen();
+        timestamp_sync_threads_commit_ts();
+        timestamp_once(session, false, false);
+        testutil_check(session->checkpoint(session, NULL));
+        testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
         follower_read_latest_checkpoint();
         wts_prepare_discover(g.wts_conn);
     } else {
         /* Stepping up: [follower -> leader] */
-        SAP sap;
-        WT_SESSION *session;
-
         track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
 
-        memset(&sap, 0, sizeof(sap));
-        wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
         /* Advance timestamps to cover all in-memory commits from the follower phase. */
         timestamp_sync_threads_commit_ts();
         timestamp_once(session, false, false);
