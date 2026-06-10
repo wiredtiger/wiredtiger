@@ -66,12 +66,12 @@ struct __wt_shared_dsk_item {
         (sizeof(WT_SHARED_DSK_ITEM) + sizeof(*S2C(session)->cache->shared_dsk_cache.hash)), \
       WT_THOUSAND))
 
-/* Lifecycle state of the shared disk cache. */
+/* Shared disk cache state. */
 typedef enum {
-    WT_DSK_CACHE_OFF = 0,  /* No table: a leader that has never been a follower, or non-disagg. */
-    WT_DSK_CACHE_ACTIVE,   /* Standby: reads share and reference images, puts allowed. */
-    WT_DSK_CACHE_READONLY, /* Stepped-up leader: reads copy images, no puts or new references. */
-    WT_DSK_CACHE_DEAD      /* Drained on a leader: reads skip the table until step-down or close. */
+    WT_DSK_CACHE_OFF = 0,  /* No table: a leader that has never been a standby, or non-disagg. */
+    WT_DSK_CACHE_ACTIVE,   /* Standby: allow reads and puts. */
+    WT_DSK_CACHE_READONLY, /* Stepped-up leader: allow reads only. */
+    WT_DSK_CACHE_DEAD      /* Drained on a leader: both reads and writes are disabled. */
 } WT_DSK_CACHE_STATE;
 
 #define WT_DSK_CACHE_READABLE(state) \

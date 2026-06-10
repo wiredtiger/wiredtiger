@@ -22,8 +22,7 @@ TEST_CASE("cross_checkpoint_caching_release: releasing when ref_count > 1 keeps 
     WT_SHARED_DSK_ITEM *put_item = env.put(addr, sizeof(addr));
 
     WT_SHARED_DSK_ITEM *got = nullptr;
-    __wt_shared_dsk_cache_get(
-      env.session(), addr, sizeof(addr), &got);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
     REQUIRE(got == put_item);
     REQUIRE(put_item->ref_count == 2);
 
@@ -34,8 +33,7 @@ TEST_CASE("cross_checkpoint_caching_release: releasing when ref_count > 1 keeps 
 
     // Releasing when ref_count > 1 keeps the item in the cache.
     WT_SHARED_DSK_ITEM *got_again = nullptr;
-    __wt_shared_dsk_cache_get(
-      env.session(), addr, sizeof(addr), &got_again);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_again);
     REQUIRE(got_again == put_item);
     REQUIRE(put_item->ref_count == 2);
 }
@@ -57,8 +55,7 @@ TEST_CASE("cross_checkpoint_caching_release: ref_count reaching zero removes the
 
     // Setting got to a fake value to ensure that it is set to nullptr.
     WT_SHARED_DSK_ITEM *got = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
-    __wt_shared_dsk_cache_get(
-      env.session(), addr, sizeof(addr), &got);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
     REQUIRE(got == nullptr);
     REQUIRE(env.stats()->cache_shared_dsk_miss == 1);
     REQUIRE(env.stats()->cache_shared_dsk_hit == 0);
@@ -88,10 +85,8 @@ TEST_CASE(
     // item_b is still in the hash map; item_a is gone.
     WT_SHARED_DSK_ITEM *got_a = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
     WT_SHARED_DSK_ITEM *got_b = nullptr;
-    __wt_shared_dsk_cache_get(
-      env.session(), addr_a, sizeof(addr_a), &got_a);
-    __wt_shared_dsk_cache_get(
-      env.session(), addr_b, sizeof(addr_b), &got_b);
+    __wt_shared_dsk_cache_get(env.session(), addr_a, sizeof(addr_a), &got_a);
+    __wt_shared_dsk_cache_get(env.session(), addr_b, sizeof(addr_b), &got_b);
     REQUIRE(got_a == nullptr);
     REQUIRE(got_b == item_b);
 }
@@ -108,8 +103,7 @@ TEST_CASE(
     constexpr int ITERATIONS = 5;
     for (int i = 0; i < ITERATIONS; i++) {
         WT_SHARED_DSK_ITEM *got = nullptr;
-        __wt_shared_dsk_cache_get(
-          env.session(), addr, sizeof(addr), &got);
+        __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
         REQUIRE(got == put_item);
     }
     REQUIRE(put_item->ref_count == 1 + ITERATIONS);
@@ -152,15 +146,13 @@ TEST_CASE(
 
     // fid_b is set, get returns item_b.
     WT_SHARED_DSK_ITEM *got_b = nullptr;
-    __wt_shared_dsk_cache_get(
-      env.session(), addr, sizeof(addr), &got_b);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_b);
     REQUIRE(got_b == item_b);
 
     // Switch to fid_a, the entry is gone.
     // Setting got to a fake value to ensure that it is set to nullptr.
     S2BT(env.session())->id = fid_a;
     WT_SHARED_DSK_ITEM *got_a = reinterpret_cast<WT_SHARED_DSK_ITEM *>(0x1);
-    __wt_shared_dsk_cache_get(
-      env.session(), addr, sizeof(addr), &got_a);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got_a);
     REQUIRE(got_a == nullptr);
 }

@@ -67,7 +67,6 @@ int
 __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    u_int hash_size;
     bool leader;
 
     WT_ASSERT(session, S2C(session)->cache == NULL);
@@ -88,11 +87,10 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_disagg_config_get_role(session, cfg, &leader));
 
         if (!leader) {
-            hash_size = WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session);
-            WT_RET(__wt_shared_dsk_cache_init(session, hash_size));
+            WT_RET(
+              __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
             __wt_atomic_store_uint8_relaxed(
               &S2C(session)->cache->shared_dsk_cache.state, WT_DSK_CACHE_ACTIVE);
-            WT_STAT_CONN_SET(session, cache_shared_dsk_hash_size, hash_size);
         }
     }
 

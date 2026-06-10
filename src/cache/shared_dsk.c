@@ -258,6 +258,8 @@ __wt_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
         WT_ERR(__wt_spin_init(
           session, &shared_dsk_cache->hash_locks[i], "shared disk cache bucket locks"));
 
+    WT_STAT_CONN_SET(session, cache_shared_dsk_hash_size, hash_size);
+
     return (0);
 
 err:

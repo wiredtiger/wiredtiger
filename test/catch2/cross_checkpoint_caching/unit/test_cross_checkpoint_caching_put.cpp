@@ -37,8 +37,7 @@ TEST_CASE("cross_checkpoint_caching_put: inserting an item makes it retrievable 
     WT_SHARED_DSK_ITEM *put_item = env.put(addr, sizeof(addr));
 
     WT_SHARED_DSK_ITEM *got = nullptr;
-    __wt_shared_dsk_cache_get(
-      env.session(), addr, sizeof(addr), &got);
+    __wt_shared_dsk_cache_get(env.session(), addr, sizeof(addr), &got);
 
     REQUIRE(got == put_item);
     REQUIRE(env.stats()->cache_shared_dsk_hit == 1);

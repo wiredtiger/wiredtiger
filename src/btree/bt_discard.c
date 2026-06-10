@@ -79,8 +79,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      */
 
     if (page->disagg_info != NULL &&
-      !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-        F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING)))
+      !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING)))
         if (!__wt_materialization_check(session, page->disagg_info->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
@@ -89,8 +88,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * page. We do ordinary eviction from dead trees until sweep gets to them, so we may not in the
      * WT_SYNC_DISCARD loop.
      */
-    if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-      F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
+    if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
         __wt_page_modify_clear(session, page);
 
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
