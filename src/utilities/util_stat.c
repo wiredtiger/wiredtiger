@@ -43,7 +43,9 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     objname_free = false;
     objname = uri = NULL;
     config = NULL;
-    skip_after = skip_before = 0;
+    /* skip_after is only read inside the if (quiet_corrupt) block below where it's also assigned.
+     */
+    skip_before = 0;
     while ((ch = __wt_getopt(progname, argc, argv, "af?")) != EOF)
         switch (ch) {
         case 'a':

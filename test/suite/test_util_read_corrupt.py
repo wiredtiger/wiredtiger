@@ -109,6 +109,12 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
     def setup_clean_table(self):
         """create  populate  checkpoint, no corruption. For tests that
         exercise dump_record's non-error return-code paths."""
+        # Under the disagg hook the table is rewritten as layered: and the
+        # wt follower subprocess opens its own connection that doesn't see
+        # table:foo. Skip rather than diverge the test for the disagg
+        # connection-resolution path; the same dump_record code is covered
+        # by the non-disagg run.
+        self.skip_test_if_disagg()
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.populate()
         self.session.checkpoint()
@@ -150,22 +156,21 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_without_q_fails(self):
         # Baseline: dump on corrupt data must panic, not exit gracefully.
-        # Pins three properties of the default behavior:
-        #   1. The process is killed by SIGABRT (subprocess.call returns
-        #      -SIGABRT == -6 on POSIX). Asserting rc not in (0, 1)
-        #      covers both POSIX and Windows.
-        #   2. stderr contains the full diagnostic sequence in the
-        #      expected order: per-block "read checksum error" diagnostic
-        #      from block_read.c, bitflip-detection report (the
-        #      corruption we write is not a single-bit flip), the
-        #      "fatal read error" wrap, the WT_PANIC marker, and the
-        #      abort marker. Pinning the ordering catches reordering
-        #      regressions in the panic flow, not just disappearance
-        #      of one phrase.
-        #   3. The block-layer diagnostic appears at all - it is only
-        #      printed when the quiet flag is clear (block_read.c:233),
-        #      so a regression that started suppressing it on the
-        #      default path would be caught here.
+        # The load-bearing assertions are the stderr markers that pin the
+        # panic flow; rc semantics differ between debug builds (SIGABRT,
+        # rc=-6) and release builds (panic without abort, rc=1), so we
+        # only check that the command did not succeed.
+        # The stderr markers pin:
+        #   1. per-block "read checksum error" diagnostic from
+        #      block_read.c
+        #   2. bitflip-detection report (our corruption isn't a single-bit
+        #      flip), the "fatal read error" wrap, and the WT_PANIC
+        #      marker - reordering regressions in the panic flow get
+        #      caught here, not just disappearance of one phrase.
+        #   3. The block-layer diagnostic appears at all - only printed
+        #      when the quiet flag is clear (block_read.c:233), so a
+        #      regression that suppressed it on the default path would
+        #      be caught here.
         # stdout is intentionally NOT asserted: how much output flushed
         # before the abort depends on stdio buffer state at the moment
         # of the SIGABRT and is not deterministic across builds.
@@ -173,13 +178,14 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         argv = [self._wt_path(), 'dump', self.uri]
         with open('dump_no_q.out', 'w') as out, open('dump_no_q.err', 'w') as err:
             rc = subprocess.call(argv, stdout=out, stderr=err)
-        self.assertNotIn(rc, (0, 1),
-            'wt dump on corrupt data exited cleanly (rc=%d) instead of '
-            'panicking; -q semantics may have leaked into the default '
-            'path' % rc)
+        self.assertNotEqual(rc, 0,
+            'wt dump on corrupt data exited 0; -q semantics may have '
+            'leaked into the default path')
         with open('dump_no_q.err') as f:
             err = f.read()
-        # Each marker must be present...
+        # Markers that must always appear on a panic-on-corrupt path,
+        # regardless of whether the panic also aborts (debug) or returns
+        # the error to main (release).
         markers = [
             ('read checksum error',
                 'block-layer corruption diagnostic missing from stderr'),
@@ -190,8 +196,6 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             ('WT_PANIC',
                 'wt dump exited non-zero without panicking; default '
                 'path is no longer panic-on-corrupt'),
-            ('aborting WiredTiger library',
-                'panic did not reach the abort marker'),
         ]
         for marker, msg in markers:
             self.assertIn(marker, err, msg)
@@ -495,9 +499,9 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         argv = [self._wt_path(), 'read', self.uri] + self._all_keys()
         with open('read_no_q.out', 'w') as out, open('read_no_q.err', 'w') as err:
             rc = subprocess.call(argv, stdout=out, stderr=err)
-        self.assertNotIn(rc, (0, 1),
-            'wt read on corrupt data exited cleanly (rc=%d) instead of '
-            'panicking' % rc)
+        self.assertNotEqual(rc, 0,
+            'wt read on corrupt data exited 0; -q semantics may have '
+            'leaked into the default path')
         with open('read_no_q.err') as f:
             err = f.read()
         markers = [
@@ -510,8 +514,6 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             ('WT_PANIC',
                 'wt read exited non-zero without panicking; default '
                 'path is no longer panic-on-corrupt'),
-            ('aborting WiredTiger library',
-                'panic did not reach the abort marker'),
         ]
         for marker, msg in markers:
             self.assertIn(marker, err, msg)
@@ -554,10 +556,13 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertGreater(len(err_lines), 0,
             'wt -q read produced no error lines; corruption was not '
             'exercised on this run')
-        expected = ('wt: %s: cursor.search: WT_ERROR: '
-                    'non-specific WiredTiger error') % self.uri
+        # Tolerate the program-name prefix variation: on Windows wt is
+        # invoked as 'cmake_build\wt' so each line is prefixed with that
+        # instead of plain 'wt:'. Match the suffix after the first ':'.
+        expected_suffix = ('%s: cursor.search: WT_ERROR: '
+                           'non-specific WiredTiger error') % self.uri
         for ln in err_lines:
-            self.assertEqual(ln, expected,
+            self.assertTrue(ln.endswith(expected_suffix),
                 'unexpected stderr line: %r' % ln)
         self.assertEqual(len(out_lines) + len(err_lines), self.nentries,
             'stdout values (%d) + stderr errors (%d) does not equal '
