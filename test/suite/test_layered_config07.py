@@ -40,7 +40,7 @@ def encode_bytes(str):
 
 class test_layered_config07(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    disagg_storages = gen_disagg_storages('test_layered_config07', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages)

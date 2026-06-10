@@ -39,14 +39,14 @@ class test_layered_stepup02(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="{self.initial_role}")'
 
-    uri = "layered:test_layered_stepup02"
+    uri = f"layered:{__qualname__}"
     nentries = 1000
 
     role_scenarios = [
         ('leader', dict(initial_role='leader')),
         ('follower', dict(initial_role='follower')),
     ]
-    disagg_storages = gen_disagg_storages('test_layered_stepup02', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, role_scenarios)
 
     # Test simple inserts to a leader/follower

@@ -47,7 +47,7 @@ class test_layered_cursor10(wttest.WiredTigerTestCase):
         ('rollback', dict(commit = False)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor10', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolve_scenarios)
 
     conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'

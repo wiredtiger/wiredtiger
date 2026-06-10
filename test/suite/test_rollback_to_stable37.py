@@ -35,6 +35,7 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 # Test that the rollback to stable to restore proper stable update from history store when a no timestamp
 # update has rewritten the history store data.
 class test_rollback_to_stable37(test_rollback_to_stable_base):
+    test_name = __qualname__
     conn_config = 'cache_size=1GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=false),verbose=(rts:5)'
 
     format_values = [
@@ -58,7 +59,7 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values, dryrun_values, worker_thread_values)
 
     def test_rollback_to_stable(self):
-        uri = 'table:test_rollback_to_stable37'
+        uri = f'table:{self.test_name}'
         nrows = 1000
 
         value_a = 'a' * 10

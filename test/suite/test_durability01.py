@@ -36,7 +36,7 @@ from suite_subprocess import suite_subprocess
 import wttest
 
 class test_durability01(wttest.WiredTigerTestCase, suite_subprocess):
-    uri = 'table:test_durability01'
+    uri = f'table:{__qualname__}'
     create_params = 'key_format=i,value_format=i'
 
     def check_crash_restart(self, olddir, newdir):

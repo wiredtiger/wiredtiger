@@ -36,7 +36,7 @@ from helper_disagg import disagg_test_class
 #    the stable table.
 @disagg_test_class
 class test_layered_schema02(wttest.WiredTigerTestCase):
-    uri = "layered:test_layered_schema02"
+    uri = f"layered:{__qualname__}"
 
     conn_base_config = ""
     conn_config = conn_base_config + 'disaggregated=(role="leader")'

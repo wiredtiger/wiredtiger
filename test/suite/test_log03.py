@@ -38,7 +38,7 @@ class test_log03(wttest.WiredTigerTestCase):
     """
 
     homedir = 'HOME'
-    uri = 'table:test_log03'
+    uri = f'table:{__qualname__}'
     nentries = 20000
 
     # Tests need to setup the connection in their own way.

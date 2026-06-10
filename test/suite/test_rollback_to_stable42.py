@@ -72,6 +72,7 @@ def custom_validator(data):
 # test_rollback_to_stable42.py
 # Test that rollback to stable on a missing file complains and bails.
 class test_rollback_to_stable42(test_rollback_to_stable_base):
+    test_name = __qualname__
     def conn_config(self):
         return 'verbose=(rts:1)'
 
@@ -94,7 +95,7 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         # remove the file that needs rollback.
         self.ignoreTearDownLogs = True
 
-        uri = 'table:test_rollback_to_stable42'
+        uri = f'table:{self.test_name}'
         nrows = 1000
 
         value = 'a' * 10

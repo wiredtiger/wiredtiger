@@ -41,9 +41,9 @@ class test_layered_checkpoint07(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S,type=layered'
 
-    uri = "table:test_layered_checkpoint07"
+    uri = f"table:{__qualname__}"
 
-    disagg_storages = gen_disagg_storages('test_layered_checkpoint07', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # Test checkpoint metadata checksums.

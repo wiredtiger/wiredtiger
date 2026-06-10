@@ -48,10 +48,10 @@ class test_layered_checkpoint11(wttest.WiredTigerTestCase):
         ('cursor_copy',    dict(cursor_copy=True)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_checkpoint11', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, cursor_copy_values)
 
-    uri = 'layered:test_layered_checkpoint11'
+    uri = f'layered:{__qualname__}'
 
     def follower_conn_config(self):
         cfg = self.extensionsConfig() + ',create,' + self.conn_base_config

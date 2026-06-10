@@ -36,11 +36,11 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_config12(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered_config12', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_layered_config12'
+    uri = f'layered:{__qualname__}'
 
     # Override conn_extensions to load the reverse collator alongside the disagg page log.
     def conn_extensions(self, extlist):

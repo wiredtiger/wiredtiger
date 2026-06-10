@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 # test_hs08.py
 # Verify modify insert into history store logic.
 class test_hs08(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=100MB,statistics=(all)'
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -47,7 +48,7 @@ class test_hs08(wttest.WiredTigerTestCase):
         return val
 
     def test_modify_insert_to_hs(self):
-        uri = "table:test_hs08"
+        uri = f"table:{self.test_name}"
         create_params = 'value_format=S,key_format={}'.format(self.key_format)
         value1 = 'a' * 1000
         self.session.create(uri, create_params)

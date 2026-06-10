@@ -46,7 +46,7 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
     obj1file = base + '1.wtobj'
     obj1second = base2 + '1.wtobj'
     obj2file = base + '2.wtobj'
-    uri = "table:test_tiered09"
+    uri = f"table:{__qualname__}"
     uri2 = "table:test_second09"
 
     retention = 1

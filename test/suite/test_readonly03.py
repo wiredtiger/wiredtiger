@@ -36,7 +36,7 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 
 class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
-    uri = 'table:test_readonly03'
+    uri = f'table:{__qualname__}'
     uri2 = 'table:test_readonly03_2'
     create = True
 

@@ -44,7 +44,7 @@ import os, shutil
 
 class test_bug029(wttest.WiredTigerTestCase):
     conn_config = ("cache_size=50MB")
-    uri = "table:test_bug029"
+    uri = f"table:{__qualname__}"
     bigvalue = "WiredTiger" * 100
     backup_dir = "backup_dir"
 

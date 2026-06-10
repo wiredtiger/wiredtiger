@@ -45,7 +45,7 @@ class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
     nentries = 10
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered11"
-    uri = "table:test_tiered11"
+    uri = f"table:{__qualname__}"
 
     def conn_config(self):
         self.saved_conn = get_conn_config(self) + ')'

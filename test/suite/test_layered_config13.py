@@ -48,13 +48,13 @@ class test_layered_config13(wttest.WiredTigerTestCase):
         + f"log=(enabled=true,path={logdir}),"
     )
 
-    disagg_storages = gen_disagg_storages("test_layered_config13", disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
 
     # Make scenarios for different cloud service providers.
     scenarios = make_scenarios(disagg_storages)
 
     create_session_config = "key_format=S,value_format=S"
-    uri = "layered:test_layered_config13"
+    uri = f"layered:{__qualname__}"
     uri_local = "table:test_layered_config13local"
 
     def wiredtiger_open(self, *args, **kwargs):

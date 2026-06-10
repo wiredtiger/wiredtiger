@@ -40,9 +40,9 @@ class test_layered_follower02(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    scenarios = gen_disagg_storages('test_layered_follower02', disagg_only = True)
+    scenarios = gen_disagg_storages(disagg_only = True)
 
-    uri = "layered:test_layered_follower02"
+    uri = f"layered:{__qualname__}"
 
     # Make sure the stats agree that the leader has done each checkpoint.
     def check_checkpoint(self, expected):

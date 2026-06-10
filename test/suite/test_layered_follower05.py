@@ -40,9 +40,9 @@ class test_layered_follower05(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader")'
     conn_config_follower = 'disaggregated=(role="follower")'
 
-    uri = "layered:test_layered_follower05"
+    uri = f"layered:{__qualname__}"
 
-    disagg_storages = gen_disagg_storages('test_layered_follower05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     def test_standby_uses_table_id_high_water_mark(self):

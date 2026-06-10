@@ -40,7 +40,7 @@ class test_prepare44(wttest.WiredTigerTestCase):
     does not trigger an assertion failure when preserve_prepared is enabled."""
 
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
-    uri = 'table:test_prepare44'
+    uri = f'table:{__qualname__}'
 
     def test_evict_aborted_prepared_tail(self):
         create_config = 'key_format=i,value_format=S,in_memory=true,log=(enabled=false)'

@@ -39,11 +39,11 @@ class test_layered_eviction01(wttest.WiredTigerTestCase):
                      + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
-    disagg_storages = gen_disagg_storages('test_layered_eviction01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 200_000
-    uri = 'layered:test_layered_eviction01'
+    uri = f'layered:{__qualname__}'
 
     def session_create_config(self):
         return 'key_format=S,value_format=S,'

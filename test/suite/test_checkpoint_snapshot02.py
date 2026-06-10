@@ -43,7 +43,7 @@ from wtbackup import backup_base
 class test_checkpoint_snapshot02(backup_base):
 
     # Create a table.
-    uri = "table:test_checkpoint_snapshot02"
+    uri = f"table:{__qualname__}"
     backup_dir = "BACKUP"
     backup_dir2 = "BACKUP2"
 

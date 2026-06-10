@@ -187,7 +187,7 @@ class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
 
 # Test data-source cache walk statistics
 class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
-    uri = 'file:test_stat_cursor_dsrc_cache_walk'
+    uri = f'file:{__qualname__}'
 
     conn_config = 'statistics=(none)'
 

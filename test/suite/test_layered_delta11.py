@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 #    Test never build an internal page delta if the first key is modified.
 @disagg_test_class
 class test_layered_delta11(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    disagg_storages = gen_disagg_storages('test_layered_delta11', disagg_only = True)
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'disaggregated=(page_log=palite),page_delta=(delta_pct=100),disaggregated=(role="leader")'
@@ -43,7 +44,7 @@ class test_layered_delta11(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 1000
 
     def test_single_update(self):
-        uri = "layered:test_layered_delta11"
+        uri = f"layered:{self.test_name}"
 
         # Setup.
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -79,7 +80,7 @@ class test_layered_delta11(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
 
     def test_inserts_to_split(self):
-        uri = "layered:test_layered_delta11"
+        uri = f"layered:{self.test_name}"
 
         # Setup.
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -116,7 +117,7 @@ class test_layered_delta11(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
 
     def test_deletes(self):
-        uri = "layered:test_layered_delta11"
+        uri = f"layered:{self.test_name}"
 
         # Setup.
         self.session.create(uri, 'key_format=S,value_format=S')

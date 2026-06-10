@@ -45,7 +45,7 @@ from wtscenario import make_scenarios
 # modifications produces the expected result.  If the edit difference is
 # larger than the limits, it okay for the call to fail.
 class test_modify01(wttest.WiredTigerTestCase):
-    uri = 'table:test_modify01'
+    uri = f'table:{__qualname__}'
 
     valuefmt = [
         ('item', dict(valuefmt='u')),

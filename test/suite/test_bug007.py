@@ -33,9 +33,10 @@ import wiredtiger, wttest
 
 # Check that forced salvage works correctly.
 class test_bug007(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     def test_bug007(self):
         # This is a btree layer test, test files only.
-        uri = 'file:test_bug007'
+        uri = f'file:{self.test_name}'
 
         # Create the object.
         self.session.create(uri, 'value_format=S,key_format=S')

@@ -40,6 +40,7 @@ from wiredtiger import stat
 import wttest
 
 class test_dictionary04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     scenarios = make_scenarios([
         ('row', dict(key_format='S')),
         ('var', dict(key_format='r')),
@@ -49,7 +50,7 @@ class test_dictionary04(wttest.WiredTigerTestCase):
     value_b = "bbb" * 100
 
     def test_dictionary04(self):
-        uri = 'file:test_dictionary04'
+        uri = f'file:{self.test_name}'
 
         # Use a reasonably large page size so all of the items fit on a page.
         config=f'leaf_page_max=64K,dictionary=100,value_format=S,key_format={self.key_format}'

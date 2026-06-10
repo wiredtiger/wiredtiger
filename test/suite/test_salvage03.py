@@ -68,7 +68,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     scenarios = make_scenarios(format_values, filename_scenarios)
-    uri = 'table:test_salvage03'
+    uri = f'table:{__qualname__}'
 
     def valuegen(self, i):
         return str(i) + 'A' * 1024

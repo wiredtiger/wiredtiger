@@ -63,7 +63,7 @@ class test_layered_stepup04(wttest.WiredTigerTestCase):
         ('single_table', dict(multi_table=False)),
         ('multi_table',  dict(multi_table=True)),
     ]
-    disagg_storages = gen_disagg_storages('test_layered_stepup04', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(
         disagg_storages, resolve_scenarios, checkpoint_scenarios, multi_table_scenarios)
 

@@ -45,7 +45,7 @@ class test_prepare_discover16(wttest.WiredTigerTestCase):
     uri = 'layered:' + tablename
     stable_uri = 'file:' + tablename + '.wt_stable'
 
-    disagg_storages = gen_disagg_storages('test_prepare_discover16', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_base_config = (

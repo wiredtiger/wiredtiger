@@ -49,10 +49,10 @@ class test_layered_follower14(sweep_util):
                   'verbose=(sweep:3),' \
                   'disaggregated=(role="follower")'
 
-    uri = 'layered:test_layered_follower14'
+    uri = f'layered:{__qualname__}'
     nrows = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered_follower14', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def test_layered_dhandle_not_swept_during_stepup(self):

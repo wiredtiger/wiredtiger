@@ -33,7 +33,7 @@ from wiredtiger import stat
 # Verify cache_read_internal and cache_read_leaf statistics track page reads
 # into cache separately by page type.
 class test_stat16(wttest.WiredTigerTestCase):
-    uri = 'table:test_stat16'
+    uri = f'table:{__qualname__}'
 
     # Small page sizes ensure multiple leaf pages and at least one internal page.
     conn_config = 'statistics=(all),cache_size=100MB'

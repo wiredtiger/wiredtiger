@@ -33,7 +33,7 @@ from wtthread import backup_thread, checkpoint_thread, op_thread
 #   Run background checkpoints and backups repeatedly while doing inserts
 #   in another thread
 class test_backup02(wttest.WiredTigerTestCase):
-    uri = 'table:test_backup02'
+    uri = f'table:{__qualname__}'
     fmt = 'L'
     dsize = 100
     nops = 200

@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 
 class test_isolation01(wttest.WiredTigerTestCase):
 
-    uri = 'table:test_isolation01'
+    uri = f'table:{__qualname__}'
     iso_types = [
         ('isolation_read_uncommitted', dict(isolation='read-uncommitted')),
         ('isolation_read_committed', dict(isolation='read-committed')),

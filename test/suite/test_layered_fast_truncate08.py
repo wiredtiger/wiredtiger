@@ -42,7 +42,7 @@ import wttest
 class test_layered_fast_truncate08(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
     test_name = __qualname__
 
-    disagg_storages = gen_disagg_storages(test_name, disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
     conn_config = 'disaggregated=(role="leader"),'
 

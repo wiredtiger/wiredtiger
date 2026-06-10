@@ -38,10 +38,10 @@ from wtscenario import make_scenarios
 class test_layered_fast_truncate_stepup(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_layered_fast_truncate_stepup'
+    uri = f'layered:{__qualname__}'
     nitems = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate_stepup', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def populate_on_leader(self, ts=10):

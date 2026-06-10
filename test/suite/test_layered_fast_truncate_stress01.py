@@ -152,7 +152,7 @@ class ValidationModel:
 class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_layered_fast_truncate_stress01'
+    uri = f'layered:{__qualname__}'
     table_config = 'key_format=i,value_format=S,leaf_page_max=4096'
 
     # Scale workload by mode: a quick smoke run under the regular suite
@@ -166,8 +166,7 @@ class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
     max_truncate_placement_tries = 5
     value_size = 16
 
-    disagg_storages = gen_disagg_storages(
-        'test_layered_fast_truncate_stress01', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def follower_config(self):

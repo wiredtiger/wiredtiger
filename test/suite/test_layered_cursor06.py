@@ -37,8 +37,8 @@ from wtscenario import make_scenarios
 class test_layered_cursor06(wttest.WiredTigerTestCase):
 
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    disagg_storages = gen_disagg_storages('test_layered_cursor06', disagg_only = True)
-    uri = "layered:test_layered_cursor06"
+    disagg_storages = gen_disagg_storages(disagg_only = True)
+    uri = f"layered:{__qualname__}"
     nitems = 1000
 
     scenarios = make_scenarios(disagg_storages)

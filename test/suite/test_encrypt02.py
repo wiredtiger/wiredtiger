@@ -51,7 +51,7 @@ class test_encrypt02(wttest.WiredTigerTestCase, suite_subprocess):
     # This key will serve for testing purposes.
     sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
-    uri = 'file:test_encrypt02'
+    uri = f'file:{__qualname__}'
     encrypt_type = [
         ('noarg', dict( encrypt_args='name=rotn', secret_arg=None)),
         ('keyid', dict( encrypt_args='name=rotn,keyid=11', secret_arg=None)),

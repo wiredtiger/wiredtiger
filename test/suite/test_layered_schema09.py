@@ -37,6 +37,7 @@ from wiredtiger import stat
 @disagg_test_class
 class test_layered_schema09(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'statistics=(all),disaggregated=(role="leader",lose_all_my_data=true)'
 
     def assertEpochEqual(self, expected_ts):
@@ -55,7 +56,7 @@ class test_layered_schema09(wttest.WiredTigerTestCase):
         correctly picked up on restart, and that it can be updated in a checkpoint.
         '''
         # Create a layered table so checkpoints write through disaggregated storage.
-        uri = 'layered:test_layered_schema09'
+        uri = f'layered:{self.test_name}'
         self.session.create(uri, 'key_format=S,value_format=S')
 
         # The first checkpoint, taken before the epoch is set, records 0 in the checkpoint.

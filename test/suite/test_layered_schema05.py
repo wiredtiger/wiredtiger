@@ -46,7 +46,7 @@ class test_layered_schema05(wttest.WiredTigerTestCase):
     table_name_empty = "test_layered_schema05a"
     table_name_filled = "test_layered_schema05b"
 
-    disagg_storages = gen_disagg_storages('test_layered_schema05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         ('layered-prefix', dict(prefix='layered:', table_config='')),
         ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),

@@ -48,7 +48,7 @@ class test_tiered13(test_import_base, TieredConfigMixin):
     file2uri = fileuri_base + '2.wtobj'
     otherfile = 'other.wt'
     otheruri = 'file:' + otherfile
-    uri = "table:test_tiered13"
+    uri = f"table:{__qualname__}"
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):

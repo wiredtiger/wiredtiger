@@ -43,9 +43,9 @@ class test_layered_checkpoint05(checkpoint_util):
 
     create_session_config = 'key_format=S,value_format=S,type=layered'
 
-    uri = "table:test_layered_checkpoint05"
+    uri = f"table:{__qualname__}"
 
-    disagg_storages = gen_disagg_storages('test_layered_checkpoint05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # Test creating an empty table while a checkpoint is running.

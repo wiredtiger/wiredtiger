@@ -44,7 +44,7 @@ class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered10-000000000'
     obj1file = base + '1.wtobj'
-    uri = "table:test_tiered10"
+    uri = f"table:{__qualname__}"
 
     conn1_dir = "first_dir"
     conn2_dir = "second_dir"

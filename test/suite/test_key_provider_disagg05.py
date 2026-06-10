@@ -42,7 +42,7 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     MAIN_KEK_PAGE_ID = 1
@@ -51,7 +51,7 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
     WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID = 26
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
-    uri = "layered:test_key_provider_disagg05"
+    uri = f"layered:{__qualname__}"
 
     # Base bytes for each pushed key; key_for() appends a unique per-push suffix.
     KEY_PREFIX = b'abcdefghijklmnopqrstuvwxyz'

@@ -35,7 +35,7 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 
 class test_layered_config08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    disagg_storages = gen_disagg_storages('test_layered_config08', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)

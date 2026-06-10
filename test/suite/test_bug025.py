@@ -41,7 +41,7 @@ import os
 # lines of code.
 
 class test_bug025(wttest.WiredTigerTestCase):
-    uri = "table:test_bug025"
+    uri = f"table:{__qualname__}"
     nrows = 10
 
     def test_bug025(self):

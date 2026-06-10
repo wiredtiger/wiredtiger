@@ -43,7 +43,7 @@ from wiredtiger import stat
 class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
 
     # Create a table.
-    uri = "table:test_checkpoint_snapshot03"
+    uri = f"table:{__qualname__}"
     nrows = 500000
 
     format_values = [

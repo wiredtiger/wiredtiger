@@ -45,9 +45,9 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
     conn_base_config = 'cache_size=32MB,transaction_sync=(enabled,method=fsync),statistics=(all),' \
     'statistics_log=(wait=1,json=true,on_close=true),page_delta=(delta_pct=100,delete_pct=100),'
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(internal_page_delta=true,leaf_page_delta=true),'
-    disagg_storages = gen_disagg_storages('test_layered_delta09', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri='layered:test_leaf_delta_disagg01'
+    uri=f'layered:{__qualname__}'
     init_key = "abc"
 
     scenarios = make_scenarios(disagg_storages, prefix_compression)

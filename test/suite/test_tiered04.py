@@ -48,7 +48,7 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered04"
     tieruri = "tier:test_tiered04"
-    uri = "table:test_tiered04"
+    uri = f"table:{__qualname__}"
 
     uri1 = "table:test_other_tiered04"
     uri_none = "table:test_local04"

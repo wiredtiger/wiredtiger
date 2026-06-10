@@ -38,7 +38,7 @@ class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMi
     def conn_config(self):
         return self.extensionsConfig() + ',create,disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_disagg_corruption_mixin', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     uri = 'layered:test_corruption_mixin'

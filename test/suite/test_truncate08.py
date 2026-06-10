@@ -35,6 +35,7 @@ from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
 class test_truncate08(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     format_values = [
         ('column', dict(key_format='r')),
         ('row_integer', dict(key_format='i')),
@@ -44,7 +45,7 @@ class test_truncate08(wttest.WiredTigerTestCase):
 
     def test_truncate08(self):
         # Create a large table with lots of pages.
-        uri = "table:test_truncate08"
+        uri = f"table:{self.test_name}"
         format = 'key_format={},value_format={}'.format(self.key_format, 'S')
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + format)
 

@@ -51,7 +51,7 @@ class test_prepare_discover09(wttest.WiredTigerTestCase):
         ('commit', dict(resolve='commit')),
         ('rollback', dict(resolve='rollback')),
     ]
-    disagg_storages = gen_disagg_storages('test_prepare_discover09', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, resolution_scenarios)
 
     local_uri = 'table:local_plain'

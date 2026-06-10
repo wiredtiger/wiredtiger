@@ -11,3 +11,25 @@ is required when new tests is introduced into test/suite. (WT-4441)
 
 Before the above mentioned mechanism is put into place, please double check
 test/evergreen.yml and test run logs to make sure new test are covered.
+
+Deriving names from the test class
+----------------------------------
+Do not hardcode the test name in object URIs. A test file, its class, and its
+objects share the same name (__qualname__), so derive it instead of copy-pasting.
+
+For a single class-level use, inline __qualname__:
+
+    class test_foo(wttest.WiredTigerTestCase):
+        uri = f'table:{__qualname__}'
+
+When the name is also needed inside methods, or more than once, capture it once
+into a class attribute and use self.test_name at run time -- __qualname__ is only
+available in the class body and is a NameError inside a method:
+
+    class test_bar(wttest.WiredTigerTestCase):
+        test_name = __qualname__
+        uri = f'table:{test_name}'
+        def test_x(self):
+            ingest_uri = f'file:{self.test_name}.wt_ingest'
+
+gen_disagg_storages() takes no test name -- it never used one.

@@ -39,7 +39,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         ('empty', dict(fill_hs=False)),
         ('populated', dict(fill_hs=True)),
     ]
-    disagg_storages = gen_disagg_storages('test_verify_disagg', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(hs, disagg_storages)
 
     nitems = 10000
@@ -54,7 +54,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
     session_follow = None
     conn_follow = None
 
-    uri = 'layered:test_verify_disagg'
+    uri = f'layered:{__qualname__}'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)

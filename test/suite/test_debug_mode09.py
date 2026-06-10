@@ -37,7 +37,7 @@ import wttest
 # This means setting eviction target low and cache size high.
 class test_debug_mode09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=10MB,statistics=(all),eviction_target=10,debug_mode=(update_restore_evict=true)'
-    uri = "table:test_debug_mode09"
+    uri = f"table:{__qualname__}"
 
     # Insert a bunch of data to trigger eviction
     def trigger_eviction(self, uri):

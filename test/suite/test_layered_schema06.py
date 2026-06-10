@@ -42,7 +42,7 @@ TEST_NAMESPACE_BITS = 3
 # Test file IDs for tables that should have predefined IDs.
 @disagg_test_class
 class test_layered_schema06(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_layered_schema06', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     creation_formats = [
         ('layered-bare',       dict(prefix='layered:', extra_config='')),
         ('layered-disagg',     dict(prefix='layered:', extra_config='block_manager=disagg')),

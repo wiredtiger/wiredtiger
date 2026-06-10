@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_fast_truncate02(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
-    uri         = 'layered:test_layered_fast_truncate02'
+    uri         = f'layered:{__qualname__}'
     nrows       = 5000
     value       = 'a' * 500
     trunc_start = 1001
@@ -46,7 +46,7 @@ class test_layered_fast_truncate02(LayeredFastTruncateConfigMixin, wttest.WiredT
     trunc_mid   = (trunc_start + trunc_stop) // 2
 
     conn_config = 'cache_size=50MB,statistics=(all),disaggregated=(role="leader")'
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate02', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def setup_leader(self):

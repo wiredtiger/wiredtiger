@@ -48,7 +48,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
     layered_uris = ["layered:test_layered_checkpoint02a", "layered:test_layered_checkpoint02b"]
     all_uris = list(layered_uris)
 
-    disagg_storages = gen_disagg_storages('test_layered_checkpoint02', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # Reset a cursor on the follower.  Generally, the test will open a layered: uri,

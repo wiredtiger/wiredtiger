@@ -46,7 +46,7 @@ class test_drop01(wttest.WiredTigerTestCase):
         cursor.close()
         return size
 
-    uri = 'table:test_drop01'
+    uri = f'table:{__qualname__}'
     name = 'test_drop01'
     @unittest.skip('FIXME-WT-16857, Test has known bug.')
     def test_drop_hs_truncate(self):

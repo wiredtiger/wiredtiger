@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 # Ensure updates structure is correct when processing each key.
 class test_hs25(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
-    uri = 'table:test_hs25'
+    uri = f'table:{__qualname__}'
 
     format_values = [
         ('column', dict(key_format='r')),

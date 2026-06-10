@@ -49,7 +49,7 @@ class test_layered_schema08(checkpoint_util):
         ('table-prefix', dict(prefix='table:', table_config=',block_manager=disagg,type=layered')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_schema08', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(table_types, disagg_storages)
 
     def uri(self):

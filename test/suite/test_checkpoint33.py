@@ -40,7 +40,7 @@ import wttest
 class test_checkpoint33(test_cc_base, suite_subprocess):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     # conn_config = 'verbose=[checkpoint:2]'
-    uri = 'table:test_checkpoint33'
+    uri = f'table:{__qualname__}'
 
     table_numkv = 1000000
     value_size = 1024

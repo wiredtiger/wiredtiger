@@ -34,6 +34,7 @@ import wttest
 from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     base_config = 'create,cache_size=50MB'
     format_values = [
         ('row', dict(key_format='S', usestrings=True)),
@@ -49,7 +50,7 @@ class test_txn25(wttest.WiredTigerTestCase):
         return str(i) if self.usestrings else i
 
     def test_txn25(self):
-        uri = 'file:test_txn25'
+        uri = f'file:{self.test_name}'
         create_config = 'key_format={},value_format={}'.format(self.key_format, 'S')
         self.session.create(uri, 'allocation_size=512,' + create_config)
 

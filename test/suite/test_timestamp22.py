@@ -39,7 +39,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     # Keep the number of rows low, as each additional row does
     # not test any new code paths.
     nrows = 3
-    uri = "table:test_timestamp22"
+    uri = f"table:{__qualname__}"
     rand = suite_random.suite_random()
     oldest_ts = 0
     stable_ts = 0

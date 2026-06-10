@@ -47,7 +47,7 @@ class test_layered_prepare04(wttest.WiredTigerTestCase):
     ]
     table_name = "test_layered_prepare04"
 
-    disagg_storages = gen_disagg_storages('test_layered_prepare04', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, table_type)
 
     session_follow = None

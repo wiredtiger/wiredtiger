@@ -43,7 +43,7 @@ class test_layered_config05(wttest.WiredTigerTestCase):
 
     num_items = 2000
     num_modify = 100
-    uri = "table:test_layered_config05"
+    uri = f"table:{__qualname__}"
 
     address_cookie_upgrade = [
         ('none', dict(address_cookie_upgrade='none', compatible=True)),
@@ -55,7 +55,7 @@ class test_layered_config05(wttest.WiredTigerTestCase):
         ('optional_field', dict(optional_field='true')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_config05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, address_cookie_upgrade, optional_field)
 
     # Test stepping up concurrently with a checkpoint.

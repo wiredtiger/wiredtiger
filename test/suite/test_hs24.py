@@ -53,7 +53,7 @@ class test_hs24(wttest.WiredTigerTestCase):
     def conn_config(self):
         return 'timing_stress_for_test=({})'.format(self.checkpoint_stress)
 
-    uri = 'table:test_hs24'
+    uri = f'table:{__qualname__}'
     numrows = 2000
 
     def moresetup(self):

@@ -38,7 +38,7 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    uri = 'layered:test_layered_cursor01'
+    uri = f'layered:{__qualname__}'
     session_follow = None
     conn_follow = None
     oplog = None
@@ -81,7 +81,7 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
                 break
         return cursor
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     pos_op = [
         ('search', dict(pos_func=position_search)),
         ('search_near', dict(pos_func=position_search_near)),

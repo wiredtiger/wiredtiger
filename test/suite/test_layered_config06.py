@@ -33,6 +33,7 @@ from wtdataset import SimpleDataSet
 # test_layered_config06.py
 #    Make sure RTS does nothing in a disaggregated storage context.
 class test_layered_config06(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'disaggregated=(page_log=palite),' \
         + 'disaggregated=(role="leader")'
 
@@ -54,7 +55,7 @@ class test_layered_config06(wttest.WiredTigerTestCase):
 
     @wttest.skip_for_hook("tiered", "Cannot run tiered storage in disagg mode")
     def test_layered_config06(self):
-        uri = "table:test_layered_config06"
+        uri = f"table:{self.test_name}"
         ds = SimpleDataSet(self, uri, 500, key_format='S', value_format='S')
         ds.populate()
 

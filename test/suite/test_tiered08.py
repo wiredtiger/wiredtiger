@@ -55,7 +55,7 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
     ckpt_target = 200
     flush_target = 50
 
-    uri = "table:test_tiered08"
+    uri = f"table:{__qualname__}"
 
     def conn_config(self):
         return get_conn_config(self) + '),statistics=(fast),timing_stress_for_test=(tiered_flush_finish)'

@@ -36,7 +36,7 @@ import wiredtiger, wttest
 # Test shared cache shared among multiple connections.
 class test_shared_cache01(wttest.WiredTigerTestCase):
 
-    uri = 'table:test_shared_cache01'
+    uri = f'table:{__qualname__}'
     # Setup fairly large items to use up cache
     data_str = 'abcdefghijklmnopqrstuvwxyz' * 20
 

@@ -38,6 +38,7 @@ from wtscenario import make_scenarios
 
 class test_prepare13(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=10MB'
 
     format_values = [
@@ -59,7 +60,7 @@ class test_prepare13(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + self.timestamp_str(1))
 
         # Create a large table with lots of pages.
-        uri = "table:test_prepare13"
+        uri = f"table:{self.test_name}"
         config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + config)
         cursor = self.session.open_cursor(uri)

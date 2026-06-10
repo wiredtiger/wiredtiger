@@ -47,8 +47,7 @@ class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredT
         ('table', dict(uri='table:test_layered_fast_truncate06')),
     ]
 
-    disagg_storages = gen_disagg_storages(
-        'test_layered_fast_truncate06', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, uris)
 
     def session_create_config(self):

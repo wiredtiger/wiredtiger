@@ -32,7 +32,7 @@ from prepare_util import test_prepare_preserve_prepare_base
 # Test eviction free updates with prepared transactions
 
 class test_prepare37(test_prepare_preserve_prepare_base):
-    uri = 'table:test_prepare37'
+    uri = f'table:{__qualname__}'
 
     def test_commit_prepare(self):
         # Setup: Initialize timestamps with stable < prepare timestamp

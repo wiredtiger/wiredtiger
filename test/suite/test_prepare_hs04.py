@@ -41,7 +41,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,statistics=(fast)'
 
     # Create a small table.
-    uri = "table:test_prepare_hs04"
+    uri = f"table:{__qualname__}"
 
     nsessions = 3
     nkeys = 40

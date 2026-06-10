@@ -44,10 +44,10 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
         ('v1', dict(start_version=1)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg04', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, start_versions)
 
-    uri = "layered:test_key_provider_disagg04"
+    uri = f"layered:{__qualname__}"
     nentries = 200
 
     # Restart re-invokes conn_extensions, so flipping this field switches the loaded provider.

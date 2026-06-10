@@ -36,7 +36,7 @@ from helper import WiredTigerCursor, statistic_uri
 # Check that eviction threshold stats are correctly updated.
 
 class test_stat14(wttest.WiredTigerTestCase):
-    uri = 'table:test_stat14'
+    uri = f'table:{__qualname__}'
 
     conn_config = 'statistics=(all)'
 

@@ -47,7 +47,7 @@ from suite_subprocess import suite_subprocess
 
 @disagg_test_class
 class test_disagg_util01(wttest.WiredTigerTestCase, suite_subprocess):
-    uri = 'layered:test_disagg_util01'
+    uri = f'layered:{__qualname__}'
     create_session_config = 'key_format=i,value_format=S'
     nrows = 100
 

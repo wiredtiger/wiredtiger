@@ -39,9 +39,9 @@ class test_layered_eviction04(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=i,value_format=S'
 
-    uri = "layered:test_layered_eviction04"
+    uri = f"layered:{__qualname__}"
 
-    disagg_storages = gen_disagg_storages('test_layered_eviction04', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     def test_layered_eviction04(self):

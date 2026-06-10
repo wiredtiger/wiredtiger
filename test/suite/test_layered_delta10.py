@@ -43,9 +43,9 @@ class test_layered_delta10(wttest.WiredTigerTestCase):
 
     conn_config = 'cache_size=10MB,transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(role="leader"),page_delta=(delta_pct=100,internal_page_delta=true,leaf_page_delta=true)'
-    disagg_storages = gen_disagg_storages('test_layered_delta05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri='layered:test_layered_delta10'
+    uri=f'layered:{__qualname__}'
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages, split)

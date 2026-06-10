@@ -44,12 +44,12 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
-    uri = 'layered:test_layered_schema10'
+    uri = f'layered:{__qualname__}'
     uri2 = 'layered:test_layered_schema10_2'  # second follower-created table for multi-epoch tests
 
     table_config = 'key_format=i,value_format=S'
 
-    disagg_storages = gen_disagg_storages('test_layered_schema10', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     #

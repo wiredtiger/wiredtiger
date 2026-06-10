@@ -40,7 +40,7 @@ from wiredtiger import stat
 @disagg_test_class
 class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
-    uri = 'layered:test_leaf_delta_disagg02'
+    uri = f'layered:{__qualname__}'
 
     # Use delta_pct=1000 so the size threshold never rejects a delta; only the delete
     # threshold should determine whether we write a delta or a full page.
@@ -54,7 +54,7 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
     )
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(leaf_page_delta=true,internal_page_delta=false),'
 
-    disagg_storages = gen_disagg_storages('test_leaf_delta_disagg02', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     # Small pages ensure all keys land on a single leaf page.

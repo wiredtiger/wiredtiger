@@ -33,7 +33,7 @@ from wiredtiger import stat
 # Test for WT-12096.
 # Test inserting obsolete updates on the update chain after rolling back to a stable timestamp.
 class test_bug033(wttest.WiredTigerTestCase):
-    uri = 'table:test_bug033'
+    uri = f'table:{__qualname__}'
     conn_config = 'cache_size=100MB,statistics=(all),timing_stress_for_test=[checkpoint_slow]'
 
     def evict(self, k):

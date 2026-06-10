@@ -31,7 +31,7 @@ import wiredtiger, wttest
 # test_compact08.py
 # Verify compaction for in-memory and readonly databases is not allowed.
 class test_compact08(wttest.WiredTigerTestCase):
-    uri = 'file:test_compact08'
+    uri = f'file:{__qualname__}'
 
     def start_background_compaction(self):
         self.session.compact(None, 'background=true')

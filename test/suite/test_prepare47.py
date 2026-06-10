@@ -39,7 +39,7 @@ from wtscenario import make_scenarios
 class test_prepare47(wttest.WiredTigerTestCase):
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 
-    uri = 'table:test_prepare47'
+    uri = f'table:{__qualname__}'
 
     format_values = [
         ('row', dict(key_format='i')),

@@ -45,7 +45,7 @@ PrefetchStats = namedtuple('PrefetchStats',
 class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     new_dir = 'new.dir'
     nrows = 100000
-    uri = 'file:test_prefetch02'
+    uri = f'file:{__qualname__}'
 
     format_values = [
         ('col_var', dict(key_format='r')),

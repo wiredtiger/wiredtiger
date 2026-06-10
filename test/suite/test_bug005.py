@@ -40,7 +40,7 @@ from wtdataset import simple_key, simple_value
 # checkpoint.
 class test_bug005(wttest.WiredTigerTestCase):
     # This is a btree layer test, test files, ignore tables.
-    uri = 'file:test_bug005'
+    uri = f'file:{__qualname__}'
 
     def test_bug005(self):
         # Create the object.

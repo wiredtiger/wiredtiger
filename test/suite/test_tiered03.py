@@ -37,7 +37,7 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    uri = 'file:test_tiered03'
+    uri = f'file:{__qualname__}'
 
     storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered03', tiered_only=True)
 

@@ -39,13 +39,13 @@ from wtscenario import make_scenarios
 #      ckpt2 (TS=2): adds "7", "9" and updates "1" to a new value
 @disagg_test_class
 class test_layered_stepup05(wttest.WiredTigerTestCase):
-    uri = "layered:test_layered_stepup05"
+    uri = f"layered:{__qualname__}"
 
     conn_base_config = 'statistics=(all),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-    disagg_storages = gen_disagg_storages('test_layered_stepup05', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
 
     # Timestamps for the two checkpoints.
     ckpt1_ts = 1

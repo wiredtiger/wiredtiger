@@ -41,7 +41,7 @@ from wtscenario import make_scenarios
 #
 
 class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
-    uri = "table:test_checkpoint_snapshot01"
+    uri = f"table:{__qualname__}"
     conn_config = 'cache_size=50MB'
 
     format_values = [

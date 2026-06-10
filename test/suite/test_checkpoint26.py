@@ -44,7 +44,7 @@ class test_checkpoint26(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(ckpt_precision)
 
-    uri = "table:test_checkpoint26"
+    uri = f"table:{__qualname__}"
 
     def conn_config(self):
         return ('cache_size=1000MB,statistics=(all),eviction_dirty_target=80,' +

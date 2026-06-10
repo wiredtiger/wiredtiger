@@ -45,7 +45,7 @@ class test_layered_follower03(wttest.WiredTigerTestCase):
 
     table_name = "test_layered_follower03"
 
-    disagg_storages = gen_disagg_storages('test_layered_follower03', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         ('layered-prefix', dict(prefix='layered:', table_config='')),
         ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),

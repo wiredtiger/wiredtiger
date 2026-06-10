@@ -37,7 +37,7 @@ import wttest, test_base03
 # configuration enabled.
 class test_debug_mode08(test_base03.test_base03):
     conn_config = 'debug_mode=(cursor_copy=true)'
-    uri = 'file:test_debug_mode08'
+    uri = f'file:{__qualname__}'
 
     def test_reconfig(self):
         ''' Test reconfigure with some minimal cursor activity. '''

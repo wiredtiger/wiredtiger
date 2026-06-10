@@ -61,7 +61,7 @@ import wttest
 # Test dropping a collection on empty logged table. The python test reproduces the WT-15225 bug.
 class test_drop04(test_cc_base):
     conn_config = 'log=(enabled=true)'
-    uri = 'table:test_drop04'
+    uri = f'table:{__qualname__}'
 
     def test_drop_after_bulk_load(self):
         for i in range(100):

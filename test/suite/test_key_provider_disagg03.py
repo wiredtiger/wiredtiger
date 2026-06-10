@@ -41,7 +41,7 @@ class test_key_provider_disagg03(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg03', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # The crypt key data.
@@ -56,7 +56,7 @@ class test_key_provider_disagg03(wttest.WiredTigerTestCase):
     turtle_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_TURTLE_FILE_ID):02d}.db'
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
-    uri = "layered:test_key_provider_disagg03"
+    uri = f"layered:{__qualname__}"
 
     def conn_extensions(self, extlist):
         config = '=(early_load=true,config=\"verbose=-1,version=1\")'

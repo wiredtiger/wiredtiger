@@ -40,6 +40,7 @@ class test_layered_prepare01(wttest.WiredTigerTestCase):
     # stable_keys: inserted by the leader and checkpointed into stable.
     # prepared_keys: subset for which the follower prepares removes in ingest.
     # After conflict + rollback all stable_keys must be returned in order.
+    test_name = __qualname__
     scenarios = make_scenarios([
         ('only_key',  dict(stable_keys=['1'],         prepared_keys=['1'])),
         ('first',     dict(stable_keys=['1','2','3'], prepared_keys=['1'])),
@@ -65,7 +66,7 @@ class test_layered_prepare01(wttest.WiredTigerTestCase):
     def test_iterate_after_prepare_rollback(self):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() +
                 ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
-        uri = 'table:test_layered_prepare01'
+        uri = f'table:{self.test_name}'
         self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
 
         # Leader: insert stable_keys and checkpoint.

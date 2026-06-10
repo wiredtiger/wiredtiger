@@ -37,8 +37,8 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_cursor02(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palite),'
-    disagg_storages = gen_disagg_storages('test_layered_cursor02', disagg_only=True)
-    uri = 'layered:test_layered_cursor02'
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    uri = f'layered:{__qualname__}'
 
     valuefmt = [
         ('item', dict(valuefmt='u')),

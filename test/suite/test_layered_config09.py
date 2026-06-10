@@ -44,7 +44,7 @@ class test_layered_config09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('tier', dict(prefix='tier:')),
         ('object', dict(prefix='object:')),
     ]
-    disagg_storages = gen_disagg_storages('test_layered_config09', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, role_scenarios, prefix_scenarios)
     conn_base_config = 'statistics=(all),verbose=(tiered),'
 

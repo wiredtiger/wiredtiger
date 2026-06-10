@@ -41,7 +41,7 @@ class test_layered_stepup01(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    uri = "layered:test_layered_stepup01"
+    uri = f"layered:{__qualname__}"
 
     # Test inserting records into a follower that turned into a leader
     def test_layered_stepup01(self):

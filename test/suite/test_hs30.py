@@ -61,6 +61,7 @@ from wtscenario import make_scenarios
 # cover it.
 
 class test_hs30(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     session_config = 'isolation=snapshot'
 
     format_values = [
@@ -108,7 +109,7 @@ class test_hs30(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
     def test_insert_updates_hs(self):
-        uri = 'table:test_hs30'
+        uri = f'table:{self.test_name}'
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         logging = 'log=(enabled={})'.format('true' if self.logging else 'false')
         self.session.create(uri, format + ',' + logging)

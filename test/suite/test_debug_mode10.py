@@ -32,7 +32,7 @@ import wttest
 #   Test the debug mode settings. Test realloc_malloc use.
 class test_debug_mode10(wttest.WiredTigerTestCase):
     conn_config = 'debug_mode=(realloc_malloc=true)'
-    uri = 'file:test_debug_mode10'
+    uri = f'file:{__qualname__}'
 
     # Insert some data to ensure setting/unsetting the flag does not
     # break existing functionality. Also call checkpoint because it

@@ -50,7 +50,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
     update_uris = [table_uris[0]] + ([layered_uris[0]] if len(layered_uris) > 0 else [])
     same_uris = list(set(all_uris) - set(update_uris))
 
-    disagg_storages = gen_disagg_storages('test_layered_config14', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # Ensure that the metadata cursor has all the expected URIs.

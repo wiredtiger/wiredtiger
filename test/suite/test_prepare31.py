@@ -35,7 +35,7 @@ from prepare_util import test_prepare_preserve_prepare_base
 # - Write prepared updates when prepare timestamp is stable but rollback timestamp is not
 
 class test_prepare31(test_prepare_preserve_prepare_base):
-    uri = 'table:test_prepare31'
+    uri = f'table:{__qualname__}'
 
     def setup_initial_data(self, uri):
         """Set up initial test data and verify it's accessible."""

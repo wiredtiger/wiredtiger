@@ -36,6 +36,7 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 # Test that the rollback to stable to verify the history store order when an update without a
 # timestamp inserted to a tombstone.
 class test_rollback_to_stable29(test_rollback_to_stable_base):
+    test_name = __qualname__
     conn_config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),verbose=(rts:5)'
 
     format_values = [
@@ -48,7 +49,7 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values)
 
     def test_rollback_to_stable(self):
-        uri = 'table:test_rollback_to_stable29'
+        uri = f'table:{self.test_name}'
         nrows = 1000
 
         value_a = 'a' * 100

@@ -39,7 +39,7 @@ from wtscenario import make_scenarios
 class test_hs09(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=20MB'
-    uri = "table:test_hs09"
+    uri = f"table:{__qualname__}"
     format_values = [
         ('column', dict(key_format='r')),
         ('integer-row', dict(key_format='i')),

@@ -65,7 +65,7 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palite),'
-    disagg_storages = gen_disagg_storages('test_layered_delta15', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)

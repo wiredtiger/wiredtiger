@@ -35,7 +35,7 @@ import wttest
 class test_prepare49(wttest.WiredTigerTestCase):
 
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
-    uri = 'table:test_prepare49'
+    uri = f'table:{__qualname__}'
 
     def _force_evict(self, key, read_ts):
         session = self.conn.open_session()

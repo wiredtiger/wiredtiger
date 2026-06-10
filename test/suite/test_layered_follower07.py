@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 # Test that checkpoint cleanup is not run on follower.
 @disagg_test_class
 class test_layered_follower07(DisaggConfigMixin, test_cc_base):
-    disagg_storages = gen_disagg_storages('test_layered_follower07', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'cache_size=10MB,page_delta=(delta_pct=100),disaggregated=(role="follower"),checkpoint_cleanup=[wait=1,file_wait_ms=0],'

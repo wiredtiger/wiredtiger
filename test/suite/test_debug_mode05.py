@@ -35,7 +35,7 @@ import wttest
 #     This test is to confirm the fix and prevent similar regressions.
 class test_debug_mode05(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled),debug_mode=(table_logging=true)'
-    uri = 'file:test_debug_mode05'
+    uri = f'file:{__qualname__}'
 
     def test_table_logging_rollback_to_stable(self):
         self.session.create(self.uri, 'key_format=i,value_format=u,log=(enabled=false)')

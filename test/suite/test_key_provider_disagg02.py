@@ -41,7 +41,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     crash_points = [
         ('crash_before_key_rotation', dict(crash_point="before_key_rotation")),
@@ -51,7 +51,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios(disagg_storages, crash_points)
     nentries = 1000
-    uri = "layered:test_key_provider_disagg02"
+    uri = f"layered:{__qualname__}"
 
     WT_SPECIAL_PALI_TURTLE_FILE_ID = 2
     turtle_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_TURTLE_FILE_ID):02d}.db'

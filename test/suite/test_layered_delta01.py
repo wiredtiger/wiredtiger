@@ -52,8 +52,8 @@ class test_layered_delta01(wttest.WiredTigerTestCase):
     # deltas a lot of the time.
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'page_delta=(delta_pct=100),,'
-    disagg_storages = gen_disagg_storages('test_layered_delta01', disagg_only = True)
-    uri='layered:test_layered_delta01'
+    disagg_storages = gen_disagg_storages(disagg_only = True)
+    uri=f'layered:{__qualname__}'
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages)

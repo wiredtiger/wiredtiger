@@ -45,7 +45,7 @@ class test_prepare_discover08(wttest.WiredTigerTestCase):
         ('standby', dict(reopen_role='follower')),
         ('primary', dict(reopen_role='leader')),
     ]
-    disagg_storages = gen_disagg_storages('test_prepare_discover08', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, role_scenarios)
 
     conn_base_config = ('cache_size=10MB,statistics=(all),'

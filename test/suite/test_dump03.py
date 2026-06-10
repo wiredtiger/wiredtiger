@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 #     Test 'wt dump' window functionality.
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     table_format = 'key_format=u,value_format=u'
-    uri = 'table:test_dump'
+    uri = f'table:{__qualname__}'
     output = 'dump.out'
     data_header = 'Data\n'
 

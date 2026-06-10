@@ -107,6 +107,11 @@ Mechanics â€” delimiter style, function-header layout, FIXME tags, wrap width â€
 | model | `test/model/` | Lightweight formal verification |
 | wtperf | `bench/wtperf/` | Performance benchmarks |
 
+In the Python suite, don't hardcode the test name in object URIs -- derive it from
+`__qualname__`. Inline it for a single class-level use (`uri = f'table:{__qualname__}'`);
+capture `test_name = __qualname__` and use `self.test_name` when the name is needed
+inside methods or more than once. See `test/suite/README`.
+
 ## CI
 
 Runs on MongoDB Evergreen. Config: `test/evergreen.yml` (and `test/evergreen_disagg.yml` for disaggregated storage).

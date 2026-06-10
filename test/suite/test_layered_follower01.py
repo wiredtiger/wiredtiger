@@ -39,11 +39,11 @@ from wtscenario import make_scenarios
 class test_layered_follower01(wttest.WiredTigerTestCase):
     conn_base_config = 'transaction_sync=(enabled,method=fsync),'
 
-    disagg_storages = gen_disagg_storages('test_layered_follower01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 10000
-    uri = 'layered:test_layered_follower01'
+    uri = f'layered:{__qualname__}'
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="follower"),'

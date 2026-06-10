@@ -37,11 +37,11 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_verify_disagg03(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_verify_disagg03', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'disaggregated=(role="leader")'
-    uri = 'layered:test_verify_disagg03'
+    uri = f'layered:{__qualname__}'
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
     nitems = 100
 

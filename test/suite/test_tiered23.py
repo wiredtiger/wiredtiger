@@ -39,7 +39,7 @@ class test_tiered23(wttest.WiredTigerTestCase, TieredConfigMixin):
     storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered23', tiered_only=True)
     scenarios = make_scenarios(storage_sources)
 
-    uri = "table:test_tiered23"
+    uri = f"table:{__qualname__}"
 
     def conn_config(self):
         return TieredConfigMixin.conn_config(self)

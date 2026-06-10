@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 # to the data store.
 class test_prepare10(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=10MB,eviction_dirty_trigger=80,eviction_updates_trigger=80'
 
     format_values = [
@@ -86,7 +87,7 @@ class test_prepare10(wttest.WiredTigerTestCase):
 
     def test_prepare_rollback_retrieve_time_window(self):
         # Create a small table.
-        uri = "table:test_prepare10"
+        uri = f"table:{self.test_name}"
         nrows = 1000
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()

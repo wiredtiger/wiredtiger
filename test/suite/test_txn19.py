@@ -126,7 +126,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         key_format_values, corruption_type, corruption_pos, nrecords,
         include=includeFunc, prune=20, prunelong=1000)
 
-    uri = 'table:test_txn19'
+    uri = f'table:{__qualname__}'
 
     # Return the log file number that contains the given record
     # number.  In this test, two records fit into each log file, and

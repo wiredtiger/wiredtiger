@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 class test_layered_prepare05(test_prepare_preserve_prepare_base):
     conn_config_base = test_prepare_preserve_prepare_base.conn_config + ',disaggregated=(role="leader")'
 
-    uri = "table:test_layered_prepare05"
+    uri = f"table:{__qualname__}"
 
     evict = [
         ('none', dict(evict=False)),
@@ -49,7 +49,7 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         ('enabled', dict(evict=True)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_prepare05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, evict, delta)
 
     def conn_config(self):

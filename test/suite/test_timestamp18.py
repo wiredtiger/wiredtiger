@@ -38,6 +38,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_timestamp18(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=50MB'
 
     format_values = [
@@ -54,7 +55,7 @@ class test_timestamp18(wttest.WiredTigerTestCase):
         return str(i) if self.key_format == 'S' else i
 
     def test_ts_writes_with_non_ts_write(self):
-        uri = 'table:test_timestamp18'
+        uri = f'table:{self.test_name}'
         format = 'key_format={},value_format={}'.format(self.key_format, 'S')
         self.session.create(uri, format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))

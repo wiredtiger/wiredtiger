@@ -37,7 +37,7 @@ from wtdataset import SimpleDataSet
 # Test that verify handles timestamp usage checks correctly after timestamped fast truncate operations were enabled.
 
 class test_truncate29(wttest.WiredTigerTestCase):
-    uri = 'file:test_truncate29'
+    uri = f'file:{__qualname__}'
     conn_config = 'statistics=(all)'
     nrows = 10000
 

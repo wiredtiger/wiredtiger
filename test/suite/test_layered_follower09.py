@@ -37,11 +37,11 @@ class test_layered_follower09(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + 'disaggregated=(lose_all_my_data=true),'
 
-    disagg_storages = gen_disagg_storages('test_layered_follower09', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:test_layered_follower09'
+    uri = f'layered:{__qualname__}'
 
     nitems = 20000
 

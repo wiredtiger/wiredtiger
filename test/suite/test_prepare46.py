@@ -56,7 +56,7 @@ import wttest
 class test_prepare46(wttest.WiredTigerTestCase):
 
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
-    uri = 'table:test_prepare46'
+    uri = f'table:{__qualname__}'
 
     def test_prepared_cell_preserved_after_eviction_at_unstable_prepare_ts(self):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))

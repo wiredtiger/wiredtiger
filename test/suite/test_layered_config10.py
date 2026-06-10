@@ -37,7 +37,7 @@ from wiredtiger import stat
 
 class test_layered_config10(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    disagg_storages = gen_disagg_storages('test_layered_config10', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     uri = "layered:test_layered_config10_%02d"
     cold_table_config = 'key_format=S,value_format=S,disaggregated=(storage_tier=cold),'

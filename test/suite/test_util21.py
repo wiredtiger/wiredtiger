@@ -33,6 +33,7 @@ from helper import compare_files
 # test_util21.py
 # Ensure that wt dump can dump obsolete data in the history store.
 class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     conn_config = 'cache_size=50MB'
 
     def add_data_with_timestamp(self, uri, value, ts):
@@ -45,7 +46,7 @@ class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def test_dump_obsolete_data(self):
-        uri = 'table:test_util21'
+        uri = f'table:{self.test_name}'
         create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
 

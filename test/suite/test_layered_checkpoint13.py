@@ -43,7 +43,7 @@ class test_layered_checkpoint13(wttest.WiredTigerTestCase):
 
     table_name = "test_layered_checkpoint13"
 
-    disagg_storages = gen_disagg_storages('test_layered_checkpoint13', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         # Use shared tables directly to make testing easier
         ('shared', dict(prefix='table:', table_config='block_manager=disagg,log=(enabled=false)')),

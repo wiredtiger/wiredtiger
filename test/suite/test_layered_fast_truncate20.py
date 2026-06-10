@@ -41,11 +41,11 @@ from wiredtiger import stat
 class test_layered_fast_truncate20(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
     conn_config = 'disaggregated=(role="leader"),statistics=(all)'
-    uri = 'layered:test_layered_fast_truncate20'
+    uri = f'layered:{__qualname__}'
     nitems = 500
     trunc_lo, trunc_hi = 100, 400
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate20', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     # --- config parsing / reconfigure smoke checks ---

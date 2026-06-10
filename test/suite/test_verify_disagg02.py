@@ -35,14 +35,14 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_verify_disagg02(wttest.WiredTigerTestCase):
-    disagg_storages = gen_disagg_storages('test_verify_disagg02', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = 'disaggregated=(role="leader")'
     conn_config_follower = 'disaggregated=(role="follower")'
 
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
-    uri = 'layered:test_verify_disagg02'
+    uri = f'layered:{__qualname__}'
 
     def test_verify_duplicate_btree_ids(self):
         """

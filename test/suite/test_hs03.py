@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 # Ensure checkpoints don't read too unnecessary history store entries.
 class test_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=50MB,statistics=(fast)'
     format_values = [
         ('column', dict(key_format='r')),
@@ -62,7 +63,7 @@ class test_hs03(wttest.WiredTigerTestCase):
 
     def test_checkpoint_hs_reads(self):
         # Create a small table.
-        uri = "table:test_hs03"
+        uri = f"table:{self.test_name}"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format=self.value_format)
         ds.populate()

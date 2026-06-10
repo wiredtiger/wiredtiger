@@ -35,7 +35,7 @@ from helper import WiredTigerCursor
 class test_debug_mode11(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     create_config = 'key_format=S,value_format=S'
-    uri = 'table:test_debug_mode11'
+    uri = f'table:{__qualname__}'
 
     scenarios = make_scenarios([
         ('with_shutdown_checkpoint', dict(skip_shutdown_checkpoint=False, close_cfg="")),

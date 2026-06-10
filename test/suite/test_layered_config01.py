@@ -40,7 +40,7 @@ class test_layered_config01(wttest.WiredTigerTestCase):
 
     layered_uris = ["table:test_layered_config01a", "layered:test_layered_config01b"]
 
-    disagg_storages = gen_disagg_storages('test_layered_config01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     # Ensure that the metadata cursor has all the expected URIs.

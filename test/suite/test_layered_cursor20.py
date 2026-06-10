@@ -40,9 +40,9 @@ class test_layered_cursor20(wttest.WiredTigerTestCase):
     conn_config_follower = 'disaggregated=(role="follower")'
 
     nuri = 10
-    uri = "layered:test_layered_cursor20"
+    uri = f"layered:{__qualname__}"
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor20', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     _ts = 0

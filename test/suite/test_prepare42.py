@@ -32,7 +32,7 @@ from prepare_util import test_prepare_preserve_prepare_base
 # Test prepare insert rollback to delete the key with a rollback tombstone
 
 class test_prepare42(test_prepare_preserve_prepare_base):
-    uri = 'table:test_prepare42'
+    uri = f'table:{__qualname__}'
 
     def test_prepare_insert_rollback(self):
         # Setup: Initialize timestamps with stable < prepare timestamp

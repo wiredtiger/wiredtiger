@@ -47,7 +47,7 @@ class test_layered_cursor21(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:test_layered_cursor21')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor21', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, uris)
 
     nitems = 1000

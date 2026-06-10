@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 #    Check that the checkpoint honors the durable timestamp of updates.
 @wttest.skip_for_hook("tiered", "Tiered causes python crash")
 class test_durable_ts03(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=10MB'
 
     format_values = [
@@ -43,7 +44,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
 
     def test_durable_ts03(self):
         # Create a table.
-        uri = 'table:test_durable_ts03'
+        uri = f'table:{self.test_name}'
         nrows = 3000
         self.session.create(uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
         valueA = b"aaaaa" * 100

@@ -36,7 +36,7 @@ class test_layered_schema04(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    scenarios = gen_disagg_storages('test_layered_schema04', disagg_only = True)
+    scenarios = gen_disagg_storages(disagg_only = True)
 
     @wttest.longtest('lots of tables')
     def test_create_tables(self):

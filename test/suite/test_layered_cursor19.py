@@ -44,7 +44,7 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor19', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):

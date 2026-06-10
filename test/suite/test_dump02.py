@@ -37,7 +37,7 @@ from suite_subprocess import suite_subprocess
 # Test the dump utility to find different keys.
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     table_format = 'key_format=u,value_format=u'
-    uri = 'table:test_dump'
+    uri = f'table:{__qualname__}'
     output = 'dump.out'
     data_header = 'Data\n'
     # First line is the key, second line is the value.

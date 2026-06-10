@@ -33,7 +33,7 @@ import wttest, wiredtiger
 #   Note: testing timing will make results unreliable so we won't do that.
 class test_debug_mode06(wttest.WiredTigerTestCase):
     conn_config = 'debug_mode=(slow_checkpoint=true),statistics=(all)'
-    uri = 'file:test_debug_mode06'
+    uri = f'file:{__qualname__}'
 
     # Insert some data to ensure setting/unsetting the flag does not
     # break existing functionality

@@ -44,7 +44,7 @@ class test_bug024(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=50MB')
 
     # Create a table.
-    uri = "table:test_bug024"
+    uri = f"table:{__qualname__}"
 
     def test_bug024(self):
         nrows = 10

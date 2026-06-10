@@ -51,7 +51,7 @@ class test_cursor_bound01(bound_base, DisaggConfigMixin):
         ('var', dict(key_format='r',value_format='S')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_cursor_bound01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(types,format_values, disagg_storages)
 
     def __init__(self, *args, **kwargs):
