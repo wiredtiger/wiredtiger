@@ -90,7 +90,7 @@ Mechanics — delimiter style, function-header layout, FIXME tags, wrap width �
   - Cross-references to other functions whose contract this code depends on.
 - **Do not block-comment routine code:** variable declarations, simple assignments, standard `WT_RET()` / `WT_ERR()` chains, obvious branches.
 - **Describe roles, not identifiers.** Write `the cursor` or `the page being evicted`, not `cbt` or `ref->page`.
-- **Anchor in the codebase, not the editing session.** A comment must read sensibly to someone who only sees the final code. Do not reference the Jira ticket, PR, branch, or author behind the change — that belongs in the commit message. Do not reference closed tickets or merged PRs. Above all, do not reference work that only ever existed in the editing session — earlier iterations, an approach that was reverted, an experiment that never landed. 
+- **Anchor in the codebase, not the editing session.** A comment must read sensibly to someone who only sees the final code. Do not reference the Jira ticket, PR, branch, or author behind the change — that belongs in the commit message. Do not reference closed tickets or merged PRs. Above all, do not reference work that only ever existed in the editing session — earlier iterations, an approach that was reverted, an experiment that never landed.
 - **Prefer `FIXME-WT-XXXX` over `TODO` and `XXX` in new code.** Legacy `TODO` / `XXX` markers exist but are not the preferred voice; file a ticket and reference it.
 - **No decorative material.** Skip banners, ASCII separators, and section dividers inside functions. Skip `added by` / `modified for X` / `see ticket Y` provenance notes.
 
@@ -106,11 +106,6 @@ Mechanics — delimiter style, function-header layout, FIXME tags, wrap width �
 | checkpoint | `test/checkpoint/` | Checkpoint stress |
 | model | `test/model/` | Lightweight formal verification |
 | wtperf | `bench/wtperf/` | Performance benchmarks |
-
-In the Python suite, don't hardcode the test name in object URIs -- derive it from
-`__qualname__`. Inline it for a single class-level use (`uri = f'table:{__qualname__}'`);
-capture `test_name = __qualname__` and use `self.test_name` when the name is needed
-inside methods or more than once. See `test/suite/README`.
 
 ## CI
 
