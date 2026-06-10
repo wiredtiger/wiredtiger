@@ -101,7 +101,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
     # Find the newest base-image page (full snapshot, not a delta) for
     # the stable file underlying our layered URI. Picks a base image
     # rather than a delta so corruption breaks a real on-disk page and
-    # is reachable via the cursor walk. DisaggCorruptionMixin's random
+    # is reachable via the cursor walk. DisaggCorruptionMixin random
     # picker can land on the shared metadata or a system table; we want
     # corruption to land squarely on the user table's data, so we
     # query palite ourselves with the user table's table_id.
@@ -328,7 +328,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
     #
     # On ASC we corrupt a specific table's root by overwriting bytes in
     # the .wt file. On disagg the root lives in palite as a row in the
-    # pages table. DisaggCorruptionMixin's corrupt_random_page_image
+    # pages table. DisaggCorruptionMixin corrupt_random_page_image
     # picks any random row; for a multi-URI continuation test we need
     # the corruption to land on a specific table's root. Until that
     # helper exists, this test is omitted on disagg (the non-disagg
