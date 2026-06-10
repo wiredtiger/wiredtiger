@@ -1742,6 +1742,8 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
+    WT_SHARED_DSK_CACHE *shared_dsk_cache;
+
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     __wt_verbose_debug1(
@@ -1758,16 +1760,24 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __disagg_shared_metadata_queue_clear(session);
 
     /*
-     * Re-enable the shared disk cache on step-down. As a follower, block addresses are stable
-     * across checkpoints so the cache will see hits. Create the table only if this node never had
+     * Re-enable the shared disk cache on step-down. Create the table only if this node never had
      * one, otherwise it was kept alive and is reused.
      */
-    if (S2C(session)->cache->shared_dsk_cache.hash == NULL) {
-        u_int hash_size = WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session);
-        WT_IGNORE_RET(__wt_shared_dsk_cache_init(session, hash_size));
+    shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
+    if (shared_dsk_cache->hash == NULL)
+        WT_IGNORE_RET(
+          __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
+
+    /*
+     * Creation should never fail here; the assert catches it in diagnostic builds. In production a
+     * failure leaves the cache off so reads bypass it rather than dereferencing a NULL table.
+     */
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
+    if (shared_dsk_cache->hash != NULL) {
+        /* Publish the table before the state so readers never see an active cache without it. */
+        WT_RELEASE_BARRIER();
+        __wt_atomic_store_uint8_relaxed(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
     }
-    __wt_atomic_store_uint8_relaxed(
-      &S2C(session)->cache->shared_dsk_cache.state, WT_DSK_CACHE_ACTIVE);
 }
 
 /*

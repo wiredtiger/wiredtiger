@@ -85,7 +85,7 @@ typedef enum {
 
 struct __wt_shared_dsk_cache {
     wt_shared uint8_t state;
-    uint64_t readonly_since; /* Seconds when the cache went read-only on step-up. */
+    wt_shared uint64_t readonly_since; /* Seconds when the cache went read-only on step-up. */
 
     TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
     WT_SPINLOCK *hash_locks;

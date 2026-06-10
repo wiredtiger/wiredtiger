@@ -325,7 +325,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
-    dsk_cache_state = __wt_atomic_load_uint8_relaxed(&shared_dsk_cache->state);
+    dsk_cache_state = __wt_atomic_load_uint8_acquire(&shared_dsk_cache->state);
     if (WT_DSK_CACHE_CAN_READ(dsk_cache_state, btree)) {
         __wt_shared_dsk_cache_get(session, addr.addr, addr.size, &shared_dsk_item);
         if (shared_dsk_item != NULL) {
