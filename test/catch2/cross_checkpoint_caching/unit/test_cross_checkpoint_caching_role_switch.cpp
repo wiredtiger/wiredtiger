@@ -59,8 +59,8 @@ simulate_step_down(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint8_relaxed(&cache->state, WT_DSK_CACHE_ACTIVE);
 }
 
-TEST_CASE("step_up_step_down: size increments on new insert and not on collision",
-  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
+TEST_CASE("role_switch: size increments on new insert and not on collision",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_role_switch]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
@@ -103,8 +103,8 @@ TEST_CASE("step_up_step_down: size increments on new insert and not on collision
     REQUIRE(count_items(cache) == 0);
 }
 
-TEST_CASE("step_up_step_down: step-up moves the cache to read-only",
-  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
+TEST_CASE("role_switch: step-up moves the cache to read-only",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_role_switch]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
@@ -114,8 +114,8 @@ TEST_CASE("step_up_step_down: step-up moves the cache to read-only",
     REQUIRE(cache_state(cache) == WT_DSK_CACHE_READONLY);
 }
 
-TEST_CASE("step_up_step_down: read-only still shares cached images for reuse",
-  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
+TEST_CASE("role_switch: read-only still shares cached images for reuse",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_role_switch]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
@@ -139,8 +139,8 @@ TEST_CASE("step_up_step_down: read-only still shares cached images for reuse",
     REQUIRE(cache->hash != nullptr);
 }
 
-TEST_CASE("step_up_step_down: read-only get returns not-found on miss",
-  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
+TEST_CASE("role_switch: read-only get returns not-found on miss",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_role_switch]")
 {
     cross_checkpoint_caching_test_env env;
     const uint8_t addr[] = {0xab, 0xcd};
@@ -153,8 +153,8 @@ TEST_CASE("step_up_step_down: read-only get returns not-found on miss",
     REQUIRE(got == nullptr);
 }
 
-TEST_CASE("step_up_step_down: step-down reuses the retained table and reactivates it",
-  "[cross_checkpoint_caching],[cross_checkpoint_caching_step_up_step_down]")
+TEST_CASE("role_switch: step-down reuses the retained table and reactivates it",
+  "[cross_checkpoint_caching],[cross_checkpoint_caching_role_switch]")
 {
     cross_checkpoint_caching_test_env env;
     WT_SHARED_DSK_CACHE *cache = &S2C(env.session())->cache->shared_dsk_cache;
