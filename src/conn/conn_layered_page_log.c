@@ -472,11 +472,20 @@ __disagg_select_pending_crypt_key(WT_SESSION_IMPL *session, wt_timestamp_t check
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_PENDING_CRYPT_KEY *chosen, *entry;
+    wt_timestamp_t prev_timestamp;
 
     conn = S2C(session);
     chosen = NULL;
+    prev_timestamp = WT_TS_NONE;
 
+    /*
+     * set_key enqueues in strictly ascending timestamp order, so the first entry past the
+     * checkpoint timestamp ends the search. Assert the ordering as we go rather than trusting the
+     * API.
+     */
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.pending_crypt_key_qh, q) {
+        WT_ASSERT(session, entry->timestamp > prev_timestamp);
+        prev_timestamp = entry->timestamp;
         if (entry->timestamp > checkpoint_timestamp)
             break;
         chosen = entry;
