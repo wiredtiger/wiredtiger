@@ -528,7 +528,7 @@ __sweep_server(void *arg)
 
         /* On a stepped-up leader, mark the shared disk cache dead once its reuse window elapses. */
         if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-          __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state) ==
+          __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
             WT_DSK_CACHE_READONLY &&
           now - __wt_atomic_load_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since) >
             WT_DISAGG_OUTDATED_GRACE_SECS)

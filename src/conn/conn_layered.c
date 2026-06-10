@@ -1683,6 +1683,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state) == WT_DSK_CACHE_ACTIVE);
     __wt_seconds(session, &now);
     __wt_atomic_store_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since, now);
+    WT_RELEASE_BARRIER();
     __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY);
 
 err:
