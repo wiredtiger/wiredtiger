@@ -70,20 +70,25 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         return n
 
     # Advance the global checkpoint timestamp by writing to a churn table at
-    # timestamps above start_ts and taking leader checkpoints the follower picks
-    # up, until the predicate holds or we run out of patience. The churn must push
-    # the checkpoint timestamp past each idle table's max_ingest_write_ts.
-    def churn_until(self, churn_uri, sfollow, conn_follow, start_ts, predicate):
-        ts = start_ts
-        for _ in range(40):
+    # successive whole-second timestamps and taking leader checkpoints the follower
+    # picks up, until the predicate holds or we run out of patience. The churn must
+    # push the checkpoint timestamp past each idle table's max_ingest_write_ts.
+    #
+    # We step the high 32 bits (the seconds field of a MongoDB <seconds:increment>
+    # timestamp) so the checkpoint timestamp crosses second boundaries. That matters
+    # because the bound may be rounded up to the next second (see
+    # WT_TIMESTAMP_ASSUME_MONGODB_SECONDS); a churn that only moved the increment
+    # field would never reach it. Callers' table data must live below the first
+    # second (timestamps < 2^32).
+    def churn_until(self, churn_uri, sfollow, conn_follow, predicate):
+        for second in range(1, 41):
+            ts = (second << 32) + 1
             cl = self.session.open_cursor(churn_uri)
             cf = sfollow.open_cursor(churn_uri)
-            for _ in range(300):
-                ts += 1
-                with self.transaction(commit_timestamp=ts):
-                    cl[ts] = 'churn'
-                with self.transaction(session=sfollow, commit_timestamp=ts):
-                    cf[ts] = 'churn'
+            with self.transaction(commit_timestamp=ts):
+                cl[second] = 'churn'
+            with self.transaction(session=sfollow, commit_timestamp=ts):
+                cf[second] = 'churn'
             cl.close()
             cf.close()
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
@@ -92,7 +97,6 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
             time.sleep(1)
             if predicate():
                 break
-        return ts
 
     def test_ingest_fd_reclaimed(self):
         if not sys.platform.startswith('linux'):
@@ -130,7 +134,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            oplog.last_timestamp(), lambda: self.count_follower_ingest_fds() <= 5)
+            lambda: self.count_follower_ingest_fds() <= 5)
 
         # The idle ingest btrees must be reclaimed: only a small active set (the
         # churn table and any in-flight handles) remains, not one per table.
@@ -204,7 +208,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
         self.session.create('layered:dh01_churn', 'key_format=i,value_format=S')
         sfollow.create('layered:dh01_churn', 'key_format=i,value_format=S')
         self.churn_until('layered:dh01_churn', sfollow, conn_follow,
-            nrows + 1, lambda: self.count_follower_ingest_fds(ingest) == 0)
+            lambda: self.count_follower_ingest_fds(ingest) == 0)
 
         self.assertEqual(self.count_follower_ingest_fds(ingest), 0,
             'follower ingest btree with a pending truncate was not reclaimed')
