@@ -556,7 +556,7 @@ TEST_CASE_METHOD(
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
 }
 
-TEST_CASE_METHOD(kp_fixture, "checkpoint selection and prune edge cases", "[key_provider]")
+TEST_CASE_METHOD(kp_fixture, "checkpoint selection edge cases", "[key_provider]")
 {
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
     WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
@@ -564,10 +564,8 @@ TEST_CASE_METHOD(kp_fixture, "checkpoint selection and prune edge cases", "[key_
     WT_KEY_PROVIDER stub = {};
     REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
 
-    /* An empty queue selects nothing, and pruning it is a no-op. */
+    /* An empty queue selects nothing. */
     REQUIRE(__ut_disagg_select_pending_crypt_key(session_impl, 100) == nullptr);
-    __ut_disagg_prune_pending_crypt_keys(session_impl, 100);
-    validate_pending_queue(conn_impl, {});
 
     /* A single entry is selected only once the checkpoint timestamp reaches it. */
     const std::string edge_key = "edge-test-key";
@@ -575,7 +573,26 @@ TEST_CASE_METHOD(kp_fixture, "checkpoint selection and prune edge cases", "[key_
     REQUIRE(__ut_disagg_select_pending_crypt_key(session_impl, 49) == nullptr);
     validate_chosen_key(__ut_disagg_select_pending_crypt_key(session_impl, 50), 50, edge_key);
 
+    __wti_disagg_pending_crypt_key_clear(session_impl);
+    conn_impl->key_provider = nullptr;
+    F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
+}
+
+TEST_CASE_METHOD(kp_fixture, "checkpoint prune edge cases", "[key_provider]")
+{
+    WT_CONNECTION *wt_conn = conn.get_wt_connection();
+    WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_KEY_PROVIDER stub = {};
+    REQUIRE(wt_conn->set_key_provider(wt_conn, &stub, "version=1") == 0);
+
+    /* Pruning an empty queue is a no-op. */
+    __ut_disagg_prune_pending_crypt_keys(session_impl, 100);
+    validate_pending_queue(conn_impl, {});
+
     /* A bound below the entry retains it; a bound exactly at the entry frees it. */
+    const std::string edge_key = "edge-test-key";
+    REQUIRE(push_key(&stub, edge_key, 50) == 0);
     __ut_disagg_prune_pending_crypt_keys(session_impl, 49);
     validate_pending_queue(conn_impl, {{50, edge_key}});
     __ut_disagg_prune_pending_crypt_keys(session_impl, 50);
