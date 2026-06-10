@@ -43,7 +43,7 @@ class test_priv01(wttest.WiredTigerTestCase):
     not.  This test should be run as both normal and privileged
     (e.g. root) user to fully test both cases.
     """
-    table_name1 = 'test_priv01'
+    table_name1 = __qualname__
     nentries = 100
 
     def setUp(self):

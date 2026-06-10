@@ -40,10 +40,10 @@ class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
-    base = 'test_tiered11-000000000'
+    base = f'{__qualname__}-000000000'
     nentries = 10
     objuri = 'object:' + base + '1.wtobj'
-    tiereduri = "tiered:test_tiered11"
+    tiereduri = f"tiered:{__qualname__}"
     uri = f"table:{__qualname__}"
 
     def conn_config(self):

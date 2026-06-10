@@ -32,7 +32,7 @@ import wiredtiger, wttest
 class test_index01(wttest.WiredTigerTestCase):
     '''Test basic operations for indices'''
 
-    basename = 'test_index01'
+    basename = __qualname__
     tablename = 'table:' + basename
     indexbase = 'index:' + basename
     NUM_INDICES = 6

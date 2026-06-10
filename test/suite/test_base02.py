@@ -39,7 +39,7 @@ from wtscenario import make_scenarios
 
 # Test configuration strings.
 class test_base02(wttest.WiredTigerTestCase):
-    name = 'test_base02a'
+    name = f'{__qualname__}a'
     extra_config = ''
 
     scenarios = make_scenarios([

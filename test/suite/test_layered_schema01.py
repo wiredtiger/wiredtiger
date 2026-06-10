@@ -36,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 @disagg_test_class
 class test_layered_schema01(wttest.WiredTigerTestCase):
 
-    uri_base = "test_layered_schema01"
+    uri_base = __qualname__
     conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(lose_all_my_data=true)'
 

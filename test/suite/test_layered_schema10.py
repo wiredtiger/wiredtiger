@@ -44,7 +44,7 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     uri = f'layered:{__qualname__}'
-    uri2 = 'layered:test_layered_schema10_2'  # second follower-created table for multi-epoch tests
+    uri2 = f'layered:{__qualname__}_2'  # second follower-created table for multi-epoch tests
 
     table_config = 'key_format=i,value_format=S'
 

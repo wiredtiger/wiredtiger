@@ -40,7 +40,7 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Layered tables are not supported with tiered storage")
 @disagg_test_class
 class test_prepare_discover16(wttest.WiredTigerTestCase):
-    tablename = 'test_prepare_discover16'
+    tablename = __qualname__
     uri = 'layered:' + tablename
     stable_uri = 'file:' + tablename + '.wt_stable'
 

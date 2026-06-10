@@ -39,7 +39,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     # one log file.
     entries = 2000
     logmax = "100K"
-    tablename = 'test_compat01'
+    tablename = __qualname__
     uri = 'table:' + tablename
     # Declare the log versions that do and do not have prevlsn.
     # Log version 1 does not have the prevlsn record.

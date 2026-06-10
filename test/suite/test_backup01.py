@@ -45,7 +45,7 @@ from helper import compare_files
 class test_backup(backup_base):
     dir='backup.dir'            # Backup directory name
 
-    pfx = 'test_backup'
+    pfx = __qualname__
     objs = [
         ( 'file:' + pfx + '.1', SimpleDataSet, 0),
         ( 'file:' + pfx + '.2', SimpleDataSet, 0),

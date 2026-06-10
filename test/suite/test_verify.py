@@ -33,7 +33,7 @@ from helper import WiredTigerCursor
 
 #    Utilities: wt verify
 class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_verify.a'
+    tablename = f'{__qualname__}.a'
     nentries = 1000
 
     # Returns the .wt file extension, or in the case

@@ -36,7 +36,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_timestamp02'
+    tablename = __qualname__
     uri = 'table:' + tablename
 
     scenarios = make_scenarios([

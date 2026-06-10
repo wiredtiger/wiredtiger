@@ -382,7 +382,7 @@ class test_cursor13_drops(test_cursor13_base):
     def test_cursor_drops(self):
         session = self.session
         uri = f'table:{self.test_name}'
-        idxuri = 'index:test_cursor13_drops:index1'
+        idxuri = f'index:{self.test_name}:index1'
         config = 'key_format=S,value_format=S,columns=(k,v1)'
 
         for i in range(0, 2):

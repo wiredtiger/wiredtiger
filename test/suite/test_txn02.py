@@ -37,7 +37,7 @@ import wttest
 @wttest.skip_for_hook("tiered", "Tiered causes python crash")
 class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename = 'test_txn02'
+    tablename = __qualname__
     uri = 'table:' + tablename
     remove_list = ['true', 'false']
     conn_list = ['reopen', 'stay_open']

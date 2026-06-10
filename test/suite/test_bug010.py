@@ -34,7 +34,7 @@ import wttest, wtthread
 import threading
 
 class test_bug010(wttest.WiredTigerTestCase):
-    name = 'test_bug010'
+    name = __qualname__
     uri = 'table:' + name
     num_tables = 2000 if wttest.islongtest() else 200
 

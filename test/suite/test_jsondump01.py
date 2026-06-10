@@ -66,8 +66,8 @@ class FakeCursor:
 #    Utilities: wt dump
 # Test the dump utility with the -j option.
 class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
-    name = 'test_jsondump01'
-    name2 = 'test_jsondump01b'
+    name = __qualname__
+    name2 = f'{__qualname__}b'
     nentries = 2500
 
     keyfmt = [

@@ -34,7 +34,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
     """
     Test cursor search and search_near
     """
-    table_name1 = 'test_cursor04'
+    table_name1 = __qualname__
     nentries = 20
 
     scenarios = make_scenarios([

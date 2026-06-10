@@ -41,7 +41,7 @@ import wttest
 
 class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename = 'test_txn04'
+    tablename = __qualname__
     uri = 'table:' + tablename
     sync_list = [
         '(method=dsync,enabled)',

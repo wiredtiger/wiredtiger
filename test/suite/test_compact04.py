@@ -39,7 +39,7 @@ class test_compact04(compact_util):
     conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
-    table_uri_prefix='table:test_compact04-'
+    table_uri_prefix=f'table:{__qualname__}-'
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4

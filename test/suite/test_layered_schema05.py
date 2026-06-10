@@ -42,8 +42,8 @@ class test_layered_schema05(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name_empty = "test_layered_schema05a"
-    table_name_filled = "test_layered_schema05b"
+    table_name_empty = f"{__qualname__}a"
+    table_name_filled = f"{__qualname__}b"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [

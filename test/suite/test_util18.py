@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 
 #   Utilities: wt printlog
 class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util18.a'
+    tablename = f'{__qualname__}.a'
     uri = 'table:' + tablename
     logmax = 100
     nentries = 5

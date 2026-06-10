@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled=true)'
 
-    basename = 'test_schema09_fail'
+    basename = f'{__qualname__}_fail'
     tablename = 'table:' + basename
 
     def create_table(self):

@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 
 class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'verbose=[transaction]'
-    tablename = 'test_txn06'
+    tablename = __qualname__
     uri = 'table:' + tablename
     source_uri = 'table:' + tablename + "_src"
     nrows = 100000

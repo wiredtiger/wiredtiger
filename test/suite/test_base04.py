@@ -32,7 +32,7 @@ import wiredtiger, wttest
 class test_base04(wttest.WiredTigerTestCase):
     '''Test various tree types becoming empty'''
 
-    tablename = 'table:test_base04'
+    tablename = f'table:{__qualname__}'
 
     def __init__(self, *args, **kwargs):
         wttest.WiredTigerTestCase.__init__(self, *args, **kwargs)

@@ -36,7 +36,7 @@ from wtdataset import SimpleDataSet
 
 class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
     uri = f'table:{__qualname__}'
-    uri2 = 'table:test_readonly03_2'
+    uri2 = f'table:{__qualname__}_2'
     create = True
 
     conn_params = 'create,log=(enabled),operation_tracking=(enabled=false),'

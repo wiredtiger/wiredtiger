@@ -41,8 +41,8 @@ from wtbackup import backup_base
 class test_checkpoint_snapshot06(backup_base):
 
     # Create two tables.
-    uri_1 = "table:test_checkpoint_snapshot06_1"
-    uri_2 = "table:test_checkpoint_snapshot06_2"
+    uri_1 = f"table:{__qualname__}_1"
+    uri_2 = f"table:{__qualname__}_2"
     backup_dir = "BACKUP"
 
     format_values = [

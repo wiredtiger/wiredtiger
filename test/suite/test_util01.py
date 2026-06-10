@@ -41,7 +41,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     in various ways).
     """
 
-    tablename = 'test_util01.a'
+    tablename = f'{__qualname__}.a'
     nentries = 1000
     stringclass = ''.__class__
 

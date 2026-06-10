@@ -52,7 +52,7 @@ class test_schema01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     '''Test various tree types becoming empty'''
 
-    basename = 'test_schema01'
+    basename = __qualname__
     tablename = 'table:' + basename
     cgname = 'colgroup:' + basename
 

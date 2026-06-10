@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 
 #    Utilities: wt create
 class test_util03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util03.a'
+    tablename = f'{__qualname__}.a'
     nentries = 1000
 
     scenarios = make_scenarios([

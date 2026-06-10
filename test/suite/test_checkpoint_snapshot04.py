@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 #   Test utility dump of backup and original database when the transaction ids are
 #   written to disk.
 class test_checkpoint_snapshot04(backup_base):
+    test_name = __qualname__
     dir = 'backup.dir'
 
     # Create a table.
@@ -104,7 +105,7 @@ class test_checkpoint_snapshot04(backup_base):
 
         # Open up the backup cursor, and copy the files.
         if self.target:
-            config = 'target=("table:test_checkpoint_snapshot04")'
+            config = f'target=("table:{self.test_name}")'
         else:
             config = ""
         cursor = self.session.open_cursor('backup:', None, config)

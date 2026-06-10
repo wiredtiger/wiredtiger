@@ -36,7 +36,7 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = 'test_metadata_cursor01'
+    table_name1 = __qualname__
 
     scenarios = make_scenarios([
         ('plain', {'metauri' : 'metadata:'}),

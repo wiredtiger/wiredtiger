@@ -37,7 +37,7 @@ class test_compact11(backup_base, compact_util):
     backup_full = "BACKUP_FULL"
     conn_config = 'cache_size=100MB,statistics=(all)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB'
-    uri_prefix = 'table:test_compact11'
+    uri_prefix = f'table:{__qualname__}'
 
     num_tables = 5
     table_numkv = 100 * 1000

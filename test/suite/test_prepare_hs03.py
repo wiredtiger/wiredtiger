@@ -43,6 +43,7 @@ from wiredtiger import stat
 @wttest.skip_for_hook("disagg", "Salvage on disagg tables not yet implemented") # FIXME-WT-14740: Re-enable salvage once implemented.
 class test_prepare_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = ('cache_size=50MB,statistics=(fast),'
                    'eviction_dirty_trigger=50,eviction_updates_trigger=50')
 
@@ -68,7 +69,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(corrupt_values, format_values)
 
     def corrupt_table(self, data_to_corrupt_with):
-        tablename="test_prepare_hs03.wt"
+        tablename=f"{self.test_name}.wt"
         self.assertEqual(os.path.exists(tablename), True)
 
         # This code will overwrite part of the table with 'bad' data, corrupting the table in the process.

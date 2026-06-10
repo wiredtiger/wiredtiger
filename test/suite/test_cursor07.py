@@ -35,9 +35,9 @@ import wttest
 
 class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename1 = 'test_cursor07_log'
-    tablename2 = 'test_cursor07_nolog'
-    tablename3 = 'test_cursor07_nologtxn'
+    tablename1 = f'{__qualname__}_log'
+    tablename2 = f'{__qualname__}_nolog'
+    tablename3 = f'{__qualname__}_nologtxn'
     uri1 = 'table:' + tablename1
     uri2 = 'table:' + tablename2
     uri3 = 'table:' + tablename3

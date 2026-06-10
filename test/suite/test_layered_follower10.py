@@ -42,7 +42,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     uri = f'layered:{__qualname__}'
-    ingest_uri = 'file:test_layered_follower10.wt_ingest'
+    ingest_uri = f'file:{__qualname__}.wt_ingest'
 
     nitems = 1000
 

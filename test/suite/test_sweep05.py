@@ -40,7 +40,7 @@ class test_sweep05(wttest.WiredTigerTestCase):
                   'verbose=(sweep:3)'
     create_params = 'key_format=i,value_format=i'
     table_numkv = 10
-    table_uri_format = 'table:test_sweep05_%s'
+    table_uri_format = f'table:{__qualname__}_%s'
 
     # We enabled verbose log level DEBUG_3 in this test to catch an invalid pointer in dhandle.
     # However, this also causes the log line 'session dhandle name' to appear, which we want to ignore.

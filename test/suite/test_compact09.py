@@ -39,7 +39,7 @@ megabyte = 1024 * 1024
 class test_compact09(compact_util):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     conn_config = 'cache_size=100MB,statistics=(all),debug_mode=(background_compact)'
-    uri_prefix = 'table:test_compact09'
+    uri_prefix = f'table:{__qualname__}'
 
     table_numkv = 100 * 1000
     n_tables = 2

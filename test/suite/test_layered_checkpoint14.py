@@ -40,7 +40,7 @@ class test_layered_checkpoint14(wttest.WiredTigerTestCase):
 
     nitems = 10_000
 
-    table_name = 'test_layered_checkpoint14'
+    table_name = __qualname__
     uri = "layered:" + table_name
     stable_uri = "file:" + table_name + ".wt_stable"
 

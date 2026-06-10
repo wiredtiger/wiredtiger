@@ -43,8 +43,8 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     dir = 'dump.dir'            # Backup directory name
 
-    name = 'test_dump'
-    name2 = 'test_dumpb'
+    name = __qualname__
+    name2 = f'{__qualname__}b'
     nentries = 2500
 
     dumpfmt = [

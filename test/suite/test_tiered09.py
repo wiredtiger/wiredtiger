@@ -40,7 +40,7 @@ class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
-    base = 'test_tiered09-000000000'
+    base = f'{__qualname__}-000000000'
     base2 = 'test_second09-000000000'
     obj1file = base + '1.wtobj'
     obj1second = base2 + '1.wtobj'

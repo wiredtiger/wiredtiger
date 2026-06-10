@@ -34,7 +34,7 @@ from wiredtiger import stat
 @disagg_test_class
 class test_layered_checkpoint01(wttest.WiredTigerTestCase):
     nitems = 50000
-    uri_base = "test_layered_checkpoint01"
+    uri_base = __qualname__
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'disaggregated=(lose_all_my_data=true),'
 

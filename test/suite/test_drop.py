@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 #    session level drop operation
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_drop(wttest.WiredTigerTestCase):
-    name = 'test_drop'
+    name = __qualname__
     extra_config = ''
 
     scenarios = make_scenarios([

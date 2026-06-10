@@ -32,7 +32,7 @@ from wiredtiger import stat
 
 #    Individually test config options
 class test_config04(wttest.WiredTigerTestCase):
-    table_name1 = 'test_config04'
+    table_name1 = __qualname__
     log1 = 'WiredTigerLog.0000000001'
     nentries = 100
 

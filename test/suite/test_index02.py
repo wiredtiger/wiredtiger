@@ -50,7 +50,7 @@ class test_index02(wttest.WiredTigerTestCase):
         ('index-with-key', dict(indexconfig='columns=(v,k)', ncol=2)),
     ])
 
-    basename = 'test_index02'
+    basename = __qualname__
     tablename = 'table:' + basename
     indexname = 'index:' + basename + ":inverse"
 

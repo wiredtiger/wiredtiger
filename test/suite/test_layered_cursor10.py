@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_cursor10(wttest.WiredTigerTestCase):
-    tablename = 'test_layered_cursor10'
+    tablename = __qualname__
     uri = 'layered:' + tablename
 
     resolve_scenarios = [

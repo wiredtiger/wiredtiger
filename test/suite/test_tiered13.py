@@ -40,7 +40,7 @@ class test_tiered13(test_import_base, TieredConfigMixin):
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
-    base = 'test_tiered13-000000000'
+    base = f'{__qualname__}-000000000'
     fileuri_base = 'file:' + base
     file1uri = fileuri_base + '1.wtobj'
     file2 = base + '2.wtobj'

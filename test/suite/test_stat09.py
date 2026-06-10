@@ -31,7 +31,7 @@ import wttest
 
 #    Check oldest active read timestamp statistic
 class test_stat09(wttest.WiredTigerTestCase):
-    tablename = 'test_stat09'
+    tablename = __qualname__
     uri = 'table:' + tablename
     conn_config = 'statistics=(all)'
 

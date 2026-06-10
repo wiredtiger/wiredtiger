@@ -33,7 +33,7 @@ import wttest
 import re
 
 class test_pack(wttest.WiredTigerTestCase):
-    name = 'test_pack'
+    name = __qualname__
 
     def dump_cursor(self, cursor, name):
         cursor.reset()

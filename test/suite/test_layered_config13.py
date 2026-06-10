@@ -54,7 +54,7 @@ class test_layered_config13(wttest.WiredTigerTestCase):
 
     create_session_config = "key_format=S,value_format=S"
     uri = f"layered:{__qualname__}"
-    uri_local = "table:test_layered_config13local"
+    uri_local = f"table:{__qualname__}local"
 
     def wiredtiger_open(self, *args, **kwargs):
         os.makedirs(logdir, exist_ok=True)

@@ -36,7 +36,7 @@ import wiredtiger, wttest
 
 class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename = 'test_txn13'
+    tablename = __qualname__
     uri = 'table:' + tablename
     # We use 8 ops here to get around the 10 operation check done by WiredTiger to determine if
     # a transaction is blocking or not.

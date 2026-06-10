@@ -30,7 +30,7 @@ import wiredtiger, wttest
 
 # Test that we properly handle truncate with and without prepared transactions.
 class test_truncate23(wttest.WiredTigerTestCase):
-    uri_prefix = 'table:test_truncate23_'
+    uri_prefix = f'table:{__qualname__}_'
     conn_config = 'statistics=(all)'
     scenario_num = 0
 

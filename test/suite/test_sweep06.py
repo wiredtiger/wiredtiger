@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     dhandles = 200
     format='key_format=i,value_format=S'
-    tablebase = 'test_sweep06'
+    tablebase = __qualname__
     uri = 'table:' + tablebase
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=60,close_scan_interval=30),session_max=530,' + \

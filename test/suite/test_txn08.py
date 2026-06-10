@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 
 class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename = 'test_txn08'
+    tablename = __qualname__
     uri = 'table:' + tablename
 
     key_format_values = [

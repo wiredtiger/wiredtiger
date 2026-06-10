@@ -36,7 +36,7 @@ from prepare_util import test_prepare_preserve_prepare_base
 from wtscenario import make_scenarios
 
 class test_prepare40(test_prepare_preserve_prepare_base):
-    tablename = 'test_prepare40'
+    tablename = __qualname__
     uri = 'table:' + tablename
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 

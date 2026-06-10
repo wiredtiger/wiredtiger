@@ -32,7 +32,7 @@ import wttest
 
 #    Utilities: wt stat
 class test_util17(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util17.a'
+    tablename = f'{__qualname__}.a'
 
     def test_stat_process(self):
         """

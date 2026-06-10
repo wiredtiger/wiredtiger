@@ -38,7 +38,7 @@ class test_txn11(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'verbose=[transaction]'
     logmax = "100K"
     nrows = 700
-    tablename = 'test_txn11'
+    tablename = __qualname__
     source_uri = 'table:' + tablename + "_src"
     uri = 'table:' + tablename
 

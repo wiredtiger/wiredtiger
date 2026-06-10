@@ -32,7 +32,7 @@ from wtbound import bound_base
 
 # Test next/prev history store scenarios with cursor bound API.
 class test_cursor_bound10(bound_base):
-    file_name = 'test_cursor_bound10'
+    file_name = __qualname__
     lower_inclusive = True
     upper_inclusive = True
 

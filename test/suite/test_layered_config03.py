@@ -46,7 +46,7 @@ class test_layered_config03(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S,leaf_key_max=256,leaf_value_max=256'
 
-    table_name = "test_layered_config03"
+    table_name = __qualname__
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [

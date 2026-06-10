@@ -46,7 +46,7 @@ class test_drop01(wttest.WiredTigerTestCase):
         return size
 
     uri = f'table:{__qualname__}'
-    name = 'test_drop01'
+    name = __qualname__
     @unittest.skip('FIXME-WT-16857, Test has known bug.')
     def test_drop_hs_truncate(self):
         # Create the table with two column groups.

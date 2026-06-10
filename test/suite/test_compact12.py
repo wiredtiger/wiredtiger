@@ -44,7 +44,7 @@ kilobyte = 1024
 class test_compact12(compact_util, test_cc_base):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
-    uri_prefix = 'table:test_compact12'
+    uri_prefix = f'table:{__qualname__}'
 
     table_numkv = 10 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.

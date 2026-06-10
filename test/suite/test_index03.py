@@ -40,8 +40,8 @@ class test_index03(wttest.WiredTigerTestCase):
 
     def test_index_create(self):
         uri = f'table:{self.test_name}'
-        index1_uri = 'index:test_index03:indx1'
-        index2_uri = 'index:test_index03:indx2'
+        index1_uri = f'index:{self.test_name}:indx1'
+        index2_uri = f'index:{self.test_name}:indx2'
         config = ',key_format=S,value_format=SSSS'
 
         session = self.session

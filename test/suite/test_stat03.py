@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 
 #    Statistics reset test.
 class test_stat_cursor_reset(wttest.WiredTigerTestCase):
-    pfx = 'test_stat_cursor_reset'
+    pfx = __qualname__
     uri = [
         ('file-simple-row', dict(uri='file:' + pfx, dataset=SimpleDataSet, kf='S', vf='S')),
         ('file-simple-var', dict(uri='file:' + pfx, dataset=SimpleDataSet, kf='r', vf='S')),

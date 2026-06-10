@@ -33,7 +33,7 @@ from suite_subprocess import suite_subprocess
 # FIXME-WT-17177: Read-only connections are currently not supported for disagg (-r flag for commands).
 @wttest.skip_for_hook("disagg", "Disaggregated storage does not support read-only connections")
 class test_util23(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util23.wt'
+    tablename = f'{__qualname__}.wt'
     uri = 'file:' + tablename
 
     commands = ["-r", "verify", "-d", "dump_offsets", uri]

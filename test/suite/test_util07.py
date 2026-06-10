@@ -31,7 +31,7 @@ import wttest
 
 #    Utilities: wt read
 class test_util07(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util07.a'
+    tablename = f'{__qualname__}.a'
     nentries = 1000
     session_params = 'key_format=S,value_format=S'
 

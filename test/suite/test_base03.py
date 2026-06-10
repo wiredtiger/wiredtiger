@@ -33,10 +33,10 @@ class test_base03(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = 'test_base03a'
-    table_name2 = 'test_base03b'
-    table_name3 = 'test_base03c'
-    table_name4 = 'test_base03d'
+    table_name1 = f'{__qualname__}a'
+    table_name2 = f'{__qualname__}b'
+    table_name3 = f'{__qualname__}c'
+    table_name4 = f'{__qualname__}d'
     nentries = 10
 
     def config_string(self):

@@ -32,6 +32,7 @@ from wtdataset import SimpleDataSet
 
 #    Smoke test logging with timestamp configurations.
 class test_log04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'log=(enabled)'
 
     types = [
@@ -70,7 +71,7 @@ class test_log04(wttest.WiredTigerTestCase):
         ds_ts.populate()
         c_ts = self.session.open_cursor(uri_ts)
 
-        uri_nots = 'table:test_log04.nots'
+        uri_nots = f'table:{self.test_name}.nots'
         ds_nots = SimpleDataSet(self, uri_nots, 100,
             key_format=self.key_format, value_format=self.value_format,
             config='log=(enabled=false)')

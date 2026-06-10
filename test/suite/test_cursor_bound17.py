@@ -32,7 +32,7 @@ from wtbound import bound_base
 
 #   Test cursor bound reset functionality with special internal reset scenario calls.
 class test_cursor_bound17(bound_base):
-    file_name = 'test_cursor_bound17'
+    file_name = __qualname__
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),

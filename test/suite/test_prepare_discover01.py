@@ -35,7 +35,7 @@ import wttest
 from wtscenario import make_scenarios
 
 class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_prepare_discover01'
+    tablename = __qualname__
     uri = 'table:' + tablename
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 

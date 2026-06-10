@@ -51,7 +51,7 @@ class test_compact05(compact_util):
     conn_config = 'statistics=(all),verbose=(compact_progress,compact)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
-    table_uri='table:test_compact05'
+    table_uri=f'table:{__qualname__}'
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4

@@ -33,7 +33,7 @@ import wttest
 from suite_subprocess import suite_subprocess
 
 class test_timestamp25(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_timestamp25'
+    tablename = __qualname__
     uri = 'table:' + tablename
 
     def test_short_names(self):

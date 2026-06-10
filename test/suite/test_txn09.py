@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_txn09'
+    tablename = __qualname__
     uri = 'table:' + tablename
     log_enabled = True
 

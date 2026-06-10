@@ -37,7 +37,7 @@ from wiredtiger import stat
 import wttest
 @wttest.skip_for_hook("disagg", "Disagg doesn't sweep layered dhandles")
 class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
-    tablebase = 'test_sweep01'
+    tablebase = __qualname__
     uri = 'table:' + tablebase
     numfiles = 30
     numkv = 1000

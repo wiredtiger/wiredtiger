@@ -35,7 +35,7 @@ import wttest
 
 class test_cursor08(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename = 'test_cursor08'
+    tablename = __qualname__
     uri = 'table:' + tablename
     nkeys = 500
 

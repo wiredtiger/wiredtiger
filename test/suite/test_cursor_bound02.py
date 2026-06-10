@@ -34,7 +34,7 @@ from wtbound import bound_base
 # sure that WiredTiger complains when the upper and lower bounds overlap and that clearing the
 # bounds through the bound API and reset calls work appropriately.
 class test_cursor_bound02(bound_base):
-    file_name = 'test_cursor_bound02'
+    file_name = __qualname__
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),

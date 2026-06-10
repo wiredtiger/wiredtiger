@@ -35,7 +35,7 @@ from wiredtiger import stat
 # operations and edge cases.
 class test_cursor_bound08(bound_base):
     conn_config = 'statistics=(all)'
-    file_name = 'test_cursor_bound08'
+    file_name = __qualname__
     value_format = 'S'
     lower_inclusive = True
     upper_inclusive = True

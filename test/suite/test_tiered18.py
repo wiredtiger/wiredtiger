@@ -38,10 +38,10 @@ class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
     storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered18', tiered_only=True, tiered_shared=True)
     scenarios = make_scenarios(storage_sources)
 
-    shared_default = "test_tiered18_shared_default"
-    shared = "test_tiered18_shared"
-    local = "test_tiered18_local"
-    fail = "test_tiered18_fail"
+    shared_default = f"{__qualname__}_shared_default"
+    shared = f"{__qualname__}_shared"
+    local = f"{__qualname__}_local"
+    fail = f"{__qualname__}_fail"
 
     uri_shared_default = "table:" + shared_default
     uri_shared = "table:" + shared

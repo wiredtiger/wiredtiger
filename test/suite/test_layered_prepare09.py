@@ -49,7 +49,7 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Disaggregated layered tests are not supported with tiered storage")
 @disagg_test_class
 class test_layered_prepare09(wttest.WiredTigerTestCase):
-    tablename = 'test_layered_prepare09'
+    tablename = __qualname__
     uri = 'layered:' + tablename
 
     resolve_scenarios = [

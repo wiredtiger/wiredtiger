@@ -34,7 +34,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_prepare05'
+    tablename = __qualname__
     uri = 'table:' + tablename
 
     format_values = [

@@ -36,9 +36,9 @@ import helper, wttest
 
 @wttest.skip_for_hook("tiered", "Fails on tiered storage")
 class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
-    t1 = 'table:test_txn16_1'
-    t2 = 'table:test_txn16_2'
-    t3 = 'table:test_txn16_3'
+    t1 = f'table:{__qualname__}_1'
+    t2 = f'table:{__qualname__}_2'
+    t3 = f'table:{__qualname__}_3'
     nentries = 1000
     create_params = 'key_format=i,value_format=i'
     # Set the log file size small so we generate checkpoints

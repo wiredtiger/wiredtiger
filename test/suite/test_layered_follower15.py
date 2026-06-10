@@ -43,7 +43,7 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
     conn_config_follower = base_config + 'disaggregated=(role="follower")'
 
     uri = f'layered:{__qualname__}'
-    ingest_uri = 'file:test_layered_follower15.wt_ingest'
+    ingest_uri = f'file:{__qualname__}.wt_ingest'
     create_config = 'key_format=i,value_format=S'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)

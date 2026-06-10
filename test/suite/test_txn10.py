@@ -34,8 +34,8 @@ from suite_subprocess import suite_subprocess
 import wttest
 
 class test_txn10(wttest.WiredTigerTestCase, suite_subprocess):
-    t1 = 'table:test_txn10_1'
-    t2 = 'table:test_txn10_2'
+    t1 = f'table:{__qualname__}_1'
+    t2 = f'table:{__qualname__}_2'
     create_params = 'key_format=i,value_format=i'
     conn_config = 'log=(enabled,file_max=100K,remove=false),' + \
                 'transaction_sync=(method=dsync,enabled)'

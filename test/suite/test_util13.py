@@ -42,7 +42,7 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
     non-default table create parameters.
     """
 
-    pfx = 'test_util13'
+    pfx = __qualname__
     nentries = 100
     dir = "dump_dir"
     #

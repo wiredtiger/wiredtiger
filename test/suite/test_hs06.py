@@ -406,7 +406,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_hs06_extra'
+        uri2 = f'table:{self.test_name}_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -469,7 +469,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_hs06_extra'
+        uri2 = f'table:{self.test_name}_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):

@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_prepare_discover08(wttest.WiredTigerTestCase):
-    tablename = 'test_prepare_discover08'
+    tablename = __qualname__
     uri = 'layered:' + tablename
 
     role_scenarios = [

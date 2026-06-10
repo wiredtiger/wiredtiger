@@ -123,7 +123,7 @@ class PackTester:
 
 # Test integer packing with various formats
 class test_intpack(wttest.WiredTigerTestCase):
-    name = 'test_intpack'
+    name = __qualname__
 
     # It's useful to test a larger range but avoid the CPU overhead normally
     base_range = 66000 if wttest.islongtest() else 5000

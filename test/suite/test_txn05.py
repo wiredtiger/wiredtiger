@@ -36,7 +36,7 @@ import wttest
 
 class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
-    tablename = 'test_txn05'
+    tablename = __qualname__
     uri = 'table:' + tablename
     remove_list = ['true', 'false']
     sync_list = [

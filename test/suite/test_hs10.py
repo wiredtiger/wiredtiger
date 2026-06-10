@@ -47,7 +47,7 @@ class test_hs10(wttest.WiredTigerTestCase):
 
     def test_modify_insert_to_hs(self):
         uri = f"table:{self.test_name}"
-        uri2 = "table:test_hs10_otherdata"
+        uri2 = f"table:{self.test_name}_otherdata"
         create_params = 'value_format=S,key_format={}'.format(self.key_format)
         value1 = 'a' * 1000
         value2 = 'b' * 1000

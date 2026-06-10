@@ -33,7 +33,7 @@ from helper_disagg import disagg_test_class
 @disagg_test_class
 class test_layered_cursor03(wttest.WiredTigerTestCase):
 
-    uri_base = "test_layered_cursor03"
+    uri_base = __qualname__
     conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(lose_all_my_data=true),'
 
