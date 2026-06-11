@@ -326,7 +326,24 @@ session/snapshot.)
         at the old commit's ts and the NEW value at the new commit's ts — on both tables.
       - Evidence: 5 tests green; 53 as-of-T read txns / 77 read-write txns across 10 seeds;
         single-seed replays (9, 3, 7) green.
-- [ ] C3. Isolation levels: snapshot / read-committed / read-uncommitted.
+- [x] C3. Isolation levels: snapshot / read-committed / read-uncommitted. **DONE (review pending).**
+      - `begin` picks an isolation level (weights snapshot 72 / read-committed 16 / read-uncommitted
+        12). Only **snapshot** supports writes — read-committed and read-uncommitted reject writes
+        (`ENOTSUP`, `src/include/txn_inline.h:2111-2115`), so both are **read-only** flavours,
+        driven by the generalised `self.txn_readonly` (was `txn_read_ts is not None`). `read_timestamp`
+        (as-of-T, C2) requires snapshot, so it is only paired with snapshot.
+      - Config built from components: `isolation=<level>` (omitted for the default snapshot) plus
+        optional `read_timestamp`. Coverage guards `n_iso_rc > 0` and `n_iso_ru > 0` (multi-seed).
+      - **Scope note:** single-threaded, all three levels return identical *read results* (no
+        concurrent commit occurs during a txn — advance is gated out and writes are lockstep), so
+        C3 exercises the distinct read-committed / read-uncommitted READ paths in `cur_layered.c`
+        and the oracle proves each self-consistent (lay==ref). The *observable* isolation
+        differences (seeing concurrent uncommitted / newly-committed data) need concurrency →
+        that is C4 (multi-session prepare). No standalone C3 scenario (it would only re-assert
+        snapshot-equivalence).
+      - Evidence: 5 tests green; across 10 seeds 19 read-committed + 15 read-uncommitted txns
+        (12 of the read-uncommitted with real read chains), zero writes leaked into a read-only
+        txn; as-of-T reads span ts 8–450.
 - [ ] C4. Multi-session prepared transactions left pending → drive `WT_PREPARE_CONFLICT`
       deterministically; both tables must report it identically.
 - [ ] C5. Transaction-level error recovery: on `WT_PREPARE_CONFLICT` / `WT_ROLLBACK`, roll back

@@ -122,6 +122,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.last_advance_ts = 0  # self.ts at the previous advance; oldest lags to here
         self.oldest_ts = 0   # current oldest_timestamp; floor for legal read_timestamps (C2)
         self.n_read_ts = 0   # as-of-past read transactions opened (read_timestamp guard)
+        self.n_iso_rc = 0    # read-committed transactions opened (isolation guard, C3)
+        self.n_iso_ru = 0    # read-uncommitted transactions opened (isolation guard, C3)
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
@@ -139,6 +141,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.in_txn = False       # an explicit transaction is open on both nodes' sessions
         self.txn_wrote = False    # the open txn has performed at least one write
         self.txn_read_ts = None   # if set, the open txn is a read-only as-of-T (read_timestamp)
+        self.txn_readonly = False  # open txn forbids writes (as-of-T, read-committed, read-uncommitted)
         self.live_snapshot = None  # self.live as of begin, restored on rollback
         return [Node(self.conn, self.session, lay, ref),
                 Node(self.conn_follow, self.session_follow, lay, ref)]
@@ -237,6 +240,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.in_txn = False
         self.txn_wrote = False
         self.txn_read_ts = None
+        self.txn_readonly = False
         self.live_snapshot = None            # consumed; the next begin takes a fresh snapshot
 
     def advance(self):
@@ -403,14 +407,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Transactions: 'begin' is only legal in autocommit; 'commit'/'rollback' only with an
         # open txn; advance/evict (checkpoint lifecycle) only in autocommit. Inside a txn,
         # positional writes are the genuine same-transaction iterate-and-delete (apply_positional).
-        # A read_timestamp (as-of-past) txn is read-only -- no writes inside it (self.txn_read_ts).
+        # A read-only txn (as-of-T snapshot, or read-committed / read-uncommitted, which both
+        # reject writes -- txn_inline.h ~2112) emits reads only (self.txn_readonly).
         positioned = self.cur_pos is not None and self.cur_pos in self.live
         if not allow_writes:
             kinds   = ['search', 'search_near', 'next', 'prev', 'reset']
             weights = [15, 12, 20, 20, 6]
-        elif self.in_txn and self.txn_read_ts is not None:
-            # As-of-T read-only txn: reads chain across a historical snapshot, ended by
-            # commit/rollback. cur_pos may sit on a key absent from current self.live (it was
+        elif self.in_txn and self.txn_readonly:
+            # Read-only txn: reads chain across the txn's view, ended by commit/rollback. Under
+            # an as-of-T snapshot cur_pos may sit on a key absent from current self.live (it was
             # live at T), so weight next/prev on raw positioned-ness, not live membership.
             if self.cur_pos is not None:
                 kinds   = ['next', 'prev', 'search', 'search_near', 'reset', 'commit', 'rollback']
@@ -442,13 +447,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if kind == 'remove':
             return ('remove', rnd.choice(list(self.live))) if self.live else ('reset', None)
         if kind == 'begin':
-            # Half the time, when a past window exists, open a read-only as-of-T transaction;
-            # the read_timestamp is any point in [oldest, latest] -- both tables must agree on
-            # that historical view. Otherwise a normal read-write transaction. The `oldest_ts>=1`
+            # Pick an isolation level. Only snapshot supports writes (read-committed and
+            # read-uncommitted reject writes -- txn_inline.h ~2112), so those two are read-only.
+            iso = rnd.choices(['snapshot', 'read-committed', 'read-uncommitted'],
+                              weights=[72, 16, 12], k=1)[0]
+            # Under snapshot, half the time (when a past window exists) read as-of-T. The
+            # read_timestamp is any point in [oldest, latest]; both tables must agree on that
+            # historical view. read_timestamp requires snapshot isolation. The `oldest_ts>=1`
             # gate is load-bearing: it keeps randint off timestamp 0 (an invalid read_timestamp).
-            if self.oldest_ts >= 1 and self.ts > self.oldest_ts and rnd.random() < 0.5:
-                return ('begin', rnd.randint(self.oldest_ts, self.ts))
-            return ('begin', None)
+            read_ts = None
+            if iso == 'snapshot' and self.oldest_ts >= 1 and self.ts > self.oldest_ts \
+                    and rnd.random() < 0.5:
+                read_ts = rnd.randint(self.oldest_ts, self.ts)
+            return ('begin', (read_ts, iso))
         if kind in ('evict', 'commit', 'rollback',
                     'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
             return (kind, None)
@@ -498,22 +509,34 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     self.apply_positional(nodes, 'pos_remove', None)
                     self.live.pop(self.cur_pos, None)
                 elif kind == 'begin':
-                    # Open one explicit transaction per node; subsequent writes join it and
-                    # commit atomically at the commit op. Snapshot logical state for rollback.
-                    # op[1] None -> read-write txn; an int -> read-only as-of-T (read_timestamp):
-                    # both tables must agree on the historical view, validating the layered
-                    # cursor's read_timestamp merge of stable + ingest.
-                    read_ts = op[1]
-                    cfg = '' if read_ts is None else \
-                        'read_timestamp=' + self.timestamp_str(read_ts)
+                    # Open one explicit transaction per node. op[1] = (read_ts, isolation):
+                    #  - snapshot + read_ts None  -> read-write txn (writes join it, commit at the
+                    #    commit op);
+                    #  - snapshot + read_ts int   -> read-only as-of-T (read_timestamp merge, C2);
+                    #  - read-committed / read-uncommitted -> read-only (those isolations reject
+                    #    writes), reading the txn's view of the latest committed data.
+                    # The oracle compares layered-vs-reference within each (same session => same
+                    # isolation), so each level's read path is validated self-consistent.
+                    read_ts, iso = op[1]
+                    cfg_parts = []
+                    if iso != 'snapshot':
+                        cfg_parts.append('isolation=' + iso)
+                    if read_ts is not None:
+                        cfg_parts.append('read_timestamp=' + self.timestamp_str(read_ts))
+                    cfg = ','.join(cfg_parts)
                     for n in nodes:
                         n.session.begin_transaction(cfg)
                     self.in_txn = True
                     self.txn_wrote = False
                     self.txn_read_ts = read_ts
+                    self.txn_readonly = read_ts is not None or iso != 'snapshot'
                     if read_ts is not None:
                         self.n_read_ts += 1
-                    # Snapshot for rollback. An as-of-T txn never writes, so the restore is a
+                    if iso == 'read-committed':
+                        self.n_iso_rc += 1
+                    elif iso == 'read-uncommitted':
+                        self.n_iso_ru += 1
+                    # Snapshot for rollback. A read-only txn never writes, so the restore is a
                     # no-op for it, but keep it unconditional so rollback has a value to restore.
                     self.live_snapshot = dict(self.live)
                     # The cursor stays physically positioned so next/prev keep iterating across
@@ -631,6 +654,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
             # As-of-past (read_timestamp) read transactions must actually be exercised.
             self.assertGreater(self.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
+            # Both non-snapshot isolation levels must actually be exercised (C3).
+            self.assertGreater(self.n_iso_rc, 0, 'no read-committed txns were exercised')
+            self.assertGreater(self.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
 
     def test_scenario_checkpoint_delete_visible(self):
         # Regression: after deletes are folded into a new checkpoint, a follower cursor with
