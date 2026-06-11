@@ -65,6 +65,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: bytes written from cache",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
+  "cache: cold collection pages not added to the disaggregated victim cache during eviction",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: eviction gave up due to detecting a disk value without a timestamp behind the last "
@@ -538,6 +539,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_bytes_write = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
+    stats->cache_eviction_cold_not_cached = 0;
     stats->eviction_fail = 0;
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     stats->cache_eviction_blocked_no_ts_checkpoint_race_1 = 0;
@@ -973,6 +975,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_bytes_write += from->cache_bytes_write;
     to->cache_eviction_blocked_checkpoint += from->cache_eviction_blocked_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
+    to->cache_eviction_cold_not_cached += from->cache_eviction_cold_not_cached;
     to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       from->cache_eviction_blocked_disagg_dirty_internal_page;
@@ -1436,6 +1439,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
+    to->cache_eviction_cold_not_cached += WT_STAT_DSRC_READ(from, cache_eviction_cold_not_cached);
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);
@@ -2005,6 +2009,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: cache tolerance configured",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
+  "cache: cold collection pages not added to the disaggregated victim cache during eviction",
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
   "cache: evict page attempts by eviction server",
@@ -3103,6 +3108,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_tolerance_level */
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
+    stats->cache_eviction_cold_not_cached = 0;
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
     stats->eviction_server_evict_attempt = 0;
@@ -4168,6 +4174,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_hs);
+    to->cache_eviction_cold_not_cached += WT_STAT_CONN_READ(from, cache_eviction_cold_not_cached);
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_disagg_dirty_internal_page);

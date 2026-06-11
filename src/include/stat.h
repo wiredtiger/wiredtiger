@@ -549,6 +549,7 @@ struct __wt_connection_stats {
     int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_eviction_cold_not_cached;
     int64_t cache_bytes_hs_dirty;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_server_evict_attempt;
@@ -1510,6 +1511,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_eviction_cold_not_cached;
     int64_t eviction_fail;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
