@@ -2218,6 +2218,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_ASSERT(session, block_meta != NULL);
 
     *multi->block_meta = *block_meta;
+    multi->block_meta->cumulative_size_aggregated = false;
 
     /* The first delta needs to explicitly initialize the base LSN. */
     if (multi->block_meta->delta_count == 0)
@@ -2336,6 +2337,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         if (last_block && block_meta != NULL && r->multi_next == 1 &&
           block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             *multi->block_meta = *block_meta;
+            multi->block_meta->cumulative_size_aggregated = false;
             /*
              * Full page's backlink is the previous full page. If the previous page is a delta, use
              * the base as the new backlink. Otherwise, use the previous page as the backlink.
@@ -2380,6 +2382,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_ASSERT(session, multi->block_meta != NULL && page->disagg_info != NULL);
     /* Copy the block meta otherwise it will be lost after reconciliation. */
     *multi->block_meta = page->disagg_info->block_meta;
+    multi->block_meta->cumulative_size_aggregated = false;
 
     switch (mod->rec_result) {
     case 0:
@@ -2541,8 +2544,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
      * it into memory.
      */
     if (F_ISSET(r, WT_REC_IN_MEMORY)) {
-        if (page->disagg_info != NULL)
+        if (page->disagg_info != NULL) {
             *multi->block_meta = page->disagg_info->block_meta;
+            multi->block_meta->cumulative_size_aggregated = false;
+        }
         goto copy_image;
     }
 
@@ -3011,8 +3016,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (disagg_page_is_valid && !disagg_page_free_required &&
           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_block_disagg_obsolete_delta_chain(
-              session, ref->page->disagg_info->block_meta.cumulative_size);
+            __wt_block_disagg_obsolete_delta_chain(session, &ref->page->disagg_info->block_meta);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3021,6 +3025,15 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                                 * Discard the multiple replacement blocks.
                                 */
         WT_RET(__rec_split_discard(session, r, page));
+        /*
+         * When __rec_split_discard reuses the existing page_id (free_blocks=false), the old save
+         * update restore cumulative size is still counted in block_disagg->size. Subtract it now if
+         * the new write is a full-image, mirroring the same accounting done in case 0 and
+         * WT_PM_REC_REPLACE.
+         */
+        if (disagg_page_is_valid && !disagg_page_free_required && r->multi_next == 1 &&
+          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
+            __wt_block_disagg_obsolete_delta_chain(session, &page->disagg_info->block_meta);
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
                             /*
@@ -3061,7 +3074,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                           !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
                           r->multi->block_meta->delta_count == 0)
                             __wt_block_disagg_obsolete_delta_chain(
-                              session, ref->page->disagg_info->block_meta.cumulative_size);
+                              session, &ref->page->disagg_info->block_meta);
                     }
                 }
             } else {
@@ -3104,7 +3117,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                           session, cookie.size == page->disagg_info->block_meta.cumulative_size);
 #endif
                         __wt_block_disagg_obsolete_delta_chain(
-                          session, page->disagg_info->block_meta.cumulative_size);
+                          session, &page->disagg_info->block_meta);
                     }
                 }
             }
@@ -3176,8 +3189,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || F_ISSET(r->multi, WT_MULTI_SUPD_RESTORE)) {
-            if (page->disagg_info != NULL)
+            if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
+                page->disagg_info->block_meta.cumulative_size_aggregated =
+                  r->multi->block_meta->cumulative_size > 0;
+            }
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -3196,8 +3212,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
-                if (page->disagg_info != NULL)
+                if (page->disagg_info != NULL) {
                     page->disagg_info->block_meta = *r->multi->block_meta;
+                    page->disagg_info->block_meta.cumulative_size_aggregated =
+                      r->multi->block_meta->cumulative_size > 0;
+                }
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else {
                 WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED) && r->ref->addr != NULL);
@@ -3311,7 +3330,10 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 {
     WT_DECL_RET;
     WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod;
     uint32_t i;
+
+    mod = page->modify;
 
     /*
      * On error, discard blocks we've written, they're unreferenced by the tree. This is not a
@@ -3347,13 +3369,28 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
+        /*
+         * If this was a full-image write (delta_count == 0), the write reused the existing page_id
+         * (see __rec_write_image), so the old delta chain's cumulative_size is still counted in
+         * block_disagg->size. Subtract it now; the next wrapup cannot do so because
+         * disagg_page_is_valid will be false with an invalid page_id. Also free the stale block
+         * cookie from the prior successful reconciliation so the WT_PM_REC_REPLACE path in the next
+         * wrapup cannot attempt a second subtraction.
+         */
+        if (r->multi->block_meta->delta_count == 0 && mod->rec_result == WT_PM_REC_REPLACE &&
+          page->disagg_info->block_meta.cumulative_size > 0) {
+            __wt_block_disagg_obsolete_delta_chain(session, &page->disagg_info->block_meta);
+            __wt_free(session, mod->mod_replace.block_cookie);
+            mod->mod_replace.block_cookie_size = 0;
+            __wt_free(session, mod->mod_disk_image);
+        }
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
         /*
-         * The discard above terminates the delta chain for this page id. ref->addr still carries a
-         * cookie with that now-dead page id; a later wrapup that tries to free it would produce a
-         * second discard in the chain and fail. Clear the stale reference so the next
-         * reconciliation's wrapup sees no address to free.
+         * The page_id above was just invalidated. ref->addr still carries a cookie with that
+         * now-dead page_id; a later wrapup that tries to free it would produce a second discard and
+         * fail. Clear the stale reference so the next reconciliation's wrapup sees no address to
+         * free.
          */
         __wt_ref_addr_free(session, r->ref);
     }

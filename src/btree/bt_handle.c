@@ -929,8 +929,10 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_ERR(__wti_page_inmem(session, NULL, dsk.data,
       WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, NULL, &page, NULL));
     dsk.mem = NULL;
-    if (page->disagg_info != NULL)
+    if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = block_meta;
+        page->disagg_info->block_meta.cumulative_size_aggregated = block_meta.cumulative_size > 0;
+    }
 
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, page, btree->type != BTREE_ROW);

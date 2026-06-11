@@ -1753,7 +1753,7 @@ extern void __wt_block_disagg_checkpoint_rollback(WT_SESSION_IMPL *session);
 extern void __wt_block_disagg_header_byteswap_copy(
   WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to);
 extern void __wt_block_disagg_obsolete_delta_chain(
-  WT_SESSION_IMPL *session, uint64_t cumulative_size);
+  WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta);
 extern void __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size);
 extern void __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats);
 extern void __wt_bm_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
@@ -1942,8 +1942,8 @@ extern void __wti_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci
 extern void __wti_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern void __wti_block_disagg_apply_root_size(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, uint32_t new_root_size);
-extern void __wti_block_disagg_decrease_size(
-  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, uint64_t size);
+extern void __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session,
+  WT_BLOCK_DISAGG *block_disagg, WT_PAGE_BLOCK_META *block_meta, uint64_t size);
 extern void __wti_block_disagg_increase_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size);
 extern void __wti_block_ext_free(WT_SESSION_IMPL *session, WT_EXT **ext);
 extern void __wti_block_extlist_dump_all(WT_SESSION_IMPL *session, WT_BLOCK *block);

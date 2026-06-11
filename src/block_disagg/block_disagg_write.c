@@ -265,7 +265,9 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
         cookie.size = block_meta->cumulative_size + size;
 
     /* Update the block_meta for future delta writes. */
+    WT_ASSERT(session, !block_meta->cumulative_size_aggregated);
     block_meta->cumulative_size = cookie.size;
+    block_meta->cumulative_size_aggregated = true;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
@@ -309,7 +311,7 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
      * cause the old root page size to be subtracted twice.
      */
     if (!is_root)
-        __wti_block_disagg_decrease_size(session, block_disagg, cookie.size);
+        __wti_block_disagg_decrease_size(session, block_disagg, NULL, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {
