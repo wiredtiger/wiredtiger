@@ -1,0 +1,234 @@
+# Layered cursor stress test — architecture overview
+
+Implementation: `test/suite/test_layered_cursor_stress.py` (~880 lines, 5 test methods + the
+random driver). This document is the multi-altitude map of *how it works*; the companion diagram
+is `layered_cursor_stress_test_architecture.dot` (rendered `.svg`/`.png`). For the phase-by-phase
+status and findings see `layered_cursor_stress_test_plan.md`; for the design rationale see
+`layered_cursor_stress_test_design.md`.
+
+---
+
+## 1. What is under test, and the core idea
+
+**Under test:** the follower **layered cursor** in `src/cursor/cur_layered.c`. On a disaggregated
+follower a layered table has two constituents — an in-memory **ingest** btree (recent local
+writes) and a **stable** checkpoint (pulled from the leader). Every read must **merge** the two:
+ingest shadows stable, ingest tombstones hide stable keys, iteration skips ingest tombstones,
+checkpoint advances reposition the stable cursor, prepared ingest updates raise conflicts. That
+merge has many subtle branches and is the bug surface.
+
+**Core idea — differential testing against a real-WiredTiger oracle.** Instead of modelling MVCC
+in Python, every logical operation is applied to *two* tables that must agree:
+
+- **DSC** — the **layered** table under test (`layered:...`), which on the follower runs the merge.
+- **ASC** — a plain (non-layered) **reference** table (`table:...`), ordinary WiredTiger.
+
+Both live in the **same session**, so they share one snapshot/isolation/read-timestamp. The plain
+table is correct by construction for timestamps, isolation, and prepare — so any layered-vs-plain
+divergence is a layered bug (or a documented, legitimate layered/plain difference we surface for
+judgement). Operation sequences are **random but seed-reproducible**.
+
+---
+
+## 2. Topology (see the diagram)
+
+Two connections to the same disaggregated cluster, opened in `setup_connections` / `make_nodes`:
+
+- **Leader** (`self.conn` / `self.session`) — role=leader. Its layered cursor reads **stable only**
+  (skips ingest), so it behaves like a plain table and is a second oracle.
+- **Follower** (`self.conn_follow` / `self.session_follow`) — role=follower. Its layered cursor
+  **merges ingest + stable** — this is the code actually being stressed.
+
+Per connection a **`Node`** bundles, in one session, a layered cursor (`lay_c`) and a reference
+cursor (`ref_c`) on a shared-named layered table and a per-connection plain table. The same cursors
+serve **both reads and writes**, so they stay in lockstep and a write leaves the cursor positioned
+(feeding the long-lived positioned-cursor chains, §6).
+
+Keys are integers spread on a grid (`POOL = 100,110,…,990`) so `search_near` targets can fall in
+gaps; values are unique strings (`new_value`).
+
+---
+
+## 3. The two oracles
+
+1. **Per-operation, per-node (the workhorse).** `compare_read` runs each read op on `lay_c` then
+   `ref_c` of the *same* node and compares the normalized `(ret, key, value, cmp)`. Same session →
+   same snapshot → apples-to-apples, immune to read-committed snapshot-pinning false positives.
+   `search_near` is special-cased (`compare_search_near`): WT may return *either* immediate
+   neighbour of an absent key, so the rule is (a) the layered `cmp` sign must match the returned
+   key vs the search key, and (b) if the two cursors land on different valid neighbours they must
+   *bracket* the search key and be exactly one step apart (the reference is stepped onto the
+   layered key to re-sync).
+2. **Whole-table, cross-node (at `verify`).** After a chain: each node's layered full scan must
+   equal its reference scan, **and** the leader's layered scan must equal the follower's layered
+   scan (same logical data reached two different ways — stable-only vs merged).
+
+Writes are also result-compared (`_write_pair` / `_positional_pair` assert the layered and
+reference return codes match) — a write checked like a read.
+
+---
+
+## 4. Write protocol & replication model
+
+Every logical write is **mirrored to both connections** (`mirror_write`): leader layered (→ its
+stable), leader reference, follower layered (→ its **ingest**), follower reference — all at one
+commit timestamp. This is the real follower path (committed data arrives in ingest locally; the
+leader's copy becomes stable via checkpoint). Writes are **always timestamped** (layered tables
+reject `write_timestamp_usage=never`), so each runs in a begin/commit (autocommit) or joins an open
+explicit transaction (committed later at one timestamp).
+
+**Checkpoint lifecycle** (`advance`): set `stable_timestamp = latest commit`, but `oldest_timestamp`
+**lags** one advance behind (so a window `[oldest, latest]` stays open for as-of-past reads),
+checkpoint the leader, and `disagg_advance_checkpoint` the follower — folding the leader's stable
+into the follower's stable.
+
+**Ingest drain** (`drain_ingest`): force-evict the follower's `…​.wt_ingest` file (a
+`debug=(release_evict)` cursor) so already-checkpointed keys are pruned out of ingest and later
+reads are served from **stable**. This needs ≥ 2 checkpoints (the prune horizon lags one
+checkpoint). Without the drain the follower would answer everything from ingest — a degenerate
+oracle that never exercises the merge (guarded against, §8).
+
+---
+
+## 5. Determinism, tracing, replay
+
+One knob: an integer **seed** drives a `random.Random(seed)` (printed `SEED=<n>`). Every chosen op
+is appended to a per-seed **trace file** (`open_trace` / `EventTrace`), flushed each line, so a
+failure is a self-contained record. `STRESS_SEED=<n>` replays a single seed; under single-seed
+replay the aggregate coverage guards (§8) are skipped (they are multi-seed coverage heuristics, not
+per-chain invariants). No multithreading — multiple **sessions** in one thread create
+prepared-conflict scenarios without breaking reproducibility.
+
+---
+
+## 6. Operation generation — long-lived positioned chains
+
+`pick_op` is the generator. The central bias: **keep the cursor positioned and chain on it** —
+when positioned it weights `next`/`prev` and positional `update`/`remove` heavily, and keeps
+position-resetting ops (`put`/`remove` by key, `reset`) rare. `advance`/`evict` punctuate chains
+with checkpoint activity. The driver (`run_seed`) tracks `cur_pos` (the key both cursor pairs sit
+on) and `self.live` (the logical key→value map, used **only** to choose keys, never as the oracle).
+
+`pick_op` is **transaction-aware** — the four modes:
+
+| mode | emits |
+|---|---|
+| read-only test (`allow_writes=False`) | reads + reset only |
+| autocommit (no txn open) | reads + writes + positional writes + advance/evict + `begin` |
+| explicit read-write txn (snapshot) | reads + writes + positional writes + `commit`/`rollback` |
+| explicit read-only txn (as-of-T, read-committed, read-uncommitted) | reads + `commit`/`rollback` |
+
+`begin` only in autocommit; `commit`/`rollback` only with a txn open; `advance`/`evict` only in
+autocommit (the checkpoint runs on the leader session, which must have no open txn).
+
+---
+
+## 7. Transactions, timestamps, isolation, prepare (Phase C)
+
+- **Explicit transactions** (`begin`/`commit`/`rollback`, `_end_txn`): writes join the open txn and
+  commit atomically at one timestamp; rollback restores `self.live` from a begin-time snapshot and
+  resets the cursors. Cursors **survive** a commit (position retained) — exercising mid-chain txn
+  switches.
+- **In-txn positional writes are DIRECT** (no re-search): the positioning read and the write share
+  the transaction, so the cursor is genuinely positioned — the real same-transaction
+  iterate-and-delete. In autocommit, positional writes **re-search** inside the write txn (the
+  positioning value is not valid across the implicit txn boundary — WT-17796).
+- **`read_timestamp` / as-of-past** (C2): a snapshot txn may read at a past timestamp in
+  `[oldest, latest]`; the layered merge must reconstruct the historical view, checked against the
+  reference. (Requires the lagged `oldest`.)
+- **Isolation** (C3): `begin` picks snapshot / read-committed / read-uncommitted. Only snapshot
+  permits writes; the other two are read-only (the engine rejects their writes). Single-threaded,
+  all three return identical reads, so this exercises the distinct read paths with the oracle
+  proving self-consistency; the *observable* differences need concurrency (prepare, C4).
+- **Prepare** (C4/C5, deterministic scenarios): a second follower session holds a prepared txn whose
+  update lands in the follower **ingest**, shadowing a committed stable value; reads must surface
+  `WT_PREPARE_CONFLICT` (raised as a Python exception → mapped to a code by `prepare_safe`) exactly
+  as the plain table does, and recover after the prepare resolves.
+
+---
+
+## 8. Anti-degeneracy coverage guards (multi-seed)
+
+The oracle can pass *trivially* if the test never actually exercises the merge or the interesting
+ops. Guards (asserted after the multi-seed run; skipped under single-seed replay):
+
+- `assert_merge_exercised` — the follower must read from **stable** ≥ 10% of follower reads (else
+  it's an ingest-only degenerate oracle). Reads the `layered_curs_*_{stable,ingest}` stats.
+- `assert_stable_served` — in the prepare scenarios, proves a specific base key is **stable**-served
+  (the drain reached stable) so the prepared-ingest-shadows-stable merge is genuinely tested.
+- `n_positional > 0` — positional update/remove chains actually ran.
+- `n_read_ts > 0`, `n_iso_rc > 0`, `n_iso_ru > 0` — as-of-past, read-committed, read-uncommitted
+  txns all actually fired.
+
+---
+
+## 9. Coverage map
+
+| dimension | covered | where |
+|---|---|---|
+| ingest+stable merge (reads) | ✅ | the whole test; `assert_merge_exercised` |
+| ingest tombstone shadows stable | ✅ | random removes + `test_scenario_checkpoint_delete_visible` |
+| long-lived positioned chains | ✅ | `pick_op` bias; `n_positional` guard |
+| search_near neighbour semantics | ✅ | `compare_search_near` |
+| checkpoint advance + drain | ✅ | `advance` / `drain_ingest`; `test_read_only` |
+| explicit txns, cursor survives switch | ✅ (C1) | `_end_txn`, `run_seed` |
+| same-txn iterate-and-delete | ✅ (C1) | in-txn DIRECT positional writes |
+| `read_timestamp` / as-of-past | ✅ (C2) | `test_scenario_read_timestamp_history` + random |
+| isolation levels | ✅ (C3) | `begin` config; iso guards |
+| prepared-txn conflict + recovery | ✅ (C4/C5) | `test_scenario_prepare_conflict_*` |
+| scenario injections (mass delete, truncate, bulk insert) | ⏳ Phase D | — |
+| config matrix (overwrite, bounds) | ⏳ Phase E | — |
+| shrinking + CI wiring | ⏳ Phase F | — |
+
+**Findings:** Q1 cross-txn positioned remove = real bug (WT-17796, fixed). Q2 pinned-snapshot
+scan-vs-search = not a bug (read-committed semantics). Prepare-iterate divergence = **likely a
+real bug, under review** (`findings/prepare_iterate_bug_candidate.md`).
+
+---
+
+## 10. Function map — bottom-to-top reading order (for the walkthrough)
+
+Grouped low-level → high-level. We'll walk these in roughly this order.
+
+**A. Primitives / state holders**
+- `sign` · `EventTrace` (`log`/`note`/`close`) · `Node` (`__init__`/`reset_all`/`close`)
+
+**B. Cluster & table setup**
+- `conn_config` · `setup_connections` · `make_nodes` · `new_value`
+
+**C. Write protocol**
+- `_write_pair` · `mirror_write` · `_positional_pair` · `apply_positional` · `_end_txn`
+
+**D. Checkpoint lifecycle**
+- `advance` · `drain_ingest`
+
+**E. Stats / anti-degeneracy**
+- `follower_read_split` · `assert_merge_exercised` · `assert_stable_served`
+
+**F. Read application & the oracle**
+- `apply` · `compare_read` · `compare_search_near` · `fail_mismatch`
+
+**G. Verification & helpers**
+- `scan` · `prepare_safe` · `psearch` · `verify`
+
+**H. Operation generation**
+- `pick_op` · `pick_search_key`
+
+**I. The driver**
+- `open_trace` · `run_seed` · `replaying_single_seed` · `seeds_for`
+
+**J. Tests (top level)**
+- `test_smoke` · `test_read_only` · `test_random` · `test_scenario_checkpoint_delete_visible` ·
+  `test_scenario_read_timestamp_history` · `test_scenario_prepare_conflict_point` ·
+  `test_scenario_prepare_conflict_iterate`
+
+---
+
+## 11. Build & run
+
+```
+# build dir configured with -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1
+cd build
+python3 ../test/suite/run.py test_layered_cursor_stress          # all 7 tests
+STRESS_SEED=9 python3 ../test/suite/run.py test_layered_cursor_stress   # replay one seed
+```

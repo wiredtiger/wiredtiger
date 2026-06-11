@@ -1,0 +1,48 @@
+// Layered cursor stress test -- per-seed operation loop (control flow of run_seed).
+// Render:  dot -Tsvg layered_cursor_stress_test_oploop.dot -o arch_oploop.svg
+digraph layered_cursor_stress_oploop {
+  rankdir=TB;
+  fontname="Helvetica"; labelloc=t; fontsize=16;
+  label="Layered cursor stress test — per-seed operation loop  (run_seed / pick_op / dispatch)";
+  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#ffffff"];
+  edge [fontname="Helvetica", fontsize=10];
+
+  start [shape=oval, fillcolor="#e8eef7", label="run_seed(seed, n_ops)\nmake_nodes · cur_pos=None"];
+  pick  [fillcolor="#e8eef7", label="pick_op(rnd)\ntxn-aware, position-biased"];
+  loop  [shape=diamond, fillcolor="#f0f0f0", label="n_ops\nremaining?"];
+  verify [shape=oval, fillcolor="#ede7f6", label="verify(): per-node lay==ref;\nleader scan == follower scan"];
+
+  start -> loop;
+  loop -> pick [label="yes"];
+  loop -> verify [label="no (close open txn first)"];
+
+  // dispatch branches
+  put   [fillcolor="#e6f4ea", label="put / remove (by key)\nmirror_write · cur_pos=None"];
+  posw  [fillcolor="#e6f4ea", label="pos_update / pos_remove\napply_positional · update self.live"];
+  txnb  [fillcolor="#fff4e5", label="begin\nopen txn (snapshot/RC/RU, ±read_ts)\ncur_pos=None"];
+  txne  [fillcolor="#fff4e5", label="commit / rollback\n_end_txn"];
+  ckpt  [fillcolor="#e7f0fb", label="advance / evict\nreset · advance() · (drain) · cur_pos=None"];
+  read  [fillcolor="#fdeaea", label="read: search / search_near / next / prev / reset\ncompare_read(leader) + compare_read(follower)"];
+  curp  [shape=diamond, fillcolor="#f0f0f0", label="leader key == follower key\nand both found?"];
+  setp  [label="cur_pos = key\n(positional-write anchor)"];
+  clrp  [label="cur_pos = None"];
+
+  pick -> put   [label="put/remove"];
+  pick -> posw  [label="positional"];
+  pick -> txnb  [label="begin"];
+  pick -> txne  [label="commit/rollback"];
+  pick -> ckpt  [label="advance/evict"];
+  pick -> read  [label="read op"];
+
+  read -> curp;
+  curp -> setp [label="yes"];
+  curp -> clrp [label="no (e.g. search_near\nsplit neighbours)"];
+
+  put  -> loop;
+  posw -> loop;
+  txnb -> loop;
+  txne -> loop;
+  ckpt -> loop;
+  setp -> loop;
+  clrp -> loop;
+}

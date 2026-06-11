@@ -1,0 +1,61 @@
+// Layered cursor stress test -- oracle & replication topology.
+// Render:  dot -Tsvg layered_cursor_stress_test_architecture.dot -o arch_topology.svg
+digraph layered_cursor_stress_topology {
+  rankdir=TB;
+  fontname="Helvetica"; labelloc=t; fontsize=16;
+  label="Layered cursor stress test — oracle & replication  (test_layered_cursor_stress.py)";
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=10];
+
+  driver [shape=box, style="rounded,filled", fillcolor="#e8eef7", penwidth=2,
+          label="DRIVER  run_seed(seed)\nseed → pick_op → dispatch → compare_read → verify"];
+  mw [shape=box, style="filled", fillcolor="#e6f4ea",
+      label="mirror_write / apply_positional\n(one commit timestamp, both connections)"];
+  driver -> mw [color="#1a7f37", penwidth=2, label="every logical write"];
+
+  // ---- LEADER ----
+  subgraph cluster_leader {
+    label="LEADER connection (role=leader)\nlayered cursor reads STABLE only → 2nd oracle";
+    style=filled; color="#f5f5f5"; fontsize=12;
+    Llay [shape=box, style=filled, fillcolor="#ffffff", label="lay_c  (layered, DSC)"];
+    Lref [shape=box, style=filled, fillcolor="#ffffff", label="ref_c  (plain, ASC)"];
+    Lstab [shape=cylinder, fillcolor="#eef2ff", style=filled, label="stable\n(leader btree)"];
+    Lreft [shape=cylinder, fillcolor="#fff8e6", style=filled, label="reference\ntable"];
+    Llay -> Lstab [style=dotted, label="read"];
+    Lref -> Lreft [style=dotted, label="read"];
+    Llay -> Lref [dir=both, color="#cf222e", penwidth=2, constraint=false,
+                  label="ORACLE\ncompare every op"];
+  }
+
+  // ---- FOLLOWER ----
+  subgraph cluster_follower {
+    label="FOLLOWER connection (role=follower)\nlayered cursor MERGES ingest + stable  ◀ UNDER TEST";
+    style=filled; color="#fdf2f2"; fontsize=12;
+    Flay [shape=box, style="filled", fillcolor="#ffffff", penwidth=2, label="lay_c  (layered, DSC)\nMERGE ingest+stable"];
+    Fref [shape=box, style=filled, fillcolor="#ffffff", label="ref_c  (plain, ASC)"];
+    Fing [shape=cylinder, fillcolor="#fde8e8", style=filled, label="ingest\n(in-memory)"];
+    Fstab [shape=cylinder, fillcolor="#eef2ff", style=filled, label="stable\n(checkpoint)"];
+    Freft [shape=cylinder, fillcolor="#fff8e6", style=filled, label="reference\ntable"];
+    Flay -> Fing [style=dotted, label="merge"];
+    Flay -> Fstab [style=dotted, label="merge"];
+    Fref -> Freft [style=dotted, label="read"];
+    Flay -> Fref [dir=both, color="#cf222e", penwidth=2, constraint=false,
+                  label="ORACLE\ncompare every op"];
+  }
+
+  // writes fan out to all four cursors; layered writes land in different constituents
+  mw -> Llay [color="#1a7f37"];
+  mw -> Lref [color="#1a7f37"];
+  mw -> Flay [color="#1a7f37"];
+  mw -> Fref [color="#1a7f37"];
+  Llay -> Lstab [color="#1a7f37", label="write → stable"];
+  Flay -> Fing  [color="#1a7f37", label="write → ingest"];
+
+  // replication + drain
+  Lstab -> Fstab [color="#0969da", penwidth=2, label="advance(): leader checkpoint → follower stable"];
+  Fing  -> Fstab [color="#9a6700", style=dashed, penwidth=2, label="drain_ingest(): release_evict\nprune ingest → stable"];
+
+  // cross-node verify oracle
+  Llay -> Flay [dir=both, color="#8250df", penwidth=2, style=dashed, constraint=false,
+                label="verify(): leader layered scan == follower layered scan"];
+}
