@@ -5754,7 +5754,6 @@ struct __wt_page_log {
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
 
-#ifndef SWIG
 /*!
  * A structure that represents encrypted keys stored by WiredTiger.
  */
@@ -5857,7 +5856,6 @@ struct __wt_key_provider {
      */
     int (*terminate)(WT_KEY_PROVIDER *key_provider, WT_SESSION *session);
 };
-#endif
 
 /*!
  * Btree disaggregated storage tier types
