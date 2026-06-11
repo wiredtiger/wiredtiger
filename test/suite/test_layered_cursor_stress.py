@@ -382,6 +382,21 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             out.append((cursor.get_key(), cursor.get_value()))
         return out
 
+    def prepare_safe(self, fn):
+        # A prepared conflict is raised as a WiredTigerError in Python (not returned like
+        # WT_NOTFOUND). Map it back to the WT_PREPARE_CONFLICT code so a layered read and a
+        # reference read can be compared uniformly (the prepare-conflict oracle, C4).
+        try:
+            return fn()
+        except wiredtiger.WiredTigerError as e:
+            if 'WT_PREPARE_CONFLICT' in str(e):
+                return wiredtiger.WT_PREPARE_CONFLICT
+            raise
+
+    def psearch(self, cursor, key):
+        cursor.set_key(key)
+        return self.prepare_safe(cursor.search)
+
     def verify(self, nodes, trace):
         # Each node: layered full scan must equal its reference; and the leader's layered
         # view must equal the follower's layered view (same logical data).
@@ -715,5 +730,117 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                         cur.reset()
                     n.session.rollback_transaction()
         finally:
+            for n in nodes:
+                n.close()
+
+    def test_scenario_prepare_conflict_point(self):
+        # C4: a prepared update of 110 in the FOLLOWER's ingest (a second session) must surface
+        # WT_PREPARE_CONFLICT through the layered cursor's stable+ingest merge exactly as the
+        # plain reference table does. A read below the prepare sees the committed base; after the
+        # prepared txn COMMITS, a read above the commit sees the new value -- all on both tables.
+        self.setup_connections()
+        nodes = self.make_nodes('prepp')
+        leader, follower = nodes
+        prep_session = self.conn_follow.open_session('')
+        try:
+            for k in (100, 110, 120):              # committed base -> follower stable, reference
+                self.mirror_write(nodes, k, 'base'); self.live[k] = 'x'
+            self.advance()
+            self.drain_ingest(follower)            # 110 base is now stable-only on the follower
+            for n in nodes:
+                n.reset_all()
+            base_ts = self.ts
+            prep_ts = base_ts + 100
+
+            # Second follower session prepares an update of 110 into the layered ingest AND the
+            # reference table; the prepare_timestamp sits well above the committed base.
+            pc_lay = prep_session.open_cursor(follower.lay_uri)
+            pc_ref = prep_session.open_cursor(follower.ref_uri)
+            prep_session.begin_transaction()
+            for c in (pc_lay, pc_ref):
+                c.set_key(110); c.set_value('prepared'); c.insert()
+            pc_lay.close(); pc_ref.close()
+            prep_session.prepare_transaction('prepare_timestamp=%s,prepared_id=%s'
+                % (self.timestamp_str(prep_ts), self.prepared_id_str(1)))
+
+            # Reader covering the prepare: 110 conflicts on BOTH tables; 100 (no prepare) reads
+            # its committed value on both.
+            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts + 10))
+            self.assertEqual(self.psearch(follower.lay_c, 110), wiredtiger.WT_PREPARE_CONFLICT)
+            self.assertEqual(self.psearch(follower.ref_c, 110), wiredtiger.WT_PREPARE_CONFLICT)
+            self.assertEqual(self.psearch(follower.lay_c, 100), 0)
+            self.assertEqual(self.psearch(follower.ref_c, 100), 0)
+            self.assertEqual(follower.lay_c.get_value(), follower.ref_c.get_value())
+            follower.reset_all(); follower.session.rollback_transaction()
+
+            # Reading below the prepare timestamp sees the committed base, no conflict, on both.
+            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts - 1))
+            for cur in (follower.lay_c, follower.ref_c):
+                self.assertEqual(self.psearch(cur, 110), 0)
+                self.assertEqual(cur.get_value(), 'base')
+            follower.reset_all(); follower.session.rollback_transaction()
+
+            # Commit the prepared txn; a read at/above the commit timestamp sees the new value.
+            commit_ts = prep_ts + 5
+            prep_session.commit_transaction('commit_timestamp=%s,durable_timestamp=%s'
+                % (self.timestamp_str(commit_ts), self.timestamp_str(commit_ts)))
+            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(commit_ts + 5))
+            for cur in (follower.lay_c, follower.ref_c):
+                self.assertEqual(self.psearch(cur, 110), 0)
+                self.assertEqual(cur.get_value(), 'prepared')
+            follower.reset_all(); follower.session.rollback_transaction()
+        finally:
+            prep_session.close()
+            for n in nodes:
+                n.close()
+
+    def test_scenario_prepare_conflict_iterate(self):
+        # C4/C5: forward iteration that walks into a prepared ingest key must surface
+        # WT_PREPARE_CONFLICT at that key on the layered cursor exactly as on the plain reference
+        # (exercising the iterate-vs-prepare merge in cur_layered.c). After the prepared txn rolls
+        # back, the SAME cursor keeps working and iteration completes with all base keys (C5).
+        self.setup_connections()
+        nodes = self.make_nodes('prepi')
+        leader, follower = nodes
+        prep_session = self.conn_follow.open_session('')
+        try:
+            for k in (100, 110, 120):
+                self.mirror_write(nodes, k, 'base'); self.live[k] = 'x'
+            self.advance()
+            self.drain_ingest(follower)
+            for n in nodes:
+                n.reset_all()
+            prep_ts = self.ts + 100
+
+            # Prepare a remove of the middle key 110 into the ingest and the reference table.
+            pc_lay = prep_session.open_cursor(follower.lay_uri)
+            pc_ref = prep_session.open_cursor(follower.ref_uri)
+            prep_session.begin_transaction()
+            for c in (pc_lay, pc_ref):
+                c.set_key(110); c.remove()
+            pc_lay.close(); pc_ref.close()
+            prep_session.prepare_transaction('prepare_timestamp=%s,prepared_id=%s'
+                % (self.timestamp_str(prep_ts), self.prepared_id_str(1)))
+
+            # Iterate forward under a reader covering the prepare: 100 is returned, then the walk
+            # conflicts at the prepared 110 -- identically on the layered and reference cursors.
+            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts + 10))
+            for cur in (follower.lay_c, follower.ref_c):
+                cur.reset()
+                self.assertEqual(self.prepare_safe(cur.next), 0)
+                self.assertEqual(cur.get_key(), 100)
+                self.assertEqual(self.prepare_safe(cur.next), wiredtiger.WT_PREPARE_CONFLICT)
+            follower.reset_all(); follower.session.rollback_transaction()
+
+            # C5 recovery: roll back the prepared remove; the same cursors iterate cleanly and
+            # return all base keys, layered == reference.
+            prep_session.rollback_transaction()
+            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts + 10))
+            self.assertEqual(self.scan(follower.lay_c, True),
+                             [(100, 'base'), (110, 'base'), (120, 'base')])
+            self.assertEqual(self.scan(follower.lay_c, True), self.scan(follower.ref_c, True))
+            follower.reset_all(); follower.session.rollback_transaction()
+        finally:
+            prep_session.close()
             for n in nodes:
                 n.close()

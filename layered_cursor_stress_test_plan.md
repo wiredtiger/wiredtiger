@@ -349,11 +349,40 @@ session/snapshot.)
       - Evidence: 5 tests green; across 10 seeds 19 read-committed + 15 read-uncommitted txns
         (12 of the read-uncommitted with real read chains), zero writes leaked into a read-only
         txn; as-of-T reads span ts 8–450.
-- [ ] C4. Multi-session prepared transactions left pending → drive `WT_PREPARE_CONFLICT`
-      deterministically; both tables must report it identically.
-- [ ] C5. Transaction-level error recovery: on `WT_PREPARE_CONFLICT` / `WT_ROLLBACK`, roll back
+- [x] C4. Multi-session prepared transactions left pending → drive `WT_PREPARE_CONFLICT`
+      deterministically; both tables must report it identically. **DONE (review pending).**
+      - Done as two deterministic scenarios (the "deterministically" requirement; weaving
+        multi-session prepare into the random chain reproducibly is a much larger lift — noted as
+        a candidate extension, not required). A SECOND follower session holds a prepared txn whose
+        update lands in the follower **ingest** (and the plain reference) — a real production
+        state (secondaries apply replicated prepares into ingest), consistent with the
+        replication model. The committed base is built normally (leader write → checkpoint →
+        advance → drain → stable-only on the follower), so the prepared ingest update **shadows a
+        committed stable value** — the rich merge case (`cur_layered.c` ~1150-1200: prepared
+        updates ignored on the stable cursor, the walk blocked by a prepared conflict on the
+        ingest cursor).
+      - `test_scenario_prepare_conflict_point`: a prepared update of 110 → point `search(110)`
+        returns `WT_PREPARE_CONFLICT` on BOTH layered and reference; `search(100)` (no prepare)
+        reads its committed value on both; a read **below** the prepare ts sees the base (no
+        conflict); after the prepared txn **commits** (commit+durable ts), a read above the
+        commit sees the new value — all layered==reference.
+      - `prepare_safe()` maps the Python-raised `WiredTigerError(WT_PREPARE_CONFLICT)` back to the
+        code so layered and reference reads compare uniformly (same convention as
+        `test_layered_prepare01.safe_next`). Note: in Python a prepared conflict is RAISED, not
+        returned like `WT_NOTFOUND`. Leader not separately asserted — its layered cursor reads
+        stable-only, so its prepare conflict is a plain-btree case already covered by the
+        reference-table baseline.
+      - Confirmed prepare works in this suite's connection config WITHOUT `precise_checkpoint`
+        (most `test_layered_prepare*` use it; not required here). Non-vacuous: if the conflict
+        were not raised, `assertEqual(0, WT_PREPARE_CONFLICT)` would fail.
+- [x] C5. Transaction-level error recovery: on `WT_PREPARE_CONFLICT` / `WT_ROLLBACK`, roll back
       the transaction and then keep reusing the same cursor (clean state); compare recovery
       behaviour layered-vs-reference. (Cursor-level `WT_NOTFOUND`/`WT_DUPLICATE_KEY` reuse is A7.)
+      **DONE (review pending).** `test_scenario_prepare_conflict_iterate`: forward iteration walks
+      to 100, then hits `WT_PREPARE_CONFLICT` at a prepared remove of 110 — identically on the
+      layered and reference cursors (the iterate-vs-prepare merge walk). The prepared txn is then
+      rolled back and the SAME cursors are reused: iteration completes and returns all base keys
+      (100,110,120), layered==reference.
 
 ### Phase D — Scenario injections (at seeded points)
 - [ ] D1. Evict 20/40/60/80/100% of ingest mid-cursor-life (`release_evict`).
