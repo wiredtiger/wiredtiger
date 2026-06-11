@@ -350,7 +350,10 @@ session/snapshot.)
         (12 of the read-uncommitted with real read chains), zero writes leaked into a read-only
         txn; as-of-T reads span ts 8–450.
 - [x] C4. Multi-session prepared transactions left pending → drive `WT_PREPARE_CONFLICT`
-      deterministically; both tables must report it identically. **DONE (review pending).**
+      deterministically; both tables must report it identically. **DONE + REVIEWED** (independent
+      agent: 1st pass CHANGES REQUESTED — caught that a single advance left the base in ingest so
+      the stable-shadow merge wasn't exercised; fixed (2-checkpoint base + `assert_stable_served`
+      guard, proven load-bearing); 2nd pass APPROVE. Built against current source incl. WT-17796.)
       - Done as two deterministic scenarios (the "deterministically" requirement; weaving
         multi-session prepare into the random chain reproducibly is a much larger lift — noted as
         a candidate extension, not required). A SECOND follower session holds a prepared txn whose
@@ -384,7 +387,7 @@ session/snapshot.)
 - [x] C5. Transaction-level error recovery: on `WT_PREPARE_CONFLICT` / `WT_ROLLBACK`, roll back
       the transaction and then keep reusing the same cursor (clean state); compare recovery
       behaviour layered-vs-reference. (Cursor-level `WT_NOTFOUND`/`WT_DUPLICATE_KEY` reuse is A7.)
-      **DONE (review pending).** `test_scenario_prepare_conflict_iterate`. **FINDING (for Ivan;
+      **DONE + REVIEWED (APPROVE).** `test_scenario_prepare_conflict_iterate`. **FINDING (for Ivan;
       likely by-design):** with the base correctly in stable, forward iteration into a prepared
       ingest key DIVERGES between layered and plain — LAYERED conflicts on the FIRST `next()` (the
       merge must position the ingest constituent, and a prepared key ANYWHERE in the ingest blocks
