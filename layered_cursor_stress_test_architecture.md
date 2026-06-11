@@ -99,12 +99,13 @@ oracle that never exercises the merge (guarded against, §8).
 
 ## 5. Determinism, tracing, replay
 
-One knob: an integer **seed** drives a `random.Random(seed)` (printed `SEED=<n>`). Every chosen op
-is appended to a per-seed **trace file** (`open_trace` / `EventTrace`), flushed each line, so a
-failure is a self-contained record. `STRESS_SEED=<n>` replays a single seed; under single-seed
-replay the aggregate coverage guards (§8) are skipped (they are multi-seed coverage heuristics, not
-per-chain invariants). No multithreading — multiple **sessions** in one thread create
-prepared-conflict scenarios without breaking reproducibility.
+An integer **seed** drives a `random.Random(seed)` (printed `SEED=<n>`). The seed set is **fixed**
+(`range(10)`), so a run is fully deterministic and a failure repeats on re-run. Every chosen op is
+appended to a per-seed **trace file** (`open_trace` / `EventTrace`), flushed each line, so a failure
+is a self-contained record; to dig into one failing seed, run it in a throwaway test calling
+`run_seed()` (there is intentionally no global single-seed replay knob). No multithreading —
+multiple **sessions** in one thread create prepared-conflict scenarios without breaking
+reproducibility.
 
 ---
 
@@ -161,7 +162,9 @@ autocommit (the checkpoint runs on the leader session, which must have no open t
 ## 8. Anti-degeneracy coverage guards (multi-seed)
 
 The oracle can pass *trivially* if the test never actually exercises the merge or the interesting
-ops. Guards (asserted after the multi-seed run; skipped under single-seed replay):
+ops. `assert_self_coverage` bundles these as a **self-check** run after the multi-seed `test_random`
+(a meta-assertion that the *test* did its job — a failure means a coverage regression, not a product
+bug). The checks:
 
 - `assert_merge_exercised` — the follower must read from **stable** ≥ 10% of follower reads (else
   it's an ingest-only degenerate oracle). Reads the `layered_curs_*_{stable,ingest}` stats.
@@ -211,8 +214,8 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 **D. Checkpoint lifecycle**
 - `advance` · `drain_ingest`
 
-**E. Stats / anti-degeneracy**
-- `follower_read_split` · `assert_merge_exercised`
+**E. Stats / anti-degeneracy (self-checks)**
+- `follower_read_split` · `assert_merge_exercised` · `assert_self_coverage`
 
 **F. Read application & the oracle**
 - `apply` · `compare_read` · `compare_search_near` · `fail_mismatch`
@@ -224,7 +227,7 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 - `pick_op` · `pick_search_key`
 
 **I. The driver**
-- `open_trace` · `run_seed` · `replaying_single_seed` · `seeds_for`
+- `open_trace` · `run_seed`
 
 **J. Tests (top level)** — only the seed-driven stress tests; a standalone scenario is kept
 **only** if it pins a known layered-vs-regular *mismatch* (none currently do, so there are none).
@@ -237,6 +240,5 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 ```
 # build dir configured with -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1
 cd build
-python3 ../test/suite/run.py test_layered_cursor_stress          # all 7 tests
-STRESS_SEED=9 python3 ../test/suite/run.py test_layered_cursor_stress   # replay one seed
+python3 ../test/suite/run.py test_layered_cursor_stress          # all 3 tests (deterministic)
 ```
