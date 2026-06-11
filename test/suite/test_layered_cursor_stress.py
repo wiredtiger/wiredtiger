@@ -133,6 +133,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             s.create(ref, cfg)
         self.live = {}     # logical key->value, for operation generation only (not the oracle)
         self.cur_pos = None  # key both cursor pairs are positioned on (None = unpositioned)
+        self.in_txn = False       # an explicit transaction is open on both nodes' sessions
+        self.txn_wrote = False    # the open txn has performed at least one write
+        self.live_snapshot = None  # self.live as of begin, restored on rollback
         return [Node(self.conn, self.session, lay, ref),
                 Node(self.conn_follow, self.session_follow, lay, ref)]
 
@@ -142,55 +145,89 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.wseq += 1
         return 'v%d.%d' % (key, self.wseq)
 
+    def _write_pair(self, n, key, value):
+        # Bare write (no txn management) on node n's layered + reference cursors; compare codes.
+        if value is None:
+            n.lay_c.set_key(key); rl = n.lay_c.remove()
+            n.ref_c.set_key(key); rr = n.ref_c.remove()
+        else:
+            n.lay_c.set_key(key); n.lay_c.set_value(value); rl = n.lay_c.insert()
+            n.ref_c.set_key(key); n.ref_c.set_value(value); rr = n.ref_c.insert()
+        # Under overwrite=true these are (0,0); the equality compare catches a layered-vs-
+        # reference divergence once overwrite=false / prepare land.
+        self.assertEqual(rl, rr,
+            'write result differs layered=%r reference=%r (key=%r value=%r)' % (rl, rr, key, value))
+
     def mirror_write(self, nodes, key, value):
-        # value=None means remove. Applied through the shared cursors to BOTH tables on BOTH
-        # connections at one timestamp; on the leader the layered write lands in stable, on the
-        # follower in ingest. The reference mirrors the same logical change. The write result
-        # (return code) is compared layered-vs-reference -- a write op checked like a read op.
-        self.ts += 1
-        for n in nodes:
-            n.session.begin_transaction()
-            if value is None:
-                n.lay_c.set_key(key); rl = n.lay_c.remove()
-                n.ref_c.set_key(key); rr = n.ref_c.remove()
-            else:
-                n.lay_c.set_key(key); n.lay_c.set_value(value); rl = n.lay_c.insert()
-                n.ref_c.set_key(key); n.ref_c.set_value(value); rr = n.ref_c.insert()
-            n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts))
-            # Forward-looking guard: under overwrite=true these are always (0, 0), so this only
-            # catches a real layered-vs-reference divergence once overwrite=false / prepare land
-            # (Phase E / C). An unexpected rollback-required code surfaces at commit, not here.
-            self.assertEqual(rl, rr,
-                'write result differs layered=%r reference=%r (key=%r value=%r)' % (rl, rr, key, value))
-        self.dirty = True
+        # value=None means remove. On both connections (leader -> stable, follower -> ingest)
+        # and the reference table. Inside an explicit transaction the write joins the open txn
+        # (committed later by the commit op); otherwise it runs in its own timestamped txn.
+        if self.in_txn:
+            for n in nodes:
+                self._write_pair(n, key, value)
+            self.txn_wrote = True
+        else:
+            self.ts += 1
+            for n in nodes:
+                n.session.begin_transaction()
+                self._write_pair(n, key, value)
+                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts))
+            self.dirty = True
+
+    def _positional_pair(self, n, kind, value, key):
+        if kind == 'pos_update':
+            n.lay_c.set_value(value); rl = n.lay_c.update()
+            n.ref_c.set_value(value); rr = n.ref_c.update()
+        else:   # pos_remove
+            rl = n.lay_c.remove()
+            rr = n.ref_c.remove()
+        self.assertEqual(rl, rr, 'positional %s result differs layered=%r reference=%r at key=%r'
+                         % (kind, rl, rr, key))
 
     def apply_positional(self, nodes, kind, value):
-        # Positional update/remove on the cursor's current key (self.cur_pos, which must be
-        # live). The positioning value cached by a prior autocommit read is not valid inside a
-        # new transaction, so we re-establish the position with a search() in the write txn;
-        # this drives the *positioned* remove/update path (cur_layered.c ~2166), distinct from
-        # the set_key (unpositioned) write path. The layered and reference codes are compared.
+        # Positional update/remove on the cursor's current key (self.cur_pos, which must be live).
+        # Inside an explicit txn the positioning read and this write share the transaction, so
+        # the cursor is genuinely positioned (KEY_INT|VALUE_INT) and we write DIRECTLY -- the
+        # real iterate-and-delete-in-one-txn. In autocommit the positioning value is not valid
+        # across the implicit txn boundary (WT-17796), so we re-search to re-establish position.
         key = self.cur_pos
-        self.ts += 1
-        for n in nodes:
-            n.session.begin_transaction()
-            n.lay_c.set_key(key); rl_s = n.lay_c.search()
-            n.ref_c.set_key(key); rr_s = n.ref_c.search()
-            # The re-search must succeed on both (key is live); otherwise the layered cursor
-            # would be left unpositioned and the write would silently take the wrong path.
-            self.assertEqual((rl_s, rr_s), (0, 0),
-                'positional %s re-search failed layered=%r reference=%r key=%r' % (kind, rl_s, rr_s, key))
-            if kind == 'pos_update':
-                n.lay_c.set_value(value); rl = n.lay_c.update()
-                n.ref_c.set_value(value); rr = n.ref_c.update()
-            else:   # pos_remove
-                rl = n.lay_c.remove()
-                rr = n.ref_c.remove()
-            n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts))
-            self.assertEqual(rl, rr, 'positional %s result differs layered=%r reference=%r at key=%r'
-                             % (kind, rl, rr, key))
+        if self.in_txn:
+            for n in nodes:
+                self._positional_pair(n, kind, value, key)
+            self.txn_wrote = True
+        else:
+            self.ts += 1
+            for n in nodes:
+                n.session.begin_transaction()
+                n.lay_c.set_key(key); rl_s = n.lay_c.search()
+                n.ref_c.set_key(key); rr_s = n.ref_c.search()
+                self.assertEqual((rl_s, rr_s), (0, 0),
+                    'positional %s re-search failed layered=%r reference=%r key=%r' % (kind, rl_s, rr_s, key))
+                self._positional_pair(n, kind, value, key)
+                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts))
+            self.dirty = True
         self.n_positional += 1
-        self.dirty = True
+
+    def _end_txn(self, nodes, commit):
+        # Close the explicit transaction open on both nodes' sessions.
+        if commit:
+            if self.txn_wrote:
+                self.ts += 1
+                cts = 'commit_timestamp=' + self.timestamp_str(self.ts)
+                for n in nodes:
+                    n.session.commit_transaction(cts)
+                self.dirty = True
+            else:
+                for n in nodes:
+                    n.session.commit_transaction()
+            # A successful commit keeps cursors positioned (cur_pos survives the txn switch).
+        else:
+            for n in nodes:
+                n.session.rollback_transaction()
+            self.live = self.live_snapshot   # undo the txn's logical writes
+            self.cur_pos = None              # rollback resets the session's cursors
+        self.in_txn = False
+        self.txn_wrote = False
 
     def advance(self):
         # Fold the leader's stable into the follower's stable via a new checkpoint. Skip if
@@ -344,25 +381,39 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # next/prev and positional update/remove heavily; keep position-resetting ops
         # (set_key put/remove, reset) rare. advance/evict punctuate chains (checkpoint
         # lifecycle). When unpositioned, use the ops that re-establish a position.
-        if allow_writes:
-            if self.cur_pos is not None and self.cur_pos in self.live:
-                kinds   = ['next', 'prev', 'pos_update', 'pos_remove', 'search', 'search_near',
-                           'advance', 'evict', 'put', 'remove', 'reset']
-                weights = [24, 24, 14, 8, 6, 6, 3, 4, 2, 1, 1]
-            else:
-                kinds   = ['search', 'search_near', 'next', 'prev', 'put', 'advance', 'evict', 'reset']
-                weights = [16, 12, 20, 20, 14, 3, 4, 2]
-        else:
+        #
+        # Transactions: 'begin' is only legal in autocommit; 'commit'/'rollback' only with an
+        # open txn; advance/evict (checkpoint lifecycle) only in autocommit. Inside a txn,
+        # positional writes are the genuine same-transaction iterate-and-delete (apply_positional).
+        positioned = self.cur_pos is not None and self.cur_pos in self.live
+        if not allow_writes:
             kinds   = ['search', 'search_near', 'next', 'prev', 'reset']
             weights = [15, 12, 20, 20, 6]
+        elif self.in_txn:
+            if positioned:
+                kinds   = ['next', 'prev', 'pos_update', 'pos_remove', 'search', 'search_near',
+                           'put', 'remove', 'reset', 'commit', 'rollback']
+                weights = [20, 20, 14, 9, 6, 6, 3, 2, 1, 12, 5]
+            else:
+                kinds   = ['search', 'search_near', 'next', 'prev', 'put', 'remove', 'reset',
+                           'commit', 'rollback']
+                weights = [14, 11, 18, 18, 12, 3, 2, 12, 5]
+        else:
+            if positioned:
+                kinds   = ['next', 'prev', 'pos_update', 'pos_remove', 'search', 'search_near',
+                           'advance', 'evict', 'put', 'remove', 'reset', 'begin']
+                weights = [22, 22, 12, 7, 6, 6, 3, 4, 2, 1, 1, 5]
+            else:
+                kinds   = ['search', 'search_near', 'next', 'prev', 'put', 'advance', 'evict',
+                           'reset', 'begin']
+                weights = [16, 12, 20, 20, 12, 3, 4, 2, 5]
         kind = rnd.choices(kinds, weights=weights, k=1)[0]
         if kind == 'put':
             return ('put', rnd.choice(self.POOL))
         if kind == 'remove':
             return ('remove', rnd.choice(list(self.live))) if self.live else ('reset', None)
-        if kind == 'evict':
-            return ('evict', None)
-        if kind in ('advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
+        if kind in ('evict', 'begin', 'commit', 'rollback',
+                    'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
             return (kind, None)
         return (kind, self.pick_search_key(rnd))
 
@@ -409,6 +460,23 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     # Removes the current key; the cursor stays on the (now deleted) slot.
                     self.apply_positional(nodes, 'pos_remove', None)
                     self.live.pop(self.cur_pos, None)
+                elif kind == 'begin':
+                    # Open one explicit transaction per node; subsequent writes join it and
+                    # commit atomically at the commit op. Snapshot logical state for rollback.
+                    for n in nodes:
+                        n.session.begin_transaction()
+                    self.in_txn = True
+                    self.txn_wrote = False
+                    self.live_snapshot = dict(self.live)
+                    # The cursor stays physically positioned so next/prev keep iterating across
+                    # the switch, but a positional WRITE must be re-established by a read inside
+                    # this txn -- a positional write off a pre-txn position is the cross-txn
+                    # positioned-remove (WT-17796). Clear the generator's position to enforce that.
+                    self.cur_pos = None
+                elif kind == 'commit':
+                    self._end_txn(nodes, commit=True)
+                elif kind == 'rollback':
+                    self._end_txn(nodes, commit=False)
                 elif kind in ('advance', 'evict'):
                     # Checkpoint ops release any pinned snapshot first (reset cursors).
                     for n in nodes:
@@ -418,10 +486,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                         self.drain_ingest(follower)
                     self.cur_pos = None
                 else:   # read op: track the resulting position for the next chain step
-                    r = (wiredtiger.WT_NOTFOUND, None, None, None)
-                    for n in nodes:
-                        r = self.compare_read(op, n, trace)
-                    self.cur_pos = r[1] if r[0] == 0 else None
+                    lead, foll = (self.compare_read(op, nodes[0], trace),
+                                  self.compare_read(op, nodes[1], trace))
+                    # cur_pos anchors a positional write, which inside a txn operates on each
+                    # cursor's CURRENT position directly. That is only valid when leader and
+                    # follower ended on the same key: search_near may legitimately land them on
+                    # different (both valid) neighbours, so don't anchor a positional write there.
+                    if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
+                        self.cur_pos = lead[1]
+                    else:
+                        self.cur_pos = None
+            if self.in_txn:
+                # Close any transaction left open at the end of the chain before verifying.
+                self._end_txn(nodes, commit=True)
             self.verify(nodes, trace)
         finally:
             for n in nodes:

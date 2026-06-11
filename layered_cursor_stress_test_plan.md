@@ -270,8 +270,33 @@ session/snapshot.)
   forward-looking write-rc compare, the merge floor) — cited contracts, no repro warranted.
 
 ### Phase C — Transactions, timestamps, isolation
-- [ ] C1. begin/commit/rollback applied at session level; cursors survive a txn switch
-      mid-chain (commit/rollback in the middle, not just at the end).
+- [x] C1. begin/commit/rollback applied at session level; cursors survive a txn switch
+      mid-chain (commit/rollback in the middle, not just at the end). **DONE (review pending).**
+      - `pick_op` is now txn-aware: `begin` only in autocommit; `commit`/`rollback` only with a
+        txn open; advance/evict (checkpoint lifecycle) only in autocommit. A txn left open at
+        the end of a chain is committed before `verify`.
+      - Writes (`mirror_write`) and positional writes (`apply_positional`) participate in the
+        open txn when `in_txn` (bare cursor ops; one shared `commit_timestamp` applied at the
+        commit op), else keep the per-op autocommit begin/commit. `_end_txn` handles commit
+        (bump ts + commit at it iff the txn wrote; cursors stay positioned) vs rollback
+        (rollback both sessions, restore `self.live` from a begin-time snapshot, cursors reset).
+      - **Genuine same-txn iterate-and-delete (the Phase B gap):** an in-txn positional write is
+        DIRECT (no re-search) — the positioning read and the write share the transaction, so the
+        cursor is truly positioned (KEY_INT|VALUE_INT) and update/remove operate on the current
+        position. Autocommit positional writes still re-search (WT-17796 cross-txn hazard).
+      - **Two cross-txn hazards fixed during C1:**
+        (a) `begin` clears the generator's `cur_pos` — a positional write off a pre-txn position
+        would be the WT-17796 cross-txn positioned-remove; the physical cursor stays positioned
+        so next/prev keep iterating across the switch, but a positional WRITE must be
+        re-established by an in-txn read first.
+        (b) `cur_pos` is now anchored only when leader AND follower ended on the **same** key.
+        A DIRECT in-txn positional write operates on each cursor's current position; `search_near`
+        may legitimately land leader and follower on different (both valid) neighbours, which
+        would diverge the two reference tables. (Found by the oracle on first run, seed r1 —
+        not a product bug, the documented search_near neighbour non-determinism across the
+        ingest+stable split vs stable-only leader.)
+      - Evidence (10 random seeds × 300 ops, green): 127 begins / 83 commits / 43 rollbacks;
+        85 in-txn DIRECT positional writes; merge + n_positional guards still hold.
 - [ ] C2. `read_timestamp` variants — reference (plain WT) and layered must agree on the
       as-of-T view. **PREREQUISITE (A10 review finding):** `advance()` currently pins
       `oldest_timestamp = stable_timestamp = ts`, so no read below the latest commit is legal
