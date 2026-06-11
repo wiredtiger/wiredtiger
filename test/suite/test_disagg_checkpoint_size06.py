@@ -113,9 +113,12 @@ class test_disagg_checkpoint_size06(wttest.WiredTigerTestCase):
     #   6. Checkpoint  wrapup calls obsolete_delta_chain, cumulative_size subtracted.
     #   7. Restore delta_pct=90 for the next cycle.
     #
-    # Without the WT-16864 fix this sequence leaks the cumulative_size on the cycle where
-    # the error path would have been triggered; with the fix the size should track closely
-    # to a stable baseline reflecting only live data.
+    # This test runs multiple cycles of this sequence to verify that the
+    # checkpoint size stabilizes and does not grow by multiples per cycle,
+    # which would indicate a leak of the cumulative_size.
+    # At the moment the leak doesn't occur even without the WT-16864 fix,
+    # due to the workaround in place to circumvent the issue.
+    # This test is designed to validate the WT-16864 fix.
     def test_size_stable_through_delta_full_image_cycles(self):
         nrows = 20
         ncycles = 5
