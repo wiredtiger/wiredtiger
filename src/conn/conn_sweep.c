@@ -531,9 +531,14 @@ __sweep_server(void *arg)
           __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
             WT_DSK_CACHE_READONLY &&
           now - __wt_atomic_load_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since) >
-            WT_DISAGG_OUTDATED_GRACE_SECS)
-            (void)__wt_atomic_cas_uint8(
-              &conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY, WT_DSK_CACHE_DEAD);
+            WT_DISAGG_OUTDATED_GRACE_SECS) {
+            /* A failed swap means a concurrent step-down reactivated the cache, leave it alone. */
+            if (!__wt_atomic_cas_uint8(
+                  &conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY, WT_DSK_CACHE_DEAD))
+                WT_ASSERT(session,
+                  WT_DSK_CACHE_READABLE(
+                    __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state)));
+        }
 
         /* Remember the last sweep time. */
         last = now;

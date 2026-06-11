@@ -1683,8 +1683,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state) == WT_DSK_CACHE_ACTIVE);
     __wt_seconds(session, &now);
     __wt_atomic_store_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since, now);
-    WT_RELEASE_BARRIER();
-    __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY);
+    __wt_atomic_store_uint8_release(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY);
 
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
@@ -1769,10 +1768,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
           __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
 
     WT_ASSERT(session, shared_dsk_cache->hash != NULL);
-    if (shared_dsk_cache->hash != NULL) {
-        WT_RELEASE_BARRIER();
-        __wt_atomic_store_uint8_relaxed(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
-    }
+    if (shared_dsk_cache->hash != NULL)
+        __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
 }
 
 /*
