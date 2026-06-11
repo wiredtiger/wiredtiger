@@ -29,8 +29,8 @@ import wiredtiger, wttest
 
 # test_baseconfig02.py
 #    Early-load extensions are loaded before WiredTiger.basecfg is read, so an entry persisted in
-#    basecfg cannot be replayed from there on reopen. wiredtiger_open must log a warning when the
-#    open configuration omits an early-load extension recorded in basecfg.
+#    basecfg cannot be replayed from there on reopen. By default the missing extension is reported
+#    only under verbose=[configuration]; with extensions_strict, wiredtiger_open fails instead.
 @wttest.skip_for_hook("disagg", "hook always passes extensions, shadowing basecfg")
 @wttest.skip_for_hook("tiered", "hook always passes extensions, shadowing basecfg")
 class test_baseconfig02(wttest.WiredTigerTestCase):
@@ -44,16 +44,16 @@ class test_baseconfig02(wttest.WiredTigerTestCase):
             extlist.extension('encryptors', 'rotn')
 
     def test_baseconfig02(self):
-        # Default (relaxed) reopen without the extension: warning logged, open succeeds.
+        # Without the extension, the missing entry is reported under verbose=[configuration].
         self.include_extension = False
         with self.expectedStdoutPattern('early_load=true extension .* was not passed in the open configuration'):
-            self.reopen_conn()
+            self.reopen_conn(config='verbose=[configuration]')
 
         # Strict reopen without the extension: wiredtiger_open must fail with EINVAL.
         with self.expectedStderrPattern('early_load=true extension .* was not passed in the open configuration'):
             self.assertRaises(wiredtiger.WiredTigerError,
               lambda: self.reopen_conn(config='extensions_strict=true'))
 
-        # Reopen with the extension; nothing should be logged.
+        # Reopen with the extension; should succeed.
         self.include_extension = True
         self.reopen_conn()

@@ -1104,8 +1104,9 @@ err:
 
 /*
  * __conn_check_early_load_extensions --
- *     Detect every early_load=true extension in the base configuration file that was not also
- *     passed to the open call.
+ *     Detect every early_load=true extension recorded in the base configuration file that was not
+ *     also passed to the open call. With extensions_strict the open fails with EINVAL; otherwise it
+ *     logs a message and continues with the extension absent.
  */
 static int
 __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1144,7 +1145,7 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
                   "early_load=true extension \"%.*s\" was not passed in the open configuration",
                   (int)skey.len, skey.str);
             else
-                __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
+                __wt_verbose_debug1(session, WT_VERB_CONFIGURATION,
                   "early_load=true extension \"%.*s\" was not passed in the open configuration",
                   (int)skey.len, skey.str);
         }
@@ -3476,9 +3477,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
 
-    /* Verify that the early-loaded extensions in basecfg were also passed in. */
-    WT_ERR(__conn_check_early_load_extensions(session, cfg));
-
     /*
      * Read-only and in-memory settings may have been set in a configuration file (not optimal, but
      * we can handle it). Get those settings again so we can override other configuration settings
@@ -3526,6 +3524,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
     WT_ERR(__wti_json_config(session, cfg, false));
     WT_ERR(__wt_verbose_config(session, cfg, false));
+
+    /* Verify that the early-loaded extensions in basecfg were also passed in. */
+    WT_ERR(__conn_check_early_load_extensions(session, cfg));
+
     WT_ERR(__wti_timing_stress_config(session, cfg));
     WT_ERR(__wti_disagg_debug_mode_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
