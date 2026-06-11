@@ -271,7 +271,13 @@ session/snapshot.)
 
 ### Phase C — Transactions, timestamps, isolation
 - [x] C1. begin/commit/rollback applied at session level; cursors survive a txn switch
-      mid-chain (commit/rollback in the middle, not just at the end). **DONE (review pending).**
+      mid-chain (commit/rollback in the middle, not just at the end). **DONE + REVIEWED**
+      (independent agent: APPROVE WITH NITS; all 5 design-intent points confirmed, txn state
+      machine / timestamp monotonicity / both cross-txn guards / rollback restore all verified).
+      Review fixes applied: aggregate coverage guards (assert_merge_exercised, n_positional>0)
+      now skipped under single-seed `STRESS_SEED` replay (they false-failed seed 9 on the 10%
+      stable-read floor — a multi-seed coverage heuristic, not a per-chain invariant); finally
+      now rolls back a txn left open by a mid-chain failure; `live_snapshot` cleared after use.
       - `pick_op` is now txn-aware: `begin` only in autocommit; `commit`/`rollback` only with a
         txn open; advance/evict (checkpoint lifecycle) only in autocommit. A txn left open at
         the end of a chain is committed before `verify`.
