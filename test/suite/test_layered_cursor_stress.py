@@ -39,10 +39,10 @@
 # table from stable only; the follower merges ingest + stable -- so the follower exercises
 # the merge while both are checked against the same logical truth.
 #
-# Reproducibility: every run is driven by an integer seed (printed as SEED=<n>). Set the
-# environment variable STRESS_SEED=<n> to replay a single seed. Every chosen event is
-# appended to a per-seed trace file (path printed at start and on failure), flushed each
-# step, so a failure is a self-contained record.
+# Reproducibility: the seed set is fixed, so a run is fully deterministic and a failure repeats
+# on re-run (the failing seed is printed as SEED=<n>). Every chosen event is appended to a
+# per-seed trace file (path printed at start and on failure), flushed each step, so a failure is
+# a self-contained record; to dig into one seed, run it in a throwaway test calling run_seed().
 
 import os, random
 import wiredtiger, wttest
@@ -302,6 +302,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertGreater(total, 0, 'no follower layered reads at all')
         self.assertGreaterEqual(stable * 10, total,
             'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
+
+    def assert_self_coverage(self):
+        # Self-check, NOT a product assertion: confirm the random run actually exercised the
+        # surface it is meant to -- the stable+ingest merge, long-lived positional chains,
+        # read_timestamp (as-of-past) reads, and both non-snapshot isolation levels. It guards
+        # against a degenerate run where the oracle passes only because nothing interesting
+        # happened. A failure here means the TEST stopped covering a dimension (it is no longer
+        # doing its job), not that the product is wrong.
+        self.assert_merge_exercised()
+        self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
+        self.assertGreater(self.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
+        self.assertGreater(self.n_iso_rc, 0, 'no read-committed txns were exercised')
+        self.assertGreater(self.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
 
     # --- read application + comparison -----------------------------------
 
@@ -586,13 +599,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 n.close()
             trace.close()
 
-    def replaying_single_seed(self):
-        return bool(os.environ.get('STRESS_SEED'))
-
-    def seeds_for(self, default_seeds):
-        env = os.environ.get('STRESS_SEED')
-        return [int(env)] if env else default_seeds
-
     # --- tests -----------------------------------------------------------
 
     def test_smoke(self):
@@ -622,7 +628,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertEqual(self.scan(follower.lay_c, True), self.scan(follower.ref_c, True))
         trace = self.open_trace(0, 'ro')
         try:
-            for seed in self.seeds_for(range(10)):
+            for seed in range(10):
                 rnd = random.Random(seed)
                 trace.note('seed=%d' % seed)
                 for _ in range(300):
@@ -635,26 +641,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             for n in nodes:
                 n.close()
             trace.close()
-        if not self.replaying_single_seed():
-            # The follower genuinely read from stable (A keys), not ingest-only. (Aggregate
-            # coverage guard; skipped under a single-seed replay -- see test_random.)
-            self.assert_merge_exercised()
+        # Self-check: the follower genuinely read from stable (A keys), not ingest-only.
+        self.assert_merge_exercised()
 
     def test_random(self):
         # Mixed read/write/advance/evict sequences, fresh tables per seed, start empty.
         self.setup_connections()
-        for seed in self.seeds_for(range(10)):
+        for seed in range(10):
             self.run_seed(seed=seed, tag='r%d' % seed, n_ops=300, allow_writes=True)
-        if not self.replaying_single_seed():
-            # Aggregate coverage guards over the full multi-seed run -- not invariants of any
-            # single chain, so skip them under a pinned-seed replay (STRESS_SEED), whose purpose
-            # is reproducing one specific sequence, not exercising the whole coverage surface.
-            # Guard against a degenerate oracle: the follower must actually read from stable.
-            self.assert_merge_exercised()
-            # Long-lived chains must actually run positional update/remove (not all gated out).
-            self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
-            # As-of-past (read_timestamp) read transactions must actually be exercised.
-            self.assertGreater(self.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
-            # Both non-snapshot isolation levels must actually be exercised (C3).
-            self.assertGreater(self.n_iso_rc, 0, 'no read-committed txns were exercised')
-            self.assertGreater(self.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
+        # Self-check that the run actually exercised the surface (not a product assertion).
+        self.assert_self_coverage()
