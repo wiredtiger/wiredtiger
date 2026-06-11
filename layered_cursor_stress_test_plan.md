@@ -375,14 +375,29 @@ session/snapshot.)
       - Confirmed prepare works in this suite's connection config WITHOUT `precise_checkpoint`
         (most `test_layered_prepare*` use it; not required here). Non-vacuous: if the conflict
         were not raised, `assertEqual(0, WT_PREPARE_CONFLICT)` would fail.
+      - **REVIEW-FOUND (fixed):** the first cut advanced the checkpoint only ONCE before the drain,
+        which (A10) leaves the base in INGEST, not stable — so "prepared ingest shadows a committed
+        STABLE value" was not actually exercised (it passed, but for the wrong reason). Fixed:
+        build the base across TWO checkpoints (a second dirty round) and add `assert_stable_served()`
+        (a follower point search whose `follower_read_split` delta must be stable, not ingest) as a
+        guard so the scenario fails if the drain ever silently regresses to ingest-only.
 - [x] C5. Transaction-level error recovery: on `WT_PREPARE_CONFLICT` / `WT_ROLLBACK`, roll back
       the transaction and then keep reusing the same cursor (clean state); compare recovery
       behaviour layered-vs-reference. (Cursor-level `WT_NOTFOUND`/`WT_DUPLICATE_KEY` reuse is A7.)
-      **DONE (review pending).** `test_scenario_prepare_conflict_iterate`: forward iteration walks
-      to 100, then hits `WT_PREPARE_CONFLICT` at a prepared remove of 110 — identically on the
-      layered and reference cursors (the iterate-vs-prepare merge walk). The prepared txn is then
-      rolled back and the SAME cursors are reused: iteration completes and returns all base keys
-      (100,110,120), layered==reference.
+      **DONE (review pending).** `test_scenario_prepare_conflict_iterate`. **FINDING (for Ivan;
+      likely by-design):** with the base correctly in stable, forward iteration into a prepared
+      ingest key DIVERGES between layered and plain — LAYERED conflicts on the FIRST `next()` (the
+      merge must position the ingest constituent, and a prepared key ANYWHERE in the ingest blocks
+      the walk from the start, even though 100<110 is committed in stable and sorts first), while
+      the PLAIN reference returns 100 first and only conflicts when it REACHES 110. This matches the
+      existing regression `test_layered_prepare01` (its 'middle' scenario asserts first-`next()`
+      conflict) and `cur_layered.c` ~1164 ("the cursor walk must be blocked by a prepared conflict
+      on the ingest cursor"), so it is almost certainly intended layered semantics — surfaced via a
+      minimal standalone repro `findings/repro_prepare_iterate_layered_vs_plain.py` for Ivan's
+      verdict. The scenario asserts each side's actual behaviour (NOT a layered==reference oracle at
+      the conflict point — a legitimate layered-vs-plain difference, like snapshot pinning). The C5
+      recovery oracle still holds: after the prepared txn rolls back, the SAME cursors are reused and
+      iteration completes with all base keys (100,110,120), layered==reference.
 
 ### Phase D — Scenario injections (at seeded points)
 - [ ] D1. Evict 20/40/60/80/100% of ingest mid-cursor-life (`release_evict`).

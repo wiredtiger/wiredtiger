@@ -303,6 +303,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(stable * 10, total,
             'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
 
+    def assert_stable_served(self, node, key):
+        # Confirm a follower layered point search of `key` is served from STABLE, not ingest --
+        # i.e. the drain really pushed the committed base down to stable. Guards the prepare
+        # scenarios against silently regressing to an ingest-only base (which would defeat the
+        # "prepared ingest update shadows a committed stable value" merge case): a single advance
+        # before the drain leaves the base in ingest (the prune needs >= 2 checkpoints, A10).
+        before = self.follower_read_split()
+        node.lay_c.set_key(key)
+        self.assertEqual(node.lay_c.search(), 0)
+        node.lay_c.reset()
+        after = self.follower_read_split()
+        d_stable, d_ingest = after[0] - before[0], after[1] - before[1]
+        self.assertTrue(d_stable >= 1 and d_ingest == 0,
+            'base key %d not stable-served (stable +%d, ingest +%d): drain did not reach stable'
+            % (key, d_stable, d_ingest))
+
     # --- read application + comparison -----------------------------------
 
     def apply(self, cursor, op):
@@ -743,12 +759,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         leader, follower = nodes
         prep_session = self.conn_follow.open_session('')
         try:
-            for k in (100, 110, 120):              # committed base -> follower stable, reference
+            # Committed base -> follower stable + reference. Two checkpoints (with a dirty write
+            # between) are required for the drain to prune the base out of ingest into stable
+            # (A10); a single advance leaves it in ingest and the merge case is not exercised.
+            for k in (100, 110, 120):
                 self.mirror_write(nodes, k, 'base'); self.live[k] = 'x'
-            self.advance()
-            self.drain_ingest(follower)            # 110 base is now stable-only on the follower
+            self.advance()                         # checkpoint 1 holds the base
+            for k in (100, 110, 120):              # second dirty round -> a newer checkpoint
+                self.mirror_write(nodes, k, 'base')
+            self.advance()                         # checkpoint 2: base now durable in stable
+            self.drain_ingest(follower)            # prune base from ingest -> stable-only
             for n in nodes:
                 n.reset_all()
+            self.assert_stable_served(follower, 110)  # the prepared update will shadow STABLE
             base_ts = self.ts
             prep_ts = base_ts + 100
 
@@ -795,21 +818,32 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 n.close()
 
     def test_scenario_prepare_conflict_iterate(self):
-        # C4/C5: forward iteration that walks into a prepared ingest key must surface
-        # WT_PREPARE_CONFLICT at that key on the layered cursor exactly as on the plain reference
-        # (exercising the iterate-vs-prepare merge in cur_layered.c). After the prepared txn rolls
-        # back, the SAME cursor keeps working and iteration completes with all base keys (C5).
+        # C4/C5: forward iteration into a prepared ingest key. A layered cursor and a plain table
+        # differ here -- a DOCUMENTED layered semantic (see test_layered_prepare01, cur_layered.c
+        # ~1164: "the cursor walk must be blocked by a prepared conflict on the ingest cursor"),
+        # surfaced for Ivan's confirmation (findings/repro_prepare_iterate_layered_vs_plain.py):
+        #   * LAYERED: the merge must position the ingest constituent first, so a prepared key
+        #     ANYWHERE in the ingest blocks the walk from the FIRST next() -- even though 100<110
+        #     is committed in stable and would sort first.
+        #   * PLAIN reference: returns 100 first and only conflicts when iteration REACHES 110.
+        # So the conflict-point oracle is layered != reference here (a legitimate difference, like
+        # the snapshot-pinning case). The recovery oracle (post-rollback, no prepare) still holds.
         self.setup_connections()
         nodes = self.make_nodes('prepi')
         leader, follower = nodes
         prep_session = self.conn_follow.open_session('')
         try:
+            # Two checkpoints so the drain pushes the base into stable (see point scenario / A10).
             for k in (100, 110, 120):
                 self.mirror_write(nodes, k, 'base'); self.live[k] = 'x'
-            self.advance()
-            self.drain_ingest(follower)
+            self.advance()                         # checkpoint 1 holds the base
+            for k in (100, 110, 120):              # second dirty round -> a newer checkpoint
+                self.mirror_write(nodes, k, 'base')
+            self.advance()                         # checkpoint 2: base now durable in stable
+            self.drain_ingest(follower)            # prune base from ingest -> stable-only
             for n in nodes:
                 n.reset_all()
+            self.assert_stable_served(follower, 110)  # the prepared remove will shadow STABLE
             prep_ts = self.ts + 100
 
             # Prepare a remove of the middle key 110 into the ingest and the reference table.
@@ -822,14 +856,16 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             prep_session.prepare_transaction('prepare_timestamp=%s,prepared_id=%s'
                 % (self.timestamp_str(prep_ts), self.prepared_id_str(1)))
 
-            # Iterate forward under a reader covering the prepare: 100 is returned, then the walk
-            # conflicts at the prepared 110 -- identically on the layered and reference cursors.
+            # Iterate forward under a reader covering the prepare. LAYERED: the first next()
+            # conflicts (the prepared remove of 110 in the ingest blocks the merge walk at the
+            # start). PLAIN reference: returns 100, then conflicts at 110.
             follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts + 10))
-            for cur in (follower.lay_c, follower.ref_c):
-                cur.reset()
-                self.assertEqual(self.prepare_safe(cur.next), 0)
-                self.assertEqual(cur.get_key(), 100)
-                self.assertEqual(self.prepare_safe(cur.next), wiredtiger.WT_PREPARE_CONFLICT)
+            follower.lay_c.reset()
+            self.assertEqual(self.prepare_safe(follower.lay_c.next), wiredtiger.WT_PREPARE_CONFLICT)
+            follower.ref_c.reset()
+            self.assertEqual(self.prepare_safe(follower.ref_c.next), 0)
+            self.assertEqual(follower.ref_c.get_key(), 100)
+            self.assertEqual(self.prepare_safe(follower.ref_c.next), wiredtiger.WT_PREPARE_CONFLICT)
             follower.reset_all(); follower.session.rollback_transaction()
 
             # C5 recovery: roll back the prepared remove; the same cursors iterate cleanly and
