@@ -53,15 +53,18 @@ check_tab_indent()
 # Parallel execution: if it's the main onvocation of the script, collect the file names
 # to process and run them in subprocesses.
 is_main_run && {
-    find bench dist examples ext src test tools/checksum_bitflip \
+    find bench dist examples ext src test tools/checksum_bitflip cmake lang CMakeLists.txt \
         -name '*.[ch]' -o \
         -name '*.cpp' -o \
+        -name '*.i' -o \
         -name '*.dox' -o \
         -name '*.in' -o \
         -name '*.py' -o \
         -name '*.sh' -o \
         -name '*.yaml' -o \
         -name '*.yml' -o \
+        -name '*.cmake' -o \
+        -name 'CMakeLists.txt' -o \
         -name 's_*' -o \
         -name 'CONFIG.*' -o \
         -name 'Makefile.am' | \
