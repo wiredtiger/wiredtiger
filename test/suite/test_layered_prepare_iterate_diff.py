@@ -28,31 +28,29 @@
 #
 # test_layered_prepare_iterate_diff.py
 #
-#   Minimal (2-key) demonstration that a LAYERED follower cursor and a PLAIN
-#   table differ on forward iteration when a prepared transaction is pending --
-#   a by-design consequence of the follower's stable+ingest merge.
+#   A LAYERED follower cursor and a PLAIN table differ on forward iteration
+#   when a prepared transaction is pending -- a by-design consequence of the
+#   follower's stable+ingest merge. Two keys throughout:
+#     '1' -- committed (and sorts first).
+#     '2' -- prepared (uncommitted) by a SEPARATE session.
 #
-#   Two keys:
-#     '1' -- committed. On the layered table it lives in STABLE (the leader
-#            wrote it and checkpointed; the follower picked it up).
-#     '2' -- prepared (uncommitted) by a SEPARATE session. On the layered
-#            table it lives in the follower INGEST.
+#   test_layered: on the layered table, '1' is in STABLE (leader checkpoint the
+#     follower picked up) and the prepared '2' is in the follower INGEST. The
+#     FIRST next() returns WT_PREPARE_CONFLICT -- it never returns '1'. To
+#     merge-scan, the layered cursor must position its ingest constituent to
+#     compare against stable; the ingest's first entry is the prepared '2', and
+#     positioning a cursor onto a prepared update IS the conflict (WT will not
+#     expose a key/value it might have to retract), so it cannot find that
+#     stable's '1' sorts first.
 #
-#   Forward scan at a read timestamp above the prepare:
-#     * LAYERED: the FIRST next() returns WT_PREPARE_CONFLICT -- it never gets
-#       to return '1'. To merge-scan, the layered cursor must position its
-#       ingest constituent to compare it against stable; the ingest's first
-#       entry is the prepared '2', and positioning a cursor onto a prepared
-#       update IS the conflict (WT will not expose a key/value it might have to
-#       retract). So it cannot discover that stable's '1' sorts first.
-#     * PLAIN: one btree, walked in order -> returns '1', then conflicts only
-#       when the SECOND next() reaches '2'.
+#   test_plain: one btree holds both '1' (committed) and '2' (prepared). The
+#     first next() returns '1'; only the SECOND next(), reaching '2', conflicts.
 #
 #   By-design: a merge join must consult both inputs up front, and WT forbids
-#   reading a prepared entry's position. Matches the existing regression
-#   test_layered_prepare01 ('middle' scenario asserts a first-next() conflict)
-#   and cur_layered.c (the cursor walk is blocked by a prepared conflict on the
-#   ingest constituent).
+#   reading a prepared entry's position. Consistent with test_layered_prepare01
+#   ('middle' scenario asserts a first-next() conflict) and the cur_layered.c
+#   iterate-constituents logic (the walk is blocked by a prepared conflict on
+#   the ingest constituent).
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class
@@ -72,55 +70,64 @@ class test_layered_prepare_iterate_diff(wttest.WiredTigerTestCase):
                 return wiredtiger.WT_PREPARE_CONFLICT
             raise
 
-    def prepare_insert_2(self, conn, uri, pid):
+    def prepare_insert_2(self, conn, uri):
         '''In a fresh session, prepare an insert of key '2'. Return the session.'''
         s = conn.open_session('')
         s.begin_transaction()
         c = s.open_cursor(uri); c['2'] = '2'; c.close()
         s.prepare_transaction('prepare_timestamp=' + self.timestamp_str(300) +
-                              ',prepared_id=' + self.prepared_id_str(pid))
+                              ',prepared_id=' + self.prepared_id_str(1))
         return s
 
-    def test_layered_vs_plain_prepare_iterate(self):
+    def test_layered(self):
+        # '1' committed on the leader and checkpointed -> follower STABLE; '2' prepared by a
+        # second follower session -> follower INGEST.
         follow = self.wiredtiger_open('follower', self.extensionsConfig() +
                 ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
+        uri = 'table:lpid_layered'
+        self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
 
-        # LAYERED: key '1' committed on the leader and checkpointed -> follower STABLE.
-        lay = 'table:lpid_layered'
-        self.session.create(lay, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
+        # Put key=1 to the stable table
         with self.transaction(session=self.session, commit_timestamp=100):
-            c = self.session.open_cursor(lay); c['1'] = '1'; c.close()
+            c = self.session.open_cursor(uri); c['1'] = '1'; c.close()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(200))
+
+        # Pickup the stable table on the follower
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(follow)      # '1' now in follower stable; ingest empty
-        # Key '2' prepared into the follower INGEST by a second session.
-        lay_prep = self.prepare_insert_2(follow, lay, 1)
+        self.disagg_advance_checkpoint(follow)
 
-        # PLAIN table on the follower: '1' committed, '2' prepared -- both in one btree.
-        plain = 'table:lpid_plain'
-        ps = follow.open_session('')
-        ps.create(plain, 'key_format=S,value_format=S')
-        ps.begin_transaction()
-        pc = ps.open_cursor(plain); pc['1'] = '1'; pc.close()
-        ps.commit_transaction('commit_timestamp=' + self.timestamp_str(100))
-        plain_prep = self.prepare_insert_2(follow, plain, 2)
+        # Put prepare txn for the key = 2
+        prep = self.prepare_insert_2(follow, uri)
 
-        # Readers at read_timestamp (400) > prepare_timestamp (300).
-        rl = follow.open_session(''); rl.begin_transaction('read_timestamp=' + self.timestamp_str(400))
-        cl = rl.open_cursor(lay)
-        rp = follow.open_session(''); rp.begin_transaction('read_timestamp=' + self.timestamp_str(400))
-        cp = rp.open_cursor(plain)
+        reader = follow.open_session('')
+        reader.begin_transaction('read_timestamp=' + self.timestamp_str(400))
+        cursor = reader.open_cursor(uri)
 
-        # LAYERED: first next() conflicts -- cannot return stable's '1' ahead of the prepared
-        # ingest '2', because consulting the ingest constituent is itself the conflict.
-        self.assertEqual(self.safe_next(cl), wiredtiger.WT_PREPARE_CONFLICT)
+        # THE VERY FIRST NEXT CALL ALREADY RETURNS PREPARE CONFLICT
+        self.assertEqual(self.safe_next(cursor), wiredtiger.WT_PREPARE_CONFLICT)
 
-        # PLAIN: returns '1', conflicts only when the second next() reaches '2'.
-        self.assertEqual(self.safe_next(cp), 0)
-        self.assertEqual(cp.get_key(), '1')
-        self.assertEqual(self.safe_next(cp), wiredtiger.WT_PREPARE_CONFLICT)
-
-        cl.close(); cp.close()
-        rl.rollback_transaction(); rp.rollback_transaction()
-        lay_prep.rollback_transaction(); plain_prep.rollback_transaction()
+        prep.rollback_transaction()
         follow.close()
+
+    def test_plain(self):
+        # One ordinary (non-layered) btree holds both keys: '1' committed, '2' prepared by a
+        # second session.
+        uri = 'table:lpid_plain'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        with self.transaction(session=self.session, commit_timestamp=100):
+            c = self.session.open_cursor(uri); c['1'] = '1'; c.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(200))
+
+        # Put prepare txn for the key = 2
+        prep = self.prepare_insert_2(self.conn, uri)
+
+        reader = self.conn.open_session('')
+        reader.begin_transaction('read_timestamp=' + self.timestamp_str(400))
+        cursor = reader.open_cursor(uri)
+
+        # Walked in order: '1' is returned, and only the next() that reaches '2' conflicts.
+        self.assertEqual(self.safe_next(cursor), 0)
+        self.assertEqual(cursor.get_key(), '1')
+        self.assertEqual(self.safe_next(cursor), wiredtiger.WT_PREPARE_CONFLICT)
+
+        prep.rollback_transaction()
