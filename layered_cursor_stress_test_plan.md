@@ -304,7 +304,11 @@ session/snapshot.)
       - Evidence (10 random seeds × 300 ops, green): 127 begins / 83 commits / 43 rollbacks;
         85 in-txn DIRECT positional writes; merge + n_positional guards still hold.
 - [x] C2. `read_timestamp` variants — reference (plain WT) and layered must agree on the
-      as-of-T view. **DONE (review pending).**
+      as-of-T view. **DONE + REVIEWED** (independent agent: APPROVE — verified the oldest/stable
+      state machine against the engine invariants in `txn_timestamp.c`, zero read-ts-below-oldest
+      violations, byte-identical determinism, the regression's non-vacuity, and that as-of-T
+      reads hit a populated merge so a read_timestamp merge bug would surface; two doc nits
+      applied).
       - PREREQUISITE done: `advance()` no longer pins `oldest == stable`. `stable` moves to the
         latest commit; `oldest` LAGS one advance behind (`oldest = max(1, last_advance_ts)`,
         monotonic, `< stable`), keeping `[oldest, latest]` open for as-of-past reads. Verified
