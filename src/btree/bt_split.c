@@ -2226,6 +2226,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
             WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
+        if (type == WT_PAGE_ROW_LEAF)
+            (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, 1);
         return (0);
     }
 
@@ -2364,6 +2366,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
+    if (page->type == WT_PAGE_ROW_LEAF && new_entries > 1)
+        (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, new_entries - 1);
 
     /*
      * The split succeeded, we can no longer fail.

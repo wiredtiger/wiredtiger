@@ -66,6 +66,11 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
     WT_STATP_DSRC_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
 
+    WT_STATP_DSRC_SET(session, stats, btree_row_leaf_avg_entries,
+      __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma));
+    WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages,
+      __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages));
+
     if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
         __wt_evict_cache_stat_walk(session);
 
@@ -118,6 +123,13 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
 
 err:
     WT_IGNORE_RET(__wt_page_release(session, next_walk, 0));
+    /*
+     * Correct approx_leaf_pages to the exact count from the walk. Skip on error: a partial walk
+     * produces an unreliable count.
+     */
+    if ((ret == 0 || ret == WT_NOTFOUND) && btree->type == BTREE_ROW)
+        __wt_atomic_store_uint64_relaxed(
+          &btree->approx_leaf_pages, (uint64_t)WT_STAT_DSRC_READ(stats, btree_row_leaf));
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
 

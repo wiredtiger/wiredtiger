@@ -1057,6 +1057,8 @@ dsrc_stats = [
     BtreeStat('btree_row_empty_values', 'row-store empty values', 'no_scale,tree_walk'),
     BtreeStat('btree_row_internal', 'row-store internal pages', 'no_scale,tree_walk'),
     BtreeStat('btree_row_leaf', 'row-store leaf pages', 'no_scale,tree_walk'),
+    BtreeStat('btree_row_leaf_avg_entries', 'row-store leaf page average entries (approximate)', 'no_scale'),
+    BtreeStat('btree_row_leaf_pages', 'row-store leaf pages (approximate, incremental)', 'no_scale'),
 
     ##########################################
     # Eviction statistics
