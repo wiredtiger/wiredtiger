@@ -228,6 +228,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.cur_pos = None              # rollback resets the session's cursors
         self.in_txn = False
         self.txn_wrote = False
+        self.live_snapshot = None            # consumed; the next begin takes a fresh snapshot
 
     def advance(self):
         # Fold the leader's stable into the follower's stable via a new checkpoint. Skip if
@@ -501,9 +502,21 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self._end_txn(nodes, commit=True)
             self.verify(nodes, trace)
         finally:
+            if self.in_txn:
+                # A failure fired mid-transaction. Roll it back so teardown is clean, but never
+                # let this mask the original error.
+                for n in nodes:
+                    try:
+                        n.session.rollback_transaction()
+                    except Exception:
+                        pass
+                self.in_txn = False
             for n in nodes:
                 n.close()
             trace.close()
+
+    def replaying_single_seed(self):
+        return bool(os.environ.get('STRESS_SEED'))
 
     def seeds_for(self, default_seeds):
         env = os.environ.get('STRESS_SEED')
@@ -551,18 +564,24 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             for n in nodes:
                 n.close()
             trace.close()
-        # The follower genuinely read from stable (A keys), not ingest-only.
-        self.assert_merge_exercised()
+        if not self.replaying_single_seed():
+            # The follower genuinely read from stable (A keys), not ingest-only. (Aggregate
+            # coverage guard; skipped under a single-seed replay -- see test_random.)
+            self.assert_merge_exercised()
 
     def test_random(self):
         # Mixed read/write/advance/evict sequences, fresh tables per seed, start empty.
         self.setup_connections()
         for seed in self.seeds_for(range(10)):
             self.run_seed(seed=seed, tag='r%d' % seed, n_ops=300, allow_writes=True)
-        # Guard against a degenerate oracle: the follower must actually read from stable.
-        self.assert_merge_exercised()
-        # Long-lived chains must actually run positional update/remove (not all gated out).
-        self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
+        if not self.replaying_single_seed():
+            # Aggregate coverage guards over the full multi-seed run -- not invariants of any
+            # single chain, so skip them under a pinned-seed replay (STRESS_SEED), whose purpose
+            # is reproducing one specific sequence, not exercising the whole coverage surface.
+            # Guard against a degenerate oracle: the follower must actually read from stable.
+            self.assert_merge_exercised()
+            # Long-lived chains must actually run positional update/remove (not all gated out).
+            self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
 
     def test_scenario_checkpoint_delete_visible(self):
         # Regression: after deletes are folded into a new checkpoint, a follower cursor with
