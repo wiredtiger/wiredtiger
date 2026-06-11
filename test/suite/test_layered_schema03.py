@@ -34,7 +34,8 @@ from wiredtiger import stat
 #    Test to ensure that dropping layered tables works and subsequent sweep doesn't crash
 @disagg_test_class
 class test_layered_schema03(wttest.WiredTigerTestCase):
-    uri_base = __qualname__
+    test_name = __qualname__
+    uri_base = test_name
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'file_manager=(close_scan_interval=1)'
 

@@ -108,7 +108,7 @@ class test_rollback_to_stable42(test_rollback_to_stable_base):
         self.large_updates(uri, value, ds, nrows, False, 60)
         self.session.checkpoint()
 
-        os.remove('test_rollback_to_stable42.wt')
+        os.remove(f'{self.test_name}.wt')
 
         # RTS runs at shutdown and startup, and we need WiredTiger to
         # see that the file was deleted from under it (it might all be

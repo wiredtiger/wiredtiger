@@ -38,7 +38,8 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_cursor19(wttest.WiredTigerTestCase):
 
-    table_name = __qualname__
+    test_name = __qualname__
+    table_name = test_name
     uri = 'layered:' + table_name
 
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'

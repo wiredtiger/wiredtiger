@@ -33,7 +33,8 @@
 import wttest
 
 class test_bug009(wttest.WiredTigerTestCase):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
     uri = 'file:' + name
 
     def test_reconciliation_prefix_compression(self):

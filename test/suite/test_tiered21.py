@@ -32,7 +32,8 @@ from wtscenario import make_scenarios
 
 #    Check for incompatible tiered configuration options.
 class test_tiered21(TieredConfigMixin, wttest.WiredTigerTestCase):
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered21',
+    test_name = __qualname__
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), test_name,
                                                  tiered_only=True)
     scenarios = make_scenarios(storage_sources)
 

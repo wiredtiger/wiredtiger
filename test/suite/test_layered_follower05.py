@@ -36,10 +36,11 @@ from wtscenario import make_scenarios
 # Make sure that a follower picks up and applies new file IDs.
 @disagg_test_class
 class test_layered_follower05(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader")'
     conn_config_follower = 'disaggregated=(role="follower")'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -47,7 +48,7 @@ class test_layered_follower05(wttest.WiredTigerTestCase):
     def test_standby_uses_table_id_high_water_mark(self):
         # Make 100 tables, then checkpoint.
         for i in range(0, 100):
-            self.session.create(f"layered:test_layered_follower05_{i}", 'key_format=S,value_format=S')
+            self.session.create(f"layered:{self.test_name}_{i}", 'key_format=S,value_format=S')
         self.conn.set_timestamp('stable_timestamp=1') # Don't upset precise checkpoint
         self.session.checkpoint()
 
@@ -64,7 +65,7 @@ class test_layered_follower05(wttest.WiredTigerTestCase):
 
         # Drop those tables, checkpoint again.
         for i in range(0, 100):
-            self.session.drop(f"layered:test_layered_follower05_{i}")
+            self.session.drop(f"layered:{self.test_name}_{i}")
         self.session.checkpoint()
 
         # Make a follower and feed it the latest checkpoint.
@@ -84,7 +85,7 @@ class test_layered_follower05(wttest.WiredTigerTestCase):
 
         # Make a new table on the (new) leader. Checkpoint.
         self.conn_follow.set_timestamp('stable_timestamp=2') # Don't upset precise checkpoint
-        self.session_follow.create(f"layered:test_layered_follower05_101", 'key_format=S,value_format=S')
+        self.session_follow.create(f"layered:{self.test_name}_101", 'key_format=S,value_format=S')
         self.session_follow.checkpoint()
 
         # Make sure the table ID is higher than what we saw from the old leader

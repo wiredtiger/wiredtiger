@@ -34,11 +34,12 @@ from wtscenario import make_scenarios
 #    Test the basic ability to insert on a follower.
 @disagg_test_class
 class test_layered_stepup02(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="{self.initial_role}")'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
     nentries = 1000
 
     role_scenarios = [

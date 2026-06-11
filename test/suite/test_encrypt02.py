@@ -48,9 +48,10 @@ class test_encrypt02(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # It expects secretkey= to provide a hex-encoded 256-bit chacha20 key.
     # This key will serve for testing purposes.
+    test_name = __qualname__
     sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
-    uri = f'file:{__qualname__}'
+    uri = f'file:{test_name}'
     encrypt_type = [
         ('noarg', dict( encrypt_args='name=rotn', secret_arg=None)),
         ('keyid', dict( encrypt_args='name=rotn,keyid=11', secret_arg=None)),

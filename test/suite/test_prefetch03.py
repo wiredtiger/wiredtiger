@@ -31,7 +31,8 @@ from wtscenario import make_scenarios
 
 # Verify prefetch for in-memory databases is not allowed.
 class test_prefetch03(wttest.WiredTigerTestCase):
-    uri = f'file:{__qualname__}'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
 
     prefetch_config = 'prefetch=(available=true,default=true)'
     verbose_config = 'verbose=(prefetch:1)'

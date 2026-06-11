@@ -32,7 +32,8 @@ from wtscenario import make_scenarios
 
 #    Test that long-running tests don't fill the cache with metadata
 class test_schema07(TieredConfigMixin, wttest.WiredTigerTestCase):
-    tablename = f'table:{__qualname__}'
+    test_name = __qualname__
+    tablename = f'table:{test_name}'
 
     conn_config = 'cache_size=10MB'
 

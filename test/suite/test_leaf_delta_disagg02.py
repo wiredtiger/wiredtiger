@@ -39,7 +39,8 @@ from wiredtiger import stat
 @disagg_test_class
 class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
 
-    uri = f'layered:{__qualname__}'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     # Use delta_pct=1000 so the size threshold never rejects a delta; only the delete
     # threshold should determine whether we write a delta or a full page.

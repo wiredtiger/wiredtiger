@@ -39,8 +39,9 @@ from wiredtiger import stat
 @disagg_test_class
 class test_layered_fast_truncate20(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader"),statistics=(all)'
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
     nitems = 500
     trunc_lo, trunc_hi = 100, 400
 

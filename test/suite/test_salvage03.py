@@ -35,6 +35,7 @@ import helper, wiredtiger, wttest
 
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     base_config = 'cache_size=1GB'
     conn_config = base_config
 
@@ -50,7 +51,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
         ('WiredTiger.turtle', dict(filename='WiredTiger.turtle')),
         ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
         ('WiredTigerHS.wt', dict(filename='WiredTigerHS.wt')),
-        ('test_salvage03.wt', dict(filename='test_salvage03.wt')),
+        (f'{test_name}.wt', dict(filename=f'{test_name}.wt')),
     ]
 
     # In many cases, wiredtiger_open without any salvage options will
@@ -67,7 +68,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     scenarios = make_scenarios(format_values, filename_scenarios)
-    uri = f'table:{__qualname__}'
+    uri = f'table:{test_name}'
 
     def valuegen(self, i):
         return str(i) + 'A' * 1024
@@ -147,7 +148,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
                         '/.*/')
 
                 self.reopen_conn(salvagedir, salvage_config)
-                if self.filename == 'test_salvage03':
+                if self.filename == self.test_name:
                     self.checks()
             else:
                 # Certain cases are not currently salvageable, they result in

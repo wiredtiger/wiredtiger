@@ -36,10 +36,11 @@ from compact_util import compact_util
 class test_compact04(compact_util):
 
     # Keep debug messages on by default. This is useful for diagnosing spurious test failures.
+    test_name = __qualname__
     conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
-    table_uri_prefix=f'table:{__qualname__}-'
+    table_uri_prefix=f'table:{test_name}-'
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4

@@ -36,6 +36,7 @@ import time
 
 @disagg_test_class
 class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    test_name = __qualname__
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
@@ -47,8 +48,8 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     uris = [
-        ('layered', dict(uri='layered:test_layered_delta15')),
-        ('btree', dict(uri='file:test_layered_delta15')),
+        ('layered', dict(uri=f'layered:{test_name}')),
+        ('btree', dict(uri=f'file:{test_name}')),
     ]
 
     ts = [

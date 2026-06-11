@@ -34,11 +34,12 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_checkpoint09(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=i,value_format=S'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -199,9 +200,9 @@ class test_layered_checkpoint09(wttest.WiredTigerTestCase):
 
     def test_verify_db_size_multi_table(self):
         uris = [
-            'layered:test_layered_checkpoint09_a',
-            'layered:test_layered_checkpoint09_b',
-            'layered:test_layered_checkpoint09_c',
+            f'layered:{self.test_name}_a',
+            f'layered:{self.test_name}_b',
+            f'layered:{self.test_name}_c',
         ]
         for uri in uris:
             self.session.create(uri, self.create_session_config)

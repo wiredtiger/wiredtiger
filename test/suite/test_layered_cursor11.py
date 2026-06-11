@@ -34,10 +34,11 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_cursor11(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'statistics=(all),precise_checkpoint=true,' \
                   'disaggregated=(role="follower")'
 
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)

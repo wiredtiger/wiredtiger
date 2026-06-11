@@ -40,8 +40,9 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     is tested implicitly by test_util02 (which loads dumps created
     in various ways).
     """
+    test_name = __qualname__
 
-    tablename = f'{__qualname__}.a'
+    tablename = f'{test_name}.a'
     nentries = 1000
     stringclass = ''.__class__
 

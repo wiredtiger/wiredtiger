@@ -41,10 +41,11 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 # Test the dump utility (I'm not testing the dump cursors, that's what the
 # utility uses underneath).
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     dir = 'dump.dir'            # Backup directory name
 
-    name = __qualname__
-    name2 = f'{__qualname__}b'
+    name = test_name
+    name2 = f'{test_name}b'
     nentries = 2500
 
     dumpfmt = [

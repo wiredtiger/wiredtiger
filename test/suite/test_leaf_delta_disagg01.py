@@ -37,6 +37,7 @@ import wiredtiger
 # earlier delta, the unpacking during merging process for delta and base image should work properly.
 @disagg_test_class
 class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     prefix_compression = [
         ('enabled', dict(prefix_config='prefix_compression=true', prefix_enabled=True)),
         ('disabled', dict(prefix_config='prefix_compression=false', prefix_enabled=False)),
@@ -46,7 +47,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(internal_page_delta=true,leaf_page_delta=true),'
     disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri=f'layered:{__qualname__}'
+    uri=f'layered:{test_name}'
     init_key = "abc"
 
     scenarios = make_scenarios(disagg_storages, prefix_compression)

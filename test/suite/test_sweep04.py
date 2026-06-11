@@ -64,7 +64,8 @@ def average_slope(y):
 
 @wttest.longtest("lots of files")
 class test_sweep04(wttest.WiredTigerTestCase):
-    tablebase = __qualname__
+    test_name = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
 
     # Configuration values for the run. If any of these values are changed,

@@ -34,10 +34,11 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     logmax = "100K"
-    tablename1 = f'{__qualname__}_log'
-    tablename2 = f'{__qualname__}_nolog'
-    tablename3 = f'{__qualname__}_nologtxn'
+    tablename1 = f'{test_name}_log'
+    tablename2 = f'{test_name}_nolog'
+    tablename3 = f'{test_name}_nologtxn'
     uri1 = 'table:' + tablename1
     uri2 = 'table:' + tablename2
     uri3 = 'table:' + tablename3

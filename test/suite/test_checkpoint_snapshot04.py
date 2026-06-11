@@ -39,7 +39,7 @@ class test_checkpoint_snapshot04(backup_base):
     dir = 'backup.dir'
 
     # Create a table.
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
     nrows = 5000
 
     format_values = [

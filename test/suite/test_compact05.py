@@ -36,6 +36,7 @@ from compact_util import compact_util
 
 class test_compact05(compact_util):
 
+    test_name = __qualname__
     free_space_target = [
         # The threshold is smaller than the number of available bytes, compaction should proceed.
         ('1MB', dict(compact_config='free_space_target=1MB',
@@ -51,7 +52,7 @@ class test_compact05(compact_util):
     conn_config = 'statistics=(all),verbose=(compact_progress,compact)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
-    table_uri=f'table:{__qualname__}'
+    table_uri=f'table:{test_name}'
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4

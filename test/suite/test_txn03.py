@@ -33,7 +33,8 @@ import wttest
 from wtscenario import make_scenarios
 
 class test_txn03(wttest.WiredTigerTestCase):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
     uri1 = 'table:' + tablename + "_1"
     uri2 = 'table:' + tablename + "_2"
     key = "TEST_KEY1"

@@ -44,7 +44,7 @@ class test_bug007(wttest.WiredTigerTestCase):
 
         # Force is required if a file doesn't have a reasonable header.
         # Overwrite the file with random data.
-        f = open('test_bug007', 'w')
+        f = open(self.test_name, 'w')
         f.write('random data' * 100)
         f.close()
 

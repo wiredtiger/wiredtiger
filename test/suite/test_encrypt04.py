@@ -37,7 +37,8 @@ from suite_subprocess import suite_subprocess
 # Test basic encryption with mismatched configuration
 class test_encrypt04(wttest.WiredTigerTestCase, suite_subprocess):
 
-    uri=f'table:{__qualname__}'
+    test_name = __qualname__
+    uri=f'table:{test_name}'
 
     # For tests that are mismatching, we use a secretkey. The 'rotn'
     # encryptor without a secretkey is too simple, and may leave

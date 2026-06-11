@@ -33,7 +33,8 @@ import wttest
 
 
 class test_stat11(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     conn_config = 'statistics=(all)'
     create_params = 'key_format=i,value_format=i'
     stats = ['cache_eviction_blocked_checkpoint', 'cache_eviction_blocked_hazard',

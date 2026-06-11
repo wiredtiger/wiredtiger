@@ -37,6 +37,7 @@ from wtscenario import make_scenarios
 #    verify each checkpoint persists a new key-provider page.
 @disagg_test_class
 class test_key_provider_disagg05(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -50,7 +51,7 @@ class test_key_provider_disagg05(wttest.WiredTigerTestCase):
     WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID = 26
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     # Base bytes for each pushed key; key_for() appends a unique per-push suffix.
     KEY_PREFIX = b'abcdefghijklmnopqrstuvwxyz'

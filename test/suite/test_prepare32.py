@@ -35,7 +35,8 @@ from prepare_util import test_prepare_preserve_prepare_base
 # - Write committed prepared updates as committed if commit timestamp is stable
 
 class test_prepare32(test_prepare_preserve_prepare_base):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     def test_committed_prepare(self):
         # Set initial timestamps - start with lower values

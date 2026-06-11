@@ -32,7 +32,8 @@ import wttest
 
 #    Utilities: wt alter
 class test_util15(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
 
     def test_alter_process(self):
         """

@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_config09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
+    test_name = __qualname__
     role_scenarios = [
         ('leader', dict(role='leader')),
         ('follower', dict(role='follower')),
@@ -66,6 +67,6 @@ class test_layered_config09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Hit ENOTSUP with "tier", "tiered", and tiered "object" uri prefix
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        lambda: self.session.create(self.prefix + 'test_layered_config09',
+        lambda: self.session.create(self.prefix + self.test_name,
             'key_format=S,value_format=S'),
             '/Operation not supported/')

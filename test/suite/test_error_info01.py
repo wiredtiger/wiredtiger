@@ -34,7 +34,8 @@ from compact_util import compact_util
 #   Test that the get_last_error() session API returns the last error to occur in the session.
 class test_error_info01(error_info_util, compact_util):
 
-    uri = f"table:{__qualname__}"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
 
     def api_call_with_success(self):
         """

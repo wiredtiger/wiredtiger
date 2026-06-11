@@ -42,9 +42,10 @@ kilobyte = 1024
 #
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
 class test_compact12(compact_util, test_cc_base):
+    test_name = __qualname__
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
-    uri_prefix = f'table:{__qualname__}'
+    uri_prefix = f'table:{test_name}'
 
     table_numkv = 10 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.

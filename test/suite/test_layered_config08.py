@@ -34,6 +34,7 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 
 class test_layered_config08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
+    test_name = __qualname__
     disagg_storages = gen_disagg_storages(disagg_only = True)
 
     def conn_extensions(self, extlist):
@@ -43,7 +44,7 @@ class test_layered_config08(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_disagg_compact(self):
         # Test that compact operation fails in disaggregated storage mode.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.compact('table:test_layered_config08'),
+            lambda: self.session.compact(f'table:{self.test_name}'),
             '/Operation not supported/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.compact(None, 'background=true'),

@@ -32,7 +32,8 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_bug022(wttest.WiredTigerTestCase):
-    uri = f'file:{__qualname__}'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
     conn_config = 'cache_size=50MB'
 
     key_format_values = [

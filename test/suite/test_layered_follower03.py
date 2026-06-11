@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 #    Start without local files and test historical reads.
 @disagg_test_class
 class test_layered_follower03(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     nitems = 500
 
     conn_base_config = 'statistics=(all),' \
@@ -42,7 +43,7 @@ class test_layered_follower03(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name = __qualname__
+    table_name = test_name
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [

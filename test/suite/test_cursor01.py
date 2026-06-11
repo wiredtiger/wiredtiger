@@ -37,7 +37,8 @@ class test_cursor01(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = __qualname__
+    test_name = __qualname__
+    table_name1 = test_name
     nentries = 10
 
     scenarios = make_scenarios([

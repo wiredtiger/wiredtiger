@@ -37,9 +37,10 @@ megabyte = 1024 * 1024
 # It checks that background compaction only compacts a table when it is not part of the exclude
 # list.
 class test_compact09(compact_util):
+    test_name = __qualname__
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     conn_config = 'cache_size=100MB,statistics=(all),debug_mode=(background_compact)'
-    uri_prefix = f'table:{__qualname__}'
+    uri_prefix = f'table:{test_name}'
 
     table_numkv = 100 * 1000
     n_tables = 2

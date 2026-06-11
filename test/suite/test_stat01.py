@@ -36,13 +36,14 @@ class test_stat01(wttest.WiredTigerTestCase):
     """
     Test statistics
     """
+    test_name = __qualname__
 
     config = 'internal_page_max=4K,leaf_page_max=8K'
     nentries = 25
 
     types = [
-        ('file', dict(uri='file:test_stat01.wt')),
-        ('table', dict(uri='table:test_stat01.wt'))
+        ('file', dict(uri=f'file:{test_name}.wt')),
+        ('table', dict(uri=f'table:{test_name}.wt'))
     ]
     keyfmt = [
         ('column', dict(keyfmt='r')),

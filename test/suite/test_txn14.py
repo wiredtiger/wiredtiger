@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_txn14(wttest.WiredTigerTestCase, suite_subprocess):
-    t1 = f'table:{__qualname__}_1'
+    test_name = __qualname__
+    t1 = f'table:{test_name}_1'
     entries = 10000
     extra_entries = 5
     conn_config = 'log=(enabled,file_max=100K,remove=false)'

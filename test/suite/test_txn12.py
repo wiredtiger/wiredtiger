@@ -31,7 +31,8 @@ from suite_subprocess import suite_subprocess
 
 #    test of commit following failed op in a read only transaction.
 class test_txn12(wttest.WiredTigerTestCase, suite_subprocess):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
     uri = 'table:' + name
     create_params = 'key_format=i,value_format=i'
 

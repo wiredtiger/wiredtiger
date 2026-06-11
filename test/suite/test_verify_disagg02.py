@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_verify_disagg02(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
@@ -41,7 +42,7 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
     conn_config_follower = 'disaggregated=(role="follower")'
 
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     def test_verify_duplicate_btree_ids(self):
         """
@@ -64,7 +65,7 @@ class test_verify_disagg02(wttest.WiredTigerTestCase):
 
         # Read the stable file's config from the follower's metadata to get its btree ID.
         md_cursor = session_follow.open_cursor('metadata:', None, None)
-        md_cursor.set_key('file:test_verify_disagg02.wt_stable')
+        md_cursor.set_key(f'file:{self.test_name}.wt_stable')
         self.assertEqual(md_cursor.search(), 0)
         victim_config = md_cursor.get_value()
         md_cursor.close()

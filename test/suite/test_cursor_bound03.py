@@ -33,7 +33,8 @@ from wtbound import bound_base
 # Test the next() and prev() calls in the cursor bound API. Test general use cases of bound API,
 # including setting lower bounds and upper bounds.
 class test_cursor_bound03(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),

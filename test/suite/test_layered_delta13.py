@@ -37,11 +37,12 @@ from wiredtiger import stat
 
 @disagg_test_class
 class test_layered_delta13(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),'
     disagg_storages = gen_disagg_storages(disagg_only = True)
 
     nrows = 10
-    uri=f'file:{__qualname__}'
+    uri=f'file:{test_name}'
 
     scenarios = make_scenarios(disagg_storages)
 

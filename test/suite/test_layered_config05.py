@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 #    Test that address cookies in disaggregated storage can be upgraded/downgraded safely.
 @disagg_test_class
 class test_layered_config05(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,'
@@ -42,7 +43,7 @@ class test_layered_config05(wttest.WiredTigerTestCase):
 
     num_items = 2000
     num_modify = 100
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     address_cookie_upgrade = [
         ('none', dict(address_cookie_upgrade='none', compatible=True)),

@@ -33,11 +33,12 @@ from wtscenario import make_scenarios
 # Test different variations of cursor operations
 @disagg_test_class
 class test_layered_cursor01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
     session_follow = None
     conn_follow = None
     oplog = None

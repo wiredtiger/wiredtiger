@@ -50,8 +50,9 @@ import wttest
 
 class test_prepare48(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
-    uri = f'table:{__qualname__}'
+    uri = f'table:{test_name}'
 
     def force_evict(self, key, read_ts):
         """Force eviction of the page containing `key` via a fresh session."""

@@ -36,8 +36,9 @@ from wtscenario import make_scenarios
 # Test basic compression
 class test_compact02(compact_util):
 
+    test_name = __qualname__
     types = [
-        ('table', dict(uri='table:test_compact02')),
+        ('table', dict(uri=f'table:{test_name}')),
     ]
     cacheSize = [
         ('default', dict(cacheSize='')),

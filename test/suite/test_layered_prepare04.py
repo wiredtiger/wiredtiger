@@ -36,6 +36,7 @@ from wiredtiger import stat
 #    the checkpoint timestamp of the stable table.
 @disagg_test_class
 class test_layered_prepare04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     base_config = 'statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
     conn_config = base_config + 'disaggregated=(role="leader")'
     conn_config_follower = base_config + 'disaggregated=(role="follower")'
@@ -44,7 +45,7 @@ class test_layered_prepare04(wttest.WiredTigerTestCase):
         ('layered', dict(prefix='layered:', create_session_config='key_format=i,value_format=S')),
         ('table', dict(prefix='table:', create_session_config='key_format=i,value_format=S,block_manager=disagg,type=layered')),
     ]
-    table_name = __qualname__
+    table_name = test_name
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, table_type)

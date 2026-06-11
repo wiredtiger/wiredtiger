@@ -32,7 +32,8 @@ from wtbound import bound_base
 
 # Test the restoring of original primary bounds where setting bounds on some colgroup fails.
 class test_cursor_bound18(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
     use_colgroup = True
     uri = 'table:'
 

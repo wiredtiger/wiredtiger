@@ -34,11 +34,12 @@ from wtscenario import make_scenarios
 #    returns an error.
 @disagg_test_class
 class test_layered_eviction04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=i,value_format=S'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)

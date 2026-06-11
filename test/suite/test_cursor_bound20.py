@@ -34,7 +34,8 @@ from wtbound import bound_base
 # increment_bounds_array function. When max values are given as a key, it will not increment and
 # can turn off the upper bounds setting in some edge cases.
 class test_cursor_bound20(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
     uri = 'table:'
     key_format = 'S'
 

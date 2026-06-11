@@ -31,7 +31,8 @@ from wiredtiger import stat
 
 # Check that cache_pages_inuse and cache_pages_inuse_leaf are correctly tracked
 class test_stat15(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     conn_config = 'statistics=(all),cache_size=100MB'
 

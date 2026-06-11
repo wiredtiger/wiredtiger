@@ -31,7 +31,8 @@ from helper import confirm_does_not_exist, confirm_nonempty
 
 # Test dropping a collection under an active transaction. We should return EBUSY.
 class test_drop03(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     def verify_value(self, uri, session, key, value):
         cursor = session.open_cursor(uri, None)

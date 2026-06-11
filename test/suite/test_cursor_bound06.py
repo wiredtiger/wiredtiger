@@ -32,7 +32,8 @@ from wtbound import bound_base
 
 # Test the search() call in the cursor bound API.
 class test_cursor_bound06(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),

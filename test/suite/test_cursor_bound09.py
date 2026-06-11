@@ -33,7 +33,8 @@ from wtbound import bound_base
 
 #    Test that cursor API usage generates expected error in prepared state with bounded cursors.
 class test_cursor_bound09(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
     value_format= 'S'
 
     types = [

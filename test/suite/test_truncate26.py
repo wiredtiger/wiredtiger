@@ -32,7 +32,8 @@ from wtdataset import SimpleDataSet
 # Check that WiredTiger returns an error when a session uses cursors not owned by that session.
 
 class test_cursor24(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     nrows = 100
 
     def test_cursor24_truncate(self):

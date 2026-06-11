@@ -33,7 +33,8 @@ import wttest
 from wtscenario import make_scenarios
 
 class test_search_near02(wttest.WiredTigerTestCase):
-    uri = f'file:{__qualname__}'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
 
     key_format_values = [
         ('var', dict(key_format='r')),

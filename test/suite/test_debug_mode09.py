@@ -35,8 +35,9 @@ import wttest
 # to do an update restore evict on a page, when the cache pressure requirements are not met.
 # This means setting eviction target low and cache size high.
 class test_debug_mode09(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=10MB,statistics=(all),eviction_target=10,debug_mode=(update_restore_evict=true)'
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     # Insert a bunch of data to trigger eviction
     def trigger_eviction(self, uri):

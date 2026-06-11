@@ -34,7 +34,8 @@ from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
 class test_cursor17(wttest.WiredTigerTestCase):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
 
     types = [
         ('file-row', dict(type='file:', keyformat='i', valueformat='i', dataset=SimpleDataSet)),

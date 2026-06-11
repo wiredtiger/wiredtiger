@@ -48,7 +48,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                    'eviction_dirty_trigger=50,eviction_updates_trigger=50')
 
     # Create a small table.
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     corrupt_values = [
         ('corrupt_table', dict(corrupt=True)),

@@ -47,12 +47,13 @@ expected_out = [
 
 #    Test that tables are reconciled correctly when they are empty.
 class test_schema01(TieredConfigMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
     tiered_storage_sources = gen_tiered_storage_sources()
     scenarios = make_scenarios(tiered_storage_sources)
 
     '''Test various tree types becoming empty'''
 
-    basename = __qualname__
+    basename = test_name
     tablename = 'table:' + basename
     cgname = 'colgroup:' + basename
 

@@ -124,7 +124,8 @@ class test_column_store_gap(wttest.WiredTigerTestCase):
 
 # Basic testing of variable-length column-store with big records.
 class test_colmax(wttest.WiredTigerTestCase):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
 
     types = [
         ('file', dict(type='file:')),

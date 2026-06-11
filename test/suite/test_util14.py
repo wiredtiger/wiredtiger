@@ -32,7 +32,8 @@ import wttest
 
 #    Utilities: wt truncate
 class test_util14(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     nentries = 1000
 
     def test_truncate_process(self):

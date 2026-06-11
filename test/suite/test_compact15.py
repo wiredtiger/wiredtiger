@@ -32,7 +32,8 @@ from wtscenario import make_scenarios
 
 # This test checks that foreground compaction requires a URI.
 class test_compact15(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     uris = [
         ('valid_uri', dict(valid_uri=True)),

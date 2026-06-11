@@ -34,7 +34,8 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_cursor16(wttest.WiredTigerTestCase):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
     uri_prefix = 'table:' + tablename
     uri_count = 100
     session_count = 100

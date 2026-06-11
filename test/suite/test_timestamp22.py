@@ -33,12 +33,13 @@ from contextlib import contextmanager
 from wtscenario import make_scenarios
 
 class test_timestamp22(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=50MB'
 
     # Keep the number of rows low, as each additional row does
     # not test any new code paths.
     nrows = 3
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
     rand = suite_random.suite_random()
     oldest_ts = 0
     stable_ts = 0

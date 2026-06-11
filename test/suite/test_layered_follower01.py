@@ -36,13 +36,14 @@ from wtscenario import make_scenarios
 # of a layered table, without the stable component.
 @disagg_test_class
 class test_layered_follower01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'transaction_sync=(enabled,method=fsync),'
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 10000
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="follower"),'

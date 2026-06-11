@@ -32,7 +32,8 @@ from wtscenario import make_scenarios
 
 #   Utilities: wt downgrade
 class test_util19(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     uri = 'table:' + tablename
     entries = 100
     log_max = "100K"

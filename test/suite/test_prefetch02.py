@@ -42,9 +42,10 @@ PrefetchStats = namedtuple('PrefetchStats',
     ['pages_queued', 'prefetch_attempts', 'prefetch_attempts_succeeded', 'prefetch_pages_read'])
 
 class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     new_dir = 'new.dir'
     nrows = 100000
-    uri = f'file:{__qualname__}'
+    uri = f'file:{test_name}'
 
     format_values = [
         ('col_var', dict(key_format='r')),

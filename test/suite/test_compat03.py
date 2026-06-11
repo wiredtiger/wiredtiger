@@ -36,9 +36,10 @@ from wtscenario import make_scenarios
 class test_compat03(wttest.WiredTigerTestCase, suite_subprocess):
     # Add enough entries and use a small log size to generate more than
     # one log file.
+    test_name = __qualname__
     entries = 2000
     logmax = "100K"
-    tablename = __qualname__
+    tablename = test_name
     uri = 'table:' + tablename
     # Declare the log versions that do and do not have prevlsn.
     # Log version 1 does not have the prevlsn record.

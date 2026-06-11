@@ -33,8 +33,9 @@ from wiredtiger import stat
 #    Add enough content to trigger a checkpoint in the stable table.
 @disagg_test_class
 class test_layered_checkpoint01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     nitems = 50000
-    uri_base = __qualname__
+    uri_base = test_name
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'disaggregated=(lose_all_my_data=true),'
 

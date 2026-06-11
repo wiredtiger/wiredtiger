@@ -34,7 +34,8 @@ import time
 # Triggers the conditions and verifies the counters increment
 
 class test_stat12(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     create_params = 'key_format=i,value_format=S'
 
     def conn_config(self):

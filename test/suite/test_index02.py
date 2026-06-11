@@ -44,13 +44,14 @@ def cmp(a, b):
 #    test search_near in indices
 class test_index02(wttest.WiredTigerTestCase):
     '''Test search_near in indices'''
+    test_name = __qualname__
 
     scenarios = make_scenarios([
         ('index', dict(indexconfig='columns=(v)', ncol=1)),
         ('index-with-key', dict(indexconfig='columns=(v,k)', ncol=2)),
     ])
 
-    basename = __qualname__
+    basename = test_name
     tablename = 'table:' + basename
     indexname = 'index:' + basename + ":inverse"
 

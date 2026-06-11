@@ -37,10 +37,11 @@ from wiredtiger import stat
 @wttest.skip_for_hook("disagg", "This test relies on RTS, which is not used in disagg.")
 class test_prepare_hs04(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=5MB,statistics=(fast)'
 
     # Create a small table.
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     nsessions = 3
     nkeys = 40

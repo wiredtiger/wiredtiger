@@ -39,11 +39,12 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Cannot run tiered storage in disagg mode")
 class test_layered_cursor21(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader"),'
 
     uris = [
-        ('layered', dict(uri='layered:test_layered_cursor21')),
-        ('table', dict(uri='table:test_layered_cursor21')),
+        ('layered', dict(uri=f'layered:{test_name}')),
+        ('table', dict(uri=f'table:{test_name}')),
     ]
 
     disagg_storages = gen_disagg_storages(disagg_only=True)

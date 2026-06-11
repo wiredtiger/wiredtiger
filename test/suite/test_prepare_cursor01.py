@@ -37,6 +37,7 @@ from wtscenario import make_scenarios
 #    WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor01(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     fmt = [
         ('row-store', dict(keyfmt='i')),
         ('column-store', dict(keyfmt='r')),
@@ -67,7 +68,7 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
     def test_cursor_navigate_prepare_transaction(self):
 
         # Build an object.
-        uri = self.uri + ':test_prepare_cursor01'
+        uri = self.uri + f':{self.test_name}'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
 

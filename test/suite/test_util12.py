@@ -31,7 +31,8 @@ import wiredtiger, wttest
 
 #    Utilities: wt write
 class test_util12(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     session_params = 'key_format=S,value_format=S'
     errfile = 'writeerr.txt'
 

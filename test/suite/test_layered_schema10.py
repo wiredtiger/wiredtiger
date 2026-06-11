@@ -39,12 +39,13 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
-    uri = f'layered:{__qualname__}'
-    uri2 = f'layered:{__qualname__}_2'  # second follower-created table for multi-epoch tests
+    uri = f'layered:{test_name}'
+    uri2 = f'layered:{test_name}_2'  # second follower-created table for multi-epoch tests
 
     table_config = 'key_format=i,value_format=S'
 
@@ -396,7 +397,7 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
         self.setup_leader_with_epoch()
         subdir = 'SUBPROCESS_create_drop_split_epochs'
         [returncode, _] = self.run_subprocess_function(subdir,
-            'test_layered_schema10.test_layered_schema10.subprocess_create_drop_split_epochs',
+            f'{self.test_name}.{self.test_name}.subprocess_create_drop_split_epochs',
             silent=True)
         self.assertNotEqual(returncode, 0)
 

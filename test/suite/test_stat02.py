@@ -33,7 +33,8 @@ from wiredtiger import stat
 
 #    Statistics cursor configurations.
 class test_stat_cursor_config(wttest.WiredTigerTestCase):
-    pfx = __qualname__
+    test_name = __qualname__
+    pfx = test_name
     uri = [
         ('file',  dict(uri='file:' + pfx, dataset=SimpleDataSet)),
         ('table', dict(uri='table:' + pfx, dataset=SimpleDataSet)),
@@ -74,7 +75,8 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
 
 # Test the connection "clear" configuration.
 class test_stat_cursor_conn_clear(wttest.WiredTigerTestCase):
-    pfx = __qualname__
+    test_name = __qualname__
+    pfx = test_name
     conn_config = 'statistics=(all)'
 
     def test_stat_cursor_conn_clear(self):
@@ -94,7 +96,8 @@ class test_stat_cursor_conn_clear(wttest.WiredTigerTestCase):
 
 # Test the data-source "clear" configuration.
 class test_stat_cursor_dsrc_clear(wttest.WiredTigerTestCase):
-    pfx = __qualname__
+    test_name = __qualname__
+    pfx = test_name
 
     uri = [
         ('dsrc_clear_1',  dict(uri='file:' + pfx, dataset=SimpleDataSet)),
@@ -122,7 +125,8 @@ class test_stat_cursor_dsrc_clear(wttest.WiredTigerTestCase):
 
 # Test the "fast" configuration.
 class test_stat_cursor_fast(wttest.WiredTigerTestCase):
-    pfx = __qualname__
+    test_name = __qualname__
+    pfx = test_name
 
     uri = [
         ('fast_1',  dict(uri='file:' + pfx, dataset=SimpleDataSet)),
@@ -163,7 +167,8 @@ class test_stat_cursor_conn_error(wttest.WiredTigerTestCase):
 
 # Test data-source error combinations.
 class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
-    pfx = __qualname__
+    test_name = __qualname__
+    pfx = test_name
 
     uri = [
         ('dsrc_error_1',  dict(uri='file:' + pfx, dataset=SimpleDataSet)),
@@ -186,7 +191,8 @@ class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
 
 # Test data-source cache walk statistics
 class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
-    uri = f'file:{__qualname__}'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
 
     conn_config = 'statistics=(none)'
 

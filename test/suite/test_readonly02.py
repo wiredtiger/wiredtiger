@@ -35,7 +35,8 @@ from suite_subprocess import suite_subprocess
 import os, wiredtiger, wttest
 
 class test_readonly02(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'table:{__qualname__}'
+    test_name = __qualname__
+    tablename = f'table:{test_name}'
     create = True
     create_params = 'key_format=i,value_format=i'
     entries = 10

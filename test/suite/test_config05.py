@@ -30,7 +30,8 @@ import wiredtiger, wttest
 
 #    Test multiple connection opens
 class test_config05(wttest.WiredTigerTestCase):
-    table_name1 = __qualname__
+    test_name = __qualname__
+    table_name1 = test_name
     nentries = 100
 
     # Each test needs to set up its connection in its own way,

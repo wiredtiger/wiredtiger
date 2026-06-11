@@ -41,6 +41,7 @@ logdir = "log"
 @disagg_test_class
 class test_layered_config13(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = (
         "statistics=(all),statistics_log=(wait=1,json=true,on_close=true),"
         + "disaggregated=(lose_all_my_data=true),"
@@ -53,8 +54,8 @@ class test_layered_config13(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     create_session_config = "key_format=S,value_format=S"
-    uri = f"layered:{__qualname__}"
-    uri_local = f"table:{__qualname__}local"
+    uri = f"layered:{test_name}"
+    uri_local = f"table:{test_name}local"
 
     def wiredtiger_open(self, *args, **kwargs):
         os.makedirs(logdir, exist_ok=True)

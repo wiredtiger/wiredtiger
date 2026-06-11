@@ -35,8 +35,9 @@ import wttest, test_base03
 # of test_base03, so we'll inherit those tests to be run with the debug mode
 # configuration enabled.
 class test_debug_mode08(test_base03.test_base03):
+    test_name = __qualname__
     conn_config = 'debug_mode=(cursor_copy=true)'
-    uri = f'file:{__qualname__}'
+    uri = f'file:{test_name}'
 
     def test_reconfig(self):
         ''' Test reconfigure with some minimal cursor activity. '''

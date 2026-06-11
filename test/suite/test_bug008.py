@@ -40,7 +40,8 @@ from wtscenario import make_scenarios
 # Test search/search-near operations, including invisible values and keys
 # past the end of the table.
 class test_bug008(wttest.WiredTigerTestCase):
-    uri = f'file:{__qualname__}'                # This is a btree layer test.
+    test_name = __qualname__
+    uri = f'file:{test_name}'                # This is a btree layer test.
     scenarios = make_scenarios([
         ('row', dict(key_format='S', value_format='S', empty=0, colvar=0)),
         ('var', dict(key_format='r', value_format='S', empty=0, colvar=1))

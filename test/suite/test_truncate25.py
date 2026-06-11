@@ -34,7 +34,8 @@ from wtdataset import SimpleDataSet
 # a truncate operation with no timestamp.
 
 class test_truncate25(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     conn_config = 'statistics=(all)'
     nrows = 10000
 

@@ -32,9 +32,10 @@
 import wttest
 
 class test_sweep02(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     base_config = 'create,'
     dir = 'WT_TEST'
-    tablebase = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
 
     # Disable default setup/shutdown steps - connections are managed manually.

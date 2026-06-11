@@ -31,8 +31,9 @@ import wiredtiger, wttest
 #    basic tests for indices
 class test_index01(wttest.WiredTigerTestCase):
     '''Test basic operations for indices'''
+    test_name = __qualname__
 
-    basename = __qualname__
+    basename = test_name
     tablename = 'table:' + basename
     indexbase = 'index:' + basename
     NUM_INDICES = 6

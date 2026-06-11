@@ -38,7 +38,8 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_prepare08(wttest.WiredTigerTestCase):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
     uri = 'layered:' + tablename
 
     disagg_storages = gen_disagg_storages(disagg_only=True)

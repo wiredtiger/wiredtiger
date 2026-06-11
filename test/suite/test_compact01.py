@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 
 #    session level compact operation
 class test_compact(compact_util, suite_subprocess):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
 
     # We don't want to set the page size too small as compaction doesn't work on tables with many
     # overflow items, furthermore eviction can get very slow with overflow items. We don't want the

@@ -37,7 +37,8 @@ from wtscenario import make_scenarios
 # to test any changes with that version as well.
 
 class test_salvage01(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     nentries = 1000
 
     format_values = [

@@ -36,7 +36,8 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_sweep03(sweep_util, suite_subprocess):
-    tablebase = __qualname__
+    test_name = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
     numfiles = 40 # Make this more than the default close_handle_minimum
     numkv = 100

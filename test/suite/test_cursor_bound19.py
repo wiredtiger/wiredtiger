@@ -34,7 +34,8 @@ from wtbound import bound_base
 # has duplicate pair values for each key. This will construct an index table that needs to separate
 # the duplicate values.
 class test_cursor_bound19(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
     use_index = True
 
     types = [

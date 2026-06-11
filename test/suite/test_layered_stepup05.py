@@ -38,7 +38,8 @@ from wtscenario import make_scenarios
 #      ckpt2 (TS=2): adds "7", "9" and updates "1" to a new value
 @disagg_test_class
 class test_layered_stepup05(wttest.WiredTigerTestCase):
-    uri = f"layered:{__qualname__}"
+    test_name = __qualname__
+    uri = f"layered:{test_name}"
 
     conn_base_config = 'statistics=(all),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'

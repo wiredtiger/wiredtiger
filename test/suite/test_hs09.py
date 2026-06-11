@@ -37,8 +37,9 @@ from wtscenario import make_scenarios
 # second newest committed version to history store.
 class test_hs09(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=20MB'
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
     format_values = [
         ('column', dict(key_format='r')),
         ('integer-row', dict(key_format='i')),

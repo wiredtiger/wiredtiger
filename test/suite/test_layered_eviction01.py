@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 # Ensure that we don't evict pages ahead of the materialization frontier
 @disagg_test_class
 class test_layered_eviction01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'cache_size=75MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),transaction_sync=(enabled,method=fsync),' \
                      + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
@@ -42,7 +43,7 @@ class test_layered_eviction01(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     nitems = 200_000
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     def session_create_config(self):
         return 'key_format=S,value_format=S,'

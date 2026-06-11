@@ -39,7 +39,8 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Layered tables are not supported with tiered storage")
 @disagg_test_class
 class test_prepare_discover15(wttest.WiredTigerTestCase):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
     uri = 'layered:' + tablename
 
     disagg_storages = gen_disagg_storages(disagg_only=True)

@@ -31,7 +31,8 @@ from wtbound import bound_base
 
 #    Testing basic scenarios with cursor bound functionality on dump cursors.
 class test_cursor_bound16(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
     key_format = "S"
     value_format = "S"
     start_key = None

@@ -33,7 +33,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 @disagg_test_class
 class test_disagg_checkpoint_size(wttest.WiredTigerTestCase):
 
-    uri_base = __qualname__
+    test_name = __qualname__
+    uri_base = test_name
     conn_config = 'disaggregated=(role="leader"),disaggregated=(lose_all_my_data=true)'
     uri = "layered:" + uri_base
 

@@ -34,8 +34,9 @@ class test_base01(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = f'{__qualname__}a.wt'
-    table_name2 = f'{__qualname__}b.wt'
+    test_name = __qualname__
+    table_name1 = f'{test_name}a.wt'
+    table_name2 = f'{test_name}b.wt'
 
     key_format_values = [
         ('column', dict(key_format='r')),

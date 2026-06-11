@@ -42,7 +42,8 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Layered tables are not supported with tiered storage")
 @disagg_test_class
 class test_layered_stepup06(wttest.WiredTigerTestCase):
-    uri = f'layered:{__qualname__}'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     resolve_scenarios = [
         ('commit',   dict(commit=True)),

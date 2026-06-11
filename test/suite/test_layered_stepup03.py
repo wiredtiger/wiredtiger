@@ -36,11 +36,12 @@ from wtscenario import make_scenarios
 # processes pages that were split during a prior checkpoint.
 @disagg_test_class
 class test_layered_stepup03(eviction_util, wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'cache_size=10MB,'
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
-    uri=f'layered:{__qualname__}'
+    uri=f'layered:{test_name}'
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'

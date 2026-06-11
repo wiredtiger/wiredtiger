@@ -36,8 +36,9 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_fast_truncate_stepup(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader")'
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
     nitems = 1000
 
     disagg_storages = gen_disagg_storages(disagg_only=True)

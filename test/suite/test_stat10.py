@@ -44,7 +44,8 @@ from wiredtiger import stat
 # The other types' stats should remain zero.
 
 class test_stat10(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     conn_config = 'statistics=(all)'
 
     format_values = [

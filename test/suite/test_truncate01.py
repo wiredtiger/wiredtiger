@@ -204,7 +204,8 @@ class test_truncate_cursor_end(test_truncate_base):
 
 # Test truncation of empty objects.
 class test_truncate_empty(test_truncate_base):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
 
     types = [
         ('file', dict(type='file:')),

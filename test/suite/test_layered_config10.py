@@ -36,9 +36,10 @@ from wiredtiger import stat
 
 class test_layered_config10(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
+    test_name = __qualname__
     disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri = "layered:test_layered_config10_%02d"
+    uri = f"layered:{test_name}_%02d"
     cold_table_config = 'key_format=S,value_format=S,disaggregated=(storage_tier=cold),'
 
     # Load the storage store extension.

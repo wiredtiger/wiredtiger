@@ -32,7 +32,8 @@ import wiredtiger, wttest
 
 #    Utilities: wt drop
 class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     nentries = 1000
 
     def test_drop_process(self):

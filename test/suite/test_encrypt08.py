@@ -38,7 +38,8 @@ from wtscenario import make_scenarios
 # used for system (not per-table) encryption.
 #
 class test_encrypt08(wttest.WiredTigerTestCase):
-    uri = f'file:{__qualname__}'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
 
     # To test the sodium encryptor, we use secretkey= rather than
     # setting a keyid, because for a "real" (vs. test-only) encryptor,

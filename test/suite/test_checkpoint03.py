@@ -39,7 +39,8 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
     uri = 'table:' + tablename
 
     format_values = [

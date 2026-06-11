@@ -33,9 +33,10 @@ from wiredtiger import stat
 
 #    Run import/export while backup cursor is open.
 class test_import10(backup_base):
+    test_name = __qualname__
     create_config = 'allocation_size=512,key_format=i,value_format=i'
     dir='backup.dir'                    # Backup directory name
-    uri = 'test_import10'
+    uri = test_name
 
     scenarios = make_scenarios([
         ('import_with_metadata', dict(repair=False)),

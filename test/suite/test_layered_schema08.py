@@ -40,7 +40,8 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_schema08(checkpoint_util):
-    uri_base = __qualname__
+    test_name = __qualname__
+    uri_base = test_name
     conn_config = 'statistics=(all),disaggregated=(role="leader",lose_all_my_data=true)'
 
     table_types = [

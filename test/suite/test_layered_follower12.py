@@ -34,13 +34,14 @@ from wtscenario import make_scenarios
 # visible.
 @disagg_test_class
 class test_layered_follower12(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
     create_session_config = 'key_format=S,value_format=S'
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)

@@ -35,8 +35,9 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     logmax = "100K"
-    tablename = __qualname__
+    tablename = test_name
     uri = 'table:' + tablename
     remove_list = ['true', 'false']
     sync_list = [

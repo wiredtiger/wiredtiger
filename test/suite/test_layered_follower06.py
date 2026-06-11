@@ -33,13 +33,14 @@ from wtscenario import make_scenarios
 #    Test reading the pinned history store on standby.
 @disagg_test_class
 class test_layered_follower06(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),' \
                      + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 

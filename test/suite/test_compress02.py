@@ -36,7 +36,8 @@ from wtdataset import SimpleDataSet
 #
 class test_compress02(wttest.WiredTigerTestCase):
     # Create a table.
-    uri = f"table:{__qualname__}"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
     nrows = 1000
 
     def conn_config(self):

@@ -35,17 +35,18 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
 
-    storage_sources = gen_tiered_storage_sources(wttest.WiredTigerTestCase._ss_random_prefix, 'test_tiered09', tiered_only=True)
+    test_name = __qualname__
+    storage_sources = gen_tiered_storage_sources(wttest.WiredTigerTestCase._ss_random_prefix, test_name, tiered_only=True)
 
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
-    base = f'{__qualname__}-000000000'
+    base = f'{test_name}-000000000'
     base2 = 'test_second09-000000000'
     obj1file = base + '1.wtobj'
     obj1second = base2 + '1.wtobj'
     obj2file = base + '2.wtobj'
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
     uri2 = "table:test_second09"
 
     retention = 1

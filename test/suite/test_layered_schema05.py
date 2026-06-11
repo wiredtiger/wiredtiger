@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 #    Test creating missing stable tables.
 @disagg_test_class
 class test_layered_schema05(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     nitems = 500
 
     conn_base_config = 'statistics=(all),' \
@@ -42,8 +43,8 @@ class test_layered_schema05(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name_empty = f"{__qualname__}a"
-    table_name_filled = f"{__qualname__}b"
+    table_name_empty = f"{test_name}a"
+    table_name_filled = f"{test_name}b"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [

@@ -38,6 +38,7 @@ import time
 @disagg_test_class
 class test_layered_delta09(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     delta = [
         ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
         ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
@@ -49,7 +50,7 @@ class test_layered_delta09(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only = True)
 
     nrows = 1000
-    uri=f'file:{__qualname__}'
+    uri=f'file:{test_name}'
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages, delta)

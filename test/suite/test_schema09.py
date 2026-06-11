@@ -34,9 +34,10 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "test depends on metadata recovery")
 @wttest.skip_for_hook("disagg", "log tables is not supported on disagg")
 class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     conn_config = 'log=(enabled=true)'
 
-    basename = f'{__qualname__}_fail'
+    basename = f'{test_name}_fail'
     tablename = 'table:' + basename
 
     def create_table(self):
@@ -87,7 +88,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
 
         subdir = f'SUBPROCESS_crash_point_{self.crash_point}'
-        func = f'test_schema09.test_schema09.subprocess_crash_point_{self.crash_point}'
+        func = f'{self.test_name}.{self.test_name}.subprocess_crash_point_{self.crash_point}'
         [ignore_result, new_home_dir] = self.run_subprocess_function(
             subdir, func, silent=True)
 

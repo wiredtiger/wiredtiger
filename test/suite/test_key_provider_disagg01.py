@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 #    Test basic key provider scenarios.
 @disagg_test_class
 class test_key_provider_disagg01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -60,7 +61,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     turtle_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_TURTLE_FILE_ID):02d}.db'
     key_provider_table = f'pages_{get_shard_id(WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID):02d}.db'
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     # Load the key provider store extension.
     def conn_extensions(self, extlist):

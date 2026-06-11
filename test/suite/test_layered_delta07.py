@@ -36,7 +36,8 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_delta07(wttest.WiredTigerTestCase):
-    uri = f"layered:{__qualname__}"
+    test_name = __qualname__
+    uri = f"layered:{test_name}"
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),transaction_sync=(enabled,method=fsync),' \
                      + 'page_delta=(delta_pct=100),precise_checkpoint=true,preserve_prepared=true,'
     disagg_storages = gen_disagg_storages(disagg_only = True)

@@ -36,7 +36,8 @@ from wtscenario import make_scenarios
 # Test compact behavior with overflow values.
 class test_compact03(compact_util):
 
-    uri=f'table:{__qualname__}'
+    test_name = __qualname__
+    uri=f'table:{test_name}'
 
     fileConfig = [
         ('1KB', dict(fileConfig='allocation_size=1KB,leaf_page_max=1KB')),

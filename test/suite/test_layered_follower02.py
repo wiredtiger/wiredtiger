@@ -35,13 +35,14 @@ from helper import WiredTigerCursor, statistic_uri
 
 @disagg_test_class
 class test_layered_follower02(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     scenarios = gen_disagg_storages(disagg_only = True)
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
 
     # Make sure the stats agree that the leader has done each checkpoint.
     def check_checkpoint(self, expected):

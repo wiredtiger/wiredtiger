@@ -43,12 +43,13 @@ from wtscenario import make_scenarios
 class test_layered_follower14(sweep_util):
     # Use aggressive sweep settings so the server has every opportunity to
     # incorrectly close the ingest dhandle while we are running as follower.
+    test_name = __qualname__
     conn_config = 'statistics=(all),' \
                   'file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1),' \
                   'verbose=(sweep:3),' \
                   'disaggregated=(role="follower")'
 
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
     nrows = 1000
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -73,7 +74,7 @@ class test_layered_follower14(sweep_util):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
         # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
-        cursor = self.session.open_cursor("file:test_layered_follower14.wt_ingest")
+        cursor = self.session.open_cursor(f"file:{self.test_name}.wt_ingest")
 
         # Wait for the sweep server to run several cycles. If it is not configured
         # to skip layered dhandles, it would mark and close them, causing gaps when

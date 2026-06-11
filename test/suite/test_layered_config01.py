@@ -33,11 +33,12 @@ from wtscenario import make_scenarios
 #    Test layered table metadata has logging disabled.
 @disagg_test_class
 class test_layered_config01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'log=(enabled=true),disaggregated=(role="leader"),'
 
     create_session_config = 'key_format=S,value_format=S'
 
-    layered_uris = ["table:test_layered_config01a", "layered:test_layered_config01b"]
+    layered_uris = [f"table:{test_name}a", f"layered:{test_name}b"]
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)

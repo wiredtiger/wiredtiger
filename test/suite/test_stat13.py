@@ -34,7 +34,8 @@ from wtscenario import make_scenarios
 # Check that btree_maximum_depth is computed correctly.
 
 class test_stat13(wttest.WiredTigerTestCase):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     keyfmt = [
         ('column', dict(keyfmt='r')),

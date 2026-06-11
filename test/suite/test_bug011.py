@@ -37,7 +37,8 @@ class test_bug011(wttest.WiredTigerTestCase):
     Test having eviction working on more files than the number of
     allocated hazard pointers.
     """
-    table_name = __qualname__
+    test_name = __qualname__
+    table_name = test_name
     ntables = 2000
     nrows = 10000
     nops = 10000

@@ -39,8 +39,9 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_fast_truncate07(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'verbose=[layered:3],disaggregated=(role="leader"),'
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     key_formats = [
         ('string', dict(key_format='S')),

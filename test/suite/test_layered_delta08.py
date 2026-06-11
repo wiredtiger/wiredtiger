@@ -39,7 +39,8 @@ import time
 @disagg_test_class
 class test_layered_delta08(wttest.WiredTigerTestCase):
 
-    uri = f'file:{__qualname__}'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'page_delta=(delta_pct=100),'

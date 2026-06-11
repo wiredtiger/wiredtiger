@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 # Test draining the ingest table
 @disagg_test_class
 class test_layered_stepup08(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + ''
 
@@ -45,7 +46,7 @@ class test_layered_stepup08(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(disagg_storages, sizes)
 
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     @property
     def base_config(self):

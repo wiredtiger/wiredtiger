@@ -34,7 +34,8 @@ from wiredtiger import stat
 
 # Test splits
 class test_split(wttest.WiredTigerTestCase):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
     conn_config = 'statistics=[all]'
     uri = 'file:' + name
 

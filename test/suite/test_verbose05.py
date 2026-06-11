@@ -41,7 +41,8 @@ import math
 @wttest.skip_for_hook("tiered", "Checkpoint progress output is different under tiered storage")
 class test_verbose05(test_verbose_base):
 
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     create_config = 'key_format=S,value_format=S,allocation_size=4KB,leaf_page_max=4KB,memory_page_max=4KB'
     conn_config = 'statistics=(all),verbose=[checkpoint_progress:0]'
 

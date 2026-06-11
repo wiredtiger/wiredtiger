@@ -37,9 +37,10 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
     """
     Test wt load
     """
+    test_name = __qualname__
 
-    tablename = f'{__qualname__}.a'
-    tablename2 = f'{__qualname__}.b'
+    tablename = f'{test_name}.a'
+    tablename2 = f'{test_name}.b'
     nentries = 1000
     stringclass = ''.__class__
 

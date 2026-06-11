@@ -34,11 +34,12 @@ from wtdataset import SimpleDataSet
 import wttest
 
 class test_txn11(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     remove = 'true'
     conn_config = 'verbose=[transaction]'
     logmax = "100K"
     nrows = 700
-    tablename = __qualname__
+    tablename = test_name
     source_uri = 'table:' + tablename + "_src"
     uri = 'table:' + tablename
 

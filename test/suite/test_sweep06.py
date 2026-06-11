@@ -36,9 +36,10 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("disagg", "This test uses multiple threads, which is incompatible with the disagg hook")
 class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     dhandles = 200
     format='key_format=i,value_format=S'
-    tablebase = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=60,close_scan_interval=30),session_max=530,' + \

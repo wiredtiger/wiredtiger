@@ -33,7 +33,8 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 class test_cursor21(wttest.WiredTigerTestCase):
-    uri = f"table:{__qualname__}"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
 
     format_values = [
         ('column', dict(key_format='r', value_format='i')),

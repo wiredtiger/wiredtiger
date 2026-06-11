@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 #    Test the checksum part of the checkpoint metadata.
 @disagg_test_class
 class test_layered_checkpoint07(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,'
@@ -40,7 +41,7 @@ class test_layered_checkpoint07(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S,type=layered'
 
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)

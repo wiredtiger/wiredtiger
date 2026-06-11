@@ -40,6 +40,7 @@ import wiredtiger, wttest
 @wttest.skip_for_hook("tiered", "Enabling tiered alters the logs produced by WiredTiger")
 class test_verbose04(test_verbose_base):
 
+    test_name = __qualname__
     format = [
         ('flat', dict(is_json=False)),
         ('json', dict(is_json=True)),
@@ -76,7 +77,7 @@ class test_verbose04(test_verbose_base):
         # 'all' category.
         with self.expect_verbose(['all:1'], self.all_verbose_categories, self.is_json) as conn:
             # Perform a set of simple operations to generate verbose messages from different categories.
-            uri = 'table:test_verbose04_all'
+            uri = f'table:{self.test_name}_all'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
@@ -89,7 +90,7 @@ class test_verbose04(test_verbose_base):
         # At this time, only INFO verbose messages should be generated with the following set of
         # operations and the verbosity level WT_VERBOSE_INFO (0).
         with self.expect_verbose(['all:0'], self.all_verbose_categories, self.is_json) as conn:
-            uri = 'table:test_verbose04_all'
+            uri = f'table:{self.test_name}_all'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
@@ -106,7 +107,7 @@ class test_verbose04(test_verbose_base):
                 # Create a simple table to invoke compaction on. We aren't doing anything
                 # interesting with the table, we want to simply invoke a compaction pass to generate
                 # verbose messages.
-                uri = 'table:test_verbose04_all'
+                uri = f'table:{self.test_name}_all'
                 session = conn.open_session()
                 session.create(uri, self.collection_cfg)
                 session.compact(uri)
@@ -131,7 +132,7 @@ class test_verbose04(test_verbose_base):
                 # Perform a set of simple API operations (table creations and cursor operations) to
                 # generate verbose API messages. Beyond opening the connection resource, we
                 # shouldn't need to do anything special for the version category.
-                uri = 'table:test_verbose04_all'
+                uri = f'table:{self.test_name}_all'
                 session = conn.open_session()
                 session.create(uri, self.collection_cfg)
                 c = session.open_cursor(uri)

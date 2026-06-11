@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 #    component of the table.
 @disagg_test_class
 class test_layered_follower04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     nitems = 5000
 
     conn_base_config = 'precise_checkpoint=true,'
@@ -51,7 +52,7 @@ class test_layered_follower04(wttest.WiredTigerTestCase):
         # Avoid checkpoint error with precise checkpoint
         self.conn.set_timestamp('stable_timestamp=1')
 
-        self.uri = self.prefix + 'test_layered_follower04'
+        self.uri = self.prefix + self.test_name
 
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')

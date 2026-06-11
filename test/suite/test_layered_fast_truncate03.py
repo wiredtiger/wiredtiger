@@ -39,7 +39,8 @@ from wiredtiger import stat
 @disagg_test_class
 class test_layered_fast_truncate03(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
-    uri         = f'layered:{__qualname__}'
+    test_name = __qualname__
+    uri         = f'layered:{test_name}'
     nrows       = 5000
     value       = 'a' * 500
     trunc_start = 1001

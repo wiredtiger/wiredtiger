@@ -33,7 +33,8 @@ from wiredtiger import stat
 
 #    Statistics key/value pair count
 class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
-    uripfx = f'table:{__qualname__}.'
+    test_name = __qualname__
+    uripfx = f'table:{test_name}.'
 
     keyfmt = [
         ('col', dict(keyfmt='r', storekind='col')),

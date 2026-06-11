@@ -35,10 +35,11 @@ from wtscenario import make_scenarios
 class test_tiered23(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     # Make scenarios for different cloud service providers.
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered23', tiered_only=True)
+    test_name = __qualname__
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), test_name, tiered_only=True)
     scenarios = make_scenarios(storage_sources)
 
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     def conn_config(self):
         return TieredConfigMixin.conn_config(self)

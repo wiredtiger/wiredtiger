@@ -41,8 +41,9 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
     Test wt dump.  We check for specific output and preservation of
     non-default table create parameters.
     """
+    test_name = __qualname__
 
-    pfx = __qualname__
+    pfx = test_name
     nentries = 100
     dir = "dump_dir"
     #

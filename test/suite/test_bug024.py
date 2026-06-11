@@ -40,10 +40,11 @@ import os, shutil
 @wttest.skip_for_hook("tiered", "Tiered causes python crash")
 @wttest.skip_for_hook("disagg", "Moving the turtle file makes no sense with disaggregated storage")
 class test_bug024(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = ('cache_size=50MB')
 
     # Create a table.
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     def test_bug024(self):
         nrows = 10

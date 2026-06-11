@@ -39,7 +39,8 @@ import wttest
 WT_TXN_ABORTED = 2**64 - 1
 
 class test_cursor26(wttest.WiredTigerTestCase):
-    uri = 'file:test_cursor26.wt'
+    test_name = __qualname__
+    uri = f'file:{test_name}.wt'
 
     conn_config = (
         'cache_size=50MB,statistics=(all),'

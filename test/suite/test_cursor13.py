@@ -338,7 +338,7 @@ class test_cursor13_drops(test_cursor13_base):
 
     def test_open_and_drop(self):
         session = self.session
-        for uri in [ 'file:test_cursor13_drops', 'table:test_cursor13_drops' ]:
+        for uri in [ f'file:{self.test_name}', f'table:{self.test_name}' ]:
             self.open_and_drop(uri, session, session, 0, 5)
             self.open_and_drop(uri, session, session, 1, 5)
             self.open_and_drop(uri, session, session, 3, 5)

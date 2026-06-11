@@ -34,9 +34,10 @@ class test_base05(wttest.WiredTigerTestCase):
     """
     Test that various types of content can be stored
     """
+    test_name = __qualname__
 
-    table_name1 = f'{__qualname__}a'
-    table_name2 = f'{__qualname__}b'
+    table_name1 = f'{test_name}a'
+    table_name2 = f'{test_name}b'
     nentries = 1000
 
     def session_create(self, name, args):

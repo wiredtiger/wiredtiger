@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 # Check that verify and salvage both raise exceptions if there is an open
 # cursor.
 class test_bug006(wttest.WiredTigerTestCase):
-    name = __qualname__
+    test_name = __qualname__
+    name = test_name
     scenarios = make_scenarios([
         ('file', dict(uri='file:')),
         ('table', dict(uri='table:')),

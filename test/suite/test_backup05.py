@@ -38,7 +38,8 @@ from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 
 class test_backup05(wttest.WiredTigerTestCase, suite_subprocess):
-    uri = f'table:{__qualname__}'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     emptyuri = 'table:test_empty05'
     newuri = 'table:test_new05'
     create_params = 'key_format=i,value_format=i'

@@ -38,12 +38,13 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_fast_truncate06(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader"),'
     nrows = 100
 
     uris = [
-        ('layered', dict(uri='layered:test_layered_fast_truncate06')),
-        ('table', dict(uri='table:test_layered_fast_truncate06')),
+        ('layered', dict(uri=f'layered:{test_name}')),
+        ('table', dict(uri=f'table:{test_name}')),
     ]
 
     disagg_storages = gen_disagg_storages(disagg_only=True)

@@ -35,13 +35,14 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 #    Basic tiered storage shared API test.
 class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered18', tiered_only=True, tiered_shared=True)
+    test_name = __qualname__
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), test_name, tiered_only=True, tiered_shared=True)
     scenarios = make_scenarios(storage_sources)
 
-    shared_default = f"{__qualname__}_shared_default"
-    shared = f"{__qualname__}_shared"
-    local = f"{__qualname__}_local"
-    fail = f"{__qualname__}_fail"
+    shared_default = f"{test_name}_shared_default"
+    shared = f"{test_name}_shared"
+    local = f"{test_name}_local"
+    fail = f"{test_name}_fail"
 
     uri_shared_default = "table:" + shared_default
     uri_shared = "table:" + shared

@@ -35,7 +35,8 @@ import wttest
 
 #    Utilities: wt list
 class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
-    tablenamepfx = f'{__qualname__}.'
+    test_name = __qualname__
+    tablenamepfx = f'{test_name}.'
     session_params = 'key_format=S,value_format=S'
 
     def populate(self, tablename):

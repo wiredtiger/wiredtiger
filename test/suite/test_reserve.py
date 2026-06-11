@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 # Test WT_CURSOR.reserve.
 class test_reserve(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     format_values = [
         ('integer', dict(keyfmt='i')),
         ('recno', dict(keyfmt='r')),
@@ -52,7 +53,7 @@ class test_reserve(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types, format_values)
 
     def test_reserve(self):
-        uri = self.uri + ':test_reserve'
+        uri = self.uri + f':{self.test_name}'
 
         ds = self.ds(self, uri, 500, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
@@ -129,7 +130,7 @@ class test_reserve(wttest.WiredTigerTestCase):
     # Test cursor.reserve will fail if a key has not yet been set.
     def test_reserve_without_key(self):
 
-        uri = self.uri + ':test_reserve_without_key'
+        uri = self.uri + f':{self.test_name}_without_key'
 
         ds = self.ds(self, uri, 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
@@ -143,7 +144,7 @@ class test_reserve(wttest.WiredTigerTestCase):
     # Test cursor.reserve will fail if there's no running transaction.
     def test_reserve_without_txn(self):
 
-        uri = self.uri + ':test_reserve_without_txn'
+        uri = self.uri + f':{self.test_name}_without_txn'
 
         ds = self.ds(self, uri, 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
@@ -157,7 +158,7 @@ class test_reserve(wttest.WiredTigerTestCase):
     # Test cursor.reserve returns a value on success.
     def test_reserve_returns_value(self):
 
-        uri = self.uri + ':test_reserve_returns_value'
+        uri = self.uri + f':{self.test_name}_returns_value'
 
         ds = self.ds(self, uri, 10, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
@@ -171,7 +172,7 @@ class test_reserve(wttest.WiredTigerTestCase):
     # Test cursor.reserve fails on non-standard cursors.
     def test_reserve_not_supported(self):
 
-        uri = self.uri + ':test_reserve_not_supported'
+        uri = self.uri + f':{self.test_name}_not_supported'
         s = self.conn.open_session()
         s.create(uri, 'key_format=' + self.keyfmt + ",value_format=" + self.valfmt)
 

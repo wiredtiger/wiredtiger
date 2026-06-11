@@ -35,15 +35,16 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # prefixes to the same bucket directory but different local databases.
 class test_tiered10(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered10', tiered_only=True)
+    test_name = __qualname__
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), test_name, tiered_only=True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
 
     # If the 'uri' changes all the other names must change with it.
-    base = f'{__qualname__}-000000000'
+    base = f'{test_name}-000000000'
     obj1file = base + '1.wtobj'
-    uri = f"table:{__qualname__}"
+    uri = f"table:{test_name}"
 
     conn1_dir = "first_dir"
     conn2_dir = "second_dir"

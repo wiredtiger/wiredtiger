@@ -42,7 +42,8 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_cursor18(wttest.WiredTigerTestCase):
-    uri = f'layered:{__qualname__}'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)

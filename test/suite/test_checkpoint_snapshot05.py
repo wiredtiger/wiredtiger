@@ -40,7 +40,8 @@ from wtbackup import backup_base
 #   after a bulk load on a table to check the backup recovery.
 class test_checkpoint_snapshot05(backup_base):
     # Create a table.
-    uri = f"table:{__qualname__}"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
     backup_dir = "BACKUP"
 
     format_values = [

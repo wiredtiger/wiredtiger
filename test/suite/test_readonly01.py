@@ -35,7 +35,8 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = __qualname__
+    test_name = __qualname__
+    tablename = test_name
     create = True
     entries = 10000
 

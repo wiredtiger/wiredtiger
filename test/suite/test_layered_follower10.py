@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 # Test garbage collecting redundant content in the ingest table
 @disagg_test_class
 class test_layered_follower10(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + 'disaggregated=(lose_all_my_data=true),precise_checkpoint=true,'
 
@@ -41,8 +42,8 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(disagg_storages)
 
-    uri = f'layered:{__qualname__}'
-    ingest_uri = f'file:{__qualname__}.wt_ingest'
+    uri = f'layered:{test_name}'
+    ingest_uri = f'file:{test_name}.wt_ingest'
 
     nitems = 1000
 
@@ -53,7 +54,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
     # This will GC content when possible.
     def evict_ingest(self, session, ts):
         # Trigger eviction on the ingest table
-        evict_cursor = session.open_cursor("file:test_layered_follower10.wt_ingest", None, "debug=(release_evict)")
+        evict_cursor = session.open_cursor(f"file:{self.test_name}.wt_ingest", None, "debug=(release_evict)")
         for i in range(1, self.nitems + 1):
             session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))

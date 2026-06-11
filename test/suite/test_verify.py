@@ -33,7 +33,8 @@ from helper import WiredTigerCursor
 
 #    Utilities: wt verify
 class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = f'{__qualname__}.a'
+    test_name = __qualname__
+    tablename = f'{test_name}.a'
     nentries = 1000
 
     # Returns the .wt file extension, or in the case
@@ -423,6 +424,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.runWt(["-p", "verify", "-a"], outfilename="verifyerr.out", errfilename="verifyerr.err", failure=True)
         self.assertEqual(self.count_file_contains("verifyerr.err",
-            "table:test_verify.a1: WT_ERROR"), 1)
+            f"table:{self.test_name}.a1: WT_ERROR"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.err",
-            "table:test_verify.a2: WT_ERROR"), 0)
+            f"table:{self.test_name}.a2: WT_ERROR"), 0)

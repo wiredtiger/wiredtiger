@@ -151,8 +151,9 @@ class ValidationModel:
 @disagg_test_class
 class test_layered_fast_truncate_stress01(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader")'
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
     table_config = 'key_format=i,value_format=S,leaf_page_max=4096'
 
     # Scale workload by mode: a quick smoke run under the regular suite

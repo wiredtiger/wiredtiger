@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_verify_disagg(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     hs = [
         ('empty', dict(fill_hs=False)),
         ('populated', dict(fill_hs=True)),
@@ -53,7 +54,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
     session_follow = None
     conn_follow = None
 
-    uri = f'layered:{__qualname__}'
+    uri = f'layered:{test_name}'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)

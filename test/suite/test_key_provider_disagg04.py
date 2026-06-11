@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_key_provider_disagg04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     def conn_config(self):
         return self.extensionsConfig() + ',disaggregated=(role="leader")'
 
@@ -46,7 +47,7 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, start_versions)
 
-    uri = f"layered:{__qualname__}"
+    uri = f"layered:{test_name}"
     nentries = 200
 
     # Restart re-invokes conn_extensions, so flipping this field switches the loaded provider.

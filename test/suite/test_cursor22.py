@@ -31,7 +31,8 @@
 import wttest
 
 class test_cursor22(wttest.WiredTigerTestCase):
-    uri = f"table:{__qualname__}"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
 
     def check_get_key_and_value(self, cursor, expected_key, expected_value):
         key = cursor.get_key()

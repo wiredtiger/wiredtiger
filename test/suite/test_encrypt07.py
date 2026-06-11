@@ -39,7 +39,8 @@ import test_salvage01
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_encrypt07(test_salvage01.test_salvage01):
 
-    uri=f'table:{__qualname__}'
+    test_name = __qualname__
+    uri=f'table:{test_name}'
     sys_encrypt='rotn'
     sys_encrypt_args=',keyid=13'      # This is rot13
 

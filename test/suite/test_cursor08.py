@@ -34,8 +34,9 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_cursor08(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     logmax = "100K"
-    tablename = __qualname__
+    tablename = test_name
     uri = 'table:' + tablename
     nkeys = 500
 

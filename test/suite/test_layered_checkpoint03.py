@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 #    Test pruning of ingest tables on the follower during checkpoint pick-ups.
 @disagg_test_class
 class test_layered_checkpoint03(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
@@ -92,7 +93,7 @@ class test_layered_checkpoint03(wttest.WiredTigerTestCase):
     # This test initializes the `prune_timestamp` to `ckpt2` while `ckpt1` is still in use,
     # creating a conflict by attempting to update the timestamp to an older checkpoint (`ckpt1`) during the checkpoint operation.
     def test_prune_timestamp_initialization(self):
-        uris = ['layered:test_layered_checkpoint03.a', 'layered:test_layered_checkpoint03.b']
+        uris = [f'layered:{self.test_name}.a', f'layered:{self.test_name}.b']
         self.setup(uris)
 
         # Open a cursor on uris[0] to pin ckpt as in use
@@ -126,7 +127,7 @@ class test_layered_checkpoint03(wttest.WiredTigerTestCase):
     # and different tables could have a different order for the same checkpoint, so that logic
     # could easily be broken.
     def test_checkpoint_order_mismatch(self):
-        uris = ['layered:test_layered_checkpoint03.a', 'layered:test_layered_checkpoint03.b']
+        uris = [f'layered:{self.test_name}.a', f'layered:{self.test_name}.b']
         self.setup(uris)
 
         # Open ingest tables on the follower to make them participate in pruning during pick-ups
@@ -151,7 +152,7 @@ class test_layered_checkpoint03(wttest.WiredTigerTestCase):
 
     # Test setting prune TS when previous checkpoints weren't needed it and cursor is open
     def test_first_gc_with_cursor_on_previous_checkpoint(self):
-        uri = 'layered:test_layered_checkpoint03.a'
+        uri = f'layered:{self.test_name}.a'
         self.setup([uri])
 
         # Create 3 checkpoints with a content on the leader and pick them up on the follower

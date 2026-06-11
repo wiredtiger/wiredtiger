@@ -35,6 +35,7 @@ from wiredtiger import stat
 
 @disagg_test_class
 class test_layered_delta10(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     split = [
         ('page_split', dict(page_split=True)),
         ('page_no_split', dict(page_split=False)),
@@ -44,7 +45,7 @@ class test_layered_delta10(wttest.WiredTigerTestCase):
                      + 'disaggregated=(role="leader"),page_delta=(delta_pct=100,internal_page_delta=true,leaf_page_delta=true)'
     disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri=f'layered:{__qualname__}'
+    uri=f'layered:{test_name}'
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages, split)

@@ -33,7 +33,8 @@ from wtbound import bound_base
 # Test write operation calls on a bounded cursor. Test general use cases of bound API,
 # including setting lower bounds and upper bounds.
 class test_cursor_bound14(bound_base):
-    file_name = __qualname__
+    test_name = __qualname__
+    file_name = test_name
 
     types = [
         ('file', dict(uri='file:', use_colgroup=False)),
