@@ -202,11 +202,13 @@ err:
 }
 
 /* Indexes for each cursor type (plus count). */
-#define WT_DISAGG_CURSOR_COLGROUP 0
-#define WT_DISAGG_CURSOR_FILE 1
-#define WT_DISAGG_CURSOR_LAYERED 2
-#define WT_DISAGG_CURSOR_TABLE 3
-#define WT_DISAGG_CURSOR_COUNT 4
+enum WT_DISAGG_CKPT_PICKUP_CURSORS {
+    WT_DISAGG_CURSOR_COLGROUP = 0,
+    WT_DISAGG_CURSOR_FILE,
+    WT_DISAGG_CURSOR_LAYERED,
+    WT_DISAGG_CURSOR_TABLE,
+    WT_DISAGG_CURSOR_COUNT
+};
 
 /* Prefixes for each cursor type. */
 static const char *const __disagg_cursor_prefixes[WT_DISAGG_CURSOR_COUNT] = {
