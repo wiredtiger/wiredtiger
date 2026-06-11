@@ -303,11 +303,25 @@ session/snapshot.)
         ingest+stable split vs stable-only leader.)
       - Evidence (10 random seeds × 300 ops, green): 127 begins / 83 commits / 43 rollbacks;
         85 in-txn DIRECT positional writes; merge + n_positional guards still hold.
-- [ ] C2. `read_timestamp` variants — reference (plain WT) and layered must agree on the
-      as-of-T view. **PREREQUISITE (A10 review finding):** `advance()` currently pins
-      `oldest_timestamp = stable_timestamp = ts`, so no read below the latest commit is legal
-      after an advance — this forecloses as-of-past reads. Decouple oldest from stable here
-      (keep oldest lagging behind the read_timestamps under test).
+- [x] C2. `read_timestamp` variants — reference (plain WT) and layered must agree on the
+      as-of-T view. **DONE (review pending).**
+      - PREREQUISITE done: `advance()` no longer pins `oldest == stable`. `stable` moves to the
+        latest commit; `oldest` LAGS one advance behind (`oldest = max(1, last_advance_ts)`,
+        monotonic, `< stable`), keeping `[oldest, latest]` open for as-of-past reads. Verified
+        the ingest drain + merge guard still hold under the lagged oldest (suite green).
+      - `begin` has two flavours: read-write (C1) or, when a past window exists, a **read-only
+        as-of-T** txn (`read_timestamp` = random point in `[oldest, latest]`). `self.txn_read_ts`
+        gates the generator to reads-only inside such a txn; `pick_op` weights next/prev on raw
+        positioned-ness there (cur_pos may sit on a key absent from current `self.live` — it was
+        live at T). On end, an as-of-T txn clears `cur_pos` (its position is in a historical view).
+      - Oracle: every read inside the txn is compared layered-vs-reference as-of-T (both are real
+        WT honouring `read_timestamp`), so a layered read_timestamp merge bug surfaces as a
+        mismatch. Coverage guard `n_read_ts > 0` (multi-seed; skipped under single-seed replay).
+      - Deterministic regression `test_scenario_read_timestamp_history`: a key overwritten across
+        two checkpoints (old version in stable history, ingest drained) reads back the OLD value
+        at the old commit's ts and the NEW value at the new commit's ts — on both tables.
+      - Evidence: 5 tests green; 53 as-of-T read txns / 77 read-write txns across 10 seeds;
+        single-seed replays (9, 3, 7) green.
 - [ ] C3. Isolation levels: snapshot / read-committed / read-uncommitted.
 - [ ] C4. Multi-session prepared transactions left pending → drive `WT_PREPARE_CONFLICT`
       deterministically; both tables must report it identically.

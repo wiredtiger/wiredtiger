@@ -119,6 +119,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.wseq = 0     # monotonic write counter, for unique values
         self.dirty = False  # writes committed since the last checkpoint advance
         self.n_positional = 0  # positional update/remove ops applied (long-lived-chain guard)
+        self.last_advance_ts = 0  # self.ts at the previous advance; oldest lags to here
+        self.oldest_ts = 0   # current oldest_timestamp; floor for legal read_timestamps (C2)
+        self.n_read_ts = 0   # as-of-past read transactions opened (read_timestamp guard)
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
@@ -135,6 +138,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.cur_pos = None  # key both cursor pairs are positioned on (None = unpositioned)
         self.in_txn = False       # an explicit transaction is open on both nodes' sessions
         self.txn_wrote = False    # the open txn has performed at least one write
+        self.txn_read_ts = None   # if set, the open txn is a read-only as-of-T (read_timestamp)
         self.live_snapshot = None  # self.live as of begin, restored on rollback
         return [Node(self.conn, self.session, lay, ref),
                 Node(self.conn_follow, self.session_follow, lay, ref)]
@@ -220,7 +224,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             else:
                 for n in nodes:
                     n.session.commit_transaction()
-            # A successful commit keeps cursors positioned (cur_pos survives the txn switch).
+            # A successful commit keeps cursors positioned (cur_pos survives the txn switch),
+            # except for an as-of-T read txn: that position is in a historical view and must not
+            # anchor a write or chain in the latest-state autocommit world that follows.
+            if self.txn_read_ts is not None:
+                self.cur_pos = None
         else:
             for n in nodes:
                 n.session.rollback_transaction()
@@ -228,15 +236,24 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.cur_pos = None              # rollback resets the session's cursors
         self.in_txn = False
         self.txn_wrote = False
+        self.txn_read_ts = None
         self.live_snapshot = None            # consumed; the next begin takes a fresh snapshot
 
     def advance(self):
         # Fold the leader's stable into the follower's stable via a new checkpoint. Skip if
         # nothing changed since the last advance (avoids a redundant-checkpoint warning).
+        #
+        # stable moves to the latest commit, but oldest LAGS one advance behind it so the window
+        # [oldest, latest] stays open for as-of-past reads (read_timestamp, C2). Pinning
+        # oldest == stable would forbid reading anything below the latest commit. oldest is
+        # monotonic (last_advance_ts only grows) and < stable (writes happened since).
         if not self.dirty:
             return
-        ts = self.timestamp_str(self.ts)
-        self.conn.set_timestamp('oldest_timestamp=%s,stable_timestamp=%s' % (ts, ts))
+        oldest = max(1, self.last_advance_ts)
+        self.conn.set_timestamp('oldest_timestamp=%s,stable_timestamp=%s'
+                                % (self.timestamp_str(oldest), self.timestamp_str(self.ts)))
+        self.oldest_ts = oldest
+        self.last_advance_ts = self.ts
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
         self.dirty = False
@@ -386,10 +403,21 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Transactions: 'begin' is only legal in autocommit; 'commit'/'rollback' only with an
         # open txn; advance/evict (checkpoint lifecycle) only in autocommit. Inside a txn,
         # positional writes are the genuine same-transaction iterate-and-delete (apply_positional).
+        # A read_timestamp (as-of-past) txn is read-only -- no writes inside it (self.txn_read_ts).
         positioned = self.cur_pos is not None and self.cur_pos in self.live
         if not allow_writes:
             kinds   = ['search', 'search_near', 'next', 'prev', 'reset']
             weights = [15, 12, 20, 20, 6]
+        elif self.in_txn and self.txn_read_ts is not None:
+            # As-of-T read-only txn: reads chain across a historical snapshot, ended by
+            # commit/rollback. cur_pos may sit on a key absent from current self.live (it was
+            # live at T), so weight next/prev on raw positioned-ness, not live membership.
+            if self.cur_pos is not None:
+                kinds   = ['next', 'prev', 'search', 'search_near', 'reset', 'commit', 'rollback']
+                weights = [24, 24, 8, 8, 2, 16, 6]
+            else:
+                kinds   = ['search', 'search_near', 'next', 'prev', 'reset', 'commit', 'rollback']
+                weights = [14, 11, 20, 20, 2, 16, 6]
         elif self.in_txn:
             if positioned:
                 kinds   = ['next', 'prev', 'pos_update', 'pos_remove', 'search', 'search_near',
@@ -413,7 +441,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             return ('put', rnd.choice(self.POOL))
         if kind == 'remove':
             return ('remove', rnd.choice(list(self.live))) if self.live else ('reset', None)
-        if kind in ('evict', 'begin', 'commit', 'rollback',
+        if kind == 'begin':
+            # Half the time, when a past window exists, open a read-only as-of-T transaction;
+            # the read_timestamp is any point in [oldest, latest] -- both tables must agree on
+            # that historical view. Otherwise a normal read-write transaction.
+            if self.oldest_ts >= 1 and self.ts > self.oldest_ts and rnd.random() < 0.5:
+                return ('begin', rnd.randint(self.oldest_ts, self.ts))
+            return ('begin', None)
+        if kind in ('evict', 'commit', 'rollback',
                     'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
             return (kind, None)
         return (kind, self.pick_search_key(rnd))
@@ -464,10 +499,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 elif kind == 'begin':
                     # Open one explicit transaction per node; subsequent writes join it and
                     # commit atomically at the commit op. Snapshot logical state for rollback.
+                    # op[1] None -> read-write txn; an int -> read-only as-of-T (read_timestamp):
+                    # both tables must agree on the historical view, validating the layered
+                    # cursor's read_timestamp merge of stable + ingest.
+                    read_ts = op[1]
+                    cfg = '' if read_ts is None else \
+                        'read_timestamp=' + self.timestamp_str(read_ts)
                     for n in nodes:
-                        n.session.begin_transaction()
+                        n.session.begin_transaction(cfg)
                     self.in_txn = True
                     self.txn_wrote = False
+                    self.txn_read_ts = read_ts
+                    if read_ts is not None:
+                        self.n_read_ts += 1
                     self.live_snapshot = dict(self.live)
                     # The cursor stays physically positioned so next/prev keep iterating across
                     # the switch, but a positional WRITE must be re-established by a read inside
@@ -582,6 +626,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.assert_merge_exercised()
             # Long-lived chains must actually run positional update/remove (not all gated out).
             self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
+            # As-of-past (read_timestamp) read transactions must actually be exercised.
+            self.assertGreater(self.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
 
     def test_scenario_checkpoint_delete_visible(self):
         # Regression: after deletes are folded into a new checkpoint, a follower cursor with
@@ -606,6 +652,38 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 c.reset(); c.set_key(k)
                 self.assertEqual(c.search(), exp)
             c.close(); rs.close()
+        finally:
+            for n in nodes:
+                n.close()
+
+    def test_scenario_read_timestamp_history(self):
+        # Regression for the read_timestamp merge (C2): a key overwritten across two checkpoints,
+        # with the older version in stable's history and the ingest drained. Reading at the old
+        # commit's timestamp must reconstruct the OLD value on the follower's merged cursor, and
+        # at the new commit's timestamp the NEW value -- on both the layered and reference tables.
+        self.setup_connections()
+        nodes = self.make_nodes('rts')
+        leader, follower = nodes
+        try:
+            self.mirror_write(nodes, 100, 'old'); self.live[100] = 'x'
+            ts_old = self.ts
+            self.advance()                  # checkpoint 1: 100='old'
+            self.mirror_write(nodes, 100, 'new'); self.live[100] = 'x'
+            ts_new = self.ts
+            self.advance()                  # checkpoint 2: 100='new'; oldest now lags to ts_old
+            self.drain_ingest(follower)     # prune already-stable ingest -> read from stable+history
+            for n in nodes:
+                n.reset_all()
+            for ts, exp in [(ts_old, 'old'), (ts_new, 'new')]:
+                for n in nodes:
+                    n.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
+                    for cur in (n.lay_c, n.ref_c):
+                        cur.set_key(100)
+                        self.assertEqual(cur.search(), 0, 'as-of-%d search on %s' % (ts, n.lay_uri))
+                        self.assertEqual(cur.get_value(), exp,
+                                         'as-of-%d value on %s' % (ts, n.lay_uri))
+                        cur.reset()
+                    n.session.rollback_transaction()
         finally:
             for n in nodes:
                 n.close()
