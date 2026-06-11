@@ -3369,20 +3369,32 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
-        /*
-         * If this was a full-image write (delta_count == 0), the write reused the existing page_id
-         * (see __rec_write_image), so the old delta chain's cumulative_size is still counted in
-         * block_disagg->size. Subtract it now; the next wrapup cannot do so because
-         * disagg_page_is_valid will be false with an invalid page_id. Also free the stale block
-         * cookie from the prior successful reconciliation so the WT_PM_REC_REPLACE path in the next
-         * wrapup cannot attempt a second subtraction.
-         */
-        if (r->multi->block_meta->delta_count == 0 && mod->rec_result == WT_PM_REC_REPLACE &&
-          page->disagg_info->block_meta.cumulative_size > 0) {
+        if (r->multi->block_meta->delta_count == 0 &&
+          page->disagg_info->block_meta.cumulative_size_aggregated) {
+            /*
+             * Full-image write: page_discard freed only the new block (cookie.size == S_new). The
+             * old chain's cumulative_size is still counted in block_disagg->size regardless of the
+             * previous reconciliation result. Subtract it now; the next wrapup cannot because
+             * disagg_page_is_valid will be false after page_id is invalidated below. Also free the
+             * stale cookie and disk image so the WT_PM_REC_REPLACE path in the next wrapup takes
+             * the block_cookie==NULL branch and skips a second subtraction.
+             */
             __wt_block_disagg_obsolete_delta_chain(session, &page->disagg_info->block_meta);
             __wt_free(session, mod->mod_replace.block_cookie);
             mod->mod_replace.block_cookie_size = 0;
             __wt_free(session, mod->mod_disk_image);
+        } else if (r->multi->block_meta->delta_count > 0 && mod->rec_result == WT_PM_REC_REPLACE &&
+          page->disagg_info->block_meta.cumulative_size_aggregated) {
+            /*
+             * Delta write: page_discard freed the new block using cookie.size == cumulative_size +
+             * delta_size, which already subtracted the entire old chain from block_disagg->size.
+             * Clear cumulative_size_aggregated and free the stale cookie so the next wrapup takes
+             * the block_cookie==NULL branch via WT_PM_REC_REPLACE and does not subtract the old
+             * chain a second time.
+             */
+            page->disagg_info->block_meta.cumulative_size_aggregated = false;
+            __wt_free(session, mod->mod_replace.block_cookie);
+            mod->mod_replace.block_cookie_size = 0;
         }
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
