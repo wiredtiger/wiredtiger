@@ -1749,9 +1749,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         }
     }
 
-    if (free_size > 0)
-        __wt_cache_page_inmem_decr(session, page, free_size);
-
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
      * running. However, the updates we made might be older than that. Set the first dirty
@@ -1764,6 +1761,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
+    if (free_size > 0)
+        __wt_cache_page_inmem_decr(session, page, free_size);
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 
@@ -2347,9 +2346,18 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * reference structures.
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
-    for (i = 0; i < new_entries; ++i)
+    for (i = 0; i < new_entries; ++i) {
         WT_ERR(__wt_multi_to_ref(session, ref, page, &mod->mod_multi[i], new_entries, &ref_new[i],
           &parent_incr, i == 0, closing));
+        /*
+         * A disaggregated child without a retained disk image has been pushed to WT_REF_DISK. Its
+         * backing block must be behind the materialization frontier so it can be read back safely.
+         */
+        WT_ASSERT(session,
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM ||
+            (mod->mod_multi[i].block_meta != NULL &&
+              __wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)));
+    }
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
