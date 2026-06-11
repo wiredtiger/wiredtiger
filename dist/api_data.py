@@ -2315,6 +2315,12 @@ methods = {
         future commits and queries will be no earlier than the specified timestamp. Values must
         be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
+    Config('prepare_to_step_down', '', r'''
+        prepare a disaggregated storage leader for step-down. Commits at or before the specified
+        timestamp continue to go to the stable constituents of layered tables and will be included
+        in the final step-down checkpoint; commits after it are redirected to the ingest
+        constituents. Only valid on a leader. Setting it to zero abandons an in-progress
+        step-down'''),
     Config('stable_disaggregated_schema_epoch', '', r'''
         set the stable schema epoch for disaggregated storage; the shared metadata included in the
         disaggregated storage checkpoint will not include the effects of schema operations with

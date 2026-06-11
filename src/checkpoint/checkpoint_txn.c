@@ -1596,6 +1596,28 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
     }
 
+    /*
+     * While a step-down is prepared, content after the cutoff is being redirected to the ingest
+     * constituents, so a (precise) checkpoint past the cutoff would silently exclude it. The check
+     * must happen here, before any checkpoint state is established: a disaggregated checkpoint
+     * failure is fatal once the checkpoint transaction has started.
+     */
+    if (ckpt_cfg.use_timestamp) {
+        wt_timestamp_t stepdown_timestamp =
+          __wt_atomic_load_uint64_relaxed(&conn->layered_table_manager.stepdown_timestamp);
+        if (stepdown_timestamp != WT_TS_NONE) {
+            wt_timestamp_t stepdown_stable_timestamp = __wt_get_stable_timestamp(session);
+            if (stepdown_stable_timestamp > stepdown_timestamp)
+                WT_RET_MSG(session, EINVAL,
+                  "checkpoint stable timestamp %" PRIu64
+                  " must not be later than the prepare-to-step-down timestamp %" PRIu64,
+                  stepdown_stable_timestamp, stepdown_timestamp);
+            __wt_verbose_debug1(session, WT_VERB_LAYERED,
+              "stepdown: step-down checkpoint at stable=%" PRIu64 " (cutoff=%" PRIu64 ")",
+              stepdown_stable_timestamp, stepdown_timestamp);
+        }
+    }
+
     F_SET(session, WT_SESSION_CHECKPOINT);
 
     /*

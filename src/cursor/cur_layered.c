@@ -319,6 +319,32 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool checkpoint_expected)
 }
 
 /*
+ * __clayered_stepdown_ts --
+ *     Return the prepare-to-step-down cutoff, or WT_TS_NONE when no step-down is in progress.
+ */
+static WT_INLINE wt_timestamp_t
+__clayered_stepdown_ts(WT_SESSION_IMPL *session)
+{
+    WT_LAYERED_TABLE_MANAGER *manager;
+
+    manager = &S2C(session)->layered_table_manager;
+    if (!manager->leader)
+        return (WT_TS_NONE);
+    return (__wt_atomic_load_uint64_relaxed(&manager->stepdown_timestamp));
+}
+
+/*
+ * __clayered_ingest_skip --
+ *     Return true if reads can skip the ingest constituent. A leader's ingest table is empty,
+ *     except while a step-down is in progress, when commits after the cutoff land there.
+ */
+static WT_INLINE bool
+__clayered_ingest_skip(WT_CURSOR_LAYERED *clayered)
+{
+    return (clayered->leader && __clayered_stepdown_ts(CUR2S(clayered)) == WT_TS_NONE);
+}
+
+/*
  * __clayered_ingest_check_close --
  *     Return true if the ingest cursor need to be reopened.
  */
@@ -336,8 +362,8 @@ __clayered_ingest_check_close(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *claye
      */
     if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
       clayered->current_cursor == clayered->ingest_cursor) {
-        /* This should not happen on the leader at the moment. */
-        WT_ASSERT(session, !leader);
+        /* A leader can only be positioned on the ingest cursor while a step-down is prepared. */
+        WT_ASSERT(session, !leader || __clayered_stepdown_ts(session) != WT_TS_NONE);
         return (false);
     }
 
@@ -672,11 +698,11 @@ __clayered_get_current(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bo
         ingest_positioned = true;
 
     /*
-     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty. This will need
-     * revisiting when asynchronous step-up is supported, because ingest may legitimately contain
-     * data for some time after promotion.
+     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty, unless a
+     * step-down is in progress. This will need revisiting when asynchronous step-up is supported,
+     * because ingest may legitimately contain data for some time after promotion.
      */
-    if (clayered->leader)
+    if (__clayered_ingest_skip(clayered))
         ingest_positioned = false;
 
     if (clayered->stable_cursor != NULL && F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
@@ -1130,11 +1156,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
     /*
-     * FIXME-WT-16810: In leader mode, skip iterating through ingest as it should be empty. This
-     * will need revisiting when asynchronous step-up is supported, because ingest may legitimately
-     * contain data for some time after promotion.
+     * FIXME-WT-16810: In leader mode, skip iterating through ingest as it should be empty, unless a
+     * step-down is in progress. This will need revisiting when asynchronous step-up is supported,
+     * because ingest may legitimately contain data for some time after promotion.
      */
-    if (clayered->leader)
+    if (__clayered_ingest_skip(clayered))
         c_ingest = NULL;
 
     /*
@@ -1719,7 +1745,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     conn = S2C(session);
     found = false;
 
-    if (!conn->layered_table_manager.leader) {
+    if (!__clayered_ingest_skip(clayered)) {
         WT_ERR_NOTFOUND_OK(
           __clayered_lookup_constituent(clayered->ingest_cursor, clayered, value), true);
         if (ret == 0) {
@@ -1728,8 +1754,11 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
                 ret = WT_NOTFOUND;
         }
 
-        /* Only consult the truncate list when ingest has no entry for this key. */
-        if (!found) {
+        /*
+         * Only consult the truncate list when ingest has no entry for this key. The list is only
+         * populated by log application, so there is nothing to check on a stepping-down leader.
+         */
+        if (!found && !conn->layered_table_manager.leader) {
             WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session,
                                  (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL, NULL),
               true);
@@ -1885,11 +1914,11 @@ __clayered_search_near_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
      * * Otherwise a smaller key should be returned.
      * If both constituents have a larger key available, return the one closes to the search term.
      *
-     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty.
-     * This will need revisiting when asynchronous step-up is supported, because ingest may
-     * legitimately contain data for some time after promotion.
+     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty, unless a
+     * step-down is in progress. This will need revisiting when asynchronous step-up is supported,
+     * because ingest may legitimately contain data for some time after promotion.
      */
-    if (!clayered->leader) {
+    if (!__clayered_ingest_skip(clayered)) {
         clayered->ingest_cursor->set_key(clayered->ingest_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           clayered->ingest_cursor->search_near(clayered->ingest_cursor, &ingest_cmp), true);
@@ -2100,7 +2129,7 @@ err:
  *     Reserve a key in the constituent cursor.
  */
 static int
-__clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent)
+__clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent, bool ingest)
 {
     WT_DECL_RET;
     CURSOR_UPDATE_API_CALL_BTREE(constituent, session, ret, reserve);
@@ -2108,12 +2137,11 @@ __clayered_reserve_constituent(WT_SESSION_IMPL *session, WT_CURSOR *constituent)
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
-     * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet (it
-     * lives only in the stable table), so we need overwrite mode to allow the reserve to succeed
-     * without the key being present in the update tree.
+     * Pass overwrite=true for the ingest table: it may not contain the key (it may live only in the
+     * stable table), so we need overwrite mode to allow the reserve to succeed without the key
+     * being present in the update tree.
      */
-    WT_ERR(__wt_btcur_reserve(
-      (WT_CURSOR_BTREE *)constituent, !S2C(session)->layered_table_manager.leader));
+    WT_ERR(__wt_btcur_reserve((WT_CURSOR_BTREE *)constituent, ingest));
 
 err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_reserve);
@@ -2122,33 +2150,88 @@ err:
 }
 
 /*
- * __clayered_put --
- *     Put an entry into the desired tree.
+ * __clayered_route_write --
+ *     Decide which constituent a write belongs to. Without a step-down in progress, a leader writes
+ *     to the stable constituent and a follower to the ingest constituent. While a step-down is
+ *     prepared, commits after the cutoff belong to the ingest constituent; when the commit
+ *     timestamp is not yet known the write must go to both ("twin") and the copy on the wrong side
+ *     of the cutoff is aborted once the timestamp is assigned.
  */
-static WT_INLINE int
-__clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
-  const WT_ITEM *value, WT_CLAYERED_PUT_OP op)
+static WT_INLINE void
+__clayered_route_write(WT_SESSION_IMPL *session, bool *ingestp, bool *twinp)
 {
+    WT_TXN *txn;
+    wt_timestamp_t stepdown_ts;
 
-    bool leader = S2C(session)->layered_table_manager.leader;
+    txn = session->txn;
+    *ingestp = false;
+    *twinp = false;
 
-    if (!leader) {
-        /*
-         * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
-         * Doing so would remove the cursor write operation dependency on the truncate list.
-         */
-        WT_RET(__wt_layered_table_truncate_detect_write_conflict(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
-
-        /*
-         * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
-         * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
-         */
-        if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
-            WT_RET(__clayered_reset_cursors(clayered, true));
+    if (!S2C(session)->layered_table_manager.leader) {
+        *ingestp = true;
+        return;
     }
 
-    WT_CURSOR *c = leader ? clayered->stable_cursor : clayered->ingest_cursor;
+    stepdown_ts = __clayered_stepdown_ts(session);
+    if (stepdown_ts == WT_TS_NONE) {
+        /*
+         * Remember that the transaction has stable-table content that cannot be rerouted if a
+         * step-down is prepared before its commit timestamp is set: such a transaction must commit
+         * no later than the cutoff.
+         */
+        if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+            F_SET(txn, WT_TXN_LAYERED_WROTE_STABLE);
+        return;
+    }
+
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+        *ingestp = txn->time_point.commit_timestamp > stepdown_ts;
+        __wt_verbose_debug1(session, WT_VERB_LAYERED,
+          "stepdown: routed write to %s (commit_ts=%" PRIu64 ", cutoff=%" PRIu64 ")",
+          *ingestp ? "ingest" : "stable", txn->time_point.commit_timestamp, stepdown_ts);
+    } else {
+        *ingestp = *twinp = true;
+        __wt_verbose_debug1(session, WT_VERB_LAYERED,
+          "stepdown: commit timestamp unknown, double-writing both constituents (cutoff=%" PRIu64
+          ")",
+          stepdown_ts);
+    }
+}
+
+/*
+ * __clayered_stepdown_twin --
+ *     Mark the transaction operation just created through a constituent cursor as one copy of a
+ *     step-down double-write.
+ */
+static void
+__clayered_stepdown_twin(WT_SESSION_IMPL *session, WT_CURSOR *constituent, uint32_t side)
+{
+    WT_TXN *txn;
+    WT_TXN_OP *op;
+
+    txn = session->txn;
+    WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING) && txn->mod_count > 0);
+
+    op = &txn->mod[txn->mod_count - 1];
+    WT_ASSERT(session, op->btree == CUR2BT(constituent));
+    WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
+    WT_ASSERT(session, op->u.op_upd != NULL);
+
+    F_SET(op, side);
+    F_SET(txn, WT_TXN_HAS_STEPDOWN_TWIN);
+
+    __wt_verbose_debug1(session, WT_VERB_LAYERED, "stepdown: marked %s copy of a double-write",
+      side == WT_TXN_OP_STEPDOWN_INGEST ? "ingest" : "stable");
+}
+
+/*
+ * __clayered_put_one --
+ *     Put an entry into one constituent tree.
+ */
+static WT_INLINE int
+__clayered_put_one(WT_SESSION_IMPL *session, WT_CURSOR *c, const WT_ITEM *key, const WT_ITEM *value,
+  WT_CLAYERED_PUT_OP op, bool ingest)
+{
     c->set_key(c, key);
     /* Reserve does not require a value. */
     if (op != WT_CLAYERED_PUT_RESERVE)
@@ -2162,13 +2245,69 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         WT_RET(c->update(c));
         break;
     case WT_CLAYERED_PUT_RESERVE:
-        WT_RET(__clayered_reserve_constituent(session, c));
+        WT_RET(__clayered_reserve_constituent(session, c, ingest));
         break;
     }
 
-    /* If necessary, set the position for future scans. */
+    return (0);
+}
+
+/*
+ * __clayered_put --
+ *     Put an entry into the desired tree.
+ */
+static WT_INLINE int
+__clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
+  const WT_ITEM *value, WT_CLAYERED_PUT_OP op)
+{
+    bool ingest, twin;
+
+    __clayered_route_write(session, &ingest, &twin);
+
+    if (ingest) {
+        /*
+         * The truncate list is only populated by log application, so there is nothing to detect on
+         * a stepping-down leader.
+         *
+         * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
+         * Doing so would remove the cursor write operation dependency on the truncate list.
+         */
+        if (!S2C(session)->layered_table_manager.leader)
+            WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+              session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
+
+        /*
+         * Clear the stable cursor position, unless this is a double-write and we're about to use
+         * it. Don't clear the ingest cursor: we're about to use it anyway. Keep the cursor position
+         * if we are in the middle of a cursor traversal.
+         */
+        if (!twin && !F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
+            WT_RET(__clayered_reset_cursors(clayered, true));
+    }
+
+    /*
+     * For a double-write, the stable copy goes first: the stable constituent carries the
+     * user-visible error semantics (e.g. duplicate key detection), and failing before the
+     * overwrite-mode ingest copy is written avoids leaving a stray copy behind on a benign error.
+     */
+    if (!ingest || twin) {
+        WT_RET(__clayered_put_one(session, clayered->stable_cursor, key, value, op, false));
+        if (twin)
+            __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
+    }
+    if (ingest) {
+        WT_RET(__clayered_put_one(session, clayered->ingest_cursor, key, value, op, true));
+        if (twin)
+            __clayered_stepdown_twin(session, clayered->ingest_cursor, WT_TXN_OP_STEPDOWN_INGEST);
+    }
+
+    /*
+     * If necessary, set the position for future scans. A double-write stays positioned on the
+     * stable copy, keeping the leader's positioning invariants.
+     */
     if (op != WT_CLAYERED_PUT_INSERT)
-        clayered->current_cursor = c;
+        clayered->current_cursor =
+          ingest && !twin ? clayered->ingest_cursor : clayered->stable_cursor;
 
     return (0);
 }
@@ -2261,9 +2400,41 @@ static WT_INLINE int
 __clayered_remove_int(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
-    return (S2C(session)->layered_table_manager.leader ?
-        __clayered_remove_leader(session, clayered, key, positioned) :
-        __clayered_remove_follower(session, clayered, key, positioned));
+    WT_CURSOR *c;
+    bool ingest, stable_positioned, twin;
+
+    __clayered_route_write(session, &ingest, &twin);
+
+    if (ingest && !twin)
+        return (__clayered_remove_follower(session, clayered, key, positioned));
+
+    /* During a step-down the layered cursor may be positioned on the ingest constituent. */
+    stable_positioned = positioned && clayered->current_cursor == clayered->stable_cursor;
+
+    if (!twin)
+        return (__clayered_remove_leader(session, clayered, key, stable_positioned));
+
+    /*
+     * A double-write remove. The stable copy goes first and carries the user-visible error
+     * semantics. The ingest copy is written directly as a tombstone rather than through the
+     * follower path, whose existence lookup would see this transaction's own stable-side remove.
+     * Consecutive ingest tombstones cannot arise here: a key whose newest visible ingest version is
+     * already a tombstone is not visible through the layered cursor, so the remove fails before
+     * getting this far.
+     */
+    WT_RET(__clayered_remove_leader(session, clayered, key, stable_positioned));
+    __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
+
+    c = clayered->ingest_cursor;
+    c->set_key(c, key);
+    c->set_value(c, &__wt_tombstone);
+    WT_RET(c->update(c));
+    __clayered_stepdown_twin(session, c, WT_TXN_OP_STEPDOWN_INGEST);
+
+    /* Stay positioned on the stable copy, keeping the leader's positioning invariants. */
+    clayered->current_cursor = clayered->stable_cursor;
+
+    return (0);
 }
 
 /*
@@ -2324,8 +2495,11 @@ __clayered_insert(WT_CURSOR *cursor)
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
      * lookup results in an error, and a failed lookup leaves the original key intact.
+     *
+     * The explicit duplicate check is needed whenever the write may target the ingest table (always
+     * in overwrite mode), so also on a leader while a step-down is in progress.
      */
-    if (!S2C(session)->layered_table_manager.leader && !F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+    if (!__clayered_ingest_skip(clayered) && !F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(session, clayered, &value)) != WT_NOTFOUND) {
         if (ret == 0) {
             WT_ERR(__clayered_copy_duplicate_kv(cursor));
@@ -2399,7 +2573,11 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered, false,
       S2C(session)->layered_table_manager.leader || !F_ISSET(cursor, WT_CURSTD_OVERWRITE), false));
 
-    if (!S2C(session)->layered_table_manager.leader && !F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+    /*
+     * The explicit existence check is needed whenever the write may target the ingest table (always
+     * in overwrite mode), so also on a leader while a step-down is in progress.
+     */
+    if (!__clayered_ingest_skip(clayered) && !F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
         /*
          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
@@ -2876,10 +3054,29 @@ err:
 static int
 __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
-    if (S2C(session)->layered_table_manager.leader)
-        WT_RET(__clayered_modify_leader(session, cursor, entries, nentries));
-    else
-        WT_RET(__clayered_modify_follower(session, cursor, entries, nentries));
+    WT_CURSOR_LAYERED *clayered;
+    bool ingest, twin;
+
+    clayered = (WT_CURSOR_LAYERED *)cursor;
+    __clayered_route_write(session, &ingest, &twin);
+
+    if (!ingest)
+        return (__clayered_modify_leader(session, cursor, entries, nentries));
+    if (!twin)
+        return (__clayered_modify_follower(session, cursor, entries, nentries));
+
+    /*
+     * A double-write modify. The ingest copy goes first: the follower path computes its base value
+     * with a lookup, which must not see this transaction's own stable-side change. The stable side
+     * then applies the modify to the stable base; if the two visible bases differ, the bases came
+     * from opposite sides of the cutoff and the divergent copy is the one that will be aborted when
+     * the commit timestamp is assigned.
+     */
+    WT_RET(__clayered_modify_follower(session, cursor, entries, nentries));
+    __clayered_stepdown_twin(session, clayered->ingest_cursor, WT_TXN_OP_STEPDOWN_INGEST);
+
+    WT_RET(__clayered_modify_leader(session, cursor, entries, nentries));
+    __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
 
     return (0);
 }

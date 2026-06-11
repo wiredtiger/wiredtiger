@@ -455,6 +455,7 @@ SMT
 SPINLOCK
 SSq
 STATP
+STEPDOWN
 STR
 STRUCT
 SVR
@@ -1571,6 +1572,7 @@ recency
 recno
 recnos
 reconfig
+reconfigurable
 reconfigurations
 reconfigures
 reconfiguring
@@ -1685,6 +1687,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr

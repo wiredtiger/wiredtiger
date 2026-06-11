@@ -305,8 +305,17 @@ struct __wt_txn_op {
         } follower_truncate;
     } u;
 
+/*
+ * WT_TXN_OP_STEPDOWN_INGEST / WT_TXN_OP_STEPDOWN_STABLE --
+ *	The operation is one copy of a step-down double-write: the same update was made to both
+ *	constituents of a layered table because the commit timestamp was not yet known. When the
+ *	timestamp is assigned, the copy on the wrong side of the prepare-to-step-down cutoff is
+ *	aborted.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_OP_KEY_REPEATED 0x1u
+#define WT_TXN_OP_STEPDOWN_INGEST 0x2u
+#define WT_TXN_OP_STEPDOWN_STABLE 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
@@ -442,26 +451,36 @@ struct __wt_txn {
  *	The transaction has been published to the durable queue. Setting this
  *	flag lets us know that, on release, we need to mark the transaction for
  *	clearing.
+ * WT_TXN_HAS_STEPDOWN_TWIN --
+ *	The transaction performed step-down double-writes; the losing copies must
+ *	be resolved when the commit timestamp is assigned.
+ * WT_TXN_LAYERED_WROTE_STABLE --
+ *	The transaction wrote to a layered table's stable constituent before any
+ *	commit timestamp was set. If a step-down is prepared, the eventual commit
+ *	timestamp must not be later than the cutoff, because such writes cannot
+ *	be rerouted to the ingest constituent at commit.
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_AUTOCOMMIT 0x00001u
 #define WT_TXN_ERROR 0x00002u
 #define WT_TXN_HAS_SNAPSHOT 0x00004u
-#define WT_TXN_IGNORE_PREPARE 0x00008u
-#define WT_TXN_IS_CHECKPOINT 0x00010u
-#define WT_TXN_PREPARE 0x00020u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00040u
-#define WT_TXN_READONLY 0x00080u
-#define WT_TXN_REFRESH_SNAPSHOT 0x00100u
-#define WT_TXN_RUNNING 0x00200u
-#define WT_TXN_SHARED_TS_DURABLE 0x00400u
-#define WT_TXN_SHARED_TS_READ 0x00800u
-#define WT_TXN_SYNC_SET 0x01000u
-#define WT_TXN_TS_NOT_SET 0x02000u
-#define WT_TXN_TS_ROUND_PREPARED 0x04000u
-#define WT_TXN_TS_ROUND_READ 0x08000u
-#define WT_TXN_UPDATE 0x10000u
+#define WT_TXN_HAS_STEPDOWN_TWIN 0x00008u
+#define WT_TXN_IGNORE_PREPARE 0x00010u
+#define WT_TXN_IS_CHECKPOINT 0x00020u
+#define WT_TXN_LAYERED_WROTE_STABLE 0x00040u
+#define WT_TXN_PREPARE 0x00080u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00100u
+#define WT_TXN_READONLY 0x00200u
+#define WT_TXN_REFRESH_SNAPSHOT 0x00400u
+#define WT_TXN_RUNNING 0x00800u
+#define WT_TXN_SHARED_TS_DURABLE 0x01000u
+#define WT_TXN_SHARED_TS_READ 0x02000u
+#define WT_TXN_SYNC_SET 0x04000u
+#define WT_TXN_TS_NOT_SET 0x08000u
+#define WT_TXN_TS_ROUND_PREPARED 0x10000u
+#define WT_TXN_TS_ROUND_READ 0x20000u
+#define WT_TXN_UPDATE 0x40000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 

@@ -685,8 +685,37 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
 {
     WT_TXN *txn;
     WT_UPDATE *upd;
+    wt_timestamp_t stepdown_ts;
+    bool keep_ingest;
 
     txn = session->txn;
+
+    /*
+     * Resolve a step-down double-write once the commit timestamp is known: abort the copy on the
+     * wrong side of the prepare-to-step-down cutoff, and timestamp the surviving copy normally. If
+     * the step-down was abandoned in the meantime, the stable copy survives, restoring normal
+     * leader behavior.
+     */
+    if (F_ISSET(op, WT_TXN_OP_STEPDOWN_INGEST | WT_TXN_OP_STEPDOWN_STABLE) &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+        stepdown_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->layered_table_manager.stepdown_timestamp);
+        keep_ingest = stepdown_ts != WT_TS_NONE && txn->time_point.commit_timestamp > stepdown_ts;
+        if (F_ISSET(op, keep_ingest ? WT_TXN_OP_STEPDOWN_STABLE : WT_TXN_OP_STEPDOWN_INGEST)) {
+            __wt_verbose_debug1(session, WT_VERB_LAYERED,
+              "stepdown: resolved double-write, aborting the %s copy (commit_ts=%" PRIu64
+              ", cutoff=%" PRIu64 ")",
+              F_ISSET(op, WT_TXN_OP_STEPDOWN_INGEST) ? "ingest" : "stable",
+              txn->time_point.commit_timestamp, stepdown_ts);
+            __wt_tsan_suppress_store_uint64_v(&op->u.op_upd->txnid, WT_TXN_ABORTED);
+            return (0);
+        }
+        __wt_verbose_debug1(session, WT_VERB_LAYERED,
+          "stepdown: resolved double-write, keeping the %s copy (commit_ts=%" PRIu64
+          ", cutoff=%" PRIu64 ")",
+          F_ISSET(op, WT_TXN_OP_STEPDOWN_INGEST) ? "ingest" : "stable",
+          txn->time_point.commit_timestamp, stepdown_ts);
+    }
 
     if (!__txn_should_assign_timestamp(session, op)) {
         if (validate) {

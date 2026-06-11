@@ -115,6 +115,14 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
     if (!conn->layered_table_manager.leader)
         return (0);
 
+    /*
+     * While a step-down is prepared, commits after the cutoff are redirected to the ingest table,
+     * so it is legitimately non-empty on a leader.
+     */
+    if (__wt_atomic_load_uint64_relaxed(&conn->layered_table_manager.stepdown_timestamp) !=
+      WT_TS_NONE)
+        return (0);
+
     /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */
     const char *cursor_config[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL, NULL};

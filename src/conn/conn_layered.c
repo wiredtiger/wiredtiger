@@ -1652,6 +1652,9 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
+    /* A new leader era must not inherit a stale prepare-to-step-down cutoff. */
+    __wt_atomic_store_uint64_relaxed(&conn->layered_table_manager.stepdown_timestamp, WT_TS_NONE);
+
     /*
      * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
      * before draining the ingest tables, so that the updates to the stable tables will be correctly
@@ -1749,6 +1752,12 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * window.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_readonly_then_step_down(session));
+
+    /* The role change completes any prepared step-down: clear the cutoff. */
+    __wt_atomic_store_uint64_relaxed(
+      &S2C(session)->layered_table_manager.stepdown_timestamp, WT_TS_NONE);
+    __wt_verbose_debug1(
+      session, WT_VERB_LAYERED, "%s", "stepdown: role flipped to follower, cutoff cleared");
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);

@@ -327,13 +327,15 @@ int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval;
+    WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval, stepdown_cval;
+    WT_LAYERED_TABLE_MANAGER *manager;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t durable_ts, oldest_ts, stable_disagg_epoch, stable_ts;
-    wt_timestamp_t last_oldest_ts, last_stable_disagg_epoch, last_stable_ts;
+    wt_timestamp_t durable_ts, oldest_ts, stable_disagg_epoch, stable_ts, stepdown_ts;
+    wt_timestamp_t last_oldest_ts, last_stable_disagg_epoch, last_stable_ts, last_stepdown_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch;
+    bool force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch, has_stepdown;
 
+    manager = &S2C(session)->layered_table_manager;
     txn_global = &S2C(session)->txn_global;
 
     WT_STAT_CONN_INCR(session, txn_set_ts);
@@ -358,8 +360,11 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     if (has_stable_disagg_epoch)
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_disagg_epoch);
 
+    WT_RET(__wt_config_gets_def(session, cfg, "prepare_to_step_down", 0, &stepdown_cval));
+    has_stepdown = stepdown_cval.len != 0;
+
     /* If no timestamp was supplied, there's nothing to do. */
-    if (!has_durable && !has_oldest && !has_stable && !has_stable_disagg_epoch)
+    if (!has_durable && !has_oldest && !has_stable && !has_stable_disagg_epoch && !has_stepdown)
         return (0);
 
     /*
@@ -370,6 +375,9 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_parse_timestamp(session, "stable timestamp", &stable_ts, &stable_cval));
     WT_RET(__wt_txn_parse_timestamp(
       session, "stable disaggregated schema epoch", &stable_disagg_epoch, &cval));
+    /* Zero is a valid value here: it abandons an in-progress step-down. */
+    WT_RET(
+      __wt_txn_parse_timestamp_raw(session, "prepare to step down", &stepdown_ts, &stepdown_cval));
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
@@ -444,7 +452,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_readunlock(session, &txn_global->rwlock);
 
     /* Check if we are actually updating anything. */
-    if (!has_durable && !has_oldest && !has_stable && !has_stable_disagg_epoch)
+    if (!has_durable && !has_oldest && !has_stable && !has_stable_disagg_epoch && !has_stepdown)
         return (0);
 
 set:
@@ -495,6 +503,41 @@ set:
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_disagg_epoch_upd);
         __wt_verbose_timestamp(
           session, stable_disagg_epoch, "Updated global stable disaggregated schema epoch");
+    }
+
+    if (has_stepdown) {
+        last_stepdown_ts = __wt_atomic_load_uint64_relaxed(&manager->stepdown_timestamp);
+        if (stepdown_ts != WT_TS_NONE) {
+            if (!manager->leader) {
+                __wt_writeunlock(session, &txn_global->rwlock);
+                WT_RET_MSG(session, EINVAL,
+                  "set_timestamp: prepare_to_step_down requires the disaggregated leader role");
+            }
+            /*
+             * The cutoff must not move while armed: writes have already been routed against the
+             * previous value. Abandon the step-down first.
+             */
+            if (last_stepdown_ts != WT_TS_NONE && last_stepdown_ts != stepdown_ts) {
+                __wt_writeunlock(session, &txn_global->rwlock);
+                WT_RET_MSG(session, EINVAL,
+                  "set_timestamp: a step-down is already prepared at timestamp %s",
+                  __wt_timestamp_to_string(last_stepdown_ts, ts_string[0]));
+            }
+        }
+        /*
+         * FIXME-WT-17785: abandoning a step-down (fail-back) additionally requires draining the
+         * redirected ingest content back to the stable constituents, as in step-up.
+         */
+        __wt_atomic_store_uint64_relaxed(&manager->stepdown_timestamp, stepdown_ts);
+        __wt_verbose_timestamp(session, stepdown_ts,
+          stepdown_ts == WT_TS_NONE ? "Cleared the prepare-to-step-down timestamp" :
+                                      "Updated the prepare-to-step-down timestamp");
+        if (stepdown_ts == WT_TS_NONE)
+            __wt_verbose_debug1(
+              session, WT_VERB_LAYERED, "%s", "stepdown: cutoff cleared (step-down abandoned)");
+        else
+            __wt_verbose_debug1(
+              session, WT_VERB_LAYERED, "stepdown: cutoff armed at %" PRIu64, stepdown_ts);
     }
 
     /*

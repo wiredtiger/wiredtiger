@@ -146,6 +146,14 @@ struct __wt_layered_table_manager {
     size_t entries_allocated_bytes;
 
     bool leader;
+
+    /*
+     * The prepare-to-step-down cutoff. While set on a leader, commits at or before this timestamp
+     * belong to the stable constituents (and therefore the final step-down checkpoint), commits
+     * after it belong to the ingest constituents, where a follower would have them. WT_TS_NONE when
+     * no step-down is in progress.
+     */
+    wt_timestamp_t stepdown_timestamp;
 };
 
 /*

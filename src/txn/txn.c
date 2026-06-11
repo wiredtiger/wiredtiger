@@ -1517,7 +1517,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
-    wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
+    wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp,
+      stepdown_timestamp;
     uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;
@@ -1571,6 +1572,37 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL,
               "durable_timestamp should not be specified for non-prepared transaction");
+    }
+
+    /*
+     * While a step-down is prepared, the commit timestamp decides which side of the cutoff layered
+     * table content belongs to, so it is required. Content written to a stable constituent before
+     * the cutoff was set cannot be rerouted at commit, so such a transaction must commit no later
+     * than the cutoff.
+     */
+    if (F_ISSET(txn, WT_TXN_HAS_STEPDOWN_TWIN | WT_TXN_LAYERED_WROTE_STABLE)) {
+        stepdown_timestamp =
+          __wt_atomic_load_uint64_relaxed(&conn->layered_table_manager.stepdown_timestamp);
+        if (stepdown_timestamp != WT_TS_NONE) {
+            if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
+                __wt_verbose_debug1(session, WT_VERB_LAYERED, "%s",
+                  "stepdown: rejecting commit with no commit timestamp during a prepared "
+                  "step-down");
+                WT_ERR_MSG(session, EINVAL,
+                  "a commit timestamp is required for transactions writing to layered tables "
+                  "while a step-down is prepared");
+            }
+            if (F_ISSET(txn, WT_TXN_LAYERED_WROTE_STABLE) &&
+              txn->time_point.commit_timestamp > stepdown_timestamp) {
+                __wt_verbose_debug1(session, WT_VERB_LAYERED,
+                  "stepdown: rejecting straddler commit (commit_ts=%" PRIu64 ", cutoff=%" PRIu64
+                  ")",
+                  txn->time_point.commit_timestamp, stepdown_timestamp);
+                WT_ERR_MSG(session, WT_ROLLBACK,
+                  "the transaction wrote to a stable constituent before the step-down was "
+                  "prepared, so it must not commit after the prepare-to-step-down timestamp");
+            }
+        }
     }
 
     /*
@@ -1921,6 +1953,15 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     if (txn->txn_log.logrec != NULL &&
       !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_TABLE_LOGGING))
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
+
+    /*
+     * FIXME-WT-17785: resolving a double-write requires the commit timestamp, but a prepared
+     * transaction makes its updates durable at prepare time, before the commit timestamp is known.
+     * Until prepare artifacts can be tracked on both sides of the cutoff, refuse the combination.
+     */
+    if (F_ISSET(txn, WT_TXN_HAS_STEPDOWN_TWIN))
+        WT_RET_MSG(
+          session, ENOTSUP, "a prepared transaction cannot include step-down double-writes");
 
     /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg, false));
