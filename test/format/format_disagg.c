@@ -260,9 +260,8 @@ disagg_switch_roles(void)
         timestamp_sync_threads_commit_ts();
         timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
-        wt_wrap_close_session(session);
     }
-
+    wt_wrap_close_session(session);
     /* After every switch, verify the contents of each table */
     wts_verify_mirrors(g.wts_conn, NULL, NULL);
 }
