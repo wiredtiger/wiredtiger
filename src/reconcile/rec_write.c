@@ -2417,52 +2417,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 }
 
 /*
- * __rec_base_ta_exceeds --
- *     Return whether the page's base image carries durable timestamps newer than the given (current
- *     reconciliation) aggregate. The base image is the most recent image written for the page: the
- *     previous reconciliation result if the page was written while in cache, otherwise the on-disk
- *     address held by the reference.
- */
-static bool
-__rec_base_ta_exceeds(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
-{
-    WT_ADDR *ref_addr;
-    WT_CELL_UNPACK_ADDR unpack_addr;
-    WT_PAGE *home;
-    WT_PAGE_MODIFY *mod;
-    WT_TIME_AGGREGATE *base;
-
-    mod = r->page->modify;
-    base = NULL;
-
-    if (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.block_cookie != NULL)
-        base = &mod->mod_replace.ta;
-    else if (mod->rec_result == WT_PM_REC_MULTIBLOCK && mod->mod_multi_entries == 1 &&
-      mod->mod_multi[0].addr.block_cookie != NULL)
-        base = &mod->mod_multi[0].addr.ta;
-    else {
-        /*
-         * Read the reference's home and address with an acquire barrier between them, matching
-         * __wt_ref_addr_copy: a concurrent parent split can replace an on-page cell with an
-         * off-page address, and pairing a new home with an old address would misinterpret the cell.
-         */
-        home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&r->ref->home);
-        ref_addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&r->ref->addr);
-        if (ref_addr == NULL)
-            return (false);
-        if (__wt_off_page(home, ref_addr))
-            base = &ref_addr->ta;
-        else {
-            __wt_cell_unpack_addr(session, home->dsk, (WT_CELL *)ref_addr, &unpack_addr);
-            base = &unpack_addr.ta;
-        }
-    }
-
-    return (base->newest_start_durable_ts > ta->newest_start_durable_ts ||
-      base->newest_stop_durable_ts > ta->newest_stop_durable_ts);
-}
-
-/*
  * __rec_split_write --
  *     Write a disk block out for the split helper functions.
  */
@@ -2665,21 +2619,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_non_single_page);
         }
     }
-
-    /*
-     * A delta layers on top of the page's existing base image, whose cells remain part of the
-     * materialized page: a delta can add or update a key but cannot remove one, only a full image
-     * can. When this reconciliation dropped a key from the disk image (a globally visible delete),
-     * that key is gone from memory but persists in the base, and a delta cannot remove it. If the
-     * base also carries durable timestamps newer than the in-memory aggregate, a delta would leave
-     * the parent advertising a narrower time window than the materialized page actually contains.
-     * Write a full image instead; it rewrites the base to match the in-memory content, so the
-     * aggregate is exact and reflects only stable content (important during RTS/recovery). The next
-     * reconciliation can resume building deltas. A key still present in memory and merely shadowed
-     * by the delta is unaffected, so this does not disturb the common delta path.
-     */
-    if (build_delta && !WT_PAGE_IS_INTERNAL(page) && __rec_base_ta_exceeds(session, r, &chunk->ta))
-        build_delta = false;
 
     /* Write the disk image and get an address. */
     if (skip_write) {

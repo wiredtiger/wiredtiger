@@ -130,12 +130,10 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         # Make stable timestamp equal to rollback timestamp
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(45)}')
 
-        # Verify checkpoint writes a page with the committed update to disk. After the prepared
-        # rollback the base image still holds the prepared cell's higher durable timestamp, which a
-        # delta cannot drop, so reconciliation writes a full image rather than a delta.
+        # Verify checkpoint writes a page with the committed update to disk
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
-            wiredtiger.stat.dsrc.rec_page_full_image_leaf: True,
+            stat: True,
         }, self.uri)
 
         # Verify the key
@@ -222,12 +220,10 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         # Make stable timestamp equal to rollback timestamp
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(45)}')
 
-        # Verify checkpoint writes a page with the committed update to disk. After the prepared
-        # rollback the base image still holds the prepared cell's higher durable timestamp, which a
-        # delta cannot drop, so reconciliation writes a full image rather than a delta.
+        # Verify checkpoint writes a page with the committed update to disk
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
-            wiredtiger.stat.dsrc.rec_page_full_image_leaf: True,
+            stat: True,
         }, self.uri)
 
         # Verify the key
@@ -305,12 +301,10 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         # Make stable timestamp equal to rollback timestamp
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(45)}')
 
-        # Verify checkpoint writes a page with the committed update to disk. After the prepared
-        # rollback the base image still holds the prepared cell's higher durable timestamp, which a
-        # delta cannot drop, so reconciliation writes a full image rather than a delta.
+        # Verify checkpoint writes a page with the committed update to disk
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
-            wiredtiger.stat.dsrc.rec_page_full_image_leaf: True,
+            stat: True,
         }, self.uri)
 
         # Verify the key
