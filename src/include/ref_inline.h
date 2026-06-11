@@ -21,7 +21,7 @@ __wt_ref_is_root(WT_REF *ref)
 /*
  * # The ref state API. #
  *
- * 6 macros are defined to manipulate the ref state. This is a highly sensitive field and protected
+ * Macros are defined to manipulate the ref state. This is a highly sensitive field and protected
  * via the double underscore keyword. The field should only be accessed via these macros.
  *
  * WT_REF_GET_STATE:
