@@ -66,6 +66,13 @@ gaps; values are unique strings (`new_value`).
 Writes are also result-compared (`_write_pair` / `_positional_pair` assert the layered and
 reference return codes match) — a write checked like a read.
 
+**Guiding principle (test inventory).** The seed-driven stress test is the *only* layered-vs-regular
+agreement checker in this file. A standalone scenario test earns its place **only** if it pins a
+known *mismatch* (a bug repro); a scenario that merely re-asserts correct/agreeing behavior is
+redundant with the oracle and is not kept. (That's why the file currently has just the three stress
+tests — the agreeing scenarios were removed, and the one diverging scenario lives in the bug-review
+package.)
+
 ---
 
 ## 4. Write protocol & replication model
@@ -140,10 +147,14 @@ autocommit (the checkpoint runs on the leader session, which must have no open t
   permits writes; the other two are read-only (the engine rejects their writes). Single-threaded,
   all three return identical reads, so this exercises the distinct read paths with the oracle
   proving self-consistency; the *observable* differences need concurrency (prepare, C4).
-- **Prepare** (C4/C5, deterministic scenarios): a second follower session holds a prepared txn whose
-  update lands in the follower **ingest**, shadowing a committed stable value; reads must surface
-  `WT_PREPARE_CONFLICT` (raised as a Python exception → mapped to a code by `prepare_safe`) exactly
-  as the plain table does, and recover after the prepare resolves.
+- **Prepare** (C4/C5): explored via deterministic scenarios where a second follower session holds a
+  prepared txn whose update lands in the follower **ingest**, shadowing a committed stable value;
+  reads must surface `WT_PREPARE_CONFLICT` exactly as the plain table does. Point search matched
+  (oracle held); forward iteration **diverged** — that became a bug candidate. The prepare scenarios
+  have since been **removed from this file** (the agreeing ones were redundant with the stress
+  oracle; the diverging one is a tracked bug). Prepare now lives only in the bug-review package
+  (`test/suite/test_layered_prepare_iterate_diff.py` + `findings/`); it is **not** in the random
+  chain — folding it in is a follow-up.
 
 ---
 
@@ -154,8 +165,6 @@ ops. Guards (asserted after the multi-seed run; skipped under single-seed replay
 
 - `assert_merge_exercised` — the follower must read from **stable** ≥ 10% of follower reads (else
   it's an ingest-only degenerate oracle). Reads the `layered_curs_*_{stable,ingest}` stats.
-- `assert_stable_served` — in the prepare scenarios, proves a specific base key is **stable**-served
-  (the drain reached stable) so the prepared-ingest-shadows-stable merge is genuinely tested.
 - `n_positional > 0` — positional update/remove chains actually ran.
 - `n_read_ts > 0`, `n_iso_rc > 0`, `n_iso_ru > 0` — as-of-past, read-committed, read-uncommitted
   txns all actually fired.
@@ -167,15 +176,15 @@ ops. Guards (asserted after the multi-seed run; skipped under single-seed replay
 | dimension | covered | where |
 |---|---|---|
 | ingest+stable merge (reads) | ✅ | the whole test; `assert_merge_exercised` |
-| ingest tombstone shadows stable | ✅ | random removes + `test_scenario_checkpoint_delete_visible` |
+| ingest tombstone shadows stable | ✅ | random removes (`test_random`) |
 | long-lived positioned chains | ✅ | `pick_op` bias; `n_positional` guard |
 | search_near neighbour semantics | ✅ | `compare_search_near` |
 | checkpoint advance + drain | ✅ | `advance` / `drain_ingest`; `test_read_only` |
 | explicit txns, cursor survives switch | ✅ (C1) | `_end_txn`, `run_seed` |
 | same-txn iterate-and-delete | ✅ (C1) | in-txn DIRECT positional writes |
-| `read_timestamp` / as-of-past | ✅ (C2) | `test_scenario_read_timestamp_history` + random |
+| `read_timestamp` / as-of-past | ✅ (C2) | `begin` read_ts in the random run; `n_read_ts` guard |
 | isolation levels | ✅ (C3) | `begin` config; iso guards |
-| prepared-txn conflict + recovery | ✅ (C4/C5) | `test_scenario_prepare_conflict_*` |
+| prepared-txn conflict + recovery | ⚠️ NOT in this file | prepare is not in the random chain; lives in the bug-review `test/suite/test_layered_prepare_iterate_diff.py` + `findings/`. Folding prepare into the random chain is a follow-up. |
 | scenario injections (mass delete, truncate, bulk insert) | ⏳ Phase D | — |
 | config matrix (overwrite, bounds) | ⏳ Phase E | — |
 | shrinking + CI wiring | ⏳ Phase F | — |
@@ -203,13 +212,13 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 - `advance` · `drain_ingest`
 
 **E. Stats / anti-degeneracy**
-- `follower_read_split` · `assert_merge_exercised` · `assert_stable_served`
+- `follower_read_split` · `assert_merge_exercised`
 
 **F. Read application & the oracle**
 - `apply` · `compare_read` · `compare_search_near` · `fail_mismatch`
 
-**G. Verification & helpers**
-- `scan` · `prepare_safe` · `psearch` · `verify`
+**G. Verification**
+- `scan` · `verify`
 
 **H. Operation generation**
 - `pick_op` · `pick_search_key`
@@ -217,10 +226,9 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 **I. The driver**
 - `open_trace` · `run_seed` · `replaying_single_seed` · `seeds_for`
 
-**J. Tests (top level)**
-- `test_smoke` · `test_read_only` · `test_random` · `test_scenario_checkpoint_delete_visible` ·
-  `test_scenario_read_timestamp_history` · `test_scenario_prepare_conflict_point` ·
-  `test_scenario_prepare_conflict_iterate`
+**J. Tests (top level)** — only the seed-driven stress tests; a standalone scenario is kept
+**only** if it pins a known layered-vs-regular *mismatch* (none currently do, so there are none).
+- `test_smoke` · `test_read_only` · `test_random`
 
 ---
 

@@ -7,6 +7,18 @@ Run (from `build/`): `python3 ../test/suite/run.py test_layered_cursor_stress`
 This is the single source of truth for **what we are doing, where we are, and what is
 unresolved**. Tickboxes are concrete goals; check them only with real passing test output.
 
+> **Test-inventory principle (2026-06-11).** The seed-driven stress test
+> (`test_smoke`/`test_read_only`/`test_random`) is the *only* layered-vs-regular agreement checker
+> in `test_layered_cursor_stress.py`. A standalone scenario test is kept **only** if it pins a known
+> *mismatch* (a bug repro); scenarios that merely re-assert correct/agreeing behavior are redundant
+> with the oracle and were removed. Consequently the phase work below (C2 read_timestamp regression,
+> C3, C4/C5 prepare scenarios, the checkpoint-delete regression) was *done and reviewed* as recorded,
+> but the deterministic scenario tests were subsequently deleted from the file: the agreeing ones as
+> redundant, the diverging prepare-iterate one because it is a tracked bug now living in the
+> bug-review package (`findings/` + `test/suite/test_layered_prepare_iterate_diff.py`). Net: prepare
+> is no longer exercised in this file (folding it into the random chain is a follow-up); everything
+> else (read_timestamp, isolation, tombstone merge) remains covered by the random run.
+
 ---
 
 ## 1. Design in one paragraph (v3)
