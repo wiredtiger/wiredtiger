@@ -529,15 +529,20 @@ __sweep_server(void *arg)
         /* On a stepped-up leader, mark the shared disk cache dead once its reuse window elapses. */
         if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
           __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
-            WT_DSK_CACHE_READONLY &&
-          now - __wt_atomic_load_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since) >
-            WT_DISAGG_OUTDATED_GRACE_SECS) {
-            /* A failed swap means a concurrent step-down reactivated the cache, leave it alone. */
-            if (!__wt_atomic_cas_uint8(
-                  &conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY, WT_DSK_CACHE_DEAD))
-                WT_ASSERT(session,
-                  WT_DSK_CACHE_READABLE(
-                    __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state)));
+            WT_DSK_CACHE_READONLY) {
+            /* A step-up can land after this loop's timestamp was taken: guard the unsigned math. */
+            uint64_t readonly_since =
+              __wt_atomic_load_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since);
+            if (now > readonly_since && now - readonly_since > WT_DISAGG_OUTDATED_GRACE_SECS) {
+                /*
+                 * A failed swap means a concurrent step-down reactivated the cache, leave it alone.
+                 */
+                if (!__wt_atomic_cas_uint8(&conn->cache->shared_dsk_cache.state,
+                      WT_DSK_CACHE_READONLY, WT_DSK_CACHE_DEAD))
+                    WT_ASSERT(session,
+                      WT_DSK_CACHE_READABLE(
+                        __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state)));
+            }
         }
 
         /* Remember the last sweep time. */
