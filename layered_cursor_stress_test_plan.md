@@ -399,8 +399,14 @@ session/snapshot.)
       assertion is incidental, not a blessed-correct statement. Re-opened as a likely real bug.
       **Review package: `findings/prepare_iterate_bug_candidate.md`** (writeup + draft ticket),
       `findings/repro_prepare_iterate_worst_case.py` (prepared-key-sorts-last), the canonical
-      `test/suite/test_layered_prepare_iterate_diff.py` (2 cases), and a deep `cur_layered.c`
-      deferability/correctness analysis. The C5 recovery oracle in the stress scenario still holds.
+      `test/suite/test_layered_prepare_iterate_diff.py` (2 cases). **Deep `cur_layered.c` analysis
+      DONE — verdict: likely a real bug, FIXABLE (moderate-hard), liveness not correctness.** The
+      "by-design" premise ("can't position onto a prepared key without conflicting") is REFUTED by
+      `WT_CURSTD_KEY_ONLY` (yields a prepared entry's key without resolving its value; already used
+      by `__wt_btcur_search_prepared`/`largest_key`); an `ignore_prepare=true` reader iterates the
+      layered follower correctly. Eager conflict is over-conservative; deferral to the key's true
+      sort position is provably sound. WT-17652 changed fresh-start stable-first→ingest-first
+      (abandoned deferral attempt). The C5 recovery oracle in the stress scenario still holds.
 
 ### Phase D — Scenario injections (at seeded points)
 - [ ] D1. Evict 20/40/60/80/100% of ingest mid-cursor-life (`release_evict`).
