@@ -444,7 +444,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if kind == 'begin':
             # Half the time, when a past window exists, open a read-only as-of-T transaction;
             # the read_timestamp is any point in [oldest, latest] -- both tables must agree on
-            # that historical view. Otherwise a normal read-write transaction.
+            # that historical view. Otherwise a normal read-write transaction. The `oldest_ts>=1`
+            # gate is load-bearing: it keeps randint off timestamp 0 (an invalid read_timestamp).
             if self.oldest_ts >= 1 and self.ts > self.oldest_ts and rnd.random() < 0.5:
                 return ('begin', rnd.randint(self.oldest_ts, self.ts))
             return ('begin', None)
@@ -512,6 +513,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     self.txn_read_ts = read_ts
                     if read_ts is not None:
                         self.n_read_ts += 1
+                    # Snapshot for rollback. An as-of-T txn never writes, so the restore is a
+                    # no-op for it, but keep it unconditional so rollback has a value to restore.
                     self.live_snapshot = dict(self.live)
                     # The cursor stays physically positioned so next/prev keep iterating across
                     # the switch, but a positional WRITE must be re-established by a read inside
