@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Reject non-ASCII characters in C/C++ source files.
+# Reject non-ASCII characters in C/C++ and CMake source files.
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
 setup_trap
 cd_top
@@ -17,11 +17,13 @@ check_charset()
 # Parallel execution: if it's the main invocation of the script, collect the file names
 # to process and run them in subprocesses.
 is_main_run && {
-    find bench dist examples ext src test tools/checksum_bitflip cmake lang \
+    find bench dist examples ext src test tools/checksum_bitflip cmake lang CMakeLists.txt \
         -name '*.[ch]' -o \
         -name '*.cpp' -o \
         -name '*.i' -o \
-        -name '*.in' | \
+        -name '*.in' -o \
+        -name '*.cmake' -o \
+        -name 'CMakeLists.txt' | \
         $FGREP -v \
             -e 'Makefile.in' \
             -e 'checksum/power8' \
