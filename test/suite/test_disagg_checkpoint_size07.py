@@ -42,7 +42,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #
 # This test enables timing_stress_for_test=[failpoint_rec_before_wrapup], which fires
 # 1% of the time during eviction reconciliation (WT_REC_EVICT), and loops until the
-# rec_free_page_id_due_to_failed_replacement_reconciliation stat is incremented — the
+# rec_free_page_id_due_to_failed_replacement_reconciliation stat is incremented  the
 # signal that the error path was reached and the fix code ran.
 
 @disagg_test_class
@@ -170,11 +170,11 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
 
-        # Step 7: Stat check — the error path was reached at least once.
+        # Step 7: Stat check  the error path was reached at least once.
         self.assertGreater(self.get_stat(stat_key), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 
-        # Step 8: Size check — without the WT-16864 fix, __rec_write_err skipped
+        # Step 8: Size check  without the WT-16864 fix, __rec_write_err skipped
         # obsolete_delta_chain, leaking cumulative_size into block_disagg->size.
         # The next checkpoint then added the new block on top of the already-counted
         # cumulative_size, making size_after_recovery  size_with_delta + size_initial.

@@ -34,7 +34,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #   Exercises the WT-16864 fix for cumulative_size_aggregated invariant
 #   violations introduced by two __rec_write_wrapup paths:
 #
-#   Path 1 — save_update_restore wrapup (rec_write.c ~line 3185):
+#   Path 1  save_update_restore wrapup (rec_write.c ~line 3185):
 #     When eviction keeps a page in memory with restored updates (because an
 #     active reader transaction prevents those updates from becoming globally
 #     visible), it copies r->multi->block_meta into page->disagg_info->block_meta
@@ -42,7 +42,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #     the field false even though the on-disk size is still counted in
 #     block_disagg->size.
 #
-#   Path 2 — skip-write wrapup (rec_write.c ~line 3205):
+#   Path 2  skip-write wrapup (rec_write.c ~line 3205):
 #     When eviction reuses the page's existing on-disk address (content unchanged
 #     since the last write), __rec_copy_prev_addr also resets
 #     cumulative_size_aggregated to false in multi->block_meta.  The wrapup then
@@ -193,7 +193,7 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         # block_meta (cumulative_size > 0, cumulative_size_aggregated = true).
         self.evict_page('key000000')
 
-        # Step 4–5: enable failpoint and loop until __rec_write_err is reached.
+        # Step 45: enable failpoint and loop until __rec_write_err is reached.
         # delta_pct=1 forces full-image writes; the blocker transaction forces
         # save_update_restore on the first eviction attempt of pages with ts>=2 updates.
         # After save_update_restore the page remains in cache with the multiblock
@@ -303,7 +303,7 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         self.assertGreater(size_with_delta, size_baseline,
             'Expected checkpoint size to grow after a delta write')
 
-        # Steps 3–4: loop until the error path fires.
+        # Steps 34: loop until the error path fires.
         # Each iteration:
         #   a. Write to the page and rollback.  The page becomes dirty with only
         #      aborted updates; the committed 'B' data still has WT_UPDATE_DURABLE.
