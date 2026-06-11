@@ -387,20 +387,20 @@ session/snapshot.)
 - [x] C5. Transaction-level error recovery: on `WT_PREPARE_CONFLICT` / `WT_ROLLBACK`, roll back
       the transaction and then keep reusing the same cursor (clean state); compare recovery
       behaviour layered-vs-reference. (Cursor-level `WT_NOTFOUND`/`WT_DUPLICATE_KEY` reuse is A7.)
-      **DONE + REVIEWED (APPROVE).** `test_scenario_prepare_conflict_iterate`. **FINDING (for Ivan;
-      likely by-design):** with the base correctly in stable, forward iteration into a prepared
-      ingest key DIVERGES between layered and plain — LAYERED conflicts on the FIRST `next()` (the
-      merge must position the ingest constituent, and a prepared key ANYWHERE in the ingest blocks
-      the walk from the start, even though 100<110 is committed in stable and sorts first), while
-      the PLAIN reference returns 100 first and only conflicts when it REACHES 110. This matches the
-      existing regression `test_layered_prepare01` (its 'middle' scenario asserts first-`next()`
-      conflict) and `cur_layered.c` ~1164 ("the cursor walk must be blocked by a prepared conflict
-      on the ingest cursor"), so it is almost certainly intended layered semantics — surfaced via a
-      minimal standalone repro `findings/repro_prepare_iterate_layered_vs_plain.py` for Ivan's
-      verdict. The scenario asserts each side's actual behaviour (NOT a layered==reference oracle at
-      the conflict point — a legitimate layered-vs-plain difference, like snapshot pinning). The C5
-      recovery oracle still holds: after the prepared txn rolls back, the SAME cursors are reused and
-      iteration completes with all base keys (100,110,120), layered==reference.
+      **DONE + REVIEWED (APPROVE).** `test_scenario_prepare_conflict_iterate`. **FINDING — ESCALATED
+      AS A POTENTIAL BUG (stress-test track PAUSED 2026-06-11 to prepare the review):** with the base
+      correctly in stable, forward iteration into a prepared ingest key DIVERGES between layered and
+      plain — LAYERED conflicts on the FIRST `next()` (a prepared key ANYWHERE in the ingest blocks
+      the merge walk from the start), returning NONE of the committed stable keys, even ones that sort
+      before the prepared key and are unaffected by it (worst case: prepared key sorts last, blocks
+      committed 1,2,3). PLAIN returns the committed prefix and only conflicts on reaching the prepared
+      key. Initial lean was "by-design" (cited `test_layered_prepare01` + `cur_layered.c` ~1164), but
+      that evidence is weak: that test's subject is post-rollback recovery, so its first-`next()`
+      assertion is incidental, not a blessed-correct statement. Re-opened as a likely real bug.
+      **Review package: `findings/prepare_iterate_bug_candidate.md`** (writeup + draft ticket),
+      `findings/repro_prepare_iterate_worst_case.py` (prepared-key-sorts-last), the canonical
+      `test/suite/test_layered_prepare_iterate_diff.py` (2 cases), and a deep `cur_layered.c`
+      deferability/correctness analysis. The C5 recovery oracle in the stress scenario still holds.
 
 ### Phase D — Scenario injections (at seeded points)
 - [ ] D1. Evict 20/40/60/80/100% of ingest mid-cursor-life (`release_evict`).
