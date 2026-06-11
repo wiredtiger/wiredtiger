@@ -165,15 +165,17 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
 
     def test_dump_without_q_fails_disagg(self):
         # Baseline: dump on corrupt disagg data must panic. Mirrors
-        # test_dump_without_q_fails in the non-disagg file: rc not in
-        # (0, 1), stderr carries the panic markers.
+        # test_dump_without_q_fails in the non-disagg file. rc semantics
+        # differ between debug builds (SIGABRT) and release builds
+        # (panic without abort), so the load-bearing check is the
+        # WT_PANIC marker on stderr, not the exact rc value.
         self.setup_corrupt_leaf_table()
         rc, _, stderr = self._run_wt_follower(
             'dump', self.uri,
             out='dump_no_q.out', err='dump_no_q.err')
-        self.assertNotIn(rc, (0, 1),
-            f'wt dump on corrupt disagg exited cleanly (rc={rc}); '
-            f'-q semantics may have leaked into the default path')
+        self.assertNotEqual(rc, 0,
+            f'wt dump on corrupt disagg exited 0; -q semantics may '
+            f'have leaked into the default path')
         self.assertIn('WT_PANIC', stderr,
             'wt dump on corrupt disagg exited non-zero without panicking')
 
