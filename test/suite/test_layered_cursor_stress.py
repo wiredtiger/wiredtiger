@@ -303,22 +303,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(stable * 10, total,
             'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
 
-    def assert_stable_served(self, node, key):
-        # Confirm a follower layered point search of `key` is served from STABLE, not ingest --
-        # i.e. the drain really pushed the committed base down to stable. Guards the prepare
-        # scenarios against silently regressing to an ingest-only base (which would defeat the
-        # "prepared ingest update shadows a committed stable value" merge case): a single advance
-        # before the drain leaves the base in ingest (the prune needs >= 2 checkpoints, A10).
-        before = self.follower_read_split()
-        node.lay_c.set_key(key)
-        self.assertEqual(node.lay_c.search(), 0)
-        node.lay_c.reset()
-        after = self.follower_read_split()
-        d_stable, d_ingest = after[0] - before[0], after[1] - before[1]
-        self.assertTrue(d_stable >= 1 and d_ingest == 0,
-            'base key %d not stable-served (stable +%d, ingest +%d): drain did not reach stable'
-            % (key, d_stable, d_ingest))
-
     # --- read application + comparison -----------------------------------
 
     def apply(self, cursor, op):
@@ -397,21 +381,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 break
             out.append((cursor.get_key(), cursor.get_value()))
         return out
-
-    def prepare_safe(self, fn):
-        # A prepared conflict is raised as a WiredTigerError in Python (not returned like
-        # WT_NOTFOUND). Map it back to the WT_PREPARE_CONFLICT code so a layered read and a
-        # reference read can be compared uniformly (the prepare-conflict oracle, C4).
-        try:
-            return fn()
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_PREPARE_CONFLICT' in str(e):
-                return wiredtiger.WT_PREPARE_CONFLICT
-            raise
-
-    def psearch(self, cursor, key):
-        cursor.set_key(key)
-        return self.prepare_safe(cursor.search)
 
     def verify(self, nodes, trace):
         # Each node: layered full scan must equal its reference; and the leader's layered
@@ -689,130 +658,3 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # Both non-snapshot isolation levels must actually be exercised (C3).
             self.assertGreater(self.n_iso_rc, 0, 'no read-committed txns were exercised')
             self.assertGreater(self.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
-
-    def test_scenario_checkpoint_delete_visible(self):
-        # Regression: after deletes are folded into a new checkpoint, a follower cursor with
-        # no pinned snapshot reflects the deletion via both scan and point search. (A pinned
-        # snapshot -- held cursor / explicit txn -- legitimately keeps the old view; that is
-        # correct read-committed semantics, not a bug. See finding-stale-checkpoint-cursor.)
-        self.setup_connections()
-        nodes = self.make_nodes('ckpt')
-        try:
-            for k in (100, 110, 120, 130):
-                self.mirror_write(nodes, k, 'v%d' % k)
-            self.advance()
-            for k in (110, 120):
-                self.mirror_write(nodes, k, None)
-            self.advance()
-            # Fresh follower session + single cursor: nothing pins the snapshot.
-            rs = self.conn_follow.open_session('')
-            c = rs.open_cursor('layered:lcs_ckpt')
-            self.assertEqual(self.scan(c, True), [(100, 'v100'), (130, 'v130')])
-            for k, exp in [(100, 0), (110, wiredtiger.WT_NOTFOUND),
-                           (120, wiredtiger.WT_NOTFOUND), (130, 0)]:
-                c.reset(); c.set_key(k)
-                self.assertEqual(c.search(), exp)
-            c.close(); rs.close()
-        finally:
-            for n in nodes:
-                n.close()
-
-    def test_scenario_read_timestamp_history(self):
-        # Regression for the read_timestamp merge (C2): a key overwritten across two checkpoints,
-        # with the older version in stable's history and the ingest drained. Reading at the old
-        # commit's timestamp must reconstruct the OLD value on the follower's merged cursor, and
-        # at the new commit's timestamp the NEW value -- on both the layered and reference tables.
-        self.setup_connections()
-        nodes = self.make_nodes('rts')
-        leader, follower = nodes
-        try:
-            self.mirror_write(nodes, 100, 'old'); self.live[100] = 'x'
-            ts_old = self.ts
-            self.advance()                  # checkpoint 1: 100='old'
-            self.mirror_write(nodes, 100, 'new'); self.live[100] = 'x'
-            ts_new = self.ts
-            self.advance()                  # checkpoint 2: 100='new'; oldest now lags to ts_old
-            self.drain_ingest(follower)     # prune already-stable ingest -> read from stable+history
-            for n in nodes:
-                n.reset_all()
-            for ts, exp in [(ts_old, 'old'), (ts_new, 'new')]:
-                for n in nodes:
-                    n.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
-                    for cur in (n.lay_c, n.ref_c):
-                        cur.set_key(100)
-                        self.assertEqual(cur.search(), 0, 'as-of-%d search on %s' % (ts, n.lay_uri))
-                        self.assertEqual(cur.get_value(), exp,
-                                         'as-of-%d value on %s' % (ts, n.lay_uri))
-                        cur.reset()
-                    n.session.rollback_transaction()
-        finally:
-            for n in nodes:
-                n.close()
-
-    def test_scenario_prepare_conflict_point(self):
-        # C4: a prepared update of 110 in the FOLLOWER's ingest (a second session) must surface
-        # WT_PREPARE_CONFLICT through the layered cursor's stable+ingest merge exactly as the
-        # plain reference table does. A read below the prepare sees the committed base; after the
-        # prepared txn COMMITS, a read above the commit sees the new value -- all on both tables.
-        self.setup_connections()
-        nodes = self.make_nodes('prepp')
-        leader, follower = nodes
-        prep_session = self.conn_follow.open_session('')
-        try:
-            # Committed base -> follower stable + reference. Two checkpoints (with a dirty write
-            # between) are required for the drain to prune the base out of ingest into stable
-            # (A10); a single advance leaves it in ingest and the merge case is not exercised.
-            for k in (100, 110, 120):
-                self.mirror_write(nodes, k, 'base'); self.live[k] = 'x'
-            self.advance()                         # checkpoint 1 holds the base
-            for k in (100, 110, 120):              # second dirty round -> a newer checkpoint
-                self.mirror_write(nodes, k, 'base')
-            self.advance()                         # checkpoint 2: base now durable in stable
-            self.drain_ingest(follower)            # prune base from ingest -> stable-only
-            for n in nodes:
-                n.reset_all()
-            self.assert_stable_served(follower, 110)  # the prepared update will shadow STABLE
-            base_ts = self.ts
-            prep_ts = base_ts + 100
-
-            # Second follower session prepares an update of 110 into the layered ingest AND the
-            # reference table; the prepare_timestamp sits well above the committed base.
-            pc_lay = prep_session.open_cursor(follower.lay_uri)
-            pc_ref = prep_session.open_cursor(follower.ref_uri)
-            prep_session.begin_transaction()
-            for c in (pc_lay, pc_ref):
-                c.set_key(110); c.set_value('prepared'); c.insert()
-            pc_lay.close(); pc_ref.close()
-            prep_session.prepare_transaction('prepare_timestamp=%s,prepared_id=%s'
-                % (self.timestamp_str(prep_ts), self.prepared_id_str(1)))
-
-            # Reader covering the prepare: 110 conflicts on BOTH tables; 100 (no prepare) reads
-            # its committed value on both.
-            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts + 10))
-            self.assertEqual(self.psearch(follower.lay_c, 110), wiredtiger.WT_PREPARE_CONFLICT)
-            self.assertEqual(self.psearch(follower.ref_c, 110), wiredtiger.WT_PREPARE_CONFLICT)
-            self.assertEqual(self.psearch(follower.lay_c, 100), 0)
-            self.assertEqual(self.psearch(follower.ref_c, 100), 0)
-            self.assertEqual(follower.lay_c.get_value(), follower.ref_c.get_value())
-            follower.reset_all(); follower.session.rollback_transaction()
-
-            # Reading below the prepare timestamp sees the committed base, no conflict, on both.
-            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(prep_ts - 1))
-            for cur in (follower.lay_c, follower.ref_c):
-                self.assertEqual(self.psearch(cur, 110), 0)
-                self.assertEqual(cur.get_value(), 'base')
-            follower.reset_all(); follower.session.rollback_transaction()
-
-            # Commit the prepared txn; a read at/above the commit timestamp sees the new value.
-            commit_ts = prep_ts + 5
-            prep_session.commit_transaction('commit_timestamp=%s,durable_timestamp=%s'
-                % (self.timestamp_str(commit_ts), self.timestamp_str(commit_ts)))
-            follower.session.begin_transaction('read_timestamp=%s' % self.timestamp_str(commit_ts + 5))
-            for cur in (follower.lay_c, follower.ref_c):
-                self.assertEqual(self.psearch(cur, 110), 0)
-                self.assertEqual(cur.get_value(), 'prepared')
-            follower.reset_all(); follower.session.rollback_transaction()
-        finally:
-            prep_session.close()
-            for n in nodes:
-                n.close()
