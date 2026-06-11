@@ -126,7 +126,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      * work below.
      */
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_cold_not_cached);
+        WT_STAT_CONN_INCR(session, block_cache_cold_not_cached);
         return;
     }
 
