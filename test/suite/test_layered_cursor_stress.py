@@ -580,7 +580,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                         n.session.rollback_transaction()
                     except Exception:
                         pass
-                self.in_txn = False
+                self.in_txn = self.txn_wrote = self.txn_readonly = False
+                self.txn_read_ts = None
             for n in nodes:
                 n.close()
             trace.close()

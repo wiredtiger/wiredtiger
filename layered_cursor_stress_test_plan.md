@@ -326,7 +326,12 @@ session/snapshot.)
         at the old commit's ts and the NEW value at the new commit's ts — on both tables.
       - Evidence: 5 tests green; 53 as-of-T read txns / 77 read-write txns across 10 seeds;
         single-seed replays (9, 3, 7) green.
-- [x] C3. Isolation levels: snapshot / read-committed / read-uncommitted. **DONE (review pending).**
+- [x] C3. Isolation levels: snapshot / read-committed / read-uncommitted. **DONE + REVIEWED**
+      (independent agent: APPROVE — verified read-only enforcement is airtight (0 write leaks),
+      both non-snapshot levels reject writes in the engine, the never-pair-read_timestamp-with-
+      non-snapshot decision is correct AND safe even though the engine would silently promote
+      rather than error, determinism, oracle soundness; one nit — finally now resets all txn
+      flags, not just in_txn).
       - `begin` picks an isolation level (weights snapshot 72 / read-committed 16 / read-uncommitted
         12). Only **snapshot** supports writes — read-committed and read-uncommitted reject writes
         (`ENOTSUP`, `src/include/txn_inline.h:2111-2115`), so both are **read-only** flavours,
