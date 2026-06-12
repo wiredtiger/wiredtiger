@@ -237,9 +237,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         dsc = 'layered:lcs_dsc_%s' % tag
         asc = 'table:lcs_asc_%s' % tag
         cfg = 'key_format=i,value_format=S'
-        for s in (self.session, self.session_follow):
-            s.create(dsc, cfg)
-            s.create(asc, cfg)
+        for session in (self.session, self.session_follow):
+            session.create(dsc, cfg)
+            session.create(asc, cfg)
         self.state.new_sequence()
         return [Node(self.conn, self.session, dsc, asc),
                 Node(self.conn_follow, self.session_follow, dsc, asc)]
@@ -377,8 +377,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         ingest_uri = 'file:' + node.dsc_uri[len('layered:'):] + '.wt_ingest'
         evict_cursor = node.session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
         try:
-            for k in list(self.state.py_table):
-                evict_cursor.set_key(k)
+            for key in list(self.state.py_table):
+                evict_cursor.set_key(key)
                 if evict_cursor.search() == 0:
                     evict_cursor.reset()
         finally:
@@ -389,11 +389,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
         stat_cursor = self.session_follow.open_cursor('statistics:')
         try:
-            g = lambda s: stat_cursor[getattr(wiredtiger.stat.conn, s)][2]
-            stable = g('layered_curs_next_stable') + g('layered_curs_prev_stable') + \
-                g('layered_curs_search_stable')
-            ingest = g('layered_curs_next_ingest') + g('layered_curs_prev_ingest') + \
-                g('layered_curs_search_ingest')
+            get_stat = lambda name: stat_cursor[getattr(wiredtiger.stat.conn, name)][2]
+            stable = get_stat('layered_curs_next_stable') + get_stat('layered_curs_prev_stable') + \
+                get_stat('layered_curs_search_stable')
+            ingest = get_stat('layered_curs_next_ingest') + get_stat('layered_curs_prev_ingest') + \
+                get_stat('layered_curs_search_ingest')
             return stable, ingest
         finally:
             stat_cursor.close()
@@ -563,9 +563,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def op_put(self, nodes, rnd, trace):
         key = rnd.choice(self.POOL)
         trace.log('put %r' % key)
-        v = self.new_value(key)
-        self.mirror_write(nodes, key, v)
-        self.state.py_table[key] = v
+        value = self.new_value(key)
+        self.mirror_write(nodes, key, value)
+        self.state.py_table[key] = value
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
@@ -579,9 +579,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Positional write: keeps the cursor on cur_pos.
         key = self.state.cur_pos
         trace.log('pos_update %r' % key)
-        v = self.new_value(key)
-        self._positional(nodes, lambda c: (c.set_value(v), c.update())[1])
-        self.state.py_table[key] = v
+        value = self.new_value(key)
+        self._positional(nodes, lambda c: (c.set_value(value), c.update())[1])
+        self.state.py_table[key] = value
 
     def op_pos_remove(self, nodes, rnd, trace):
         # Removes the current key; the cursor stays on the (now deleted) slot.
