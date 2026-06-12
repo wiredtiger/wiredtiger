@@ -122,13 +122,16 @@ to branch), and legality tags (`needs_position`, `needs_live`, `is_write`, `auto
 `in_txn_only`). `_legal(spec, positioned)` is the single legality predicate, pure off the tags and
 `State.txn` (the current `Txn` context).
 
-`DEFAULT_WEIGHTS` is a nested dict. A top-level entry is either a **leaf op weight** (`'next': 40`)
-or a **group** `{'weight': <share at the top level>, <child>: <weight within the group>, ...}`. The
-rule: a group's `weight` is how often that group wins against the other top-level entries; a child's
-weight is its share *given* the group was chosen. Crucially a group contributes **exactly** its
-`weight` to the top-level pool — `_candidates` distributes it over the (normalised) children, so a
-group's internal scale (e.g. `commit: 70`) never leaks into the comparison against leaf ops. Two
-groups today:
+`DEFAULT_WEIGHTS` is a `Weights` **dataclass** (with `TxnWeights` / `ScenarioWeights` for the groups)
+— weights are set by named field, so a mistyped weight is an `AttributeError`/IDE-flagged, not a
+silent miss, and `_validate_weights()` asserts at setup that every weight field is backed by a real
+op. A top-level field is either a **leaf op weight** (`next: int = 40`, the field name equals an
+`OpSpec.name`) or a **group** (its own `weight` = share at the top level + child weights). The rule:
+a group's `weight` is how often that group wins against the other top-level fields; a child's weight
+is its share *given* the group was chosen. Crucially a group contributes **exactly** its `weight` to
+the top-level pool — `_candidates` distributes it over the (normalised) children, so a group's
+internal scale (e.g. `commit = 70`) never leaks into the comparison against leaf ops. Two groups
+today:
 - `txn` (`weight` 8) — when no txn is open it resolves to a single `begin` candidate (op_begin then
   picks its flavour from the begin-mode sub-weights `snapshot`/`read_committed`/`read_uncommitted`/
   `read_timestamp`); when a txn IS open it resolves to `commit`/`rollback` by their sub-weights.
@@ -137,8 +140,9 @@ groups today:
 Position-HOLDING ops (reads + positional writes) carry the bulk of the weight so chains stay long
 (the cursor is positioned ~36% of picks); position-BREAKING ops are deliberately light. There is no
 longer a single `P_BREAK` knob — the break frequency is implicit in the weights (decision D1, a
-`workload-tuning` TODO). A test inherits `DEFAULT_WEIGHTS` and may pass `run_sequence(weights=...)`,
-deep-merged via `merge_weights`, to reshape part of the workload without restating it.
+`workload-tuning` TODO). Inheritance is the dataclass defaults: a test passes its own `Weights(...)`
+to `run_sequence(weights=...)` (unspecified fields keep the defaults; `dataclasses.replace` for a
+partial nested override).
 
 `pick_op`: `_candidates(positioned)` walks the config, legality-filters, and returns
 `(effective_weight, spec)` pairs; it weighted-samples one and returns `lambda: spec.fn(...)` — a
@@ -234,8 +238,8 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 
 **A. Module-level primitives + the workload config**
 - `sign` · `Txn` enum (the transaction context) + `write_allowed(txn)` · `OpSpec` dataclass (the op
-  row: `fn` bound-method ref + config-key `name` + legality tags) · `DEFAULT_WEIGHTS` (the nested
-  weights config) + `merge_weights` (deep-merge for inheritance) · `EventTrace` (`log`/`close`) ·
+  row: `fn` bound-method ref + config-key `name` + legality tags) · `Weights`/`TxnWeights`/
+  `ScenarioWeights` dataclasses + `DEFAULT_WEIGHTS = Weights()` · `EventTrace` (`log`/`close`) ·
   `Node` (`__init__`/`reset_all`/`close`) · `State` (`__init__` global fields / `new_sequence`
   per-sequence fields, incl. `txn`)
 
@@ -266,9 +270,9 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
   `op_advance`/`op_evict` · `op_verify`
 
 **I. Operation generation (no string dispatch)**
-- `_legal` (pure predicate over the `OpSpec` tags + `State.txn`) · `_candidates` (walks
-  `DEFAULT_WEIGHTS`, normalises group shares, legality-filters) · `pick_op` (samples a candidate,
-  returns `lambda: spec.fn(...)`) · `pick_search_key`
+- `_legal` (pure predicate over the `OpSpec` tags + `State.txn`) · `_candidates` (walks the `Weights`
+  dataclass fields, normalises group shares, legality-filters) · `_group_children` · `_validate_weights`
+  · `pick_op` (samples a candidate, returns `lambda: spec.fn(...)`) · `pick_search_key`
 
 **J. The driver**
 - `open_trace` · `run_sequence` (loop = `pick_op(nodes, rnd, trace)()`)

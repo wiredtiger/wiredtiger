@@ -92,6 +92,13 @@ so a scenario-heavy test can bump just `scenarios` without restating everything.
 - [x] **P3. Docs + diagrams.** Synced §6 (generation), the function map, and the oploop `.dot`/svg/png
       to the OpSpec-name + DEFAULT_WEIGHTS + `_candidates` design; created the consolidated
       `layered_cursor_stress_test_todo.md` (code `# TODO(...)` markers mirrored there).
+- [x] **P4. Weights as named-field dataclasses** (Ivan's follow-up: "so we don't mistype weight").
+      Replaced the string-keyed dict + `merge_weights` with frozen `Weights`/`TxnWeights`/
+      `ScenarioWeights`; each leaf field name == its `OpSpec.name`; `_candidates` walks
+      `dataclasses.fields()`; `_validate_weights()` asserts at setup that every weight field is backed
+      by a real op (typo → loud setup failure, not a mid-run KeyError); inheritance via dataclass
+      defaults + `dataclasses.replace`. Suite green, coverage unchanged. Commit `4685a6b0c0`. Docs
+      synced. **Review running.**
 
 ## TODO list
 Moved to the dedicated **`layered_cursor_stress_test_todo.md`** (one row per `# TODO(<topic>)` code
