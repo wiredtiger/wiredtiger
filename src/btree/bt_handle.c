@@ -300,13 +300,16 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
-            /*
-             * Warm the cache, if possible. Skip preload when the caller wants to read past
-             * corruption.
-             */
-            if (!__wt_conn_is_disagg(session) &&
-              !F_ISSET(session, WT_SESSION_REPORT_CORRUPT_FILE)) {
+            /* Warm the cache, if possible. */
+            if (!__wt_conn_is_disagg(session)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
+                /*
+                 * Preload is best-effort: a corrupt 2nd-level internal returns an error from the
+                 * block layer under REPORT that we don't want to fail open_cursor on. The cursor
+                 * walk picks up the corrupt page lazily and skips past it.
+                 */
+                if (ret != 0 && F_ISSET(session, WT_SESSION_REPORT_CORRUPT_FILE))
+                    ret = 0;
                 WT_ERR(ret);
             }
 
