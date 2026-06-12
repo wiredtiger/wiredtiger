@@ -48,9 +48,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-def sign(n):
-    return (n > 0) - (n < 0)
-
 class Txn(Enum):
     # The generator's current transaction context. Only NO and SNAPSHOT permit writes; READ_COMMITTED
     # / READ_UNCOMMITTED reject writes (txn_inline.h ~2112) and READ_TIMESTAMP is an as-of-past read.
@@ -85,6 +82,7 @@ class TxnBeginWeights:
     read_timestamp: int = 30
 
 @dataclass(frozen=True)
+# Q: Question for the future. Some weights should be less than 1% probability (like evict or advance) - probably 0.1% or even 0.01% for the long running tests Should we just make other weights bigger
 class Weights:
     # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
     # the cursor is usually positioned -- the heart of the test. With no break gate, a position-
@@ -218,12 +216,17 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_pos_update,  weights.pos_update, needs_position=True, is_write=True),
             Op(self.op_pos_remove,  weights.pos_remove, needs_position=True, is_write=True),
             Op(self.op_put,         weights.put,        is_write=True),
+            # Q: Why remove requires need_live? If it set's the key from scratch it breaks the position, so even if we try to remove unexisting key we can just check that both asc and dsc removes not_found. Maybe we can create a separate remove weights structure and say that we remove existing keys here
             Op(self.op_remove,      weights.remove,     is_write=True, needs_live=True),
             Op(self.op_reset,       weights.reset),
+            # Q: op_verify, op_advance and op_evict should be scen_advance, scen_verify, scen_evic, since they are not operations
             Op(self.op_verify,      weights.verify),
+            # Q: autocommit_only and in_txn_only should be no_txn, in_txn that are true by default and we turn it to false where needed
             Op(self.op_advance,     weights.advance,    autocommit_only=True),
             Op(self.op_evict,       weights.evict,      autocommit_only=True),
+            # Q: Rename to op_txn_begin
             Op(self.op_begin,       weights.begin,      autocommit_only=True),
+            # Q: I think that op_commit and op_rollback should be a part of op_txn_begin(), so when we call it first time, we start transaction, when we call it second time, we either roll it back or commit (90/10). Weight for them should be moved to txn weights as well.
             Op(self.op_commit,      weights.commit,     in_txn_only=True),
             Op(self.op_rollback,    weights.rollback,   in_txn_only=True),
         ]
@@ -247,20 +250,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.wseq += 1
         return 'v%d.%d' % (key, self.state.wseq)
 
+    # Q: What's the reason to have both remove() and insert() a part of this function consider do it separately in op_remove() and op_insert() to avoid creating function with shared repsonsibilities
     def _write_pair(self, n, key, value):
         # Bare write (no txn management) on node n's layered + reference cursors; compare codes.
         # value=None means remove.
         if value is None:
-            n.dsc_c.set_key(key); rl = n.dsc_c.remove()
-            n.asc_c.set_key(key); rr = n.asc_c.remove()
+            n.dsc_c.set_key(key); ret_dsc = n.dsc_c.remove()
+            n.asc_c.set_key(key); ret_asc = n.asc_c.remove()
         else:
-            n.dsc_c.set_key(key); n.dsc_c.set_value(value); rl = n.dsc_c.insert()
-            n.asc_c.set_key(key); n.asc_c.set_value(value); rr = n.asc_c.insert()
+            n.dsc_c.set_key(key); n.dsc_c.set_value(value); ret_dsc = n.dsc_c.insert()
+            n.asc_c.set_key(key); n.asc_c.set_value(value); ret_asc = n.asc_c.insert()
         # Under overwrite=true these are (0,0); the compare catches a divergence once
         # overwrite=false / prepare land.
-        self.assertEqual(rl, rr,
-            'write result differs layered=%r reference=%r (key=%r value=%r)' % (rl, rr, key, value))
+        self.assertEqual(ret_dsc, ret_asc,
+            'write result differs layered=%r reference=%r (key=%r value=%r)' % (ret_dsc, ret_asc, key, value))
 
+    # Q: It seems like all the writes have the same logic around them: I mean is selft.state.txn is not Txn.NO ..., else begin_txn, commit txn. I think we can also create a separate function to do the same chain of ops on the given session, cursor, node and then assert the cursors after it + take a op label to print it in case of failure.
     def mirror_write(self, nodes, key, value):
         # Write to both connections (leader -> stable, follower -> ingest) and both reference tables.
         # Inside an explicit txn the write joins it (committed later); otherwise it runs in its own
@@ -286,27 +291,27 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         key = self.state.cur_pos
         if self.state.txn is not Txn.NO:
             for n in nodes:
-                rl = do(n.dsc_c); rr = do(n.asc_c)
-                self.assertEqual(rl, rr, 'positional result differs layered=%r reference=%r at key=%r'
-                                 % (rl, rr, key))
+                ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
+                self.assertEqual(ret_dsc, ret_asc, 'positional result differs layered=%r reference=%r at key=%r'
+                                 % (ret_dsc, ret_asc, key))
             self.state.txn_wrote = True
         else:
             self.state.ts += 1
             for n in nodes:
                 n.session.begin_transaction()
-                n.dsc_c.set_key(key); rl_s = n.dsc_c.search()
-                n.asc_c.set_key(key); rr_s = n.asc_c.search()
-                self.assertEqual((rl_s, rr_s), (0, 0),
-                    'positional re-search failed layered=%r reference=%r key=%r' % (rl_s, rr_s, key))
-                rl = do(n.dsc_c); rr = do(n.asc_c)
-                self.assertEqual(rl, rr, 'positional result differs layered=%r reference=%r at key=%r'
-                                 % (rl, rr, key))
+                n.dsc_c.set_key(key); search_dsc = n.dsc_c.search()
+                n.asc_c.set_key(key); search_asc = n.asc_c.search()
+                self.assertEqual((search_dsc, search_asc), (0, 0),
+                    'positional re-search failed layered=%r reference=%r key=%r' % (search_dsc, search_asc, key))
+                ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
+                self.assertEqual(ret_dsc, ret_asc, 'positional result differs layered=%r reference=%r at key=%r'
+                                 % (ret_dsc, ret_asc, key))
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
             self.state.dirty = True
         self.state.n_positional += 1
 
     def _end_txn(self, nodes, commit):
-        # Close the explicit transaction open on both nodes' sessions.
+        # close the explicit transaction open on both nodes' sessions.
         if commit:
             if self.state.txn_wrote:
                 self.state.ts += 1
@@ -317,6 +322,16 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             else:
                 for n in nodes:
                     n.session.commit_transaction()
+
+            # Q: Can we do?
+            # cts = None
+            # if self.state.txn_wrote:
+            #    self.state.ts += 1
+            #    self.state.dirty = True
+            # for n in nodes:
+            #    n.session.commit_transaction()
+
+            # Q: Can you explain me once more why do we need it in simple words with an example?
             # A successful commit keeps cursors positioned (cur_pos survives), except an as-of-T read
             # txn: resuming a latest iteration from a held historical position lets the layered cursor
             # pin its stable constituent across the snapshot change and diverge from the reference
@@ -343,6 +358,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # stable moves to the latest commit, but oldest LAGS one advance behind so the window
         # [oldest, latest] stays open for as-of-past reads (pinning oldest == stable would forbid
         # reading below the latest commit). oldest is monotonic and < stable.
+        # Q: what's the problem with checkpointing even if nothing has changed? it might be interesting from the testing point of view.
         if not self.state.dirty:
             return
         oldest = max(1, self.state.last_advance_ts)
@@ -359,28 +375,28 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # reads: reconciliation drops entries below the prune timestamp (already in stable) and keeps
         # fresher ones. This is the production lifecycle that drives the follower to read from stable.
         ingest_uri = 'file:' + node.dsc_uri[len('layered:'):] + '.wt_ingest'
-        ec = node.session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
+        evict_cursor = node.session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
         try:
             for k in list(self.state.py_table):
-                ec.set_key(k)
-                if ec.search() == 0:
-                    ec.reset()
+                evict_cursor.set_key(k)
+                if evict_cursor.search() == 0:
+                    evict_cursor.reset()
         finally:
-            ec.close()
+            evict_cursor.close()
 
     def DEV_ONLY_follower_read_split(self):
         # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
         # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
-        c = self.session_follow.open_cursor('statistics:')
+        stat_cursor = self.session_follow.open_cursor('statistics:')
         try:
-            g = lambda s: c[getattr(wiredtiger.stat.conn, s)][2]
+            g = lambda s: stat_cursor[getattr(wiredtiger.stat.conn, s)][2]
             stable = g('layered_curs_next_stable') + g('layered_curs_prev_stable') + \
                 g('layered_curs_search_stable')
             ingest = g('layered_curs_next_ingest') + g('layered_curs_prev_ingest') + \
                 g('layered_curs_search_ingest')
             return stable, ingest
         finally:
-            c.close()
+            stat_cursor.close()
 
     def DEV_ONLY_assert_merge_exercised(self):
         # Guard against a degenerate oracle: the follower must read from stable sometimes, or the
@@ -426,11 +442,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             return (0, cursor.get_key(), cursor.get_value())
         layered = []
         for n in nodes:
-            r_dsc = normalize(n.dsc_c)
-            r_asc = normalize(n.asc_c)
-            if r_dsc != r_asc:
-                self.fail_mismatch(n, r_dsc, r_asc, trace, 'read result differs')
-            layered.append(r_dsc)
+            ret_dsc = normalize(n.dsc_c)
+            ret_asc = normalize(n.asc_c)
+            if ret_dsc != ret_asc:
+                self.report_mismatch(n, ret_dsc, ret_asc, trace, 'read result differs')
+            layered.append(ret_dsc)
         self._anchor(layered[0], layered[1])
 
     def _near(self, cursor, key):
@@ -444,43 +460,49 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # search_near on both nodes: WT may return either immediate neighbour of an absent key.
         layered = []
         for n in nodes:
-            r_dsc = self._near(n.dsc_c, key)
-            r_asc = self._near(n.asc_c, key)
-            self._compare_near(n, key, r_dsc, r_asc, trace)
-            layered.append(r_dsc)
+            ret_dsc = self._near(n.dsc_c, key)
+            ret_asc = self._near(n.asc_c, key)
+            self._compare_near(n, key, ret_dsc, ret_asc, trace)
+            layered.append(ret_dsc)
         self._anchor(layered[0], layered[1])
 
-    def _compare_near(self, node, search_key, r_dsc, r_asc, trace):
-        (retl, kl, vl, cl) = r_dsc
-        (retr, kr, vr, cr) = r_asc
-        if retl == wiredtiger.WT_NOTFOUND or retr == wiredtiger.WT_NOTFOUND:
-            if retl != retr:
-                self.fail_mismatch(node, r_dsc, r_asc, trace, 'search_near: one side NOTFOUND')
+    # Q: Does it make sense to create a separate class with named fields for ret_dsc/asc.
+    def _compare_near(self, node, search_key, ret_dsc, ret_asc, trace):
+        (ret_left, key_left, value_left, cmp_left) = ret_dsc
+        (ret_right, key_right, value_right, cmp_right) = ret_asc
+
+        # Handle the NOT_FOUND case
+        if ret_left == wiredtiger.WT_NOTFOUND or ret_right == wiredtiger.WT_NOTFOUND:
+            if ret_left != ret_right:
+                self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near: one side NOTFOUND')
             return
-        # The layered cmp sign must agree with the returned key vs the search key (A11): 0 on
-        # exact match, <0 if the returned key is smaller, >0 if larger.
-        if sign(cl) != sign(kl - search_key):
-            self.fail_mismatch(node, r_dsc, r_asc, trace, 'layered search_near cmp sign wrong')
-        if kl == kr:
-            if sign(cl) != sign(cr) or vl != vr:
-                self.fail_mismatch(node, r_dsc, r_asc, trace, 'search_near same key, differing cmp/value')
+
+        # Check the cmp returned from search_near().
+        _search_near_cmp = lambda n: (n > 0) - (n < 0)
+        if cmp_left != _search_near_cmp(key_left - search_key) or cmp_right != _search_near_cmp(key_right - search_key):
+            self.report_mismatch(node, ret_dsc, ret_asc, trace, 'layered search_near cmp sign wrong')
+        if key_left == key_right:
+            if cmp_left != cmp_right or value_left != value_right:
+                self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near same key, differing cmp/value')
             return
+
         # Different immediate neighbours: must bracket the search key and be adjacent. Step the
         # reference cursor by exactly one onto the layered cursor's key to re-sync.
-        lo, hi = sorted((kl, kr))
+        # Q: Should the results be on the same distance from search_key() in this case?
+        lo, hi = sorted((key_left, key_right))
         if not (lo < search_key < hi):
-            self.fail_mismatch(node, r_dsc, r_asc, trace, 'search_near neighbours do not bracket key')
-        stepped = node.asc_c.next() if kr < kl else node.asc_c.prev()
-        if stepped != 0 or node.asc_c.get_key() != kl or node.asc_c.get_value() != vl:
-            self.fail_mismatch(node, r_dsc, r_asc, trace, 'search_near neighbours not adjacent / value')
+            self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near neighbours do not bracket key')
+        stepped = node.asc_c.next() if key_right < key_left else node.asc_c.prev()
+        if stepped != 0 or node.asc_c.get_key() != key_left or node.asc_c.get_value() != value_left:
+            self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near neighbours not adjacent / value')
 
-    def fail_mismatch(self, node, r_dsc, r_asc, trace, reason):
+    def report_mismatch(self, node, ret_dsc, ret_asc, trace, reason):
         # The failing op is the last line written to the trace file.
         role = 'leader' if node.conn == self.conn else 'follower'
         self.fail('\n'.join([
             'layered-vs-reference mismatch on %s node: %s' % (role, reason),
-            'layered:   %r' % (r_dsc,),
-            'reference: %r' % (r_asc,),
+            'layered:   %r' % (ret_dsc,),
+            'reference: %r' % (ret_asc,),
             'trace file: %s' % trace.path]))
 
     # --- verification ----------------------------------------------------
@@ -569,6 +591,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.py_table.pop(key, None)
 
     def op_begin(self, nodes, rnd, trace):
+        # Q: What's that comment about, explain in simpler terms with an example? We fixed WT-17796, is this example still actual?
         # The cursor stays physically positioned so next/prev iterate across the switch, but a
         # positional WRITE must be re-established by a read inside this txn (a write off a pre-txn
         # position is the cross-txn positioned-remove WT-17796), so clear the generator position.
@@ -582,30 +605,36 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
+            # Q: Why do we need to check for self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts here? ts cannot be < than oldest_ts, right? then if ts == oldest_ts we will always scan this last ts avaiable? and even if oldest_ts == 0 - does it mean that we haven't picked up a checkpoint yet? Can we just scan ts = 0 then? Or would it be simpler to assign oldest_ts = 1 by default?
             if self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts:
                 read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
             else:
                 mode = Txn.SNAPSHOT
         trace.log('begin %r' % ((read_ts, mode.value),))
+
+        # Build the config
         cfg_parts = []
-        # SNAPSHOT/READ_TIMESTAMP run at default snapshot isolation; only RC/RU emit isolation=.
         if mode in (Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED):
             cfg_parts.append('isolation=' + mode.value)
         if read_ts is not None:
             cfg_parts.append('read_timestamp=' + self.timestamp_str(read_ts))
         for n in nodes:
             n.session.begin_transaction(','.join(cfg_parts))
+
+        # Update state
         self.state.txn = mode
         self.state.txn_wrote = False
         self.state.txn_read_ts = read_ts
+        self.state.py_table_snapshot = dict(self.state.py_table)
+        self.state.cur_pos = None
+
+        # Collect statistic
         if mode is Txn.READ_TIMESTAMP:
             self.state.n_read_ts += 1
         elif mode is Txn.READ_COMMITTED:
             self.state.n_iso_rc += 1
         elif mode is Txn.READ_UNCOMMITTED:
             self.state.n_iso_ru += 1
-        self.state.py_table_snapshot = dict(self.state.py_table)
-        self.state.cur_pos = None
 
     def op_commit(self, nodes, rnd, trace):
         trace.log('commit')
@@ -626,12 +655,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         trace.log('advance')
         self._checkpoint(nodes)
 
+    # Q: is it required to do a checkpoint right before we evict? What if we evict without having everything in the stable table too. My intuition is that it shouldn't let us evict what's not backed by the stable table. Another thing to check (maybe leave a TODO), is that such scenario as evict, might require resetting the cursor since if it's positioned it might be not able to pick up the last checkpoint so it won't release it and so we cannot evict.
+    # Q: I thought about it a bit more and we probably should have 2 eviction modes - one is when we don't do the checkpoint and just in random period of time evict everything we can, and the other one is when we do a checkpoint, reset the cursor, and predictably evict 20,40,60,80 or 100% of the ingest table based on random generation, but it could be left for now as TODO.
     def op_evict(self, nodes, rnd, trace):
         # Advance, then drain the follower ingest so later reads fall through to stable.
         trace.log('evict')
         self._checkpoint(nodes)
         self.drain_ingest(nodes[1])
 
+    # Q: verify word is already used for session->verify() command. This should be named scan(), not verify()
     def op_verify(self, nodes, rnd, trace):
         # Full-table scan (the verify() body) as a weighted op: catches a divergence in keys the
         # random reads never touched, and -- scanning the whole follower table through the merged
@@ -659,6 +691,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             return not op.is_write               # no writes in a read-only transaction
         return True                              # snapshot txn: reads + writes + commit/rollback
 
+    # Q: Can we move all the DEV_ONLY functions to a separate place somewhere in the beginning (so they don't pollute the code while I review it)
     def DEV_ONLY_validate_ops(self):
         # Guard the op table at setup: exactly one row per op_* method (a missing/duplicate row fails
         # loudly here, not deep in a run) and every weight positive (zero/negative would drop an op).
@@ -668,6 +701,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         assert rows == methods, 'op table != op_* methods: %r' % sorted(rows ^ methods)
         assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
 
+    # Q: Can we rename pick_op() to run_op() and remove the need to run the selected op on the outer level?
     def pick_op(self, nodes, rnd, trace):
         # Sample one legal op by its weight and return its method bound to context. next/prev
         # dominate the weights, so chains stay long.
