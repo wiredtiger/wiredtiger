@@ -383,7 +383,6 @@ descend:
             if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO)) {
                 if (session->corrupt_skip_first_err == 0)
                     session->corrupt_skip_first_err = ret;
-                WT_STAT_CONN_INCR(session, cursor_skip_corrupt);
                 WT_NOT_READ(ret, 0);
                 break;
             }

@@ -302,8 +302,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
             /*
              * Warm the cache, if possible. Skip preload when the caller wants to read past
-             * corruption; a corrupt 2nd-level internal here would fail open_cursor, and the caller
-             * is going to handle corruption lazily through the cursor walk's skip-and-continue.
+             * corruption.
              */
             if (!__wt_conn_is_disagg(session) &&
               !F_ISSET(session, WT_SESSION_REPORT_CORRUPT_FILE)) {

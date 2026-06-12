@@ -33,7 +33,6 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
     size_t urilen;
-    int64_t skip_after, skip_before;
     int ch;
     char *objname, *uri;
     const char *config, *desc, *pval;
@@ -43,9 +42,6 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     objname_free = false;
     objname = uri = NULL;
     config = NULL;
-    /* skip_after is only read inside the if (quiet_corrupt) block below where it's also assigned.
-     */
-    skip_before = 0;
     while ((ch = __wt_getopt(progname, argc, argv, "af?")) != EOF)
         switch (ch) {
         case 'a':
@@ -106,7 +102,6 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
             config = "read_corrupt=true";
         else if (strcmp(config, "statistics=(fast)") == 0)
             config = "statistics=(fast),read_corrupt=true";
-        skip_before = WT_STAT_CONN_READ(S2C(session_impl)->stats, cursor_skip_corrupt);
     }
 
     if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
@@ -128,14 +123,6 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
         fprintf(stderr, "%s: cursor get(%s) failed: %s\n", progname, objname,
           session->strerror(session, ret));
         goto err;
-    }
-
-    if (quiet_corrupt) {
-        skip_after = WT_STAT_CONN_READ(S2C(session_impl)->stats, cursor_skip_corrupt);
-        if (skip_after > skip_before)
-            fprintf(stderr,
-              "%s: %" PRId64 " pages skipped due to corruption; statistics are partial.\n",
-              progname, skip_after - skip_before);
     }
 
     if (0) {
