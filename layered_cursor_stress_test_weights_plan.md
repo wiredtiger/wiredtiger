@@ -80,24 +80,19 @@ so a scenario-heavy test can bump just `scenarios` without restating everything.
 - **D3 — `write_allowed` is a module function** (matches Ivan's wording), not an enum method.
 
 ## Steps (checkboxes)
-- [ ] **P1. Txn enum + `write_allowed`.** Replace Mode/Iso; rewire State, `_legal`, `op_begin`,
-      `_end_txn`, the coverage counters. Behaviour-preserving (same begin-mode probabilities, just
-      expressed via `Txn`). Suite green. **Review (agent).** Commit.
-- [ ] **P2. Structured weights.** Add `DEFAULT_WEIGHTS` + `merge_weights`; rewrite `pick_op` via
-      `_candidates`; `op_begin` reads mode sub-weights; remove P_BREAK/P_TXN/Category/OpSpec.weight;
-      `run_sequence`/tests take `weights`. Suite green + coverage guards. **Review (agent).** Commit.
-- [ ] **P3. Docs + diagrams.** Sync architecture doc, function map, both `.dot`s; consolidate the
-      TODO list (code `# TODO(...)` markers mirrored in `layered_cursor_stress_test_todo.md`). Commit.
+- [x] **P1. Txn enum + `write_allowed`.** Replaced Mode/Iso; rewired State, `_legal`, `op_begin`,
+      `_end_txn`, the coverage counters. Behaviour-preserving. Suite green. **Reviewed APPROVE.**
+      Commit `4d3fa1f5b7`.
+- [x] **P2. Structured weights.** Added `DEFAULT_WEIGHTS` + `merge_weights`; rewrote `pick_op` via
+      `_candidates` (groups contribute exactly their share over *normalised* children — the bug
+      that earlier let `gw*70=560` swamp leaf ops); `op_begin` reads the begin-mode sub-weights;
+      removed P_BREAK/P_TXN/Category/OpSpec.weight; `run_sequence(weights=...)`. Re-tuned the
+      position-breaking weights down so chains stay long (positioned ~36%, n_positional ~139). Suite
+      green + all coverage guards comfortable. Commit `f542f3a921`. **Review running.**
+- [x] **P3. Docs + diagrams.** Synced §6 (generation), the function map, and the oploop `.dot`/svg/png
+      to the OpSpec-name + DEFAULT_WEIGHTS + `_candidates` design; created the consolidated
+      `layered_cursor_stress_test_todo.md` (code `# TODO(...)` markers mirrored there).
 
-## TODO list (mirrored from code `# TODO(...)` markers — start of the consolidated list)
-- `merge-coverage` — forced-eviction scenario op + ~300k-op long run, then restore the
-  `assert_merge_exercised` floor from the 1% interim.
-- `workload-tuning` — revisit the weights once the long run lands; reconsider a derived break knob (D1).
-- `pin-reset` — extend the as-of-T cursor reset to RC/RU read-only txns only if a Q2-style divergence appears.
-- `scenarios` — add forced_evict / bulk_remove / massive_prepare / truncate as op rows under the
-  `scenarios` group.
-- `read-ts` — drive boundary read timestamps (oldest / stable / mid-window), not just a uniform draw.
-- `prepare-chain` — fold prepared-txn conflicts into the random chain (currently only in the
-  bug-review package); awaiting the storage team's verdict on the prepare-iterate bug candidate.
-- `cpp-poc` — the C++ rewrite prototype is a POC in an agent worktree; promote into `test/csuite`
-  (built as C++) for single-process gdb + 300k-op runs once parity (C1–C5) is reached.
+## TODO list
+Moved to the dedicated **`layered_cursor_stress_test_todo.md`** (one row per `# TODO(<topic>)` code
+marker). Keep that file in sync with the code markers.

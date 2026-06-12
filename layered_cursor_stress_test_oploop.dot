@@ -12,13 +12,10 @@ digraph layered_cursor_stress_oploop {
   verify [shape=oval, fillcolor="#ede7f6", label="verify(): per-node lay==ref;\nleader scan == follower scan"];
 
   // pick_op: the config-driven generator
-  mode   [fillcolor="#e8eef7", label="pick_op(nodes, rnd, trace)\nmode = _mode() ; positioned?\nlegal = [s in self.ops if _legal(s, mode, positioned)]"];
-  txnq   [shape=diamond, fillcolor="#fff4e5", label="legal txn op\nand rand < P_TXN?"];
-  brkq   [shape=diamond, fillcolor="#f0f0f0", label="rand < P_BREAK?"];
-  pooltxn [fillcolor="#fff4e5", label="pool = txn ops\n(begin | commit/rollback)"];
-  poolbrk [fillcolor="#fdeaea", label="pool = break ops\n(put/remove/reset/advance/evict/verify)"];
-  poolkeep[fillcolor="#e6f4ea", label="pool = keep ops\n(next/prev/search/search_near/pos_update/pos_remove)"];
-  sample [fillcolor="#e8eef7", label="weighted-sample pool by OpSpec.weight\n-> lambda: spec.fn(nodes, rnd, trace)"];
+  mode   [fillcolor="#e8eef7", label="pick_op(nodes, rnd, trace)\npositioned = cur_pos in live?"];
+  cand   [fillcolor="#e8eef7", label="_candidates(positioned): walk DEFAULT_WEIGHTS\nleaf -> its weight; group -> its share, split over\n(normalised) children; keep only _legal(spec, positioned)"];
+  grp    [shape=note, fillcolor="#fff4e5", label="groups (contribute exactly their .weight):\n txn  -> begin  (no txn open)  |  commit/rollback (txn open)\n scenarios -> advance / evict"];
+  sample [fillcolor="#e8eef7", label="weighted-sample candidates by effective weight\n-> lambda: spec.fn(nodes, rnd, trace)"];
 
   // the callable runs one op_* method (which updates self.state)
   run    [fillcolor="#eef2ff", label="op()  ->  one op_* method\nself-contained: arg-gen + trace + perform + update state"];
@@ -27,14 +24,9 @@ digraph layered_cursor_stress_oploop {
   loop  -> mode   [label="yes"];
   loop  -> verify [label="no (close open txn first)"];
 
-  mode -> txnq;
-  txnq -> pooltxn [label="yes"];
-  txnq -> brkq    [label="no"];
-  brkq -> poolbrk [label="yes"];
-  brkq -> poolkeep[label="no"];
-  pooltxn  -> sample;
-  poolbrk  -> sample;
-  poolkeep -> sample;
+  mode -> cand;
+  cand -> grp [style=dotted, arrowhead=none];
+  cand -> sample;
   sample -> run;
   run    -> loop;
 

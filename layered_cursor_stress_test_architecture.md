@@ -110,36 +110,48 @@ reproducibility.
 
 ---
 
-## 6. Operation generation — one declarative workload-shape config
+## 6. Operation generation — one structured, inheritable weights config
 
-The whole operation mix is **one table** (`self.ops`, a list of `OpSpec` dataclass rows built in
-`_build_ops()`) plus two dials:
-- `P_BREAK` — when doing a *data* op, the chance it BREAKS the cursor position. Small ⇒ long
-  position-holding chains (the heart of the test). The central bias lives in this one number.
-- `P_TXN` — the chance of a transaction-control op when one is legal; **orthogonal** to `P_BREAK`
-  so a low break rate never starves transactions.
+Two pieces: an **op table** (`self.ops`, `OpSpec` rows from `_build_ops()`) carrying behaviour +
+legality, and a **weights config** (`DEFAULT_WEIGHTS`) carrying the whole workload shape in one
+nested structure.
 
 Each `OpSpec` carries a **direct bound-method reference** (`fn`, e.g. `self.op_next`) — there is no
-string op-name and no `getattr`-by-name dispatch anywhere — plus a `weight`, a `category` (`keep`
-holds position / `break` resets it / `txn`), and legality tags (`needs_position`, `needs_live`,
-`is_write`, `autocommit_only`, `in_txn_only`). `_legal(spec, mode, positioned)` is the single
-legality predicate (pure off the tags); `_mode()` derives the mode (`autocommit` / `rw_txn` /
-`ro_txn`).
+string op-name dispatch anywhere — a config-key `name` (used *only* to look up the op's weight, never
+to branch), and legality tags (`needs_position`, `needs_live`, `is_write`, `autocommit_only`,
+`in_txn_only`). `_legal(spec, positioned)` is the single legality predicate, pure off the tags and
+`State.txn` (the current `Txn` context).
 
-`pick_op` then: filter `self.ops` to the legal specs for the current `(mode, positioned)`; with
-probability `P_TXN` pick a txn-control op (if any are legal), else pick the `break` bucket with
-probability `P_BREAK` and the `keep` bucket otherwise, and weighted-sample within it; return
-`lambda: spec.fn(...)` — a **bound zero-arg callable**. Each `op_*` method then owns its own argument
-generation, `trace.log`, and state update; `run_sequence` just calls the callable. The legality the
-dials/tags encode (unchanged from the old per-mode branches):
+`DEFAULT_WEIGHTS` is a nested dict. A top-level entry is either a **leaf op weight** (`'next': 40`)
+or a **group** `{'weight': <share at the top level>, <child>: <weight within the group>, ...}`. The
+rule: a group's `weight` is how often that group wins against the other top-level entries; a child's
+weight is its share *given* the group was chosen. Crucially a group contributes **exactly** its
+`weight` to the top-level pool — `_candidates` distributes it over the (normalised) children, so a
+group's internal scale (e.g. `commit: 70`) never leaks into the comparison against leaf ops. Two
+groups today:
+- `txn` (`weight` 8) — when no txn is open it resolves to a single `begin` candidate (op_begin then
+  picks its flavour from the begin-mode sub-weights `snapshot`/`read_committed`/`read_uncommitted`/
+  `read_timestamp`); when a txn IS open it resolves to `commit`/`rollback` by their sub-weights.
+- `scenarios` (`weight` 12) — rare checkpoint/eviction (`advance`/`evict`; later: injected scenarios).
 
-| mode | legal ops |
+Position-HOLDING ops (reads + positional writes) carry the bulk of the weight so chains stay long
+(the cursor is positioned ~36% of picks); position-BREAKING ops are deliberately light. There is no
+longer a single `P_BREAK` knob — the break frequency is implicit in the weights (decision D1, a
+`workload-tuning` TODO). A test inherits `DEFAULT_WEIGHTS` and may pass `run_sequence(weights=...)`,
+deep-merged via `merge_weights`, to reshape part of the workload without restating it.
+
+`pick_op`: `_candidates(positioned)` walks the config, legality-filters, and returns
+`(effective_weight, spec)` pairs; it weighted-samples one and returns `lambda: spec.fn(...)` — a
+**bound zero-arg callable**. Each `op_*` method owns its own argument generation, `trace.log`, and
+state update; `run_sequence` just calls the callable. The legality the tags encode:
+
+| Txn context | legal ops |
 |---|---|
-| autocommit (no txn open) | reads + writes + positional (if positioned) + advance/evict + begin + reset + full_scan |
-| explicit read-write txn (snapshot) | reads + writes + positional (if positioned) + commit/rollback + reset + full_scan |
-| explicit read-only txn (as-of-T / read-committed / read-uncommitted) | reads + commit/rollback + reset + full_scan |
+| `Txn.NO` (autocommit) | reads + writes + positional (if positioned) + advance/evict + begin + reset + verify |
+| `Txn.SNAPSHOT` (read-write txn) | reads + writes + positional (if positioned) + commit/rollback + reset + verify |
+| read-only txn (`READ_TIMESTAMP` / `READ_COMMITTED` / `READ_UNCOMMITTED`) | reads + commit/rollback + reset + verify |
 
-**Adding an op = one `OpSpec` row in `_build_ops()` + one `op_<name>` method.** The driver
+**Adding an op = one `OpSpec` row in `_build_ops()` + one weight entry + one `op_<name>` method.** The driver
 (`run_sequence`) and the op methods track `cur_pos` (the key both cursor pairs sit on) and
 `state.live` (the logical key→value map, used **only** to choose keys, never as the oracle).
 
@@ -221,13 +233,15 @@ real bug, under review** (`findings/prepare_iterate_bug_candidate.md`).
 Grouped low-level → high-level. We'll walk these in roughly this order.
 
 **A. Module-level primitives + the workload config**
-- `sign` · `OpSpec` dataclass (the workload-table row: `fn` bound-method ref + weight + tags) ·
-  `P_BREAK` / `P_TXN` dials · `EventTrace` (`log`/`close`) · `Node` (`__init__`/`reset_all`/`close`) ·
-  `State` (`__init__` global fields / `new_sequence` per-sequence fields)
+- `sign` · `Txn` enum (the transaction context) + `write_allowed(txn)` · `OpSpec` dataclass (the op
+  row: `fn` bound-method ref + config-key `name` + legality tags) · `DEFAULT_WEIGHTS` (the nested
+  weights config) + `merge_weights` (deep-merge for inheritance) · `EventTrace` (`log`/`close`) ·
+  `Node` (`__init__`/`reset_all`/`close`) · `State` (`__init__` global fields / `new_sequence`
+  per-sequence fields, incl. `txn`)
 
 **B. Cluster & table setup**
-- `conn_config` · `setup_connections` (builds `self.state = State()` and `self.ops = _build_ops()`) ·
-  `_build_ops` (the `OpSpec` table) · `make_nodes` · `new_value`
+- `conn_config` · `setup_connections` (builds `self.state = State()`, `self.ops = _build_ops()`,
+  `self.ops_by_name`) · `_build_ops` (the `OpSpec` table) · `make_nodes` · `new_value`
 
 **C. Write protocol**
 - `_write_pair` · `mirror_write` · `_positional` (callable-based; in-txn direct / autocommit re-search) ·
@@ -252,7 +266,8 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
   `op_advance`/`op_evict` · `op_verify`
 
 **I. Operation generation (no string dispatch)**
-- `_mode` · `_legal` (pure predicate over the `OpSpec` tags) · `pick_op` (filters `self.ops`, samples,
+- `_legal` (pure predicate over the `OpSpec` tags + `State.txn`) · `_candidates` (walks
+  `DEFAULT_WEIGHTS`, normalises group shares, legality-filters) · `pick_op` (samples a candidate,
   returns `lambda: spec.fn(...)`) · `pick_search_key`
 
 **J. The driver**
