@@ -30,19 +30,16 @@
 #
 # Seed-driven stress test for layered cursors (src/cursor/cur_layered.c).
 #
-# Oracle: per connection (leader and follower) there are two tables in one session --
-# a plain (non-layered) reference table ("ASC") and the layered table under test ("DSC").
-# Every logical write is mirrored to both tables on both connections; every read op is run
-# on the layered cursor and the reference cursor and the results (error code + key + value)
-# are compared. The plain reference is real WiredTiger, so it is a correct oracle for
-# read_timestamps / isolation / prepare with no modeling. The leader serves the layered
-# table from stable only; the follower merges ingest + stable -- so the follower exercises
-# the merge while both are checked against the same logical truth.
+# Oracle: per connection (leader and follower), one session holds a plain reference table (asc)
+# and the layered table under test (dsc). Every write is mirrored to both; every read is run on
+# both cursors and the (error code, key, value) compared. The plain reference is real WiredTiger,
+# so it is a correct oracle for read_timestamps / isolation / prepare with no modeling. The leader
+# serves the layered table from stable only; the follower merges ingest + stable, so the follower
+# exercises the merge against the same logical truth.
 #
-# Reproducibility: the seed set is fixed, so a run is fully deterministic and a failure repeats
-# on re-run (the failing seed is printed as SEED=<n>). Every chosen event is appended to a
-# per-seed trace file (path printed at start and on failure), flushed each step, so a failure is
-# a self-contained record; to dig into one seed, run it in a throwaway test calling run_sequence().
+# The seed set is fixed, so a run is deterministic and a failure repeats on re-run (the failing
+# seed prints as SEED=<n>). Every chosen event is appended to a per-seed trace file, flushed each
+# step; to dig into one seed, run it in a throwaway test calling run_sequence().
 
 import os, random
 from dataclasses import dataclass, field
@@ -54,47 +51,34 @@ from wtscenario import make_scenarios
 def sign(n):
     return (n > 0) - (n < 0)
 
-# Decision labels are enums, never bare strings -- a typo'd member is an AttributeError at import,
-# not a silently-never-matched branch at run time.
-
 class Txn(Enum):
-    # The kind of transaction context the generator is currently in. NO is autocommit; the rest are
-    # explicit begin_transaction flavours. Only NO and SNAPSHOT permit writes (see write_allowed);
-    # READ_COMMITTED / READ_UNCOMMITTED reject writes (txn_inline.h ~2112) and READ_TIMESTAMP is an
-    # as-of-past read. The value is the WiredTiger isolation= config string where one applies.
+    # The generator's current transaction context. Only NO and SNAPSHOT permit writes; READ_COMMITTED
+    # / READ_UNCOMMITTED reject writes (txn_inline.h ~2112) and READ_TIMESTAMP is an as-of-past read.
+    # The value is the WiredTiger isolation= config string where one applies.
     NO = 'no'                              # autocommit -- no explicit transaction
     SNAPSHOT = 'snapshot'                  # read-write snapshot transaction
     READ_COMMITTED = 'read-committed'      # read-only
     READ_UNCOMMITTED = 'read-uncommitted'  # read-only
-    READ_TIMESTAMP = 'read-timestamp'      # snapshot isolation + an as-of-past read_timestamp; read-only
+    READ_TIMESTAMP = 'read-timestamp'      # snapshot isolation + an as-of-past read; read-only
 
 def write_allowed(txn):
-    # Writes are legal only outside a transaction or under snapshot isolation; every other Txn flavour
-    # is read-only. The inverse (is_read_only) is just `not write_allowed(txn)`.
     return txn in (Txn.NO, Txn.SNAPSHOT)
 
 # --- workload shape --------------------------------------------------------
-# Each operation is an Op (built in _build_ops()) pairing an op METHOD -- referenced directly, never
-# dispatched by string -- with its weight and legality tags. Adding an operation = one op_<name>
-# method (self-contained: generates its own argument, traces itself, does the work) + one Op row +
-# one matching field in Weights.
-
-# A test builds a Weights and passes it in (there is no module-global "default" set -- a test owns
-# its weights). Weights holds every weight as a named field, so a value is set/tuned by attribute (a
-# typo is an AttributeError, not a silent miss). _build_ops copies each field onto the Op that uses
-# it (Op(self.op_next, weights.next)) -- the explicit, no-string-lookup binding -- so pick_op samples
-# plain Op rows. TxnBeginWeights is the one sub-distribution NOT in the top-level pool: op_begin reads
-# it directly to pick the transaction flavour it opens.
-# TODO(workload-tuning): these are a rough first pass (reads dominate; breaks/txn/scenarios rare).
-# Dropping the old single P_BREAK knob (now implicit in next/prev=80 vs the position-breaking ops) --
-# revisit whether a derived break knob should return, and tune to drive the follower stable-read
-# fraction up (see DEV_ONLY_assert_merge_exercised), once the long run lands.
+# Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, never
+# dispatched by string -- with its weight and legality tags. A test builds a Weights and passes it
+# in; _build_ops copies each named field onto the Op that uses it (Op(self.op_next, weights.next)),
+# so pick_op samples plain Op rows with no lookup. Adding an op = one op_<name> method + one Op row +
+# one Weights field. TxnBeginWeights is the one sub-distribution not in the top-level pool: op_begin
+# reads it directly to pick the transaction flavour it opens.
+# TODO(workload-tuning): rough first pass (reads dominate; breaks/txn/scenarios rare). Once the long
+# run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
+# and decide whether a derived break-frequency knob should return.
 
 @dataclass(frozen=True)
 class TxnBeginWeights:
-    # op_begin's transaction-flavour sub-distribution (read by op_begin, never a top-level op).
-    # snapshot+no-read_ts is read-write; the rest are read-only (read_timestamp = snapshot + an
-    # as-of-past read, and falls back to snapshot when there is no past window).
+    # op_begin's transaction-flavour sub-distribution. snapshot is read-write; the rest are read-only
+    # (read_timestamp = snapshot + an as-of-past read, falling back to snapshot with no past window).
     snapshot: int = 72
     read_committed: int = 16
     read_uncommitted: int = 12
@@ -102,11 +86,9 @@ class TxnBeginWeights:
 
 @dataclass(frozen=True)
 class Weights:
-    # Position-HOLDING ops (reads + positional writes) carry the big weights so chains stay long and
-    # the cursor is usually positioned -- the heart of the test. Position-BREAKING ops (put/remove/
-    # reset/verify/begin/commit/rollback/advance/evict) carry small weights; with no P_BREAK gate,
-    # their raw weight IS the break frequency. begin/commit/rollback/advance/evict are ordinary
-    # top-level ops gated only by legality, not a group.
+    # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
+    # the cursor is usually positioned -- the heart of the test. With no break gate, a position-
+    # breaking op's raw weight is its break frequency.
     next: int = 40
     prev: int = 40
     search: int = 12
@@ -135,7 +117,7 @@ class Op:
     in_txn_only: bool = False     # only with an open txn (commit / rollback)
 
 class EventTrace:
-    # Append-only, flushed-each-line record of every chosen event for a seed.
+    # Append-only, flushed-per-line record of every chosen event for a seed.
     def __init__(self, path, header):
         self.path = path
         self._f = open(path, 'w')
@@ -152,10 +134,9 @@ class EventTrace:
         self._f.close()
 
 class Node:
-    # One connection's view: a layered table (DSC) and a plain reference table (ASC), each with
-    # a single cursor used for BOTH reads and writes, all in one session. Reads and writes go
-    # through the same cursors so the layered and reference cursors stay in lockstep and a write
-    # leaves the cursor positioned per WT semantics (toward long-lived positioned chains).
+    # One connection's view: a layered table (dsc) and a plain reference table (asc), one cursor each
+    # in one session, used for both reads and writes. Sharing the cursor keeps layered and reference
+    # in lockstep and leaves the cursor positioned after a write (toward long-lived positioned chains).
     def __init__(self, conn, session, dsc_uri, asc_uri):
         self.conn = conn
         self.session = session
@@ -173,11 +154,9 @@ class Node:
         self.asc_c.close()
 
 class State:
-    # The model the generator reasons about. Connection-global fields (timestamps, coverage
-    # counters) persist across sequences in a multi-seed run; the per-sequence fields (the
-    # expected table contents, cursor position, and open-transaction flags) are reset by
-    # new_sequence() for each fresh set of tables. None of this is the oracle -- it only drives
-    # operation generation and the expected next-step decisions.
+    # The model the generator reasons about, never the oracle -- it only drives op generation.
+    # Connection-global fields (timestamps, coverage counters) persist across sequences in a
+    # multi-seed run; new_sequence() resets the per-sequence fields for each fresh set of tables.
     def __init__(self):
         self.ts = 0              # monotonic commit/stable timestamp
         self.wseq = 0            # monotonic write counter, for unique values
@@ -192,12 +171,12 @@ class State:
         self.new_sequence()
 
     def new_sequence(self):
-        self.py_table = {}           # logical key->value, for operation generation only
-        self.cur_pos = None      # key both cursor pairs are positioned on (None = unpositioned)
-        self.txn = Txn.NO        # the current transaction context (NO = autocommit); see write_allowed
-        self.txn_wrote = False   # the open txn has performed at least one write
-        self.txn_read_ts = None  # the as-of timestamp when txn is READ_TIMESTAMP, else None
-        self.py_table_snapshot = None  # self.py_table as of begin, restored on rollback
+        self.py_table = {}             # logical key->value, for op generation only
+        self.cur_pos = None            # key both cursor pairs are positioned on (None = unpositioned)
+        self.txn = Txn.NO              # current transaction context (NO = autocommit)
+        self.txn_wrote = False         # the open txn has performed at least one write
+        self.txn_read_ts = None        # the as-of timestamp when txn is READ_TIMESTAMP, else None
+        self.py_table_snapshot = None  # py_table as of begin, restored on rollback
 
 @disagg_test_class
 class test_layered_cursor_stress(wttest.WiredTigerTestCase):
@@ -221,21 +200,16 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             'follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
-        # All generation/model/timestamp/counter state lives in one State object. Its
-        # connection-global fields (timestamps, counters) persist across sequences; new_sequence()
-        # resets the per-sequence fields (live, cur_pos, txn flags).
         self.state = State()
         self.weights = weights
         self.ops = self._build_ops(weights)   # the workload table (Op rows -> op methods)
-        self.DEV_ONLY_validate_ops()                  # the table must match the op_* methods exactly
+        self.DEV_ONLY_validate_ops()          # the table must match the op_* methods exactly
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
     def _build_ops(self, weights):
-        # One Op row per op, pairing the op method (direct reference -- the dispatch identity, never a
-        # string) with its legality tags and the weight copied straight from the Weights config field
-        # it belongs to. Weights is the single source of truth; this duplicates each value onto its Op
-        # so pick_op samples plain rows with no lookup.
+        # One Op row per op, pairing the op method (the dispatch identity) with its legality tags and
+        # the weight copied from the Weights field it belongs to, so pick_op samples plain rows.
         return [
             Op(self.op_next,        weights.next),
             Op(self.op_prev,        weights.prev),
@@ -263,7 +237,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         for s in (self.session, self.session_follow):
             s.create(dsc, cfg)
             s.create(asc, cfg)
-        self.state.new_sequence()   # reset per-sequence model state (py_table, cur_pos, txn flags)
+        self.state.new_sequence()
         return [Node(self.conn, self.session, dsc, asc),
                 Node(self.conn_follow, self.session_follow, dsc, asc)]
 
@@ -275,21 +249,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def _write_pair(self, n, key, value):
         # Bare write (no txn management) on node n's layered + reference cursors; compare codes.
+        # value=None means remove.
         if value is None:
             n.dsc_c.set_key(key); rl = n.dsc_c.remove()
             n.asc_c.set_key(key); rr = n.asc_c.remove()
         else:
             n.dsc_c.set_key(key); n.dsc_c.set_value(value); rl = n.dsc_c.insert()
             n.asc_c.set_key(key); n.asc_c.set_value(value); rr = n.asc_c.insert()
-        # Under overwrite=true these are (0,0); the equality compare catches a layered-vs-
-        # reference divergence once overwrite=false / prepare land.
+        # Under overwrite=true these are (0,0); the compare catches a divergence once
+        # overwrite=false / prepare land.
         self.assertEqual(rl, rr,
             'write result differs layered=%r reference=%r (key=%r value=%r)' % (rl, rr, key, value))
 
     def mirror_write(self, nodes, key, value):
-        # value=None means remove. On both connections (leader -> stable, follower -> ingest)
-        # and the reference table. Inside an explicit transaction the write joins the open txn
-        # (committed later by the commit op); otherwise it runs in its own timestamped txn.
+        # Write to both connections (leader -> stable, follower -> ingest) and both reference tables.
+        # Inside an explicit txn the write joins it (committed later); otherwise it runs in its own
+        # timestamped txn. value=None means remove.
         if self.state.txn is not Txn.NO:
             for n in nodes:
                 self._write_pair(n, key, value)
@@ -303,12 +278,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.dirty = True
 
     def _positional(self, nodes, do):
-        # Run a positional update/remove on the cursor's current key (self.state.cur_pos, which must
-        # be live). `do(cursor)` performs the actual update/remove on a positioned cursor and returns
-        # the code. Inside an explicit txn the positioning read and this write share the transaction,
-        # so the cursor is genuinely positioned (KEY_INT|VALUE_INT) and we write DIRECTLY -- the real
-        # iterate-and-delete-in-one-txn. In autocommit the positioning value is not valid across the
-        # implicit txn boundary (WT-17796), so we re-search to re-establish position.
+        # Run a positional update/remove (do(cursor) -> code) on the cursor's current key (cur_pos,
+        # which must be live). Inside an explicit txn the positioning read and this write share the
+        # transaction, so the cursor is genuinely positioned and we write DIRECTLY -- the real
+        # iterate-and-delete-in-one-txn. In autocommit the position is not valid across the implicit
+        # txn boundary (WT-17796), so we re-search to re-establish it.
         key = self.state.cur_pos
         if self.state.txn is not Txn.NO:
             for n in nodes:
@@ -343,14 +317,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             else:
                 for n in nodes:
                     n.session.commit_transaction()
-            # A successful commit keeps cursors positioned (cur_pos survives the txn switch),
-            # except for an as-of-T read txn: those cursors sit in a historical view, so reset them
-            # -- resuming a latest iteration from a held historical position lets the layered cursor
-            # pin its stable constituent across the snapshot change and diverge from the plain
-            # reference (the Q2 family, ruled not-a-bug; confirmed -- a fresh read agrees).
-            # TODO(pin-reset): read-committed/read-uncommitted read-only txns also hold cursors
-            # across the commit, but resume in a compatible (latest) view, so no pin divergence has
-            # been observed; extend this reset to them if one ever appears.
+            # A successful commit keeps cursors positioned (cur_pos survives), except an as-of-T read
+            # txn: resuming a latest iteration from a held historical position lets the layered cursor
+            # pin its stable constituent across the snapshot change and diverge from the reference
+            # (the Q2 family, ruled not-a-bug -- a fresh read agrees), so reset those cursors.
+            # TODO(pin-reset): RC/RU read-only txns also hold cursors across commit but resume in a
+            # compatible (latest) view, so no pin divergence has been seen; extend the reset to them
+            # only if one appears.
             if self.state.txn_read_ts is not None:
                 for n in nodes:
                     n.reset_all()
@@ -363,16 +336,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.txn = Txn.NO
         self.state.txn_wrote = False
         self.state.txn_read_ts = None
-        self.state.py_table_snapshot = None            # consumed; the next begin takes a fresh snapshot
+        self.state.py_table_snapshot = None
 
     def advance(self):
-        # Fold the leader's stable into the follower's stable via a new checkpoint. Skip if
-        # nothing changed since the last advance (avoids a redundant-checkpoint warning).
-        #
-        # stable moves to the latest commit, but oldest LAGS one advance behind it so the window
-        # [oldest, latest] stays open for as-of-past reads (read_timestamp, C2). Pinning
-        # oldest == stable would forbid reading anything below the latest commit. oldest is
-        # monotonic (last_advance_ts only grows) and < stable (writes happened since).
+        # Fold the leader's stable into the follower's via a new checkpoint; skip if nothing changed.
+        # stable moves to the latest commit, but oldest LAGS one advance behind so the window
+        # [oldest, latest] stays open for as-of-past reads (pinning oldest == stable would forbid
+        # reading below the latest commit). oldest is monotonic and < stable.
         if not self.state.dirty:
             return
         oldest = max(1, self.state.last_advance_ts)
@@ -385,11 +355,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.dirty = False
 
     def drain_ingest(self, node):
-        # Evict the follower's ingest content so already-checkpointed keys fall through to
-        # stable on later reads. The ingest is a single in-memory leaf page; forced eviction
-        # reconciles it, dropping entries below the prune timestamp (already in stable) while
-        # retaining fresher entries written since the last checkpoint advance. This is the
-        # production lifecycle and is what actually drives the follower to read from stable.
+        # Force-evict the follower's ingest leaf so checkpointed keys fall through to stable on later
+        # reads: reconciliation drops entries below the prune timestamp (already in stable) and keeps
+        # fresher ones. This is the production lifecycle that drives the follower to read from stable.
         ingest_uri = 'file:' + node.dsc_uri[len('layered:'):] + '.wt_ingest'
         ec = node.session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
         try:
@@ -401,8 +369,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             ec.close()
 
     def DEV_ONLY_follower_read_split(self):
-        # Follower layered-cursor reads served from stable vs ingest. Uses only next/prev/search
-        # (their stable branch is asserted in C to be a genuine stable-served read); search_near's
+        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
         # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
         c = self.session_follow.open_cursor('statistics:')
         try:
@@ -416,14 +383,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             c.close()
 
     def DEV_ONLY_assert_merge_exercised(self):
-        # Guard against a degenerate oracle: the follower must read from stable at least sometimes,
-        # or the merge of two non-empty constituents is not being tested at all.
-        # TODO(merge-coverage): the stable-read fraction is only ~2-9% in the random run -- stable
-        # reads are rare because writes keep keys in ingest and the drain rarely catches a key
-        # stable-and-not-rewritten before it is read. Threshold lowered from 10% to 1% as an
-        # INTERIM. Real fix (see refactor plan): a forced-eviction scenario op + a long run
-        # (~300k ops, not 300) so the stable path is heavily exercised, then restore a meaningful
-        # floor.
+        # Guard against a degenerate oracle: the follower must read from stable sometimes, or the
+        # merge of two non-empty constituents is not tested at all.
+        # TODO(merge-coverage): the stable-read fraction is only ~2-9% in the random run (writes keep
+        # keys in ingest and the drain rarely catches a stable-and-unrewritten key before it is read),
+        # so the floor is an INTERIM 1%. Real fix: a forced-eviction scenario op + a ~300k-op run to
+        # exercise the stable path heavily, then restore a meaningful floor.
         stable, ingest = self.DEV_ONLY_follower_read_split()
         total = stable + ingest
         self.assertGreater(total, 0, 'no follower layered reads at all')
@@ -431,12 +396,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
 
     def DEV_ONLY_assert_self_coverage(self):
-        # Self-check, NOT a product assertion: confirm the random run actually exercised the
-        # surface it is meant to -- the stable+ingest merge, long-lived positional chains,
-        # read_timestamp (as-of-past) reads, and both non-snapshot isolation levels. It guards
-        # against a degenerate run where the oracle passes only because nothing interesting
-        # happened. A failure here means the TEST stopped covering a dimension (it is no longer
-        # doing its job), not that the product is wrong.
+        # Self-check, NOT a product assertion: confirm the run exercised its surface (the merge,
+        # positional chains, as-of-past reads, both non-snapshot isolation levels, verify). A failure
+        # here means the TEST stopped covering a dimension, not that the product is wrong.
         self.DEV_ONLY_assert_merge_exercised()
         self.assertGreater(self.state.n_positional, 0, 'no positional update/remove ops were exercised')
         self.assertGreater(self.state.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
@@ -447,31 +409,29 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- read application + comparison -----------------------------------
 
     def _anchor(self, lead, foll):
-        # cur_pos anchors a positional write, which operates on each cursor's CURRENT position --
-        # valid only when leader and follower ended on the SAME key (search_near may land them on
-        # different valid neighbours).
+        # A positional write operates on each cursor's CURRENT position, so anchor cur_pos only when
+        # leader and follower ended on the SAME key (search_near may land them on different neighbours).
         if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
             self.state.cur_pos = lead[1]
         else:
             self.state.cur_pos = None
 
     def _read(self, nodes, trace, do):
-        # Run a read on the layered then the reference cursor of both nodes (the per-op oracle),
-        # via the callable `do(cursor) -> WT return code`, and anchor cur_pos. Used by the simple
-        # reads (next/prev/search); search_near has its own comparison (_read_near).
+        # The per-op oracle: run do(cursor) -> code on the layered then the reference cursor of both
+        # nodes, compare, and anchor cur_pos. search_near has its own comparison (_read_near).
         def normalize(cursor):
             ret = do(cursor)
             if ret == wiredtiger.WT_NOTFOUND:
                 return (ret, None, None)
             return (0, cursor.get_key(), cursor.get_value())
-        lead = foll = None
-        for i, n in enumerate(nodes):
+        layered = []
+        for n in nodes:
             r_dsc = normalize(n.dsc_c)
             r_asc = normalize(n.asc_c)
             if r_dsc != r_asc:
                 self.fail_mismatch(n, r_dsc, r_asc, trace, 'read result differs')
-            lead, foll = (r_dsc, foll) if i == 0 else (lead, r_dsc)
-        self._anchor(lead, foll)
+            layered.append(r_dsc)
+        self._anchor(layered[0], layered[1])
 
     def _near(self, cursor, key):
         cursor.set_key(key)
@@ -482,13 +442,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def _read_near(self, nodes, trace, key):
         # search_near on both nodes: WT may return either immediate neighbour of an absent key.
-        lead = foll = None
-        for i, n in enumerate(nodes):
+        layered = []
+        for n in nodes:
             r_dsc = self._near(n.dsc_c, key)
             r_asc = self._near(n.asc_c, key)
             self._compare_near(n, key, r_dsc, r_asc, trace)
-            lead, foll = (r_dsc, foll) if i == 0 else (lead, r_dsc)
-        self._anchor(lead, foll)
+            layered.append(r_dsc)
+        self._anchor(layered[0], layered[1])
 
     def _compare_near(self, node, search_key, r_dsc, r_asc, trace):
         (retl, kl, vl, cl) = r_dsc
@@ -516,8 +476,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def fail_mismatch(self, node, r_dsc, r_asc, trace, reason):
         # The failing op is the last line written to the trace file.
+        role = 'leader' if node.conn == self.conn else 'follower'
         self.fail('\n'.join([
-            'layered-vs-reference mismatch on %s node: %s' % (node.conn == self.conn and 'leader' or 'follower', reason),
+            'layered-vs-reference mismatch on %s node: %s' % (role, reason),
             'layered:   %r' % (r_dsc,),
             'reference: %r' % (r_asc,),
             'trace file: %s' % trace.path]))
@@ -551,8 +512,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- operations -------------------------------------------------------
     # Each op is self-contained: it generates its own argument, traces itself, does the work, and
     # updates the model. Shared work lives in helpers (_read / _read_near / _positional /
-    # mirror_write / _end_txn / _checkpoint / verify). pick_op picks an Op and calls its method;
-    # nothing here is selected from an op-name string.
+    # mirror_write / _end_txn / _checkpoint / verify).
 
     def op_next(self, nodes, rnd, trace):
         trace.log('next')
@@ -609,19 +569,17 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.py_table.pop(key, None)
 
     def op_begin(self, nodes, rnd, trace):
-        # snapshot+no-read_ts = read-write; snapshot+read_ts = as-of-T read-only; read-committed /
-        # read-uncommitted = read-only (those isolations reject writes). The cursor stays physically
-        # positioned so next/prev keep iterating across the switch, but a positional WRITE must be
-        # re-established by a read inside this txn (a write off a pre-txn position is the cross-txn
-        # positioned-remove WT-17796), so clear the generator position.
+        # The cursor stays physically positioned so next/prev iterate across the switch, but a
+        # positional WRITE must be re-established by a read inside this txn (a write off a pre-txn
+        # position is the cross-txn positioned-remove WT-17796), so clear the generator position.
         # Choose the begin flavour from op_begin's own sub-weights (not a top-level pick).
         tw = self.weights.txn_begin
         mode = rnd.choices(
             [Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED, Txn.READ_TIMESTAMP],
             weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
             k=1)[0]
-        # READ_TIMESTAMP needs a past window [oldest, latest]; without one it falls back to a plain
-        # snapshot txn. The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
+        # READ_TIMESTAMP needs a past window [oldest, latest]; without one it falls back to snapshot.
+        # The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
             if self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts:
@@ -630,8 +588,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 mode = Txn.SNAPSHOT
         trace.log('begin %r' % ((read_ts, mode.value),))
         cfg_parts = []
-        # SNAPSHOT/READ_TIMESTAMP run at the default snapshot isolation (no isolation= clause);
-        # READ_TIMESTAMP's value is not a WT isolation string, so only RC/RU emit isolation=.
+        # SNAPSHOT/READ_TIMESTAMP run at default snapshot isolation; only RC/RU emit isolation=.
         if mode in (Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED):
             cfg_parts.append('isolation=' + mode.value)
         if read_ts is not None:
@@ -676,10 +633,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.drain_ingest(nodes[1])
 
     def op_verify(self, nodes, rnd, trace):
-        # Full-table layered-vs-reference scan (the same verify() body used at end of sequence) as a
-        # weighted op: catches a divergence in keys the random reads never touched, and -- reading
-        # the whole follower table through the merged cursor -- exercises the stable constituent for
-        # drained keys. Resets the cursors (a position-breaking op).
+        # Full-table scan (the verify() body) as a weighted op: catches a divergence in keys the
+        # random reads never touched, and -- scanning the whole follower table through the merged
+        # cursor -- exercises the stable constituent for drained keys. Position-breaking.
         trace.log('verify')
         self.verify(nodes, trace)
         self.state.n_verify += 1
@@ -688,8 +644,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- operation generation -------------------------------------------
 
     def _legal(self, op, positioned):
-        # Which ops are legal in the current transaction context / position -- pure data, off the
-        # Op tags and self.state.txn.
+        # Which ops are legal in the current transaction context / position -- pure off the Op tags
+        # and self.state.txn.
         txn = self.state.txn
         if op.needs_position and not positioned:
             return False
@@ -704,9 +660,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         return True                              # snapshot txn: reads + writes + commit/rollback
 
     def DEV_ONLY_validate_ops(self):
-        # The op table is the single source of truth, so guard it at setup: exactly one row per op_*
-        # method (a missing or duplicate row fails loudly here, not deep in a run) and every weight
-        # positive (a zero/negative weight would silently drop an op or break sampling).
+        # Guard the op table at setup: exactly one row per op_* method (a missing/duplicate row fails
+        # loudly here, not deep in a run) and every weight positive (zero/negative would drop an op).
         methods = {n for n in dir(self) if n.startswith('op_')}
         rows = {op.fn.__name__ for op in self.ops}
         assert len(rows) == len(self.ops), 'duplicate op rows in the workload table'
@@ -714,9 +669,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
 
     def pick_op(self, nodes, rnd, trace):
-        # Sample one legal op from the workload table by its weight, and return the op's method bound
-        # to its context. The method does its own arg-gen + trace. The keep/break/txn mix is whatever
-        # the row weights make it -- next/prev dominate, so chains stay long.
+        # Sample one legal op by its weight and return its method bound to context. next/prev
+        # dominate the weights, so chains stay long.
 
         # Q: How current pos may be not None and not in live?
         positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.py_table
@@ -741,24 +695,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         return EventTrace(path, 'test_layered_cursor_stress seed=%d tag=%s' % (seed, tag))
 
     def run_sequence(self, seed, tag, n_ops):
-        # The workload table (self.ops) and its weights were fixed by setup_connections.
         rnd = random.Random(seed)
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
         try:
             for _ in range(n_ops):
-                # pick_op chooses the next op and returns a callable bound to its context. The
-                # driver just runs it -- arg generation, tracing, and state updates all live in the
-                # op_* method itself.
-                self.pick_op(nodes, rnd, trace)()
+                self.pick_op(nodes, rnd, trace)()   # pick_op returns a callable bound to its context
             if self.state.txn is not Txn.NO:
-                # Close any transaction left open at the end of the chain before verifying.
-                self._end_txn(nodes, commit=True)
+                self._end_txn(nodes, commit=True)   # close any txn left open before verifying
             self.verify(nodes, trace)
         finally:
-            # A transaction left open by a mid-sequence failure is rolled back automatically when
-            # the connection is closed at teardown (these are never prepared txns), so no explicit
-            # rollback is needed here.
+            # A txn left open by a mid-sequence failure rolls back when the connection closes at
+            # teardown (these are never prepared), so no explicit rollback here.
             for n in nodes:
                 n.close()
             trace.close()

@@ -17,8 +17,8 @@ digraph layered_cursor_stress_topology {
   subgraph cluster_leader {
     label="LEADER connection (role=leader)\nlayered cursor reads STABLE only → 2nd oracle";
     style=filled; color="#f5f5f5"; fontsize=12;
-    Llay [shape=box, style=filled, fillcolor="#ffffff", label="lay_c  (layered, DSC)"];
-    Lref [shape=box, style=filled, fillcolor="#ffffff", label="ref_c  (plain, ASC)"];
+    Llay [shape=box, style=filled, fillcolor="#ffffff", label="dsc_c  (layered, dsc)"];
+    Lref [shape=box, style=filled, fillcolor="#ffffff", label="asc_c  (plain, asc)"];
     Lstab [shape=cylinder, fillcolor="#eef2ff", style=filled, label="stable\n(leader btree)"];
     Lreft [shape=cylinder, fillcolor="#fff8e6", style=filled, label="reference\ntable"];
     Llay -> Lstab [style=dotted, label="read"];
@@ -31,8 +31,8 @@ digraph layered_cursor_stress_topology {
   subgraph cluster_follower {
     label="FOLLOWER connection (role=follower)\nlayered cursor MERGES ingest + stable  ◀ UNDER TEST";
     style=filled; color="#fdf2f2"; fontsize=12;
-    Flay [shape=box, style="filled", fillcolor="#ffffff", penwidth=2, label="lay_c  (layered, DSC)\nMERGE ingest+stable"];
-    Fref [shape=box, style=filled, fillcolor="#ffffff", label="ref_c  (plain, ASC)"];
+    Flay [shape=box, style="filled", fillcolor="#ffffff", penwidth=2, label="dsc_c  (layered, dsc)\nMERGE ingest+stable"];
+    Fref [shape=box, style=filled, fillcolor="#ffffff", label="asc_c  (plain, asc)"];
     Fing [shape=cylinder, fillcolor="#fde8e8", style=filled, label="ingest\n(in-memory)"];
     Fstab [shape=cylinder, fillcolor="#eef2ff", style=filled, label="stable\n(checkpoint)"];
     Freft [shape=cylinder, fillcolor="#fff8e6", style=filled, label="reference\ntable"];

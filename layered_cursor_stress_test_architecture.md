@@ -20,8 +20,8 @@ merge has many subtle branches and is the bug surface.
 **Core idea — differential testing against a real-WiredTiger oracle.** Instead of modelling MVCC
 in Python, every logical operation is applied to *two* tables that must agree:
 
-- **DSC** — the **layered** table under test (`layered:...`), which on the follower runs the merge.
-- **ASC** — a plain (non-layered) **reference** table (`table:...`), ordinary WiredTiger.
+- **dsc** — the **layered** table under test (`layered:...`), which on the follower runs the merge.
+- **asc** — a plain (non-layered) **reference** table (`table:...`), ordinary WiredTiger.
 
 Both live in the **same session**, so they share one snapshot/isolation/read-timestamp. The plain
 table is correct by construction for timestamps, isolation, and prepare — so any layered-vs-plain
@@ -39,8 +39,8 @@ Two connections to the same disaggregated cluster, opened in `setup_connections`
 - **Follower** (`self.conn_follow` / `self.session_follow`) — role=follower. Its layered cursor
   **merges ingest + stable** — this is the code actually being stressed.
 
-Per connection a **`Node`** bundles, in one session, a layered cursor (`lay_c`) and a reference
-cursor (`ref_c`) on a shared-named layered table and a per-connection plain table. The same cursors
+Per connection a **`Node`** bundles, in one session, a layered cursor (`dsc_c`) and a reference
+cursor (`asc_c`) on a shared-named layered table and a per-connection plain table. The same cursors
 serve **both reads and writes**, so they stay in lockstep and a write leaves the cursor positioned
 (feeding the long-lived positioned-cursor chains, §6).
 
@@ -52,7 +52,7 @@ gaps; values are unique strings (`new_value`).
 ## 3. The two oracles
 
 1. **Per-operation, per-node (the workhorse).** `_read` runs each read op (a cursor callable) on
-   `lay_c` then `ref_c` of the *same* node and compares the normalized `(ret, key, value, cmp)`. Same
+   `dsc_c` then `asc_c` of the *same* node and compares the normalized `(ret, key, value, cmp)`. Same
    session → same snapshot → apples-to-apples, immune to read-committed snapshot-pinning false
    positives. `search_near` is special-cased (`_read_near` / `_compare_near`): WT may return *either*
    immediate
@@ -64,8 +64,8 @@ gaps; values are unique strings (`new_value`).
    equal its reference scan, **and** the leader's layered scan must equal the follower's layered
    scan (same logical data reached two different ways — stable-only vs merged).
 
-Writes are also result-compared (`_write_pair` / `_positional_pair` assert the layered and
-reference return codes match) — a write checked like a read.
+Writes are also result-compared (`_write_pair` / `_positional` assert the layered and reference
+return codes match) — a write checked like a read.
 
 **Guiding principle (test inventory).** The seed-driven stress test is the *only* layered-vs-regular
 agreement checker in this file. A standalone scenario test earns its place **only** if it pins a
@@ -110,44 +110,36 @@ reproducibility.
 
 ---
 
-## 6. Operation generation — one structured, inheritable weights config
+## 6. Operation generation — a flat weighted op table
 
-Two pieces: an **op table** (`self.ops`, `OpSpec` rows from `_build_ops()`) carrying behaviour +
-legality, and a **weights config** (`DEFAULT_WEIGHTS`) carrying the whole workload shape in one
-nested structure.
+Two pieces: an **op table** (`self.ops`, `Op` rows from `_build_ops()`) carrying behaviour +
+legality + weight, and a **`Weights` dataclass** carrying every weight as a named field.
 
-Each `OpSpec` carries a **direct bound-method reference** (`fn`, e.g. `self.op_next`) — there is no
-string op-name dispatch anywhere — a config-key `name` (used *only* to look up the op's weight, never
-to branch), and legality tags (`needs_position`, `needs_live`, `is_write`, `autocommit_only`,
-`in_txn_only`). `_legal(spec, positioned)` is the single legality predicate, pure off the tags and
-`State.txn` (the current `Txn` context).
+Each `Op` row carries a **direct bound-method reference** (`fn`, e.g. `self.op_next`) — there is no
+string op-name dispatch anywhere — its `weight`, and legality tags (`needs_position`, `needs_live`,
+`is_write`, `autocommit_only`, `in_txn_only`). `_legal(op, positioned)` is the single legality
+predicate, pure off the tags and `State.txn` (the current `Txn` context).
 
-`DEFAULT_WEIGHTS` is a `Weights` **dataclass** (with nested `Weights.Txn` / `Weights.Scenarios` for the groups)
-— weights are set by named field, so a mistyped weight is an `AttributeError`/IDE-flagged, not a
-silent miss, and `_validate_weights()` asserts at setup that every weight field is backed by a real
-op. A top-level field is either a **leaf op weight** (`next: int = 40`, the field name equals an
-`OpSpec.name`) or a **group** (its own `weight` = share at the top level + child weights). The rule:
-a group's `weight` is how often that group wins against the other top-level fields; a child's weight
-is its share *given* the group was chosen. Crucially a group contributes **exactly** its `weight` to
-the top-level pool — `_candidates` distributes it over the (normalised) children, so a group's
-internal scale (e.g. `commit = 70`) never leaks into the comparison against leaf ops. Two groups
-today:
-- `txn` (`weight` 8) — when no txn is open it resolves to a single `begin` candidate (op_begin then
-  picks its flavour from the begin-mode sub-weights `snapshot`/`read_committed`/`read_uncommitted`/
-  `read_timestamp`); when a txn IS open it resolves to `commit`/`rollback` by their sub-weights.
-- `scenarios` (`weight` 12) — rare checkpoint/eviction (`advance`/`evict`; later: injected scenarios).
+`Weights` is a frozen **dataclass** with one named field per op (`next: int = 40`, …) — a mistyped
+weight is an `AttributeError`, not a silent miss. A test builds a `Weights()` and passes it to
+`setup_connections`; `_build_ops` copies each field straight onto the `Op` that uses it
+(`Op(self.op_next, weights.next)`), so there is no module-global "default" and no lookup at pick
+time. `DEV_ONLY_validate_ops()` asserts at setup that the table has exactly one row per `op_*` method
+and every weight is positive.
 
-Position-HOLDING ops (reads + positional writes) carry the bulk of the weight so chains stay long
-(the cursor is positioned ~36% of picks); position-BREAKING ops are deliberately light. There is no
-longer a single `P_BREAK` knob — the break frequency is implicit in the weights (decision D1, a
-`workload-tuning` TODO). Inheritance is the dataclass defaults: a test passes its own `Weights(...)`
-to `run_sequence(weights=...)` (unspecified fields keep the defaults; `dataclasses.replace` for a
-partial nested override).
+The one sub-distribution **not** in the top-level pool is `TxnBeginWeights` (`weights.txn_begin`):
+`op_begin` reads it directly to pick the transaction flavour it opens
+(`snapshot`/`read_committed`/`read_uncommitted`/`read_timestamp`). `begin`/`commit`/`rollback`/
+`advance`/`evict` are ordinary top-level ops gated only by legality, not a group.
 
-`pick_op`: `_candidates(positioned)` walks the config, legality-filters, and returns
-`(effective_weight, spec)` pairs; it weighted-samples one and returns `lambda: spec.fn(...)` — a
-**bound zero-arg callable**. Each `op_*` method owns its own argument generation, `trace.log`, and
-state update; `run_sequence` just calls the callable. The legality the tags encode:
+Position-HOLDING ops (reads + positional writes) carry the bulk of the weight so chains stay long;
+position-BREAKING ops are deliberately light, and with no break gate a position-breaking op's raw
+weight is its break frequency (`workload-tuning` TODO).
+
+`pick_op(nodes, rnd, trace)`: filter `self.ops` to the legal rows via `_legal`, weighted-sample one
+by `op.weight`, and return `lambda: op.fn(nodes, rnd, trace)` — a **bound zero-arg callable**. Each
+`op_*` method owns its own argument generation, `trace.log`, and state update; `run_sequence` just
+calls the callable. The legality the tags encode:
 
 | Txn context | legal ops |
 |---|---|
@@ -155,17 +147,17 @@ state update; `run_sequence` just calls the callable. The legality the tags enco
 | `Txn.SNAPSHOT` (read-write txn) | reads + writes + positional (if positioned) + commit/rollback + reset + verify |
 | read-only txn (`READ_TIMESTAMP` / `READ_COMMITTED` / `READ_UNCOMMITTED`) | reads + commit/rollback + reset + verify |
 
-**Adding an op = one `OpSpec` row in `_build_ops()` + one weight entry + one `op_<name>` method.** The driver
-(`run_sequence`) and the op methods track `cur_pos` (the key both cursor pairs sit on) and
-`state.live` (the logical key→value map, used **only** to choose keys, never as the oracle).
+**Adding an op = one `Op` row in `_build_ops()` + one `Weights` field + one `op_<name>` method.** The
+op methods track `cur_pos` (the key both cursor pairs sit on) and `state.py_table` (the logical
+key→value map, used **only** to choose keys, never as the oracle).
 
 ---
 
 ## 7. Transactions, timestamps, isolation, prepare (Phase C)
 
 - **Explicit transactions** (`begin`/`commit`/`rollback`, `_end_txn`): writes join the open txn and
-  commit atomically at one timestamp; rollback restores `self.live` from a begin-time snapshot and
-  resets the cursors. Cursors **survive** a commit (position retained) — exercising mid-chain txn
+  commit atomically at one timestamp; rollback restores `state.py_table` from a begin-time snapshot
+  and resets the cursors. Cursors **survive** a commit (position retained) — exercising mid-chain txn
   switches.
 - **In-txn positional writes are DIRECT** (no re-search): the positioning read and the write share
   the transaction, so the cursor is genuinely positioned — the real same-transaction
@@ -192,11 +184,12 @@ state update; `run_sequence` just calls the callable. The legality the tags enco
 ## 8. Anti-degeneracy coverage guards (multi-seed)
 
 The oracle can pass *trivially* if the test never actually exercises the merge or the interesting
-ops. `assert_self_coverage` bundles these as a **self-check** run after the multi-seed `test_random`
-(a meta-assertion that the *test* did its job — a failure means a coverage regression, not a product
-bug). The checks:
+ops. `DEV_ONLY_assert_self_coverage` bundles these as a **self-check** run after the multi-seed
+`test_random` (a meta-assertion that the *test* did its job — a failure means a coverage regression,
+not a product bug). The `DEV_ONLY_` prefix marks helpers that are test-development guards, not
+product assertions. The checks:
 
-- `assert_merge_exercised` — the follower must read from **stable** a minimum fraction of follower
+- `DEV_ONLY_assert_merge_exercised` — the follower must read from **stable** a minimum fraction of follower
   reads (else it's an ingest-only degenerate oracle). Reads the `layered_curs_*_{stable,ingest}`
   stats. **Floor is an interim 1%** — `TODO(merge-coverage)`: stable reads are inherently rare in
   the random run (writes keep keys in ingest); the real fix is a forced-eviction scenario op + a
@@ -212,7 +205,7 @@ bug). The checks:
 
 | dimension | covered | where |
 |---|---|---|
-| ingest+stable merge (reads) | ✅ | the whole test; `assert_merge_exercised` |
+| ingest+stable merge (reads) | ✅ | the whole test; `DEV_ONLY_assert_merge_exercised` |
 | ingest tombstone shadows stable | ✅ | random removes (`test_random`) |
 | long-lived positioned chains | ✅ | `pick_op` bias; `n_positional` guard |
 | search_near neighbour semantics | ✅ | `_read_near` / `_compare_near` |
@@ -237,15 +230,15 @@ real bug, under review** (`findings/prepare_iterate_bug_candidate.md`).
 Grouped low-level → high-level. We'll walk these in roughly this order.
 
 **A. Module-level primitives + the workload config**
-- `sign` · `Txn` enum (the transaction context) + `write_allowed(txn)` · `OpSpec` dataclass (the op
-  row: `fn` bound-method ref + config-key `name` + legality tags) · `Weights` dataclass (nested
-  `Weights.Txn` / `Weights.Scenarios` groups) + `DEFAULT_WEIGHTS = Weights()` · `EventTrace` (`log`/`close`) ·
-  `Node` (`__init__`/`reset_all`/`close`) · `State` (`__init__` global fields / `new_sequence`
-  per-sequence fields, incl. `txn`)
+- `sign` · `Txn` enum (the transaction context) + `write_allowed(txn)` · `TxnBeginWeights` dataclass
+  (op_begin's flavour sub-distribution) · `Weights` dataclass (one named field per op +
+  `txn_begin`) · `Op` dataclass (the op row: `fn` bound-method ref + `weight` + legality tags) ·
+  `EventTrace` (`log`/`close`) · `Node` (`__init__`/`reset_all`/`close`) · `State` (`__init__` global
+  fields / `new_sequence` per-sequence fields, incl. `txn`)
 
 **B. Cluster & table setup**
 - `conn_config` · `setup_connections` (builds `self.state = State()`, `self.ops = _build_ops()`,
-  `self.ops_by_name`) · `_build_ops` (the `OpSpec` table) · `make_nodes` · `new_value`
+  then `DEV_ONLY_validate_ops()`) · `_build_ops` (the `Op` table) · `make_nodes` · `new_value`
 
 **C. Write protocol**
 - `_write_pair` · `mirror_write` · `_positional` (callable-based; in-txn direct / autocommit re-search) ·
@@ -255,7 +248,8 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 - `advance` · `drain_ingest`
 
 **E. Stats / anti-degeneracy (self-checks)**
-- `follower_read_split` · `assert_merge_exercised` (1% interim floor, TODO) · `assert_self_coverage`
+- `DEV_ONLY_follower_read_split` · `DEV_ONLY_assert_merge_exercised` (1% interim floor, TODO) ·
+  `DEV_ONLY_assert_self_coverage`
 
 **F. Read application & the oracle**
 - `_anchor` · `_read` (do-callable + normalize + compare + anchor) · `_near` · `_read_near` ·
@@ -270,9 +264,9 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
   `op_advance`/`op_evict` · `op_verify`
 
 **I. Operation generation (no string dispatch)**
-- `_legal` (pure predicate over the `OpSpec` tags + `State.txn`) · `_candidates` (walks the `Weights`
-  dataclass fields, normalises group shares, legality-filters) · `_group_children` · `_validate_weights`
-  · `pick_op` (samples a candidate, returns `lambda: spec.fn(...)`) · `pick_search_key`
+- `_legal` (pure predicate over the `Op` tags + `State.txn`) · `DEV_ONLY_validate_ops` (one row per
+  `op_*`, weights positive) · `pick_op` (filter legal, sample by `op.weight`, return
+  `lambda: op.fn(...)`) · `pick_search_key`
 
 **J. The driver**
 - `open_trace` · `run_sequence` (loop = `pick_op(nodes, rnd, trace)()`)

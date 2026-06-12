@@ -11,11 +11,11 @@ digraph layered_cursor_stress_oploop {
   loop   [shape=diamond, fillcolor="#f0f0f0", label="n_ops\nremaining?"];
   verify [shape=oval, fillcolor="#ede7f6", label="verify(): per-node lay==ref;\nleader scan == follower scan"];
 
-  // pick_op: the config-driven generator
-  mode   [fillcolor="#e8eef7", label="pick_op(nodes, rnd, trace)\npositioned = cur_pos in live?"];
-  cand   [fillcolor="#e8eef7", label="_candidates(positioned): walk DEFAULT_WEIGHTS\nleaf -> its weight; group -> its share, split over\n(normalised) children; keep only _legal(spec, positioned)"];
-  grp    [shape=note, fillcolor="#fff4e5", label="groups (contribute exactly their .weight):\n txn  -> begin  (no txn open)  |  commit/rollback (txn open)\n scenarios -> advance / evict"];
-  sample [fillcolor="#e8eef7", label="weighted-sample candidates by effective weight\n-> lambda: spec.fn(nodes, rnd, trace)"];
+  // pick_op: the flat-table generator
+  mode   [fillcolor="#e8eef7", label="pick_op(nodes, rnd, trace)\npositioned = cur_pos in py_table?"];
+  cand   [fillcolor="#e8eef7", label="filter self.ops to the legal rows\nvia _legal(op, positioned)"];
+  grp    [shape=note, fillcolor="#fff4e5", label="legality by Txn context:\n autocommit -> all but commit/rollback\n snapshot txn -> + commit/rollback, no advance/evict/begin\n read-only txn -> no writes"];
+  sample [fillcolor="#e8eef7", label="weighted-sample by op.weight\n-> lambda: op.fn(nodes, rnd, trace)"];
 
   // the callable runs one op_* method (which updates self.state)
   run    [fillcolor="#eef2ff", label="op()  ->  one op_* method\nself-contained: arg-gen + trace + perform + update state"];
@@ -31,6 +31,6 @@ digraph layered_cursor_stress_oploop {
   run    -> loop;
 
   // note on the oracle
-  note [shape=note, fillcolor="#fbfbe6", label="reads go through _read / _read_near:\ncompare lay==ref on BOTH nodes,\nthen anchor cur_pos iff leader key == follower key"];
+  note [shape=note, fillcolor="#fbfbe6", label="reads go through _read / _read_near:\ncompare dsc==asc on BOTH nodes,\nthen anchor cur_pos iff leader key == follower key"];
   run -> note [style=dotted, arrowhead=none];
 }
