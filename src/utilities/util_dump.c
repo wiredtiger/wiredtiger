@@ -243,7 +243,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
         /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
-        if (quiet_corrupt)
+        if (read_corrupt)
             F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             const char *errmsg = session->strerror(session, ret);
@@ -262,7 +262,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             if (multi_uri_err == 0)
                 multi_uri_err = ret;
             cursor = NULL;
-            if (quiet_corrupt)
+            if (read_corrupt)
                 continue;
             goto err;
         }
@@ -325,7 +325,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
                 ret = 1;
         }
         if (ret != 0) {
-            if (quiet_corrupt && json) {
+            if (read_corrupt && json) {
                 if (multi_uri_err == 0)
                     multi_uri_err = ret;
                 /* Fall through; dump_json_table_end + close below clean up. */
@@ -345,7 +345,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         hs_dump_cursor = NULL;
         if (ret != 0) {
             (void)util_err(session, ret, NULL);
-            if (quiet_corrupt && json) {
+            if (read_corrupt && json) {
                 if (multi_uri_err == 0)
                     multi_uri_err = ret;
                 continue;

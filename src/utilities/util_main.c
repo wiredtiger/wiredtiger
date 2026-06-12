@@ -12,8 +12,8 @@ const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
 const char *usage_prefix = "[-BLmpqRrSVv] [-C config] [-E secretkey] [-h home]";
-bool verbose = false;       /* Verbose flag */
-bool quiet_corrupt = false; /* -q: continue past corrupt pages for read-oriented wt commands */
+bool verbose = false;      /* Verbose flag */
+bool read_corrupt = false; /* -q: continue past corrupt pages for read-oriented wt commands */
 
 static const char *command; /* Command name */
 
@@ -205,7 +205,7 @@ main(int argc, char *argv[])
     rec_config = REC_ERROR;
     backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
       false;
-    quiet_corrupt = false;
+    read_corrupt = false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
     while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)
@@ -243,7 +243,7 @@ main(int argc, char *argv[])
             disable_prefetch = true;
             break;
         case 'q':
-            quiet_corrupt = true;
+            read_corrupt = true;
             break;
         case 'R': /* recovery */
             rec_config = REC_RECOVER;
@@ -381,7 +381,7 @@ main(int argc, char *argv[])
      * -q is only meaningful for read-oriented commands. Reject it on anything else so users get
      * an immediate, clear error rather than a silently ignored flag.
      */
-    if (quiet_corrupt && func != util_dump && func != util_read && func != util_stat &&
+    if (read_corrupt && func != util_dump && func != util_read && func != util_stat &&
       func != util_list && func != util_page && func != util_printlog) {
         fprintf(stderr,
           "%s: -q is only valid for read-oriented commands: dump, read, stat, list, page "

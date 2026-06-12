@@ -54,7 +54,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     /* Set the session flag before open_cursor so dhandle-open block reads stay quiet too. */
-    if (quiet_corrupt)
+    if (read_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
 
     /*
@@ -99,7 +99,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         case 0:
             if ((ret = cursor->get_value(cursor, &value)) != 0) {
                 (void)util_cerr(cursor, "get_value", ret);
-                if (!quiet_corrupt)
+                if (!read_corrupt)
                     return (1);
                 rval = true;
                 break;
@@ -113,7 +113,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
             break;
         default:
             (void)util_cerr(cursor, "search", ret);
-            if (!quiet_corrupt)
+            if (!read_corrupt)
                 return (1);
             rval = true;
             break;

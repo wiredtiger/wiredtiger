@@ -92,7 +92,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
-    if (quiet_corrupt)
+    if (read_corrupt)
         F_SET(session_impl, WT_SESSION_READ_SKIP_CORRUPT);
 
     if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
