@@ -42,7 +42,7 @@
 # Reproducibility: the seed set is fixed, so a run is fully deterministic and a failure repeats
 # on re-run (the failing seed is printed as SEED=<n>). Every chosen event is appended to a
 # per-seed trace file (path printed at start and on failure), flushed each step, so a failure is
-# a self-contained record; to dig into one seed, run it in a throwaway test calling run_seed().
+# a self-contained record; to dig into one seed, run it in a throwaway test calling run_sequence().
 
 import os, random
 import wiredtiger, wttest
@@ -493,7 +493,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.pr('SEED=%d trace=%s' % (seed, path))
         return EventTrace(path, 'test_layered_cursor_stress seed=%d tag=%s' % (seed, tag))
 
-    def run_seed(self, seed, tag, n_ops, allow_writes):
+    def run_sequence(self, seed, tag, n_ops, allow_writes):
         rnd = random.Random(seed)
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
@@ -604,12 +604,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def test_smoke(self):
         # Short seeded run with writes, starting from empty tables.
         self.setup_connections()
-        self.run_seed(seed=12345, tag='smoke', n_ops=80, allow_writes=True)
+        self.run_sequence(seed=12345, tag='smoke', n_ops=80, allow_writes=True)
 
     def test_random(self):
         # Mixed read/write/advance/evict sequences, fresh tables per seed, start empty.
         self.setup_connections()
         for seed in range(10):
-            self.run_seed(seed=seed, tag='r%d' % seed, n_ops=300, allow_writes=True)
+            self.run_sequence(seed=seed, tag='r%d' % seed, n_ops=300, allow_writes=True)
         # Self-check that the run actually exercised the surface (not a product assertion).
         self.assert_self_coverage()

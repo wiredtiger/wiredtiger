@@ -376,7 +376,7 @@ blow-up. A small set of named deterministic scenarios covers the known-hard case
 readability and targeted debugging; the seed-driven fuzzer covers the long tail.
 
 ```python
-def run_seed(self, seed):
+def run_sequence(self, seed):
     rnd = random.Random(seed)
     self.pr(f'SEED={seed}')                           # printed for reproduction
     self.setup_leader_follower()                      # 2 conns, 1 layered table

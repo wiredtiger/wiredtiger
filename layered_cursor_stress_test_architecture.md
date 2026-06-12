@@ -1,7 +1,7 @@
 # Layered cursor stress test — architecture overview
 
-Implementation: `test/suite/test_layered_cursor_stress.py` (~880 lines, 5 test methods + the
-random driver). This document is the multi-altitude map of *how it works*; the companion diagram
+Implementation: `test/suite/test_layered_cursor_stress.py` (two random-generated test methods —
+`test_smoke` and `test_random` — over a shared driver). This document is the multi-altitude map of *how it works*; the companion diagram
 is `layered_cursor_stress_test_architecture.dot` (rendered `.svg`/`.png`). For the phase-by-phase
 status and findings see `layered_cursor_stress_test_plan.md`; for the design rationale see
 `layered_cursor_stress_test_design.md`.
@@ -103,7 +103,7 @@ An integer **seed** drives a `random.Random(seed)` (printed `SEED=<n>`). The see
 (`range(10)`), so a run is fully deterministic and a failure repeats on re-run. Every chosen op is
 appended to a per-seed **trace file** (`open_trace` / `EventTrace`), flushed each line, so a failure
 is a self-contained record; to dig into one failing seed, run it in a throwaway test calling
-`run_seed()` (there is intentionally no global single-seed replay knob). No multithreading —
+`run_sequence()` (there is intentionally no global single-seed replay knob). No multithreading —
 multiple **sessions** in one thread create prepared-conflict scenarios without breaking
 reproducibility.
 
@@ -114,7 +114,7 @@ reproducibility.
 `pick_op` is the generator. The central bias: **keep the cursor positioned and chain on it** —
 when positioned it weights `next`/`prev` and positional `update`/`remove` heavily, and keeps
 position-resetting ops (`put`/`remove` by key, `reset`) rare. `advance`/`evict` punctuate chains
-with checkpoint activity. The driver (`run_seed`) tracks `cur_pos` (the key both cursor pairs sit
+with checkpoint activity. The driver (`run_sequence`) tracks `cur_pos` (the key both cursor pairs sit
 on) and `self.live` (the logical key→value map, used **only** to choose keys, never as the oracle).
 
 `pick_op` is **transaction-aware** — the four modes:
@@ -183,7 +183,7 @@ bug). The checks:
 | long-lived positioned chains | ✅ | `pick_op` bias; `n_positional` guard |
 | search_near neighbour semantics | ✅ | `compare_search_near` |
 | checkpoint advance + drain | ✅ | `advance` / `drain_ingest` (the `advance`/`evict` ops in the random run) |
-| explicit txns, cursor survives switch | ✅ (C1) | `_end_txn`, `run_seed` |
+| explicit txns, cursor survives switch | ✅ (C1) | `_end_txn`, `run_sequence` |
 | same-txn iterate-and-delete | ✅ (C1) | in-txn DIRECT positional writes |
 | `read_timestamp` / as-of-past | ✅ (C2) | `begin` read_ts in the random run; `n_read_ts` guard |
 | isolation levels | ✅ (C3) | `begin` config; iso guards |
@@ -227,7 +227,7 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 - `pick_op` · `pick_search_key`
 
 **I. The driver**
-- `open_trace` · `run_seed`
+- `open_trace` · `run_sequence`
 
 **J. Tests (top level)** — only seed-driven, random-generated stress tests. A standalone /
 hand-built scenario is kept **only** if it pins a known layered-vs-regular *mismatch* (none do, so

@@ -7,9 +7,9 @@ Run (from `build/`): `python3 ../test/suite/run.py test_layered_cursor_stress`
 This is the single source of truth for **what we are doing, where we are, and what is
 unresolved**. Tickboxes are concrete goals; check them only with real passing test output.
 
-> **Test-inventory principle (2026-06-11).** The seed-driven stress test
-> (`test_smoke`/`test_read_only`/`test_random`) is the *only* layered-vs-regular agreement checker
-> in `test_layered_cursor_stress.py`. A standalone scenario test is kept **only** if it pins a known
+> **Test-inventory principle (2026-06-11).** The seed-driven, random-generated stress test
+> (`test_smoke` + `test_random`) is the *only* layered-vs-regular agreement checker in
+> `test_layered_cursor_stress.py`. A standalone scenario test is kept **only** if it pins a known
 > *mismatch* (a bug repro); scenarios that merely re-assert correct/agreeing behavior are redundant
 > with the oracle and were removed. Consequently the phase work below (C2 read_timestamp regression,
 > C3, C4/C5 prepare scenarios, the checkpoint-delete regression) was *done and reviewed* as recorded,
@@ -99,7 +99,7 @@ detail:
       chains (positional update/remove, rare resets) remain Phase B.
 - [x] A11. `compare_search_near` now checks the layered `cmp` sign vs the search key in all
       branches (0 exact / <0 smaller / >0 larger).
-- [x] A12. `test_read_only` logs a `# seed=N` trace note at each seed boundary; per-`run_seed`
+- [x] A12. `test_read_only` logs a `# seed=N` trace note at each seed boundary; per-`run_sequence`
       tests already write one trace file per seed.
 - [~] A13. Write return codes are now captured (explicit `insert()`/`remove()`) and compared
       layered-vs-reference; an unexpected rollback-required code surfaces at commit. A strict
