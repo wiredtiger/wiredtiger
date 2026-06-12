@@ -44,7 +44,7 @@ class sweep_util(wttest.WiredTigerTestCase):
         """
         if session is None:
             session = self.session
-        if baseline == None:
+        if baseline is None:
             with wttest.open_cursor(session, 'statistics:') as stat_cursor:
                 baseline = stat_cursor[statistic][2]
         deadline = time.time() + timeout
