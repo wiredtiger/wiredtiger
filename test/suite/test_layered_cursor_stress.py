@@ -634,16 +634,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self._end_txn(nodes, commit=True)
             self.verify(nodes, trace)
         finally:
-            if self.state.in_txn:
-                # A failure fired mid-transaction. Roll it back so teardown is clean, but never
-                # let this mask the original error.
-                for n in nodes:
-                    try:
-                        n.session.rollback_transaction()
-                    except Exception:
-                        pass
-                self.state.in_txn = self.state.txn_wrote = self.state.txn_readonly = False
-                self.state.txn_read_ts = None
+            # A transaction left open by a mid-sequence failure is rolled back automatically when
+            # the connection is closed at teardown (these are never prepared txns), so no explicit
+            # rollback is needed here.
             for n in nodes:
                 n.close()
             trace.close()
