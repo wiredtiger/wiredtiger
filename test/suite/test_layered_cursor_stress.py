@@ -57,11 +57,6 @@ def sign(n):
 # Decision labels are enums, never bare strings -- a typo'd member is an AttributeError at import,
 # not a silently-never-matched branch at run time.
 
-class Category(Enum):
-    KEEP = 'keep'    # the op holds the cursor position (long chains favour these)
-    BREAK = 'break'  # the op resets / moves the position
-    TXN = 'txn'      # a transaction-control op (begin / commit / rollback)
-
 class Txn(Enum):
     # The kind of transaction context the generator is currently in. NO is autocommit; the rest are
     # explicit begin_transaction flavours. Only NO and SNAPSHOT permit writes (see write_allowed);
@@ -79,33 +74,64 @@ def write_allowed(txn):
     return txn in (Txn.NO, Txn.SNAPSHOT)
 
 # --- workload shape --------------------------------------------------------
-# The operation mix is one table built in _build_ops(): each row is an OpSpec pairing an op
-# METHOD (referenced directly -- no string dispatch) with its weight, bucket (keep / break / txn),
-# and legality tags. Two top-level dials shape the workload:
-#   P_BREAK - when doing a data op, the chance it BREAKS the cursor position (small => long
-#             position-holding chains, the heart of the test).
-#   P_TXN   - the chance of a transaction-control op when one is legal; orthogonal to P_BREAK so
-#             a low break rate never starves transactions.
-# Adding an operation = one op_<name> method (self-contained: generates its own argument, traces
-# itself, does the work) + one OpSpec row in _build_ops(). pick_op selects a row by its metadata
-# and calls its method -- it never decides anything from an op-name string.
+# Each operation is an OpSpec (built in _build_ops()) pairing an op METHOD -- referenced directly,
+# never dispatched by string -- with a config-key NAME and legality tags. Adding an operation = one
+# op_<name> method (self-contained: generates its own argument, traces itself, does the work) + one
+# OpSpec row + one weight entry in the workload config.
 
 @dataclass(frozen=True)
 class OpSpec:
     fn: object                    # the op method, called as fn(nodes, rnd, trace)
-    weight: int
-    category: Category            # KEEP holds position | BREAK resets it | TXN control op
+    name: str                     # config key -- used only to look up the op's weight, never to dispatch
     needs_position: bool = False  # cursor must be positioned on a live key (positional writes)
     needs_live: bool = False      # at least one live key must exist (remove by key)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
     autocommit_only: bool = False  # only with no open txn (begin / advance / evict)
     in_txn_only: bool = False     # only with an open txn (commit / rollback)
 
-# TODO(workload-tuning): these dials and the OpSpec weights are a rough first pass that preserves
-# the broad shape (reads dominate, breaks rare). Revisit once the long-run / forced-eviction work
-# lands -- in particular to drive the follower's stable-read fraction up (see assert_merge_exercised).
-P_BREAK = 0.10
-P_TXN = 0.10
+# The whole workload shape is ONE nested, inheritable structure. A top-level entry is either a leaf
+# op weight or a GROUP {'weight': <share at the top level>, <child>: <weight within the group>, ...}.
+# The effective weight of any leaf is the product of the weights along its path, so once pick_op
+# filters to the legal ops it just sums the survivors and samples -- renormalisation is automatic.
+# Semantics (the rule): a group's 'weight' is how often that group is chosen against the other
+# top-level entries; a child's weight is its share *given* the group was chosen.
+#   - 'txn'      : when no txn is open it resolves to `begin` (op_begin then picks its flavour from
+#                  the begin-mode sub-weights snapshot/read_committed/read_uncommitted/read_timestamp);
+#                  when a txn IS open it resolves to commit/rollback by their sub-weights.
+#   - 'scenarios': rare checkpoint/eviction (and, later, injected) ops.
+# A test inherits DEFAULT_WEIGHTS and may deep-merge an override (merge_weights) -- e.g. a
+# scenario-heavy test bumps just 'scenarios' without restating the rest.
+# TODO(workload-tuning): these are a rough first pass (reads dominate; breaks/txn/scenarios rare).
+# Dropping the old single P_BREAK knob (now implicit in next/prev=80 vs the position-breaking ops)
+# is decision D1 in the plan -- revisit whether a derived break knob should return, and tune to
+# drive the follower stable-read fraction up (see assert_merge_exercised), once the long run lands.
+DEFAULT_WEIGHTS = {
+    # Position-HOLDING ops (reads + positional writes) dominate so chains stay long and the cursor
+    # is usually positioned -- the heart of the test. Position-BREAKING ops (put/remove/reset/verify
+    # + the txn and scenario groups) carry deliberately small weights; with no P_BREAK gate anymore,
+    # their raw weight IS the break frequency (~12% here).
+    'next': 40, 'prev': 40, 'search': 12, 'search_near': 10,
+    'pos_update': 14, 'pos_remove': 8,
+    'put': 6, 'remove': 2, 'reset': 2, 'verify': 4,
+    'txn': {
+        'weight': 8,
+        'snapshot': 72, 'read_committed': 16, 'read_uncommitted': 12, 'read_timestamp': 30,
+        'commit': 70, 'rollback': 30,
+    },
+    'scenarios': {
+        'weight': 12,
+        'advance': 50, 'evict': 50,
+        # TODO(scenarios): forced_evict, bulk_remove, massive_prepare, truncate -- add as op rows.
+    },
+}
+
+def merge_weights(base, override):
+    # Deep-merge override onto base (recursing into group dicts) so a test can tweak part of the
+    # workload shape without restating all of it.
+    out = dict(base)
+    for k, v in override.items():
+        out[k] = merge_weights(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
 
 class EventTrace:
     # Append-only, flushed-each-line record of every chosen event for a seed.
@@ -198,28 +224,29 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # resets the per-sequence fields (live, cur_pos, txn flags).
         self.state = State()
         self.ops = self._build_ops()   # the workload table (OpSpec rows -> op methods)
+        self.ops_by_name = {s.name: s for s in self.ops}   # weight-config key -> OpSpec
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
     def _build_ops(self):
-        # The workload shape: one OpSpec row per op, pairing the op method (direct reference) with
-        # its weight, bucket, and legality tags. This is the single place weights/legality live.
+        # One OpSpec row per op, pairing the op method (direct reference) with its config-key name
+        # and legality tags. Weights live in the workload config (DEFAULT_WEIGHTS), keyed by name.
         return [
-            OpSpec(self.op_next,        40, Category.KEEP),
-            OpSpec(self.op_prev,        40, Category.KEEP),
-            OpSpec(self.op_search,      12, Category.KEEP),
-            OpSpec(self.op_search_near, 10, Category.KEEP),
-            OpSpec(self.op_pos_update,  14, Category.KEEP,  needs_position=True, is_write=True),
-            OpSpec(self.op_pos_remove,   8, Category.KEEP,  needs_position=True, is_write=True),
-            OpSpec(self.op_put,         30, Category.BREAK, is_write=True),
-            OpSpec(self.op_remove,       8, Category.BREAK, is_write=True, needs_live=True),
-            OpSpec(self.op_reset,       12, Category.BREAK),
-            OpSpec(self.op_verify,      15, Category.BREAK),
-            OpSpec(self.op_advance,     18, Category.BREAK, autocommit_only=True),
-            OpSpec(self.op_evict,       18, Category.BREAK, autocommit_only=True),
-            OpSpec(self.op_begin,      100, Category.TXN,   autocommit_only=True),
-            OpSpec(self.op_commit,      70, Category.TXN,   in_txn_only=True),
-            OpSpec(self.op_rollback,    30, Category.TXN,   in_txn_only=True),
+            OpSpec(self.op_next,        'next'),
+            OpSpec(self.op_prev,        'prev'),
+            OpSpec(self.op_search,      'search'),
+            OpSpec(self.op_search_near, 'search_near'),
+            OpSpec(self.op_pos_update,  'pos_update', needs_position=True, is_write=True),
+            OpSpec(self.op_pos_remove,  'pos_remove', needs_position=True, is_write=True),
+            OpSpec(self.op_put,         'put',        is_write=True),
+            OpSpec(self.op_remove,      'remove',     is_write=True, needs_live=True),
+            OpSpec(self.op_reset,       'reset'),
+            OpSpec(self.op_verify,      'verify'),
+            OpSpec(self.op_advance,     'advance',    autocommit_only=True),
+            OpSpec(self.op_evict,       'evict',      autocommit_only=True),
+            OpSpec(self.op_begin,       'begin',      autocommit_only=True),
+            OpSpec(self.op_commit,      'commit',     in_txn_only=True),
+            OpSpec(self.op_rollback,    'rollback',   in_txn_only=True),
         ]
 
     def make_nodes(self, tag):
@@ -582,16 +609,20 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # positioned so next/prev keep iterating across the switch, but a positional WRITE must be
         # re-established by a read inside this txn (a write off a pre-txn position is the cross-txn
         # positioned-remove WT-17796), so clear the generator position.
-        mode = rnd.choices([Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED],
-                           weights=[72, 16, 12], k=1)[0]
-        # Under snapshot, half the time (when a past window exists) read as-of-T -- that is the
-        # READ_TIMESTAMP flavour. read_timestamp requires snapshot; the oldest_ts>=1 gate keeps
-        # randint off timestamp 0 (an invalid read_timestamp).
+        # Choose the begin flavour from the 'txn' group's begin-mode sub-weights.
+        tw = self.weights['txn']
+        mode = rnd.choices(
+            [Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED, Txn.READ_TIMESTAMP],
+            weights=[tw['snapshot'], tw['read_committed'], tw['read_uncommitted'], tw['read_timestamp']],
+            k=1)[0]
+        # READ_TIMESTAMP needs a past window [oldest, latest]; without one it falls back to a plain
+        # snapshot txn. The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
         read_ts = None
-        if mode is Txn.SNAPSHOT and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
-                and rnd.random() < 0.5:
-            mode = Txn.READ_TIMESTAMP
-            read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
+        if mode is Txn.READ_TIMESTAMP:
+            if self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts:
+                read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
+            else:
+                mode = Txn.SNAPSHOT
         trace.log('begin %r' % ((read_ts, mode.value),))
         cfg_parts = []
         # SNAPSHOT/READ_TIMESTAMP run at the default snapshot isolation (no isolation= clause);
@@ -667,22 +698,45 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             return not spec.is_write             # no writes in a read-only transaction
         return True                              # snapshot txn: reads + writes + commit/rollback
 
+    def _candidates(self, positioned):
+        # Walk the workload config and yield (effective_weight, spec) for every LEGAL op. A group's
+        # 'weight' is its share at the top level; a child's weight is conditional within the group, so
+        # the effective weight is the product. The 'txn' group is the one state-dependent node: when
+        # no txn is open it offers `begin` (op_begin then picks its own flavour); when a txn is open it
+        # offers commit/rollback by their sub-weights. Top-level leaves and 'scenarios' are generic.
+        in_txn = self.state.txn is not Txn.NO
+        out = []
+        def add(weight, name):
+            spec = self.ops_by_name[name]
+            if self._legal(spec, positioned):
+                out.append((weight, spec))
+        def add_group(gw, children):
+            # A group contributes exactly its share `gw` to the top-level pool: distribute it over
+            # the children in proportion to their weights (normalised), so the children's internal
+            # scale never leaks into the top-level comparison.
+            tot = sum(children.values())
+            for name, cw in children.items():
+                add(gw * cw / tot, name)
+        for key, val in self.weights.items():
+            if key == 'txn':
+                gw = val['weight']
+                if in_txn:                                  # close the open txn
+                    add_group(gw, {'commit': val['commit'], 'rollback': val['rollback']})
+                else:                                       # open one (op_begin picks the flavour)
+                    add(gw, 'begin')
+            elif key == 'scenarios':
+                add_group(val['weight'], {k: v for k, v in val.items() if k != 'weight'})
+            else:
+                add(val, key)
+        return out
+
     def pick_op(self, nodes, rnd, trace):
-        # Choose the next op from the workload table (self.ops): keep only the ops legal in the
-        # current mode/position, then either do a transaction-control op (probability P_TXN, when
-        # one is legal) or a data op whose bucket is BREAK with probability P_BREAK else KEEP -- so
-        # the cursor mostly stays positioned (long chains) and transactions are not starved. Returns
-        # the chosen op's method bound to its context; the method does its own arg-gen + trace.
+        # Sample one legal op from the workload config by its effective weight, and return the op's
+        # method bound to its context. The method does its own arg-gen + trace. The keep/break/txn
+        # mix is whatever the config weights make it -- next/prev dominate, so chains stay long.
         positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.live
-        legal = [s for s in self.ops if self._legal(s, positioned)]
-        txn = [s for s in legal if s.category is Category.TXN]
-        if txn and rnd.random() < P_TXN:
-            pool = txn
-        else:
-            bucket = Category.BREAK if rnd.random() < P_BREAK else Category.KEEP
-            pool = [s for s in legal if s.category is bucket] or \
-                   [s for s in legal if s.category in (Category.KEEP, Category.BREAK)]
-        spec = rnd.choices(pool, weights=[s.weight for s in pool], k=1)[0]
+        cands = self._candidates(positioned)
+        spec = rnd.choices([s for _, s in cands], weights=[w for w, _ in cands], k=1)[0]
         return lambda: spec.fn(nodes, rnd, trace)
 
     def pick_search_key(self, rnd):
@@ -700,7 +754,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.pr('SEED=%d trace=%s' % (seed, path))
         return EventTrace(path, 'test_layered_cursor_stress seed=%d tag=%s' % (seed, tag))
 
-    def run_sequence(self, seed, tag, n_ops):
+    def run_sequence(self, seed, tag, n_ops, weights=None):
+        # weights: an optional override deep-merged onto DEFAULT_WEIGHTS, so a test can reshape part
+        # of the workload (e.g. a scenario-heavy run) without restating the whole config.
+        self.weights = merge_weights(DEFAULT_WEIGHTS, weights) if weights else DEFAULT_WEIGHTS
         rnd = random.Random(seed)
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
