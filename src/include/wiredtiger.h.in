@@ -3022,6 +3022,16 @@ struct __wt_connection {
      */
     int __F(set_key_provider)(
         WT_CONNECTION *connection, WT_KEY_PROVIDER *km, const char *config);
+
+    /*!
+     * Return the key provider registered with WT_CONNECTION::set_key_provider, or \c EINVAL if
+     * none has been configured.
+     *
+     * @param connection the connection handle
+     * @param key_providerp the returned key provider structure
+     * @errors
+     */
+    int __F(get_key_provider)(WT_CONNECTION *connection, WT_KEY_PROVIDER **key_providerp);
 #endif
 
     /*!
@@ -5754,7 +5764,6 @@ struct __wt_page_log {
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
 
-#ifndef SWIG
 /*!
  * A structure that represents encrypted keys stored by WiredTiger.
  */
@@ -5857,7 +5866,6 @@ struct __wt_key_provider {
      */
     int (*terminate)(WT_KEY_PROVIDER *key_provider, WT_SESSION *session);
 };
-#endif
 
 /*!
  * Btree disaggregated storage tier types
