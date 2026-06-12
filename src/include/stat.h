@@ -455,6 +455,7 @@ struct __wt_connection_stats {
     int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
+    int64_t block_cache_cold_not_cached;
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
@@ -1263,6 +1264,7 @@ struct __wt_connection_stats {
     int64_t rec_page_delta_rejected_multiblock;
     int64_t rec_page_delta_rejected_non_single_page;
     int64_t rec_page_delta_rejected_size_threshold;
+    int64_t rec_page_delta_rejected_delete_threshold;
     int64_t rec_page_delta_rejected_zero_entries;
     int64_t rec_page_delta_rejected_build_failed;
     int64_t rec_pages;
@@ -1391,8 +1393,10 @@ struct __wt_connection_stats {
     int64_t txn_rts_keys_removed_dryrun;
     int64_t txn_rts_keys_restored_dryrun;
     int64_t txn_rts_pages_visited;
+    int64_t txn_rts_prepared_fast_truncate_dryrun;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_prepared_fast_truncate;
     int64_t txn_rts_btrees_skipped;
     int64_t txn_rts_delete_rle_skipped;
     int64_t txn_rts_stable_rle_skipped;
@@ -1792,6 +1796,7 @@ struct __wt_dsrc_stats {
     int64_t rec_page_delta_rejected_multiblock;
     int64_t rec_page_delta_rejected_non_single_page;
     int64_t rec_page_delta_rejected_size_threshold;
+    int64_t rec_page_delta_rejected_delete_threshold;
     int64_t rec_page_delta_rejected_zero_entries;
     int64_t rec_page_delta_rejected_build_failed;
     int64_t rec_pages;
@@ -1838,8 +1843,10 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_keys_removed_dryrun;
     int64_t txn_rts_keys_restored_dryrun;
+    int64_t txn_rts_prepared_fast_truncate_dryrun;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_prepared_fast_truncate;
     int64_t txn_rts_btrees_skipped;
     int64_t txn_rts_delete_rle_skipped;
     int64_t txn_rts_stable_rle_skipped;
