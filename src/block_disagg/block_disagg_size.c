@@ -31,8 +31,8 @@ __wti_block_disagg_increase_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size)
 /*
  * __wti_block_disagg_decrease_size --
  *     Decrease the total byte count. When block_meta is non-NULL, asserts that the cumulative size
- *     is currently counted (cumulative_size_aggregated == true) and clears the flag after
- *     decrementing, enforcing the invariant that size is never subtracted twice for the same chain.
+ *     is currently counted (in_persistent_store == true) and clears the flag after decrementing,
+ *     enforcing the invariant that size is never subtracted twice for the same chain.
  */
 void
 __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
@@ -40,11 +40,11 @@ __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 {
     WT_UNUSED(session);
 
-    WT_ASSERT(session, block_meta == NULL || block_meta->cumulative_size_aggregated);
+    WT_ASSERT(session, block_meta == NULL || block_meta->in_persistent_store);
     WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->size) >= size);
     (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
     if (block_meta != NULL)
-        block_meta->cumulative_size_aggregated = false;
+        block_meta->in_persistent_store = false;
 }
 
 /*
@@ -67,19 +67,6 @@ __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
     (void)__wt_atomic_store_uint64(&((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->size, size);
-}
-
-/*
- * __wt_block_disagg_obsolete_delta_chain --
- *     Notify the block manager that a delta chain has been obsoleted by a full page image. The
- *     cumulative size of the old chain is no longer counted toward the total.
- */
-void
-__wt_block_disagg_obsolete_delta_chain(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta)
-{
-    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    __wti_block_disagg_decrease_size(session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block,
-      block_meta, block_meta->cumulative_size);
 }
 
 /*

@@ -221,8 +221,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
  */
 int
 __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
-  bool data_checksum, bool checkpoint_io)
+  WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size,
+  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
@@ -243,10 +243,22 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
      */
     __wt_page_header_byteswap(buf->mem);
 
+    /*
+     * When replacing an existing chain (same page_id reused), subtract the old chain before
+     * writing. This runs unconditionally on both success and failure of the write, so the old chain
+     * is always removed from the running total whenever old_block_meta is set.
+     */
+    if (old_block_meta != NULL) {
+        WT_ASSERT(session, old_block_meta->in_persistent_store);
+        __wti_block_disagg_decrease_size(
+          session, block_disagg, old_block_meta, old_block_meta->cumulative_size);
+    }
+
     WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
       page_image_size, &size, &checksum, data_checksum, checkpoint_io));
 
     /* Update the running total of bytes. */
+    WT_ASSERT(session, !block_meta->in_persistent_store);
     __wti_block_disagg_increase_size(block_disagg, size);
 
     __wt_page_header_byteswap(buf->mem);
@@ -265,9 +277,8 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
         cookie.size = block_meta->cumulative_size + size;
 
     /* Update the block_meta for future delta writes. */
-    WT_ASSERT(session, !block_meta->cumulative_size_aggregated);
     block_meta->cumulative_size = cookie.size;
-    block_meta->cumulative_size_aggregated = true;
+    block_meta->in_persistent_store = true;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));

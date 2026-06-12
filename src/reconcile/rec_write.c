@@ -983,9 +983,9 @@ __rec_destroy_session(WT_SESSION_IMPL *session)
  *     Write a block, with optional diagnostic checks.
  */
 static int
-__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint8_t *addr,
-  size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io,
-  bool compressed)
+__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  WT_PAGE_BLOCK_META *old_block_meta, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
+  bool checkpoint, bool checkpoint_io, bool compressed)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(ctmp);
@@ -1053,8 +1053,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     if (WT_REC_CKPT_TRACK_TIME(r))
         _write_start = __wt_clock(session);
 
-    WT_RET(__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
-      compressed_sizep, checkpoint, checkpoint_io, compressed));
+    WT_RET(__wt_blkcache_write(session, buf, block_meta, old_block_meta, buf->size, addr,
+      addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
 
     if (WT_REC_CKPT_TRACK_TIME(r))
         r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
@@ -2218,7 +2218,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_ASSERT(session, block_meta != NULL);
 
     *multi->block_meta = *block_meta;
-    multi->block_meta->cumulative_size_aggregated = false;
+    multi->block_meta->in_persistent_store = false;
 
     /* The first delta needs to explicitly initialize the base LSN. */
     if (multi->block_meta->delta_count == 0)
@@ -2230,7 +2230,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     /* Get the checkpoint ID. */
     if (WT_REC_CKPT_TRACK_TIME(r))
         _write_start = __wt_clock(session);
-    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, NULL, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     if (WT_REC_CKPT_TRACK_TIME(r))
         r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
@@ -2326,18 +2326,21 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 {
     WT_MULTI *multi;
     WT_PAGE *page;
-    WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_BLOCK_META *block_meta, *old_block_meta;
 
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
+    old_block_meta = NULL;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
         if (last_block && block_meta != NULL && r->multi_next == 1 &&
           block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
+            old_block_meta = block_meta;
             *multi->block_meta = *block_meta;
-            multi->block_meta->cumulative_size_aggregated = false;
+            /* Mark the size as not accounted for page with a valid page id*/
+            multi->block_meta->in_persistent_store = false;
             /*
              * Full page's backlink is the previous full page. If the previous page is a delta, use
              * the base as the new backlink. Otherwise, use the previous page as the backlink.
@@ -2352,7 +2355,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         } else
             __wt_page_block_meta_assign(session, multi->block_meta);
     }
-    WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
+    WT_RET(__rec_write(session, &chunk->image, multi->block_meta, old_block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
@@ -2382,7 +2385,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_ASSERT(session, multi->block_meta != NULL && page->disagg_info != NULL);
     /* Copy the block meta otherwise it will be lost after reconciliation. */
     *multi->block_meta = page->disagg_info->block_meta;
-    multi->block_meta->cumulative_size_aggregated = false;
+    multi->block_meta->in_persistent_store = false;
 
     switch (mod->rec_result) {
     case 0:
@@ -2546,7 +2549,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (F_ISSET(r, WT_REC_IN_MEMORY)) {
         if (page->disagg_info != NULL) {
             *multi->block_meta = page->disagg_info->block_meta;
-            multi->block_meta->cumulative_size_aggregated = false;
+            multi->block_meta->in_persistent_store = false;
         }
         goto copy_image;
     }
@@ -3010,13 +3013,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         }
 
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
-        /*
-         * Update the tree size accounting if we don't free the page id and we terminate the delta
-         * chain.
-         */
-        if (disagg_page_is_valid && !disagg_page_free_required &&
-          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_block_disagg_obsolete_delta_chain(session, &ref->page->disagg_info->block_meta);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3025,15 +3021,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                                 * Discard the multiple replacement blocks.
                                 */
         WT_RET(__rec_split_discard(session, r, page));
-        /*
-         * When __rec_split_discard reuses the existing page_id (free_blocks=false), the old save
-         * update restore cumulative size is still counted in block_disagg->size. Subtract it now if
-         * the new write is a full-image, mirroring the same accounting done in case 0 and
-         * WT_PM_REC_REPLACE.
-         */
-        if (disagg_page_is_valid && !disagg_page_free_required && r->multi_next == 1 &&
-          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_block_disagg_obsolete_delta_chain(session, &page->disagg_info->block_meta);
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
                             /*
@@ -3066,15 +3053,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
                         /* Only free a disagg page if we don't skip writing the page. */
                         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
-                        /*
-                         * Update the tree size accounting if we don't free the page id and we
-                         * terminate the delta chain.
-                         */
-                        if (disagg_page_is_valid && !disagg_page_free_required &&
-                          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
-                          r->multi->block_meta->delta_count == 0)
-                            __wt_block_disagg_obsolete_delta_chain(
-                              session, &ref->page->disagg_info->block_meta);
                     }
                 }
             } else {
@@ -3089,36 +3067,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-                } else {
-                    /*
-                     * Because we are tracking cookie sizes cumulatively, we only decrease the size
-                     * if the page being written is a full page image. This would indicate the delta
-                     * chain has ended.
-                     *
-                     * Interestingly we need to make sure we utilize the newest block meta structure
-                     * the one held on page->disagg_info appears to be from the previous block, and
-                     * the one on the multi->block_meta appears to be from the current block.
-                     */
-                    if (r->multi_next == 1 && r->multi->block_meta != NULL &&
-                      r->multi->block_meta->delta_count == 0 &&
-                      !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
-
-#ifdef HAVE_DIAGNOSTIC
-                        /*
-                         * The previous cookie has the size we want but it should be also the
-                         * previous cumulative size. Sanity check this is the case in diagnostics
-                         * build.
-                         */
-                        WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-                        const uint8_t *buf = mod->mod_replace.block_cookie;
-                        WT_RET(__wt_block_disagg_addr_unpack(
-                          session, &buf, mod->mod_replace.block_cookie_size, &cookie));
-                        WT_ASSERT(
-                          session, cookie.size == page->disagg_info->block_meta.cumulative_size);
-#endif
-                        __wt_block_disagg_obsolete_delta_chain(
-                          session, &page->disagg_info->block_meta);
-                    }
                 }
             }
         }
@@ -3191,7 +3139,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (F_ISSET(r, WT_REC_IN_MEMORY) || F_ISSET(r->multi, WT_MULTI_SUPD_RESTORE)) {
             if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
-                page->disagg_info->block_meta.cumulative_size_aggregated =
+                page->disagg_info->block_meta.in_persistent_store =
                   r->multi->block_meta->cumulative_size > 0;
             }
             WT_ASSERT_ALWAYS(session,
@@ -3214,7 +3162,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->disk_image = NULL;
                 if (page->disagg_info != NULL) {
                     page->disagg_info->block_meta = *r->multi->block_meta;
-                    page->disagg_info->block_meta.cumulative_size_aggregated =
+                    page->disagg_info->block_meta.in_persistent_store =
                       r->multi->block_meta->cumulative_size > 0;
                 }
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
@@ -3235,9 +3183,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             }
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
-            WT_RET(
-              __rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta, NULL,
-                NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
+            WT_RET(__rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta,
+              NULL, NULL, NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT),
+              r->wrapup_checkpoint_compressed));
             if (page->disagg_info != NULL)
                 page->disagg_info->block_meta = r->wrapup_checkpoint_block_meta;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
@@ -3369,30 +3317,27 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
-        if (r->multi->block_meta->delta_count == 0 &&
-          page->disagg_info->block_meta.cumulative_size_aggregated) {
+        if (r->multi->block_meta->delta_count == 0) {
             /*
-             * Full-image write: page_discard freed only the new block (cookie.size == S_new). The
-             * old chain's cumulative_size is still counted in block_disagg->size regardless of the
-             * previous reconciliation result. Subtract it now; the next wrapup cannot because
-             * disagg_page_is_valid will be false after page_id is invalidated below. Also free the
-             * stale cookie and disk image so the WT_PM_REC_REPLACE path in the next wrapup takes
-             * the block_cookie==NULL branch and skips a second subtraction.
+             * Full-image write replacing the same page_id. __wti_block_disagg_write decrements the
+             * old chain before the write, so in_persistent_store is always false here. Free the
+             * stale replacement cookie so the next wrapup WT_PM_REC_REPLACE path takes the
+             * block_cookie==NULL branch.
              */
-            __wt_block_disagg_obsolete_delta_chain(session, &page->disagg_info->block_meta);
+            WT_ASSERT(session, !page->disagg_info->block_meta.in_persistent_store);
             __wt_free(session, mod->mod_replace.block_cookie);
             mod->mod_replace.block_cookie_size = 0;
             __wt_free(session, mod->mod_disk_image);
         } else if (r->multi->block_meta->delta_count > 0 && mod->rec_result == WT_PM_REC_REPLACE &&
-          page->disagg_info->block_meta.cumulative_size_aggregated) {
+          page->disagg_info->block_meta.in_persistent_store) {
             /*
              * Delta write: page_discard freed the new block using cookie.size == cumulative_size +
              * delta_size, which already subtracted the entire old chain from block_disagg->size.
-             * Clear cumulative_size_aggregated and free the stale cookie so the next wrapup takes
-             * the block_cookie==NULL branch via WT_PM_REC_REPLACE and does not subtract the old
-             * chain a second time.
+             * Clear in_persistent_store and free the stale cookie so the next wrapup takes the
+             * block_cookie==NULL branch via WT_PM_REC_REPLACE and does not subtract the old chain a
+             * second time.
              */
-            page->disagg_info->block_meta.cumulative_size_aggregated = false;
+            page->disagg_info->block_meta.in_persistent_store = false;
             __wt_free(session, mod->mod_replace.block_cookie);
             mod->mod_replace.block_cookie_size = 0;
         }
@@ -3529,8 +3474,8 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
 
         /* Write the buffer. */
         addr = buf;
-        WT_ERR(__rec_write(
-          session, tmp, NULL, addr, &size, NULL, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+        WT_ERR(__rec_write(session, tmp, NULL, NULL, addr, &size, NULL, false,
+          F_ISSET(r, WT_REC_CHECKPOINT), false));
 
         /*
          * Track the overflow record (unless it's a bulk load, which by definition won't ever reuse

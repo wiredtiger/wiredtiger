@@ -32,7 +32,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_disagg_checkpoint_size09.py
 #   Exercises the WT-16864 fix in bt_split.c:__split_multi_inmem for the
-#   cumulative_size_aggregated invariant.
+#   in_persistent_store invariant.
 #
 #   When eviction encounters a page with uncommitted updates that cannot be
 #   moved to the history store, it falls back to save_update_restore: the page is
@@ -40,12 +40,12 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #   instantiates a new in-memory page from the existing disk image.
 #
 #   Before the fix, __split_multi_inmem did not restore
-#   cumulative_size_aggregated after copying multi->block_meta into
+#   in_persistent_store after copying multi->block_meta into
 #   page->disagg_info->block_meta.  The copy-site reset left the field false
 #   even though the on-disk delta chain is already counted in block_disagg->size.
 #
 #   The fix adds:
-#     page->disagg_info->block_meta.cumulative_size_aggregated =
+#     page->disagg_info->block_meta.in_persistent_store =
 #         multi->block_meta->cumulative_size > 0;
 #   immediately after the struct copy, matching the pattern already applied to
 #   the two __rec_write_wrapup call sites fixed by the companion rec_write.c
@@ -140,7 +140,7 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
     #         WT_UPDATE_DURABLE 'B' value, so newer_updates_than_last_rec_used
     #         stays false and skip_write fires.  The wrapup (rec_write.c
     #         line ~3205, now fixed) sets mod->rec_result=REPLACE and restores
-    #         cumulative_size_aggregated=(cumulative_size>0).
+    #         in_persistent_store=(cumulative_size>0).
     #      d. Enable Failpoint_REC_BEFORE_wrapup + delta_pct=1.  Write new
     #         committed data to dirty the page and force a full-image eviction.
     #         The failpoint fires ~1% of the time, calling __rec_write_err with
@@ -197,7 +197,7 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
             # (c) Checkpoint: skip_write fires because newer_updates_than_last_rec_used
             #     stays false (the only visible update is already WT_UPDATE_DURABLE).
             #     The wrapup sets mod->rec_result=REPLACE and (after the fix)
-            #     cumulative_size_aggregated=true.
+            #     in_persistent_store=true.
             self.session.checkpoint()
 
             # (d) Enable the failpoint and force a full-image eviction.

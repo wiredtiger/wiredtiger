@@ -864,8 +864,10 @@ __bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const 
  */
 static int
 __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
-  size_t page_image_size, uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+  WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
+  bool data_checksum, bool checkpoint_io)
 {
+    WT_UNUSED(old_block_meta);
     WT_UNUSED(page_image_size);
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
@@ -880,11 +882,12 @@ __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META
  */
 static int
 __bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
-  WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
-  bool data_checksum, bool checkpoint_io)
+  WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size,
+  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     WT_UNUSED(buf);
     WT_UNUSED(block_meta);
+    WT_UNUSED(old_block_meta);
     WT_UNUSED(page_image_size);
     WT_UNUSED(addr);
     WT_UNUSED(addr_sizep);

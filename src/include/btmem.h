@@ -271,12 +271,11 @@ struct __wt_page_block_meta {
     uint8_t delta_count;
 
     /*
-     * True while cumulative_size is counted in block_disagg->size. It is used to avoid double
-     * counting the size of a delta chain in the block disaggregated size when the same delta chain
-     * is reused by multiple pages. This is designed to be only in-memory construct, and is not
-     * persisted to disk.
+     * Represents whether block is persisted or not. It is used to avoid double counting the size of
+     * a delta chain in the block disaggregated size when the same delta chain is reused by multiple
+     * pages. This is designed as an in-memory construct, and not to be not persisted to disk.
      */
-    bool cumulative_size_aggregated;
+    bool in_persistent_store;
 };
 
 /*
