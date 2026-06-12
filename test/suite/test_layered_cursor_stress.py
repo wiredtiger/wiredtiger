@@ -62,16 +62,21 @@ class Category(Enum):
     BREAK = 'break'  # the op resets / moves the position
     TXN = 'txn'      # a transaction-control op (begin / commit / rollback)
 
-class Mode(Enum):
-    AUTOCOMMIT = 'autocommit'  # no explicit transaction open
-    RO_TXN = 'ro_txn'          # an explicit read-only transaction (as-of-T / RC / RU)
-    RW_TXN = 'rw_txn'          # an explicit read-write (snapshot) transaction
+class Txn(Enum):
+    # The kind of transaction context the generator is currently in. NO is autocommit; the rest are
+    # explicit begin_transaction flavours. Only NO and SNAPSHOT permit writes (see write_allowed);
+    # READ_COMMITTED / READ_UNCOMMITTED reject writes (txn_inline.h ~2112) and READ_TIMESTAMP is an
+    # as-of-past read. The value is the WiredTiger isolation= config string where one applies.
+    NO = 'no'                              # autocommit -- no explicit transaction
+    SNAPSHOT = 'snapshot'                  # read-write snapshot transaction
+    READ_COMMITTED = 'read-committed'      # read-only
+    READ_UNCOMMITTED = 'read-uncommitted'  # read-only
+    READ_TIMESTAMP = 'read-timestamp'      # snapshot isolation + an as-of-past read_timestamp; read-only
 
-class Iso(Enum):
-    # The value is the WiredTiger isolation= config string, so iso.value feeds begin_transaction.
-    SNAPSHOT = 'snapshot'                  # the only level that supports writes
-    READ_COMMITTED = 'read-committed'      # read-only here (writes rejected, txn_inline.h ~2112)
-    READ_UNCOMMITTED = 'read-uncommitted'  # read-only here
+def write_allowed(txn):
+    # Writes are legal only outside a transaction or under snapshot isolation; every other Txn flavour
+    # is read-only. The inverse (is_read_only) is just `not write_allowed(txn)`.
+    return txn in (Txn.NO, Txn.SNAPSHOT)
 
 # --- workload shape --------------------------------------------------------
 # The operation mix is one table built in _build_ops(): each row is an OpSpec pairing an op
@@ -162,10 +167,9 @@ class State:
     def new_sequence(self):
         self.live = {}           # logical key->value, for operation generation only
         self.cur_pos = None      # key both cursor pairs are positioned on (None = unpositioned)
-        self.in_txn = False      # an explicit transaction is open on both nodes' sessions
+        self.txn = Txn.NO        # the current transaction context (NO = autocommit); see write_allowed
         self.txn_wrote = False   # the open txn has performed at least one write
-        self.txn_read_ts = None  # if set, the open txn is a read-only as-of-T (read_timestamp)
-        self.txn_readonly = False  # open txn forbids writes (as-of-T, read-committed, read-uncommitted)
+        self.txn_read_ts = None  # the as-of timestamp when txn is READ_TIMESTAMP, else None
         self.live_snapshot = None  # self.live as of begin, restored on rollback
 
 @disagg_test_class
@@ -254,7 +258,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # value=None means remove. On both connections (leader -> stable, follower -> ingest)
         # and the reference table. Inside an explicit transaction the write joins the open txn
         # (committed later by the commit op); otherwise it runs in its own timestamped txn.
-        if self.state.in_txn:
+        if self.state.txn is not Txn.NO:
             for n in nodes:
                 self._write_pair(n, key, value)
             self.state.txn_wrote = True
@@ -274,7 +278,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # iterate-and-delete-in-one-txn. In autocommit the positioning value is not valid across the
         # implicit txn boundary (WT-17796), so we re-search to re-establish position.
         key = self.state.cur_pos
-        if self.state.in_txn:
+        if self.state.txn is not Txn.NO:
             for n in nodes:
                 rl = do(n.lay_c); rr = do(n.ref_c)
                 self.assertEqual(rl, rr, 'positional result differs layered=%r reference=%r at key=%r'
@@ -324,10 +328,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 n.session.rollback_transaction()
             self.state.live = self.state.live_snapshot   # undo the txn's logical writes
             self.state.cur_pos = None              # rollback resets the session's cursors
-        self.state.in_txn = False
+        self.state.txn = Txn.NO
         self.state.txn_wrote = False
         self.state.txn_read_ts = None
-        self.state.txn_readonly = False
         self.state.live_snapshot = None            # consumed; the next begin takes a fresh snapshot
 
     def advance(self):
@@ -579,31 +582,34 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # positioned so next/prev keep iterating across the switch, but a positional WRITE must be
         # re-established by a read inside this txn (a write off a pre-txn position is the cross-txn
         # positioned-remove WT-17796), so clear the generator position.
-        iso = rnd.choices([Iso.SNAPSHOT, Iso.READ_COMMITTED, Iso.READ_UNCOMMITTED],
-                          weights=[72, 16, 12], k=1)[0]
-        # Under snapshot, half the time (when a past window exists) read as-of-T. read_timestamp
-        # requires snapshot; the oldest_ts>=1 gate keeps randint off timestamp 0 (invalid read_ts).
+        mode = rnd.choices([Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED],
+                           weights=[72, 16, 12], k=1)[0]
+        # Under snapshot, half the time (when a past window exists) read as-of-T -- that is the
+        # READ_TIMESTAMP flavour. read_timestamp requires snapshot; the oldest_ts>=1 gate keeps
+        # randint off timestamp 0 (an invalid read_timestamp).
         read_ts = None
-        if iso is Iso.SNAPSHOT and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
+        if mode is Txn.SNAPSHOT and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
                 and rnd.random() < 0.5:
+            mode = Txn.READ_TIMESTAMP
             read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
-        trace.log('begin %r' % ((read_ts, iso.value),))
+        trace.log('begin %r' % ((read_ts, mode.value),))
         cfg_parts = []
-        if iso is not Iso.SNAPSHOT:
-            cfg_parts.append('isolation=' + iso.value)
+        # SNAPSHOT/READ_TIMESTAMP run at the default snapshot isolation (no isolation= clause);
+        # READ_TIMESTAMP's value is not a WT isolation string, so only RC/RU emit isolation=.
+        if mode in (Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED):
+            cfg_parts.append('isolation=' + mode.value)
         if read_ts is not None:
             cfg_parts.append('read_timestamp=' + self.timestamp_str(read_ts))
         for n in nodes:
             n.session.begin_transaction(','.join(cfg_parts))
-        self.state.in_txn = True
+        self.state.txn = mode
         self.state.txn_wrote = False
         self.state.txn_read_ts = read_ts
-        self.state.txn_readonly = read_ts is not None or iso is not Iso.SNAPSHOT
-        if read_ts is not None:
+        if mode is Txn.READ_TIMESTAMP:
             self.state.n_read_ts += 1
-        if iso is Iso.READ_COMMITTED:
+        elif mode is Txn.READ_COMMITTED:
             self.state.n_iso_rc += 1
-        elif iso is Iso.READ_UNCOMMITTED:
+        elif mode is Txn.READ_UNCOMMITTED:
             self.state.n_iso_ru += 1
         self.state.live_snapshot = dict(self.state.live)
         self.state.cur_pos = None
@@ -645,24 +651,21 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- operation generation -------------------------------------------
 
-    def _mode(self):
-        if not self.state.in_txn:
-            return Mode.AUTOCOMMIT
-        return Mode.RO_TXN if self.state.txn_readonly else Mode.RW_TXN
-
-    def _legal(self, spec, mode, positioned):
-        # Which ops are legal in the current mode/position -- pure data, off the OpSpec tags.
+    def _legal(self, spec, positioned):
+        # Which ops are legal in the current transaction context / position -- pure data, off the
+        # OpSpec tags and self.state.txn.
+        txn = self.state.txn
         if spec.needs_position and not positioned:
             return False
         if spec.needs_live and not self.state.live:
             return False
-        if mode is Mode.AUTOCOMMIT:
-            return not spec.in_txn_only          # everything except commit/rollback
+        if txn is Txn.NO:
+            return not spec.in_txn_only          # autocommit: everything except commit/rollback
         if spec.autocommit_only:                 # begin/advance/evict not allowed inside a txn
             return False
-        if mode is Mode.RO_TXN:
+        if not write_allowed(txn):
             return not spec.is_write             # no writes in a read-only transaction
-        return True                              # rw_txn: reads + writes + commit/rollback
+        return True                              # snapshot txn: reads + writes + commit/rollback
 
     def pick_op(self, nodes, rnd, trace):
         # Choose the next op from the workload table (self.ops): keep only the ops legal in the
@@ -670,9 +673,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # one is legal) or a data op whose bucket is BREAK with probability P_BREAK else KEEP -- so
         # the cursor mostly stays positioned (long chains) and transactions are not starved. Returns
         # the chosen op's method bound to its context; the method does its own arg-gen + trace.
-        mode = self._mode()
         positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.live
-        legal = [s for s in self.ops if self._legal(s, mode, positioned)]
+        legal = [s for s in self.ops if self._legal(s, positioned)]
         txn = [s for s in legal if s.category is Category.TXN]
         if txn and rnd.random() < P_TXN:
             pool = txn
@@ -708,7 +710,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 # driver just runs it -- arg generation, tracing, and state updates all live in the
                 # op_* method itself.
                 self.pick_op(nodes, rnd, trace)()
-            if self.state.in_txn:
+            if self.state.txn is not Txn.NO:
                 # Close any transaction left open at the end of the chain before verifying.
                 self._end_txn(nodes, commit=True)
             self.verify(nodes, trace)
