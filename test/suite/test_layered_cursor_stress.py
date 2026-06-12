@@ -305,9 +305,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     n.session.commit_transaction()
             # A successful commit keeps cursors positioned (cur_pos survives the txn switch),
             # except for an as-of-T read txn: those cursors sit in a historical view, so reset them
-            # -- resuming a latest iteration from a held historical position lets the layered
-            # cursor pin its stable constituent across the snapshot change and diverge from the
-            # plain reference (the Q2 family, ruled not-a-bug). [HYPOTHESIS TEST]
+            # -- resuming a latest iteration from a held historical position lets the layered cursor
+            # pin its stable constituent across the snapshot change and diverge from the plain
+            # reference (the Q2 family, ruled not-a-bug; confirmed -- a fresh read agrees).
+            # TODO(pin-reset): read-committed/read-uncommitted read-only txns also hold cursors
+            # across the commit, but resume in a compatible (latest) view, so no pin divergence has
+            # been observed; extend this reset to them if one ever appears.
             if self.state.txn_read_ts is not None:
                 for n in nodes:
                     n.reset_all()
