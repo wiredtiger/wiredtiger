@@ -530,7 +530,6 @@ __sweep_server(void *arg)
         if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
           __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
             WT_DSK_CACHE_READONLY) {
-            /* A step-up can land after this loop's timestamp was taken: guard the unsigned math. */
             uint64_t readonly_since =
               __wt_atomic_load_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since);
             if (now > readonly_since && now - readonly_since > WT_DISAGG_OUTDATED_GRACE_SECS) {
