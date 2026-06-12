@@ -105,7 +105,7 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
 
     next_walk = NULL;
     walk_flags = WT_READ_INTERNAL_OP | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
-    if (F_ISSET(session, WT_SESSION_READ_CORRUPT_FILE))
+    if (F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT))
         FLD_SET(walk_flags, WT_READ_SKIP_CORRUPT);
 
     /*

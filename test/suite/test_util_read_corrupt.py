@@ -554,7 +554,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         all_err_lines = [ln for ln in err.splitlines() if ln]
         out_lines = [ln for ln in out.splitlines() if ln]
         # Filter out block-layer diagnostic lines that fire under
-        # WT_SESSION_READ_CORRUPT_FILE (verbose checksum/bitflip
+        # WT_SESSION_READ_SKIP_CORRUPT (verbose checksum/bitflip
         # output). The per-key cursor.search error lines from util_cerr
         # are what this test is verifying.
         expected_suffix = ('%s: cursor.search: WT_ERROR: '

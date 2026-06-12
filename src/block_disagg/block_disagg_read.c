@@ -285,7 +285,7 @@ corrupt:
 
         /* Panic if a checksum fails during an ordinary read. */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (F_ISSET(session, WT_SESSION_READ_CORRUPT_FILE))
+        if (F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT))
             WT_ERR(WT_ERROR);
         if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             WT_ERR(WT_ERROR);

@@ -150,7 +150,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
     /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
     if (quiet_corrupt)
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_CORRUPT_FILE);
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
 
     /* Open the metadata file. */
     if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {

@@ -305,7 +305,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
                 /* Ignore corruption errors from preload, so open_cursor can succeed and the cursor
                  * walk can skip past the corrupt page. */
-                if (ret != 0 && F_ISSET(session, WT_SESSION_READ_CORRUPT_FILE))
+                if (ret != 0 && F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT))
                     ret = 0;
                 WT_ERR(ret);
             }
