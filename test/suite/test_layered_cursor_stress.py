@@ -45,7 +45,7 @@
 # a self-contained record; to dig into one seed, run it in a throwaway test calling run_sequence().
 
 import os, random
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from enum import Enum
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -89,49 +89,63 @@ class OpSpec:
     autocommit_only: bool = False  # only with no open txn (begin / advance / evict)
     in_txn_only: bool = False     # only with an open txn (commit / rollback)
 
-# The whole workload shape is ONE nested, inheritable structure. A top-level entry is either a leaf
-# op weight or a GROUP {'weight': <share at the top level>, <child>: <weight within the group>, ...}.
-# The effective weight of any leaf is the product of the weights along its path, so once pick_op
-# filters to the legal ops it just sums the survivors and samples -- renormalisation is automatic.
-# Semantics (the rule): a group's 'weight' is how often that group is chosen against the other
-# top-level entries; a child's weight is its share *given* the group was chosen.
-#   - 'txn'      : when no txn is open it resolves to `begin` (op_begin then picks its flavour from
-#                  the begin-mode sub-weights snapshot/read_committed/read_uncommitted/read_timestamp);
-#                  when a txn IS open it resolves to commit/rollback by their sub-weights.
-#   - 'scenarios': rare checkpoint/eviction (and, later, injected) ops.
-# A test inherits DEFAULT_WEIGHTS and may deep-merge an override (merge_weights) -- e.g. a
-# scenario-heavy test bumps just 'scenarios' without restating the rest.
+# The whole workload shape is ONE nested structure of named-field dataclasses -- so a weight is set
+# by attribute (a typo is an AttributeError / IDE-flagged, not a silent miss) and setup validates
+# every field is backed by a real op. A top-level field is either a leaf op weight or a GROUP
+# (a dataclass with its own `weight` = the group's share at the top level, plus child weights). The
+# rule: a group's `weight` is how often the group wins against the other top-level fields; a child's
+# weight is its share *given* the group was chosen. _candidates normalises each group's children so
+# the group contributes exactly its `weight` -- a group's internal scale never leaks into the
+# top-level comparison.
+#   - txn      : when no txn is open it resolves to `begin` (op_begin then picks its flavour from the
+#                begin-mode sub-weights snapshot/read_committed/read_uncommitted/read_timestamp);
+#                when a txn IS open it resolves to commit/rollback by their sub-weights.
+#   - scenarios: rare checkpoint/eviction (and, later, injected) ops.
+# Inheritance: a test passes its own Weights(...) (unspecified fields keep these defaults) -- use
+# dataclasses.replace for a partial nested override.
 # TODO(workload-tuning): these are a rough first pass (reads dominate; breaks/txn/scenarios rare).
 # Dropping the old single P_BREAK knob (now implicit in next/prev=80 vs the position-breaking ops)
 # is decision D1 in the plan -- revisit whether a derived break knob should return, and tune to
 # drive the follower stable-read fraction up (see assert_merge_exercised), once the long run lands.
-DEFAULT_WEIGHTS = {
-    # Position-HOLDING ops (reads + positional writes) dominate so chains stay long and the cursor
-    # is usually positioned -- the heart of the test. Position-BREAKING ops (put/remove/reset/verify
-    # + the txn and scenario groups) carry deliberately small weights; with no P_BREAK gate anymore,
-    # their raw weight IS the break frequency (~12% here).
-    'next': 40, 'prev': 40, 'search': 12, 'search_near': 10,
-    'pos_update': 14, 'pos_remove': 8,
-    'put': 6, 'remove': 2, 'reset': 2, 'verify': 4,
-    'txn': {
-        'weight': 8,
-        'snapshot': 72, 'read_committed': 16, 'read_uncommitted': 12, 'read_timestamp': 30,
-        'commit': 70, 'rollback': 30,
-    },
-    'scenarios': {
-        'weight': 12,
-        'advance': 50, 'evict': 50,
-        # TODO(scenarios): forced_evict, bulk_remove, massive_prepare, truncate -- add as op rows.
-    },
-}
 
-def merge_weights(base, override):
-    # Deep-merge override onto base (recursing into group dicts) so a test can tweak part of the
-    # workload shape without restating all of it.
-    out = dict(base)
-    for k, v in override.items():
-        out[k] = merge_weights(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
-    return out
+@dataclass(frozen=True)
+class TxnWeights:
+    weight: int = 8           # the txn group's share at the top level
+    snapshot: int = 72        # begin-mode mix (used when opening a txn)
+    read_committed: int = 16
+    read_uncommitted: int = 12
+    read_timestamp: int = 30
+    commit: int = 70          # close mix (used when a txn is open)
+    rollback: int = 30
+
+@dataclass(frozen=True)
+class ScenarioWeights:
+    weight: int = 12          # the scenarios group's share at the top level
+    advance: int = 50         # every non-`weight` field here is an op name (see _candidates)
+    evict: int = 50
+    # TODO(scenarios): forced_evict / bulk_remove / massive_prepare / truncate -- add a field here
+    # + an op_<name> method + an OpSpec row.
+
+@dataclass(frozen=True)
+class Weights:
+    # Position-HOLDING ops (reads + positional writes) dominate so chains stay long and the cursor is
+    # usually positioned -- the heart of the test. Position-BREAKING ops (put/remove/reset/verify +
+    # the txn and scenario groups) carry small weights; with no P_BREAK gate, their raw weight IS the
+    # break frequency. Each leaf field name MUST equal an OpSpec.name (validated at setup).
+    next: int = 40
+    prev: int = 40
+    search: int = 12
+    search_near: int = 10
+    pos_update: int = 14
+    pos_remove: int = 8
+    put: int = 6
+    remove: int = 2
+    reset: int = 2
+    verify: int = 4
+    txn: TxnWeights = field(default_factory=TxnWeights)
+    scenarios: ScenarioWeights = field(default_factory=ScenarioWeights)
+
+DEFAULT_WEIGHTS = Weights()
 
 class EventTrace:
     # Append-only, flushed-each-line record of every chosen event for a seed.
@@ -225,6 +239,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state = State()
         self.ops = self._build_ops()   # the workload table (OpSpec rows -> op methods)
         self.ops_by_name = {s.name: s for s in self.ops}   # weight-config key -> OpSpec
+        self._validate_weights()       # every weight field must be backed by a real op
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
@@ -609,11 +624,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # positioned so next/prev keep iterating across the switch, but a positional WRITE must be
         # re-established by a read inside this txn (a write off a pre-txn position is the cross-txn
         # positioned-remove WT-17796), so clear the generator position.
-        # Choose the begin flavour from the 'txn' group's begin-mode sub-weights.
-        tw = self.weights['txn']
+        # Choose the begin flavour from the txn group's begin-mode sub-weights.
+        tw = self.weights.txn
         mode = rnd.choices(
             [Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED, Txn.READ_TIMESTAMP],
-            weights=[tw['snapshot'], tw['read_committed'], tw['read_uncommitted'], tw['read_timestamp']],
+            weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
             k=1)[0]
         # READ_TIMESTAMP needs a past window [oldest, latest]; without one it falls back to a plain
         # snapshot txn. The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
@@ -699,11 +714,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         return True                              # snapshot txn: reads + writes + commit/rollback
 
     def _candidates(self, positioned):
-        # Walk the workload config and yield (effective_weight, spec) for every LEGAL op. A group's
-        # 'weight' is its share at the top level; a child's weight is conditional within the group, so
-        # the effective weight is the product. The 'txn' group is the one state-dependent node: when
-        # no txn is open it offers `begin` (op_begin then picks its own flavour); when a txn is open it
-        # offers commit/rollback by their sub-weights. Top-level leaves and 'scenarios' are generic.
+        # Walk the Weights dataclass and yield (effective_weight, spec) for every LEGAL op. A leaf
+        # field's name IS its op name. A group contributes exactly its `weight`, split over its
+        # (normalised) children so the group's internal scale never leaks into the top-level pool. The
+        # `txn` group is the one state-dependent node: when no txn is open it offers `begin` (op_begin
+        # then picks its own flavour); when a txn is open it offers commit/rollback. `scenarios` and
+        # all leaves are generic.
+        w = self.weights
         in_txn = self.state.txn is not Txn.NO
         out = []
         def add(weight, name):
@@ -711,24 +728,35 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             if self._legal(spec, positioned):
                 out.append((weight, spec))
         def add_group(gw, children):
-            # A group contributes exactly its share `gw` to the top-level pool: distribute it over
-            # the children in proportion to their weights (normalised), so the children's internal
-            # scale never leaks into the top-level comparison.
             tot = sum(children.values())
             for name, cw in children.items():
                 add(gw * cw / tot, name)
-        for key, val in self.weights.items():
-            if key == 'txn':
-                gw = val['weight']
+        for f in fields(w):
+            if f.name == 'txn':
                 if in_txn:                                  # close the open txn
-                    add_group(gw, {'commit': val['commit'], 'rollback': val['rollback']})
+                    add_group(w.txn.weight, {'commit': w.txn.commit, 'rollback': w.txn.rollback})
                 else:                                       # open one (op_begin picks the flavour)
-                    add(gw, 'begin')
-            elif key == 'scenarios':
-                add_group(val['weight'], {k: v for k, v in val.items() if k != 'weight'})
+                    add(w.txn.weight, 'begin')
+            elif f.name == 'scenarios':
+                add_group(w.scenarios.weight, self._group_children(w.scenarios))
             else:
-                add(val, key)
+                add(getattr(w, f.name), f.name)             # leaf: field name == OpSpec name
         return out
+
+    @staticmethod
+    def _group_children(group):
+        # The op-name -> weight children of a group dataclass: every field except its own `weight`.
+        return {f.name: getattr(group, f.name) for f in fields(group) if f.name != 'weight'}
+
+    def _validate_weights(self):
+        # Every weight field must be backed by an op, so a typo'd / unbacked field fails loudly at
+        # setup rather than as a KeyError deep in a run. 'begin' is implied by the txn group.
+        w = DEFAULT_WEIGHTS
+        names = {f.name for f in fields(w) if f.name not in ('txn', 'scenarios')}
+        names |= {'begin', 'commit', 'rollback'}
+        names |= set(self._group_children(w.scenarios))
+        missing = names - set(self.ops_by_name)
+        assert not missing, 'weights reference ops with no OpSpec: %r' % sorted(missing)
 
     def pick_op(self, nodes, rnd, trace):
         # Sample one legal op from the workload config by its effective weight, and return the op's
@@ -755,9 +783,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         return EventTrace(path, 'test_layered_cursor_stress seed=%d tag=%s' % (seed, tag))
 
     def run_sequence(self, seed, tag, n_ops, weights=None):
-        # weights: an optional override deep-merged onto DEFAULT_WEIGHTS, so a test can reshape part
-        # of the workload (e.g. a scenario-heavy run) without restating the whole config.
-        self.weights = merge_weights(DEFAULT_WEIGHTS, weights) if weights else DEFAULT_WEIGHTS
+        # weights: an optional Weights instance shaping the workload (unspecified fields keep the
+        # DEFAULT_WEIGHTS values; use dataclasses.replace for a partial nested override).
+        self.weights = weights if weights is not None else DEFAULT_WEIGHTS
         rnd = random.Random(seed)
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
