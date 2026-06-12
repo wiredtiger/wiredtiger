@@ -455,6 +455,7 @@ struct __wt_connection_stats {
     int64_t backup_blocks_uncompressed;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
+    int64_t block_cache_cold_not_cached;
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
