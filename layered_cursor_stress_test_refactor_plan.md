@@ -115,8 +115,8 @@ ones — that's fine; each run is still deterministic per seed. "Behaviour-prese
 **Refactor COMPLETE.** Open follow-ups (TODOs in code + here):
 - `TODO(merge-coverage)` — forced-eviction scenario op + ~300k-op long run, then restore the
   `assert_merge_exercised` floor from the 1% interim.
-- `TODO(read-only-mode)` — decide: strip the unreachable `allow_writes=False` / `read_only` path +
-  `read_only_ok` tags, or keep for a future read-only stress test. **(For Ivan.)**
+- ~~`TODO(read-only-mode)`~~ — **DONE: stripped** the unreachable `allow_writes` param / `read_only`
+  mode / `read_only_ok` tags (and the now-dead `EventTrace.note()`).
 - `TODO(workload-tuning)` — revisit `P_BREAK`/`P_TXN` + weights once the long run lands.
 - `TODO(pin-reset)` — extend the as-of-T cursor reset to RC/RU read-only txns only if a Q2-style
   divergence appears there.

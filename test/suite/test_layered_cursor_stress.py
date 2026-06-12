@@ -68,7 +68,6 @@ class Op:
     name: str
     weight: int
     category: str                 # 'keep' (holds position) | 'break' (resets it) | 'txn'
-    read_only_ok: bool = False    # legal in the read-only-mode run (test_smoke/test_random reads)
     needs_position: bool = False  # cursor must be positioned on a live key (positional writes)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
     autocommit_only: bool = False  # only with no open txn (begin / advance / evict)
@@ -80,16 +79,16 @@ class Op:
 P_BREAK = 0.10
 P_TXN = 0.10
 OPS = [
-    Op('next',        40, 'keep',  read_only_ok=True),
-    Op('prev',        40, 'keep',  read_only_ok=True),
-    Op('search',      12, 'keep',  read_only_ok=True),
-    Op('search_near', 10, 'keep',  read_only_ok=True),
+    Op('next',        40, 'keep'),
+    Op('prev',        40, 'keep'),
+    Op('search',      12, 'keep'),
+    Op('search_near', 10, 'keep'),
     Op('pos_update',  14, 'keep',  needs_position=True, is_write=True),
     Op('pos_remove',   8, 'keep',  needs_position=True, is_write=True),
     Op('put',         30, 'break', is_write=True),
     Op('remove',       8, 'break', is_write=True),
-    Op('reset',       12, 'break', read_only_ok=True),
-    Op('full_scan',   15, 'break', read_only_ok=True),
+    Op('reset',       12, 'break'),
+    Op('full_scan',   15, 'break'),
     Op('advance',     18, 'break', autocommit_only=True),
     Op('evict',       18, 'break', autocommit_only=True),
     Op('begin',      100, 'txn',   autocommit_only=True),
@@ -98,9 +97,7 @@ OPS = [
 ]
 
 def op_legal(op, mode, positioned):
-    # mode: 'read_only' | 'autocommit' | 'rw_txn' | 'ro_txn'
-    if mode == 'read_only':
-        return op.read_only_ok
+    # mode: 'autocommit' | 'rw_txn' | 'ro_txn'
     if op.needs_position and not positioned:
         return False
     if mode == 'autocommit':
@@ -124,10 +121,6 @@ class EventTrace:
         self._f.write('%d: %s\n' % (self._n, event))
         self._f.flush()
         self._n += 1
-
-    def note(self, text):
-        self._f.write('# %s\n' % text)
-        self._f.flush()
 
     def close(self):
         self._f.close()
@@ -607,22 +600,17 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- operation generation -------------------------------------------
 
-    def _mode(self, allow_writes):
-        # TODO(read-only-mode): allow_writes=False (the 'read_only' mode, plus the read_only_ok tags
-        # on the Op rows) is currently unreachable -- both tests pass allow_writes=True since
-        # test_read_only was removed. Keep for a future read-only stress test, or strip it.
-        if not allow_writes:
-            return 'read_only'
+    def _mode(self):
         if not self.state.in_txn:
             return 'autocommit'
         return 'ro_txn' if self.state.txn_readonly else 'rw_txn'
 
-    def pick_op(self, nodes, trace, rnd, allow_writes):
+    def pick_op(self, nodes, trace, rnd):
         # Choose the next op from the workload table (OPS): keep only the ops legal in the current
         # mode/position, then either do a transaction-control op (probability P_TXN, when one is
         # legal) or a data op whose bucket is BREAK with probability P_BREAK else KEEP -- so the
         # cursor mostly stays positioned (long chains) and transactions are not starved.
-        mode = self._mode(allow_writes)
+        mode = self._mode()
         positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.live
         legal = [op for op in OPS if op_legal(op, mode, positioned)]
         txn_ops = [op for op in legal if op.category == 'txn']
@@ -685,7 +673,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.pr('SEED=%d trace=%s' % (seed, path))
         return EventTrace(path, 'test_layered_cursor_stress seed=%d tag=%s' % (seed, tag))
 
-    def run_sequence(self, seed, tag, n_ops, allow_writes):
+    def run_sequence(self, seed, tag, n_ops):
         rnd = random.Random(seed)
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
@@ -694,7 +682,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 # pick_op chooses the next op, binds its argument, and returns a callable that
                 # traces and runs it. The driver just runs it -- all per-op behaviour lives in the
                 # op_* methods.
-                self.pick_op(nodes, trace, rnd, allow_writes)()
+                self.pick_op(nodes, trace, rnd)()
             if self.state.in_txn:
                 # Close any transaction left open at the end of the chain before verifying.
                 self._end_txn(nodes, commit=True)
@@ -712,12 +700,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def test_smoke(self):
         # Short seeded run with writes, starting from empty tables.
         self.setup_connections()
-        self.run_sequence(seed=12345, tag='smoke', n_ops=80, allow_writes=True)
+        self.run_sequence(seed=12345, tag='smoke', n_ops=80)
 
     def test_random(self):
         # Mixed read/write/advance/evict sequences, fresh tables per seed, start empty.
         self.setup_connections()
         for seed in range(10):
-            self.run_sequence(seed=seed, tag='r%d' % seed, n_ops=300, allow_writes=True)
+            self.run_sequence(seed=seed, tag='r%d' % seed, n_ops=300)
         # Self-check that the run actually exercised the surface (not a product assertion).
         self.assert_self_coverage()

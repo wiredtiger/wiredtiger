@@ -118,9 +118,9 @@ The whole operation mix is **one table** (`OPS`, a list of `Op` dataclass rows) 
   so a low break rate never starves transactions.
 
 Each `Op` carries a `weight`, a `category` (`keep` holds position / `break` resets it / `txn`),
-and legality tags (`read_only_ok`, `needs_position`, `is_write`, `autocommit_only`, `in_txn_only`).
-`op_legal(op, mode, positioned)` is the single legality predicate; `_mode(allow_writes)` derives the
-mode (`read_only` / `autocommit` / `rw_txn` / `ro_txn`).
+and legality tags (`needs_position`, `is_write`, `autocommit_only`, `in_txn_only`).
+`op_legal(op, mode, positioned)` is the single legality predicate; `_mode()` derives the mode
+(`autocommit` / `rw_txn` / `ro_txn`).
 
 `pick_op` then: filter `OPS` to the legal ops for the current `(mode, positioned)`; with probability
 `P_TXN` pick a txn-control op (if any are legal), else pick the `break` bucket with probability
@@ -130,7 +130,6 @@ it. The legality the dials/tags encode (unchanged from the old per-mode branches
 
 | mode | legal ops |
 |---|---|
-| read-only test (`allow_writes=False`) | reads + reset + full_scan |
 | autocommit (no txn open) | reads + writes + positional (if positioned) + advance/evict + begin + reset + full_scan |
 | explicit read-write txn (snapshot) | reads + writes + positional (if positioned) + commit/rollback + reset + full_scan |
 | explicit read-only txn (as-of-T / read-committed / read-uncommitted) | reads + commit/rollback + reset + full_scan |
