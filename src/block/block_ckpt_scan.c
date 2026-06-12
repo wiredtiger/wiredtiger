@@ -224,9 +224,8 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
     uint64_t len, nblocks, write_gen;
     uint32_t checksum, objectid, size;
     const uint8_t *p, *t;
-    bool found, quiet_was_set;
+    bool found;
 
-    quiet_was_set = false;
     *metadatap = *checkpoint_listp = NULL;
     WT_RET(__wt_buf_init(session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
 
@@ -255,8 +254,6 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
 
     WT_ERR(__wt_scr_alloc(session, 64 * 1024, &tmp));
 
-    /* Save-and-restore: preserve a caller-set quiet-corrupt flag across this scope. */
-    quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
     /*
@@ -389,7 +386,6 @@ err:
 
     __wt_scr_free(session, &tmp);
 
-    if (!quiet_was_set)
-        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     return (ret);
 }

@@ -234,7 +234,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_STUFF *ss, stuff;
     uint32_t i, leaf_cnt;
-    bool quiet_was_set;
 
     WT_UNUSED(cfg);
 
@@ -266,12 +265,9 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * Turn off read checksum and verification error messages while we're reading the file, we
      * expect to see corrupted blocks.
      */
-    /* Save-and-restore: preserve a caller-set quiet-corrupt flag across this scope. */
-    quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     ret = __slvg_read(session, ss);
-    if (!quiet_was_set)
-        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     WT_ERR(ret);
 
     /*

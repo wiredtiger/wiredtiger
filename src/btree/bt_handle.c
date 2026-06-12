@@ -900,10 +900,15 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
+    F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if ((ret = __wt_blkcache_read(session, &dsk, &block_meta, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);
+    /*
+     * Flag any failed read or verification: if we're in startup, it may be fatal.
+     */
     if (ret != 0)
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if (ret != 0)
         __wt_err(session, ret, "unable to read root page from %s", session->dhandle->name);
     /*
