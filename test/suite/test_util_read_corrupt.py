@@ -551,23 +551,22 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             'wt -q read panicked despite -q')
         self.assertNotIn('aborting WiredTiger library', err,
             'wt -q read reached the abort marker')
-        err_lines = [ln for ln in err.splitlines() if ln]
+        all_err_lines = [ln for ln in err.splitlines() if ln]
         out_lines = [ln for ln in out.splitlines() if ln]
-        self.assertGreater(len(err_lines), 0,
-            'wt -q read produced no error lines; corruption was not '
-            'exercised on this run')
-        # Tolerate the program-name prefix variation: on Windows wt is
-        # invoked as 'cmake_build\wt' so each line is prefixed with that
-        # instead of plain 'wt:'. Match the suffix after the first ':'.
+        # Filter out block-layer diagnostic lines that fire under
+        # WT_SESSION_REPORT_CORRUPT_FILE (verbose checksum/bitflip
+        # output). The per-key cursor.search error lines from util_cerr
+        # are what this test is verifying.
         expected_suffix = ('%s: cursor.search: WT_ERROR: '
                            'non-specific WiredTiger error') % self.uri
-        for ln in err_lines:
-            self.assertTrue(ln.endswith(expected_suffix),
-                'unexpected stderr line: %r' % ln)
+        err_lines = [ln for ln in all_err_lines if ln.endswith(expected_suffix)]
+        self.assertGreater(len(err_lines), 0,
+            'wt -q read produced no per-key error lines; corruption was '
+            'not exercised on this run')
         self.assertEqual(len(out_lines) + len(err_lines), self.nentries,
-            'stdout values (%d) + stderr errors (%d) does not equal '
-            'nentries (%d); wt -q read did not visit every requested '
-            'key' % (len(out_lines), len(err_lines), self.nentries))
+            'stdout values (%d) + per-key stderr errors (%d) does not '
+            'equal nentries (%d); wt -q read did not visit every '
+            'requested key' % (len(out_lines), len(err_lines), self.nentries))
 
     # ---------- stat ----------
 

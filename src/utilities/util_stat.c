@@ -101,7 +101,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
      * surfaces partial counts instead of failing the cursor open.
      */
     if (quiet_corrupt) {
-        F_SET(session_impl, WT_SESSION_QUIET_CORRUPT_FILE);
+        F_SET(session_impl, WT_SESSION_REPORT_CORRUPT_FILE);
         if (config == NULL)
             config = "read_corrupt=true";
         else if (strcmp(config, "statistics=(fast)") == 0)

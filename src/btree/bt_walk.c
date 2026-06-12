@@ -379,10 +379,7 @@ descend:
             if (ret == WT_RESTART)
                 goto restart;
 
-            /*
-             * Skippable corruption: the swap kept the parent pinned. Record the first error, break,
-             * and the outer loop advances to the next sibling; done: surfaces the error.
-             */
+            /* WT_ERROR / EIO indicates a corrupt read which is skippable under skip-corrupt. */
             if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO)) {
                 if (session->corrupt_skip_first_err == 0)
                     session->corrupt_skip_first_err = ret;

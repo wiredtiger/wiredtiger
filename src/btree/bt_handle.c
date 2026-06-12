@@ -300,13 +300,14 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
-            /* Warm the cache, if possible. */
-            if (!__wt_conn_is_disagg(session)) {
+            /*
+             * Warm the cache, if possible. Skip preload when the caller wants to read past
+             * corruption; a corrupt 2nd-level internal here would fail open_cursor, and the caller
+             * is going to handle corruption lazily through the cursor walk's skip-and-continue.
+             */
+            if (!__wt_conn_is_disagg(session) &&
+              !F_ISSET(session, WT_SESSION_REPORT_CORRUPT_FILE)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-                /* Preload is best-effort under quiet-corrupt; the cursor walk fetches misses
-                 * lazily. */
-                if (ret != 0 && F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                    ret = 0;
                 WT_ERR(ret);
             }
 
@@ -879,7 +880,6 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_ITEM dsk;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
-    bool quiet_was_set;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -901,18 +901,10 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
 
-    /* Save-and-restore: preserve a caller-set quiet-corrupt flag across this scope. */
-    quiet_was_set = F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE);
-    F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if ((ret = __wt_blkcache_read(session, &dsk, &block_meta, addr, addr_size)) == 0)
         ret = __wt_verify_dsk(session, tmp->data, &dsk);
-    /*
-     * Flag any failed read or verification: if we're in startup, it may be fatal.
-     */
     if (ret != 0)
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-    if (!quiet_was_set)
-        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if (ret != 0)
         __wt_err(session, ret, "unable to read root page from %s", session->dhandle->name);
     /*

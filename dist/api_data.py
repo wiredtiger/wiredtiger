@@ -1802,12 +1802,8 @@ methods = {
         compatible with the @ref util_dump and @ref util_load commands''',
         choices=['hex', 'json', 'pretty', 'pretty_hex', 'print']),
     Config('read_corrupt', 'false', r'''
-        A mode that allows iteration over a cursor (via @ref WT_CURSOR::next and
-        @ref WT_CURSOR::prev) to continue past a checksum error on a tree page. The corrupt
-        subtree is skipped and iteration resumes at the next valid sibling. Intended for
-        diagnostic walks over a damaged file. The caller must also arrange to suppress the
-        block layer's panic-on-corruption behavior (the @ref util_dump and related commands
-        do this via a session-internal mechanism)''',
+        A mode that allows iteration over a cursor to continue past a checksum error on a tree page.
+        It will skip corrupt subtree and resume iteration at the next valid sibling.''',
         type='boolean'),
     Config('incremental', '', r'''
         configure the cursor for block incremental backup usage. These formats are only compatible
