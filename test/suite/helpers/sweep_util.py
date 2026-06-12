@@ -30,7 +30,6 @@ import time
 import wttest
 from wiredtiger import stat
 
-# sweep_util.py
 # Base class providing dhandle-sweep helpers for any test that needs them.
 class sweep_util(wttest.WiredTigerTestCase):
 
