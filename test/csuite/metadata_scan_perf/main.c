@@ -150,8 +150,8 @@ create_collections(uint64_t num)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    uint64_t i, interval, last, now, start;
     double secs;
+    uint64_t i, interval, last, now, start;
     char uri[64];
 
     testutil_recreate_dir(opts->home);
@@ -194,8 +194,8 @@ static uint64_t
 metadata_scan_once(WT_SESSION *session, uint64_t iteration)
 {
     WT_CURSOR *cursor;
-    uint64_t coll, elapsed, entries, start, value_bytes;
     double secs;
+    uint64_t coll, elapsed, entries, start, value_bytes;
     int ret;
     const char *key, *value;
 
@@ -318,8 +318,8 @@ disagg_create(uint64_t num, uint64_t rows)
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_SESSION *session;
-    uint64_t i, j, interval, now, start;
     double done, rate;
+    uint64_t i, j, interval, now, start;
     char key[64], tscfg[64], uri[64], value[DISAGG_VALUE_SIZE + 1];
 
     memset(value, 'x', DISAGG_VALUE_SIZE);
@@ -389,8 +389,8 @@ static uint64_t
 disagg_size_via_scan(
   WT_SESSION *session, uint64_t iteration, uint64_t limit, uint64_t *countp, uint64_t *total_sizep)
 {
-    WT_SESSION_IMPL *session_impl;
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session_impl;
     uint64_t ckpt_size, count, elapsed, start, total_size;
     int ret;
     const char *key, *value;
@@ -505,13 +505,6 @@ extract_ckpt_size_fast(const char *value, uint64_t *sizep)
     return (0);
 }
 
-/*
- * disagg_scan_pass --
- *     Run one metadata scan, doing a chosen amount of per-entry work, and return the elapsed
- *     microseconds. The work levels isolate where a size-gathering scan spends its time: walking
- *     the cursor, materializing the value, fully loading the checkpoint, or extracting the size
- *     with a targeted string scan.
- */
 typedef enum {
     SCAN_WALK,       /* Cursor walk and key filter only. */
     SCAN_VALUE,      /* Also materialize each entry's value string. */
@@ -519,12 +512,19 @@ typedef enum {
     SCAN_FAST_PARSE  /* Also extract the size with a targeted string scan. */
 } scan_work;
 
+/*
+ * disagg_scan_pass --
+ *     Run one metadata scan, doing a chosen amount of per-entry work, and return the elapsed
+ *     microseconds. The work levels isolate where a size-gathering scan spends its time: walking
+ *     the cursor, materializing the value, fully loading the checkpoint, or extracting the size
+ *     with a targeted string scan.
+ */
 static uint64_t
 disagg_scan_pass(
   WT_SESSION *session, scan_work work, uint64_t limit, uint64_t *countp, uint64_t *total_sizep)
 {
-    WT_SESSION_IMPL *session_impl;
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session_impl;
     uint64_t ckpt_size, count, elapsed, start, total_size;
     int ret;
     const char *key, *value;
@@ -578,8 +578,8 @@ disagg_decompose(uint64_t iterations, uint64_t scan_limit)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    uint64_t count, full_size, i, size, us;
     uint64_t best[4];
+    uint64_t count, full_size, i, size, us;
     scan_work work;
     static const char *const names[4] = {"walk only (cursor next + key filter)",
       "  + materialize value string",
@@ -644,6 +644,46 @@ report_compare(const char *label, uint64_t scan_us, uint64_t stat_us)
 }
 
 /*
+ * disagg_report_entry_size --
+ *     Report the average metadata key and value string length over the first "sample" collection
+ *     entries. This is the exact size of the metadata records the scan walks, which is more useful
+ *     than estimating it from the metadata file size that btree overhead and free space inflate.
+ */
+static void
+disagg_report_entry_size(WT_SESSION *session, uint64_t sample)
+{
+    WT_CURSOR *cursor;
+    uint64_t count, key_bytes, value_bytes;
+    int ret;
+    const char *key, *value;
+
+    count = key_bytes = value_bytes = 0;
+
+    testutil_check(session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        testutil_check(cursor->get_key(cursor, &key));
+        if (!WT_PREFIX_MATCH(key, DISAGG_STABLE_PREFIX) ||
+          !WT_SUFFIX_MATCH(key, DISAGG_STABLE_SUFFIX))
+            continue;
+        testutil_check(cursor->get_value(cursor, &value));
+        key_bytes += (uint64_t)strlen(key);
+        value_bytes += (uint64_t)strlen(value);
+        if (++count >= sample)
+            break;
+    }
+    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+    testutil_check(cursor->close(cursor));
+
+    if (count == 0) {
+        printf("\nNo collection stable files found to sample.\n");
+        return;
+    }
+    printf("\nMetadata entry size over %" PRIu64 " collection entries:\n", count);
+    printf("  avg value=%.1f  key=%.1f  total=%.1f bytes\n", (double)value_bytes / (double)count,
+      (double)key_bytes / (double)count, (double)(key_bytes + value_bytes) / (double)count);
+}
+
+/*
  * disagg_compare --
  *     Re-open an existing disaggregated database and compare reading every collection's checkpoint
  *     size via a single metadata scan against per-collection statistics=(size) point lookups. The
@@ -662,6 +702,9 @@ disagg_compare(uint64_t iterations, uint64_t scan_limit)
     opts->disagg.page_log_home = opts->home;
     testutil_wiredtiger_open(opts, opts->home, DISAGG_CONN_CONFIG, NULL, &conn, false, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    /* Report the average metadata entry size before the size-method comparison. */
+    disagg_report_entry_size(session, 100);
 
     scan_cold = scan_warm = scan_count = scan_size = 0;
     stat_cold = stat_warm = stat_count = stat_size = 0;
