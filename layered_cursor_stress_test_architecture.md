@@ -182,7 +182,7 @@ bug). The checks:
 | ingest tombstone shadows stable | ✅ | random removes (`test_random`) |
 | long-lived positioned chains | ✅ | `pick_op` bias; `n_positional` guard |
 | search_near neighbour semantics | ✅ | `compare_search_near` |
-| checkpoint advance + drain | ✅ | `advance` / `drain_ingest`; `test_read_only` |
+| checkpoint advance + drain | ✅ | `advance` / `drain_ingest` (the `advance`/`evict` ops in the random run) |
 | explicit txns, cursor survives switch | ✅ (C1) | `_end_txn`, `run_seed` |
 | same-txn iterate-and-delete | ✅ (C1) | in-txn DIRECT positional writes |
 | `read_timestamp` / as-of-past | ✅ (C2) | `begin` read_ts in the random run; `n_read_ts` guard |
@@ -229,9 +229,10 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 **I. The driver**
 - `open_trace` · `run_seed`
 
-**J. Tests (top level)** — only the seed-driven stress tests; a standalone scenario is kept
-**only** if it pins a known layered-vs-regular *mismatch* (none currently do, so there are none).
-- `test_smoke` · `test_read_only` · `test_random`
+**J. Tests (top level)** — only seed-driven, random-generated stress tests. A standalone /
+hand-built scenario is kept **only** if it pins a known layered-vs-regular *mismatch* (none do, so
+there are none).
+- `test_smoke` (fast canary: 1 seed × 80 ops) · `test_random` (10 seeds × 300 ops + `assert_self_coverage`)
 
 ---
 
@@ -240,5 +241,5 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 ```
 # build dir configured with -DENABLE_PYTHON=1 -DHAVE_DIAGNOSTIC=1
 cd build
-python3 ../test/suite/run.py test_layered_cursor_stress          # all 3 tests (deterministic)
+python3 ../test/suite/run.py test_layered_cursor_stress          # both tests (deterministic)
 ```
