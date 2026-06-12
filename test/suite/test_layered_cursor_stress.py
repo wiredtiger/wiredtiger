@@ -82,6 +82,14 @@ class TxnBeginWeights:
     read_timestamp: int = 30
 
 @dataclass(frozen=True)
+class SearchKeyWeights:
+    # op_search / op_search_near pick an existing key (exact-match / present-key merge) or a missing
+    # one (absent from py_table -- often a previously-removed key, so it exercises tombstones and the
+    # search_near neighbour logic).
+    existing: int = 50
+    missing: int = 50
+
+@dataclass(frozen=True)
 # Q: Question for the future. Some weights should be less than 1% probability (like evict or advance) - probably 0.1% or even 0.01% for the long running tests Should we just make other weights bigger
 class Weights:
     # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
@@ -103,6 +111,7 @@ class Weights:
     commit: int = 6
     rollback: int = 2
     txn_begin: TxnBeginWeights = field(default_factory=TxnBeginWeights)
+    search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
 
 @dataclass(frozen=True)
 class Op:
@@ -712,14 +721,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
         return lambda: op.fn(nodes, rnd, trace)
 
-    # Q: What do the `r` mean here? Why do we do < 0.5 or < 0.8 and what does it mean? Why do we need it?
     def pick_search_key(self, rnd):
-        r = rnd.random()
-        if self.state.py_table and r < 0.5:
+        # Existing key vs missing key, weighted by the search-key config (op_search/op_search_near).
+        w = self.weights.search_key
+        if self.state.py_table and rnd.choices((True, False), weights=(w.existing, w.missing))[0]:
             return rnd.choice(list(self.state.py_table))
-        if r < 0.8:
-            return rnd.choice(self.POOL)
-        return rnd.choice(self.POOL) + 5   # off-grid gap, always absent
+        # Get a key from the POOL that doesn't exist. If all the keys are in the tables, get a key
+        # from POOL and add 5. Since POOL step is 10, such key will never exist.
+        absent = [k for k in self.POOL if k not in self.state.py_table]
+        return rnd.choice(absent) if absent else rnd.choice(self.POOL) + 5
 
     # --- driver ----------------------------------------------------------
 
