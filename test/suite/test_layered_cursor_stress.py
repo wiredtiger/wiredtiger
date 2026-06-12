@@ -109,29 +109,32 @@ class OpSpec:
 # drive the follower stable-read fraction up (see assert_merge_exercised), once the long run lands.
 
 @dataclass(frozen=True)
-class TxnWeights:
-    weight: int = 8           # the txn group's share at the top level
-    snapshot: int = 72        # begin-mode mix (used when opening a txn)
-    read_committed: int = 16
-    read_uncommitted: int = 12
-    read_timestamp: int = 30
-    commit: int = 70          # close mix (used when a txn is open)
-    rollback: int = 30
-
-@dataclass(frozen=True)
-class ScenarioWeights:
-    weight: int = 12          # the scenarios group's share at the top level
-    advance: int = 50         # every non-`weight` field here is an op name (see _candidates)
-    evict: int = 50
-    # TODO(scenarios): forced_evict / bulk_remove / massive_prepare / truncate -- add a field here
-    # + an op_<name> method + an OpSpec row.
-
-@dataclass(frozen=True)
 class Weights:
     # Position-HOLDING ops (reads + positional writes) dominate so chains stay long and the cursor is
     # usually positioned -- the heart of the test. Position-BREAKING ops (put/remove/reset/verify +
     # the txn and scenario groups) carry small weights; with no P_BREAK gate, their raw weight IS the
-    # break frequency. Each leaf field name MUST equal an OpSpec.name (validated at setup).
+    # break frequency. Each leaf field name MUST equal an OpSpec.name (validated at setup). The two
+    # groups are nested dataclasses (Weights.Txn / Weights.Scenarios) -- Weights.Txn is distinct from
+    # the module-level Txn enum (this dataclass only ever appears as the `txn` field's type).
+
+    @dataclass(frozen=True)
+    class Txn:
+        weight: int = 8           # the txn group's share at the top level
+        snapshot: int = 72        # begin-mode mix (used when opening a txn)
+        read_committed: int = 16
+        read_uncommitted: int = 12
+        read_timestamp: int = 30
+        commit: int = 70          # close mix (used when a txn is open)
+        rollback: int = 30
+
+    @dataclass(frozen=True)
+    class Scenarios:
+        weight: int = 12          # the scenarios group's share at the top level
+        advance: int = 50         # every non-`weight` field here is an op name (see _candidates)
+        evict: int = 50
+        # TODO(scenarios): forced_evict / bulk_remove / massive_prepare / truncate -- add a field
+        # here + an op_<name> method + an OpSpec row.
+
     next: int = 40
     prev: int = 40
     search: int = 12
@@ -142,8 +145,8 @@ class Weights:
     remove: int = 2
     reset: int = 2
     verify: int = 4
-    txn: TxnWeights = field(default_factory=TxnWeights)
-    scenarios: ScenarioWeights = field(default_factory=ScenarioWeights)
+    txn: Txn = field(default_factory=Txn)
+    scenarios: Scenarios = field(default_factory=Scenarios)
 
 DEFAULT_WEIGHTS = Weights()
 
@@ -217,6 +220,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=1GB,statistics=(all),' \
                        'statistics_log=(wait=1,json=true,on_close=true),'
 
+    # Q: Does POOL mean that we always have not more than 100 keys? Not bad, but should we extend it to 1000?
     # Candidate keys are spread with gaps so search_near targets can fall between keys.
     POOL = list(range(100, 1000, 10))
 
@@ -762,11 +766,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Sample one legal op from the workload config by its effective weight, and return the op's
         # method bound to its context. The method does its own arg-gen + trace. The keep/break/txn
         # mix is whatever the config weights make it -- next/prev dominate, so chains stay long.
+
+        # Q: How current pos may be not None and not in live?
         positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.live
         cands = self._candidates(positioned)
         spec = rnd.choices([s for _, s in cands], weights=[w for w, _ in cands], k=1)[0]
         return lambda: spec.fn(nodes, rnd, trace)
 
+    # Q: What do the `r` mean here? Why do we do < 0.5 or < 0.8 and what does it mean? Why do we need it?
     def pick_search_key(self, rnd):
         r = rnd.random()
         if self.state.live and r < 0.5:

@@ -122,7 +122,7 @@ to branch), and legality tags (`needs_position`, `needs_live`, `is_write`, `auto
 `in_txn_only`). `_legal(spec, positioned)` is the single legality predicate, pure off the tags and
 `State.txn` (the current `Txn` context).
 
-`DEFAULT_WEIGHTS` is a `Weights` **dataclass** (with `TxnWeights` / `ScenarioWeights` for the groups)
+`DEFAULT_WEIGHTS` is a `Weights` **dataclass** (with nested `Weights.Txn` / `Weights.Scenarios` for the groups)
 — weights are set by named field, so a mistyped weight is an `AttributeError`/IDE-flagged, not a
 silent miss, and `_validate_weights()` asserts at setup that every weight field is backed by a real
 op. A top-level field is either a **leaf op weight** (`next: int = 40`, the field name equals an
@@ -238,8 +238,8 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 
 **A. Module-level primitives + the workload config**
 - `sign` · `Txn` enum (the transaction context) + `write_allowed(txn)` · `OpSpec` dataclass (the op
-  row: `fn` bound-method ref + config-key `name` + legality tags) · `Weights`/`TxnWeights`/
-  `ScenarioWeights` dataclasses + `DEFAULT_WEIGHTS = Weights()` · `EventTrace` (`log`/`close`) ·
+  row: `fn` bound-method ref + config-key `name` + legality tags) · `Weights` dataclass (nested
+  `Weights.Txn` / `Weights.Scenarios` groups) + `DEFAULT_WEIGHTS = Weights()` · `EventTrace` (`log`/`close`) ·
   `Node` (`__init__`/`reset_all`/`close`) · `State` (`__init__` global fields / `new_sequence`
   per-sequence fields, incl. `txn`)
 
