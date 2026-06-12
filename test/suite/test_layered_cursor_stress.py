@@ -46,12 +46,32 @@
 
 import os, random
 from dataclasses import dataclass
+from enum import Enum
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 def sign(n):
     return (n > 0) - (n < 0)
+
+# Decision labels are enums, never bare strings -- a typo'd member is an AttributeError at import,
+# not a silently-never-matched branch at run time.
+
+class Category(Enum):
+    KEEP = 'keep'    # the op holds the cursor position (long chains favour these)
+    BREAK = 'break'  # the op resets / moves the position
+    TXN = 'txn'      # a transaction-control op (begin / commit / rollback)
+
+class Mode(Enum):
+    AUTOCOMMIT = 'autocommit'  # no explicit transaction open
+    RO_TXN = 'ro_txn'          # an explicit read-only transaction (as-of-T / RC / RU)
+    RW_TXN = 'rw_txn'          # an explicit read-write (snapshot) transaction
+
+class Iso(Enum):
+    # The value is the WiredTiger isolation= config string, so iso.value feeds begin_transaction.
+    SNAPSHOT = 'snapshot'                  # the only level that supports writes
+    READ_COMMITTED = 'read-committed'      # read-only here (writes rejected, txn_inline.h ~2112)
+    READ_UNCOMMITTED = 'read-uncommitted'  # read-only here
 
 # --- workload shape --------------------------------------------------------
 # The operation mix is one table built in _build_ops(): each row is an OpSpec pairing an op
@@ -69,7 +89,7 @@ def sign(n):
 class OpSpec:
     fn: object                    # the op method, called as fn(nodes, rnd, trace)
     weight: int
-    category: str                 # 'keep' (holds position) | 'break' (resets it) | 'txn'
+    category: Category            # KEEP holds position | BREAK resets it | TXN control op
     needs_position: bool = False  # cursor must be positioned on a live key (positional writes)
     needs_live: bool = False      # at least one live key must exist (remove by key)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
@@ -181,21 +201,21 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # The workload shape: one OpSpec row per op, pairing the op method (direct reference) with
         # its weight, bucket, and legality tags. This is the single place weights/legality live.
         return [
-            OpSpec(self.op_next,        40, 'keep'),
-            OpSpec(self.op_prev,        40, 'keep'),
-            OpSpec(self.op_search,      12, 'keep'),
-            OpSpec(self.op_search_near, 10, 'keep'),
-            OpSpec(self.op_pos_update,  14, 'keep',  needs_position=True, is_write=True),
-            OpSpec(self.op_pos_remove,   8, 'keep',  needs_position=True, is_write=True),
-            OpSpec(self.op_put,         30, 'break', is_write=True),
-            OpSpec(self.op_remove,       8, 'break', is_write=True, needs_live=True),
-            OpSpec(self.op_reset,       12, 'break'),
-            OpSpec(self.op_verify,      15, 'break'),
-            OpSpec(self.op_advance,     18, 'break', autocommit_only=True),
-            OpSpec(self.op_evict,       18, 'break', autocommit_only=True),
-            OpSpec(self.op_begin,      100, 'txn',   autocommit_only=True),
-            OpSpec(self.op_commit,      70, 'txn',   in_txn_only=True),
-            OpSpec(self.op_rollback,    30, 'txn',   in_txn_only=True),
+            OpSpec(self.op_next,        40, Category.KEEP),
+            OpSpec(self.op_prev,        40, Category.KEEP),
+            OpSpec(self.op_search,      12, Category.KEEP),
+            OpSpec(self.op_search_near, 10, Category.KEEP),
+            OpSpec(self.op_pos_update,  14, Category.KEEP,  needs_position=True, is_write=True),
+            OpSpec(self.op_pos_remove,   8, Category.KEEP,  needs_position=True, is_write=True),
+            OpSpec(self.op_put,         30, Category.BREAK, is_write=True),
+            OpSpec(self.op_remove,       8, Category.BREAK, is_write=True, needs_live=True),
+            OpSpec(self.op_reset,       12, Category.BREAK),
+            OpSpec(self.op_verify,      15, Category.BREAK),
+            OpSpec(self.op_advance,     18, Category.BREAK, autocommit_only=True),
+            OpSpec(self.op_evict,       18, Category.BREAK, autocommit_only=True),
+            OpSpec(self.op_begin,      100, Category.TXN,   autocommit_only=True),
+            OpSpec(self.op_commit,      70, Category.TXN,   in_txn_only=True),
+            OpSpec(self.op_rollback,    30, Category.TXN,   in_txn_only=True),
         ]
 
     def make_nodes(self, tag):
@@ -559,18 +579,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # positioned so next/prev keep iterating across the switch, but a positional WRITE must be
         # re-established by a read inside this txn (a write off a pre-txn position is the cross-txn
         # positioned-remove WT-17796), so clear the generator position.
-        iso = rnd.choices(['snapshot', 'read-committed', 'read-uncommitted'],
+        iso = rnd.choices([Iso.SNAPSHOT, Iso.READ_COMMITTED, Iso.READ_UNCOMMITTED],
                           weights=[72, 16, 12], k=1)[0]
         # Under snapshot, half the time (when a past window exists) read as-of-T. read_timestamp
         # requires snapshot; the oldest_ts>=1 gate keeps randint off timestamp 0 (invalid read_ts).
         read_ts = None
-        if iso == 'snapshot' and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
+        if iso is Iso.SNAPSHOT and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
                 and rnd.random() < 0.5:
             read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
-        trace.log('begin %r' % ((read_ts, iso),))
+        trace.log('begin %r' % ((read_ts, iso.value),))
         cfg_parts = []
-        if iso != 'snapshot':
-            cfg_parts.append('isolation=' + iso)
+        if iso is not Iso.SNAPSHOT:
+            cfg_parts.append('isolation=' + iso.value)
         if read_ts is not None:
             cfg_parts.append('read_timestamp=' + self.timestamp_str(read_ts))
         for n in nodes:
@@ -578,12 +598,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.in_txn = True
         self.state.txn_wrote = False
         self.state.txn_read_ts = read_ts
-        self.state.txn_readonly = read_ts is not None or iso != 'snapshot'
+        self.state.txn_readonly = read_ts is not None or iso is not Iso.SNAPSHOT
         if read_ts is not None:
             self.state.n_read_ts += 1
-        if iso == 'read-committed':
+        if iso is Iso.READ_COMMITTED:
             self.state.n_iso_rc += 1
-        elif iso == 'read-uncommitted':
+        elif iso is Iso.READ_UNCOMMITTED:
             self.state.n_iso_ru += 1
         self.state.live_snapshot = dict(self.state.live)
         self.state.cur_pos = None
@@ -627,8 +647,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def _mode(self):
         if not self.state.in_txn:
-            return 'autocommit'
-        return 'ro_txn' if self.state.txn_readonly else 'rw_txn'
+            return Mode.AUTOCOMMIT
+        return Mode.RO_TXN if self.state.txn_readonly else Mode.RW_TXN
 
     def _legal(self, spec, mode, positioned):
         # Which ops are legal in the current mode/position -- pure data, off the OpSpec tags.
@@ -636,11 +656,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             return False
         if spec.needs_live and not self.state.live:
             return False
-        if mode == 'autocommit':
+        if mode is Mode.AUTOCOMMIT:
             return not spec.in_txn_only          # everything except commit/rollback
         if spec.autocommit_only:                 # begin/advance/evict not allowed inside a txn
             return False
-        if mode == 'ro_txn':
+        if mode is Mode.RO_TXN:
             return not spec.is_write             # no writes in a read-only transaction
         return True                              # rw_txn: reads + writes + commit/rollback
 
@@ -653,13 +673,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         mode = self._mode()
         positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.live
         legal = [s for s in self.ops if self._legal(s, mode, positioned)]
-        txn = [s for s in legal if s.category == 'txn']
+        txn = [s for s in legal if s.category is Category.TXN]
         if txn and rnd.random() < P_TXN:
             pool = txn
         else:
-            bucket = 'break' if rnd.random() < P_BREAK else 'keep'
-            pool = [s for s in legal if s.category == bucket] or \
-                   [s for s in legal if s.category in ('keep', 'break')]
+            bucket = Category.BREAK if rnd.random() < P_BREAK else Category.KEEP
+            pool = [s for s in legal if s.category is bucket] or \
+                   [s for s in legal if s.category in (Category.KEEP, Category.BREAK)]
         spec = rnd.choices(pool, weights=[s.weight for s in pool], k=1)[0]
         return lambda: spec.fn(nodes, rnd, trace)
 
