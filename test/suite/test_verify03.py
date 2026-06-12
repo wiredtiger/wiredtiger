@@ -31,17 +31,18 @@ import wttest
 from test_verbose01 import test_verbose_base
 
 # test_verify03.py
-# Verify emits a database-level uncompressed size summary (overhead byte breakdown and page
-# fullness) when the 'log_size' verify option is set, and stays silent otherwise.
+# Verify emits a database-level size summary (overhead byte breakdown, on-disk compressed size and
+# compression ratio, and page fullness) when the 'log_size' verify option is set, and stays silent
+# otherwise.
 class test_verify03(test_verbose_base):
     uri = 'table:test_verify03'
     # 32KB leaf / 16KB internal mirrors the MongoDB collection/index page targets.
     params = 'key_format=S,value_format=S,leaf_page_max=32KB,internal_page_max=16KB'
     nrecords = 10000
 
-    # Pull the numeric fields out of verify's output. 'data' and 'total' come from the always-on API
-    # message; the per-page-type and overhead fields come from the verbose detail message, so a
-    # full parse requires output captured with verbose verify enabled.
+    # Pull the numeric fields out of verify's output. 'data', 'total' and 'compressed' come from the
+    # always-on API message; the per-page-type and overhead fields come from the verbose detail
+    # message, so a full parse requires output captured with verbose verify enabled.
     def parse_summary(self, output):
         def find(pattern):
             m = re.search(pattern, output)
@@ -50,6 +51,7 @@ class test_verify03(test_verbose_base):
         return dict(
             data=find(r'data bytes=(\d+)'),
             total=find(r'total bytes=(\d+)'),
+            compressed=find(r'compressed bytes=(\d+)'),
             leaf=find(r'leaf pages=(\d+)'),
             internal=find(r'internal pages=(\d+)'),
             overflow=find(r'overflow pages=(\d+)'),
@@ -185,7 +187,7 @@ class test_verify03(test_verbose_base):
         # single line and must not leak the detailed breakdown or the histogram.
         api = self.verify_capture(log_size=True)
         for expected in ['Size metrics (uncompressed image):', 'data bytes=', 'total bytes=',
-          'leaf fullness=', 'overhead=']:
+          'compressed bytes=', 'compression ratio=', 'leaf fullness=', 'overhead=']:
             self.assertIn(expected, api)
         for unexpected in ['Size metrics detail:', 'key bytes=', 'overhead bytes=',
           'fullness deciles=']:
@@ -194,8 +196,11 @@ class test_verify03(test_verbose_base):
         # The verified object's URI is logged at the start of the message (the underlying file URI).
         self.assertTrue(api_line.startswith('file:test_verify03.wt: Size metrics'),
           'expected the object URI at the start of the message: %s' % api_line)
-        for expected in ['data bytes=', 'total bytes=', 'leaf fullness=', 'overhead=']:
+        for expected in ['data bytes=', 'total bytes=', 'compressed bytes=', 'compression ratio=',
+          'leaf fullness=', 'overhead=']:
             self.assertIn(expected, api_line)
+        # The compression ratio is reported to two decimals followed by 'x'.
+        self.assertIsNotNone(re.search(r'compression ratio=\d+\.\d{2}x', api_line))
 
         # With verbose verify enabled, a second message provides the detailed breakdown and the
         # fullness histograms.
@@ -215,6 +220,10 @@ class test_verify03(test_verbose_base):
         self.assertEqual(s['overhead'], s['total'] - (s['key'] + s['value']))
         self.assertGreaterEqual(s['total'], s['key'] + s['value'])
         self.assertEqual(s['data'], s['key'] + s['value'])
+        # A non-empty tree has a non-zero on-disk footprint. With no block compressor configured the
+        # on-disk size is the uncompressed image plus block headers rounded to the allocation unit,
+        # so it is in the same ballpark as the uncompressed total rather than dramatically smaller.
+        self.assertGreater(s['compressed'], 0)
 
         # Without the option, neither message must appear.
         output = self.verify_capture(log_size=False, verbose=True)

@@ -47,6 +47,14 @@ typedef struct {
     uint64_t key_prefix_savings; /* Logical key bytes elided by prefix compression. */
     uint64_t fullness_leaf[11], fullness_internal[11];
 
+    /*
+     * On-disk (compressed) byte total, summed from the address cookie of every data block (leaf,
+     * internal, overflow and root). The block manager rounds each block to the allocation unit, so
+     * this is the on-disk footprint of the data blocks rather than the raw compressed payload, and
+     * it excludes block-manager metadata such as the avail list.
+     */
+    uint64_t disk_total;
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -57,6 +65,7 @@ typedef struct {
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
+static int __verify_accumulate_disk_size(WT_SESSION_IMPL *, WT_VSTUFF *, const uint8_t *, size_t);
 static int __verify_compare_page_id(const void *, const void *);
 static int __verify_disagg_accumulate_size(WT_SESSION_IMPL *, WT_VSTUFF *, const void *, size_t);
 static int __verify_page_content_int(
@@ -218,8 +227,8 @@ __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t i;
-    uint64_t internal_cap, leaf_cap, leaf_fullness, overhead, overhead_pct, physical_user,
-      total_mem, user_data;
+    uint64_t compress_ratio, internal_cap, leaf_cap, leaf_fullness, overhead, overhead_pct,
+      physical_user, total_mem, user_data;
 
     btree = S2BT(session);
 
@@ -237,23 +246,28 @@ __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
     overhead = total_mem > physical_user ? total_mem - physical_user : 0;
     leaf_cap = vs->leaf_cnt * (uint64_t)btree->maxleafpage;
     internal_cap = vs->internal_cnt * (uint64_t)btree->maxintlpage;
-    /* Leaf fullness and overhead are reported to two decimals, so carry them as hundredths of a
-     * percent. */
+    /* Leaf fullness, overhead and the compression ratio are reported to two decimals, so carry them
+     * as hundredths. */
     leaf_fullness = leaf_cap == 0 ? 0 : (vs->leaf_mem * 10000) / leaf_cap;
     overhead_pct = user_data == 0 ? 0 : (overhead * 10000) / user_data;
+    /* Compression ratio is uncompressed image bytes over on-disk bytes (e.g. 3.50x). */
+    compress_ratio = vs->disk_total == 0 ? 0 : (total_mem * 100) / vs->disk_total;
 
     /*
      * The headline summary always goes to the application via the message handler: user data, the
-     * total image size, leaf-page fullness, and overhead. The full breakdown (per-page-type counts
-     * and bytes, overhead bytes, and the fullness histograms) is only of interest when debugging,
-     * so it is logged at the verify verbose level.
+     * total uncompressed image size, the on-disk (compressed) size and the resulting compression
+     * ratio, leaf-page fullness, and overhead. The full breakdown (per-page-type counts and bytes,
+     * overhead bytes, and the fullness histograms) is only of interest when debugging, so it is
+     * logged at the verify verbose level.
      */
     WT_RET(__wt_msg(session,
       "%s: Size metrics (uncompressed image): data bytes=%" PRIu64 ", total bytes=%" PRIu64
-      ", leaf fullness=%" PRIu64 ".%02" PRIu64 "%%, overhead=%" PRIu64 ".%02" PRIu64
+      ", compressed bytes=%" PRIu64 ", compression ratio=%" PRIu64 ".%02" PRIu64
+      "x, leaf fullness=%" PRIu64 ".%02" PRIu64 "%%, overhead=%" PRIu64 ".%02" PRIu64
       "%% of user data",
-      session->dhandle->name, user_data, total_mem, leaf_fullness / 100, leaf_fullness % 100,
-      overhead_pct / 100, overhead_pct % 100));
+      session->dhandle->name, user_data, total_mem, vs->disk_total, compress_ratio / 100,
+      compress_ratio % 100, leaf_fullness / 100, leaf_fullness % 100, overhead_pct / 100,
+      overhead_pct % 100));
 
     if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
         return (0);
@@ -318,6 +332,39 @@ __verify_disagg_accumulate_size(
     WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &cookie));
 
     vs->total_block_size += cookie.size;
+    return (0);
+}
+
+/*
+ * __verify_accumulate_disk_size --
+ *     Decode an address cookie and add the referenced block's on-disk (compressed) size to the size
+ *     summary. The block manager rounds each block to the allocation unit, so the running total is
+ *     the on-disk footprint of the data blocks, not the raw compressed payload.
+ */
+static int
+__verify_accumulate_disk_size(
+  WT_SESSION_IMPL *session, WT_VSTUFF *vs, const uint8_t *addr, size_t addr_size)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE disagg_cookie;
+    WT_BTREE *btree;
+    wt_off_t offset;
+    uint32_t checksum, objectid, size;
+    const uint8_t *buf;
+
+    /* The root's parent reference is a synthetic cell with no cookie; nothing to account for. */
+    if (!vs->log_size || addr == NULL || addr_size == 0)
+        return (0);
+
+    btree = S2BT(session);
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+        buf = addr;
+        WT_RET(__wt_block_disagg_addr_unpack(session, &buf, addr_size, &disagg_cookie));
+        vs->disk_total += disagg_cookie.size;
+    } else {
+        WT_RET(__wt_block_addr_unpack(
+          session, btree->bm->block, addr, addr_size, &objectid, &offset, &size, &checksum));
+        vs->disk_total += size;
+    }
     return (0);
 }
 
@@ -615,6 +662,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Account for the root page in the accumulated total block size. */
             WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
+            /* The root has no parent cell; account for it from the root address. */
+            WT_TRET(__verify_accumulate_disk_size(session, vs, root_addr, root_addr_size));
+
             /* Validate the size of the btree. */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
                 /*
@@ -746,6 +796,7 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
     vs->leaf_mem = vs->internal_mem = vs->overflow_mem = 0;
     vs->key_bytes = vs->value_bytes = 0;
     vs->key_prefix_savings = 0;
+    vs->disk_total = 0;
     memset(vs->fullness_leaf, 0, sizeof(vs->fullness_leaf));
     memset(vs->fullness_internal, 0, sizeof(vs->fullness_internal));
 }
@@ -1129,6 +1180,13 @@ __verify_tree(
                 fullness_bucket = page_max == 0 ? 0 : WT_MIN((page_mem * 10) / page_max, 10);
                 ++vs->fullness_leaf[fullness_bucket];
             }
+            /*
+             * The parent reference cell carries this page's on-disk address; its cookie gives the
+             * compressed block size. The root's cell is synthetic with no cookie; the caller
+             * accounts for it.
+             */
+            WT_RET(
+              __verify_accumulate_disk_size(session, vs, addr_unpack->data, addr_unpack->size));
         }
     }
 
@@ -1459,6 +1517,7 @@ __verify_overflow(
     if (vs->log_size) {
         ++vs->overflow_cnt;
         vs->overflow_mem += dsk->mem_size;
+        WT_RET(__verify_accumulate_disk_size(session, vs, addr, addr_size));
         if (S2BT(session)->type == BTREE_ROW) {
             if (kind == WT_VRFY_OVFL_KEY)
                 vs->key_bytes += dsk->u.datalen;
