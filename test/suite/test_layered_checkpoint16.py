@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
-from helper import WiredTigerCursor, statistic_uri
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
@@ -63,11 +63,33 @@ class test_layered_checkpoint16(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[str(i)], value_prefix + str(i))
         cursor.close()
 
-    def get_stats(self, session):
-        with WiredTigerCursor(session, statistic_uri()) as stat_cur:
-            inserted = stat_cur[stat.conn.disagg_pick_up_file_meta_inserted][2]
-            updated = stat_cur[stat.conn.disagg_pick_up_file_meta_updated][2]
-        return inserted, updated
+    def get_stat(self, session, stat_name):
+        stat_cursor = session.open_cursor('statistics:', None, None)
+        value = stat_cursor[stat_name][2]
+        stat_cursor.close()
+        return value
+
+    def assertStatEqual(self, session, stat_name, expected_value, retries=10):
+        # Stats may be updated asynchronously, so retry a few times if the expected value is not
+        # observed.
+        for attempt in range(retries):
+            value = self.get_stat(session, stat_name)
+            if value == expected_value:
+                return
+            if attempt < retries - 1:
+                time.sleep(0.1)
+        self.assertEqual(value, expected_value)
+
+    def assertStatGreater(self, session, stat_name, expected_value, retries=10):
+        # Stats may be updated asynchronously, so retry a few times if the expected value is not
+        # observed.
+        for attempt in range(retries):
+            value = self.get_stat(session, stat_name)
+            if value > expected_value:
+                return
+            if attempt < retries - 1:
+                time.sleep(0.1)
+        self.assertGreater(value, expected_value)
 
     def test_layered_checkpoint16(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -84,18 +106,17 @@ class test_layered_checkpoint16(wttest.WiredTigerTestCase):
         # First pick-up: Entries are new to the follower's local metadata, so they are inserted.
         self.disagg_advance_checkpoint(conn_follow)
         self.check_data(session_follow, 'v1-')
-        inserted_after_first, updated_after_first = self.get_stats(session_follow)
-        self.assertGreater(inserted_after_first, 0)
-        self.assertEqual(updated_after_first, 0)
+        self.assertStatGreater(session_follow, stat.conn.disagg_pick_up_file_meta_inserted, 0)
+        self.assertStatEqual(session_follow, stat.conn.disagg_pick_up_file_meta_updated, 0)
+        inserted_after_first = self.get_stat(session_follow, stat.conn.disagg_pick_up_file_meta_inserted)
 
         # Create a new checkpoint without changing the table data, then pick it up.
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(15)}')
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
         self.check_data(session_follow, 'v1-')
-        inserted_after_repeat, updated_after_repeat = self.get_stats(session_follow)
-        self.assertEqual(inserted_after_repeat, inserted_after_first)
-        self.assertEqual(updated_after_repeat, 0)
+        self.assertStatEqual(session_follow, stat.conn.disagg_pick_up_file_meta_inserted, inserted_after_first)
+        self.assertStatEqual(session_follow, stat.conn.disagg_pick_up_file_meta_updated, 0)
 
         # Now change the table, create a checkpoint, and pick it up. The metadata must be updated.
         self.insert_data(self.session, 'v2-', 20)
@@ -103,9 +124,8 @@ class test_layered_checkpoint16(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
         self.check_data(session_follow, 'v2-')
-        inserted_after_new, updated_after_new = self.get_stats(session_follow)
-        self.assertEqual(inserted_after_new, inserted_after_first)
-        self.assertGreater(updated_after_new, 0)
+        self.assertStatEqual(session_follow, stat.conn.disagg_pick_up_file_meta_inserted, inserted_after_first)
+        self.assertStatGreater(session_follow, stat.conn.disagg_pick_up_file_meta_updated, 0)
 
         session_follow.close()
         conn_follow.close()

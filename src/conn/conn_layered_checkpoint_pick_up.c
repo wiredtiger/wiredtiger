@@ -207,7 +207,7 @@ enum WT_DISAGG_CKPT_PICKUP_CURSORS {
     WT_DISAGG_CURSOR_FILE,
     WT_DISAGG_CURSOR_LAYERED,
     WT_DISAGG_CURSOR_TABLE,
-    WT_DISAGG_CURSOR_COUNT /* must be last */
+    WT_DISAGG_CURSOR_COUNT /* Must be last. */
 };
 
 /* Prefixes for each cursor type. */
@@ -384,11 +384,10 @@ __disagg_update_file_meta(
 
     /*
      * Extract the checkpoint information from the current value and compare it to the new
-     * checkpoint. If the are the same, there is no need to proceed further.
+     * checkpoint. If they are the same, there is no need to proceed further.
      */
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, current_value, "checkpoint", &cval_cur), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) &&
-      __wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
+    WT_ERR(__wt_config_getones(session, current_value, "checkpoint", &cval_cur));
+    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
         goto err;
 
     /* Overwrite the checkpoint field in the local metadata with the one from shared storage. */
