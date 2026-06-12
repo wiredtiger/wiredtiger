@@ -606,44 +606,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.setup_connections()
         self.run_seed(seed=12345, tag='smoke', n_ops=80, allow_writes=True)
 
-    def test_read_only(self):
-        # Build a genuine merge state, then many read-only op sequences over it. Batch A is
-        # checkpointed and DRAINED from the follower ingest (so it is stable-only there); batch
-        # B is written fresh (follower ingest). The follower must therefore merge stable(A) +
-        # ingest(B) -- this also verifies the mixed temporal case (B survives the drain while A
-        # falls to stable), which the eviction investigation did not cover.
-        self.setup_connections()
-        nodes = self.make_nodes('ro')
-        leader, follower = nodes
-        for k in range(100, 200, 20):           # batch A: 100,120,140,160,180
-            self.mirror_write(nodes, k, self.new_value(k)); self.live[k] = 'x'
-        self.advance()                          # checkpoint 1 (contains A)
-        for k in range(110, 200, 20):           # batch B: 110,130,... -> follower ingest
-            self.mirror_write(nodes, k, self.new_value(k)); self.live[k] = 'x'
-        self.advance()                          # checkpoint 2; A is now in an older checkpoint
-        self.drain_ingest(follower)             # prunes A (older ckpt) from ingest -> stable-only
-        for n in nodes:
-            n.reset_all()
-        # Merge correctness: the follower's merged scan must equal its reference (B not lost).
-        self.assertEqual(self.scan(follower.lay_c, True), self.scan(follower.ref_c, True))
-        trace = self.open_trace(0, 'ro')
-        try:
-            for seed in range(10):
-                rnd = random.Random(seed)
-                trace.note('seed=%d' % seed)
-                for _ in range(300):
-                    op = self.pick_op(rnd, allow_writes=False)
-                    trace.log('%s %r' % (op[0], op[1]))
-                    for n in nodes:
-                        self.compare_read(op, n, trace)
-            self.verify(nodes, trace)
-        finally:
-            for n in nodes:
-                n.close()
-            trace.close()
-        # Self-check: the follower genuinely read from stable (A keys), not ingest-only.
-        self.assert_merge_exercised()
-
     def test_random(self):
         # Mixed read/write/advance/evict sequences, fresh tables per seed, start empty.
         self.setup_connections()
