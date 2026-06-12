@@ -1511,11 +1511,6 @@ __wt_cursor_init(
     else
         F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    /* WT_CURSTD_READ_CORRUPT: opt-in skip-and-continue on corruption during cursor walks. */
-    WT_ERR(__wt_config_gets_def(session, cfg, "read_corrupt", 0, &cval));
-    if (cval.val)
-        F_SET(cursor, WT_CURSTD_READ_CORRUPT);
-
     WT_ERR(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
 
     if (readonly) {

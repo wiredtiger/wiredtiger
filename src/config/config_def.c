@@ -159,7 +159,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
     "\"oldest\",\"oldest_reader\",\"oldest_timestamp\",\"pinned\","
     "\"recovery\",\"stable\",\"stable_disaggregated_schema_epoch\","
     "\"stable_timestamp\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 159, INT64_MIN, INT64_MAX, confchk_get_choices},
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 158, INT64_MIN, INT64_MAX, confchk_get_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_CONNECTION_query_timestamp_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0,
@@ -843,7 +843,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 155, INT64_MIN, INT64_MAX,
     confchk_statistics_choices},
   {"statistics_log", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5,
@@ -1683,20 +1683,18 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"raw", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 152, INT64_MIN,
     INT64_MAX, NULL},
-  {"read_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 153,
-    INT64_MIN, INT64_MAX, NULL},
-  {"read_once", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 154,
+  {"read_once", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 153,
     INT64_MIN, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 68, INT64_MIN,
     INT64_MAX, NULL},
-  {"skip_sort_check", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 155,
+  {"skip_sort_check", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 154,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"clear\","
     "\"size\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 155, INT64_MIN, INT64_MAX,
     confchk_statistics2_choices},
-  {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 157, INT64_MIN,
+  {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1704,7 +1702,7 @@ static const uint8_t confchk_WT_SESSION_open_cursor_jump[WT_CONFIG_JUMP_TABLE_SI
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 5, 7, 7,
-  7, 7, 7, 8, 8, 8, 8, 8, 11, 12, 13, 13, 17, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20};
+  7, 7, 7, 8, 8, 8, 8, 8, 11, 12, 13, 13, 16, 18, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
   {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 180,
@@ -1731,7 +1729,7 @@ static const uint8_t confchk_WT_SESSION_prepared_id_transaction_jump[WT_CONFIG_J
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_publish_disaggregated_subconfigs[] = {
-  {"schema_epoch", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 158,
+  {"schema_epoch", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 157,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1764,7 +1762,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
   {"get", "string", NULL,
     "choices=[\"commit\",\"first_commit\",\"prepare\","
     "\"read\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 159, INT64_MIN, INT64_MAX, confchk_get2_choices},
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 158, INT64_MIN, INT64_MAX, confchk_get2_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_SESSION_query_timestamp_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0,
@@ -1847,24 +1845,24 @@ static const uint8_t confchk_WT_SESSION_timestamp_transaction_jump[WT_CONFIG_JUM
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
   {"do_not_clear_txn_id", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    160, INT64_MIN, INT64_MAX, NULL},
-  {"dump_address", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 161,
+    159, INT64_MIN, INT64_MAX, NULL},
+  {"dump_address", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 160,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_all_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 162,
+  {"dump_all_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 161,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_blocks", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 163,
+  {"dump_blocks", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 162,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_key_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 164,
+  {"dump_key_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 163,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_layout", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 165,
+  {"dump_layout", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 164,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_offsets", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 166, INT64_MIN,
+  {"dump_offsets", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 165, INT64_MIN,
     INT64_MAX, NULL},
-  {"dump_pages", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 167,
+  {"dump_pages", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 166,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_tree_shape", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 168,
+  {"dump_tree_shape", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 167,
     INT64_MIN, INT64_MAX, NULL},
-  {"read_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 153,
+  {"read_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 168,
     INT64_MIN, INT64_MAX, NULL},
   {"stable_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 169,
     INT64_MIN, INT64_MAX, NULL},
@@ -3255,7 +3253,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 155, INT64_MIN, INT64_MAX,
     confchk_statistics3_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
     confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 309,
@@ -3540,7 +3538,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 155, INT64_MIN, INT64_MAX,
     confchk_statistics4_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
     confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 309,
@@ -3820,7 +3818,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 155, INT64_MIN, INT64_MAX,
     confchk_statistics5_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
     confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 309,
@@ -4096,7 +4094,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 156, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 155, INT64_MIN, INT64_MAX,
     confchk_statistics6_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
     confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 309,
@@ -4330,10 +4328,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "incremental=(consolidate=false,enabled=false,file=,"
     "force_stop=false,granularity=16MB,src_id=,this_id=),"
     "next_random=false,next_random_sample_size=0,next_random_seed=0,"
-    "overwrite=true,prefix_search=false,raw=false,read_corrupt=false,"
-    "read_once=false,readonly=false,skip_sort_check=false,statistics="
-    ",target=",
-    confchk_WT_SESSION_open_cursor, 20, confchk_WT_SESSION_open_cursor_jump, 29,
+    "overwrite=true,prefix_search=false,raw=false,read_once=false,"
+    "readonly=false,skip_sort_check=false,statistics=,target=",
+    confchk_WT_SESSION_open_cursor, 19, confchk_WT_SESSION_open_cursor_jump, 29,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.prepare_transaction",
     "prepare_timestamp=,prepared_id=", confchk_WT_SESSION_prepare_transaction, 2,

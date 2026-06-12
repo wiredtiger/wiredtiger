@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __stat_tree_walk(WT_SESSION_IMPL *, WT_CURSOR_STAT *);
+static int __stat_tree_walk(WT_SESSION_IMPL *);
 static int __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_col_var(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_int(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
@@ -70,7 +70,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
         __wt_evict_cache_stat_walk(session);
 
     if (F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
-        WT_RET(__stat_tree_walk(session, cst));
+        WT_RET(__stat_tree_walk(session));
 
     return (0);
 }
@@ -80,7 +80,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
  *     Gather btree statistics that require traversing the tree.
  */
 static int
-__stat_tree_walk(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
+__stat_tree_walk(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -105,7 +105,7 @@ __stat_tree_walk(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
     next_walk = NULL;
     walk_flags = WT_READ_INTERNAL_OP | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED;
-    if (F_ISSET(&cst->iface, WT_CURSTD_READ_CORRUPT))
+    if (F_ISSET(session, WT_SESSION_READ_CORRUPT_FILE))
         FLD_SET(walk_flags, WT_READ_SKIP_CORRUPT);
 
     /*

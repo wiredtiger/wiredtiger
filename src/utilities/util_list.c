@@ -148,13 +148,12 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
     const char *key, *value;
     bool found;
 
-    /* Set the session flag before open_cursor so metadata-dhandle reads stay quiet too. */
+    /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
     if (quiet_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_CORRUPT_FILE);
 
     /* Open the metadata file. */
-    if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL,
-           quiet_corrupt ? "read_corrupt=true" : NULL, &cursor)) != 0) {
+    if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
         /*
          * If there is no metadata (yet), this will return ENOENT. Treat that the same as an empty
          * metadata.

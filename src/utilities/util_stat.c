@@ -91,18 +91,9 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
         goto err;
     }
 
-    /*
-     * Set the session flag before open_cursor so dhandle-open reads stay quiet. Add
-     * read_corrupt=true to the cursor config so the stat-cursor tree walk skips corrupt pages and
-     * surfaces partial counts instead of failing the cursor open.
-     */
-    if (quiet_corrupt) {
+    /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
+    if (quiet_corrupt)
         F_SET(session_impl, WT_SESSION_READ_CORRUPT_FILE);
-        if (config == NULL)
-            config = "read_corrupt=true";
-        else if (strcmp(config, "statistics=(fast)") == 0)
-            config = "statistics=(fast),read_corrupt=true";
-    }
 
     if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
         fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
