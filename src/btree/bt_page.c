@@ -260,7 +260,7 @@ __page_free_delta_leaf_merge_state(
 static WT_INLINE void
 __time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    /* Return if the start time window is empty. */
+    /* Return if the time window is empty. */
     if (WT_TIME_WINDOW_IS_EMPTY(tw))
         return;
 
