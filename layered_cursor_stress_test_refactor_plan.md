@@ -112,6 +112,20 @@ ones — that's fine; each run is still deterministic per seed. "Behaviour-prese
       APPROVE-with-nits-addressed.
 - [x] S5.3 Plan + CLAUDE status updated.
 
+### S6. De-string op dispatch — **DONE + REVIEWED (APPROVE)**
+Ivan disliked dispatching ops by string op-codes. Removed the `Op` dataclass + `OPS` list +
+`op_legal` + the `getattr(self, 'op_'+kind)` / `if kind == 'put'` arg-binding in `pick_op`, and the
+`('search', key)` string-tuple read dispatch.
+- [x] `OpSpec` frozen dataclass holds a **direct bound-method ref** (`fn`) + tags (weight, category,
+      needs_position, needs_live, is_write, autocommit_only, in_txn_only); built in `_build_ops()` →
+      `self.ops`.
+- [x] `_legal(spec, mode, positioned)` is a pure predicate over the tags; `pick_op(nodes, rnd, trace)`
+      filters `self.ops`, samples (P_TXN / P_BREAK), and returns `lambda: spec.fn(nodes, rnd, trace)`.
+- [x] Each `op_*(self, nodes, rnd, trace)` is self-contained — owns its arg-gen, `trace.log`, and
+      state update. Read path de-stringed: `_read`/`_read_near` take a cursor callable.
+- [x] Suite green (2 tests); independent review **APPROVE** (one stale-comment nit, fixed). Docs +
+      diagrams synced (OpSpec table, no-string generation section, function map, both `.dot`s).
+
 **Refactor COMPLETE.** Open follow-ups (TODOs in code + here):
 - `TODO(merge-coverage)` — forced-eviction scenario op + ~300k-op long run, then restore the
   `assert_merge_exercised` floor from the 1% interim.

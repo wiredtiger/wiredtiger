@@ -8,9 +8,9 @@ digraph layered_cursor_stress_topology {
   edge [fontname="Helvetica", fontsize=10];
 
   driver [shape=box, style="rounded,filled", fillcolor="#e8eef7", penwidth=2,
-          label="DRIVER  run_seed(seed)\nseed → pick_op → dispatch → compare_read → verify"];
+          label="DRIVER  run_sequence(seed)\nseed → pick_op → op_*() → _read compare → verify"];
   mw [shape=box, style="filled", fillcolor="#e6f4ea",
-      label="mirror_write / apply_positional\n(one commit timestamp, both connections)"];
+      label="mirror_write / _positional\n(one commit timestamp, both connections)"];
   driver -> mw [color="#1a7f37", penwidth=2, label="every logical write"];
 
   // ---- LEADER ----

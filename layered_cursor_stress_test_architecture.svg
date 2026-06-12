@@ -25,15 +25,15 @@
 <!-- driver -->
 <g id="node1" class="node">
 <title>driver</title>
-<path fill="#e8eef7" stroke="black" stroke-width="2" d="M590.5,-477C590.5,-477 309.5,-477 309.5,-477 303.5,-477 297.5,-471 297.5,-465 297.5,-465 297.5,-453 297.5,-453 297.5,-447 303.5,-441 309.5,-441 309.5,-441 590.5,-441 590.5,-441 596.5,-441 602.5,-447 602.5,-453 602.5,-453 602.5,-465 602.5,-465 602.5,-471 596.5,-477 590.5,-477"/>
-<text text-anchor="middle" x="450" y="-462.2" font-family="Helvetica,sans-Serif" font-size="11.00">DRIVER &#160;run_seed(seed)</text>
-<text text-anchor="middle" x="450" y="-450.2" font-family="Helvetica,sans-Serif" font-size="11.00">seed → pick_op → dispatch → compare_read → verify</text>
+<path fill="#e8eef7" stroke="black" stroke-width="2" d="M586,-477C586,-477 314,-477 314,-477 308,-477 302,-471 302,-465 302,-465 302,-453 302,-453 302,-447 308,-441 314,-441 314,-441 586,-441 586,-441 592,-441 598,-447 598,-453 598,-453 598,-465 598,-465 598,-471 592,-477 586,-477"/>
+<text text-anchor="middle" x="450" y="-462.2" font-family="Helvetica,sans-Serif" font-size="11.00">DRIVER &#160;run_sequence(seed)</text>
+<text text-anchor="middle" x="450" y="-450.2" font-family="Helvetica,sans-Serif" font-size="11.00">seed → pick_op → op_*() → _read compare → verify</text>
 </g>
 <!-- mw -->
 <g id="node2" class="node">
 <title>mw</title>
 <polygon fill="#e6f4ea" stroke="black" points="578,-394 322,-394 322,-358 578,-358 578,-394"/>
-<text text-anchor="middle" x="450" y="-379.2" font-family="Helvetica,sans-Serif" font-size="11.00">mirror_write / apply_positional</text>
+<text text-anchor="middle" x="450" y="-379.2" font-family="Helvetica,sans-Serif" font-size="11.00">mirror_write / _positional</text>
 <text text-anchor="middle" x="450" y="-367.2" font-family="Helvetica,sans-Serif" font-size="11.00">(one commit timestamp, both connections)</text>
 </g>
 <!-- driver&#45;&gt;mw -->

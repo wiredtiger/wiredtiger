@@ -51,10 +51,11 @@ gaps; values are unique strings (`new_value`).
 
 ## 3. The two oracles
 
-1. **Per-operation, per-node (the workhorse).** `compare_read` runs each read op on `lay_c` then
-   `ref_c` of the *same* node and compares the normalized `(ret, key, value, cmp)`. Same session →
-   same snapshot → apples-to-apples, immune to read-committed snapshot-pinning false positives.
-   `search_near` is special-cased (`compare_search_near`): WT may return *either* immediate
+1. **Per-operation, per-node (the workhorse).** `_read` runs each read op (a cursor callable) on
+   `lay_c` then `ref_c` of the *same* node and compares the normalized `(ret, key, value, cmp)`. Same
+   session → same snapshot → apples-to-apples, immune to read-committed snapshot-pinning false
+   positives. `search_near` is special-cased (`_read_near` / `_compare_near`): WT may return *either*
+   immediate
    neighbour of an absent key, so the rule is (a) the layered `cmp` sign must match the returned
    key vs the search key, and (b) if the two cursors land on different valid neighbours they must
    *bracket* the search key and be exactly one step apart (the reference is stepped onto the
@@ -111,22 +112,26 @@ reproducibility.
 
 ## 6. Operation generation — one declarative workload-shape config
 
-The whole operation mix is **one table** (`OPS`, a list of `Op` dataclass rows) plus two dials:
+The whole operation mix is **one table** (`self.ops`, a list of `OpSpec` dataclass rows built in
+`_build_ops()`) plus two dials:
 - `P_BREAK` — when doing a *data* op, the chance it BREAKS the cursor position. Small ⇒ long
   position-holding chains (the heart of the test). The central bias lives in this one number.
 - `P_TXN` — the chance of a transaction-control op when one is legal; **orthogonal** to `P_BREAK`
   so a low break rate never starves transactions.
 
-Each `Op` carries a `weight`, a `category` (`keep` holds position / `break` resets it / `txn`),
-and legality tags (`needs_position`, `is_write`, `autocommit_only`, `in_txn_only`).
-`op_legal(op, mode, positioned)` is the single legality predicate; `_mode()` derives the mode
-(`autocommit` / `rw_txn` / `ro_txn`).
+Each `OpSpec` carries a **direct bound-method reference** (`fn`, e.g. `self.op_next`) — there is no
+string op-name and no `getattr`-by-name dispatch anywhere — plus a `weight`, a `category` (`keep`
+holds position / `break` resets it / `txn`), and legality tags (`needs_position`, `needs_live`,
+`is_write`, `autocommit_only`, `in_txn_only`). `_legal(spec, mode, positioned)` is the single
+legality predicate (pure off the tags); `_mode()` derives the mode (`autocommit` / `rw_txn` /
+`ro_txn`).
 
-`pick_op` then: filter `OPS` to the legal ops for the current `(mode, positioned)`; with probability
-`P_TXN` pick a txn-control op (if any are legal), else pick the `break` bucket with probability
-`P_BREAK` and the `keep` bucket otherwise, and weighted-sample within it; bind the op's argument and
-return a **bound zero-arg callable** that traces the choice and runs the op. `run_sequence` just calls
-it. The legality the dials/tags encode (unchanged from the old per-mode branches):
+`pick_op` then: filter `self.ops` to the legal specs for the current `(mode, positioned)`; with
+probability `P_TXN` pick a txn-control op (if any are legal), else pick the `break` bucket with
+probability `P_BREAK` and the `keep` bucket otherwise, and weighted-sample within it; return
+`lambda: spec.fn(...)` — a **bound zero-arg callable**. Each `op_*` method then owns its own argument
+generation, `trace.log`, and state update; `run_sequence` just calls the callable. The legality the
+dials/tags encode (unchanged from the old per-mode branches):
 
 | mode | legal ops |
 |---|---|
@@ -134,9 +139,9 @@ it. The legality the dials/tags encode (unchanged from the old per-mode branches
 | explicit read-write txn (snapshot) | reads + writes + positional (if positioned) + commit/rollback + reset + full_scan |
 | explicit read-only txn (as-of-T / read-committed / read-uncommitted) | reads + commit/rollback + reset + full_scan |
 
-**Adding an op = one `Op` row + one `op_<name>` method.** The driver (`run_sequence`) and the
-op methods track `cur_pos` (the key both cursor pairs sit on) and `state.live` (the logical
-key→value map, used **only** to choose keys, never as the oracle).
+**Adding an op = one `OpSpec` row in `_build_ops()` + one `op_<name>` method.** The driver
+(`run_sequence`) and the op methods track `cur_pos` (the key both cursor pairs sit on) and
+`state.live` (the logical key→value map, used **only** to choose keys, never as the oracle).
 
 ---
 
@@ -183,7 +188,7 @@ bug). The checks:
 - `n_positional > 0` — positional update/remove chains actually ran.
 - `n_read_ts > 0`, `n_iso_rc > 0`, `n_iso_ru > 0` — as-of-past, read-committed, read-uncommitted
   txns all actually fired.
-- `n_full_scan > 0` — the weighted `full_scan` (verify-as-op) actually fired.
+- `n_verify > 0` — the weighted `op_verify` (verify-as-op) actually fired.
 
 ---
 
@@ -194,7 +199,7 @@ bug). The checks:
 | ingest+stable merge (reads) | ✅ | the whole test; `assert_merge_exercised` |
 | ingest tombstone shadows stable | ✅ | random removes (`test_random`) |
 | long-lived positioned chains | ✅ | `pick_op` bias; `n_positional` guard |
-| search_near neighbour semantics | ✅ | `compare_search_near` |
+| search_near neighbour semantics | ✅ | `_read_near` / `_compare_near` |
 | checkpoint advance + drain | ✅ | `advance` / `drain_ingest` (the `advance`/`evict` ops in the random run) |
 | explicit txns, cursor survives switch | ✅ (C1) | `_end_txn`, `run_sequence` |
 | same-txn iterate-and-delete | ✅ (C1) | in-txn DIRECT positional writes |
@@ -216,15 +221,17 @@ real bug, under review** (`findings/prepare_iterate_bug_candidate.md`).
 Grouped low-level → high-level. We'll walk these in roughly this order.
 
 **A. Module-level primitives + the workload config**
-- `sign` · `EventTrace` (`log`/`note`/`close`) · `Node` (`__init__`/`reset_all`/`close`) ·
-  `State` (`__init__` global fields / `new_sequence` per-sequence fields) ·
-  the workload shape: `Op` dataclass · `OPS` table · `P_BREAK` / `P_TXN` dials · `op_legal`
+- `sign` · `OpSpec` dataclass (the workload-table row: `fn` bound-method ref + weight + tags) ·
+  `P_BREAK` / `P_TXN` dials · `EventTrace` (`log`/`close`) · `Node` (`__init__`/`reset_all`/`close`) ·
+  `State` (`__init__` global fields / `new_sequence` per-sequence fields)
 
 **B. Cluster & table setup**
-- `conn_config` · `setup_connections` (builds `self.state = State()`) · `make_nodes` · `new_value`
+- `conn_config` · `setup_connections` (builds `self.state = State()` and `self.ops = _build_ops()`) ·
+  `_build_ops` (the `OpSpec` table) · `make_nodes` · `new_value`
 
 **C. Write protocol**
-- `_write_pair` · `mirror_write` · `_positional_pair` · `apply_positional` · `_end_txn`
+- `_write_pair` · `mirror_write` · `_positional` (callable-based; in-txn direct / autocommit re-search) ·
+  `_end_txn`
 
 **D. Checkpoint lifecycle**
 - `advance` · `drain_ingest`
@@ -233,21 +240,23 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 - `follower_read_split` · `assert_merge_exercised` (1% interim floor, TODO) · `assert_self_coverage`
 
 **F. Read application & the oracle**
-- `apply` · `compare_read` · `compare_search_near` · `fail_mismatch`
+- `_anchor` · `_read` (do-callable + normalize + compare + anchor) · `_near` · `_read_near` ·
+  `_compare_near` · `fail_mismatch`
 
 **G. Verification**
 - `scan` · `verify`
 
-**H. The operations (one method per op)**
-- `_do_read` (shared read+compare+cur_pos) · `op_search`/`op_search_near`/`op_next`/`op_prev`/
-  `op_reset` · `op_put`/`op_remove` · `op_pos_update`/`op_pos_remove` · `op_begin`/`op_commit`/
-  `op_rollback` · `op_advance`/`op_evict` · `op_full_scan`
+**H. The operations (one self-contained method per op — each owns arg-gen + `trace.log`)**
+- `op_next`/`op_prev`/`op_search`/`op_search_near` · `op_reset` · `op_put`/`op_remove` ·
+  `op_pos_update`/`op_pos_remove` · `op_begin`/`op_commit`/`op_rollback` · `_checkpoint` helper +
+  `op_advance`/`op_evict` · `op_verify`
 
-**I. Operation generation**
-- `_mode` · `pick_op` (config-driven; returns a bound callable) · `pick_search_key`
+**I. Operation generation (no string dispatch)**
+- `_mode` · `_legal` (pure predicate over the `OpSpec` tags) · `pick_op` (filters `self.ops`, samples,
+  returns `lambda: spec.fn(...)`) · `pick_search_key`
 
 **J. The driver**
-- `open_trace` · `run_sequence` (loop = `pick_op(...)()`)
+- `open_trace` · `run_sequence` (loop = `pick_op(nodes, rnd, trace)()`)
 
 **K. Tests (top level)** — only seed-driven, random-generated stress tests. A standalone /
 hand-built scenario is kept **only** if it pins a known layered-vs-regular *mismatch* (none do, so

@@ -684,9 +684,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         nodes = self.make_nodes(tag)
         try:
             for _ in range(n_ops):
-                # pick_op chooses the next op, binds its argument, and returns a callable that
-                # traces and runs it. The driver just runs it -- all per-op behaviour lives in the
-                # op_* methods.
+                # pick_op chooses the next op and returns a callable bound to its context. The
+                # driver just runs it -- arg generation, tracing, and state updates all live in the
+                # op_* method itself.
                 self.pick_op(nodes, rnd, trace)()
             if self.state.in_txn:
                 # Close any transaction left open at the end of the chain before verifying.
