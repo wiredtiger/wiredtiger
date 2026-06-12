@@ -608,6 +608,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- operation generation -------------------------------------------
 
     def _mode(self, allow_writes):
+        # TODO(read-only-mode): allow_writes=False (the 'read_only' mode, plus the read_only_ok tags
+        # on the Op rows) is currently unreachable -- both tests pass allow_writes=True since
+        # test_read_only was removed. Keep for a future read-only stress test, or strip it.
         if not allow_writes:
             return 'read_only'
         if not self.state.in_txn:
@@ -652,11 +655,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     and rnd.random() < 0.5:
                 read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
             arg = (read_ts, iso)
-        elif kind in ('evict', 'commit', 'rollback',
-                      'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
-            arg = None
-        else:
+        elif kind in ('search', 'search_near'):
             arg = self.pick_search_key(rnd)
+        else:
+            # Everything else is a no-arg op (next/prev/reset/full_scan/pos_*/advance/evict/
+            # commit/rollback). Defaulting to None here means a new no-arg op needs no change to
+            # this binding -- only ops with a special argument (like put/remove/begin above) do.
+            arg = None
         # Return a bound, zero-arg callable: trace the choice, then run the op. run_sequence
         # just calls it -- no per-op dispatch there.
         op_fn = getattr(self, 'op_' + kind)

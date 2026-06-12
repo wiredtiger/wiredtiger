@@ -69,7 +69,7 @@ reference return codes match) — a write checked like a read.
 **Guiding principle (test inventory).** The seed-driven stress test is the *only* layered-vs-regular
 agreement checker in this file. A standalone scenario test earns its place **only** if it pins a
 known *mismatch* (a bug repro); a scenario that merely re-asserts correct/agreeing behavior is
-redundant with the oracle and is not kept. (That's why the file currently has just the three stress
+redundant with the oracle and is not kept. (That's why the file currently has just the two stress
 tests — the agreeing scenarios were removed, and the one diverging scenario lives in the bug-review
 package.)
 
