@@ -425,9 +425,107 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if per_node[0] != per_node[1]:
             self.fail('leader layered scan != follower layered scan (trace %s)' % trace.path)
 
+    # --- operations (one method per op; pick_op binds args and returns a callable) ----
+
+    def _do_read(self, op, nodes, trace):
+        # Apply a read op to both nodes (the per-op oracle), then anchor cur_pos only when leader
+        # and follower ended on the SAME key -- a positional write operates on each cursor's
+        # current position, and search_near may land them on different (both valid) neighbours.
+        lead = self.compare_read(op, nodes[0], trace)
+        foll = self.compare_read(op, nodes[1], trace)
+        if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
+            self.state.cur_pos = lead[1]
+        else:
+            self.state.cur_pos = None
+
+    def op_search(self, nodes, trace, key):
+        self._do_read(('search', key), nodes, trace)
+
+    def op_search_near(self, nodes, trace, key):
+        self._do_read(('search_near', key), nodes, trace)
+
+    def op_next(self, nodes, trace, _arg):
+        self._do_read(('next', None), nodes, trace)
+
+    def op_prev(self, nodes, trace, _arg):
+        self._do_read(('prev', None), nodes, trace)
+
+    def op_reset(self, nodes, trace, _arg):
+        self._do_read(('reset', None), nodes, trace)
+
+    def op_put(self, nodes, trace, key):
+        # set_key write: clears the cursor position.
+        v = self.new_value(key)
+        self.mirror_write(nodes, key, v)
+        self.state.live[key] = v
+        self.state.cur_pos = None
+
+    def op_remove(self, nodes, trace, key):
+        self.mirror_write(nodes, key, None)
+        self.state.live.pop(key, None)
+        self.state.cur_pos = None
+
+    def op_pos_update(self, nodes, trace, _arg):
+        # Positional write: keeps the cursor on cur_pos.
+        key = self.state.cur_pos
+        v = self.new_value(key)
+        self.apply_positional(nodes, 'pos_update', v)
+        self.state.live[key] = v
+
+    def op_pos_remove(self, nodes, trace, _arg):
+        # Removes the current key; the cursor stays on the (now deleted) slot.
+        key = self.state.cur_pos
+        self.apply_positional(nodes, 'pos_remove', None)
+        self.state.live.pop(key, None)
+
+    def op_begin(self, nodes, trace, cfg):
+        # cfg = (read_ts, isolation). snapshot+None = read-write; snapshot+int = as-of-T read-only;
+        # read-committed / read-uncommitted = read-only. The cursor stays physically positioned so
+        # next/prev keep iterating across the switch, but a positional WRITE must be re-established
+        # by a read inside this txn (a write off a pre-txn position is the cross-txn
+        # positioned-remove WT-17796), so clear the generator position.
+        read_ts, iso = cfg
+        cfg_parts = []
+        if iso != 'snapshot':
+            cfg_parts.append('isolation=' + iso)
+        if read_ts is not None:
+            cfg_parts.append('read_timestamp=' + self.timestamp_str(read_ts))
+        for n in nodes:
+            n.session.begin_transaction(','.join(cfg_parts))
+        self.state.in_txn = True
+        self.state.txn_wrote = False
+        self.state.txn_read_ts = read_ts
+        self.state.txn_readonly = read_ts is not None or iso != 'snapshot'
+        if read_ts is not None:
+            self.state.n_read_ts += 1
+        if iso == 'read-committed':
+            self.state.n_iso_rc += 1
+        elif iso == 'read-uncommitted':
+            self.state.n_iso_ru += 1
+        self.state.live_snapshot = dict(self.state.live)
+        self.state.cur_pos = None
+
+    def op_commit(self, nodes, trace, _arg):
+        self._end_txn(nodes, commit=True)
+
+    def op_rollback(self, nodes, trace, _arg):
+        self._end_txn(nodes, commit=False)
+
+    def op_advance(self, nodes, trace, _arg):
+        # Checkpoint lifecycle: release any pinned snapshot (reset cursors), advance, clear pos.
+        for n in nodes:
+            n.reset_all()
+        self.advance()
+        self.state.cur_pos = None
+
+    def op_evict(self, nodes, trace, _arg):
+        # Advance, then drain the follower ingest so later reads fall through to stable.
+        self.op_advance(nodes, trace, None)
+        self.drain_ingest(nodes[1])
+
     # --- operation generation -------------------------------------------
 
-    def pick_op(self, rnd, allow_writes):
+    def pick_op(self, nodes, trace, rnd, allow_writes):
         # Favour long position-holding chains: when the cursor is positioned, weight
         # next/prev and positional update/remove heavily; keep position-resetting ops
         # (set_key put/remove, reset) rare. advance/evict punctuate chains (checkpoint
@@ -471,11 +569,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                            'reset', 'begin']
                 weights = [16, 12, 20, 20, 12, 3, 4, 2, 5]
         kind = rnd.choices(kinds, weights=weights, k=1)[0]
+        # Bind the op's argument.
         if kind == 'put':
-            return ('put', rnd.choice(self.POOL))
-        if kind == 'remove':
-            return ('remove', rnd.choice(list(self.state.live))) if self.state.live else ('reset', None)
-        if kind == 'begin':
+            arg = rnd.choice(self.POOL)
+        elif kind == 'remove':
+            if self.state.live:
+                arg = rnd.choice(list(self.state.live))
+            else:
+                kind, arg = 'reset', None
+        elif kind == 'begin':
             # Pick an isolation level. Only snapshot supports writes (read-committed and
             # read-uncommitted reject writes -- txn_inline.h ~2112), so those two are read-only.
             iso = rnd.choices(['snapshot', 'read-committed', 'read-uncommitted'],
@@ -488,11 +590,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             if iso == 'snapshot' and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
                     and rnd.random() < 0.5:
                 read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
-            return ('begin', (read_ts, iso))
-        if kind in ('evict', 'commit', 'rollback',
-                    'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
-            return (kind, None)
-        return (kind, self.pick_search_key(rnd))
+            arg = (read_ts, iso)
+        elif kind in ('evict', 'commit', 'rollback',
+                      'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
+            arg = None
+        else:
+            arg = self.pick_search_key(rnd)
+        # Return a bound, zero-arg callable: trace the choice, then run the op. run_sequence
+        # just calls it -- no per-op dispatch there.
+        op_fn = getattr(self, 'op_' + kind)
+        def run():
+            trace.log('%s %r' % (kind, arg))
+            op_fn(nodes, trace, arg)
+        return run
 
     def pick_search_key(self, rnd):
         r = rnd.random()
@@ -513,89 +623,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         rnd = random.Random(seed)
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
-        leader, follower = nodes
-        self.state.cur_pos = None
         try:
             for _ in range(n_ops):
-                op = self.pick_op(rnd, allow_writes)
-                trace.log('%s %r' % (op[0], op[1]))
-                kind = op[0]
-                if kind == 'put':
-                    # set_key-based write: clears the cursor position.
-                    v = self.new_value(op[1]); self.mirror_write(nodes, op[1], v)
-                    self.state.live[op[1]] = v
-                    self.state.cur_pos = None
-                elif kind == 'remove':
-                    self.mirror_write(nodes, op[1], None); self.state.live.pop(op[1], None)
-                    self.state.cur_pos = None
-                elif kind == 'pos_update':
-                    # Positional write: keeps the cursor on self.state.cur_pos.
-                    v = self.new_value(self.state.cur_pos)
-                    self.apply_positional(nodes, 'pos_update', v)
-                    self.state.live[self.state.cur_pos] = v
-                elif kind == 'pos_remove':
-                    # Removes the current key; the cursor stays on the (now deleted) slot.
-                    self.apply_positional(nodes, 'pos_remove', None)
-                    self.state.live.pop(self.state.cur_pos, None)
-                elif kind == 'begin':
-                    # Open one explicit transaction per node. op[1] = (read_ts, isolation):
-                    #  - snapshot + read_ts None  -> read-write txn (writes join it, commit at the
-                    #    commit op);
-                    #  - snapshot + read_ts int   -> read-only as-of-T (read_timestamp merge, C2);
-                    #  - read-committed / read-uncommitted -> read-only (those isolations reject
-                    #    writes), reading the txn's view of the latest committed data.
-                    # The oracle compares layered-vs-reference within each (same session => same
-                    # isolation), so each level's read path is validated self-consistent.
-                    read_ts, iso = op[1]
-                    cfg_parts = []
-                    if iso != 'snapshot':
-                        cfg_parts.append('isolation=' + iso)
-                    if read_ts is not None:
-                        cfg_parts.append('read_timestamp=' + self.timestamp_str(read_ts))
-                    cfg = ','.join(cfg_parts)
-                    for n in nodes:
-                        n.session.begin_transaction(cfg)
-                    self.state.in_txn = True
-                    self.state.txn_wrote = False
-                    self.state.txn_read_ts = read_ts
-                    self.state.txn_readonly = read_ts is not None or iso != 'snapshot'
-                    if read_ts is not None:
-                        self.state.n_read_ts += 1
-                    if iso == 'read-committed':
-                        self.state.n_iso_rc += 1
-                    elif iso == 'read-uncommitted':
-                        self.state.n_iso_ru += 1
-                    # Snapshot for rollback. A read-only txn never writes, so the restore is a
-                    # no-op for it, but keep it unconditional so rollback has a value to restore.
-                    self.state.live_snapshot = dict(self.state.live)
-                    # The cursor stays physically positioned so next/prev keep iterating across
-                    # the switch, but a positional WRITE must be re-established by a read inside
-                    # this txn -- a positional write off a pre-txn position is the cross-txn
-                    # positioned-remove (WT-17796). Clear the generator's position to enforce that.
-                    self.state.cur_pos = None
-                elif kind == 'commit':
-                    self._end_txn(nodes, commit=True)
-                elif kind == 'rollback':
-                    self._end_txn(nodes, commit=False)
-                elif kind in ('advance', 'evict'):
-                    # Checkpoint ops release any pinned snapshot first (reset cursors).
-                    for n in nodes:
-                        n.reset_all()
-                    self.advance()
-                    if kind == 'evict':
-                        self.drain_ingest(follower)
-                    self.state.cur_pos = None
-                else:   # read op: track the resulting position for the next chain step
-                    lead, foll = (self.compare_read(op, nodes[0], trace),
-                                  self.compare_read(op, nodes[1], trace))
-                    # cur_pos anchors a positional write, which inside a txn operates on each
-                    # cursor's CURRENT position directly. That is only valid when leader and
-                    # follower ended on the same key: search_near may legitimately land them on
-                    # different (both valid) neighbours, so don't anchor a positional write there.
-                    if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
-                        self.state.cur_pos = lead[1]
-                    else:
-                        self.state.cur_pos = None
+                # pick_op chooses the next op, binds its argument, and returns a callable that
+                # traces and runs it. The driver just runs it -- all per-op behaviour lives in the
+                # op_* methods.
+                self.pick_op(nodes, trace, rnd, allow_writes)()
             if self.state.in_txn:
                 # Close any transaction left open at the end of the chain before verifying.
                 self._end_txn(nodes, commit=True)
