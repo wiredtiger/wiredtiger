@@ -109,25 +109,35 @@ reproducibility.
 
 ---
 
-## 6. Operation generation — long-lived positioned chains
+## 6. Operation generation — one declarative workload-shape config
 
-`pick_op` is the generator. The central bias: **keep the cursor positioned and chain on it** —
-when positioned it weights `next`/`prev` and positional `update`/`remove` heavily, and keeps
-position-resetting ops (`put`/`remove` by key, `reset`) rare. `advance`/`evict` punctuate chains
-with checkpoint activity. The driver (`run_sequence`) tracks `cur_pos` (the key both cursor pairs sit
-on) and `self.live` (the logical key→value map, used **only** to choose keys, never as the oracle).
+The whole operation mix is **one table** (`OPS`, a list of `Op` dataclass rows) plus two dials:
+- `P_BREAK` — when doing a *data* op, the chance it BREAKS the cursor position. Small ⇒ long
+  position-holding chains (the heart of the test). The central bias lives in this one number.
+- `P_TXN` — the chance of a transaction-control op when one is legal; **orthogonal** to `P_BREAK`
+  so a low break rate never starves transactions.
 
-`pick_op` is **transaction-aware** — the four modes:
+Each `Op` carries a `weight`, a `category` (`keep` holds position / `break` resets it / `txn`),
+and legality tags (`read_only_ok`, `needs_position`, `is_write`, `autocommit_only`, `in_txn_only`).
+`op_legal(op, mode, positioned)` is the single legality predicate; `_mode(allow_writes)` derives the
+mode (`read_only` / `autocommit` / `rw_txn` / `ro_txn`).
 
-| mode | emits |
+`pick_op` then: filter `OPS` to the legal ops for the current `(mode, positioned)`; with probability
+`P_TXN` pick a txn-control op (if any are legal), else pick the `break` bucket with probability
+`P_BREAK` and the `keep` bucket otherwise, and weighted-sample within it; bind the op's argument and
+return a **bound zero-arg callable** that traces the choice and runs the op. `run_sequence` just calls
+it. The legality the dials/tags encode (unchanged from the old per-mode branches):
+
+| mode | legal ops |
 |---|---|
-| read-only test (`allow_writes=False`) | reads + reset only |
-| autocommit (no txn open) | reads + writes + positional writes + advance/evict + `begin` |
-| explicit read-write txn (snapshot) | reads + writes + positional writes + `commit`/`rollback` |
-| explicit read-only txn (as-of-T, read-committed, read-uncommitted) | reads + `commit`/`rollback` |
+| read-only test (`allow_writes=False`) | reads + reset + full_scan |
+| autocommit (no txn open) | reads + writes + positional (if positioned) + advance/evict + begin + reset + full_scan |
+| explicit read-write txn (snapshot) | reads + writes + positional (if positioned) + commit/rollback + reset + full_scan |
+| explicit read-only txn (as-of-T / read-committed / read-uncommitted) | reads + commit/rollback + reset + full_scan |
 
-`begin` only in autocommit; `commit`/`rollback` only with a txn open; `advance`/`evict` only in
-autocommit (the checkpoint runs on the leader session, which must have no open txn).
+**Adding an op = one `Op` row + one `op_<name>` method.** The driver (`run_sequence`) and the
+op methods track `cur_pos` (the key both cursor pairs sit on) and `state.live` (the logical
+key→value map, used **only** to choose keys, never as the oracle).
 
 ---
 
@@ -166,11 +176,15 @@ ops. `assert_self_coverage` bundles these as a **self-check** run after the mult
 (a meta-assertion that the *test* did its job — a failure means a coverage regression, not a product
 bug). The checks:
 
-- `assert_merge_exercised` — the follower must read from **stable** ≥ 10% of follower reads (else
-  it's an ingest-only degenerate oracle). Reads the `layered_curs_*_{stable,ingest}` stats.
+- `assert_merge_exercised` — the follower must read from **stable** a minimum fraction of follower
+  reads (else it's an ingest-only degenerate oracle). Reads the `layered_curs_*_{stable,ingest}`
+  stats. **Floor is an interim 1%** — `TODO(merge-coverage)`: stable reads are inherently rare in
+  the random run (writes keep keys in ingest); the real fix is a forced-eviction scenario op + a
+  long run (~300k ops), then restore a meaningful floor.
 - `n_positional > 0` — positional update/remove chains actually ran.
 - `n_read_ts > 0`, `n_iso_rc > 0`, `n_iso_ru > 0` — as-of-past, read-committed, read-uncommitted
   txns all actually fired.
+- `n_full_scan > 0` — the weighted `full_scan` (verify-as-op) actually fired.
 
 ---
 
@@ -202,11 +216,13 @@ real bug, under review** (`findings/prepare_iterate_bug_candidate.md`).
 
 Grouped low-level → high-level. We'll walk these in roughly this order.
 
-**A. Primitives / state holders**
-- `sign` · `EventTrace` (`log`/`note`/`close`) · `Node` (`__init__`/`reset_all`/`close`)
+**A. Module-level primitives + the workload config**
+- `sign` · `EventTrace` (`log`/`note`/`close`) · `Node` (`__init__`/`reset_all`/`close`) ·
+  `State` (`__init__` global fields / `new_sequence` per-sequence fields) ·
+  the workload shape: `Op` dataclass · `OPS` table · `P_BREAK` / `P_TXN` dials · `op_legal`
 
 **B. Cluster & table setup**
-- `conn_config` · `setup_connections` · `make_nodes` · `new_value`
+- `conn_config` · `setup_connections` (builds `self.state = State()`) · `make_nodes` · `new_value`
 
 **C. Write protocol**
 - `_write_pair` · `mirror_write` · `_positional_pair` · `apply_positional` · `_end_txn`
@@ -215,7 +231,7 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 - `advance` · `drain_ingest`
 
 **E. Stats / anti-degeneracy (self-checks)**
-- `follower_read_split` · `assert_merge_exercised` · `assert_self_coverage`
+- `follower_read_split` · `assert_merge_exercised` (1% interim floor, TODO) · `assert_self_coverage`
 
 **F. Read application & the oracle**
 - `apply` · `compare_read` · `compare_search_near` · `fail_mismatch`
@@ -223,13 +239,18 @@ Grouped low-level → high-level. We'll walk these in roughly this order.
 **G. Verification**
 - `scan` · `verify`
 
-**H. Operation generation**
-- `pick_op` · `pick_search_key`
+**H. The operations (one method per op)**
+- `_do_read` (shared read+compare+cur_pos) · `op_search`/`op_search_near`/`op_next`/`op_prev`/
+  `op_reset` · `op_put`/`op_remove` · `op_pos_update`/`op_pos_remove` · `op_begin`/`op_commit`/
+  `op_rollback` · `op_advance`/`op_evict` · `op_full_scan`
 
-**I. The driver**
-- `open_trace` · `run_sequence`
+**I. Operation generation**
+- `_mode` · `pick_op` (config-driven; returns a bound callable) · `pick_search_key`
 
-**J. Tests (top level)** — only seed-driven, random-generated stress tests. A standalone /
+**J. The driver**
+- `open_trace` · `run_sequence` (loop = `pick_op(...)()`)
+
+**K. Tests (top level)** — only seed-driven, random-generated stress tests. A standalone /
 hand-built scenario is kept **only** if it pins a known layered-vs-regular *mismatch* (none do, so
 there are none).
 - `test_smoke` (fast canary: 1 seed × 80 ops) · `test_random` (10 seeds × 300 ops + `assert_self_coverage`)
