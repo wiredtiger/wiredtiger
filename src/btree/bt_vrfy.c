@@ -35,6 +35,10 @@ typedef struct {
     bool dump_pages;
     bool read_corrupt;
 
+    /* Whether to read from the history store, and if so, which checkpoint. */
+    bool skip_hs;
+    const char *hs_checkpoint_name;
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -501,6 +505,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             if (ckpt->ta.prepare)
                 addr_unpack.ta.prepare = 1;
             addr_unpack.raw = WT_CELL_ADDR_INT;
+
+            /* Only verify history store entries against the last checkpoint. */
+            vs->skip_hs = skip_hs || (ckpt + 1)->name != NULL;
+            vs->hs_checkpoint_name = ckpt->name;
 
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
@@ -1351,27 +1359,30 @@ static int
 __verify_key_hs(
   WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
 {
-/* FIXME-WT-10779 - Enable the history store validation. */
-#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    wt_timestamp_t older_start_ts, older_stop_ts;
+    WT_TIME_WINDOW *tw;
+    wt_timestamp_t older_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
+    int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
-     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
-     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
-     * in which case we initialize our newest with the max txn-id.
+     * Read the history store at the same checkpoint as the data store being verified, so the two
+     * views are consistent. The checkpoint name is communicated to the cursor open through the
+     * session.
      */
-    older_stop_ts = WT_TS_NONE;
+    WT_ASSERT(session, session->hs_checkpoint == NULL);
+    session->hs_checkpoint = vs->hs_checkpoint_name;
+    ret = __wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor);
+    session->hs_checkpoint = NULL;
+    WT_RET(ret);
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1382,20 +1393,29 @@ __verify_key_hs(
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
+
+        /* Stop when we have iterated past the current btree or key. */
+        if (hs_btree_id != btree->id)
+            break;
+        WT_ERR(__wt_compare(session, NULL, vs->tmp2, tmp1, &cmp));
+        if (cmp != 0)
+            break;
+
+        __wt_hs_upd_time_window(hs_cursor, &tw);
+
         /* Verify the newer record's start is later than the older record's stop. */
-        if (newer_start_ts < older_stop_ts) {
+        if (newer_start_ts != WT_TS_NONE && newer_start_ts < tw->stop_ts) {
             WT_ERR_MSG(session, WT_ERROR,
-              "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
+              "key %s has an overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
               __wt_buf_set_printable_format(
                 session, tmp1->data, tmp1->size, btree->key_format, false, vs->tmp2),
-              __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
+              __wt_timestamp_to_string(tw->stop_ts, ts_string[0]),
               __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }
 
         if (vs->stable_timestamp != WT_TS_NONE)
-            WT_ERR(
-              __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
+            WT_ERR(__verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, tw->stop_ts, vs));
 
         /*
          * Since we are iterating from newer to older, the current older record becomes the newer
@@ -1406,13 +1426,6 @@ __verify_key_hs(
 err:
     WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(tmp1);
-    WT_UNUSED(newer_start_ts);
-    WT_UNUSED(vs);
-    return (0);
-#endif
 }
 
 /*
@@ -1560,18 +1573,29 @@ __verify_page_content_leaf(
 
         /* Verify key-associated history-store entries. */
         if (page->type == WT_PAGE_ROW_LEAF) {
-            if (unpack.type != WT_CELL_VALUE && unpack.type != WT_CELL_VALUE_COPY &&
-              unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
+            /*
+             * Drive history store verification from key cells, not value cells. A globally visible
+             * zero-length value has no on-page value cell, so advancing the row index per value
+             * cell would pair a key with a later row's time window. Read each row's time window
+             * directly so the key and its window stay in step, including rows whose value cell was
+             * omitted.
+             */
+            if (unpack.type != WT_CELL_KEY && unpack.type != WT_CELL_KEY_OVFL)
                 continue;
 
-            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            WT_RET(__wt_row_leaf_key(session, page, rip, vs->tmp1, false));
+            __wti_read_row_time_window(session, page, rip, tw);
+            ++rip;
+            if (!vs->skip_hs)
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
             p = vs->tmp1->mem;
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+
+            if (!vs->skip_hs)
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
 
             recno += rle;
             vs->records_so_far += rle;
