@@ -35,10 +35,9 @@
 # entries and corrupt visibility (WT-16798).
 
 import unittest
-import time, wttest, wiredtiger
+import wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from sweep_util import sweep_util
-from wiredtiger import stat
 from wtscenario import make_scenarios
 
 @disagg_test_class

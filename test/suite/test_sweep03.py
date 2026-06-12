@@ -30,10 +30,8 @@
 # Test to confirm if setting close_idle_time to 0 does not sweep old handles
 #
 
-import time
 from suite_subprocess import suite_subprocess
 from sweep_util import sweep_util
-import wiredtiger
 from wiredtiger import stat
 from wtscenario import make_scenarios
 import wttest
