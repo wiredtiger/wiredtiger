@@ -246,7 +246,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
         /* Set the session flag before open_cursor so dhandle-open block reads stay quiet too. */
         if (quiet_corrupt)
-            F_SET((WT_SESSION_IMPL *)session, WT_SESSION_REPORT_CORRUPT_FILE);
+            F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_CORRUPT_FILE);
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             const char *errmsg = session->strerror(session, ret);
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri, errmsg);

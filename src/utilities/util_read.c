@@ -55,7 +55,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 
     /* Set the session flag before open_cursor so dhandle-open block reads stay quiet too. */
     if (quiet_corrupt)
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_REPORT_CORRUPT_FILE);
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_CORRUPT_FILE);
 
     /*
      * Open the object; free allocated memory immediately to simplify future error handling.
