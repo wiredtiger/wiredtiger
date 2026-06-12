@@ -42,7 +42,7 @@ class sweep_util(wttest.WiredTigerTestCase):
         message instead of spinning to a task-level timeout if the sweep server makes no progress.
         poll_interval controls how often the statistic is sampled. Returns the observed value.
         """
-        if session == None:
+        if session is None:
             session = self.session
         if baseline == None:
             with wttest.open_cursor(session, 'statistics:') as stat_cursor:
