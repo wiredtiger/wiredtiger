@@ -103,11 +103,24 @@ ones — that's fine; each run is still deterministic per seed. "Behaviour-prese
 > at the relevant code site (e.g. `merge-coverage`, `workload-tuning`) so nothing is lost; mirror
 > the important ones here.
 
-### S5. Wrap-up
-- [ ] S5.1 Update `layered_cursor_stress_test_architecture.md` (function map, the new config section,
-      the op-function list) + regenerate the op-loop `.dot` (now config-driven, callable dispatch).
-- [ ] S5.2 Full suite green; final independent review of the whole refactor.
-- [ ] S5.3 Update the plan/CLAUDE status.
+### S5. Wrap-up — **DONE**
+- [x] S5.1 Architecture doc + op-loop `.dot`/`.svg` synced to the config-driven, callable-dispatch
+      design (generation section, function map, guards, diagram).
+- [x] S5.2 Suite green; **final whole-refactor review: APPROVE WITH NITS**, all addressed
+      (robust no-arg default in pick_op so full_scan no longer gets a stray key; flagged dead
+      read-only plumbing; doc test-count fix). Per-step reviews: S1 APPROVE, S2 APPROVE, S3+S4
+      APPROVE-with-nits-addressed.
+- [x] S5.3 Plan + CLAUDE status updated.
+
+**Refactor COMPLETE.** Open follow-ups (TODOs in code + here):
+- `TODO(merge-coverage)` — forced-eviction scenario op + ~300k-op long run, then restore the
+  `assert_merge_exercised` floor from the 1% interim.
+- `TODO(read-only-mode)` — decide: strip the unreachable `allow_writes=False` / `read_only` path +
+  `read_only_ok` tags, or keep for a future read-only stress test. **(For Ivan.)**
+- `TODO(workload-tuning)` — revisit `P_BREAK`/`P_TXN` + weights once the long run lands.
+- `TODO(pin-reset)` — extend the as-of-T cursor reset to RC/RU read-only txns only if a Q2-style
+  divergence appears there.
+- `EventTrace.note()` is now unused (only `test_read_only` called it) — trivial dormant API.
 
 ---
 
