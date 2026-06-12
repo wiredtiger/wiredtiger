@@ -804,6 +804,7 @@ comparators
 comparep
 compat
 compilable
+concurrencytest
 cond
 conditionalize
 conf
@@ -1306,6 +1307,7 @@ mb
 mbll
 mbss
 mci
+md
 mdb
 mem
 memadvise
@@ -1524,6 +1526,7 @@ proc
 progname
 programmatically
 prout
+providerp
 proxied
 prunable
 ps

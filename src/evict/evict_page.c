@@ -121,6 +121,16 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
 
     /*
+     * Pages from cold collections must never enter the victim cache: caching cold data wastes
+     * capacity that should serve hot pages. Skipping here also avoids the compression and checksum
+     * work below.
+     */
+    if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
+        WT_STAT_CONN_INCR(session, block_cache_cold_not_cached);
+        return;
+    }
+
+    /*
      * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
      * path expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
      */
@@ -664,7 +674,10 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * to the page and rewrite it in memory.
          */
         if (mod->mod_multi_entries == 1) {
-            WT_ASSERT(session, closing == false);
+            WT_ASSERT(session, !closing);
+            /* A disaggregated page must have a retained image to re-instantiate from. */
+            WT_ASSERT(
+              session, ref->page->disagg_info == NULL || mod->mod_multi[0].disk_image != NULL);
             WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
@@ -691,6 +704,13 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             } else
                 WT_ASSERT(
                   session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
+            /*
+             * A disaggregated page discarded without a disk image must have its backing block
+             * behind the materialization frontier so it can be read back safely.
+             */
+            WT_ASSERT(session,
+              ref->page->disagg_info == NULL || closing ||
+                __wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max));
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
