@@ -3139,6 +3139,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (F_ISSET(r, WT_REC_IN_MEMORY) || F_ISSET(r->multi, WT_MULTI_SUPD_RESTORE)) {
             if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
+                /*
+                 * Restore the canonical in_persistent_store after the copy. The copy carries the
+                 * multi->block_meta value (false for skip-write or in-memory paths), but the
+                 * canonical meaning here is "is there a valid chain in the page log", which is true
+                 * whenever a prior write established a non-zero cumulative_size.
+                 */
                 page->disagg_info->block_meta.in_persistent_store =
                   r->multi->block_meta->cumulative_size > 0;
             }
@@ -3162,6 +3168,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->disk_image = NULL;
                 if (page->disagg_info != NULL) {
                     page->disagg_info->block_meta = *r->multi->block_meta;
+                    /*
+                     * Restore the canonical in_persistent_store after the copy. multi->block_meta
+                     * carries false for skip-write (set by __rec_copy_prev_addr), but the old chain
+                     * is still in the page log; cumulative_size > 0 is the correct proxy here.
+                     */
                     page->disagg_info->block_meta.in_persistent_store =
                       r->multi->block_meta->cumulative_size > 0;
                 }
@@ -3317,39 +3328,52 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
-        if (r->multi->block_meta->delta_count == 0) {
-            /*
-             * Full-image write replacing the same page_id. __wti_block_disagg_write decrements the
-             * old chain before the write, so in_persistent_store is always false here. Free the
-             * stale replacement cookie so the next wrapup WT_PM_REC_REPLACE path takes the
-             * block_cookie==NULL branch.
-             */
-            WT_ASSERT(session, !page->disagg_info->block_meta.in_persistent_store);
-            __wt_free(session, mod->mod_replace.block_cookie);
-            mod->mod_replace.block_cookie_size = 0;
-            __wt_free(session, mod->mod_disk_image);
-        } else if (r->multi->block_meta->delta_count > 0 && mod->rec_result == WT_PM_REC_REPLACE &&
-          page->disagg_info->block_meta.in_persistent_store) {
-            /*
-             * Delta write: page_discard freed the new block using cookie.size == cumulative_size +
-             * delta_size, which already subtracted the entire old chain from block_disagg->size.
-             * Clear in_persistent_store and free the stale cookie so the next wrapup takes the
-             * block_cookie==NULL branch via WT_PM_REC_REPLACE and does not subtract the old chain a
-             * second time.
-             */
-            page->disagg_info->block_meta.in_persistent_store = false;
-            __wt_free(session, mod->mod_replace.block_cookie);
-            mod->mod_replace.block_cookie_size = 0;
-        }
-        page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-        WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
         /*
-         * The page_id above was just invalidated. ref->addr still carries a cookie with that
-         * now-dead page_id; a later wrapup that tries to free it would produce a second discard and
-         * fail. Clear the stale reference so the next reconciliation's wrapup sees no address to
-         * free.
+         * Only invalidate the page_id when the write actually reached the page log
+         * (in_persistent_store is true on multi->block_meta). If the write failed before plh_put,
+         * the old chain is still valid; leaving page_id intact lets the next reconciliation
+         * reference the old chain via old_block_meta and subtract it cleanly on success.
+         * Invalidating page_id in that case would force old_block_meta to NULL on the retry,
+         * permanently leaking the old chain's cumulative_size from block_disagg->size.
          */
-        __wt_ref_addr_free(session, r->ref);
+        if (r->multi->block_meta->in_persistent_store) {
+            if (r->multi->block_meta->delta_count == 0) {
+                /*
+                 * Full-image write replacing the same page_id. __wti_block_disagg_write decremented
+                 * the old chain via old_block_meta (in_persistent_store is now false on
+                 * page->disagg_info->block_meta). Free the stale replacement cookie so the next
+                 * wrapup WT_PM_REC_REPLACE path takes the block_cookie==NULL branch.
+                 */
+                /* __wti_block_disagg_write already called decrease_size(old_block_meta). */
+                WT_ASSERT(session, !page->disagg_info->block_meta.in_persistent_store);
+                __wt_free(session, mod->mod_replace.block_cookie);
+                mod->mod_replace.block_cookie_size = 0;
+                __wt_free(session, mod->mod_disk_image);
+            } else if (r->multi->block_meta->delta_count > 0 &&
+              mod->rec_result == WT_PM_REC_REPLACE &&
+              page->disagg_info->block_meta.in_persistent_store) {
+                /*
+                 * Delta write: page_discard freed the new block using cookie.size ==
+                 * cumulative_size + delta_size, which already subtracted the entire old chain from
+                 * block_disagg->size. Clear in_persistent_store and free the stale cookie so the
+                 * next wrapup takes the block_cookie==NULL branch via WT_PM_REC_REPLACE and does
+                 * not subtract the old chain a second time.
+                 */
+                page->disagg_info->block_meta.in_persistent_store = false;
+                __wt_free(session, mod->mod_replace.block_cookie);
+                mod->mod_replace.block_cookie_size = 0;
+            }
+            page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+            WT_STAT_CONN_DSRC_INCR(
+              session, rec_free_page_id_due_to_failed_replacement_reconciliation);
+            /*
+             * The page_id above was just invalidated. ref->addr still carries a cookie with that
+             * now-dead page_id; a later wrapup that tries to free it would produce a second discard
+             * and fail. Clear the stale reference so the next reconciliation's wrapup sees no
+             * address to free.
+             */
+            __wt_ref_addr_free(session, r->ref);
+        }
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));

@@ -183,6 +183,9 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         F_SET(&put_args, WT_PAGE_LOG_COLD);
 
     /* Write the block. */
+    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT, 10000)) {
+        return (EBUSY);
+    }
     WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
@@ -226,6 +229,7 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_DECL_RET;
     uint32_t checksum, size;
     uint8_t *endp;
 
@@ -244,18 +248,25 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     __wt_page_header_byteswap(buf->mem);
 
     /*
-     * When replacing an existing chain (same page_id reused), subtract the old chain before
-     * writing. This runs unconditionally on both success and failure of the write, so the old chain
-     * is always removed from the running total whenever old_block_meta is set.
+     * On write failure block_meta has not entered the persistent store, so clear
+     * in_persistent_store regardless of what the caller set before the call.
+     */
+    if ((ret = __wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
+           page_image_size, &size, &checksum, data_checksum, checkpoint_io)) != 0) {
+        block_meta->in_persistent_store = false;
+        return (ret);
+    }
+
+    /*
+     * Write succeeded. If this is a full-image write replacing an existing chain (same page_id
+     * reused), subtract the old chain now. The caller passes the canonical page block_meta as
+     * old_block_meta so the flag is cleared here, preventing any duplicate subtraction in wrapup.
      */
     if (old_block_meta != NULL) {
         WT_ASSERT(session, old_block_meta->in_persistent_store);
         __wti_block_disagg_decrease_size(
           session, block_disagg, old_block_meta, old_block_meta->cumulative_size);
     }
-
-    WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
-      page_image_size, &size, &checksum, data_checksum, checkpoint_io));
 
     /* Update the running total of bytes. */
     WT_ASSERT(session, !block_meta->in_persistent_store);
