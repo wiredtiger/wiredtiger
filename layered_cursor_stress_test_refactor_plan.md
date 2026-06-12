@@ -104,9 +104,12 @@ ones — that's fine; each run is still deterministic per seed. "Behaviour-prese
 
 ---
 
-## Open decisions for Ivan
-- **D1 (S0.3):** which config representation (the three proposals).
-- **D2 (S0.4):** verify trade-off — weighted `full_scan` only, or also a final end-of-sequence
-  verify. (Recommendation: keep one final verify + the weighted in-chain full_scan.)
-- **D3:** `State` scope — model-only vs model + counters + timestamp bookkeeping. (Recommendation:
-  one `State` holding both, since ops mutate both.)
+## Decisions (resolved 2026-06-11)
+- **D1 (config):** **Hybrid — top-level `P_BREAK` dial selecting keep-vs-break, over a flat
+  op-table whose rows carry legality tags.** Combines proposal #1's visible central dial with
+  proposal #3's declarative/extensible tagged rows. Adding an op = one row + one `op_*` function.
+- **D2 (verify):** **Weighted `full_scan` op + keep one final end-of-sequence `verify`** as a
+  safety net (the always-on oracle remains per-op `compare_read`).
+- **D3 (State scope):** **One `State` class** holding the model (`live`, `cur_pos`, txn flags) AND
+  the run counters/timestamps. Connection-global fields persist across sequences; a
+  `new_sequence()` resets the per-sequence fields.

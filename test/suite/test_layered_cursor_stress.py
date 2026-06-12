@@ -94,6 +94,33 @@ class Node:
         self.lay_c.close()
         self.ref_c.close()
 
+class State:
+    # The model the generator reasons about. Connection-global fields (timestamps, coverage
+    # counters) persist across sequences in a multi-seed run; the per-sequence fields (the
+    # expected table contents, cursor position, and open-transaction flags) are reset by
+    # new_sequence() for each fresh set of tables. None of this is the oracle -- it only drives
+    # operation generation and the expected next-step decisions.
+    def __init__(self):
+        self.ts = 0              # monotonic commit/stable timestamp
+        self.wseq = 0            # monotonic write counter, for unique values
+        self.dirty = False       # writes committed since the last checkpoint advance
+        self.oldest_ts = 0       # current oldest_timestamp; floor for legal read_timestamps (C2)
+        self.last_advance_ts = 0  # self.ts at the previous advance; oldest lags to here
+        self.n_positional = 0    # positional update/remove ops applied (long-lived-chain guard)
+        self.n_read_ts = 0       # as-of-past read transactions opened (read_timestamp guard)
+        self.n_iso_rc = 0        # read-committed transactions opened (isolation guard, C3)
+        self.n_iso_ru = 0        # read-uncommitted transactions opened (isolation guard, C3)
+        self.new_sequence()
+
+    def new_sequence(self):
+        self.live = {}           # logical key->value, for operation generation only
+        self.cur_pos = None      # key both cursor pairs are positioned on (None = unpositioned)
+        self.in_txn = False      # an explicit transaction is open on both nodes' sessions
+        self.txn_wrote = False   # the open txn has performed at least one write
+        self.txn_read_ts = None  # if set, the open txn is a read-only as-of-T (read_timestamp)
+        self.txn_readonly = False  # open txn forbids writes (as-of-T, read-committed, read-uncommitted)
+        self.live_snapshot = None  # self.live as of begin, restored on rollback
+
 @disagg_test_class
 class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=1GB,statistics=(all),' \
@@ -115,15 +142,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             'follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
-        self.ts = 0       # monotonic commit/stable timestamp
-        self.wseq = 0     # monotonic write counter, for unique values
-        self.dirty = False  # writes committed since the last checkpoint advance
-        self.n_positional = 0  # positional update/remove ops applied (long-lived-chain guard)
-        self.last_advance_ts = 0  # self.ts at the previous advance; oldest lags to here
-        self.oldest_ts = 0   # current oldest_timestamp; floor for legal read_timestamps (C2)
-        self.n_read_ts = 0   # as-of-past read transactions opened (read_timestamp guard)
-        self.n_iso_rc = 0    # read-committed transactions opened (isolation guard, C3)
-        self.n_iso_ru = 0    # read-uncommitted transactions opened (isolation guard, C3)
+        # All generation/model/timestamp/counter state lives in one State object. Its
+        # connection-global fields (timestamps, counters) persist across sequences; new_sequence()
+        # resets the per-sequence fields (live, cur_pos, txn flags).
+        self.state = State()
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
@@ -136,21 +158,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         for s in (self.session, self.session_follow):
             s.create(lay, cfg)
             s.create(ref, cfg)
-        self.live = {}     # logical key->value, for operation generation only (not the oracle)
-        self.cur_pos = None  # key both cursor pairs are positioned on (None = unpositioned)
-        self.in_txn = False       # an explicit transaction is open on both nodes' sessions
-        self.txn_wrote = False    # the open txn has performed at least one write
-        self.txn_read_ts = None   # if set, the open txn is a read-only as-of-T (read_timestamp)
-        self.txn_readonly = False  # open txn forbids writes (as-of-T, read-committed, read-uncommitted)
-        self.live_snapshot = None  # self.live as of begin, restored on rollback
+        self.state.new_sequence()   # reset per-sequence model state (live, cur_pos, txn flags)
         return [Node(self.conn, self.session, lay, ref),
                 Node(self.conn_follow, self.session_follow, lay, ref)]
 
     # --- write protocol --------------------------------------------------
 
     def new_value(self, key):
-        self.wseq += 1
-        return 'v%d.%d' % (key, self.wseq)
+        self.state.wseq += 1
+        return 'v%d.%d' % (key, self.state.wseq)
 
     def _write_pair(self, n, key, value):
         # Bare write (no txn management) on node n's layered + reference cursors; compare codes.
@@ -169,17 +185,17 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # value=None means remove. On both connections (leader -> stable, follower -> ingest)
         # and the reference table. Inside an explicit transaction the write joins the open txn
         # (committed later by the commit op); otherwise it runs in its own timestamped txn.
-        if self.in_txn:
+        if self.state.in_txn:
             for n in nodes:
                 self._write_pair(n, key, value)
-            self.txn_wrote = True
+            self.state.txn_wrote = True
         else:
-            self.ts += 1
+            self.state.ts += 1
             for n in nodes:
                 n.session.begin_transaction()
                 self._write_pair(n, key, value)
-                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts))
-            self.dirty = True
+                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
+            self.state.dirty = True
 
     def _positional_pair(self, n, kind, value, key):
         if kind == 'pos_update':
@@ -192,18 +208,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                          % (kind, rl, rr, key))
 
     def apply_positional(self, nodes, kind, value):
-        # Positional update/remove on the cursor's current key (self.cur_pos, which must be live).
+        # Positional update/remove on the cursor's current key (self.state.cur_pos, which must be live).
         # Inside an explicit txn the positioning read and this write share the transaction, so
         # the cursor is genuinely positioned (KEY_INT|VALUE_INT) and we write DIRECTLY -- the
         # real iterate-and-delete-in-one-txn. In autocommit the positioning value is not valid
         # across the implicit txn boundary (WT-17796), so we re-search to re-establish position.
-        key = self.cur_pos
-        if self.in_txn:
+        key = self.state.cur_pos
+        if self.state.in_txn:
             for n in nodes:
                 self._positional_pair(n, kind, value, key)
-            self.txn_wrote = True
+            self.state.txn_wrote = True
         else:
-            self.ts += 1
+            self.state.ts += 1
             for n in nodes:
                 n.session.begin_transaction()
                 n.lay_c.set_key(key); rl_s = n.lay_c.search()
@@ -211,37 +227,37 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self.assertEqual((rl_s, rr_s), (0, 0),
                     'positional %s re-search failed layered=%r reference=%r key=%r' % (kind, rl_s, rr_s, key))
                 self._positional_pair(n, kind, value, key)
-                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts))
-            self.dirty = True
-        self.n_positional += 1
+                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
+            self.state.dirty = True
+        self.state.n_positional += 1
 
     def _end_txn(self, nodes, commit):
         # Close the explicit transaction open on both nodes' sessions.
         if commit:
-            if self.txn_wrote:
-                self.ts += 1
-                cts = 'commit_timestamp=' + self.timestamp_str(self.ts)
+            if self.state.txn_wrote:
+                self.state.ts += 1
+                cts = 'commit_timestamp=' + self.timestamp_str(self.state.ts)
                 for n in nodes:
                     n.session.commit_transaction(cts)
-                self.dirty = True
+                self.state.dirty = True
             else:
                 for n in nodes:
                     n.session.commit_transaction()
             # A successful commit keeps cursors positioned (cur_pos survives the txn switch),
             # except for an as-of-T read txn: that position is in a historical view and must not
             # anchor a write or chain in the latest-state autocommit world that follows.
-            if self.txn_read_ts is not None:
-                self.cur_pos = None
+            if self.state.txn_read_ts is not None:
+                self.state.cur_pos = None
         else:
             for n in nodes:
                 n.session.rollback_transaction()
-            self.live = self.live_snapshot   # undo the txn's logical writes
-            self.cur_pos = None              # rollback resets the session's cursors
-        self.in_txn = False
-        self.txn_wrote = False
-        self.txn_read_ts = None
-        self.txn_readonly = False
-        self.live_snapshot = None            # consumed; the next begin takes a fresh snapshot
+            self.state.live = self.state.live_snapshot   # undo the txn's logical writes
+            self.state.cur_pos = None              # rollback resets the session's cursors
+        self.state.in_txn = False
+        self.state.txn_wrote = False
+        self.state.txn_read_ts = None
+        self.state.txn_readonly = False
+        self.state.live_snapshot = None            # consumed; the next begin takes a fresh snapshot
 
     def advance(self):
         # Fold the leader's stable into the follower's stable via a new checkpoint. Skip if
@@ -251,16 +267,16 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # [oldest, latest] stays open for as-of-past reads (read_timestamp, C2). Pinning
         # oldest == stable would forbid reading anything below the latest commit. oldest is
         # monotonic (last_advance_ts only grows) and < stable (writes happened since).
-        if not self.dirty:
+        if not self.state.dirty:
             return
-        oldest = max(1, self.last_advance_ts)
+        oldest = max(1, self.state.last_advance_ts)
         self.conn.set_timestamp('oldest_timestamp=%s,stable_timestamp=%s'
-                                % (self.timestamp_str(oldest), self.timestamp_str(self.ts)))
-        self.oldest_ts = oldest
-        self.last_advance_ts = self.ts
+                                % (self.timestamp_str(oldest), self.timestamp_str(self.state.ts)))
+        self.state.oldest_ts = oldest
+        self.state.last_advance_ts = self.state.ts
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
-        self.dirty = False
+        self.state.dirty = False
 
     def drain_ingest(self, node):
         # Evict the follower's ingest content so already-checkpointed keys fall through to
@@ -271,7 +287,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         ingest_uri = 'file:' + node.lay_uri[len('layered:'):] + '.wt_ingest'
         ec = node.session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
         try:
-            for k in list(self.live):
+            for k in list(self.state.live):
                 ec.set_key(k)
                 if ec.search() == 0:
                     ec.reset()
@@ -311,10 +327,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # happened. A failure here means the TEST stopped covering a dimension (it is no longer
         # doing its job), not that the product is wrong.
         self.assert_merge_exercised()
-        self.assertGreater(self.n_positional, 0, 'no positional update/remove ops were exercised')
-        self.assertGreater(self.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
-        self.assertGreater(self.n_iso_rc, 0, 'no read-committed txns were exercised')
-        self.assertGreater(self.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
+        self.assertGreater(self.state.n_positional, 0, 'no positional update/remove ops were exercised')
+        self.assertGreater(self.state.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
+        self.assertGreater(self.state.n_iso_rc, 0, 'no read-committed txns were exercised')
+        self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
 
     # --- read application + comparison -----------------------------------
 
@@ -421,22 +437,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # open txn; advance/evict (checkpoint lifecycle) only in autocommit. Inside a txn,
         # positional writes are the genuine same-transaction iterate-and-delete (apply_positional).
         # A read-only txn (as-of-T snapshot, or read-committed / read-uncommitted, which both
-        # reject writes -- txn_inline.h ~2112) emits reads only (self.txn_readonly).
-        positioned = self.cur_pos is not None and self.cur_pos in self.live
+        # reject writes -- txn_inline.h ~2112) emits reads only (self.state.txn_readonly).
+        positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.live
         if not allow_writes:
             kinds   = ['search', 'search_near', 'next', 'prev', 'reset']
             weights = [15, 12, 20, 20, 6]
-        elif self.in_txn and self.txn_readonly:
+        elif self.state.in_txn and self.state.txn_readonly:
             # Read-only txn: reads chain across the txn's view, ended by commit/rollback. Under
-            # an as-of-T snapshot cur_pos may sit on a key absent from current self.live (it was
+            # an as-of-T snapshot cur_pos may sit on a key absent from current self.state.live (it was
             # live at T), so weight next/prev on raw positioned-ness, not live membership.
-            if self.cur_pos is not None:
+            if self.state.cur_pos is not None:
                 kinds   = ['next', 'prev', 'search', 'search_near', 'reset', 'commit', 'rollback']
                 weights = [24, 24, 8, 8, 2, 16, 6]
             else:
                 kinds   = ['search', 'search_near', 'next', 'prev', 'reset', 'commit', 'rollback']
                 weights = [14, 11, 20, 20, 2, 16, 6]
-        elif self.in_txn:
+        elif self.state.in_txn:
             if positioned:
                 kinds   = ['next', 'prev', 'pos_update', 'pos_remove', 'search', 'search_near',
                            'put', 'remove', 'reset', 'commit', 'rollback']
@@ -458,7 +474,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if kind == 'put':
             return ('put', rnd.choice(self.POOL))
         if kind == 'remove':
-            return ('remove', rnd.choice(list(self.live))) if self.live else ('reset', None)
+            return ('remove', rnd.choice(list(self.state.live))) if self.state.live else ('reset', None)
         if kind == 'begin':
             # Pick an isolation level. Only snapshot supports writes (read-committed and
             # read-uncommitted reject writes -- txn_inline.h ~2112), so those two are read-only.
@@ -469,9 +485,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # historical view. read_timestamp requires snapshot isolation. The `oldest_ts>=1`
             # gate is load-bearing: it keeps randint off timestamp 0 (an invalid read_timestamp).
             read_ts = None
-            if iso == 'snapshot' and self.oldest_ts >= 1 and self.ts > self.oldest_ts \
+            if iso == 'snapshot' and self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts \
                     and rnd.random() < 0.5:
-                read_ts = rnd.randint(self.oldest_ts, self.ts)
+                read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
             return ('begin', (read_ts, iso))
         if kind in ('evict', 'commit', 'rollback',
                     'advance', 'next', 'prev', 'reset', 'pos_update', 'pos_remove'):
@@ -480,8 +496,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def pick_search_key(self, rnd):
         r = rnd.random()
-        if self.live and r < 0.5:
-            return rnd.choice(list(self.live))
+        if self.state.live and r < 0.5:
+            return rnd.choice(list(self.state.live))
         if r < 0.8:
             return rnd.choice(self.POOL)
         return rnd.choice(self.POOL) + 5   # off-grid gap, always absent
@@ -498,7 +514,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         trace = self.open_trace(seed, tag)
         nodes = self.make_nodes(tag)
         leader, follower = nodes
-        self.cur_pos = None
+        self.state.cur_pos = None
         try:
             for _ in range(n_ops):
                 op = self.pick_op(rnd, allow_writes)
@@ -507,20 +523,20 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 if kind == 'put':
                     # set_key-based write: clears the cursor position.
                     v = self.new_value(op[1]); self.mirror_write(nodes, op[1], v)
-                    self.live[op[1]] = v
-                    self.cur_pos = None
+                    self.state.live[op[1]] = v
+                    self.state.cur_pos = None
                 elif kind == 'remove':
-                    self.mirror_write(nodes, op[1], None); self.live.pop(op[1], None)
-                    self.cur_pos = None
+                    self.mirror_write(nodes, op[1], None); self.state.live.pop(op[1], None)
+                    self.state.cur_pos = None
                 elif kind == 'pos_update':
-                    # Positional write: keeps the cursor on self.cur_pos.
-                    v = self.new_value(self.cur_pos)
+                    # Positional write: keeps the cursor on self.state.cur_pos.
+                    v = self.new_value(self.state.cur_pos)
                     self.apply_positional(nodes, 'pos_update', v)
-                    self.live[self.cur_pos] = v
+                    self.state.live[self.state.cur_pos] = v
                 elif kind == 'pos_remove':
                     # Removes the current key; the cursor stays on the (now deleted) slot.
                     self.apply_positional(nodes, 'pos_remove', None)
-                    self.live.pop(self.cur_pos, None)
+                    self.state.live.pop(self.state.cur_pos, None)
                 elif kind == 'begin':
                     # Open one explicit transaction per node. op[1] = (read_ts, isolation):
                     #  - snapshot + read_ts None  -> read-write txn (writes join it, commit at the
@@ -539,24 +555,24 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     cfg = ','.join(cfg_parts)
                     for n in nodes:
                         n.session.begin_transaction(cfg)
-                    self.in_txn = True
-                    self.txn_wrote = False
-                    self.txn_read_ts = read_ts
-                    self.txn_readonly = read_ts is not None or iso != 'snapshot'
+                    self.state.in_txn = True
+                    self.state.txn_wrote = False
+                    self.state.txn_read_ts = read_ts
+                    self.state.txn_readonly = read_ts is not None or iso != 'snapshot'
                     if read_ts is not None:
-                        self.n_read_ts += 1
+                        self.state.n_read_ts += 1
                     if iso == 'read-committed':
-                        self.n_iso_rc += 1
+                        self.state.n_iso_rc += 1
                     elif iso == 'read-uncommitted':
-                        self.n_iso_ru += 1
+                        self.state.n_iso_ru += 1
                     # Snapshot for rollback. A read-only txn never writes, so the restore is a
                     # no-op for it, but keep it unconditional so rollback has a value to restore.
-                    self.live_snapshot = dict(self.live)
+                    self.state.live_snapshot = dict(self.state.live)
                     # The cursor stays physically positioned so next/prev keep iterating across
                     # the switch, but a positional WRITE must be re-established by a read inside
                     # this txn -- a positional write off a pre-txn position is the cross-txn
                     # positioned-remove (WT-17796). Clear the generator's position to enforce that.
-                    self.cur_pos = None
+                    self.state.cur_pos = None
                 elif kind == 'commit':
                     self._end_txn(nodes, commit=True)
                 elif kind == 'rollback':
@@ -568,7 +584,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     self.advance()
                     if kind == 'evict':
                         self.drain_ingest(follower)
-                    self.cur_pos = None
+                    self.state.cur_pos = None
                 else:   # read op: track the resulting position for the next chain step
                     lead, foll = (self.compare_read(op, nodes[0], trace),
                                   self.compare_read(op, nodes[1], trace))
@@ -577,15 +593,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     # follower ended on the same key: search_near may legitimately land them on
                     # different (both valid) neighbours, so don't anchor a positional write there.
                     if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
-                        self.cur_pos = lead[1]
+                        self.state.cur_pos = lead[1]
                     else:
-                        self.cur_pos = None
-            if self.in_txn:
+                        self.state.cur_pos = None
+            if self.state.in_txn:
                 # Close any transaction left open at the end of the chain before verifying.
                 self._end_txn(nodes, commit=True)
             self.verify(nodes, trace)
         finally:
-            if self.in_txn:
+            if self.state.in_txn:
                 # A failure fired mid-transaction. Roll it back so teardown is clean, but never
                 # let this mask the original error.
                 for n in nodes:
@@ -593,8 +609,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                         n.session.rollback_transaction()
                     except Exception:
                         pass
-                self.in_txn = self.txn_wrote = self.txn_readonly = False
-                self.txn_read_ts = None
+                self.state.in_txn = self.state.txn_wrote = self.state.txn_readonly = False
+                self.state.txn_read_ts = None
             for n in nodes:
                 n.close()
             trace.close()
