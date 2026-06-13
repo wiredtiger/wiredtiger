@@ -620,12 +620,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
             k=1)[0]
 
-        # read_timestamp needs a past window [oldest, latest]; without one it falls back to snapshot.
-        # The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
+        # READ_TIMESTAMP reads as-of-past, so it needs a real window below the latest commit:
+        #   oldest_ts >= 1 -- a read_timestamp must be >= 1 (0 means "no timestamp" in WT), and
+        #     oldest_ts stays 0 until the first advance() establishes the oldest_timestamp.
+        #   ts > oldest_ts -- there must be more than one readable point. ts is always >= oldest_ts
+        #     (oldest lags stable), so this only rules out ts == oldest_ts, where the sole readable
+        #     timestamp is the latest -- not an as-of-PAST read.
+        # Missing/degenerate window -> fall back to a plain snapshot txn. (We can't just pin
+        # oldest_ts = 1: oldest must advance so the ingest drain can prune below it, which is what
+        # drives the follower to read from stable.)
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
-            # Q: Why do we need to check for self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts here? ts cannot be < than oldest_ts, right? then if ts == oldest_ts we will always scan this last ts avaiable? and even if oldest_ts == 0 - does it mean that we haven't picked up a checkpoint yet? Can we just scan ts = 0 then? Or would it be simpler to assign oldest_ts = 1 by default?
-            if self.state.oldest_ts >= 1 and self.state.ts > self.state.oldest_ts:
+            if self.state.ts > self.state.oldest_ts >= 1:
                 read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
             else:
                 mode = Txn.SNAPSHOT
