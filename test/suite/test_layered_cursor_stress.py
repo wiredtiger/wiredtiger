@@ -65,7 +65,7 @@ def write_allowed(txn):
 # Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, never
 # dispatched by string -- with its weight and legality tags. A test builds a Weights and passes it
 # in; _build_ops copies each named field onto the Op that uses it (Op(self.op_next, weights.next)),
-# so pick_op samples plain Op rows with no lookup. Adding an op = one op_<name> method + one Op row +
+# so run_op samples plain Op rows with no lookup. Adding an op = one op_<name> method + one Op row +
 # one Weights field. TxnBeginWeights is the one sub-distribution not in the top-level pool: op_begin
 # reads it directly to pick the transaction flavour it opens.
 
@@ -219,7 +219,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def _build_ops(self, weights):
         # One Op row per op, pairing the op method (the dispatch identity) with its legality tags and
-        # the weight copied from the Weights field it belongs to, so pick_op samples plain rows.
+        # the weight copied from the Weights field it belongs to, so run_op samples plain rows.
         return [
             Op(self.op_next,        weights.next),
             Op(self.op_prev,        weights.prev),
@@ -706,13 +706,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         assert rows == methods, 'op table != op_* methods: %r' % sorted(rows ^ methods)
         assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
 
-    # Q: Can we rename pick_op() to run_op() and remove the need to run the selected op on the outer level?
-    def pick_op(self, nodes, rnd, trace):
-        # Sample one legal op by its weight and return its method bound to context. next/prev
-        # dominate the weights, so chains stay long.
+    def run_op(self, nodes, rnd, trace):
+        # Pick one legal op by its weight and run it. next/prev dominate the weights, so chains
+        # stay long. Each op_* method does its own arg generation, tracing, and state update.
         cands = [op for op in self.ops if self._legal(op)]
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
-        return lambda: op.fn(nodes, rnd, trace)
+        op.fn(nodes, rnd, trace)
 
     def pick_search_key(self, rnd):
         # Existing key vs missing key, weighted by the search-key config (op_search/op_search_near).
@@ -737,7 +736,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         nodes = self.make_nodes(tag)
         try:
             for _ in range(n_ops):
-                self.pick_op(nodes, rnd, trace)()   # pick_op returns a callable bound to its context
+                self.run_op(nodes, rnd, trace)
             if self.state.txn is not Txn.NO:
                 self._end_txn(nodes, commit=True)   # close any txn left open before verifying
             self.verify(nodes, trace)
