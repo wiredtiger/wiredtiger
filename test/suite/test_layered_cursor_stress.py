@@ -173,7 +173,6 @@ class State:
     def __init__(self):
         self.ts = 0              # monotonic commit/stable timestamp
         self.wseq = 0            # monotonic write counter, for unique values
-        self.dirty = False       # writes committed since the last checkpoint advance
         self.oldest_ts = 0       # current oldest_timestamp; floor for legal read_timestamps (C2)
         self.last_advance_ts = 0  # self.ts at the previous advance; oldest lags to here
         self.n_positional = 0    # positional update/remove ops applied (long-lived-chain guard)
@@ -345,7 +344,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 n.session.begin_transaction()
                 self._write_pair(n, key, value)
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
-            self.state.dirty = True
 
     def _positional(self, nodes, do):
         # Positional update/remove off the cursor's held position.
@@ -367,7 +365,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                                  % (ret_dsc, ret_asc, key))
                 notfound = notfound or ret_dsc == wiredtiger.WT_NOTFOUND
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
-            self.state.dirty = True
         if notfound:
             self.state.cur_pos = None
         self.state.n_positional += 1
@@ -380,7 +377,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 cts = 'commit_timestamp=' + self.timestamp_str(self.state.ts)
                 for n in nodes:
                     n.session.commit_transaction(cts)
-                self.state.dirty = True
             else:
                 for n in nodes:
                     n.session.commit_transaction()
@@ -416,12 +412,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.py_table_snapshot = None
 
     def advance(self):
-        # Fold the leader's stable into the follower's via a new checkpoint; skip if nothing changed.
-        # stable moves to the latest commit, but oldest LAGS one advance behind so the window
-        # [oldest, latest] stays open for as-of-past reads (pinning oldest == stable would forbid
-        # reading below the latest commit). oldest is monotonic and < stable.
-        # Q: what's the problem with checkpointing even if nothing has changed? it might be interesting from the testing point of view.
-        if not self.state.dirty:
+        # Fold the leader's stable into the follower's via a new checkpoint. stable moves to the
+        # latest commit, but oldest LAGS one advance behind so the window [oldest, latest] stays open
+        # for as-of-past reads (pinning oldest == stable would forbid reading below the latest commit).
+        # oldest is monotonic and < stable. We deliberately allow an advance with NO new data since the
+        # last one -- it exercises the follower re-picking the same checkpoint (the ignored 'same
+        # checkpoint again' warning); it just collapses the read-ts window until the next write. Only
+        # skip when nothing has EVER been written (ts == 0): then stable would be 0 while oldest is
+        # forced to >= 1, which WT rejects.
+        if self.state.ts == 0:
             return
         oldest = max(1, self.state.last_advance_ts)
         self.conn.set_timestamp('oldest_timestamp=%s,stable_timestamp=%s'
@@ -430,7 +429,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.last_advance_ts = self.state.ts
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
-        self.state.dirty = False
 
     def force_evict(self, node):
         # Force-evict the follower's ingest leaf so checkpointed keys fall through to stable on later
