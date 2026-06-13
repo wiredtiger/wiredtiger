@@ -68,9 +68,12 @@ def write_allowed(txn):
 # so pick_op samples plain Op rows with no lookup. Adding an op = one op_<name> method + one Op row +
 # one Weights field. TxnBeginWeights is the one sub-distribution not in the top-level pool: op_begin
 # reads it directly to pick the transaction flavour it opens.
+
 # TODO(workload-tuning): rough first pass (reads dominate; breaks/txn/scenarios rare). Once the long
 # run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
 # and decide whether a derived break-frequency knob should return.
+# TODO: add modify op() are there any more ops missed?
+# TODO: add scenario for bulk insert to grow tables significantly.
 
 @dataclass(frozen=True)
 class TxnBeginWeights:
@@ -117,7 +120,7 @@ class Weights:
 class Op:
     fn: object                    # the op method, called as fn(nodes, rnd, trace); the dispatch identity
     weight: int                   # relative frequency among the legal ops at each step
-    needs_position: bool = False  # cursor must be positioned on a live key (positional writes)
+    needs_position: bool = False  # cursor must be positioned (positional writes)
     needs_live: bool = False      # at least one live key must exist (remove by key)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
     autocommit_only: bool = False  # only with no open txn (begin / advance / evict)
@@ -292,31 +295,28 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.dirty = True
 
     def _positional(self, nodes, do):
-        # Run a positional update/remove (do(cursor) -> code) on the cursor's current key (cur_pos,
-        # which must be live). Inside an explicit txn the positioning read and this write share the
-        # transaction, so the cursor is genuinely positioned and we write DIRECTLY -- the real
-        # iterate-and-delete-in-one-txn. In autocommit the position is not valid across the implicit
-        # txn boundary (WT-17796), so we re-search to re-establish it.
+        # Positional update/remove off the cursor's held position.
         key = self.state.cur_pos
+        notfound = False
         if self.state.txn is not Txn.NO:
             for n in nodes:
                 ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
                 self.assertEqual(ret_dsc, ret_asc, 'positional result differs layered=%r reference=%r at key=%r'
                                  % (ret_dsc, ret_asc, key))
+                notfound = notfound or ret_dsc == wiredtiger.WT_NOTFOUND
             self.state.txn_wrote = True
         else:
             self.state.ts += 1
             for n in nodes:
                 n.session.begin_transaction()
-                n.dsc_c.set_key(key); search_dsc = n.dsc_c.search()
-                n.asc_c.set_key(key); search_asc = n.asc_c.search()
-                self.assertEqual((search_dsc, search_asc), (0, 0),
-                    'positional re-search failed layered=%r reference=%r key=%r' % (search_dsc, search_asc, key))
                 ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
                 self.assertEqual(ret_dsc, ret_asc, 'positional result differs layered=%r reference=%r at key=%r'
                                  % (ret_dsc, ret_asc, key))
+                notfound = notfound or ret_dsc == wiredtiger.WT_NOTFOUND
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
             self.state.dirty = True
+        if notfound:
+            self.state.cur_pos = None
         self.state.n_positional += 1
 
     def _end_txn(self, nodes, commit):
@@ -600,17 +600,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.py_table.pop(key, None)
 
     def op_begin(self, nodes, rnd, trace):
-        # Q: What's that comment about, explain in simpler terms with an example? We fixed WT-17796, is this example still actual?
-        # The cursor stays physically positioned so next/prev iterate across the switch, but a
-        # positional WRITE must be re-established by a read inside this txn (a write off a pre-txn
-        # position is the cross-txn positioned-remove WT-17796), so clear the generator position.
-        # Choose the begin flavour from op_begin's own sub-weights (not a top-level pick).
+        # Begin a transaction. Has subweights random choice for different transaction modes/types.
         tw = self.weights.txn_begin
         mode = rnd.choices(
             [Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED, Txn.READ_TIMESTAMP],
             weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
             k=1)[0]
-        # READ_TIMESTAMP needs a past window [oldest, latest]; without one it falls back to snapshot.
+
+        # read_timestamp needs a past window [oldest, latest]; without one it falls back to snapshot.
         # The oldest_ts>=1 gate keeps randint off timestamp 0 (an invalid read_timestamp).
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
@@ -635,7 +632,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.txn_wrote = False
         self.state.txn_read_ts = read_ts
         self.state.py_table_snapshot = dict(self.state.py_table)
-        self.state.cur_pos = None
 
         # Collect statistic
         if mode is Txn.READ_TIMESTAMP:
@@ -684,11 +680,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- operation generation -------------------------------------------
 
-    def _legal(self, op, positioned):
+    def _legal(self, op):
         # Which ops are legal in the current transaction context / position -- pure off the Op tags
         # and self.state.txn.
         txn = self.state.txn
-        if op.needs_position and not positioned:
+        if op.needs_position and self.state.cur_pos is None:
             return False
         if op.needs_live and not self.state.py_table:
             return False
@@ -714,10 +710,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def pick_op(self, nodes, rnd, trace):
         # Sample one legal op by its weight and return its method bound to context. next/prev
         # dominate the weights, so chains stay long.
-
-        # Q: How current pos may be not None and not in live?
-        positioned = self.state.cur_pos is not None and self.state.cur_pos in self.state.py_table
-        cands = [op for op in self.ops if self._legal(op, positioned)]
+        cands = [op for op in self.ops if self._legal(op)]
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
         return lambda: op.fn(nodes, rnd, trace)
 
