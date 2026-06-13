@@ -224,8 +224,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
  */
 int
 __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
-  bool data_checksum, bool checkpoint_io)
+  WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size,
+  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
@@ -255,6 +255,17 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
            page_image_size, &size, &checksum, data_checksum, checkpoint_io)) != 0) {
         block_meta->in_persistent_store = false;
         return (ret);
+    }
+
+    /*
+     * Subtract the old chain before counting the new write. If this full-image write replaces an
+     * existing chain on the same page_id, the caller passes old_block_meta so the old chain's bytes
+     * are removed from block_disagg->size in the same critical section as the new increment.
+     */
+    if (old_block_meta != NULL) {
+        WT_ASSERT(session, old_block_meta->in_persistent_store);
+        __wti_block_disagg_decrease_size(
+          session, block_disagg, old_block_meta, old_block_meta->cumulative_size);
     }
 
     /* Update the running total of bytes. */

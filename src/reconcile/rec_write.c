@@ -983,9 +983,9 @@ __rec_destroy_session(WT_SESSION_IMPL *session)
  *     Write a block, with optional diagnostic checks.
  */
 static int
-__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint8_t *addr,
-  size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io,
-  bool compressed)
+__rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  WT_PAGE_BLOCK_META *old_block_meta, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
+  bool checkpoint, bool checkpoint_io, bool compressed)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(ctmp);
@@ -1053,8 +1053,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
     if (WT_REC_CKPT_TRACK_TIME(r))
         _write_start = __wt_clock(session);
 
-    WT_RET(__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
-      compressed_sizep, checkpoint, checkpoint_io, compressed));
+    WT_RET(__wt_blkcache_write(session, buf, block_meta, old_block_meta, buf->size, addr,
+      addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
 
     if (WT_REC_CKPT_TRACK_TIME(r))
         r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
@@ -2230,7 +2230,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     /* Get the checkpoint ID. */
     if (WT_REC_CKPT_TRACK_TIME(r))
         _write_start = __wt_clock(session);
-    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, NULL, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     if (WT_REC_CKPT_TRACK_TIME(r))
         r->blkcache_write_time += WT_CLOCKDIFF_MS(__wt_clock(session), _write_start);
@@ -2327,13 +2327,11 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
-    uint64_t old_cumulative_size;
     bool old_in_persistent_store;
 
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
     old_in_persistent_store = false;
-    old_cumulative_size = 0;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
     if (page->disagg_info != NULL) {
@@ -2341,7 +2339,6 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         if (last_block && block_meta != NULL && r->multi_next == 1 &&
           block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             old_in_persistent_store = block_meta->in_persistent_store;
-            old_cumulative_size = block_meta->cumulative_size;
             *multi->block_meta = *block_meta;
             /* Mark the size as not accounted for page with a valid page id*/
             multi->block_meta->in_persistent_store = false;
@@ -2359,19 +2356,9 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         } else
             __wt_page_block_meta_assign(session, multi->block_meta);
     }
-    WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
+    WT_RET(__rec_write(session, &chunk->image, multi->block_meta,
+      old_in_persistent_store ? &page->disagg_info->block_meta : NULL, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-
-    /*
-     * For same-page-id full-image writes, immediately subtract the old chain from
-     * block_disagg->size. Same-page-id transitions skip page_discard (disagg_page_free_required
-     * is false), so without this decrement the old chain bytes would accumulate across write
-     * cycles. Also sets page->disagg_info->block_meta.in_persistent_store = false, which prevents
-     * __rec_write_err from double-decrementing on the failpoint path.
-     */
-    if (old_in_persistent_store)
-        __wt_block_disagg_obsolete_delta_chain(
-          session, &page->disagg_info->block_meta, old_cumulative_size);
 
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
         WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_internal);
@@ -3209,9 +3196,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             }
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
-            WT_RET(
-              __rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta, NULL,
-                NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
+            WT_RET(__rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta,
+              NULL, NULL, NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT),
+              r->wrapup_checkpoint_compressed));
             if (page->disagg_info != NULL)
                 page->disagg_info->block_meta = r->wrapup_checkpoint_block_meta;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
@@ -3511,8 +3498,8 @@ __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV
 
         /* Write the buffer. */
         addr = buf;
-        WT_ERR(__rec_write(
-          session, tmp, NULL, addr, &size, NULL, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+        WT_ERR(__rec_write(session, tmp, NULL, NULL, addr, &size, NULL, false,
+          F_ISSET(r, WT_REC_CHECKPOINT), false));
 
         /*
          * Track the overflow record (unless it's a bulk load, which by definition won't ever reuse

@@ -105,11 +105,10 @@ __bmd_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_MET
   WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
   bool data_checksum, bool checkpoint_io)
 {
-    WT_UNUSED(old_block_meta);
     __wt_capacity_throttle(
       session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
-    return (__wti_block_disagg_write(session, bm->block, buf, block_meta, page_image_size, addr,
-      addr_sizep, data_checksum, checkpoint_io));
+    return (__wti_block_disagg_write(session, bm->block, buf, block_meta, old_block_meta,
+      page_image_size, addr, addr_sizep, data_checksum, checkpoint_io));
 }
 
 /*

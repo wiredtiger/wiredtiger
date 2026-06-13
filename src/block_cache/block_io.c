@@ -767,8 +767,8 @@ err:
  */
 int
 __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
-  size_t page_image_size, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
-  bool checkpoint, bool checkpoint_io, bool compressed)
+  WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
+  size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
 {
     WT_BLKCACHE *blkcache;
     WT_BM *bm;
@@ -841,8 +841,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
     time_start = timer ? __wt_clock(session) : 0;
     WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, block_meta, btree->ckpt, data_checksum) :
-                        bm->write(bm, session, ip, block_meta, NULL, page_image_size, addr,
-                          addr_sizep, data_checksum, checkpoint_io));
+                        bm->write(bm, session, ip, block_meta, old_block_meta, page_image_size,
+                          addr, addr_sizep, data_checksum, checkpoint_io));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
