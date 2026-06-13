@@ -52,7 +52,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #   2. Partial update + delta checkpoint (cumulative_size > baseline).
 #   3. Evict the page so it reloads from the page service with in_persistent_store=true.
 #   4. Enable failpoint_page_log_handle_put (100% probability) + delta_pct=1.
-#   5. Dirty the page and force one eviction — write fails, page_id stays intact.
+#   5. Dirty the page and force one eviction  write fails, page_id stays intact.
 #   6. Disable failpoint and run a recovery checkpoint.  The checkpoint reconciles
 #      the dirty page using old_block_meta (same page_id), calls decrease_size for
 #      the old chain, and adds the new block, keeping block_disagg->size correct.
@@ -156,7 +156,7 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
 
-        # Step 7: Size check — without the WT-16864 fix __rec_write_err set page_id =
+        # Step 7: Size check  without the WT-16864 fix __rec_write_err set page_id =
         # INVALID regardless of write success/failure, forcing old_block_meta = NULL on
         # the retry and permanently leaking old_cumulative into block_disagg->size.
         # With the fix the recovery checkpoint uses old_block_meta and correctly subtracts
