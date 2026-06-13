@@ -48,20 +48,6 @@ __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 }
 
 /*
- * __wt_block_disagg_obsolete_delta_chain --
- *     Subtract the old page chain from block_disagg->size when a full-image write replaces it.
- *     Public interface called from reconciliation for same-page-id write transitions.
- */
-void
-__wt_block_disagg_obsolete_delta_chain(
-  WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta, uint64_t old_cumulative_size)
-{
-    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    __wti_block_disagg_decrease_size(
-      session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, block_meta, old_cumulative_size);
-}
-
-/*
  * __wt_block_disagg_get_size --
  *     Return the total byte count.
  */
@@ -81,6 +67,20 @@ __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
     (void)__wt_atomic_store_uint64(&((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->size, size);
+}
+
+/*
+ * __wt_block_disagg_obsolete_delta_chain --
+ *     Subtract the old page chain from block_disagg->size when a full-image write replaces it.
+ *     Public interface called from reconciliation for same-page-id write transitions.
+ */
+void
+__wt_block_disagg_obsolete_delta_chain(
+  WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta, uint64_t old_cumulative_size)
+{
+    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
+    __wti_block_disagg_decrease_size(
+      session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, block_meta, old_cumulative_size);
 }
 
 /*
