@@ -448,6 +448,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def _anchor(self, lead, foll):
         # A positional write operates on each cursor's CURRENT position, so anchor cur_pos only when
         # leader and follower ended on the SAME key (search_near may land them on different neighbours).
+        # Q: Why do we need to compare this? I thought that search_near() always moves the ASC cursor to DSC if they are different.
         if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
             self.state.cur_pos = lead[1]
         else:
@@ -507,9 +508,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near same key, differing cmp/value')
             return
 
-        # Different immediate neighbours: must bracket the search key and be adjacent. Step the
-        # reference cursor by exactly one onto the layered cursor's key to re-sync.
-        # Q: Should the results be on the same distance from search_key() in this case?
+        # Different immediate neighbours of the absent key (predecessor on one side, successor on the
+        # other). They need NOT be equidistant from search_key -- the invariant is that they BRACKET
+        # it AND are ADJACENT in the keyspace (no present key between them). Stepping the REFERENCE
+        # cursor exactly one onto the LAYERED cursor's key validates the layered result's immediacy:
+        # both tables hold the same logical keys, so were a key sitting between, the step would land
+        # on it instead of key_left and the mismatch would fire. Holds for asc and dsc alike.
         lo, hi = sorted((key_left, key_right))
         if not (lo < search_key < hi):
             self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near neighbours do not bracket key')
