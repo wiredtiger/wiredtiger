@@ -224,8 +224,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
  */
 int
 __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size,
-  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+  WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
+  bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
@@ -257,17 +257,6 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
         return (ret);
     }
 
-    /*
-     * Write succeeded. If this is a full-image write replacing an existing chain (same page_id
-     * reused), subtract the old chain now. The caller passes the canonical page block_meta as
-     * old_block_meta so the flag is cleared here, preventing any duplicate subtraction in wrapup.
-     */
-    if (old_block_meta != NULL) {
-        WT_ASSERT(session, old_block_meta->in_persistent_store);
-        __wti_block_disagg_decrease_size(
-          session, block_disagg, old_block_meta, old_block_meta->cumulative_size);
-    }
-
     /* Update the running total of bytes. */
     WT_ASSERT(session, !block_meta->in_persistent_store);
     __wti_block_disagg_increase_size(block_disagg, size);
@@ -281,7 +270,11 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.base_lsn = block_meta->base_lsn;
     cookie.checksum = checksum;
 
-    /* Calculate the cumulative size and store it in cookie.size. */
+    /*
+     * For delta writes, accumulate the chain size in cookie.size so a single page_discard subtracts
+     * the entire chain. Full-image writes use physical size only; the caller subtracts the old
+     * chain via __wti_block_disagg_decrease_size before or after this call.
+     */
     if (block_meta->delta_count == 0)
         cookie.size = size;
     else
