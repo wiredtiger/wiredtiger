@@ -42,6 +42,7 @@
 # step; to dig into one seed, run it in a throwaway test calling run_sequence().
 
 import os, random
+from collections import namedtuple
 from dataclasses import dataclass, field
 from enum import Enum
 import wiredtiger, wttest
@@ -60,6 +61,11 @@ class Txn(Enum):
 
 def write_allowed(txn):
     return txn in (Txn.NO, Txn.SNAPSHOT)
+
+# The normalized result of one read on one cursor, compared layered-vs-reference. `cmp` is the
+# search_near comparison sign (None for the simple reads). Still a tuple, so == comparison and
+# unpacking work; named fields make _anchor and the failure output read clearly.
+ReadResult = namedtuple('ReadResult', ('ret', 'key', 'value', 'cmp'), defaults=(None,))
 
 # --- workload shape --------------------------------------------------------
 # Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, never
@@ -449,8 +455,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # A positional write operates on each cursor's CURRENT position, so anchor cur_pos only when
         # leader and follower ended on the SAME key (search_near may land them on different neighbours).
         # Q: Why do we need to compare this? I thought that search_near() always moves the ASC cursor to DSC if they are different.
-        if lead[0] == 0 and foll[0] == 0 and lead[1] == foll[1]:
-            self.state.cur_pos = lead[1]
+        if lead.ret == 0 and foll.ret == 0 and lead.key == foll.key:
+            self.state.cur_pos = lead.key
         else:
             self.state.cur_pos = None
 
@@ -460,8 +466,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         def normalize(cursor):
             ret = do(cursor)
             if ret == wiredtiger.WT_NOTFOUND:
-                return (ret, None, None)
-            return (0, cursor.get_key(), cursor.get_value())
+                return ReadResult(ret, None, None)
+            return ReadResult(0, cursor.get_key(), cursor.get_value())
         layered = []
         for n in nodes:
             ret_dsc = normalize(n.dsc_c)
@@ -475,8 +481,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         cursor.set_key(key)
         cmp = cursor.search_near()
         if cmp == wiredtiger.WT_NOTFOUND:
-            return (wiredtiger.WT_NOTFOUND, None, None, None)
-        return (0, cursor.get_key(), cursor.get_value(), cmp)
+            return ReadResult(wiredtiger.WT_NOTFOUND, None, None, None)
+        return ReadResult(0, cursor.get_key(), cursor.get_value(), cmp)
 
     def _read_near(self, nodes, trace, key):
         # search_near on both nodes: WT may return either immediate neighbour of an absent key.
@@ -488,7 +494,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             layered.append(ret_dsc)
         self._anchor(layered[0], layered[1])
 
-    # Q: Does it make sense to create a separate class with named fields for ret_dsc/asc.
     def _compare_near(self, node, search_key, ret_dsc, ret_asc, trace):
         (ret_left, key_left, value_left, cmp_left) = ret_dsc
         (ret_right, key_right, value_right, cmp_right) = ret_asc
