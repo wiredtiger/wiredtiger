@@ -61,13 +61,6 @@ class Txn(Enum):
 def write_allowed(txn):
     return txn in (Txn.NO, Txn.SNAPSHOT)
 
-@dataclass(frozen=True)
-class ReadResult:
-    # The normalized result of one read on one cursor, compared layered-vs-reference (the frozen
-    # dataclass gives value-based ==). key/value are None when the read found nothing (WT_NOTFOUND).
-    ret: int
-    key: object = None
-    value: object = None
 
 # --- workload shape --------------------------------------------------------
 # Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, never
@@ -460,29 +453,28 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # nodes and compare. search_near canonicalizes to the ceiling and uses this same path (see
         # _search_near_ceiling). Then track cur_pos -- the key the cursor is positioned on for a later
         # positional write (None if the read found nothing). Leader and follower land on the same key
-        # (identical data, deterministic ops; full_scan is the cross-node check), so node 0 speaks for
-        # both.
-        def normalize(cursor):
+        # (identical data, deterministic ops; full_scan is the cross-node check), so either speaks for
+        # cur_pos.
+        def op_result(cursor):
             ret = do(cursor)
             if ret == wiredtiger.WT_NOTFOUND:
-                return ReadResult(ret)
-            return ReadResult(0, cursor.get_key(), cursor.get_value())
-        layered = []
+                return (ret, None, None)
+            return (0, cursor.get_key(), cursor.get_value())
+
         for n in nodes:
-            ret_dsc = normalize(n.dsc_c)
-            ret_asc = normalize(n.asc_c)
+            ret_dsc = op_result(n.dsc_c)
+            ret_asc = op_result(n.asc_c)
             if ret_dsc != ret_asc:
                 self.report_mismatch(n, ret_dsc, ret_asc, trace, 'read result differs')
-            layered.append(ret_dsc)
-        found = layered[0]                       # leader; follower agrees
-        self.state.cur_pos = found.key if found.ret == 0 else None
+            ret, key, _ = ret_dsc
+            self.state.cur_pos = key if ret == 0 else None
 
     def _search_near_ceiling(self, cursor, key):
         # Canonicalize search_near to the CEILING (smallest key >= key). WT's search_near may return
         # either neighbour of an absent key; if it lands below key, step one to the next key. This
         # makes the result deterministic, so leader and follower (and asc/dsc) all land on the same
         # key (or WT_NOTFOUND past the end) and search_near is compared like any other read. Returns
-        # the WT return code (0 / WT_NOTFOUND) for normalize() to turn into a ReadResult.
+        # the WT return code (0 / WT_NOTFOUND) that op_result() turns into a (ret, key, value) tuple.
         cursor.set_key(key)
         cmp = cursor.search_near()
         if cmp == wiredtiger.WT_NOTFOUND:
