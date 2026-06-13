@@ -673,10 +673,16 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         trace.log('advance')
         self._checkpoint(nodes)
 
-    # Q: is it required to do a checkpoint right before we evict? What if we evict without having everything in the stable table too. My intuition is that it shouldn't let us evict what's not backed by the stable table. Another thing to check (maybe leave a TODO), is that such scenario as evict, might require resetting the cursor since if it's positioned it might be not able to pick up the last checkpoint so it won't release it and so we cannot evict.
-    # Q: I thought about it a bit more and we probably should have 2 eviction modes - one is when we don't do the checkpoint and just in random period of time evict everything we can, and the other one is when we do a checkpoint, reset the cursor, and predictably evict 20,40,60,80 or 100% of the ingest table based on random generation, but it could be left for now as TODO.
     def op_evict(self, nodes, rnd, trace):
-        # Advance, then drain the follower ingest so later reads fall through to stable.
+        # Checkpoint (which resets the cursors, releasing pins) THEN drain the follower ingest, so
+        # later reads fall through to stable. The checkpoint is required: ingest eviction only prunes
+        # entries already in stable (below the prune timestamp), so without it nothing is safely
+        # evictable and the drain is a no-op. Resetting the cursors first is required too -- a cursor
+        # positioned on the ingest leaf pins the page and blocks eviction (_checkpoint does the reset).
+        # TODO(eviction-modes): add two modes -- (a) no-checkpoint, opportunistically evict whatever is
+        # already prunable (exercises trying to evict not-yet-stable ingest content), and (b) checkpoint
+        # + reset + drain a random 20/40/60/80/100% of ingest for finer control of the ingest/stable
+        # split. Today this is mode (b) at 100%.
         trace.log('evict')
         self._checkpoint(nodes)
         self.drain_ingest(nodes[1])
