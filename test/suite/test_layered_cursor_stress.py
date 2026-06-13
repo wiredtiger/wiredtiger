@@ -42,7 +42,6 @@
 # step; to dig into one seed, run it in a throwaway test calling run_sequence().
 
 import os, random
-from collections import namedtuple
 from dataclasses import dataclass, field
 from enum import Enum
 import wiredtiger, wttest
@@ -62,10 +61,13 @@ class Txn(Enum):
 def write_allowed(txn):
     return txn in (Txn.NO, Txn.SNAPSHOT)
 
-# The normalized result of one read on one cursor, compared layered-vs-reference. `cmp` is the
-# search_near comparison sign (None for the simple reads). Still a tuple, so == comparison and
-# unpacking work; named fields make _anchor and the failure output read clearly.
-ReadResult = namedtuple('ReadResult', ('ret', 'key', 'value', 'cmp'), defaults=(None,))
+@dataclass(frozen=True)
+class ReadResult:
+    # The normalized result of one read on one cursor, compared layered-vs-reference (the frozen
+    # dataclass gives value-based ==). key/value are None when the read found nothing (WT_NOTFOUND).
+    ret: int
+    key: object = None
+    value: object = None
 
 # --- workload shape --------------------------------------------------------
 # Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, never
@@ -80,6 +82,8 @@ ReadResult = namedtuple('ReadResult', ('ret', 'key', 'value', 'cmp'), defaults=(
 # and decide whether a derived break-frequency knob should return.
 # TODO: add modify op() are there any more ops missed?
 # TODO: add scenario for bulk insert to grow tables significantly.
+# TODO: Don't forget about prepared transactions.
+# TODO: Should we also always check that the leader and the follower return the same results?
 
 @dataclass(frozen=True)
 class TxnBeginWeights:
@@ -435,7 +439,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(self.conn_follow)
         self.state.dirty = False
 
-    def drain_ingest(self, node):
+    def force_evict(self, node):
         # Force-evict the follower's ingest leaf so checkpointed keys fall through to stable on later
         # reads: reconciliation drops entries below the prune timestamp (already in stable) and keeps
         # fresher ones. This is the production lifecycle that drives the follower to read from stable.
@@ -451,22 +455,17 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- read application + comparison -----------------------------------
 
-    def _anchor(self, lead, foll):
-        # A positional write operates on each cursor's CURRENT position, so anchor cur_pos only when
-        # leader and follower ended on the SAME key (search_near may land them on different neighbours).
-        # Q: Why do we need to compare this? I thought that search_near() always moves the ASC cursor to DSC if they are different.
-        if lead.ret == 0 and foll.ret == 0 and lead.key == foll.key:
-            self.state.cur_pos = lead.key
-        else:
-            self.state.cur_pos = None
-
     def _read(self, nodes, trace, do):
         # The per-op oracle: run do(cursor) -> code on the layered then the reference cursor of both
-        # nodes, compare, and anchor cur_pos. search_near has its own comparison (_read_near).
+        # nodes and compare. search_near canonicalizes to the ceiling and uses this same path (see
+        # _search_near_ceiling). Then track cur_pos -- the key the cursor is positioned on for a later
+        # positional write (None if the read found nothing). Leader and follower land on the same key
+        # (identical data, deterministic ops; full_scan is the cross-node check), so node 0 speaks for
+        # both.
         def normalize(cursor):
             ret = do(cursor)
             if ret == wiredtiger.WT_NOTFOUND:
-                return ReadResult(ret, None, None)
+                return ReadResult(ret)
             return ReadResult(0, cursor.get_key(), cursor.get_value())
         layered = []
         for n in nodes:
@@ -475,56 +474,20 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             if ret_dsc != ret_asc:
                 self.report_mismatch(n, ret_dsc, ret_asc, trace, 'read result differs')
             layered.append(ret_dsc)
-        self._anchor(layered[0], layered[1])
+        found = layered[0]                       # leader; follower agrees
+        self.state.cur_pos = found.key if found.ret == 0 else None
 
-    def _near(self, cursor, key):
+    def _search_near_ceiling(self, cursor, key):
+        # Canonicalize search_near to the CEILING (smallest key >= key). WT's search_near may return
+        # either neighbour of an absent key; if it lands below key, step one to the next key. This
+        # makes the result deterministic, so leader and follower (and asc/dsc) all land on the same
+        # key (or WT_NOTFOUND past the end) and search_near is compared like any other read. Returns
+        # the WT return code (0 / WT_NOTFOUND) for normalize() to turn into a ReadResult.
         cursor.set_key(key)
         cmp = cursor.search_near()
         if cmp == wiredtiger.WT_NOTFOUND:
-            return ReadResult(wiredtiger.WT_NOTFOUND, None, None, None)
-        return ReadResult(0, cursor.get_key(), cursor.get_value(), cmp)
-
-    def _read_near(self, nodes, trace, key):
-        # search_near on both nodes: WT may return either immediate neighbour of an absent key.
-        layered = []
-        for n in nodes:
-            ret_dsc = self._near(n.dsc_c, key)
-            ret_asc = self._near(n.asc_c, key)
-            self._compare_near(n, key, ret_dsc, ret_asc, trace)
-            layered.append(ret_dsc)
-        self._anchor(layered[0], layered[1])
-
-    def _compare_near(self, node, search_key, ret_dsc, ret_asc, trace):
-        (ret_left, key_left, value_left, cmp_left) = ret_dsc
-        (ret_right, key_right, value_right, cmp_right) = ret_asc
-
-        # Handle the NOT_FOUND case
-        if ret_left == wiredtiger.WT_NOTFOUND or ret_right == wiredtiger.WT_NOTFOUND:
-            if ret_left != ret_right:
-                self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near: one side NOTFOUND')
-            return
-
-        # Check the cmp returned from search_near().
-        _search_near_cmp = lambda n: (n > 0) - (n < 0)
-        if cmp_left != _search_near_cmp(key_left - search_key) or cmp_right != _search_near_cmp(key_right - search_key):
-            self.report_mismatch(node, ret_dsc, ret_asc, trace, 'layered search_near cmp sign wrong')
-        if key_left == key_right:
-            if cmp_left != cmp_right or value_left != value_right:
-                self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near same key, differing cmp/value')
-            return
-
-        # Different immediate neighbours of the absent key (predecessor on one side, successor on the
-        # other). They need NOT be equidistant from search_key -- the invariant is that they BRACKET
-        # it AND are ADJACENT in the keyspace (no present key between them). Stepping the REFERENCE
-        # cursor exactly one onto the LAYERED cursor's key validates the layered result's immediacy:
-        # both tables hold the same logical keys, so were a key sitting between, the step would land
-        # on it instead of key_left and the mismatch would fire. Holds for asc and dsc alike.
-        lo, hi = sorted((key_left, key_right))
-        if not (lo < search_key < hi):
-            self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near neighbours do not bracket key')
-        stepped = node.asc_c.next() if key_right < key_left else node.asc_c.prev()
-        if stepped != 0 or node.asc_c.get_key() != key_left or node.asc_c.get_value() != value_left:
-            self.report_mismatch(node, ret_dsc, ret_asc, trace, 'search_near neighbours not adjacent / value')
+            return wiredtiger.WT_NOTFOUND
+        return cursor.next() if cmp < 0 else 0
 
     def report_mismatch(self, node, ret_dsc, ret_asc, trace, reason):
         # The failing op is the last line written to the trace file.
@@ -534,6 +497,17 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             'layered:   %r' % (ret_dsc,),
             'reference: %r' % (ret_asc,),
             'trace file: %s' % trace.path]))
+
+    def pick_search_key(self, rnd):
+        # Existing key vs missing key, weighted by the search-key config (op_search/op_search_near).
+        w = self.weights.search_key
+        if self.state.py_table and rnd.choices((True, False), weights=(w.existing, w.missing))[0]:
+            return rnd.choice(list(self.state.py_table))
+
+        # Get a key from the POOL that doesn't exist. If all the keys are in the tables, get a key
+        # from POOL and add 5. Since POOL step is 10, such key will never exist.
+        absent = [k for k in self.POOL if k not in self.state.py_table]
+        return rnd.choice(absent) if absent else rnd.choice(self.POOL) + 5
 
     # --- verification ----------------------------------------------------
 
@@ -564,8 +538,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- operations -------------------------------------------------------
     # Each op is self-contained: it generates its own argument, traces itself, does the work, and
-    # updates the model. Shared work lives in helpers (_read / _read_near / _positional /
-    # mirror_write / _end_txn / _checkpoint / full_scan).
+    # updates the model. Shared work lives in helpers (_read / _positional / mirror_write /
+    # _end_txn / _checkpoint / full_scan).
 
     def op_next(self, nodes, rnd, trace):
         trace.log('next')
@@ -583,7 +557,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def op_search_near(self, nodes, rnd, trace):
         key = self.pick_search_key(rnd)
         trace.log('search_near %r' % key)
-        self._read_near(nodes, trace, key)
+        self._read(nodes, trace, lambda c: self._search_near_ceiling(c, key))
 
     def op_reset(self, nodes, rnd, trace):
         trace.log('reset')
@@ -700,7 +674,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # split. Today this is mode (b) at 100%.
         trace.log('evict')
         self._checkpoint(nodes)
-        self.drain_ingest(nodes[1])
+        follower = nodes[1]
+        self.force_evict(follower)
 
     def op_full_scan(self, nodes, rnd, trace):
         # The full_scan() cross-check as a weighted op: catches a divergence in keys the random reads
@@ -736,16 +711,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
         op.fn(nodes, rnd, trace)
 
-    def pick_search_key(self, rnd):
-        # Existing key vs missing key, weighted by the search-key config (op_search/op_search_near).
-        w = self.weights.search_key
-        if self.state.py_table and rnd.choices((True, False), weights=(w.existing, w.missing))[0]:
-            return rnd.choice(list(self.state.py_table))
-        # Get a key from the POOL that doesn't exist. If all the keys are in the tables, get a key
-        # from POOL and add 5. Since POOL step is 10, such key will never exist.
-        absent = [k for k in self.POOL if k not in self.state.py_table]
-        return rnd.choice(absent) if absent else rnd.choice(self.POOL) + 5
-
     # --- driver ----------------------------------------------------------
 
     def open_trace(self, seed, tag):
@@ -761,7 +726,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             for _ in range(n_ops):
                 self.run_op(nodes, rnd, trace)
             if self.state.txn is not Txn.NO:
-                self._end_txn(nodes, commit=True)   # close any txn left open before verifying
+                self._end_txn(nodes, commit=True) # close any txn left open before verifying
+            # scan the tables as a final verification
             self.full_scan(nodes, trace)
         finally:
             # A txn left open by a mid-sequence failure rolls back when the connection closes at
