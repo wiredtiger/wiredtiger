@@ -107,7 +107,7 @@ class Weights:
     put: int = 6
     remove: int = 2
     reset: int = 2
-    verify: int = 4
+    full_scan: int = 4
     advance: int = 6
     evict: int = 6
     begin: int = 8
@@ -177,7 +177,7 @@ class State:
         self.n_read_ts = 0       # as-of-past read transactions opened (read_timestamp guard)
         self.n_iso_rc = 0        # read-committed transactions opened (isolation guard, C3)
         self.n_iso_ru = 0        # read-uncommitted transactions opened (isolation guard, C3)
-        self.n_verify = 0        # full-table verify ops run (op_verify guard)
+        self.n_full_scan = 0     # full-table cross-checks run (op_full_scan guard)
         self.new_sequence()
 
     def new_sequence(self):
@@ -232,7 +232,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_remove,      weights.remove,     is_write=True, needs_live=True),
             Op(self.op_reset,       weights.reset),
             # Q: op_verify, op_advance and op_evict should be scen_advance, scen_verify, scen_evic, since they are not operations
-            Op(self.op_verify,      weights.verify),
+            Op(self.op_full_scan,   weights.full_scan),
             # Q: autocommit_only and in_txn_only should be no_txn, in_txn that are true by default and we turn it to false where needed
             Op(self.op_advance,     weights.advance,    autocommit_only=True),
             Op(self.op_evict,       weights.evict,      autocommit_only=True),
@@ -284,14 +284,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def DEV_ONLY_assert_self_coverage(self):
         # Self-check, NOT a product assertion: confirm the run exercised its surface (the merge,
-        # positional chains, as-of-past reads, both non-snapshot isolation levels, verify). A failure
+        # positional chains, as-of-past reads, both non-snapshot isolation levels, full_scan). A failure
         # here means the TEST stopped covering a dimension, not that the product is wrong.
         self.DEV_ONLY_assert_merge_exercised()
         self.assertGreater(self.state.n_positional, 0, 'no positional update/remove ops were exercised')
         self.assertGreater(self.state.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
         self.assertGreater(self.state.n_iso_rc, 0, 'no read-committed txns were exercised')
         self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
-        self.assertGreater(self.state.n_verify, 0, 'no verify ops were exercised')
+        self.assertGreater(self.state.n_full_scan, 0, 'no full_scan ops were exercised')
 
     def make_nodes(self, tag):
         # The layered table must share a name across connections so the follower picks up
@@ -528,7 +528,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- verification ----------------------------------------------------
 
-    def scan(self, cursor, forward):
+    def _scan_cursor(self, cursor, forward):
         cursor.reset()
         out = []
         while True:
@@ -538,13 +538,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             out.append((cursor.get_key(), cursor.get_value()))
         return out
 
-    def verify(self, nodes, trace):
-        # Each node: layered full scan must equal its reference; and the leader's layered
-        # view must equal the follower's layered view (same logical data).
+    def full_scan(self, nodes, trace):
+        # Whole-table cross-check (named full_scan, not "verify", to avoid clashing with
+        # WT_SESSION::verify): each node's layered full scan must equal its reference, and the
+        # leader's layered view must equal the follower's layered view (same logical data).
         per_node = []
         for n in nodes:
-            dsc = self.scan(n.dsc_c, True)
-            asc = self.scan(n.asc_c, True)
+            dsc = self._scan_cursor(n.dsc_c, True)
+            asc = self._scan_cursor(n.asc_c, True)
             if dsc != asc:
                 self.fail('full-scan layered != reference (trace %s)\nlayered=%r\nref=%r'
                           % (trace.path, dsc, asc))
@@ -555,7 +556,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- operations -------------------------------------------------------
     # Each op is self-contained: it generates its own argument, traces itself, does the work, and
     # updates the model. Shared work lives in helpers (_read / _read_near / _positional /
-    # mirror_write / _end_txn / _checkpoint / verify).
+    # mirror_write / _end_txn / _checkpoint / full_scan).
 
     def op_next(self, nodes, rnd, trace):
         trace.log('next')
@@ -680,14 +681,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._checkpoint(nodes)
         self.drain_ingest(nodes[1])
 
-    # Q: verify word is already used for session->verify() command. This should be named scan(), not verify()
-    def op_verify(self, nodes, rnd, trace):
-        # Full-table scan (the verify() body) as a weighted op: catches a divergence in keys the
-        # random reads never touched, and -- scanning the whole follower table through the merged
-        # cursor -- exercises the stable constituent for drained keys. Position-breaking.
-        trace.log('verify')
-        self.verify(nodes, trace)
-        self.state.n_verify += 1
+    def op_full_scan(self, nodes, rnd, trace):
+        # The full_scan() cross-check as a weighted op: catches a divergence in keys the random reads
+        # never touched, and -- scanning the whole follower table through the merged cursor --
+        # exercises the stable constituent for drained keys. Position-breaking.
+        trace.log('full_scan')
+        self.full_scan(nodes, trace)
+        self.state.n_full_scan += 1
         self.state.cur_pos = None
 
     # --- operation generation -------------------------------------------
@@ -741,7 +741,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self.run_op(nodes, rnd, trace)
             if self.state.txn is not Txn.NO:
                 self._end_txn(nodes, commit=True)   # close any txn left open before verifying
-            self.verify(nodes, trace)
+            self.full_scan(nodes, trace)
         finally:
             # A txn left open by a mid-sequence failure rolls back when the connection closes at
             # teardown (these are never prepared), so no explicit rollback here.
