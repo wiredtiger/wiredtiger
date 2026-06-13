@@ -243,6 +243,56 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_rollback,    weights.rollback,   in_txn_only=True),
         ]
 
+    # --- DEV_ONLY: setup guard + end-of-run coverage self-checks ---------------------------------
+    # Removable scaffolding -- NOT the oracle. Grouped here so they stay out of the core op / read /
+    # write logic during review.
+    def DEV_ONLY_validate_ops(self):
+        # Guard the op table at setup: exactly one row per op_* method (a missing/duplicate row fails
+        # loudly here, not deep in a run) and every weight positive (zero/negative would drop an op).
+        methods = {n for n in dir(self) if n.startswith('op_')}
+        rows = {op.fn.__name__ for op in self.ops}
+        assert len(rows) == len(self.ops), 'duplicate op rows in the workload table'
+        assert rows == methods, 'op table != op_* methods: %r' % sorted(rows ^ methods)
+        assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
+
+    def DEV_ONLY_follower_read_split(self):
+        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
+        # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
+        stat_cursor = self.session_follow.open_cursor('statistics:')
+        try:
+            get_stat = lambda name: stat_cursor[getattr(wiredtiger.stat.conn, name)][2]
+            stable = get_stat('layered_curs_next_stable') + get_stat('layered_curs_prev_stable') + \
+                get_stat('layered_curs_search_stable')
+            ingest = get_stat('layered_curs_next_ingest') + get_stat('layered_curs_prev_ingest') + \
+                get_stat('layered_curs_search_ingest')
+            return stable, ingest
+        finally:
+            stat_cursor.close()
+
+    def DEV_ONLY_assert_merge_exercised(self):
+        # Guard against a degenerate oracle: the follower must read from stable sometimes, or the
+        # merge of two non-empty constituents is not tested at all.
+        # TODO(merge-coverage): the stable-read fraction is only ~2-9% in the random run (writes keep
+        # keys in ingest and the drain rarely catches a stable-and-unrewritten key before it is read),
+        # so the floor is an INTERIM 1%. Real fix: a forced-eviction scenario op + a ~300k-op run to
+        # exercise the stable path heavily, then restore a meaningful floor.
+        stable, ingest = self.DEV_ONLY_follower_read_split()
+        total = stable + ingest
+        self.assertGreater(total, 0, 'no follower layered reads at all')
+        self.assertGreaterEqual(stable * 100, total,
+            'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
+
+    def DEV_ONLY_assert_self_coverage(self):
+        # Self-check, NOT a product assertion: confirm the run exercised its surface (the merge,
+        # positional chains, as-of-past reads, both non-snapshot isolation levels, verify). A failure
+        # here means the TEST stopped covering a dimension, not that the product is wrong.
+        self.DEV_ONLY_assert_merge_exercised()
+        self.assertGreater(self.state.n_positional, 0, 'no positional update/remove ops were exercised')
+        self.assertGreater(self.state.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
+        self.assertGreater(self.state.n_iso_rc, 0, 'no read-committed txns were exercised')
+        self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
+        self.assertGreater(self.state.n_verify, 0, 'no verify ops were exercised')
+
     def make_nodes(self, tag):
         # The layered table must share a name across connections so the follower picks up
         # the leader's checkpoint; the plain reference tables are independent per connection.
@@ -392,44 +442,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     evict_cursor.reset()
         finally:
             evict_cursor.close()
-
-    def DEV_ONLY_follower_read_split(self):
-        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
-        # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
-        stat_cursor = self.session_follow.open_cursor('statistics:')
-        try:
-            get_stat = lambda name: stat_cursor[getattr(wiredtiger.stat.conn, name)][2]
-            stable = get_stat('layered_curs_next_stable') + get_stat('layered_curs_prev_stable') + \
-                get_stat('layered_curs_search_stable')
-            ingest = get_stat('layered_curs_next_ingest') + get_stat('layered_curs_prev_ingest') + \
-                get_stat('layered_curs_search_ingest')
-            return stable, ingest
-        finally:
-            stat_cursor.close()
-
-    def DEV_ONLY_assert_merge_exercised(self):
-        # Guard against a degenerate oracle: the follower must read from stable sometimes, or the
-        # merge of two non-empty constituents is not tested at all.
-        # TODO(merge-coverage): the stable-read fraction is only ~2-9% in the random run (writes keep
-        # keys in ingest and the drain rarely catches a stable-and-unrewritten key before it is read),
-        # so the floor is an INTERIM 1%. Real fix: a forced-eviction scenario op + a ~300k-op run to
-        # exercise the stable path heavily, then restore a meaningful floor.
-        stable, ingest = self.DEV_ONLY_follower_read_split()
-        total = stable + ingest
-        self.assertGreater(total, 0, 'no follower layered reads at all')
-        self.assertGreaterEqual(stable * 100, total,
-            'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
-
-    def DEV_ONLY_assert_self_coverage(self):
-        # Self-check, NOT a product assertion: confirm the run exercised its surface (the merge,
-        # positional chains, as-of-past reads, both non-snapshot isolation levels, verify). A failure
-        # here means the TEST stopped covering a dimension, not that the product is wrong.
-        self.DEV_ONLY_assert_merge_exercised()
-        self.assertGreater(self.state.n_positional, 0, 'no positional update/remove ops were exercised')
-        self.assertGreater(self.state.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
-        self.assertGreater(self.state.n_iso_rc, 0, 'no read-committed txns were exercised')
-        self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
-        self.assertGreater(self.state.n_verify, 0, 'no verify ops were exercised')
 
     # --- read application + comparison -----------------------------------
 
@@ -695,16 +707,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if not write_allowed(txn):
             return not op.is_write               # no writes in a read-only transaction
         return True                              # snapshot txn: reads + writes + commit/rollback
-
-    # Q: Can we move all the DEV_ONLY functions to a separate place somewhere in the beginning (so they don't pollute the code while I review it)
-    def DEV_ONLY_validate_ops(self):
-        # Guard the op table at setup: exactly one row per op_* method (a missing/duplicate row fails
-        # loudly here, not deep in a run) and every weight positive (zero/negative would drop an op).
-        methods = {n for n in dir(self) if n.startswith('op_')}
-        rows = {op.fn.__name__ for op in self.ops}
-        assert len(rows) == len(self.ops), 'duplicate op rows in the workload table'
-        assert rows == methods, 'op table != op_* methods: %r' % sorted(rows ^ methods)
-        assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
 
     def run_op(self, nodes, rnd, trace):
         # Pick one legal op by its weight and run it. next/prev dominate the weights, so chains
