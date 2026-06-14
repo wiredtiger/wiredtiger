@@ -32,6 +32,11 @@ create_test_executable(test_model_rts
     LIBS wiredtiger_model wiredtiger_model_test_common
     CXX NO_TEST_UTIL
 )
+create_test_executable(test_model_stepdown
+    SOURCES model_stepdown/main.cpp
+    LIBS wiredtiger_model wiredtiger_model_test_common
+    CXX NO_TEST_UTIL
+)
 create_test_executable(test_model_transaction
     SOURCES model_transaction/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common

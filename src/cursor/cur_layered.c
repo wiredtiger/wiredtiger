@@ -2153,9 +2153,8 @@ err:
  * __clayered_route_write --
  *     Decide which constituent a write belongs to. Without a step-down in progress, a leader writes
  *     to the stable constituent and a follower to the ingest constituent. While a step-down is
- *     prepared, commits after the cutoff belong to the ingest constituent; when the commit
- *     timestamp is not yet known the write must go to both ("twin") and the copy on the wrong side
- *     of the cutoff is aborted once the timestamp is assigned.
+ *     prepared, the write goes to both constituents ("twin") and the copy on the wrong side of the
+ *     cutoff is aborted once the commit timestamp is assigned.
  */
 static WT_INLINE void
 __clayered_route_write(WT_SESSION_IMPL *session, bool *ingestp, bool *twinp)
@@ -2184,18 +2183,14 @@ __clayered_route_write(WT_SESSION_IMPL *session, bool *ingestp, bool *twinp)
         return;
     }
 
-    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
-        *ingestp = txn->time_point.commit_timestamp > stepdown_ts;
-        __wt_verbose_debug1(session, WT_VERB_LAYERED,
-          "stepdown: routed write to %s (commit_ts=%" PRIu64 ", cutoff=%" PRIu64 ")",
-          *ingestp ? "ingest" : "stable", txn->time_point.commit_timestamp, stepdown_ts);
-    } else {
-        *ingestp = *twinp = true;
-        __wt_verbose_debug1(session, WT_VERB_LAYERED,
-          "stepdown: commit timestamp unknown, double-writing both constituents (cutoff=%" PRIu64
-          ")",
-          stepdown_ts);
-    }
+    /*
+     * A step-down is prepared: double-write to both constituents and let each update's commit
+     * timestamp decide which copy survives. Routing a write whose commit timestamp is already known
+     * directly to a single constituent is a valid optimization, deferred for now (FIXME-WT-17785).
+     */
+    *ingestp = *twinp = true;
+    __wt_verbose_debug1(session, WT_VERB_LAYERED,
+      "stepdown: double-writing both constituents (cutoff=%" PRIu64 ")", stepdown_ts);
 }
 
 /*
@@ -2401,8 +2396,11 @@ __clayered_remove_int(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR *c;
-    bool ingest, stable_positioned, twin;
+    WT_DECL_RET;
+    WT_ITEM value;
+    bool ingest, stable_found, stable_positioned, twin;
 
+    WT_CLEAR(value);
     __clayered_route_write(session, &ingest, &twin);
 
     if (ingest && !twin)
@@ -2415,15 +2413,33 @@ __clayered_remove_int(
         return (__clayered_remove_leader(session, clayered, key, stable_positioned));
 
     /*
-     * A double-write remove. The stable copy goes first and carries the user-visible error
-     * semantics. The ingest copy is written directly as a tombstone rather than through the
-     * follower path, whose existence lookup would see this transaction's own stable-side remove.
-     * Consecutive ingest tombstones cannot arise here: a key whose newest visible ingest version is
-     * already a tombstone is not visible through the layered cursor, so the remove fails before
-     * getting this far.
+     * A double-write remove. An unpositioned remove must first confirm the key is actually visible
+     * through the merged view: the stable constituent can still hold a stale value for a key
+     * removed after the cutoff (that remove kept the ingest tombstone and aborted the stable
+     * tombstone), so remove_leader succeeding on the stale value would wrongly report success and
+     * write a second, consecutive ingest tombstone. A positioned cursor already sits on a visible
+     * key.
      */
-    WT_RET(__clayered_remove_leader(session, clayered, key, stable_positioned));
-    __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
+    if (!positioned) {
+        ret = __clayered_lookup(session, clayered, &value);
+        if (ret == WT_NOTFOUND)
+            return (WT_NOTFOUND);
+        WT_RET(ret);
+    }
+
+    /*
+     * The stable copy goes first and carries the user-visible error semantics. The ingest copy is
+     * written directly as a tombstone rather than through the follower path, whose existence lookup
+     * would see this transaction's own stable-side remove. A key visible only in ingest (inserted
+     * after the cutoff) leaves nothing to remove on the stable side; its lone ingest tombstone -
+     * which necessarily commits after the cutoff - is the surviving side.
+     */
+    ret = __clayered_remove_leader(session, clayered, key, stable_positioned);
+    stable_found = ret == 0;
+    if (stable_found)
+        __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
+    else
+        WT_RET_NOTFOUND_OK(ret);
 
     c = clayered->ingest_cursor;
     c->set_key(c, key);
@@ -2431,8 +2447,11 @@ __clayered_remove_int(
     WT_RET(c->update(c));
     __clayered_stepdown_twin(session, c, WT_TXN_OP_STEPDOWN_INGEST);
 
-    /* Stay positioned on the stable copy, keeping the leader's positioning invariants. */
-    clayered->current_cursor = clayered->stable_cursor;
+    /*
+     * Stay positioned on the stable copy when there is one, keeping the leader's positioning
+     * invariants; for an ingest-only key the ingest copy is the only one.
+     */
+    clayered->current_cursor = stable_found ? clayered->stable_cursor : clayered->ingest_cursor;
 
     return (0);
 }
@@ -3055,6 +3074,8 @@ static int
 __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered;
+    WT_DECL_RET;
+    WT_ITEM value;
     bool ingest, twin;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -3066,17 +3087,41 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *en
         return (__clayered_modify_follower(session, cursor, entries, nentries));
 
     /*
-     * A double-write modify. The ingest copy goes first: the follower path computes its base value
-     * with a lookup, which must not see this transaction's own stable-side change. The stable side
-     * then applies the modify to the stable base; if the two visible bases differ, the bases came
-     * from opposite sides of the cutoff and the divergent copy is the one that will be aborted when
-     * the commit timestamp is assigned.
+     * A double-write modify. An unpositioned modify must first confirm the key is visible through
+     * the merged view: a key absent there (e.g. shadowed by an ingest tombstone, with only a stale
+     * stable value left after a post-cutoff remove) has no base value, and the follower path would
+     * otherwise build the modify on an empty value and trip the modify-apply assertion. A
+     * positioned cursor already sits on a visible key.
+     */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+        WT_CLEAR(value);
+        ret = __clayered_lookup(session, clayered, &value);
+        if (ret == WT_NOTFOUND)
+            return (WT_NOTFOUND);
+        WT_RET(ret);
+    }
+
+    /*
+     * The ingest copy goes first: the follower path computes its base value with a lookup, which
+     * must not see this transaction's own stable-side change. The stable side then applies the
+     * modify to the stable base; if the two visible bases differ, the bases came from opposite
+     * sides of the cutoff and the divergent copy is the one that will be aborted when the commit
+     * timestamp is assigned.
      */
     WT_RET(__clayered_modify_follower(session, cursor, entries, nentries));
     __clayered_stepdown_twin(session, clayered->ingest_cursor, WT_TXN_OP_STEPDOWN_INGEST);
 
-    WT_RET(__clayered_modify_leader(session, cursor, entries, nentries));
-    __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
+    /*
+     * The stable side has no base value for a key that lives only in ingest (inserted after the
+     * cutoff), so the modify there returns WT_NOTFOUND. That is expected: the ingest copy applied
+     * above is the lone survivor and necessarily commits after the cutoff. Any other error is real.
+     * A key absent from both constituents already failed in the follower path above.
+     */
+    ret = __clayered_modify_leader(session, cursor, entries, nentries);
+    if (ret == 0)
+        __clayered_stepdown_twin(session, clayered->stable_cursor, WT_TXN_OP_STEPDOWN_STABLE);
+    else
+        WT_RET_NOTFOUND_OK(ret);
 
     return (0);
 }

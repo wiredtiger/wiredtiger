@@ -6,5 +6,6 @@ set -x
 $SCRIPT_PATH/test_model_basic
 $SCRIPT_PATH/test_model_checkpoint
 $SCRIPT_PATH/test_model_rts
+$SCRIPT_PATH/test_model_stepdown
 $SCRIPT_PATH/test_model_transaction
 $SCRIPT_PATH/test_model_workload
