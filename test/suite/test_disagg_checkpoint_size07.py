@@ -131,7 +131,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
             'Size should grow after appending a delta to the chain')
 
         # Step 3: Evict the leaf page so it is re-read from the page service on next
-        # access.  The disk-load path sets in_persistent_store = true.
+        # access.  The disk-load path sets persistent = true.
         self.evict_page('key000000')
 
         # Step 4: Enable the failpoint and switch to full-image mode.

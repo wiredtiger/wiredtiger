@@ -452,7 +452,9 @@ skip_disk_read:
         if (shared_dsk_item != NULL)
             block_meta = shared_dsk_item->block_meta;
         page->disagg_info->block_meta = block_meta;
-        page->disagg_info->block_meta.in_persistent_store = block_meta.cumulative_size > 0;
+        WT_ASSERT(session, block_meta.cumulative_size > 0);
+        /* page is from disk, so mark it as persistent*/
+        page->disagg_info->block_meta.persistent = block_meta.cumulative_size > 0;
         page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
         page->disagg_info->rec_lsn_max = block_meta.disagg_lsn;
     }

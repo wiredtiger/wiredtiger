@@ -931,8 +931,8 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     dsk.mem = NULL;
     if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = block_meta;
-        /* page is built from disk image, so mark its size as accounted for non-empty page */
-        page->disagg_info->block_meta.in_persistent_store = block_meta.cumulative_size > 0;
+        /* page is built from disk image, so mark it as persistent. */
+        page->disagg_info->block_meta.persistent = block_meta.cumulative_size > 0;
     }
 
     /* Finish initializing the root, root reference links. */

@@ -31,8 +31,8 @@ __wti_block_disagg_increase_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size)
 /*
  * __wti_block_disagg_decrease_size --
  *     Decrease the total byte count. When block_meta is non-NULL, asserts that the cumulative size
- *     is currently counted (in_persistent_store == true) and clears the flag after decrementing,
- *     enforcing the invariant that size is never subtracted twice for the same chain.
+ *     is currently counted (persistent == true) and clears the flag after decrementing, enforcing
+ *     the invariant that size is never subtracted twice for the same chain.
  */
 void
 __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
@@ -40,11 +40,11 @@ __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 {
     WT_UNUSED(session);
 
-    WT_ASSERT(session, block_meta == NULL || block_meta->in_persistent_store);
+    WT_ASSERT(session, block_meta == NULL || block_meta->persistent);
     WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->size) >= size);
     (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
     if (block_meta != NULL)
-        block_meta->in_persistent_store = false;
+        block_meta->persistent = false;
 }
 
 /*

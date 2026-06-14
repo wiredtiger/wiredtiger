@@ -36,7 +36,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #
 # When failpoint_page_log_handle_put fires, __wti_block_disagg_write_internal
 # returns EBUSY before plh_put, so the new block is never written to the page
-# log.  __wti_block_disagg_write sets block_meta->in_persistent_store = false on
+# log.  __wti_block_disagg_write sets block_meta->persistent = false on
 # the new-block copy to signal this.  __rec_write_err detects the false flag and
 # skips page_id invalidation, leaving page->disagg_info->block_meta.page_id intact
 # so the next reconciliation can reference the old chain via old_block_meta and
@@ -50,7 +50,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 # Test flow:
 #   1. Write rows + full-image checkpoint (baseline).
 #   2. Partial update + delta checkpoint (cumulative_size > baseline).
-#   3. Evict the page so it reloads from the page service with in_persistent_store=true.
+#   3. Evict the page so it reloads from the page service with persistent=true.
 #   4. Enable failpoint_page_log_handle_put (100% probability) + delta_pct=1.
 #   5. Dirty the page and force one eviction  write fails, page_id stays intact.
 #   6. Disable failpoint and run a recovery checkpoint.  The checkpoint reconciles
@@ -102,7 +102,7 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
     #
     # When plh_put fails, __wti_block_disagg_write returns EBUSY before calling
     # decrease_size or increase_size, so block_disagg->size is never modified.
-    # __rec_write_err detects in_persistent_store==false on multi->block_meta
+    # __rec_write_err detects persistent==false on multi->block_meta
     # and skips page_id invalidation, leaving the old chain intact for the next
     # reconciliation.
     def test_write_failure_obsolete_delta_chain(self):
@@ -127,14 +127,14 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
         self.assertGreater(size_with_delta, size_initial,
             'Size should grow after appending a delta to the chain')
 
-        # Step 3: Evict the page so the disk-load path sets in_persistent_store=true
+        # Step 3: Evict the page so the disk-load path sets persistent=true
         # on page->disagg_info->block_meta, reflecting the live delta chain.
         self.evict_page('key000000')
 
         # Step 4: Enable the failpoint (100% probability) and switch to full-image writes.
         # failpoint_page_log_handle_put fires inside __wti_block_disagg_write_internal
         # before plh_put, returning EBUSY so the write never reaches the page log.
-        # __rec_write_err detects block_meta->in_persistent_store==false on the new-block
+        # __rec_write_err detects block_meta->persistent==false on the new-block
         # copy and skips page_id invalidation, leaving the old chain intact.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'

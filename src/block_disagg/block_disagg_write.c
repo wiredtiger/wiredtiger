@@ -248,12 +248,12 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     __wt_page_header_byteswap(buf->mem);
 
     /*
-     * On write failure block_meta has not entered the persistent store, so clear
-     * in_persistent_store regardless of what the caller set before the call.
+     * On write failure block_meta has not entered the persistent store, so clear persistent
+     * regardless of what the caller set before the call.
      */
     if ((ret = __wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
            page_image_size, &size, &checksum, data_checksum, checkpoint_io)) != 0) {
-        block_meta->in_persistent_store = false;
+        block_meta->persistent = false;
         return (ret);
     }
 
@@ -263,13 +263,13 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
      * are removed from block_disagg->size in the same critical section as the new increment.
      */
     if (old_block_meta != NULL) {
-        WT_ASSERT(session, old_block_meta->in_persistent_store);
+        WT_ASSERT(session, old_block_meta->persistent);
         __wti_block_disagg_decrease_size(
           session, block_disagg, old_block_meta, old_block_meta->cumulative_size);
     }
 
     /* Update the running total of bytes. */
-    WT_ASSERT(session, !block_meta->in_persistent_store);
+    WT_ASSERT(session, !block_meta->persistent);
     __wti_block_disagg_increase_size(block_disagg, size);
 
     __wt_page_header_byteswap(buf->mem);
@@ -293,7 +293,7 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     /* Update the block_meta for future delta writes. */
     block_meta->cumulative_size = cookie.size;
-    block_meta->in_persistent_store = true;
+    block_meta->persistent = true;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));

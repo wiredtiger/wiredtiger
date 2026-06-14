@@ -2218,7 +2218,8 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_ASSERT(session, block_meta != NULL);
 
     *multi->block_meta = *block_meta;
-    multi->block_meta->in_persistent_store = false;
+    /* Indicate this is a new block not yet persistent */
+    multi->block_meta->persistent = false;
 
     /* The first delta needs to explicitly initialize the base LSN. */
     if (multi->block_meta->delta_count == 0)
@@ -2327,21 +2328,21 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
-    bool old_in_persistent_store;
+    bool prev_block_persistent;
 
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
-    old_in_persistent_store = false;
+    prev_block_persistent = false;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
         if (last_block && block_meta != NULL && r->multi_next == 1 &&
           block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
-            old_in_persistent_store = block_meta->in_persistent_store;
+            prev_block_persistent = block_meta->persistent;
             *multi->block_meta = *block_meta;
-            /* Mark the size as not accounted for page with a valid page id*/
-            multi->block_meta->in_persistent_store = false;
+            /* Indicate this is a new block not yet persistent */
+            multi->block_meta->persistent = false;
             /*
              * Full page's backlink is the previous full page. If the previous page is a delta, use
              * the base as the new backlink. Otherwise, use the previous page as the backlink.
@@ -2357,7 +2358,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             __wt_page_block_meta_assign(session, multi->block_meta);
     }
     WT_RET(__rec_write(session, &chunk->image, multi->block_meta,
-      old_in_persistent_store ? &page->disagg_info->block_meta : NULL, addr, addr_sizep,
+      prev_block_persistent ? &page->disagg_info->block_meta : NULL, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
@@ -2387,7 +2388,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_ASSERT(session, multi->block_meta != NULL && page->disagg_info != NULL);
     /* Copy the block meta otherwise it will be lost after reconciliation. */
     *multi->block_meta = page->disagg_info->block_meta;
-    multi->block_meta->in_persistent_store = false;
+    multi->block_meta->persistent = false;
 
     switch (mod->rec_result) {
     case 0:
@@ -2551,7 +2552,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (F_ISSET(r, WT_REC_IN_MEMORY)) {
         if (page->disagg_info != NULL) {
             *multi->block_meta = page->disagg_info->block_meta;
-            multi->block_meta->in_persistent_store = false;
+            multi->block_meta->persistent = false;
         }
         goto copy_image;
     }
@@ -3142,12 +3143,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             if (page->disagg_info != NULL) {
                 page->disagg_info->block_meta = *r->multi->block_meta;
                 /*
-                 * Restore the canonical in_persistent_store after the copy. The copy carries the
-                 * multi->block_meta value (false for skip-write or in-memory paths), but the
-                 * canonical meaning here is "is there a valid chain in the page log", which is true
-                 * whenever a prior write established a non-zero cumulative_size.
+                 * The copy carries the multi->block_meta value (false for skip-write or in-memory
+                 * paths), otherwise is true whenever a prior write established a non-zero
+                 * cumulative_size.
                  */
-                page->disagg_info->block_meta.in_persistent_store =
+                page->disagg_info->block_meta.persistent =
                   r->multi->block_meta->cumulative_size > 0;
             }
             WT_ASSERT_ALWAYS(session,
@@ -3171,11 +3171,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 if (page->disagg_info != NULL) {
                     page->disagg_info->block_meta = *r->multi->block_meta;
                     /*
-                     * Restore the canonical in_persistent_store after the copy. multi->block_meta
-                     * carries false for skip-write (set by __rec_copy_prev_addr), but the old chain
-                     * is still in the page log; cumulative_size > 0 is the correct proxy here.
+                     * Multi->block_meta carries false for skip-write (set by __rec_copy_prev_addr),
+                     * but the old chain is still in the page log; cumulative_size > 0 is the
+                     * correct proxy here.
                      */
-                    page->disagg_info->block_meta.in_persistent_store =
+                    page->disagg_info->block_meta.persistent =
                       r->multi->block_meta->cumulative_size > 0;
                 }
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
@@ -3331,14 +3331,13 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
         /*
-         * Only invalidate the page_id when the write actually reached the page log
-         * (in_persistent_store is true on multi->block_meta). If the write failed before plh_put,
-         * the old chain is still valid; leaving page_id intact lets the next reconciliation's
-         * wrapup call __wt_ref_block_free to subtract the old chain cleanly on success.
-         * Invalidating page_id in that case would prevent that wrapup decrement, permanently
-         * inflating block_disagg->size.
+         * Only invalidate the page_id when the write actually reached the page log (persistent is
+         * true on multi->block_meta). If the write failed before plh_put, the old chain is still
+         * valid; leaving page_id intact lets the next reconciliation's wrapup call
+         * __wt_ref_block_free to subtract the old chain cleanly on success. Invalidating page_id in
+         * that case would prevent that wrapup decrement, permanently inflating block_disagg->size.
          */
-        if (r->multi->block_meta->in_persistent_store) {
+        if (r->multi->block_meta->persistent) {
             if (r->multi->block_meta->delta_count == 0) {
                 /*
                  * Full-image write succeeded but reconciliation failed before wrapup.
@@ -3350,16 +3349,15 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 mod->mod_replace.block_cookie_size = 0;
                 __wt_free(session, mod->mod_disk_image);
             } else if (r->multi->block_meta->delta_count > 0 &&
-              mod->rec_result == WT_PM_REC_REPLACE &&
-              page->disagg_info->block_meta.in_persistent_store) {
+              mod->rec_result == WT_PM_REC_REPLACE && page->disagg_info->block_meta.persistent) {
                 /*
                  * Delta write: page_discard freed the new block using cookie.size ==
                  * cumulative_size + delta_size, which already subtracted the entire old chain from
-                 * block_disagg->size. Clear in_persistent_store and free the stale cookie so the
-                 * next wrapup takes the block_cookie==NULL branch via WT_PM_REC_REPLACE and does
-                 * not subtract the old chain a second time.
+                 * block_disagg->size. Clear persistent and free the stale cookie so the next wrapup
+                 * takes the block_cookie==NULL branch via WT_PM_REC_REPLACE and does not subtract
+                 * the old chain a second time.
                  */
-                page->disagg_info->block_meta.in_persistent_store = false;
+                page->disagg_info->block_meta.persistent = false;
                 __wt_free(session, mod->mod_replace.block_cookie);
                 mod->mod_replace.block_cookie_size = 0;
             }

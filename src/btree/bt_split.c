@@ -1495,7 +1495,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /* Preserve the relevant metadata. */
     if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = *multi->block_meta;
-        page->disagg_info->block_meta.in_persistent_store = multi->block_meta->cumulative_size > 0;
+        /* Page is re-created from a disk image, mark its persistent state. */
+        page->disagg_info->block_meta.persistent = multi->block_meta->cumulative_size > 0;
         ref->page->disagg_info->old_rec_lsn_max = multi->block_meta->disagg_lsn;
         page->disagg_info->rec_lsn_max = multi->block_meta->disagg_lsn;
     }
