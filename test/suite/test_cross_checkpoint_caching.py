@@ -34,16 +34,12 @@ from wtscenario import make_scenarios
 
 # A follower scanning a checkpoint caches every disk image it reads. After the
 # leader modifies one row and takes another checkpoint, the follower's scan of
-# the new checkpoint only misses on the rewritten root-to-leaf path and hits on
+# the new checkpoint only misses on the modified root-to-leaf path and hits on
 # every other page.
 @disagg_test_class
 class test_cross_checkpoint_caching(wttest.WiredTigerTestCase):
 
-    # Disable page deltas so a modified page is a full rewrite with a new block
-    # address: the second scan's misses are exactly the rewritten pages, making
-    # the hit count predictable.
-    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-        + 'page_delta=(internal_page_delta=false,leaf_page_delta=false),'
+    conn_base_config = ',create,statistics=(all),'
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -54,27 +50,6 @@ class test_cross_checkpoint_caching(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_cross_checkpoint_caching', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def setUp(self):
-        super().setUp()
-        self.conn_follow = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
-        # Small pages so the tree has internal levels and many leaves. Cap the
-        # in-memory page size as well: reconciliation rewrites whole in-memory
-        # pages, so it must match the disk page size for the second checkpoint
-        # to rewrite only the modified row's root-to-leaf path.
-        table_cfg = 'key_format=S,value_format=S,' \
-            'allocation_size=512,leaf_page_max=512,internal_page_max=512,memory_page_max=512'
-        self.session.create(self.uri, table_cfg)
-        self.session_follow.create(self.uri, table_cfg)
-
-    def tearDown(self):
-        if hasattr(self, 'conn_follow'):
-            self.session_follow.close()
-            self.conn_follow.close()
-        super().tearDown()
-
     def get_stat(self, stat_key, session):
         stat_cursor = session.open_cursor('statistics:')
         val = stat_cursor[stat_key][2]
@@ -83,22 +58,34 @@ class test_cross_checkpoint_caching(wttest.WiredTigerTestCase):
 
     # Scan the table on the follower, returning the scan's miss and hit deltas
     # so reads done outside the scan don't count.
-    def follower_scan(self):
-        miss_before = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_miss, self.session_follow)
-        hit_before = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_hit, self.session_follow)
-        cursor = self.session_follow.open_cursor(self.uri)
+    def follower_scan(self, session_follow):
+        miss_before = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_miss, session_follow)
+        hit_before = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_hit, session_follow)
+        cursor = session_follow.open_cursor(self.uri)
         count = 0
         while cursor.next() == 0:
             count += 1
         cursor.close()
         self.assertEqual(count, self.nrows)
-        miss = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_miss, self.session_follow) \
+        miss = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_miss, session_follow) \
             - miss_before
-        hit = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_hit, self.session_follow) \
+        hit = self.get_stat(wiredtiger.stat.conn.cache_shared_dsk_hit, session_follow) \
             - hit_before
         return miss, hit
 
     def test_cross_checkpoint_caching(self):
+        # Small pages so the tree has internal levels and many leaves; cap the
+        # in-memory page size to prevent pages from growing large enough to
+        # absorb extra rows during reconciliation.
+        table_cfg = 'key_format=S,value_format=S,' \
+            'allocation_size=512,leaf_page_max=512,internal_page_max=512,memory_page_max=512'
+        self.session.create(self.uri, table_cfg)
+        conn_follow = self.wiredtiger_open(
+            'follower',
+            self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, table_cfg)
+
         cursor = self.session.open_cursor(self.uri)
         for i in range(self.nrows):
             cursor[str(i).zfill(5)] = 'value_' + str(i)
@@ -106,22 +93,25 @@ class test_cross_checkpoint_caching(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # The follower's first scan caches every read from disk.
-        self.disagg_advance_checkpoint(self.conn_follow)
-        first_miss, first_hit = self.follower_scan()
+        self.disagg_advance_checkpoint(conn_follow)
+        first_miss, first_hit = self.follower_scan(session_follow)
         self.assertGreater(first_miss, 1)
         self.assertEqual(first_hit, 0)
 
         # Update one row, keeping the value size unchanged so no page splits.
-        # The next checkpoint rewrites only that row's root-to-leaf path.
+        # The next checkpoint modifies only that row's root-to-leaf path.
         cursor = self.session.open_cursor(self.uri)
-        cursor['00000'] = 'updated'
+        cursor[str(0).zfill(5)] = 'updated'
         cursor.close()
         self.session.checkpoint()
 
         # Scanning the new checkpoint misses on the rewritten path and hits on
         # every other page.
-        self.disagg_advance_checkpoint(self.conn_follow)
-        second_miss, second_hit = self.follower_scan()
+        self.disagg_advance_checkpoint(conn_follow)
+        second_miss, second_hit = self.follower_scan(session_follow)
         self.assertGreater(second_miss, 0)
-        self.assertLess(second_miss, first_miss)
+        self.assertGreater(second_hit, 0)
         self.assertEqual(second_hit, first_miss - second_miss)
+
+        session_follow.close()
+        conn_follow.close()
