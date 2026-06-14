@@ -260,8 +260,8 @@ __page_free_delta_leaf_merge_state(
 static WT_INLINE void
 __time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    /* Return if the start time window is empty. */
-    if (!WT_TIME_WINDOW_HAS_START(tw))
+    /* Return if the time window is empty. */
+    if (WT_TIME_WINDOW_IS_EMPTY(tw))
         return;
 
     /*
@@ -274,6 +274,18 @@ __time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
         tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
         tw->start_txn = WT_TXN_NONE;
+    }
+
+    /*
+     * Check if the stop of the time window is globally visible, and if so remove unnecessary
+     * values.
+     */
+    if (__wt_txn_tw_stop_visible_all(session, tw)) {
+        /* The durable timestamp should never be less than the stop timestamp. */
+        WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
+
+        tw->stop_ts = tw->durable_stop_ts = WT_TS_NONE;
+        tw->stop_txn = WT_TXN_NONE;
     }
 }
 
@@ -824,23 +836,17 @@ err:
  *     Create the actual update for a prepared value.
  */
 static int
-__page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
+__page_inmem_prepare_update(
+  WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
-    size_t size, total_size;
     bool is_disagg;
 
-    size = 0;
-    *sizep = 0;
-
     tombstone = upd = NULL;
-    total_size = 0;
     is_disagg = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED);
 
-    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
-    total_size += size;
+    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
 
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
@@ -871,8 +877,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw)));
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-        total_size += size;
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->upd_durable_ts = WT_TS_NONE;
         tombstone->txnid = unpack->tw.stop_txn;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
@@ -888,7 +893,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     } else
         *updp = upd;
 
-    *sizep = total_size;
     return (0);
 
 err:
@@ -904,14 +908,13 @@ err:
  */
 static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
+  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
-    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, sizep));
+    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    WT_RET(__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
-    return (0);
+    return (__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
 }
 
 /*
@@ -931,14 +934,12 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_UPDATE *upd;
-    size_t size, total_size;
     uint64_t recno, rle;
     uint32_t i;
 
     btree = S2BT(session);
     page = ref->page;
     upd = NULL;
-    total_size = 0;
 
     /*
      * This variable is only used in assertions so in non-diagnostic builds it throws an unused
@@ -954,12 +955,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_btcur_open(&cbt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &value));
-    /*
-     * Suppress per-update cache increments in the serial functions; we batch them into a single
-     * call below to avoid O(N) atomic operations on page restore.
-     */
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SKIP_CACHE_INCR));
-    F_SET(session, WT_SESSION_SKIP_CACHE_INCR);
+
     if (page->type == WT_PAGE_COL_VAR) {
         recno = ref->ref_recno;
         WT_COL_FOREACH (page, cip, i) {
@@ -979,10 +975,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
-                /* Create an update to resolve the prepare. */
-                WT_ERR(
-                  __page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd, &size));
-                total_size += size;
+                WT_ERR(__page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd));
                 upd = NULL;
             }
         }
@@ -1010,12 +1003,11 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
 
-            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd));
 
             cbt.slot = WT_ROW_SLOT(page, rip);
             cbt.ref = ref;
             WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true));
-            total_size += size;
             upd = NULL;
         }
     }
@@ -1025,13 +1017,9 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * updates to avoid reconciling the page every time.
      */
     __wt_page_modify_clear(session, page);
-    F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
-    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
-        F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
-        __wt_cache_page_inmem_incr(session, page, total_size, false);
         __wt_free_update_list(session, &upd);
     }
     WT_TRET(__wt_btcur_close(&cbt, true));

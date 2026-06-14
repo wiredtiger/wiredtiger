@@ -303,16 +303,17 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
-  "layered: Layered table cursor advances to a newer checkpoint for the stable btree",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
   "layered: Layered table cursor next operations from the ingest btrees",
   "layered: Layered table cursor next operations from the stable btrees",
+  "layered: Layered table cursor opens the stable btree for the first time",
   "layered: Layered table cursor prev operations",
   "layered: Layered table cursor prev operations from the ingest btrees",
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
+  "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -369,6 +370,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: page deltas rejected due to multiblock reconciliation",
   "reconciliation: page deltas rejected due to non-single page in previous reconciliation",
   "reconciliation: page deltas rejected due to size threshold",
+  "reconciliation: page deltas rejected due to too many keys removed from the disk image",
   "reconciliation: page deltas rejected due to zero entries",
   "reconciliation: page deltas rejected: build function returned false (disabled, in-memory split, "
   "or internal page constraints not met)",
@@ -418,8 +420,11 @@ static const char *const __stats_dsrc_desc[] = {
   "transaction: rollback to stable keys restored",
   "transaction: rollback to stable keys that would have been removed in non-dryrun mode",
   "transaction: rollback to stable keys that would have been restored in non-dryrun mode",
+  "transaction: rollback to stable prepared fast truncations that would have been rolled back in "
+  "non-dryrun mode",
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable restored updates from history store",
+  "transaction: rollback to stable rolled back prepared fast truncations",
   "transaction: rollback to stable skipped btrees",
   "transaction: rollback to stable skipping delete rle",
   "transaction: rollback to stable skipping stable rle",
@@ -753,16 +758,17 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
-    stats->layered_curs_advance_stable = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
     stats->layered_curs_next_ingest = 0;
     stats->layered_curs_next_stable = 0;
+    stats->layered_curs_open_stable = 0;
     stats->layered_curs_prev = 0;
     stats->layered_curs_prev_ingest = 0;
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
+    stats->layered_curs_reopen_stable = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -817,6 +823,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_delta_rejected_multiblock = 0;
     stats->rec_page_delta_rejected_non_single_page = 0;
     stats->rec_page_delta_rejected_size_threshold = 0;
+    stats->rec_page_delta_rejected_delete_threshold = 0;
     stats->rec_page_delta_rejected_zero_entries = 0;
     stats->rec_page_delta_rejected_build_failed = 0;
     stats->rec_pages = 0;
@@ -863,8 +870,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->txn_rts_keys_restored = 0;
     stats->txn_rts_keys_removed_dryrun = 0;
     stats->txn_rts_keys_restored_dryrun = 0;
+    stats->txn_rts_prepared_fast_truncate_dryrun = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
+    stats->txn_rts_prepared_fast_truncate = 0;
     stats->txn_rts_btrees_skipped = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
@@ -1203,16 +1212,17 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
-    to->layered_curs_advance_stable += from->layered_curs_advance_stable;
     to->layered_curs_insert += from->layered_curs_insert;
     to->layered_curs_modify += from->layered_curs_modify;
     to->layered_curs_next += from->layered_curs_next;
     to->layered_curs_next_ingest += from->layered_curs_next_ingest;
     to->layered_curs_next_stable += from->layered_curs_next_stable;
+    to->layered_curs_open_stable += from->layered_curs_open_stable;
     to->layered_curs_prev += from->layered_curs_prev;
     to->layered_curs_prev_ingest += from->layered_curs_prev_ingest;
     to->layered_curs_prev_stable += from->layered_curs_prev_stable;
     to->layered_curs_remove += from->layered_curs_remove;
+    to->layered_curs_reopen_stable += from->layered_curs_reopen_stable;
     to->layered_curs_search_near += from->layered_curs_search_near;
     to->layered_curs_search_near_ingest += from->layered_curs_search_near_ingest;
     to->layered_curs_search_near_stable += from->layered_curs_search_near_stable;
@@ -1275,6 +1285,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_page_delta_rejected_multiblock += from->rec_page_delta_rejected_multiblock;
     to->rec_page_delta_rejected_non_single_page += from->rec_page_delta_rejected_non_single_page;
     to->rec_page_delta_rejected_size_threshold += from->rec_page_delta_rejected_size_threshold;
+    to->rec_page_delta_rejected_delete_threshold += from->rec_page_delta_rejected_delete_threshold;
     to->rec_page_delta_rejected_zero_entries += from->rec_page_delta_rejected_zero_entries;
     to->rec_page_delta_rejected_build_failed += from->rec_page_delta_rejected_build_failed;
     to->rec_pages += from->rec_pages;
@@ -1321,8 +1332,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->txn_rts_keys_restored += from->txn_rts_keys_restored;
     to->txn_rts_keys_removed_dryrun += from->txn_rts_keys_removed_dryrun;
     to->txn_rts_keys_restored_dryrun += from->txn_rts_keys_restored_dryrun;
+    to->txn_rts_prepared_fast_truncate_dryrun += from->txn_rts_prepared_fast_truncate_dryrun;
     to->txn_rts_hs_restore_tombstones += from->txn_rts_hs_restore_tombstones;
     to->txn_rts_hs_restore_updates += from->txn_rts_hs_restore_updates;
+    to->txn_rts_prepared_fast_truncate += from->txn_rts_prepared_fast_truncate;
     to->txn_rts_btrees_skipped += from->txn_rts_btrees_skipped;
     to->txn_rts_delete_rle_skipped += from->txn_rts_delete_rle_skipped;
     to->txn_rts_stable_rle_skipped += from->txn_rts_stable_rle_skipped;
@@ -1695,16 +1708,17 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
-    to->layered_curs_advance_stable += WT_STAT_DSRC_READ(from, layered_curs_advance_stable);
     to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_DSRC_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
     to->layered_curs_next_ingest += WT_STAT_DSRC_READ(from, layered_curs_next_ingest);
     to->layered_curs_next_stable += WT_STAT_DSRC_READ(from, layered_curs_next_stable);
+    to->layered_curs_open_stable += WT_STAT_DSRC_READ(from, layered_curs_open_stable);
     to->layered_curs_prev += WT_STAT_DSRC_READ(from, layered_curs_prev);
     to->layered_curs_prev_ingest += WT_STAT_DSRC_READ(from, layered_curs_prev_ingest);
     to->layered_curs_prev_stable += WT_STAT_DSRC_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_DSRC_READ(from, layered_curs_remove);
+    to->layered_curs_reopen_stable += WT_STAT_DSRC_READ(from, layered_curs_reopen_stable);
     to->layered_curs_search_near += WT_STAT_DSRC_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_DSRC_READ(from, layered_curs_search_near_stable);
@@ -1778,6 +1792,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_non_single_page);
     to->rec_page_delta_rejected_size_threshold +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_size_threshold);
+    to->rec_page_delta_rejected_delete_threshold +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_delete_threshold);
     to->rec_page_delta_rejected_zero_entries +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_zero_entries);
     to->rec_page_delta_rejected_build_failed +=
@@ -1832,8 +1848,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->txn_rts_keys_restored += WT_STAT_DSRC_READ(from, txn_rts_keys_restored);
     to->txn_rts_keys_removed_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_removed_dryrun);
     to->txn_rts_keys_restored_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_restored_dryrun);
+    to->txn_rts_prepared_fast_truncate_dryrun +=
+      WT_STAT_DSRC_READ(from, txn_rts_prepared_fast_truncate_dryrun);
     to->txn_rts_hs_restore_tombstones += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_updates);
+    to->txn_rts_prepared_fast_truncate += WT_STAT_DSRC_READ(from, txn_rts_prepared_fast_truncate);
     to->txn_rts_btrees_skipped += WT_STAT_DSRC_READ(from, txn_rts_btrees_skipped);
     to->txn_rts_delete_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_stable_rle_skipped);
@@ -1878,6 +1897,7 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks without compressed data",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
+  "block-cache: cold collection pages not added to the disaggregated victim cache during eviction",
   "block-cache: evicted blocks",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
@@ -2463,16 +2483,17 @@ static const char *const __stats_connection_desc[] = {
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
-  "layered: Layered table cursor advances to a newer checkpoint for the stable btree",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
   "layered: Layered table cursor next operations from the ingest btrees",
   "layered: Layered table cursor next operations from the stable btrees",
+  "layered: Layered table cursor opens the stable btree for the first time",
   "layered: Layered table cursor prev operations",
   "layered: Layered table cursor prev operations from the ingest btrees",
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
+  "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -2732,6 +2753,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: page deltas rejected due to multiblock reconciliation",
   "reconciliation: page deltas rejected due to non-single page in previous reconciliation",
   "reconciliation: page deltas rejected due to size threshold",
+  "reconciliation: page deltas rejected due to too many keys removed from the disk image",
   "reconciliation: page deltas rejected due to zero entries",
   "reconciliation: page deltas rejected: build function returned false (disabled, in-memory split, "
   "or internal page constraints not met)",
@@ -2864,8 +2886,11 @@ static const char *const __stats_connection_desc[] = {
   "transaction: rollback to stable keys that would have been removed in non-dryrun mode",
   "transaction: rollback to stable keys that would have been restored in non-dryrun mode",
   "transaction: rollback to stable pages visited",
+  "transaction: rollback to stable prepared fast truncations that would have been rolled back in "
+  "non-dryrun mode",
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable restored updates from history store",
+  "transaction: rollback to stable rolled back prepared fast truncations",
   "transaction: rollback to stable skipped btrees",
   "transaction: rollback to stable skipping delete rle",
   "transaction: rollback to stable skipping stable rle",
@@ -2985,6 +3010,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->backup_blocks_uncompressed = 0;
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
+    stats->block_cache_cold_not_cached = 0;
     stats->block_cache_blocks_evicted = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
@@ -3526,16 +3552,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
-    stats->layered_curs_advance_stable = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
     stats->layered_curs_next_ingest = 0;
     stats->layered_curs_next_stable = 0;
+    stats->layered_curs_open_stable = 0;
     stats->layered_curs_prev = 0;
     stats->layered_curs_prev_ingest = 0;
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
+    stats->layered_curs_reopen_stable = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -3792,6 +3819,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_delta_rejected_multiblock = 0;
     stats->rec_page_delta_rejected_non_single_page = 0;
     stats->rec_page_delta_rejected_size_threshold = 0;
+    stats->rec_page_delta_rejected_delete_threshold = 0;
     stats->rec_page_delta_rejected_zero_entries = 0;
     stats->rec_page_delta_rejected_build_failed = 0;
     stats->rec_pages = 0;
@@ -3920,8 +3948,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_rts_keys_removed_dryrun = 0;
     stats->txn_rts_keys_restored_dryrun = 0;
     stats->txn_rts_pages_visited = 0;
+    stats->txn_rts_prepared_fast_truncate_dryrun = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
+    stats->txn_rts_prepared_fast_truncate = 0;
     stats->txn_rts_btrees_skipped = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
@@ -4022,6 +4052,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
     to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
+    to->block_cache_cold_not_cached += WT_STAT_CONN_READ(from, block_cache_cold_not_cached);
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
@@ -4705,16 +4736,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
-    to->layered_curs_advance_stable += WT_STAT_CONN_READ(from, layered_curs_advance_stable);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
     to->layered_curs_next_ingest += WT_STAT_CONN_READ(from, layered_curs_next_ingest);
     to->layered_curs_next_stable += WT_STAT_CONN_READ(from, layered_curs_next_stable);
+    to->layered_curs_open_stable += WT_STAT_CONN_READ(from, layered_curs_open_stable);
     to->layered_curs_prev += WT_STAT_CONN_READ(from, layered_curs_prev);
     to->layered_curs_prev_ingest += WT_STAT_CONN_READ(from, layered_curs_prev_ingest);
     to->layered_curs_prev_stable += WT_STAT_CONN_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_CONN_READ(from, layered_curs_remove);
+    to->layered_curs_reopen_stable += WT_STAT_CONN_READ(from, layered_curs_reopen_stable);
     to->layered_curs_search_near += WT_STAT_CONN_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_CONN_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_CONN_READ(from, layered_curs_search_near_stable);
@@ -5065,6 +5097,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_non_single_page);
     to->rec_page_delta_rejected_size_threshold +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_size_threshold);
+    to->rec_page_delta_rejected_delete_threshold +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_delete_threshold);
     to->rec_page_delta_rejected_zero_entries +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_zero_entries);
     to->rec_page_delta_rejected_build_failed +=
@@ -5216,8 +5250,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rts_keys_removed_dryrun += WT_STAT_CONN_READ(from, txn_rts_keys_removed_dryrun);
     to->txn_rts_keys_restored_dryrun += WT_STAT_CONN_READ(from, txn_rts_keys_restored_dryrun);
     to->txn_rts_pages_visited += WT_STAT_CONN_READ(from, txn_rts_pages_visited);
+    to->txn_rts_prepared_fast_truncate_dryrun +=
+      WT_STAT_CONN_READ(from, txn_rts_prepared_fast_truncate_dryrun);
     to->txn_rts_hs_restore_tombstones += WT_STAT_CONN_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_CONN_READ(from, txn_rts_hs_restore_updates);
+    to->txn_rts_prepared_fast_truncate += WT_STAT_CONN_READ(from, txn_rts_prepared_fast_truncate);
     to->txn_rts_btrees_skipped += WT_STAT_CONN_READ(from, txn_rts_btrees_skipped);
     to->txn_rts_delete_rle_skipped += WT_STAT_CONN_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_CONN_READ(from, txn_rts_stable_rle_skipped);
