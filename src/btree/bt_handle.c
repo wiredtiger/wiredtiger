@@ -300,13 +300,12 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
-            /* Warm the cache, if possible. */
-            if (!__wt_conn_is_disagg(session)) {
+            /*
+             * Warm the cache, if possible. Skip when WT_SESSION_READ_SKIP_CORRUPT is set as we want
+             * to defer handling corrupt internal pages until after the btree has been opened.
+             */
+            if (!__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-                /* Ignore corruption errors from preload, so open_cursor can succeed and the cursor
-                 * walk can skip past the corrupt page. */
-                if (ret != 0 && F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT))
-                    ret = 0;
                 WT_ERR(ret);
             }
 

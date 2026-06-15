@@ -101,6 +101,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
         goto err;
     }
 
+    /* List the statistics. */
     while ((ret = cursor->next(cursor)) == 0 &&
       (ret = cursor->get_value(cursor, &desc, &pval, NULL)) == 0)
         if (printf("%s=%s\n", desc, pval) < 0) {
