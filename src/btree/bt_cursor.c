@@ -554,15 +554,13 @@ __cursor_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 static WT_INLINE int
 __cursor_truncate_nontxn(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
-    WT_BTREE *btree;
+    WT_BTREE *btree = CUR2BT(cbt);
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
+    WT_SESSION_IMPL *session = CUR2S(cbt);
     WT_UPDATE *tombstone;
 
     WT_UNUSED(value);
     WT_UNUSED(modify_type);
-    btree = CUR2BT(cbt);
-    session = CUR2S(cbt);
     WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
     WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
     if (btree->type == BTREE_COL_VAR)

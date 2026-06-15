@@ -134,16 +134,15 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
-    /*
-     * Truncate needs a running txn. We should probably do something more like the history store and
-     * make this non-transactional -- this happens during step-up, so we know there are no other
-     * transactions running, so it's safe.
-     */
+    /* Truncate needs a running txn to drive the cursor. */
     WT_RET(__wt_txn_begin(session, NULL));
 
     /*
-     * No other transactions are running, we're only doing this truncate, and it should become
-     * immediately visible. So this transaction doesn't have to care about timestamps.
+     * Make the truncate write WT_TXN_NONE/WT_TS_NONE tombstones (like the history store) instead of
+     * transactional ones: they are globally visible to everyone immediately rather than only once
+     * this transaction commits, which avoids an eviction thread reconciling an ingest page whose
+     * deletes are not yet globally visible during step-up. WT_TXN_TS_NOT_SET keeps the timestamp
+     * consistency checks happy for the non-timestamped deletes.
      */
     F_SET(session->txn, WT_TXN_TS_NOT_SET | WT_TXN_NON_TRANSACTIONAL_TRUNCATE);
 
