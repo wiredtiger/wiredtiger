@@ -215,28 +215,6 @@ class suite_subprocess:
             testparts[1] + '.0')
         return [ returncode, new_home_dir ]
 
-    # Build the extensions the external wt process needs to open a database created under the
-    # disagg hook: the page log, plus the early-load key provider that WiredTiger.basecfg cannot
-    # replay (the wt process does not go through the hook's wiredtiger_open). Returns the
-    # connection configuration string, or None when it does not apply.
-    def _disagg_extensions_config(self):
-        if 'disagg' not in self.hook_names:
-            return None
-        params = self.platform_api.getDisaggParameters()
-        if not getattr(params, 'key_provider', None):
-            return None
-
-        page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
-        if params.config is None:
-            page_log_entry = '"%s"' % page_log
-        else:
-            page_log_entry = '"%s"=(config="%s")' % (page_log, params.config)
-
-        key_provider = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
-        key_provider_entry = '"%s"=(early_load=true,config="verbose=-1,key_expires=0")' % key_provider
-
-        return 'extensions=[%s,%s]' % (page_log_entry, key_provider_entry)
-
     # Merge a connection configuration string into a wt argument list, combining with an existing
     # -C value when present.
     def _add_wt_conn_config(self, args, conn_config):
@@ -274,9 +252,9 @@ class suite_subprocess:
                 for a in args
             ]
 
-        # The external 'wt' process doesn't go through the disagg hook's wiredtiger_open, so the
-        # extensions the hook would inject must be passed on the wt connection configuration.
-        ext_config = self._disagg_extensions_config()
+        # The external 'wt' process doesn't go through a hook's wiredtiger_open, so any extensions
+        # the active hook injects must be passed on the wt connection configuration.
+        ext_config = self.platform_api.wtExtensionsConfig()
         if ext_config is not None:
             args = self._add_wt_conn_config(args, ext_config)
 

@@ -537,6 +537,27 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         result.key_provider = self.disagg_key_provider
         return result
 
+    def wtExtensionsConfig(self):
+        # The external wt utility needs the same extensions the hook injects into wiredtiger_open:
+        # the page log, and the early-load key provider that WiredTiger.basecfg cannot replay. Only
+        # the key provider is required here; without it the open warns about a missing early-load
+        # extension. The page log must be listed alongside it because naming extensions on the open
+        # configuration shadows the list basecfg supplies.
+        params = self.getDisaggParameters()
+        if not params.key_provider:
+            return None
+
+        page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
+        if params.config is None:
+            page_log_entry = '"%s"' % page_log
+        else:
+            page_log_entry = '"%s"=(config="%s")' % (page_log, params.config)
+
+        key_provider = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
+        key_provider_entry = '"%s"=(early_load=true,config="verbose=-1,key_expires=0")' % key_provider
+
+        return 'extensions=[%s,%s]' % (page_log_entry, key_provider_entry)
+
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
 def initialize(arg):
