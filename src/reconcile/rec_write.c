@@ -3371,7 +3371,8 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              * address to free.
              */
             __wt_ref_addr_free(session, r->ref);
-        }
+        } else
+            WT_STAT_CONN_DSRC_INCR(session, rec_keep_page_id_write_failed_before_plh_put);
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));

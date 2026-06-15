@@ -1413,6 +1413,7 @@ conn_dsrc_stats = [
     RecStat('rec_ingest_garbage_collection_keys_disk_image', 'number of keys that are garbage collected from the disk images in the ingest btrees for disaggregated storage'),
     RecStat('rec_ingest_garbage_collection_keys_update_chain', 'number of keys that are garbage collected from the update chains in the ingest btrees for disaggregated storage'),
     RecStat('rec_ingest_keep_prepare_rollback', 'ingest btree reconciliation keeps the aborted prepare updates'),
+    RecStat('rec_keep_page_id_write_failed_before_plh_put', 'page ID kept after write failure before plh_put in disagg'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
     RecStat('rec_multiblock_internal', 'internal page multi-block writes'),

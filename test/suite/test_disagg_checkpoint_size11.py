@@ -142,23 +142,24 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
             'timing_stress_for_test=[failpoint_page_log_handle_put]'
         )
 
-        # Step 5: Loop until the failpoint fires.  Detect failure by checking that
-        # disagg_block_put (connection stat) did not increment after an eviction attempt,
-        # meaning the write never reached plh_put.
-        def get_put_count():
-            s = self.session.open_cursor('statistics:')
-            val = s[stat.conn.disagg_block_put][2]
+        # Step 5: Loop until the failpoint fires.  Detect failure via the per-btree stat
+        # rec_keep_page_id_write_failed_before_plh_put, which is incremented in
+        # __rec_write_err when block_meta->persistent==false (write failed before plh_put).
+        # Using a per-btree dsrc stat avoids false positives from background eviction of
+        # other tables incrementing a connection-level counter.
+        def get_plh_fail_count():
+            s = self.session.open_cursor('statistics:' + self.stable_uri)
+            val = s[stat.dsrc.rec_keep_page_id_write_failed_before_plh_put][2]
             s.close()
             return val
 
         max_iters = 500
         for i in range(max_iters):
-            put_before = get_put_count()
             c = self.session.open_cursor(self.uri)
             self.insert_rows(c, 0, nrows, chr(ord('C') + (i % 20)))
             c.close()
             self.evict_page('key000000')
-            if get_put_count() == put_before:
+            if get_plh_fail_count() > 0:
                 break
         else:
             self.fail(
