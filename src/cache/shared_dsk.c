@@ -290,15 +290,14 @@ __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
     first_fid = 0;
     first_addr = NULL;
 
+    if (shared_dsk_cache->hash == NULL || shared_dsk_cache->hash_locks == NULL)
+        goto done;
+
     /*
      * On a clean close every page has been discarded and released its reference, so the table must
      * be empty, otherwise we should check as surviving entries are leaked references.
      */
     check_leaks = !F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC | WT_CONN_LEAK_MEMORY);
-
-    if (shared_dsk_cache->hash == NULL || shared_dsk_cache->hash_locks == NULL)
-        goto done;
-
     if (check_leaks)
         WT_IGNORE_RET(__wt_scr_alloc(session, 0, &tmp));
 
