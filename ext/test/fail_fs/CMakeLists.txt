@@ -7,7 +7,7 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
-	${CMAKE_SOURCE_DIR}/test/utility
+        ${CMAKE_SOURCE_DIR}/test/utility
 )
 target_compile_options(
     wiredtiger_fail_fs
