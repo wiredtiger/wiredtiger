@@ -189,12 +189,8 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         extensions += f',{key_provider_extension_entry(key_provider_extension[0])}'
     extensions += ']'
 
-    # The external wt utility doesn't go through this open. When an early-load key provider is in
-    # use, basecfg can't replay it, so save the extensions list for runWt to pass on the wt
-    # connection configuration. The whole list is saved because naming any extensions there shadows
-    # what basecfg supplies.
-    if key_provider:
-        testcase.wt_external_extensions = extensions
+    # Save the hook-injected extensions so runWt can pass them to the external wt utility.
+    testcase.hook_extensions = extensions
 
     disagg_config += f',{extensions}'
 
