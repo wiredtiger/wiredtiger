@@ -1106,7 +1106,7 @@ err:
  * __conn_check_early_load_extensions --
  *     Detect every early_load=true extension recorded in the base configuration file that was not
  *     also passed to the open call. With extensions_strict the open fails with EINVAL; otherwise it
- *     logs a message and continues with the extension absent.
+ *     logs a warning and continues with the extension absent.
  */
 static int
 __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1145,7 +1145,7 @@ __conn_check_early_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
                   "early_load=true extension \"%.*s\" was not passed in the open configuration",
                   (int)skey.len, skey.str);
             else
-                __wt_verbose_debug1(session, WT_VERB_CONFIGURATION,
+                __wt_verbose_warning(session, WT_VERB_CONFIGURATION,
                   "early_load=true extension \"%.*s\" was not passed in the open configuration",
                   (int)skey.len, skey.str);
         }

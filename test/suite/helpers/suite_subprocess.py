@@ -241,6 +241,28 @@ class suite_subprocess:
                 for a in args
             ]
 
+        # The external 'wt' process doesn't go through the disagg hook's wiredtiger_open, so the
+        # extensions the hook injects must be passed on the wt connection configuration: the page
+        # log, and the early-load key provider that basecfg cannot replay. Listing extensions on
+        # the command line shadows what basecfg supplies, so we pass the full set the open needs.
+        if 'disagg' in self.hook_names and getattr(
+          self.platform_api.getDisaggParameters(), 'key_provider', None):
+            params = self.platform_api.getDisaggParameters()
+            page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
+            if params.config is None:
+                ext_list = '"%s"' % page_log
+            else:
+                ext_list = '"%s"=(config="%s")' % (page_log, params.config)
+            kp = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
+            ext_list += ',"%s"=(early_load=true,config="verbose=-1,key_expires=0")' % kp
+            ext_cfg = 'extensions=[%s]' % ext_list
+            if '-C' in args:
+                args = list(args)
+                conn_arg = args.index('-C') + 1
+                args[conn_arg] = args[conn_arg] + ',' + ext_cfg
+            else:
+                args = ['-C', ext_cfg] + list(args)
+
         # Close the connection to guarantee everything is flushed, and that
         # we can open it from another process.
         if closeconn:
