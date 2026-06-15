@@ -49,9 +49,8 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 class Txn(Enum):
-    # The generator's current transaction context. Only NO and SNAPSHOT permit writes; READ_COMMITTED
-    # / READ_UNCOMMITTED reject writes (txn_inline.h ~2112) and READ_TIMESTAMP is an as-of-past read.
-    # The value is the WiredTiger isolation= config string where one applies.
+    # The generator's current transaction context; the value is the isolation= string where one
+    # applies. READ_TIMESTAMP is an as-of-past read; write_allowed() says which contexts permit writes.
     NO = 'no'                              # autocommit -- no explicit transaction
     SNAPSHOT = 'snapshot'                  # read-write snapshot transaction
     READ_COMMITTED = 'read-committed'      # read-only
@@ -63,12 +62,10 @@ def write_allowed(txn):
 
 
 # --- workload shape --------------------------------------------------------
-# Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, never
-# dispatched by string -- with its weight and legality tags. A test builds a Weights and passes it
-# in; _build_ops copies each named field onto the Op that uses it (Op(self.op_next, weights.next)),
-# so run_op samples plain Op rows with no lookup. Adding an op = one op_<name> method + one Op row +
-# one Weights field. TxnModeWeights is the one sub-distribution not in the top-level pool:
-# op_txn_begin reads it directly to pick the transaction flavour it opens.
+# Each operation is an Op (built in _build_ops()) pairing an op method -- referenced directly, not
+# dispatched by string -- with its weight and legality tags. Adding an op = one op_<name> method +
+# one Op row + one Weights field. TxnModeWeights / SearchKeyWeights are sub-distributions an op reads
+# directly, not top-level pool weights.
 
 # TODO(workload-tuning): rough first pass (reads dominate; breaks/txn/scenarios rare). Once the long
 # run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
@@ -89,9 +86,8 @@ class TxnModeWeights:
 
 @dataclass(frozen=True)
 class SearchKeyWeights:
-    # op_search / op_search_near pick an existing key (exact-match / present-key merge) or a missing
-    # one (absent from py_table -- often a previously-removed key, so it exercises tombstones and the
-    # search_near neighbour logic).
+    # op_search / op_search_near pick an existing key, or a missing one (absent from py_table -- often
+    # a removed key, exercising tombstones and the search_near neighbour logic).
     existing: int = 50
     missing: int = 50
 
@@ -99,8 +95,7 @@ class SearchKeyWeights:
 # Q: Question for the future. Some weights should be less than 1% probability (like evict or advance) - probably 0.1% or even 0.01% for the long running tests Should we just make other weights bigger
 class Weights:
     # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
-    # the cursor is usually positioned -- the heart of the test. With no break gate, a position-
-    # breaking op's raw weight is its break frequency.
+    # the cursor is usually positioned -- the heart of the test.
     next: int = 40
     prev: int = 40
     search: int = 12
@@ -111,7 +106,7 @@ class Weights:
     remove: int = 2
     reset: int = 2
     full_scan: int = 4
-    advance: int = 6
+    advance_checkpoint: int = 6
     evict: int = 6
     txn_begin: int = 8
     commit: int = 6
@@ -174,7 +169,7 @@ class State:
         self.ts = 0              # monotonic commit/stable timestamp
         self.wseq = 0            # monotonic write counter, for unique values
         self.oldest_ts = 0       # current oldest_timestamp; floor for legal read_timestamps (C2)
-        self.last_advance_ts = 0  # self.ts at the previous advance; oldest lags to here
+        self.last_advance_checkpoint_ts = 0  # self.ts at the previous advance_checkpoint; oldest lags to here
         self.n_positional = 0    # positional update/remove ops applied (long-lived-chain guard)
         self.n_read_ts = 0       # as-of-past read transactions opened (read_timestamp guard)
         self.n_iso_rc = 0        # read-committed transactions opened (isolation guard, C3)
@@ -236,7 +231,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # Q: op_verify, op_advance and op_evict should be scen_advance, scen_verify, scen_evic, since they are not operations
             Op(self.op_full_scan,   weights.full_scan),
             # Q: autocommit_only and in_txn_only should be no_txn, in_txn that are true by default and we turn it to false where needed
-            Op(self.op_advance,     weights.advance,    autocommit_only=True),
+            Op(self.op_advance_checkpoint, weights.advance_checkpoint, autocommit_only=True),
             Op(self.op_evict,       weights.evict,      autocommit_only=True),
             Op(self.op_txn_begin,   weights.txn_begin,  autocommit_only=True),
             # Q: I think that op_commit and op_rollback should be a part of op_txn_begin(), so when we call it first time, we start transaction, when we call it second time, we either roll it back or commit (90/10). Weight for them should be moved to txn weights as well.
@@ -371,22 +366,15 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.txn_read_ts = None
         self.state.py_table_snapshot = None
 
-    def advance(self):
-        # Fold the leader's stable into the follower's via a new checkpoint. stable moves to the
-        # latest commit, but oldest LAGS one advance behind so the window [oldest, latest] stays open
-        # for as-of-past reads (pinning oldest == stable would forbid reading below the latest commit).
-        # oldest is monotonic and < stable. We deliberately allow an advance with NO new data since the
-        # last one -- it exercises the follower re-picking the same checkpoint (the ignored 'same
-        # checkpoint again' warning); it just collapses the read-ts window until the next write. Only
-        # skip when nothing has EVER been written (ts == 0): then stable would be 0 while oldest is
-        # forced to >= 1, which WT rejects.
+    def advance_checkpoint(self):
+        # Fold the leader's stable into the follower via a new checkpoint.
         if self.state.ts == 0:
             return
-        oldest = max(1, self.state.last_advance_ts)
+        oldest = max(1, self.state.last_advance_checkpoint_ts)
         self.conn.set_timestamp('oldest_timestamp=%s,stable_timestamp=%s'
                                 % (self.timestamp_str(oldest), self.timestamp_str(self.state.ts)))
         self.state.oldest_ts = oldest
-        self.state.last_advance_ts = self.state.ts
+        self.state.last_advance_checkpoint_ts = self.state.ts
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
@@ -407,12 +395,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- read application + comparison -----------------------------------
 
     def _read(self, nodes, trace, do):
-        # The per-op oracle: run do(cursor) -> code on the layered then the reference cursor of both
-        # nodes and compare. search_near canonicalizes to the ceiling and uses this same path (see
-        # _search_near_ceiling). Then track cur_pos -- the key the cursor is positioned on for a later
-        # positional write (None if the read found nothing). Leader and follower land on the same key
-        # (identical data, deterministic ops; full_scan is the cross-node check), so either speaks for
-        # cur_pos.
+        # The per-op oracle: run do(cursor) on the layered then reference cursor of both nodes and
+        # compare (ret, key, value), then track cur_pos for a later positional write.
         def op_result(cursor):
             ret = do(cursor)
             if ret == wiredtiger.WT_NOTFOUND:
@@ -428,11 +412,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.cur_pos = key if ret == 0 else None
 
     def _search_near_ceiling(self, cursor, key):
-        # Canonicalize search_near to the CEILING (smallest key >= key). WT's search_near may return
-        # either neighbour of an absent key; if it lands below key, step one to the next key. This
-        # makes the result deterministic, so leader and follower (and asc/dsc) all land on the same
-        # key (or WT_NOTFOUND past the end) and search_near is compared like any other read. Returns
-        # the WT return code (0 / WT_NOTFOUND) that op_result() turns into a (ret, key, value) tuple.
+        # Canonicalize search_near to the CEILING (smallest key >= key). WT may return either
+        # neighbour of an absent key; if it lands below key, step one to the next. Deterministic, so
+        # leader/follower (and asc/dsc) land on the same key and search_near compares like any read.
         cursor.set_key(key)
         cmp = cursor.search_near()
         if cmp == wiredtiger.WT_NOTFOUND:
@@ -454,8 +436,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if self.state.py_table and rnd.choices((True, False), weights=(w.existing, w.missing))[0]:
             return rnd.choice(list(self.state.py_table))
 
-        # Get a key from the POOL that doesn't exist. If all the keys are in the tables, get a key
-        # from POOL and add 5. Since POOL step is 10, such key will never exist.
+        # POOL step is 10, so if every POOL key is live, POOL_key + 5 is guaranteed absent.
         absent = [k for k in self.POOL if k not in self.state.py_table]
         return rnd.choice(absent) if absent else rnd.choice(self.POOL) + 5
 
@@ -472,9 +453,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         return out
 
     def full_scan(self, nodes, trace):
-        # Whole-table cross-check (named full_scan, not "verify", to avoid clashing with
-        # WT_SESSION::verify): each node's layered full scan must equal its reference, and the
-        # leader's layered view must equal the follower's layered view (same logical data).
+        # Whole-table cross-check.
         per_node = []
         for n in nodes:
             dsc = self._scan_cursor(n.dsc_c, True)
@@ -488,8 +467,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- operations -------------------------------------------------------
     # Each op is self-contained: it generates its own argument, traces itself, does the work, and
-    # updates the model. Shared work lives in helpers (_read / _write_txn / _positional /
-    # commit_txn / rollback_txn / _checkpoint / full_scan).
+    # updates the model.
 
     def op_next(self, nodes, rnd, trace):
         trace.log('next')
@@ -553,10 +531,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
             k=1)[0]
 
-        # A read_timestamp just needs to be valid: in [oldest_ts, ts] with oldest_ts >= 1 (0 means "no
-        # timestamp" in WT, and oldest_ts stays 0 until the first advance()). read_ts == ts is allowed
-        # -- a valid as-of read, even though it sees the same data as the latest snapshot. Before any
-        # timestamp is established, fall back to a plain snapshot txn.
+        # A read_timestamp just needs to be valid: in [oldest_ts, ts] with oldest_ts >= 1.
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
             if self.state.ts >= self.state.oldest_ts >= 1:
@@ -600,19 +575,20 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Release any pinned snapshot (reset cursors), advance the checkpoint, clear position.
         for n in nodes:
             n.reset_all()
-        self.advance()
+        self.advance_checkpoint()
         self.state.cur_pos = None
 
-    def op_advance(self, nodes, rnd, trace):
-        trace.log('advance')
+    def op_advance_checkpoint(self, nodes, rnd, trace):
+        trace.log('advance_checkpoint')
         self._checkpoint(nodes)
 
     def op_evict(self, nodes, rnd, trace):
-        # Checkpoint (which resets the cursors, releasing pins) THEN drain the follower ingest, so
-        # later reads fall through to stable. The checkpoint is required: ingest eviction only prunes
-        # entries already in stable (below the prune timestamp), so without it nothing is safely
-        # evictable and the drain is a no-op. Resetting the cursors first is required too -- a cursor
-        # positioned on the ingest leaf pins the page and blocks eviction (_checkpoint does the reset).
+        # Checkpoint (resets cursors, releasing pins) THEN drain the follower ingest so later reads
+        # fall through to stable. The checkpoint is required to drain everything -- eviction only
+        # prunes ingest entries already in stable, so without it the drain might be restricted to evict
+        # a big part of the content; and a cursor pinning the ingest leaf blocks eviction, so the reset
+        # (in _checkpoint) comes first.
+
         # TODO(eviction-modes): add two modes -- (a) no-checkpoint, opportunistically evict whatever is
         # already prunable (exercises trying to evict not-yet-stable ingest content), and (b) checkpoint
         # + reset + drain a random 20/40/60/80/100% of ingest for finer control of the ingest/stable
@@ -623,9 +599,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.force_evict(follower)
 
     def op_full_scan(self, nodes, rnd, trace):
-        # The full_scan() cross-check as a weighted op: catches a divergence in keys the random reads
-        # never touched, and -- scanning the whole follower table through the merged cursor --
-        # exercises the stable constituent for drained keys. Position-breaking.
+        # full scan of the table, position-breaking.
         trace.log('full_scan')
         self.full_scan(nodes, trace)
         self.state.n_full_scan += 1
@@ -634,24 +608,24 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- operation generation -------------------------------------------
 
     def _legal(self, op):
-        # Which ops are legal in the current transaction context / position -- pure off the Op tags
-        # and self.state.txn.
+        # Which ops are legal in the current transaction context / position.
+
         txn = self.state.txn
         if op.needs_position and self.state.cur_pos is None:
             return False
         if op.needs_live and not self.state.py_table:
             return False
         if txn is Txn.NO:
-            return not op.in_txn_only            # autocommit: everything except commit/rollback
-        if op.autocommit_only:                   # begin/advance/evict not allowed inside a txn
+            return not op.in_txn_only # autocommit: everything except commit/rollback
+        if op.autocommit_only:        # begin/advance/evict not allowed inside a txn
             return False
         if not write_allowed(txn):
-            return not op.is_write               # no writes in a read-only transaction
-        return True                              # snapshot txn: reads + writes + commit/rollback
+            return not op.is_write # no writes in a read-only transaction
+        return True                # snapshot txn: reads + writes + commit/rollback
 
     def run_op(self, nodes, rnd, trace):
-        # Pick one legal op by its weight and run it. next/prev dominate the weights, so chains
-        # stay long. Each op_* method does its own arg generation, tracing, and state update.
+        # Pick one legal op by its weight and run it. Each op_* method does its own arg generation,
+        # tracing, and state update.
         cands = [op for op in self.ops if self._legal(op)]
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
         op.fn(nodes, rnd, trace)
