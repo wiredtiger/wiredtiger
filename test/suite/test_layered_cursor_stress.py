@@ -121,8 +121,8 @@ class Op:
     needs_position: bool = False  # cursor must be positioned (positional writes)
     needs_live: bool = False      # at least one live key must exist (remove by key)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
-    autocommit_only: bool = False  # only with no open txn (begin / advance / evict)
-    in_txn_only: bool = False     # only with an open txn (commit / rollback)
+    no_txn: bool = True           # legal with no open txn (autocommit)
+    in_txn: bool = True           # legal inside an open txn
 
 class EventTrace:
     # Append-only, flushed-per-line record of every chosen event for a seed.
@@ -228,11 +228,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # Q: Why remove requires need_live? If it set's the key from scratch it breaks the position, so even if we try to remove unexisting key we can just check that both asc and dsc removes not_found. Maybe we can create a separate remove weights structure and say that we remove existing keys here
             Op(self.op_remove,      weights.remove,     is_write=True, needs_live=True),
             Op(self.op_reset,       weights.reset),
-            # Q: op_verify, op_advance and op_evict should be scen_advance, scen_verify, scen_evic, since they are not operations
+            # Q: op_verify, op_advance and op_evict should be scen_advance, scen_verify, scen_evic, since they are not operations but scenarios
             Op(self.op_full_scan,   weights.full_scan),
-            # Q: autocommit_only and in_txn_only should be no_txn, in_txn that are true by default and we turn it to false where needed
-            Op(self.op_advance_checkpoint, weights.advance_checkpoint, autocommit_only=True),
-            Op(self.op_evict,       weights.evict,      autocommit_only=True),
+            Op(self.op_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
+            Op(self.op_evict,       weights.evict,      in_txn=False),
             Op(self.op_txn_begin,   weights.txn_begin),
         ]
 
@@ -616,12 +615,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if op.needs_live and not self.state.py_table:
             return False
         if txn is Txn.NO:
-            return not op.in_txn_only # autocommit: everything except commit/rollback
-        if op.autocommit_only:        # begin/advance/evict not allowed inside a txn
+            return op.no_txn
+        if not op.in_txn:          # advance_checkpoint / evict not allowed inside a txn
             return False
         if not write_allowed(txn):
             return not op.is_write # no writes in a read-only transaction
-        return True                # snapshot txn: reads + writes + commit/rollback
+        return True
 
     def run_op(self, nodes, rnd, trace):
         # Pick one legal op by its weight and run it. Each op_* method does its own arg generation,
