@@ -49,7 +49,7 @@
 #   (a production-like concurrent follower writer). For the asc-vs-dsc comparison to stay valid the
 #   two tested cursors must always share one snapshot, so this first needs the no-txn (autocommit
 #   read-committed) read ops disabled -- otherwise asc and dsc refresh at different points.
-#   Especially interesting under the read-committed and read-uncommitted isolations.
+#   Especially interesting under the read-committed and read-uncommitted isolation levels.
 # - Two modes for the eviction scenario: not only evict everything right after the checkpoint, but
 #   also do partial evictions of 20/40/60/80/100% with a cursor open, so we remove only the ingest
 #   entries that are permitted to be removed.
@@ -85,7 +85,7 @@ def write_allowed(txn):
 
 @dataclass(frozen=True)
 class TxnModeWeights:
-    # op_txn_begin's sub-weights: which flavour to begin (snapshot is read-write; the rest read-only,
+    # op_txn_begin sub-weights: which flavor to begin (snapshot is read-write; the rest read-only,
     # read_timestamp = an as-of-past read), and how to end an open txn (commit vs rollback).
     snapshot: float = 72
     read_committed: float = 16
@@ -97,7 +97,7 @@ class TxnModeWeights:
 @dataclass(frozen=True)
 class SearchKeyWeights:
     # op_search / op_search_near pick an existing key, or a missing one (absent from py_table -- often
-    # a removed key, exercising tombstones and the search_near neighbour logic).
+    # a removed key, exercising tombstones and the search_near neighbor logic).
     existing: float = 50
     missing: float = 50
 
@@ -111,9 +111,8 @@ class RemoveKeyWeights:
 @dataclass(frozen=True)
 class BulkRemoveWeights:
     # scen_bulk_remove deletes a contiguous 40/80/100% range either by per-key remove or range truncate.
-    # FIXME-WT-XXXXX: truncate over-truncates on the follower layered table -- a key re-inserted inside
-    # a prior truncate range is lost once it drains to stable (findings/repro_truncate_layered_
-    # divergence.py). Disabled (weight 0) until fixed; raise it then.
+    # FIXME-WT-XXXX: truncate over-truncates on the follower layered table -- a key re-inserted inside a
+    # prior truncate range is lost once it drains to stable. Disabled (weight 0) until fixed; raise it then.
     remove: float = 100
     truncate: float = 0
 
@@ -211,9 +210,9 @@ class State:
         self.chain_count = 0     # number of completed positioned runs
         self.n_reached_full = 0         # times py_table rose to hold every pool key
         self.n_reached_empty = 0        # times py_table transitioned to empty
-        self.max_n = 0                  # DIAG: largest py_table size seen
-        self.n_advance = 0; self.n_evict = 0   # DIAG
-        self.op_counts = {}             # DIAG: per-op fire counts (workload diversity)
+        self.max_n = 0                  # DIAGNOSTIC: largest py_table size seen
+        self.n_advance = 0; self.n_evict = 0   # DIAGNOSTIC
+        self.op_counts = {}             # DIAGNOSTIC: per-op fire counts (workload diversity)
         self.new_sequence()
 
     def new_sequence(self):
@@ -380,7 +379,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             n.session.commit_transaction(commit_cfg)
 
         # FIXME-WT-17830: a follower layered cursor held across an as-of-past txn commit
-        # mis-iterates (stays on its key instead of moving). Reset works around it; remove once fixed.
+        # fails to advance (stays on its key instead of moving). Reset works around it; remove once fixed.
         if self.state.txn_read_ts is not None:
             for n in nodes:
                 n.reset_all()
@@ -448,7 +447,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def _search_near_ceiling(self, cursor, key, exact_expected):
         # Canonicalize search_near to the CEILING (smallest key >= key); if it lands below key, step to
         # the next. For an absent key the layered and plain cursors deterministically prefer OPPOSITE
-        # neighbours (layered floor, plain ceiling) -- both contract-legal -- so the ceiling step makes
+        # neighbors (layered floor, plain ceiling) -- both contract-legal -- so the ceiling step makes
         # them comparable. When the key is present it must be found exactly: assert cmp == 0 so the
         # ceiling step can't paper over a layered cursor that skipped a live exact match.
         cursor.set_key(key)
@@ -566,7 +565,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.py_table.pop(key, None)
 
     def op_txn_begin(self, nodes, rnd, trace):
-        # No txn open -> begin one (flavour by the txn_mode weights); a txn open -> end it.
+        # No txn open -> begin one (flavor by the txn_mode weights); a txn open -> end it.
         txn_weights = self.weights.txn_mode
 
         # Close the txn if one is running
@@ -779,7 +778,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     ingest=ingest, top_share=top_share, eff_ops=eff_ops, shares=shares)
 
     def follower_read_split(self):
-        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
+        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; the search_near
         # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
         stat_cursor = self.session_follow.open_cursor('statistics:')
         try:
@@ -799,11 +798,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 % (m['chain_avg'], m['chain_count'], m['n_reached_full'], m['n_reached_empty'],
                    m['stable_frac'], m['stable'], m['ingest'], m['eff_ops'], 100 * m['top_share']))
         s = self.state
-        self.pr('DIAG: max_n=%d pool=%d n_advance=%d n_evict=%d n_bulk_insert=%d n_bulk_remove=%d n_full_scan=%d'
+        self.pr('DIAGNOSTIC: max_n=%d pool=%d n_advance=%d n_evict=%d n_bulk_insert=%d n_bulk_remove=%d n_full_scan=%d'
                 % (s.max_n, len(self.pool), s.n_advance, s.n_evict, s.n_bulk_insert, s.n_bulk_remove, s.n_full_scan))
         dist = ' '.join('%s=%.1f%%' % (k.replace('op_', '').replace('scen_', ''), 100 * m['shares'][k])
                         for k in sorted(m['shares'], key=m['shares'].get, reverse=True))
-        self.pr('DIAG: diversity | %s' % dist)
+        self.pr('DIAGNOSTIC: diversity | %s' % dist)
         return m
 
     def assert_workload_coverage(self):
