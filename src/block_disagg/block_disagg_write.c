@@ -183,7 +183,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         F_SET(&put_args, WT_PAGE_LOG_COLD);
 
     /* Write the block. */
-    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT, 10000)) {
+    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT, 100)) {
         return (EBUSY);
     }
     WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));

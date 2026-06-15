@@ -28,6 +28,7 @@
 
 import re, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
+from wiredtiger import stat
 
 # test_disagg_checkpoint_size11.py
 #   Verifies that a plh_put failure leaves block_disagg->size unchanged (no
@@ -51,8 +52,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #   1. Write rows + full-image checkpoint (baseline).
 #   2. Partial update + delta checkpoint (cumulative_size > baseline).
 #   3. Evict the page so it reloads from the page service with persistent=true.
-#   4. Enable failpoint_page_log_handle_put (100% probability) + delta_pct=1.
-#   5. Dirty the page and force one eviction  write fails, page_id stays intact.
+#   4. Enable failpoint_page_log_handle_put (~1% probability) + delta_pct=1.
+#   5. Loop dirty+evict until the failpoint fires  write fails, page_id stays intact.
 #   6. Disable failpoint and run a recovery checkpoint.  The checkpoint reconciles
 #      the dirty page using old_block_meta (same page_id), calls decrease_size for
 #      the old chain, and adds the new block, keeping block_disagg->size correct.
@@ -131,7 +132,7 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
         # on page->disagg_info->block_meta, reflecting the live delta chain.
         self.evict_page('key000000')
 
-        # Step 4: Enable the failpoint (100% probability) and switch to full-image writes.
+        # Step 4: Enable the failpoint (~1% probability) and switch to full-image writes.
         # failpoint_page_log_handle_put fires inside __wti_block_disagg_write_internal
         # before plh_put, returning EBUSY so the write never reaches the page log.
         # __rec_write_err detects block_meta->persistent==false on the new-block
@@ -141,12 +142,28 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
             'timing_stress_for_test=[failpoint_page_log_handle_put]'
         )
 
-        # Step 5: Dirty the page and force one eviction.  With 100% failpoint probability
-        # the write always fails; page_id stays valid and block_disagg->size is unchanged.
-        c = self.session.open_cursor(self.uri)
-        self.insert_rows(c, 0, nrows, 'C')
-        c.close()
-        self.evict_page('key000000')
+        # Step 5: Loop until the failpoint fires.  Detect failure by checking that
+        # disagg_block_put (connection stat) did not increment after an eviction attempt,
+        # meaning the write never reached plh_put.
+        def get_put_count():
+            s = self.session.open_cursor('statistics:')
+            val = s[stat.conn.disagg_block_put][2]
+            s.close()
+            return val
+
+        max_iters = 500
+        for i in range(max_iters):
+            put_before = get_put_count()
+            c = self.session.open_cursor(self.uri)
+            self.insert_rows(c, 0, nrows, chr(ord('C') + (i % 20)))
+            c.close()
+            self.evict_page('key000000')
+            if get_put_count() == put_before:
+                break
+        else:
+            self.fail(
+                f'failpoint_page_log_handle_put never fired after {max_iters} iterations'
+            )
 
         # Step 6: Disable the failpoint and run the recovery checkpoint.
         # The checkpoint reconciles the still-dirty page using the same page_id
