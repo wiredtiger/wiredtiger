@@ -11,31 +11,6 @@
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
- * __layered_create_missing_stable_table --
- *     Create a missing stable table from an existing layered table configuration.
- */
-static int
-__layered_create_missing_stable_table(
-  WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
-{
-    WT_DECL_RET;
-    const char *constituent_cfg;
-    const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), layered_cfg, NULL, NULL};
-
-    constituent_cfg = NULL;
-
-    /* Disable logging on the stable table so we have timestamps. */
-    stable_cfg[2] = "log=(enabled=false)";
-
-    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
-
-err:
-    __wt_free(session, constituent_cfg);
-    return (ret);
-}
-
-/*
  * __layered_create_missing_stable_tables_legacy --
  *     Create missing stable tables in cases we don't use schema epochs. Note that this is
  *     best-effort and is not able to handle all cases of operation interleaving.
@@ -87,7 +62,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
          */
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG_CHK(session,
-              __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
+              __wt_schema_create_layered_stable(session, stable_uri, layered_cfg, ""),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
 
             /*
@@ -191,7 +166,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 
         /* The table hasn't been dropped, so create it. */
         WT_ERR_MSG_CHK(session,
-          __layered_create_missing_stable_table(session, entry->stable_uri, entry->layered_value),
+          __wt_schema_create_layered_stable(session, entry->stable_uri, entry->layered_value, ""),
           "Failed to create missing stable table \"%s\" with schema epoch %" PRIu64
           " from layered config \"%s\"",
           entry->stable_uri, entry->schema_epoch, entry->layered_value);

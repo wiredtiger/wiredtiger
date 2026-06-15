@@ -1117,6 +1117,35 @@ err:
 }
 
 /*
+ * __wt_schema_create_layered_stable --
+ *     Create the stable constituent of a layered table. The stable table inherits the table
+ *     metadata defaults plus the supplied source configuration(s); logging is disabled last so the
+ *     stable table keeps timestamps regardless of any user setting.
+ */
+int
+__wt_schema_create_layered_stable(
+  WT_SESSION_IMPL *session, const char *uri, const char *cfg1, const char *cfg2)
+{
+    WT_DECL_RET;
+    const char *constituent_cfg;
+    /*
+     * Disabling logging must come last so it overrides any user value. Unused middle slots must be
+     * "" rather than NULL: __wt_config_merge stops at the first NULL entry.
+     */
+    const char *stable_cfg[5] = {
+      WT_CONFIG_BASE(session, table_meta), cfg1, cfg2, "log=(enabled=false)", NULL};
+
+    constituent_cfg = NULL;
+
+    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
+
+err:
+    __wt_free(session, constituent_cfg);
+    return (ret);
+}
+
+/*
  * __create_layered --
  *     Create a layered tree - such a tree is a pair of underlying btrees, one that holds recently
  *     ingested data, the other a full set of stable data.
@@ -1138,7 +1167,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     const char *ingest_uri, *stable_uri, *tablename;
     const char *layered_cfg[5] = {
       WT_CONFIG_BASE(session, layered_meta), "", config == NULL ? "" : config, NULL, NULL};
-    const char *stable_cfg[5] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL, NULL};
 
     conn = S2C(session);
 
@@ -1208,15 +1236,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
     __wt_free(session, constituent_cfg);
 
-    if (conn->layered_table_manager.leader) {
-        stable_cfg[1] = disagg_config->data;
-
-        /* Disable logging on the stable table to ensure we have timestamps. */
-        stable_cfg[3] = "log=(enabled=false)";
-        WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
-        __wt_free(session, constituent_cfg);
-    }
+    if (conn->layered_table_manager.leader)
+        WT_ERR(__wt_schema_create_layered_stable(session, stable_uri, disagg_config->data, config));
 
     /*
      * Update the shared metadata for the disaggregated storage.
