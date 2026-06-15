@@ -93,7 +93,7 @@
  * Align an unsigned value of any type to a specified power-of-2, including the offset result of a
  * pointer subtraction; do the calculation using the largest unsigned integer type available.
  */
-#define WT_ALIGN(n, v) ((((uintmax_t)(n)) + ((v)-1)) & ~(((uintmax_t)(v)) - 1))
+#define WT_ALIGN(n, v) ((((uintmax_t)(n)) + ((v) - 1)) & ~(((uintmax_t)(v)) - 1))
 
 #define WT_ALIGN_NEAREST(n, v) ((((uintmax_t)(n)) + ((v) / 2)) & ~(((uintmax_t)(v)) - 1))
 
@@ -147,7 +147,7 @@
         __wt_realloc(session, sizep,                                            \
           (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
             (number) * sizeof(**(addr)) :                                       \
-            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),        \
+            WT_MAX(*(sizep) * 2, WT_MAX(10, (number)) * sizeof(**(addr))),      \
           addr))
 
 /*
@@ -346,6 +346,21 @@ static WT_INLINE bool
 __wt_string_match(const char *str, const char *bytes, size_t len)
 {
     return (strncmp(str, bytes, len) == 0 && str[len] == '\0');
+}
+
+/*
+ * __wt_string_slice_cmp --
+ *     Compare two length-delimited strings.
+ */
+static WT_INLINE int
+__wt_string_slice_cmp(const char *a, size_t a_len, const char *b, size_t b_len)
+{
+    int cmp;
+
+    cmp = memcmp(a, b, WT_MIN(a_len, b_len));
+    if (cmp == 0)
+        cmp = a_len < b_len ? -1 : a_len > b_len ? 1 : 0;
+    return (cmp);
 }
 
 /*
