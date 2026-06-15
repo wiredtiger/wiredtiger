@@ -174,7 +174,7 @@ class State:
         self.n_read_ts = 0       # as-of-past read transactions opened (read_timestamp guard)
         self.n_iso_rc = 0        # read-committed transactions opened (isolation guard, C3)
         self.n_iso_ru = 0        # read-uncommitted transactions opened (isolation guard, C3)
-        self.n_full_scan = 0     # full-table cross-checks run (op_full_scan guard)
+        self.n_full_scan = 0     # full-table cross-checks run (scen_full_scan guard)
         self.new_sequence()
 
     def new_sequence(self):
@@ -217,6 +217,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def _build_ops(self, weights):
         # One Op row per op, pairing the op method (the dispatch identity) with its legality tags and
         # the weight copied from the Weights field it belongs to, so run_op samples plain rows.
+
+        # Scenarios are ops that don't logically match to any cursor operation.
         return [
             Op(self.op_next,        weights.next),
             Op(self.op_prev,        weights.prev),
@@ -228,10 +230,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # Q: Why remove requires need_live? If it set's the key from scratch it breaks the position, so even if we try to remove unexisting key we can just check that both asc and dsc removes not_found. Maybe we can create a separate remove weights structure and say that we remove existing keys here
             Op(self.op_remove,      weights.remove,     is_write=True, needs_live=True),
             Op(self.op_reset,       weights.reset),
-            # Q: op_verify, op_advance and op_evict should be scen_advance, scen_verify, scen_evic, since they are not operations but scenarios
-            Op(self.op_full_scan,   weights.full_scan),
-            Op(self.op_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
-            Op(self.op_evict,       weights.evict,      in_txn=False),
+            Op(self.scen_full_scan, weights.full_scan),
+            Op(self.scen_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
+            Op(self.scen_evict,     weights.evict,      in_txn=False),
             Op(self.op_txn_begin,   weights.txn_begin),
         ]
 
@@ -239,12 +240,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # Removable scaffolding -- NOT the oracle. Grouped here so they stay out of the core op / read /
     # write logic during review.
     def DEV_ONLY_validate_ops(self):
-        # Guard the op table at setup: exactly one row per op_* method (a missing/duplicate row fails
-        # loudly here, not deep in a run) and every weight positive (zero/negative would drop an op).
-        methods = {n for n in dir(self) if n.startswith('op_')}
+        # Guard the op table at setup: exactly one row per op_* / scen_* method (a missing/duplicate
+        # row fails loudly here, not deep in a run) and every weight positive (0/negative drops an op).
+        methods = {n for n in dir(self) if n.startswith(('op_', 'scen_'))}
         rows = {op.fn.__name__ for op in self.ops}
         assert len(rows) == len(self.ops), 'duplicate op rows in the workload table'
-        assert rows == methods, 'op table != op_* methods: %r' % sorted(rows ^ methods)
+        assert rows == methods, 'op table != op_*/scen_* methods: %r' % sorted(rows ^ methods)
         assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
 
     def DEV_ONLY_follower_read_split(self):
@@ -577,11 +578,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.advance_checkpoint()
         self.state.cur_pos = None
 
-    def op_advance_checkpoint(self, nodes, rnd, trace):
+    def scen_advance_checkpoint(self, nodes, rnd, trace):
         trace.log('advance_checkpoint')
         self._checkpoint(nodes)
 
-    def op_evict(self, nodes, rnd, trace):
+    def scen_evict(self, nodes, rnd, trace):
         # Checkpoint (resets cursors, releasing pins) THEN drain the follower ingest so later reads
         # fall through to stable. The checkpoint is required to drain everything -- eviction only
         # prunes ingest entries already in stable, so without it the drain might be restricted to evict
@@ -597,7 +598,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         follower = nodes[1]
         self.force_evict(follower)
 
-    def op_full_scan(self, nodes, rnd, trace):
+    def scen_full_scan(self, nodes, rnd, trace):
         # full scan of the table, position-breaking.
         trace.log('full_scan')
         self.full_scan(nodes, trace)
