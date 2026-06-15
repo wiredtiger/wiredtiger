@@ -53,8 +53,8 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 
-    /* Set before open_cursor: corrupt reads during dhandle open and per-key descents return an
-     * error instead of panicking. */
+    /* Set before open_cursor: a corrupt root page at dhandle open and corrupt reads on per-key
+     * descents return an error instead of panicking. */
     if (read_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
 
