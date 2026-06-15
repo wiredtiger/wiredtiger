@@ -204,13 +204,11 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         # Graceful counterpart: same corruption, but -q runs the tree
         # walker which skips bad pages and continues with sibling
         # subtrees. Output is partial - only records on the corrupt
-        # leaf are missing - and the command exits non-zero to flag
-        # that something was skipped.
+        # leaf are missing - and the command exits zero because the
+        # walk completed (corruption is signaled via __wt_errx on
+        # stderr, not via the exit code).
         # Pins five properties of the -q behavior:
-        #   1. rc == 1 exactly (walker returned non-zero because a
-        #      subtree was skipped; pre-walker iteration would have
-        #      also returned 1 but for the different reason of "first
-        #      error stopped the walk").
+        #   1. rc == 0 (walk reached WT_NOTFOUND cleanly).
         #   2. stdout starts with the dump header preamble verbatim.
         #   3. The first key (00000000) is in stdout - records before
         #      the corrupt leaf made it through.
@@ -227,9 +225,9 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         argv = [self._wt_path(), '-q', 'dump', self.uri]
         with open('dump_q.out', 'w') as out, open('dump_q.err', 'w') as err:
             rc = subprocess.call(argv, stdout=out, stderr=err)
-        self.assertEqual(rc, 1,
-            'wt -q dump on corrupt data returned rc=%d; expected exactly '
-            '1 (graceful non-zero)' % rc)
+        self.assertEqual(rc, 0,
+            'wt -q dump on corrupt data returned rc=%d; expected 0 '
+            '(walk completed; skip is transparent at exit-code level)' % rc)
         with open('dump_q.out') as f:
             out = f.read()
         self.assertTrue(out.startswith('WiredTiger Dump (WiredTiger Version'),
@@ -269,7 +267,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         argv = [self._wt_path(), '-q', 'dump', self.uri]
         with open('dump_q.out', 'w') as out, open('dump_q.err', 'w') as err:
             rc = subprocess.call(argv, stdout=out, stderr=err)
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         with open('dump_q.out') as f:
             out = f.read()
         emitted = self._parse_dumped_keys(out)
@@ -309,13 +307,13 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_q_json_skips_corrupt(self):
         # JSON dump under -q must emit a well-formed JSON document despite
-        # the corrupt subtree being skipped. Pins: rc == 1, first and last
+        # the corrupt subtree being skipped. Pins: rc == 0, first and last
         # keys present (iteration crossed the corrupt span), JSON parses.
         self.setup_corrupt_leaf_table()
         rc, out, _ = self._run_dump_q('-j',
                                       outname='dump_q_json.out',
                                       errname='dump_q_json.err')
-        self.assertEqual(rc, 1, 'wt -q -j dump rc=%d, expected 1' % rc)
+        self.assertEqual(rc, 0, 'wt -q -j dump rc=%d, expected 0' % rc)
         import json
         doc = json.loads(out)
         self.assertIn(self.uri, doc, 'dump JSON missing URI key')
@@ -336,7 +334,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         rc, out, _ = self._run_dump_q('-x',
                                       outname='dump_q_hex.out',
                                       errname='dump_q_hex.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         lines = [ln for ln in out.splitlines() if ln]
         self.assertIn('Data', lines, 'hex dump missing "Data" section marker')
         data_lines = lines[lines.index('Data') + 1:]
@@ -357,7 +355,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         rc, out, _ = self._run_dump_q('-r',
                                       outname='dump_q_rev.out',
                                       errname='dump_q_rev.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         # Preserve order: parse keys as they appear in stdout.
         ordered_keys = []
         for line in out.splitlines():
@@ -382,83 +380,13 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
             '-u', '%08d\\00' % (self.nentries - 1),
             outname='dump_q_b.out',
             errname='dump_q_b.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         emitted = self._parse_dumped_keys(out)
         self.assertIn('00000000', emitted)
         self.assertIn('%08d' % (self.nentries - 1), emitted)
         self.assertLess(len(emitted), self.nentries)
 
     # ---------- multi-URI -q -j continuation across corrupt-root tables ----------
-
-    def test_dump_q_j_multi_uri_skips_corrupt_root_table(self):
-        # Build 3 tables, corrupt the middle one's root (so its open_cursor
-        # returns WT_ERROR), run wt -q dump -j across all three. Expect:
-        #   1. rc == 1 (graceful non-zero, one table was skipped)
-        #   2. stdout is valid JSON
-        #   3. The corrupt table is absent from the JSON
-        #   4. The two clean tables are present with their full record sets
-        #   5. stderr has the per-URI "cursor open(...) failed" line
-        # Pins the contract that multi-URI dump under -q + -j survives a
-        # corrupt-root table by skipping it and continuing.
-        self.skip_test_if_disagg()
-        import re
-        import json
-        # Need a layout that places the root at a predictable offset.
-        # The page-size knobs match the test_util_read_corrupt fixture but
-        # we use only ~50 records per table so the root lands on the file's
-        # last few KB and is easy to overwrite without touching leaves.
-        for t in ('A', 'B', 'C'):
-            self.session.create('table:demo' + t,
-                'key_format=S,value_format=S,'
-                'allocation_size=512,leaf_page_max=512,internal_page_max=512')
-            cur = self.session.open_cursor('table:demo' + t, None, None)
-            for i in range(500):
-                cur['%s_k%04d' % (t, i)] = '%s_v_%04d' % (t, i)
-            cur.close()
-        self.session.checkpoint()
-        self.close_conn()
-
-        # Find the root for the middle table via verify -d dump_address.
-        import subprocess
-        out = subprocess.run(
-            [self._wt_path(), 'verify', '-d', 'dump_address', 'table:demoB'],
-            capture_output=True, text=True).stdout
-        m = re.search(r'addr: \[0: (\d+)-(\d+), \d+, \d+\]', out)
-        root_start, root_end = int(m.group(1)), int(m.group(2))
-        with open('demoB.wt', 'r+b') as f:
-            f.seek(root_start)
-            f.write(b'\xde\xad\xbe\xef' * ((root_end - root_start) // 4))
-
-        # Run multi-URI -q dump -j.
-        argv = [self._wt_path(), '-q', 'dump', '-j',
-                'table:demoA', 'table:demoB', 'table:demoC']
-        with open('multi_q.out', 'w') as o, open('multi_q.err', 'w') as e:
-            rc = subprocess.call(argv, stdout=o, stderr=e)
-        self.assertEqual(rc, 1, 'multi-URI -q dump rc=%d, expected 1' % rc)
-        with open('multi_q.err') as f:
-            err = f.read()
-        self.assertIn('cursor open(table:demoB) failed', err,
-            'expected per-URI open failure logged on stderr for demoB')
-        with open('multi_q.out') as f:
-            doc = json.load(f)   # raises if JSON is malformed
-        tables = sorted(k for k in doc if k.startswith('table:'))
-        self.assertEqual(tables, ['table:demoA', 'table:demoB', 'table:demoC'],
-            'expected all three table keys present, including an error marker for the middle '
-            'table; got %r' % tables)
-        # The first and third tables have full data.
-        for t in ('A', 'C'):
-            records = doc['table:demo' + t][1]['data']
-            keys = [r['key0'] for r in records]
-            self.assertEqual(len(keys), 500,
-                '%s expected 500 records, got %d' % (t, len(keys)))
-            self.assertEqual(keys[0], '%s_k0000' % t)
-            self.assertEqual(keys[-1], '%s_k0499' % t)
-        # The middle table is a single-element array containing the error marker.
-        self.assertEqual(len(doc['table:demoB']), 1,
-            'expected one error-placeholder element; got %r' % doc['table:demoB'])
-        self.assertIn('error', doc['table:demoB'][0],
-            'expected "error" key in the placeholder; got keys %r'
-            % list(doc['table:demoB'][0].keys()))
 
     # ---------- dump_record return-code regressions (no corruption) outside scope ----------
 

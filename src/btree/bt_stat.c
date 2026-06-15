@@ -121,9 +121,6 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
 err:
     WT_IGNORE_RET(__wt_page_release(session, next_walk, 0));
 
-    /* Under skip-corrupt the terminal WT_ERROR/EIO is the walk completing with skips. */
-    if (FLD_ISSET(walk_flags, WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO))
-        ret = 0;
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
 

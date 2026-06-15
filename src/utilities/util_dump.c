@@ -24,7 +24,6 @@ static int dump_explore_bookmark_select(WT_CURSOR *, char **, uint64_t);
 static void dump_explore_bookmarks_list(char **);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
-static int dump_json_error_table(WT_SESSION *, const char *, const char *);
 static int dump_json_separator(WT_SESSION *);
 static int dump_json_table_end(WT_SESSION *);
 static const char *get_dump_type(bool, bool, bool);
@@ -109,10 +108,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_SESSION_IMPL *session_impl;
     uint64_t window;
     int ch, format_specifiers, i;
-    int multi_uri_err;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *end_key, *key, *start_key;
-    bool explore, have_emitted_table, hex, json, pretty, reverse, search_near;
+    bool explore, hex, json, pretty, reverse, search_near;
     bool in_json_table = false;
 
     session_impl = (WT_SESSION_IMPL *)session;
@@ -120,8 +118,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     cursor = NULL;
     hs_dump_cursor = NULL;
     key = NULL;
-    multi_uri_err = 0;
-    have_emitted_table = false;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
     explore = hex = json = pretty = reverse = search_near = false;
     end_key = NULL;
@@ -218,8 +214,12 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
     for (i = 0; i < argc; i++) {
-        /* JSON separator is deferred until open_cursor succeeds; emitting it earlier would
-         * leave a dangling "," in the output if we then skip this URI on failure. */
+        if (json && i > 0)
+            if (dump_json_separator(session) != 0)
+                goto err;
+
+        if (json)
+            in_json_table = true;
 
         util_free(uri);
         util_free(simpleuri);
@@ -243,34 +243,13 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
-            const char *errmsg = session->strerror(session, ret);
-            fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri, errmsg);
-            /*
-             * Emit a JSON placeholder so the operator can see which URIs failed. The placeholder is
-             * emitted regardless of -q; -q controls whether we continue afterward.
-             */
-            if (json) {
-                if (have_emitted_table && dump_json_separator(session) != 0)
-                    goto err;
-                if (dump_json_error_table(session, uri, errmsg) != 0)
-                    goto err;
-                have_emitted_table = true;
-            }
-            if (multi_uri_err == 0)
-                multi_uri_err = ret;
-            cursor = NULL;
-            if (read_corrupt)
+            fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
+              session->strerror(session, ret));
+            if (read_corrupt) {
+                cursor = NULL;
                 continue;
+            }
             goto err;
-        }
-
-        /* Emit the JSON separator now that we're committed to writing this URI's content. */
-        if (json && have_emitted_table)
-            if (dump_json_separator(session) != 0)
-                goto err;
-        if (json) {
-            have_emitted_table = true;
-            in_json_table = true;
         }
 
         if ((simpleuri = util_strdup(uri)) == NULL) {
@@ -291,42 +270,30 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             F_SET(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         }
 
-        /*
-         * Track iteration failure for per-URI continuation under -q + JSON. dump_json_table_end
-         * below closes the JSON braces for whatever was already emitted.
-         */
-        ret = 0;
         if (explore) {
             if (dump_explore(cursor, simpleuri, reverse, pretty, hex, json) != 0)
-                ret = 1;
+                goto err;
         } else {
             if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
-                ret = 1;
-            else if (key == NULL) {
+                goto err;
+
+            if (key == NULL) {
                 if (start_key != NULL) {
                     cursor->set_key(cursor, start_key);
                     if (cursor->bound(cursor, "action=set,bound=lower") != 0)
-                        ret = 1;
+                        goto err;
                 }
-                if (ret == 0 && end_key != NULL) {
+                if (end_key != NULL) {
                     cursor->set_key(cursor, end_key);
                     if (cursor->bound(cursor, "action=set,bound=upper") != 0)
-                        ret = 1;
+                        goto err;
                 }
-                if (ret == 0 && dump_all_records(cursor, reverse, json) != 0)
-                    ret = 1;
-                if (ret == 0 && (start_key != NULL || end_key != NULL) &&
+                if (dump_all_records(cursor, reverse, json) != 0)
+                    goto err;
+                if ((start_key != NULL || end_key != NULL) &&
                   cursor->bound(cursor, "action=clear") != 0)
-                    ret = 1;
+                    goto err;
             } else if (dump_record(cursor, key, reverse, search_near, json, window) != 0)
-                ret = 1;
-        }
-        if (ret != 0) {
-            if (read_corrupt && json) {
-                if (multi_uri_err == 0)
-                    multi_uri_err = ret;
-                /* Fall through; dump_json_table_end + close below clean up. */
-            } else
                 goto err;
         }
 
@@ -342,11 +309,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         hs_dump_cursor = NULL;
         if (ret != 0) {
             (void)util_err(session, ret, NULL);
-            if (read_corrupt && json) {
-                if (multi_uri_err == 0)
-                    multi_uri_err = ret;
-                continue;
-            }
             goto err;
         }
     }
@@ -363,25 +325,14 @@ err:
         dump_json_end(session);
 
     if (cursor != NULL) {
-        int tret;
         if (hs_dump_cursor != NULL)
             F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
-        if ((tret = cursor->close(cursor)) != 0) {
-            (void)util_err(session, tret, NULL);
-            if (ret == 0)
-                ret = 1;
-        }
+        if ((ret = cursor->close(cursor)) != 0)
+            ret = util_err(session, ret, NULL);
     }
 
-    if (util_close_output_file(fp) != 0) {
-        (void)util_err(session, errno, NULL);
-        if (ret == 0)
-            ret = 1;
-    }
-
-    /* Surface the first per-URI failure as the exit code so partial output is signaled. */
-    if (ret == 0 && multi_uri_err != 0)
-        ret = 1;
+    if (util_close_output_file(fp) != 0)
+        ret = util_err(session, errno, NULL);
 
     __wt_scr_free(session_impl, &tmp);
     util_free(uri);
@@ -494,30 +445,6 @@ dump_json_separator(WT_SESSION *session)
     if (fprintf(fp, ",\n") < 0)
         return (util_err(session, EIO, NULL));
     return (0);
-}
-
-/*
- * dump_json_error_table --
- *     Emit "<uri>" : [{"error": "<msg>"}] as a placeholder for a URI we couldn't dump.
- */
-static int
-dump_json_error_table(WT_SESSION *session, const char *uri, const char *errmsg)
-{
-    WT_DECL_RET;
-    char *json_uri, *json_err;
-
-    json_uri = json_err = NULL;
-    if ((ret = dup_json_string(uri, &json_uri)) != 0)
-        return (util_err(session, ret, NULL));
-    if ((ret = dup_json_string(errmsg, &json_err)) != 0)
-        goto err;
-    if (fprintf(fp, "    \"%s\" : [\n        {\n            \"error\" : \"%s\"\n        }\n    ]",
-          json_uri, json_err) < 0)
-        ret = util_err(session, EIO, NULL);
-err:
-    util_free(json_uri);
-    util_free(json_err);
-    return (ret);
 }
 
 /*
@@ -885,7 +812,7 @@ dump_record(
 
     /* Unable to find the exact key specified. */
     if (exact != 0 && !search_near)
-        goto err;
+        WT_ERR(WT_NOTFOUND);
 
     if (window == 0)
         WT_ERR(print_record(cursor, json));
@@ -918,10 +845,8 @@ dump_record(
             }
             WT_ERR(print_record(cursor, json));
             if ((ret = fwd(cursor)) != 0) {
-                if (ret == WT_NOTFOUND) {
-                    ret = 0;
+                if (ret == WT_NOTFOUND)
                     break;
-                }
                 WT_ERR(util_cerr(cursor, "cursor", ret));
             }
             once = true;

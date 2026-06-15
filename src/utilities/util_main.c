@@ -205,7 +205,6 @@ main(int argc, char *argv[])
     rec_config = REC_ERROR;
     backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
       false;
-    read_corrupt = false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
     while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)

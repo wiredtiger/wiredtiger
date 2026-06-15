@@ -381,8 +381,6 @@ descend:
 
             /* WT_ERROR / EIO indicates a corrupt read which is skippable under skip-corrupt. */
             if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO)) {
-                if (session->corrupt_skip_first_err == 0)
-                    session->corrupt_skip_first_err = ret;
                 WT_NOT_READ(ret, 0);
                 break;
             }
@@ -400,14 +398,6 @@ done:
         __wt_verbose_warning(session, WT_VERB_READ,
           "tree walk took more than 10 seconds (%" PRIu64 "ms)", time_diff_ms);
 
-    /*
-     * Surface the first corruption skip at end-of-iteration in place of WT_NOTFOUND so the cursor's
-     * terminal next() reports it. One-shot: clear after consuming.
-     */
-    if (LF_ISSET(WT_READ_SKIP_CORRUPT) && *refp == NULL && session->corrupt_skip_first_err != 0) {
-        ret = session->corrupt_skip_first_err;
-        session->corrupt_skip_first_err = 0;
-    }
 err:
     WT_TRET(__wt_page_release(session, couple, flags));
     WT_TRET(__wt_page_release(session, ref_orig, flags));

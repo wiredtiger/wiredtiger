@@ -243,10 +243,6 @@ struct __wt_session_impl {
     WT_ITEM err; /* Error buffer */
     WT_ERROR_INFO err_info;
 
-    /* First WT_ERROR/EIO __tree_walk_internal skipped under read-corrupt. Surfaced at end of walk.
-     */
-    int corrupt_skip_first_err;
-
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
