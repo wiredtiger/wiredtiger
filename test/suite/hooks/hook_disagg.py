@@ -54,6 +54,17 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_
 
 # These are the hook functions that are run when particular APIs are called.
 
+# A single extensions list entry for the page log. The config is omitted when none was given.
+def page_log_extension_entry(path, config):
+    if config is None:
+        return f'"{path}"'
+    return f'"{path}"=(config="{config}")'
+
+# A single extensions list entry for the key provider. Low verbosity avoids unexpected output;
+# key_expires=0 forces a key rotation on every checkpoint.
+def key_provider_extension_entry(path):
+    return f'"{path}"=(early_load=true,config="verbose=-1,key_expires=0")'
+
 # Add the local storage extension whenever we call wiredtiger_open
 def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
@@ -171,17 +182,11 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         elif "cache_size_mb=" not in page_log_config: # don't override user-specified size
             page_log_config = f"cache_size_mb=2048,{page_log_config}"
 
-    if page_log_config == None:
-        ext_lib = f'\"{page_log_extension[0]}\"'
-    else:
-        ext_lib = f'\"{page_log_extension[0]}\"=(config=\"{page_log_config}\")'
+    ext_lib = page_log_extension_entry(page_log_extension[0], page_log_config)
 
     disagg_config += f',{ext_string},{ext_lib}'
-    # Load the key provider extension. Configure low verbosity to eliminate test failures due to unexpected output and
-    # to always key expire such that we can perform a key rotation every time a checkpoint is called.
     if key_provider:
-        key_provider_extension_config =  f'\"{key_provider_extension[0]}\"=(early_load=true,config="verbose=-1,key_expires=0")'
-        disagg_config += f',{key_provider_extension_config}'
+        disagg_config += f',{key_provider_extension_entry(key_provider_extension[0])}'
     disagg_config += ']'
 
     config = conn_config + disagg_config
@@ -539,24 +544,17 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
 
     def wtExtensionsConfig(self):
         # The external wt utility needs the same extensions the hook injects into wiredtiger_open:
-        # the page log, and the early-load key provider that WiredTiger.basecfg cannot replay. Only
-        # the key provider is required here; without it the open warns about a missing early-load
-        # extension. The page log must be listed alongside it because naming extensions on the open
+        # the page log, and the early-load key provider that WiredTiger.basecfg cannot replay. The
+        # page log must be listed alongside the key provider because naming extensions on the open
         # configuration shadows the list basecfg supplies.
         params = self.getDisaggParameters()
         if not params.key_provider:
             return None
 
         page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
-        if params.config is None:
-            page_log_entry = '"%s"' % page_log
-        else:
-            page_log_entry = '"%s"=(config="%s")' % (page_log, params.config)
-
         key_provider = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
-        key_provider_entry = '"%s"=(early_load=true,config="verbose=-1,key_expires=0")' % key_provider
-
-        return 'extensions=[%s,%s]' % (page_log_entry, key_provider_entry)
+        return 'extensions=[%s,%s]' % (page_log_extension_entry(page_log, params.config),
+          key_provider_extension_entry(key_provider))
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
