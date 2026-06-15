@@ -215,6 +215,39 @@ class suite_subprocess:
             testparts[1] + '.0')
         return [ returncode, new_home_dir ]
 
+    # Build the extensions the external wt process needs to open a database created under the
+    # disagg hook: the page log, plus the early-load key provider that WiredTiger.basecfg cannot
+    # replay (the wt process does not go through the hook's wiredtiger_open). Returns the
+    # connection configuration string, or None when it does not apply.
+    def _disagg_extensions_config(self):
+        if 'disagg' not in self.hook_names:
+            return None
+        params = self.platform_api.getDisaggParameters()
+        if not getattr(params, 'key_provider', None):
+            return None
+
+        page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
+        if params.config is None:
+            page_log_entry = '"%s"' % page_log
+        else:
+            page_log_entry = '"%s"=(config="%s")' % (page_log, params.config)
+
+        key_provider = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
+        key_provider_entry = '"%s"=(early_load=true,config="verbose=-1,key_expires=0")' % key_provider
+
+        return 'extensions=[%s,%s]' % (page_log_entry, key_provider_entry)
+
+    # Merge a connection configuration string into a wt argument list, combining with an existing
+    # -C value when present.
+    def _add_wt_conn_config(self, args, conn_config):
+        args = list(args)
+        if '-C' in args:
+            value = args.index('-C') + 1
+            args[value] = '%s,%s' % (args[value], conn_config)
+        else:
+            args = ['-C', conn_config] + args
+        return args
+
     # Run the wt utility.
 
     # FIXME-WT-9808:
@@ -242,26 +275,10 @@ class suite_subprocess:
             ]
 
         # The external 'wt' process doesn't go through the disagg hook's wiredtiger_open, so the
-        # extensions the hook injects must be passed on the wt connection configuration: the page
-        # log, and the early-load key provider that basecfg cannot replay. Listing extensions on
-        # the command line shadows what basecfg supplies, so we pass the full set the open needs.
-        if 'disagg' in self.hook_names and getattr(
-          self.platform_api.getDisaggParameters(), 'key_provider', None):
-            params = self.platform_api.getDisaggParameters()
-            page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
-            if params.config is None:
-                ext_list = '"%s"' % page_log
-            else:
-                ext_list = '"%s"=(config="%s")' % (page_log, params.config)
-            kp = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
-            ext_list += ',"%s"=(early_load=true,config="verbose=-1,key_expires=0")' % kp
-            ext_cfg = 'extensions=[%s]' % ext_list
-            if '-C' in args:
-                args = list(args)
-                conn_arg = args.index('-C') + 1
-                args[conn_arg] = args[conn_arg] + ',' + ext_cfg
-            else:
-                args = ['-C', ext_cfg] + list(args)
+        # extensions the hook would inject must be passed on the wt connection configuration.
+        ext_config = self._disagg_extensions_config()
+        if ext_config is not None:
+            args = self._add_wt_conn_config(args, ext_config)
 
         # Close the connection to guarantee everything is flushed, and that
         # we can open it from another process.
