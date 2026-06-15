@@ -184,10 +184,19 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
     ext_lib = page_log_extension_entry(page_log_extension[0], page_log_config)
 
-    disagg_config += f',{ext_string},{ext_lib}'
+    extensions = f'{ext_string},{ext_lib}'
     if key_provider:
-        disagg_config += f',{key_provider_extension_entry(key_provider_extension[0])}'
-    disagg_config += ']'
+        extensions += f',{key_provider_extension_entry(key_provider_extension[0])}'
+    extensions += ']'
+
+    # The external wt utility doesn't go through this open. When an early-load key provider is in
+    # use, basecfg can't replay it, so save the extensions list for runWt to pass on the wt
+    # connection configuration. The whole list is saved because naming any extensions there shadows
+    # what basecfg supplies.
+    if key_provider:
+        testcase.wt_external_extensions = extensions
+
+    disagg_config += f',{extensions}'
 
     config = conn_config + disagg_config
 
@@ -541,20 +550,6 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         result.table_prefix = self.table_prefix
         result.key_provider = self.disagg_key_provider
         return result
-
-    def wtExtensionsConfig(self):
-        # The external wt utility needs the same extensions the hook injects into wiredtiger_open:
-        # the page log, and the early-load key provider that WiredTiger.basecfg cannot replay. The
-        # page log must be listed alongside the key provider because naming extensions on the open
-        # configuration shadows the list basecfg supplies.
-        params = self.getDisaggParameters()
-        if not params.key_provider:
-            return None
-
-        page_log = WiredTigerTestCase.findExtension('page_log', params.page_log)[0]
-        key_provider = WiredTigerTestCase.findExtension('test', 'key_provider')[0]
-        return 'extensions=[%s,%s]' % (page_log_extension_entry(page_log, params.config),
-          key_provider_extension_entry(key_provider))
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.

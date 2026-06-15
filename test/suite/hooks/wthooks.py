@@ -337,14 +337,6 @@ class WiredTigerHookPlatformAPI(object):
         """The tiered storage source configuration for this test case."""
         raise NotImplementedError('getTierStorageSourceConfig method not implemented')
 
-    def wtExtensionsConfig(self):
-        """
-        Connection configuration of extensions the external wt utility must load to open a database
-        created under this hook (the hook injects them into wiredtiger_open, but the wt process does
-        not go through that path). Returns a config string, or None when no extra extensions apply.
-        """
-        raise NotImplementedError('wtExtensionsConfig method not implemented')
-
 class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
     def tableExists(self, name):
         tablename = name + ".wt"
@@ -379,10 +371,6 @@ class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
 
     # By default, there is no extra configuration for the storage source.
     def getTierStorageSourceConfig(self):
-        return None
-
-    # By default, the external wt utility needs no extra extensions.
-    def wtExtensionsConfig(self):
         return None
 
 class MultiPlatformAPI(WiredTigerHookPlatformAPI):
@@ -470,12 +458,3 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
             except NotImplementedError:
                 pass
         raise Exception('getTierStorageSourceCOnfig: no implementation')  # should never happen
-
-    def wtExtensionsConfig(self):
-        """Extensions config for the external wt utility."""
-        for api in self.apis:
-            try:
-                return api.wtExtensionsConfig()
-            except NotImplementedError:
-                pass
-        raise Exception('wtExtensionsConfig: no implementation')  # should never happen
