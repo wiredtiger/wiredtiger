@@ -38,6 +38,27 @@
 # The seed set is fixed, and the test is single threaded, so a run is deterministic and a failure
 # repeats on re-run. Every chosen event is appended to a per-seed trace file.
 
+# FIXME-WT-17838: things left unimplemented for this test:
+#
+# - The most important would be a separate configuration that runs the test with a random seed and
+#   configuration, extending coverage with every run. Since the test is completely deterministic,
+#   every failure is easily reproducible, so after finding a new issue we can introduce a new fixed
+#   configuration, as we usually do with test/format.
+# - The second most important would be to run the bulk scenarios through a separate cursor in a
+#   separate session and transaction, so the inserts/removes arrive like writes from another thread
+#   (a production-like concurrent follower writer). For the asc-vs-dsc comparison to stay valid the
+#   two tested cursors must always share one snapshot, so this first needs the no-txn (autocommit
+#   read-committed) read ops disabled -- otherwise asc and dsc refresh at different points.
+#   Especially interesting under the read-committed and read-uncommitted isolations.
+# - Two modes for the eviction scenario: not only evict everything right after the checkpoint, but
+#   also do partial evictions of 20/40/60/80/100% with a cursor open, so we remove only the ingest
+#   entries that are permitted to be removed.
+#
+# The next points are more about extending the coverage of individual operations:
+#  - Test tombstone-prefixed values (to cover __wt_clayered_deleted encode/decode).
+#  - Add operations with overwrite on/off.
+#  - Add setting bounds to cursors.
+
 import math, os, random
 from dataclasses import dataclass, field
 from enum import Enum
@@ -587,7 +608,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.txn_read_ts = read_ts
         self.state.py_table_snapshot = dict(self.state.py_table)
 
-        # Collect statistic
+        # Coverage counters.
         if mode is Txn.READ_TIMESTAMP:
             self.state.n_read_ts += 1
         elif mode is Txn.READ_COMMITTED:
@@ -613,11 +634,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # prunes ingest entries already in stable, so without it the drain might be restricted to evict
         # a big part of the content; and a cursor pinning the ingest leaf blocks eviction, so the reset
         # (in _checkpoint) comes first.
-
-        # TODO(eviction-modes): add two modes -- (a) no-checkpoint, opportunistically evict whatever is
-        # already prunable (exercises trying to evict not-yet-stable ingest content), and (b) checkpoint
-        # + reset + drain a random 20/40/60/80/100% of ingest for finer control of the ingest/stable
-        # split. Today this is mode (b) at 100%.
         trace.log('evict')
         self.state.n_evict += 1
         self._checkpoint(nodes)
@@ -630,13 +646,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.full_scan(nodes, trace)
         self.state.n_full_scan += 1
         self.state.cur_pos = None
-
-    # TODO(bulk-own-session): run the bulk scenarios through a separate cursor in a separate session
-    # and transaction, so the inserts/removes arrive like writes from another thread (a production-like
-    # concurrent follower writer). For the asc-vs-dsc comparison to stay valid the two tested cursors
-    # must always share one snapshot, so this first needs the no-txn (autocommit read-committed) read
-    # ops disabled -- otherwise asc and dsc refresh at different points. Especially interesting under
-    # the read-committed and read-uncommitted isolations.
 
     def scen_bulk_insert(self, nodes, rnd, trace):
         # Insert a batch (~1/10 of the pool) at random keys to grow the tables fast, through the SAME
@@ -805,7 +814,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         s = self.state
 
         # The merge of two non-empty constituents: the follower must read from stable a real fraction
-        # of the time, or it is effectively an ingest-only test. Every tuned profile clears 0.30.
+        # of the time, or it is effectively an ingest-only test. Every tuned profile clears this easily.
         self.assertGreater(m['stable'] + m['ingest'], 0, 'no follower layered reads at all')
         self.assertGreaterEqual(m['stable_frac'], 0.15,
             'follower read from stable too rarely (%.3f) -- merge not exercised' % m['stable_frac'])
@@ -846,7 +855,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self.run_op(nodes, rnd, trace)
             if self.state.txn is not Txn.NO:
                 self.commit_txn(nodes) # close any txn left open before verifying
-            # scan the tables as a final verification
+            # Scan the tables as a final verification.
             self.full_scan(nodes, trace)
             if self.state.chain_run:   # flush the final positioned run into the average
                 self.state.chain_total += self.state.chain_run
