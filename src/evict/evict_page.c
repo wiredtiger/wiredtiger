@@ -143,13 +143,20 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     };
     WT_ITEM *cache_buf = &buf_orig;
     WT_ITEM *compressed_buf = NULL;
+    WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     bool compressed = false;
     bool data_checksum = true;
 
-    /* Optionally compress the data before caching. */
-    WT_IGNORE_RET(
-      __wt_blkcache_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
+    /*
+     * Optionally compress the data before caching. Caching is best effort, so on a compression
+     * failure log the error and fall back to caching the uncompressed image rather than abandoning
+     * the put.
+     */
+    if ((ret = __wt_blkcache_compress(
+           session, &buf_orig, false, &compressed_buf, NULL, &compressed)) != 0)
+        __wt_err(session, ret,
+          "victim cache: failed to compress block before caching, caching uncompressed");
     if (compressed_buf != NULL)
         cache_buf = compressed_buf;
 
