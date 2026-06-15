@@ -698,9 +698,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * We can't do this if there is a sync running in the tree in another session: removing the refs
      * frees the blocks for the deleted pages, which can corrupt the free list calculated by the
      * sync.
+     *
+     * We can't do this at all for disaggregated trees. The block free is immediate and
+     * irreversible, so a checkpoint that has already sealed this parent's image could end up
+     * referencing a discarded page. Reconciliation handles the discard safely by dropping the block
+     * and cell together.
      */
     deleted_entries = 0;
-    if (!__wt_btree_syncing_by_other_sessions(session))
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !__wt_btree_syncing_by_other_sessions(session))
         for (i = 0; i < parent_entries; ++i) {
             next_ref = pindex->index[i];
             WT_ASSERT(session, WT_REF_GET_STATE(next_ref) != WT_REF_SPLIT);
