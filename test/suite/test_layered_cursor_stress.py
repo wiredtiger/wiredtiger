@@ -79,45 +79,46 @@ def write_allowed(txn):
 class TxnModeWeights:
     # op_txn_begin's sub-weights: which flavour to begin (snapshot is read-write; the rest read-only,
     # read_timestamp = an as-of-past read), and how to end an open txn (commit vs rollback).
-    snapshot: int = 72
-    read_committed: int = 16
-    read_uncommitted: int = 12
-    read_timestamp: int = 30
-    commit: int = 90
-    rollback: int = 10
+    snapshot: float = 72
+    read_committed: float = 16
+    read_uncommitted: float = 12
+    read_timestamp: float = 30
+    commit: float = 90
+    rollback: float = 10
 
 @dataclass(frozen=True)
 class SearchKeyWeights:
     # op_search / op_search_near pick an existing key, or a missing one (absent from py_table -- often
     # a removed key, exercising tombstones and the search_near neighbour logic).
-    existing: int = 50
-    missing: int = 50
+    existing: float = 50
+    missing: float = 50
 
 @dataclass(frozen=True)
 class RemoveKeyWeights:
     # op_remove picks an existing key (a real delete that mutates state) or a missing one (layered and
     # reference must return the same not-found result -- removing an absent/tombstoned key).
-    existing: int = 80
-    missing: int = 20
+    existing: float = 80
+    missing: float = 20
 
 @dataclass(frozen=True)
-# Q: Question for the future. Some weights should be less than 1% probability (like evict or advance) - probably 0.1% or even 0.01% for the long running tests Should we just make other weights bigger
 class Weights:
+    # Relative weights: an op's probability is its weight / the sum of the legal weights at the step.
     # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
-    # the cursor is usually positioned -- the heart of the test.
-    next: int = 40
-    prev: int = 40
-    search: int = 12
-    search_near: int = 10
-    pos_update: int = 14
-    pos_remove: int = 8
-    put: int = 6
-    remove: int = 2
-    reset: int = 2
-    full_scan: int = 4
-    advance_checkpoint: int = 6
-    evict: int = 6
-    txn_begin: int = 8
+    # the cursor is usually positioned -- the heart of the test. Weights may be fractional, so a long
+    # run can make a rare op (evict / advance_checkpoint) sub-1% (e.g. 0.1) without inflating the rest.
+    next: float = 40
+    prev: float = 40
+    search: float = 12
+    search_near: float = 10
+    pos_update: float = 14
+    pos_remove: float = 8
+    put: float = 6
+    remove: float = 2
+    reset: float = 2
+    full_scan: float = 4
+    advance_checkpoint: float = 6
+    evict: float = 6
+    txn_begin: float = 8
     txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
     remove_key: RemoveKeyWeights = field(default_factory=RemoveKeyWeights)
@@ -125,7 +126,7 @@ class Weights:
 @dataclass(frozen=True)
 class Op:
     fn: object                    # the op method, called as fn(nodes, rnd, trace); the dispatch identity
-    weight: int                   # relative frequency among the legal ops at each step
+    weight: float                   # relative frequency among the legal ops at each step
     needs_position: bool = False  # cursor must be positioned (positional writes)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
     no_txn: bool = True           # legal with no open txn (autocommit)
