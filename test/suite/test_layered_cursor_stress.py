@@ -71,8 +71,6 @@ def write_allowed(txn):
 # run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
 # and decide whether a derived break-frequency knob should return.
 # FIXME-WT-17827: add a modify op once fixed (modify on a deleted slot aborts the follower layered cursor).
-# TODO(bulk-remove): a scenario removing 40/80/100% of the file at once (large-delete merge), plus a
-# truncate variant over the same fractions -- likely one scenario op picking remove vs truncate 50/50.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 # TODO: Should we also always check that the leader and the follower return the same results?
 
@@ -118,6 +116,7 @@ class Weights:
     reset: float = 2
     full_scan: float = 4
     bulk_insert: float = 4
+    bulk_remove: float = 2
     advance_checkpoint: float = 6
     evict: float = 6
     txn_begin: float = 8
@@ -186,6 +185,7 @@ class State:
         self.n_iso_ru = 0        # read-uncommitted transactions opened (isolation guard, C3)
         self.n_full_scan = 0     # full-table cross-checks run (scen_full_scan guard)
         self.n_bulk_insert = 0   # bulk-insert batches applied (scen_bulk_insert guard)
+        self.n_bulk_remove = 0   # bulk-remove/truncate batches applied (scen_bulk_remove guard)
         self.new_sequence()
 
     def new_sequence(self):
@@ -242,6 +242,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_reset,       weights.reset),
             Op(self.scen_full_scan, weights.full_scan),
             Op(self.scen_bulk_insert, weights.bulk_insert, is_write=True),
+            Op(self.scen_bulk_remove, weights.bulk_remove, is_write=True),
             Op(self.scen_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
             Op(self.scen_evict,     weights.evict,      in_txn=False),
             Op(self.op_txn_begin,   weights.txn_begin),
@@ -297,6 +298,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
         self.assertGreater(self.state.n_full_scan, 0, 'no full_scan ops were exercised')
         self.assertGreater(self.state.n_bulk_insert, 0, 'no bulk_insert scenarios were exercised')
+        self.assertGreater(self.state.n_bulk_remove, 0, 'no bulk_remove scenarios were exercised')
 
     def make_nodes(self, tag):
         # The layered table must share a name across connections so the follower picks up
@@ -317,6 +319,20 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.wseq += 1
         return 'v%d.%d' % (key, self.state.wseq)
 
+    def _txn_scope(self, nodes, do_node):
+        # The txn wrapper shared by writes: run do_node(n) per node inside the open txn (joining it),
+        # else wrap each node's work in its own timestamped txn (layered = ordered write timestamps).
+        if self.state.txn is not Txn.NO:
+            for n in nodes:
+                do_node(n)
+            self.state.txn_wrote = True
+        else:
+            self.state.ts += 1
+            for n in nodes:
+                n.session.begin_transaction()
+                do_node(n)
+                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
+
     def _write_txn(self, nodes, do, label):
         notfound = False
         def step(n):
@@ -326,17 +342,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 '%s result differs layered=%r reference=%r' % (label, ret_dsc, ret_asc))
             if ret_dsc == wiredtiger.WT_NOTFOUND:
                 notfound = True
-
-        if self.state.txn is not Txn.NO:
-            for n in nodes:
-                step(n)
-            self.state.txn_wrote = True
-        else:
-            self.state.ts += 1
-            for n in nodes:
-                n.session.begin_transaction()
-                step(n)
-                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
+        self._txn_scope(nodes, step)
         return notfound
 
     def _positional(self, nodes, do, label):
@@ -628,6 +634,50 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                             'bulk_insert')
             self.state.py_table[key] = value
         self.state.n_bulk_insert += 1
+        self.state.cur_pos = None
+
+    def scen_bulk_remove(self, nodes, rnd, trace):
+        # Delete a large fraction (40/80/100%) of the file at once -- a big-delete merge on the
+        # follower. A contiguous range of the live keys is deleted either by per-key removes or one
+        # range truncate, so both mechanisms cover the same fractions.
+        live = sorted(self.state.py_table)
+        if not live:
+            return
+        frac = rnd.choice((0.4, 0.8, 1.0))
+        n = max(1, round(frac * len(live)))
+        start = rnd.randint(0, len(live) - n)
+        victims = live[start:start + n]
+        # FIXME-WT-XXXXX: range truncate over-truncates on the follower layered table -- a key
+        # re-inserted inside a prior truncate range is lost once it drains to stable (repro in
+        # findings/repro_truncate_layered_divergence.py). Remove-only until fixed; restore the 50/50
+        # remove/truncate split (use_truncate = rnd.random() < 0.5) then.
+        use_truncate = False
+        trace.log('bulk_%s frac=%s n=%d' % ('truncate' if use_truncate else 'remove', frac, n))
+
+        if use_truncate:
+            lo, hi = victims[0], victims[-1]
+            def do_node(node):
+                for uri in (node.dsc_uri, node.asc_uri):
+                    lo_c = node.session.open_cursor(uri)
+                    hi_c = node.session.open_cursor(uri)
+                    lo_c.set_key(lo); hi_c.set_key(hi)
+                    node.session.truncate(None, lo_c, hi_c, None)
+                    lo_c.close(); hi_c.close()
+            self._txn_scope(nodes, do_node)
+        else:
+            def do_node(node):
+                for k in victims:
+                    rd = (node.dsc_c.set_key(k), node.dsc_c.remove())[-1]
+                    ra = (node.asc_c.set_key(k), node.asc_c.remove())[-1]
+                    self.assertEqual(rd, ra, 'bulk_remove result differs at key=%r layered=%r reference=%r'
+                                     % (k, rd, ra))
+            self._txn_scope(nodes, do_node)
+
+        for k in victims:
+            del self.state.py_table[k]
+        for node in nodes:
+            node.reset_all()
+        self.state.n_bulk_remove += 1
         self.state.cur_pos = None
 
     # --- operation generation -------------------------------------------
