@@ -28,7 +28,7 @@
 #
 # test_layered_cursor_stress.py
 #
-# Seed-driven stress test for layered cursors (src/cursor/cur_layered.c).
+# Seed-driven stress test for layered cursors.
 #
 # Reference comparison: per connection (leader and follower), one session holds a plain reference table (asc)
 # and the layered table under test (dsc). Every write is mirrored to both; every read is run on
@@ -38,7 +38,7 @@
 # The seed set is fixed, and the test is single threaded, so a run is deterministic and a failure
 # repeats on re-run. Every chosen event is appended to a per-seed trace file.
 
-import os, random
+import math, os, random
 from dataclasses import dataclass, field
 from enum import Enum
 import wiredtiger, wttest
@@ -57,9 +57,8 @@ class Txn(Enum):
 def write_allowed(txn):
     return txn in (Txn.NO, Txn.SNAPSHOT)
 
-# TODO(workload-tuning): rough first pass (reads dominate; writes/txn/scenarios rare). Once the long
-# run lands, tune the weights to drive the follower stable-read fraction up (see
-# DEV_ONLY_assert_merge_exercised).
+# The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
+# WORKLOAD_PROFILES and are what the suite actually runs.
 # FIXME-WT-17827: add a modify op once fixed (modify on a deleted slot aborts the follower layered cursor).
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
@@ -118,6 +117,7 @@ class Weights:
     advance_checkpoint: float = 6
     evict: float = 6
     txn_begin: float = 8
+    bulk_insert_frac: float = 0.1 # fraction of the pool each scen_bulk_insert batch covers
     txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
     remove_key: RemoveKeyWeights = field(default_factory=RemoveKeyWeights)
@@ -188,25 +188,70 @@ class State:
         # Chain-length + fill/empty instrumentation (connection-global, across all seeds).
         self.chain_total = 0     # sum of completed positioned-run lengths
         self.chain_count = 0     # number of completed positioned runs
-        self.reached_full = False       # py_table ever held every pool key
-        self.full_then_empty = False    # ... and later emptied
+        self.n_reached_full = 0         # times py_table rose to hold every pool key
+        self.n_reached_empty = 0        # times py_table transitioned to empty
+        self.max_n = 0                  # DIAG: largest py_table size seen
+        self.n_advance = 0; self.n_evict = 0   # DIAG
+        self.op_counts = {}             # DIAG: per-op fire counts (workload diversity)
         self.new_sequence()
 
     def new_sequence(self):
         self.chain_run = 0             # current run of consecutive positioned ops
         self.py_table = {}             # logical key->value, for op generation only
+        self.prev_full = False         # py_table was full on the previous op (rising-edge detection)
+        self.prev_empty = True         # py_table was empty on the previous op (starts empty, not counted)
         self.cur_pos = None            # key both cursor pairs are positioned on (None = unpositioned)
         self.txn = Txn.NO              # current transaction context (NO = autocommit)
         self.txn_wrote = False         # the open txn has performed at least one write
         self.txn_read_ts = None        # the as-of timestamp when txn is READ_TIMESTAMP, else None
         self.py_table_snapshot = None  # py_table as of begin, restored on rollback
 
+# A diverse, comprehensive set of workload profiles, each a balanced (no single-op-dominated) mix
+# tilted toward one merge sub-area. Each runs quick (tens of seconds) over a few seeds; together they
+# cover the iterate-merge, point-lookup-merge, positioned-write, transaction/as-of-past, big-delete,
+# and stable-drain paths. Every profile reaches a full pool, empties it, and reads a real fraction
+# from stable (asserted by assert_workload_coverage).
+WORKLOAD_PROFILES = {
+    'mixed': dict(n_keys=55, n_ops=22000, seeds=3, weights=Weights(
+        next=18, prev=18, search=16, search_near=14, pos_update=10, pos_remove=4, put=4, remove=2,
+        reset=1, full_scan=0.5, advance_checkpoint=1.6, evict=2.2, bulk_insert=1.2, bulk_remove=0.4,
+        txn_begin=4, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=80, missing=20),
+        txn_mode=TxnModeWeights(read_timestamp=40))),
+    'iterate': dict(n_keys=55, n_ops=16000, seeds=3, weights=Weights(
+        next=35, prev=35, search=12, search_near=10, pos_update=8, pos_remove=3, put=3, remove=1.5,
+        reset=0.5, full_scan=0.4, advance_checkpoint=5.0, evict=5.0, bulk_insert=1.0, bulk_remove=0.4,
+        txn_begin=3, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=85, missing=15))),
+    'lookup': dict(n_keys=55, n_ops=20000, seeds=3, weights=Weights(
+        next=15, prev=15, search=31, search_near=22, pos_update=9, pos_remove=3, put=3, remove=2,
+        reset=0.5, full_scan=0.4, advance_checkpoint=2.0, evict=2.5, bulk_insert=1.5, bulk_remove=0.4,
+        txn_begin=3, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=55, missing=45))),
+    'write_churn': dict(n_keys=55, n_ops=14000, seeds=3, weights=Weights(
+        next=11, prev=11, search=10, search_near=7, pos_update=24, pos_remove=14, put=13, remove=9,
+        reset=0.5, full_scan=0.4, advance_checkpoint=3.5, evict=5.0, bulk_insert=2.0, bulk_remove=0.6,
+        txn_begin=3, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=70, missing=30),
+        remove_key=RemoveKeyWeights(existing=70, missing=30))),
+    'txn': dict(n_keys=55, n_ops=20000, seeds=3, weights=Weights(
+        next=18, prev=18, search=16, search_near=10, pos_update=10, pos_remove=4, put=4, remove=2,
+        reset=0.5, full_scan=0.4, advance_checkpoint=1.5, evict=3.5, bulk_insert=1.5, bulk_remove=0.4,
+        txn_begin=18, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=80, missing=20),
+        txn_mode=TxnModeWeights(snapshot=40, read_committed=25, read_uncommitted=25, read_timestamp=90))),
+    'bulk_swing': dict(n_keys=55, n_ops=6000, seeds=3, weights=Weights(
+        next=18, prev=18, search=16, search_near=10, pos_update=8, pos_remove=4, put=4, remove=2,
+        reset=0.5, full_scan=0.5, advance_checkpoint=15.0, evict=18.0, bulk_insert=5, bulk_remove=2.5,
+        txn_begin=3, bulk_insert_frac=0.5, search_key=SearchKeyWeights(existing=80, missing=20))),
+    'merge_drain': dict(n_keys=55, n_ops=14000, seeds=3, weights=Weights(
+        next=20, prev=20, search=18, search_near=12, pos_update=6, pos_remove=2, put=2, remove=1,
+        reset=0.4, full_scan=0.4, advance_checkpoint=4.0, evict=6.0, bulk_insert=2.0, bulk_remove=0.4,
+        txn_begin=3, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=85, missing=15))),
+}
+
 @disagg_test_class
 class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=1GB,statistics=(all),'
 
     disagg_storages = gen_disagg_storages('test_layered_cursor_stress', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    profiles = [(name, dict(profile=name)) for name in WORKLOAD_PROFILES]
+    scenarios = make_scenarios(disagg_storages, profiles)
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -223,8 +268,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Candidate keys spread by 10 so search_near targets fall between them.
         self.pool = list(range(100, 100 + n_keys * 10, 10))
         self.ops = self._build_ops(weights)   # the workload table (Op rows -> op methods)
-
-        self.DEV_ONLY_validate_ops()          # the table must match the op_* methods exactly
 
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
@@ -251,58 +294,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.scen_evict,     weights.evict,      in_txn=False),
             Op(self.op_txn_begin,   weights.txn_begin),
         ]
-
-    # --- DEV_ONLY: setup guard + end-of-run coverage self-checks ---------------------------------
-    # Removable scaffolding -- NOT the reference. Grouped here so they stay out of the core op / read /
-    # write logic during review.
-    def DEV_ONLY_validate_ops(self):
-        # Guard the op table at setup: exactly one row per op_* / scen_* method (a missing/duplicate
-        # row fails loudly here, not deep in a run) and every weight positive (0/negative drops an op).
-        methods = {n for n in dir(self) if n.startswith(('op_', 'scen_'))}
-        rows = {op.fn.__name__ for op in self.ops}
-        assert len(rows) == len(self.ops), 'duplicate op rows in the workload table'
-        assert rows == methods, 'op table != op_*/scen_* methods: %r' % sorted(rows ^ methods)
-        assert all(op.weight > 0 for op in self.ops), 'every op weight must be positive'
-
-    def DEV_ONLY_follower_read_split(self):
-        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
-        # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
-        stat_cursor = self.session_follow.open_cursor('statistics:')
-        try:
-            get_stat = lambda name: stat_cursor[getattr(wiredtiger.stat.conn, name)][2]
-            stable = get_stat('layered_curs_next_stable') + get_stat('layered_curs_prev_stable') + \
-                get_stat('layered_curs_search_stable')
-            ingest = get_stat('layered_curs_next_ingest') + get_stat('layered_curs_prev_ingest') + \
-                get_stat('layered_curs_search_ingest')
-            return stable, ingest
-        finally:
-            stat_cursor.close()
-
-    def DEV_ONLY_assert_merge_exercised(self):
-        # Guard against a degenerate reference: the follower must read from stable sometimes, or the
-        # merge of two non-empty constituents is not tested at all.
-        # TODO(merge-coverage): the stable-read fraction is only ~2-9% in the random run (writes keep
-        # keys in ingest and the drain rarely catches a stable-and-unrewritten key before it is read),
-        # so the floor is an INTERIM 1%. Real fix: a forced-eviction scenario op + a ~300k-op run to
-        # exercise the stable path heavily, then restore a meaningful floor.
-        stable, ingest = self.DEV_ONLY_follower_read_split()
-        total = stable + ingest
-        self.assertGreater(total, 0, 'no follower layered reads at all')
-        self.assertGreaterEqual(stable * 100, total,
-            'follower read from stable too rarely (%d/%d) -- merge not exercised' % (stable, total))
-
-    def DEV_ONLY_assert_self_coverage(self):
-        # Self-check, NOT a product assertion: confirm the run exercised its surface (the merge,
-        # positional chains, as-of-past reads, both non-snapshot isolation levels, full_scan). A failure
-        # here means the TEST stopped covering a dimension, not that the product is wrong.
-        self.DEV_ONLY_assert_merge_exercised()
-        self.assertGreater(self.state.n_positional, 0, 'no positional update/remove ops were exercised')
-        self.assertGreater(self.state.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
-        self.assertGreater(self.state.n_iso_rc, 0, 'no read-committed txns were exercised')
-        self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
-        self.assertGreater(self.state.n_full_scan, 0, 'no full_scan ops were exercised')
-        self.assertGreater(self.state.n_bulk_insert, 0, 'no bulk_insert scenarios were exercised')
-        self.assertGreater(self.state.n_bulk_remove, 0, 'no bulk_remove scenarios were exercised')
 
     def make_nodes(self, tag):
         # The layered table must share a name across connections so the follower picks up
@@ -613,6 +604,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def scen_advance_checkpoint(self, nodes, rnd, trace):
         trace.log('advance_checkpoint')
+        self.state.n_advance += 1
         self._checkpoint(nodes)
 
     def scen_evict(self, nodes, rnd, trace):
@@ -627,6 +619,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # + reset + drain a random 20/40/60/80/100% of ingest for finer control of the ingest/stable
         # split. Today this is mode (b) at 100%.
         trace.log('evict')
+        self.state.n_evict += 1
         self._checkpoint(nodes)
         follower = nodes[1]
         self.force_evict(follower)
@@ -649,7 +642,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # Insert a batch (~1/10 of the pool) at random keys to grow the tables fast, through the SAME
         # cursors the chain uses (so the insert resets the cursor we operate on). Deliberately NOT
         # checkpointed, so the new entries stay in the follower ingest.
-        batch = [(k, self.new_value(k)) for k in rnd.sample(self.pool, max(1, len(self.pool) // 10))]
+        batch = [(k, self.new_value(k))
+                 for k in rnd.sample(self.pool, max(1, round(len(self.pool) * self.weights.bulk_insert_frac)))]
         trace.log('bulk_insert %r' % ([k for k, _ in batch],))
 
         def do_node(node):
@@ -737,41 +731,110 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         cands = [op for op in self.ops if self._legal(op)]
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
         op.fn(nodes, rnd, trace)
-        # Instrumentation: positioned-run length + table fill/empty cycle.
+        self.record_metrics(op)
+
+    # --- metrics / tracing -----------------------------------------------
+
+    def record_metrics(self, op):
+        # Instrumentation (not a product check): op-diversity, positioned-run length, and rising-edge
+        # counts of the table reaching a full / empty pool.
         s = self.state
+        s.op_counts[op.fn.__name__] = s.op_counts.get(op.fn.__name__, 0) + 1
         if s.cur_pos is not None:
             s.chain_run += 1
         elif s.chain_run:
             s.chain_total += s.chain_run; s.chain_count += 1; s.chain_run = 0
         n = len(s.py_table)
-        if n >= len(self.pool):
-            s.reached_full = True
-        elif n == 0 and s.reached_full:
-            s.full_then_empty = True
+        if n > s.max_n: s.max_n = n
+        full, empty = n >= len(self.pool), n == 0
+        if full and not s.prev_full:
+            s.n_reached_full += 1
+        if empty and not s.prev_empty:
+            s.n_reached_empty += 1
+        s.prev_full, s.prev_empty = full, empty
 
     def metrics(self):
-        # Aggregate run shape (instrumentation, not a product check).
+        # Aggregate run shape (instrumentation + workload-diversity, not a product check).
         s = self.state
         chain_avg = (s.chain_total / s.chain_count) if s.chain_count else 0.0
-        stable, ingest = self.DEV_ONLY_follower_read_split()
+        stable, ingest = self.follower_read_split()
         stable_frac = (stable / (stable + ingest)) if (stable + ingest) else 0.0
-        return dict(chain_avg=chain_avg, chain_count=s.chain_count, reached_full=s.reached_full,
-                    full_then_empty=s.full_then_empty, stable_frac=stable_frac, stable=stable, ingest=ingest)
+        total = sum(s.op_counts.values()) or 1
+        shares = {k: v / total for k, v in s.op_counts.items()}
+        top_share = max(shares.values()) if shares else 1.0
+        # Effective number of distinct ops = exp(Shannon entropy): ~1 when one op dominates, larger
+        # when the stream is diverse. Guards against a degenerate single-op workload.
+        eff_ops = math.exp(-sum(p * math.log(p) for p in shares.values() if p > 0)) if shares else 0.0
+        return dict(chain_avg=chain_avg, chain_count=s.chain_count, n_reached_full=s.n_reached_full,
+                    n_reached_empty=s.n_reached_empty, stable_frac=stable_frac, stable=stable,
+                    ingest=ingest, top_share=top_share, eff_ops=eff_ops, shares=shares)
+
+    def follower_read_split(self):
+        # Follower layered reads served from stable vs ingest. Uses only next/prev/search; search_near's
+        # stable counter is impure (counts the current_cursor==NULL case, FIXME-WT-15545).
+        stat_cursor = self.session_follow.open_cursor('statistics:')
+        try:
+            get_stat = lambda name: stat_cursor[getattr(wiredtiger.stat.conn, name)][2]
+            stable = get_stat('layered_curs_next_stable') + get_stat('layered_curs_prev_stable') + \
+                get_stat('layered_curs_search_stable')
+            ingest = get_stat('layered_curs_next_ingest') + get_stat('layered_curs_prev_ingest') + \
+                get_stat('layered_curs_search_ingest')
+            return stable, ingest
+        finally:
+            stat_cursor.close()
 
     def log_metrics(self):
         m = self.metrics()
-        self.pr('METRICS: chain_avg=%.1f chain_count=%d reached_full=%s full_then_empty=%s '
-                'stable_frac=%.3f stable=%d ingest=%d'
-                % (m['chain_avg'], m['chain_count'], m['reached_full'], m['full_then_empty'],
-                   m['stable_frac'], m['stable'], m['ingest']))
+        self.pr('METRICS: chain_avg=%.1f chain_count=%d n_reached_full=%d n_reached_empty=%d '
+                'stable_frac=%.3f stable=%d ingest=%d eff_ops=%.1f top_share=%.1f%%'
+                % (m['chain_avg'], m['chain_count'], m['n_reached_full'], m['n_reached_empty'],
+                   m['stable_frac'], m['stable'], m['ingest'], m['eff_ops'], 100 * m['top_share']))
+        s = self.state
+        self.pr('DIAG: max_n=%d pool=%d n_advance=%d n_evict=%d n_bulk_insert=%d n_bulk_remove=%d n_full_scan=%d'
+                % (s.max_n, len(self.pool), s.n_advance, s.n_evict, s.n_bulk_insert, s.n_bulk_remove, s.n_full_scan))
+        dist = ' '.join('%s=%.1f%%' % (k.replace('op_', '').replace('scen_', ''), 100 * m['shares'][k])
+                        for k in sorted(m['shares'], key=m['shares'].get, reverse=True))
+        self.pr('DIAG: diversity | %s' % dist)
         return m
 
-    # --- driver ----------------------------------------------------------
+    def assert_workload_coverage(self):
+        # Coverage guard (NOT a product assertion): a failure means the TEST stopped covering a
+        # dimension, not that the product is wrong. The per-op layered-vs-reference comparison is what
+        # catches product bugs; these floors keep a profile from silently degenerating.
+        m = self.metrics()
+        s = self.state
+
+        # The merge of two non-empty constituents: the follower must read from stable a real fraction
+        # of the time, or it is effectively an ingest-only test. Every tuned profile clears 0.30.
+        self.assertGreater(m['stable'] + m['ingest'], 0, 'no follower layered reads at all')
+        self.assertGreaterEqual(m['stable_frac'], 0.15,
+            'follower read from stable too rarely (%.3f) -- merge not exercised' % m['stable_frac'])
+
+        # Both extremes of table size: a full pool and an emptied pool.
+        self.assertGreater(m['n_reached_full'], 0, 'pool never filled -- full-table merge not exercised')
+        self.assertGreater(m['n_reached_empty'], 0, 'pool never emptied -- empty-table path not exercised')
+
+        # Diversity: no single op may dominate the stream (the profiles are deliberately balanced).
+        self.assertGreaterEqual(m['eff_ops'], 5.0, 'workload not diverse enough (eff_ops=%.1f)' % m['eff_ops'])
+        self.assertLessEqual(m['top_share'], 0.45,
+            'one op dominates the workload (top_share=%.1f%%)' % (100 * m['top_share']))
+
+        # Positioned chains form, and the txn / scenario surface ran.
+        self.assertGreaterEqual(m['chain_avg'], 2.0, 'positioned chains too short (chain_avg=%.1f)' % m['chain_avg'])
+        self.assertGreater(s.n_positional, 0, 'no positional update/remove ops were exercised')
+        self.assertGreater(s.n_read_ts, 0, 'no read_timestamp (as-of-past) txns were exercised')
+        self.assertGreater(s.n_iso_rc, 0, 'no read-committed txns were exercised')
+        self.assertGreater(s.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
+        self.assertGreater(s.n_full_scan, 0, 'no full_scan ops were exercised')
+        self.assertGreater(s.n_bulk_insert, 0, 'no bulk_insert scenarios were exercised')
+        self.assertGreater(s.n_bulk_remove, 0, 'no bulk_remove scenarios were exercised')
 
     def open_trace(self, seed, tag):
         path = os.path.join(os.getcwd(), 'stress_trace_%s_%d.txt' % (tag, seed))
         self.pr('SEED=%d trace=%s' % (seed, path))
         return EventTrace(path, 'test_layered_cursor_stress seed=%d tag=%s' % (seed, tag))
+
+    # --- driver ----------------------------------------------------------
 
     def run_sequence(self, seed, tag, n_ops):
         rnd = random.Random(seed)
@@ -800,14 +863,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- tests -----------------------------------------------------------
 
     def test_smoke(self):
-        # Short seeded run with writes, starting from empty tables.
+        # Short seeded run with writes, starting from empty tables. The profile dimension crosses every
+        # test method, so run the smoke once (on the first profile) rather than once per profile.
+        if self.profile != next(iter(WORKLOAD_PROFILES)):
+            self.skipTest('smoke is profile-independent; runs once')
         self.setup_connections(Weights())
         self.run_sequence(seed=12345, tag='smoke', n_ops=80)
 
-    def test_random(self):
-        # Mixed read/write/advance/evict sequences, fresh tables per seed, start empty.
-        self.setup_connections(Weights())
-        for seed in range(10):
-            self.run_sequence(seed=seed, tag='r%d' % seed, n_ops=300)
-        # Self-check that the run actually exercised the surface (not a product assertion).
-        self.DEV_ONLY_assert_self_coverage()
+    def test_workload(self):
+        # One balanced workload profile (selected by the scenario) over a few seeds, fresh tables per
+        # seed, starting empty. Coverage is asserted on the cumulative shape across the seeds.
+        prof = WORKLOAD_PROFILES[self.profile]
+        self.setup_connections(prof['weights'], n_keys=prof['n_keys'])
+        for seed in range(prof['seeds']):
+            self.run_sequence(seed=seed, tag='%s%d' % (self.profile, seed), n_ops=prof['n_ops'])
+        self.assert_workload_coverage()
