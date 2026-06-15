@@ -378,6 +378,13 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     }
 
     /*
+     * Ingest tables are in-memory only and skipped by checkpoints, so loading the dhandle into the
+     * global list is not necessary and hurts performance at startup.
+     */
+    if (WT_URI_IS_INGEST(uri))
+        goto err;
+
+    /*
      * Open the file to check that it was setup correctly. We don't need to pass the configuration,
      * we just wrote the collapsed configuration into the metadata file, and it's going to be
      * read/used by underlying functions.
@@ -1714,7 +1721,8 @@ err:
     if (clear_import_flag)
         F_CLR(session, WT_SESSION_IMPORT);
 
-    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+    /* Ingest tables do not need checkpointing. */
+    WT_TRET(__wt_meta_track_off(session, !WT_URI_IS_INGEST(uri), ret != 0));
 
     if (import_list.entries_allocated > 0)
         session->import_list = NULL;
