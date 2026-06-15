@@ -242,7 +242,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
-        /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
+        /* Under read-corrupt, the cursor walk skips corrupt subtrees and dump emits whatever
+         * records are reachable; corrupt-root URIs surface a clean error for per-URI continuation
+         * below. */
         if (read_corrupt)
             F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {

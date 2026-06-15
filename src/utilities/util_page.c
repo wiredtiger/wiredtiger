@@ -78,7 +78,8 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     if ((uri = util_uri(session, *argv, "file")) == NULL)
         return (1);
 
-    /* Set the session flag before acquiring the dhandle so dhandle-open reads stay quiet too. */
+    /* Set before acquiring the dhandle: corrupt reads during dhandle open and the targeted page
+     * fetch return an error instead of panicking (targeted lookup has no skip semantics). */
     if (read_corrupt)
         F_SET(session_impl, WT_SESSION_READ_SKIP_CORRUPT);
     WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));

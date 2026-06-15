@@ -91,7 +91,8 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
         goto err;
     }
 
-    /* Enter read-corrupt mode so subsequent reads return errors instead of panicking. */
+    /* Under read-corrupt, the stat-cursor tree walk skips corrupt pages and surfaces partial counts
+     * instead of failing the cursor open. */
     if (read_corrupt)
         F_SET(session_impl, WT_SESSION_READ_SKIP_CORRUPT);
 

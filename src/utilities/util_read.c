@@ -53,7 +53,8 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     if ((uri = util_uri(session, *argv, "table")) == NULL)
         return (1);
 
-    /* Set the session flag before open_cursor so dhandle-open block reads stay quiet too. */
+    /* Set before open_cursor: corrupt reads during dhandle open and per-key descents return an
+     * error instead of panicking. */
     if (read_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
 
@@ -84,8 +85,9 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * Run through the keys, returning non-zero on error or if any requested key isn't found. In
-     * quiet-corrupt mode a search failure on a key is reported and we continue.
+     * Run through the keys, returning non-zero on error or if any requested key isn't found. Under
+     * read-corrupt, a WT_ERROR/EIO from a key's descent is reported and the loop moves on; other
+     * errors propagate as hard failures.
      */
     for (rval = false; *++argv != NULL;) {
         if (rkey) {
@@ -99,7 +101,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         case 0:
             if ((ret = cursor->get_value(cursor, &value)) != 0) {
                 (void)util_cerr(cursor, "get_value", ret);
-                if (!read_corrupt)
+                if (!read_corrupt || (ret != WT_ERROR && ret != EIO))
                     return (1);
                 rval = true;
                 break;
@@ -113,7 +115,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
             break;
         default:
             (void)util_cerr(cursor, "search", ret);
-            if (!read_corrupt)
+            if (!read_corrupt || (ret != WT_ERROR && ret != EIO))
                 return (1);
             rval = true;
             break;
