@@ -77,12 +77,14 @@ def write_allowed(txn):
 
 @dataclass(frozen=True)
 class TxnModeWeights:
-    # op_txn_begin's transaction-flavour sub-distribution. snapshot is read-write; the rest are
-    # read-only (read_timestamp = snapshot + an as-of-past read, falling back to snapshot with no ts).
+    # op_txn_begin's sub-weights: which flavour to begin (snapshot is read-write; the rest read-only,
+    # read_timestamp = an as-of-past read), and how to end an open txn (commit vs rollback).
     snapshot: int = 72
     read_committed: int = 16
     read_uncommitted: int = 12
     read_timestamp: int = 30
+    commit: int = 90
+    rollback: int = 10
 
 @dataclass(frozen=True)
 class SearchKeyWeights:
@@ -109,8 +111,6 @@ class Weights:
     advance_checkpoint: int = 6
     evict: int = 6
     txn_begin: int = 8
-    commit: int = 6
-    rollback: int = 2
     txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
 
@@ -233,10 +233,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # Q: autocommit_only and in_txn_only should be no_txn, in_txn that are true by default and we turn it to false where needed
             Op(self.op_advance_checkpoint, weights.advance_checkpoint, autocommit_only=True),
             Op(self.op_evict,       weights.evict,      autocommit_only=True),
-            Op(self.op_txn_begin,   weights.txn_begin,  autocommit_only=True),
-            # Q: I think that op_commit and op_rollback should be a part of op_txn_begin(), so when we call it first time, we start transaction, when we call it second time, we either roll it back or commit (90/10). Weight for them should be moved to txn weights as well.
-            Op(self.op_commit,      weights.commit,     in_txn_only=True),
-            Op(self.op_rollback,    weights.rollback,   in_txn_only=True),
+            Op(self.op_txn_begin,   weights.txn_begin),
         ]
 
     # --- DEV_ONLY: setup guard + end-of-run coverage self-checks ---------------------------------
@@ -524,11 +521,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.py_table.pop(key, None)
 
     def op_txn_begin(self, nodes, rnd, trace):
-        # Begin a transaction. Has subweights random choice for different transaction modes/types.
-        tw = self.weights.txn_mode
+        # No txn open -> begin one (flavour by the txn_mode weights); a txn open -> end it.
+        txn_weights = self.weights.txn_mode
+
+        # Close a txn is one is running
+        if self.state.txn is not Txn.NO:
+            if rnd.choices((True, False), weights=(txn_weights.commit, txn_weights.rollback))[0]:
+                trace.log('commit')
+                self.commit_txn(nodes)
+            else:
+                trace.log('rollback')
+                self.rollback_txn(nodes)
+            return
+
         mode = rnd.choices(
             [Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED, Txn.READ_TIMESTAMP],
-            weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
+            weights=[txn_weights.snapshot, txn_weights.read_committed, txn_weights.read_uncommitted, txn_weights.read_timestamp],
             k=1)[0]
 
         # A read_timestamp just needs to be valid: in [oldest_ts, ts] with oldest_ts >= 1.
@@ -562,14 +570,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.n_iso_rc += 1
         elif mode is Txn.READ_UNCOMMITTED:
             self.state.n_iso_ru += 1
-
-    def op_commit(self, nodes, rnd, trace):
-        trace.log('commit')
-        self.commit_txn(nodes)
-
-    def op_rollback(self, nodes, rnd, trace):
-        trace.log('rollback')
-        self.rollback_txn(nodes)
 
     def _checkpoint(self, nodes):
         # Release any pinned snapshot (reset cursors), advance the checkpoint, clear position.
