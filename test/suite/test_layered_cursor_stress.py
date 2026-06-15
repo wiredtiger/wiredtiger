@@ -71,7 +71,8 @@ def write_allowed(txn):
 # run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
 # and decide whether a derived break-frequency knob should return.
 # FIXME-WT-17827: add a modify op once fixed (modify on a deleted slot aborts the follower layered cursor).
-# TODO: add scenario for bulk insert to grow tables significantly.
+# TODO(bulk-remove): a scenario removing 40/80/100% of the file at once (large-delete merge), plus a
+# truncate variant over the same fractions -- likely one scenario op picking remove vs truncate 50/50.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 # TODO: Should we also always check that the leader and the follower return the same results?
 
@@ -116,6 +117,7 @@ class Weights:
     remove: float = 2
     reset: float = 2
     full_scan: float = 4
+    bulk_insert: float = 4
     advance_checkpoint: float = 6
     evict: float = 6
     txn_begin: float = 8
@@ -183,6 +185,7 @@ class State:
         self.n_iso_rc = 0        # read-committed transactions opened (isolation guard, C3)
         self.n_iso_ru = 0        # read-uncommitted transactions opened (isolation guard, C3)
         self.n_full_scan = 0     # full-table cross-checks run (scen_full_scan guard)
+        self.n_bulk_insert = 0   # bulk-insert batches applied (scen_bulk_insert guard)
         self.new_sequence()
 
     def new_sequence(self):
@@ -238,6 +241,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_remove,      weights.remove,     is_write=True),
             Op(self.op_reset,       weights.reset),
             Op(self.scen_full_scan, weights.full_scan),
+            Op(self.scen_bulk_insert, weights.bulk_insert, is_write=True),
             Op(self.scen_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
             Op(self.scen_evict,     weights.evict,      in_txn=False),
             Op(self.op_txn_begin,   weights.txn_begin),
@@ -292,6 +296,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.assertGreater(self.state.n_iso_rc, 0, 'no read-committed txns were exercised')
         self.assertGreater(self.state.n_iso_ru, 0, 'no read-uncommitted txns were exercised')
         self.assertGreater(self.state.n_full_scan, 0, 'no full_scan ops were exercised')
+        self.assertGreater(self.state.n_bulk_insert, 0, 'no bulk_insert scenarios were exercised')
 
     def make_nodes(self, tag):
         # The layered table must share a name across connections so the follower picks up
@@ -610,6 +615,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         trace.log('full_scan')
         self.full_scan(nodes, trace)
         self.state.n_full_scan += 1
+        self.state.cur_pos = None
+
+    def scen_bulk_insert(self, nodes, rnd, trace):
+        # Insert a batch (~1/10 of the pool) at random keys to grow the tables fast. Deliberately NOT
+        # checkpointed, so the new entries stay in the follower ingest and are merged/tested there.
+        keys = rnd.sample(self.pool, max(1, len(self.pool) // 10))
+        trace.log('bulk_insert %r' % (keys,))
+        for key in keys:
+            value = self.new_value(key)
+            self._write_txn(nodes, lambda c, k=key, v=value: (c.set_key(k), c.set_value(v), c.insert())[-1],
+                            'bulk_insert')
+            self.state.py_table[key] = value
+        self.state.n_bulk_insert += 1
         self.state.cur_pos = None
 
     # --- operation generation -------------------------------------------
