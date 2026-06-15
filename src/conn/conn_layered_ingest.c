@@ -145,7 +145,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
      * No other transactions are running, we're only doing this truncate, and it should become
      * immediately visible. So this transaction doesn't have to care about timestamps.
      */
-    F_SET(session->txn, WT_TXN_TS_NOT_SET);
+    F_SET(session->txn, WT_TXN_TS_NOT_SET | WT_TXN_NON_TRANSACTIONAL_TRUNCATE);
 
     WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
 
