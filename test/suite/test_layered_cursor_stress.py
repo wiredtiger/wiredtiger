@@ -314,58 +314,31 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.wseq += 1
         return 'v%d.%d' % (key, self.state.wseq)
 
-    # Q: What's the reason to have both remove() and insert() a part of this function consider do it separately in op_remove() and op_insert() to avoid creating function with shared repsonsibilities
-    def _write_pair(self, n, key, value):
-        # Bare write (no txn management) on node n's layered + reference cursors; compare codes.
-        # value=None means remove.
-        if value is None:
-            n.dsc_c.set_key(key); ret_dsc = n.dsc_c.remove()
-            n.asc_c.set_key(key); ret_asc = n.asc_c.remove()
-        else:
-            n.dsc_c.set_key(key); n.dsc_c.set_value(value); ret_dsc = n.dsc_c.insert()
-            n.asc_c.set_key(key); n.asc_c.set_value(value); ret_asc = n.asc_c.insert()
-        # Under overwrite=true these are (0,0); the compare catches a divergence once
-        # overwrite=false / prepare land.
-        self.assertEqual(ret_dsc, ret_asc,
-            'write result differs layered=%r reference=%r (key=%r value=%r)' % (ret_dsc, ret_asc, key, value))
-
-    # Q: It seems like all the writes have the same logic around them: I mean is selft.state.txn is not Txn.NO ..., else begin_txn, commit txn. I think we can also create a separate function to do the same chain of ops on the given session, cursor, node and then assert the cursors after it + take a op label to print it in case of failure.
-    def mirror_write(self, nodes, key, value):
-        # Write to both connections (leader -> stable, follower -> ingest) and both reference tables.
-        # Inside an explicit txn the write joins it (committed later); otherwise it runs in its own
-        # timestamped txn. value=None means remove.
-        if self.state.txn is not Txn.NO:
-            for n in nodes:
-                self._write_pair(n, key, value)
-            self.state.txn_wrote = True
-        else:
-            self.state.ts += 1
-            for n in nodes:
-                n.session.begin_transaction()
-                self._write_pair(n, key, value)
-                n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
-
-    def _positional(self, nodes, do):
-        # Positional update/remove off the cursor's held position.
-        key = self.state.cur_pos
+    def _write_txn(self, nodes, do, label):
         notfound = False
+        def step(n):
+            nonlocal notfound
+            ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
+            self.assertEqual(ret_dsc, ret_asc,
+                '%s result differs layered=%r reference=%r' % (label, ret_dsc, ret_asc))
+            if ret_dsc == wiredtiger.WT_NOTFOUND:
+                notfound = True
+
         if self.state.txn is not Txn.NO:
             for n in nodes:
-                ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
-                self.assertEqual(ret_dsc, ret_asc, 'positional result differs layered=%r reference=%r at key=%r'
-                                 % (ret_dsc, ret_asc, key))
-                notfound = notfound or ret_dsc == wiredtiger.WT_NOTFOUND
+                step(n)
             self.state.txn_wrote = True
         else:
             self.state.ts += 1
             for n in nodes:
                 n.session.begin_transaction()
-                ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
-                self.assertEqual(ret_dsc, ret_asc, 'positional result differs layered=%r reference=%r at key=%r'
-                                 % (ret_dsc, ret_asc, key))
-                notfound = notfound or ret_dsc == wiredtiger.WT_NOTFOUND
+                step(n)
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
-        if notfound:
+        return notfound
+
+    def _positional(self, nodes, do, label):
+        # Positional update/remove off the cursor's held position; clear cur_pos if the write missed.
+        if self._write_txn(nodes, do, label):
             self.state.cur_pos = None
         self.state.n_positional += 1
 
@@ -516,7 +489,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- operations -------------------------------------------------------
     # Each op is self-contained: it generates its own argument, traces itself, does the work, and
-    # updates the model. Shared work lives in helpers (_read / _positional / mirror_write /
+    # updates the model. Shared work lives in helpers (_read / _write_txn / _positional /
     # commit_txn / rollback_txn / _checkpoint / full_scan).
 
     def op_next(self, nodes, rnd, trace):
@@ -547,14 +520,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         key = rnd.choice(self.POOL)
         trace.log('put %r' % key)
         value = self.new_value(key)
-        self.mirror_write(nodes, key, value)
+        self._write_txn(nodes, lambda c: (c.set_key(key), c.set_value(value), c.insert())[-1], 'put')
         self.state.py_table[key] = value
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
         key = rnd.choice(list(self.state.py_table))   # needs_live ensures the table is non-empty
         trace.log('remove %r' % key)
-        self.mirror_write(nodes, key, None)
+        self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove')
         self.state.py_table.pop(key, None)
         self.state.cur_pos = None
 
@@ -563,14 +536,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         key = self.state.cur_pos
         trace.log('pos_update %r' % key)
         value = self.new_value(key)
-        self._positional(nodes, lambda c: (c.set_value(value), c.update())[1])
+        self._positional(nodes, lambda c: (c.set_value(value), c.update())[-1], 'pos_update')
         self.state.py_table[key] = value
 
     def op_pos_remove(self, nodes, rnd, trace):
         # Removes the current key; the cursor stays on the (now deleted) slot.
         key = self.state.cur_pos
         trace.log('pos_remove %r' % key)
-        self._positional(nodes, lambda c: c.remove())
+        self._positional(nodes, lambda c: c.remove(), 'pos_remove')
         self.state.py_table.pop(key, None)
 
     def op_begin(self, nodes, rnd, trace):
@@ -587,9 +560,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         #   ts > oldest_ts -- there must be more than one readable point. ts is always >= oldest_ts
         #     (oldest lags stable), so this only rules out ts == oldest_ts, where the sole readable
         #     timestamp is the latest -- not an as-of-PAST read.
-        # Missing/degenerate window -> fall back to a plain snapshot txn. (We can't just pin
-        # oldest_ts = 1: oldest must advance so the ingest drain can prune below it, which is what
-        # drives the follower to read from stable.)
+        # Missing/degenerate window -> fall back to a plain snapshot txn.
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
             if self.state.ts > self.state.oldest_ts >= 1:
