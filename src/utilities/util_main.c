@@ -460,6 +460,11 @@ open:
         goto err;
     }
 
+    /* Enter read-corrupt mode for the duration of the subcommand: corrupt block reads return
+     * errors instead of panicking; cursor walks gate on the flag to engage skip-and-continue. */
+    if (read_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
+
     if ((ret = util_disagg_pick_up_latest_checkpoint(conn, session)) != 0) {
         (void)util_err(session, ret, "failed to pick up latest disaggregated checkpoint");
         goto err;

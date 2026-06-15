@@ -148,11 +148,6 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
     const char *key, *value;
     bool found;
 
-    /* Under read-corrupt, the metadata-cursor walk skips corrupt metadata pages and continues
-     * listing what's still reachable. */
-    if (read_corrupt)
-        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
-
     /* Open the metadata file. */
     if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
         /*

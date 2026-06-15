@@ -31,14 +31,12 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session_impl;
     size_t urilen;
     int ch;
     char *objname, *uri;
     const char *config, *desc, *pval;
     bool objname_free;
 
-    session_impl = (WT_SESSION_IMPL *)session;
     objname_free = false;
     objname = uri = NULL;
     config = NULL;
@@ -90,11 +88,6 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
         fprintf(stderr, "%s: %s\n", progname, strerror(ret));
         goto err;
     }
-
-    /* Under read-corrupt, the stat-cursor tree walk skips corrupt pages and surfaces partial counts
-     * instead of failing the cursor open. */
-    if (read_corrupt)
-        F_SET(session_impl, WT_SESSION_READ_SKIP_CORRUPT);
 
     if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
         fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
