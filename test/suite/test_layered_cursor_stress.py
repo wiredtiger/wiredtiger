@@ -197,10 +197,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=1GB,statistics=(all),' \
                        'statistics_log=(wait=1,json=true,on_close=true),'
 
-    # Q: Does POOL mean that we always have not more than 100 keys? Not bad and seems sufficient for the 300 ops, but should we extend it to at least 1000 or make configurable when we start running millions of ops?
-    # Candidate keys are spread with gaps so search_near targets can fall between keys.
-    POOL = list(range(100, 1000, 10))
-
     disagg_storages = gen_disagg_storages('test_layered_cursor_stress', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
@@ -209,15 +205,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     # --- cluster setup ---------------------------------------------------
 
-    def setup_connections(self, weights):
+    def setup_connections(self, weights, n_keys=90):
         self.conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
         self.state = State()
         self.weights = weights
+        # Candidate keys spread by 10 so search_near targets fall between them.
+        self.pool = list(range(100, 100 + n_keys * 10, 10))
         self.ops = self._build_ops(weights)   # the workload table (Op rows -> op methods)
+
         self.DEV_ONLY_validate_ops()          # the table must match the op_* methods exactly
+
         # Advancing to an unchanged checkpoint logs an expected WARNING.
         self.ignoreStdoutPattern('Picking up the same checkpoint again')
 
@@ -438,9 +438,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         if self.state.py_table and rnd.choices((True, False), weights=(w.existing, w.missing))[0]:
             return rnd.choice(list(self.state.py_table))
 
-        # POOL step is 10, so if every POOL key is live, POOL_key + 5 is guaranteed absent.
-        absent = [k for k in self.POOL if k not in self.state.py_table]
-        return rnd.choice(absent) if absent else rnd.choice(self.POOL) + 5
+        # pool step is 10, so if every pool key is live, pool_key + 5 is guaranteed absent.
+        absent = [k for k in self.pool if k not in self.state.py_table]
+        return rnd.choice(absent) if absent else rnd.choice(self.pool) + 5
 
     # --- verification ----------------------------------------------------
 
@@ -496,7 +496,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_put(self, nodes, rnd, trace):
-        key = rnd.choice(self.POOL)
+        key = rnd.choice(self.pool)
         trace.log('put %r' % key)
         value = self.new_value(key)
         self._write_txn(nodes, lambda c: (c.set_key(key), c.set_value(value), c.insert())[-1], 'put')
