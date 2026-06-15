@@ -94,6 +94,13 @@ class SearchKeyWeights:
     missing: int = 50
 
 @dataclass(frozen=True)
+class RemoveKeyWeights:
+    # op_remove picks an existing key (a real delete that mutates state) or a missing one (layered and
+    # reference must return the same not-found result -- removing an absent/tombstoned key).
+    existing: int = 80
+    missing: int = 20
+
+@dataclass(frozen=True)
 # Q: Question for the future. Some weights should be less than 1% probability (like evict or advance) - probably 0.1% or even 0.01% for the long running tests Should we just make other weights bigger
 class Weights:
     # Position-holding ops (reads + positional writes) carry the big weights so chains stay long and
@@ -113,13 +120,13 @@ class Weights:
     txn_begin: int = 8
     txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
+    remove_key: RemoveKeyWeights = field(default_factory=RemoveKeyWeights)
 
 @dataclass(frozen=True)
 class Op:
     fn: object                    # the op method, called as fn(nodes, rnd, trace); the dispatch identity
     weight: int                   # relative frequency among the legal ops at each step
     needs_position: bool = False  # cursor must be positioned (positional writes)
-    needs_live: bool = False      # at least one live key must exist (remove by key)
     is_write: bool = False        # a logical write (illegal in a read-only transaction)
     no_txn: bool = True           # legal with no open txn (autocommit)
     in_txn: bool = True           # legal inside an open txn
@@ -190,7 +197,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=1GB,statistics=(all),' \
                        'statistics_log=(wait=1,json=true,on_close=true),'
 
-    # Q: Does POOL mean that we always have not more than 100 keys? Not bad, but should we extend it to 1000?
+    # Q: Does POOL mean that we always have not more than 100 keys? Not bad and seems sufficient for the 300 ops, but should we extend it to at least 1000 or make configurable when we start running millions of ops?
     # Candidate keys are spread with gaps so search_near targets can fall between keys.
     POOL = list(range(100, 1000, 10))
 
@@ -227,8 +234,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_pos_update,  weights.pos_update, needs_position=True, is_write=True),
             Op(self.op_pos_remove,  weights.pos_remove, needs_position=True, is_write=True),
             Op(self.op_put,         weights.put,        is_write=True),
-            # Q: Why remove requires need_live? If it set's the key from scratch it breaks the position, so even if we try to remove unexisting key we can just check that both asc and dsc removes not_found. Maybe we can create a separate remove weights structure and say that we remove existing keys here
-            Op(self.op_remove,      weights.remove,     is_write=True, needs_live=True),
+            Op(self.op_remove,      weights.remove,     is_write=True),
             Op(self.op_reset,       weights.reset),
             Op(self.scen_full_scan, weights.full_scan),
             Op(self.scen_advance_checkpoint, weights.advance_checkpoint, in_txn=False),
@@ -427,9 +433,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             'reference: %r' % (ret_asc,),
             'trace file: %s' % trace.path]))
 
-    def pick_search_key(self, rnd):
-        # Existing key vs missing key, weighted by the search-key config (op_search/op_search_near).
-        w = self.weights.search_key
+    def pick_key(self, rnd, w):
+        # Existing key vs missing key, weighted by the given existing/missing config.
         if self.state.py_table and rnd.choices((True, False), weights=(w.existing, w.missing))[0]:
             return rnd.choice(list(self.state.py_table))
 
@@ -475,12 +480,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._read(nodes, trace, lambda c: c.prev())
 
     def op_search(self, nodes, rnd, trace):
-        key = self.pick_search_key(rnd)
+        key = self.pick_key(rnd, self.weights.search_key)
         trace.log('search %r' % key)
         self._read(nodes, trace, lambda c: (c.set_key(key), c.search())[1])
 
     def op_search_near(self, nodes, rnd, trace):
-        key = self.pick_search_key(rnd)
+        key = self.pick_key(rnd, self.weights.search_key)
         trace.log('search_near %r' % key)
         self._read(nodes, trace, lambda c: self._search_near_ceiling(c, key))
 
@@ -499,7 +504,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
-        key = rnd.choice(list(self.state.py_table))   # needs_live ensures the table is non-empty
+        # An existing key (a real delete) or a missing one (layered and reference must agree).
+        key = self.pick_key(rnd, self.weights.remove_key)
         trace.log('remove %r' % key)
         self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove')
         self.state.py_table.pop(key, None)
@@ -612,8 +618,6 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
         txn = self.state.txn
         if op.needs_position and self.state.cur_pos is None:
-            return False
-        if op.needs_live and not self.state.py_table:
             return False
         if txn is Txn.NO:
             return op.no_txn
