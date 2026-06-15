@@ -252,9 +252,10 @@ class suite_subprocess:
                 for a in args
             ]
 
-        # The external 'wt' process doesn't go through a hook's wiredtiger_open. If a hook saved the
-        # extensions it needs (the disagg hook does this for the early-load key provider), pass them
-        # on the wt connection configuration.
+        # The external 'wt' process doesn't go through a hook's wiredtiger_open, so it misses any
+        # extensions the hook injects there. wt_external_extensions is the 'extensions=[...]' clause
+        # a hook saved for this case (the disagg hook sets it for the early-load key provider);
+        # pass it on the wt connection configuration when present.
         ext_config = getattr(self, 'wt_external_extensions', None)
         if ext_config is not None:
             args = self._add_wt_conn_config(args, ext_config)
