@@ -67,8 +67,8 @@ def write_allowed(txn):
 # dispatched by string -- with its weight and legality tags. A test builds a Weights and passes it
 # in; _build_ops copies each named field onto the Op that uses it (Op(self.op_next, weights.next)),
 # so run_op samples plain Op rows with no lookup. Adding an op = one op_<name> method + one Op row +
-# one Weights field. TxnBeginWeights is the one sub-distribution not in the top-level pool: op_begin
-# reads it directly to pick the transaction flavour it opens.
+# one Weights field. TxnModeWeights is the one sub-distribution not in the top-level pool:
+# op_txn_begin reads it directly to pick the transaction flavour it opens.
 
 # TODO(workload-tuning): rough first pass (reads dominate; breaks/txn/scenarios rare). Once the long
 # run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
@@ -79,9 +79,9 @@ def write_allowed(txn):
 # TODO: Should we also always check that the leader and the follower return the same results?
 
 @dataclass(frozen=True)
-class TxnBeginWeights:
-    # op_begin's transaction-flavour sub-distribution. snapshot is read-write; the rest are read-only
-    # (read_timestamp = snapshot + an as-of-past read, falling back to snapshot with no past window).
+class TxnModeWeights:
+    # op_txn_begin's transaction-flavour sub-distribution. snapshot is read-write; the rest are
+    # read-only (read_timestamp = snapshot + an as-of-past read, falling back to snapshot with no ts).
     snapshot: int = 72
     read_committed: int = 16
     read_uncommitted: int = 12
@@ -113,10 +113,10 @@ class Weights:
     full_scan: int = 4
     advance: int = 6
     evict: int = 6
-    begin: int = 8
+    txn_begin: int = 8
     commit: int = 6
     rollback: int = 2
-    txn_begin: TxnBeginWeights = field(default_factory=TxnBeginWeights)
+    txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
 
 @dataclass(frozen=True)
@@ -238,8 +238,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             # Q: autocommit_only and in_txn_only should be no_txn, in_txn that are true by default and we turn it to false where needed
             Op(self.op_advance,     weights.advance,    autocommit_only=True),
             Op(self.op_evict,       weights.evict,      autocommit_only=True),
-            # Q: Rename to op_txn_begin
-            Op(self.op_begin,       weights.begin,      autocommit_only=True),
+            Op(self.op_txn_begin,   weights.txn_begin,  autocommit_only=True),
             # Q: I think that op_commit and op_rollback should be a part of op_txn_begin(), so when we call it first time, we start transaction, when we call it second time, we either roll it back or commit (90/10). Weight for them should be moved to txn weights as well.
             Op(self.op_commit,      weights.commit,     in_txn_only=True),
             Op(self.op_rollback,    weights.rollback,   in_txn_only=True),
@@ -546,28 +545,25 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._positional(nodes, lambda c: c.remove(), 'pos_remove')
         self.state.py_table.pop(key, None)
 
-    def op_begin(self, nodes, rnd, trace):
+    def op_txn_begin(self, nodes, rnd, trace):
         # Begin a transaction. Has subweights random choice for different transaction modes/types.
-        tw = self.weights.txn_begin
+        tw = self.weights.txn_mode
         mode = rnd.choices(
             [Txn.SNAPSHOT, Txn.READ_COMMITTED, Txn.READ_UNCOMMITTED, Txn.READ_TIMESTAMP],
             weights=[tw.snapshot, tw.read_committed, tw.read_uncommitted, tw.read_timestamp],
             k=1)[0]
 
-        # READ_TIMESTAMP reads as-of-past, so it needs a real window below the latest commit:
-        #   oldest_ts >= 1 -- a read_timestamp must be >= 1 (0 means "no timestamp" in WT), and
-        #     oldest_ts stays 0 until the first advance() establishes the oldest_timestamp.
-        #   ts > oldest_ts -- there must be more than one readable point. ts is always >= oldest_ts
-        #     (oldest lags stable), so this only rules out ts == oldest_ts, where the sole readable
-        #     timestamp is the latest -- not an as-of-PAST read.
-        # Missing/degenerate window -> fall back to a plain snapshot txn.
+        # A read_timestamp just needs to be valid: in [oldest_ts, ts] with oldest_ts >= 1 (0 means "no
+        # timestamp" in WT, and oldest_ts stays 0 until the first advance()). read_ts == ts is allowed
+        # -- a valid as-of read, even though it sees the same data as the latest snapshot. Before any
+        # timestamp is established, fall back to a plain snapshot txn.
         read_ts = None
         if mode is Txn.READ_TIMESTAMP:
-            if self.state.ts > self.state.oldest_ts >= 1:
+            if self.state.ts >= self.state.oldest_ts >= 1:
                 read_ts = rnd.randint(self.state.oldest_ts, self.state.ts)
             else:
                 mode = Txn.SNAPSHOT
-        trace.log('begin %r' % ((read_ts, mode.value),))
+        trace.log('txn_begin %r' % ((read_ts, mode.value),))
 
         # Build the config
         cfg_parts = []
