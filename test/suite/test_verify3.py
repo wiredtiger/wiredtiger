@@ -29,7 +29,7 @@
 import wttest
 
 # test_verify3.py
-#    Regression test for a verifier row-index desynchronization against the history store.
+#    Regression test for a verifier row-index misalignment against the history store.
 #
 #    When a row's value is zero-length and globally visible, reconciliation omits its on-page
 #    value cell. History store verification used to advance the row index once per value cell,
