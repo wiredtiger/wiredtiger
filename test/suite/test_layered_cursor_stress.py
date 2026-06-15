@@ -73,9 +73,9 @@ def write_allowed(txn):
 # TODO(workload-tuning): rough first pass (reads dominate; breaks/txn/scenarios rare). Once the long
 # run lands, tune to drive the follower stable-read fraction up (see DEV_ONLY_assert_merge_exercised)
 # and decide whether a derived break-frequency knob should return.
-# TODO: add modify op() are there any more ops missed?
+# FIXME-WT-17827: add a modify op once fixed (modify on a deleted slot aborts the follower layered cursor).
 # TODO: add scenario for bulk insert to grow tables significantly.
-# TODO: Don't forget about prepared transactions.
+# FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 # TODO: Should we also always check that the leader and the follower return the same results?
 
 @dataclass(frozen=True)
@@ -369,43 +369,31 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.cur_pos = None
         self.state.n_positional += 1
 
-    def _end_txn(self, nodes, commit):
-        # close the explicit transaction open on both nodes' sessions.
-        if commit:
-            if self.state.txn_wrote:
-                self.state.ts += 1
-                cts = 'commit_timestamp=' + self.timestamp_str(self.state.ts)
-                for n in nodes:
-                    n.session.commit_transaction(cts)
-            else:
-                for n in nodes:
-                    n.session.commit_transaction()
+    def commit_txn(self, nodes):
+        # A txn that wrote needs a commit_timestamp (layered = ordered write timestamps).
+        commit_cfg = ''
+        if self.state.txn_wrote:
+            self.state.ts += 1
+            commit_cfg = 'commit_timestamp=' + self.timestamp_str(self.state.ts)
+        for n in nodes:
+            n.session.commit_transaction(commit_cfg)
 
-            # Q: Can we do?
-            # cts = None
-            # if self.state.txn_wrote:
-            #    self.state.ts += 1
-            #    self.state.dirty = True
-            # for n in nodes:
-            #    n.session.commit_transaction()
-
-            # Q: Can you explain me once more why do we need it in simple words with an example?
-            # A successful commit keeps cursors positioned (cur_pos survives), except an as-of-T read
-            # txn: resuming a latest iteration from a held historical position lets the layered cursor
-            # pin its stable constituent across the snapshot change and diverge from the reference
-            # (the Q2 family, ruled not-a-bug -- a fresh read agrees), so reset those cursors.
-            # TODO(pin-reset): RC/RU read-only txns also hold cursors across commit but resume in a
-            # compatible (latest) view, so no pin divergence has been seen; extend the reset to them
-            # only if one appears.
-            if self.state.txn_read_ts is not None:
-                for n in nodes:
-                    n.reset_all()
-                self.state.cur_pos = None
-        else:
+        # FIXME-WT-17830: a follower layered cursor held across an as-of-past txn commit
+        # mis-iterates (stays on its key instead of moving). Reset works around it; remove once fixed.
+        if self.state.txn_read_ts is not None:
             for n in nodes:
-                n.session.rollback_transaction()
-            self.state.py_table = self.state.py_table_snapshot   # undo the txn's logical writes
-            self.state.cur_pos = None              # rollback resets the session's cursors
+                n.reset_all()
+            self.state.cur_pos = None
+        self._reset_txn_state()
+
+    def rollback_txn(self, nodes):
+        for n in nodes:
+            n.session.rollback_transaction()
+        self.state.py_table = self.state.py_table_snapshot   # undo the txn's logical writes
+        self.state.cur_pos = None                            # rollback resets the session's cursors
+        self._reset_txn_state()
+
+    def _reset_txn_state(self):
         self.state.txn = Txn.NO
         self.state.txn_wrote = False
         self.state.txn_read_ts = None
@@ -529,7 +517,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     # --- operations -------------------------------------------------------
     # Each op is self-contained: it generates its own argument, traces itself, does the work, and
     # updates the model. Shared work lives in helpers (_read / _positional / mirror_write /
-    # _end_txn / _checkpoint / full_scan).
+    # commit_txn / rollback_txn / _checkpoint / full_scan).
 
     def op_next(self, nodes, rnd, trace):
         trace.log('next')
@@ -635,11 +623,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def op_commit(self, nodes, rnd, trace):
         trace.log('commit')
-        self._end_txn(nodes, commit=True)
+        self.commit_txn(nodes)
 
     def op_rollback(self, nodes, rnd, trace):
         trace.log('rollback')
-        self._end_txn(nodes, commit=False)
+        self.rollback_txn(nodes)
 
     def _checkpoint(self, nodes):
         # Release any pinned snapshot (reset cursors), advance the checkpoint, clear position.
@@ -716,7 +704,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             for _ in range(n_ops):
                 self.run_op(nodes, rnd, trace)
             if self.state.txn is not Txn.NO:
-                self._end_txn(nodes, commit=True) # close any txn left open before verifying
+                self.commit_txn(nodes) # close any txn left open before verifying
             # scan the tables as a final verification
             self.full_scan(nodes, trace)
         finally:
