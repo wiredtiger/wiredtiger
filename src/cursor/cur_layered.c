@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
+static int __clayered_update_ingest(WT_CURSOR_LAYERED *, uint32_t);
 static int __clayered_update_stable(WT_CURSOR_LAYERED *, uint32_t);
 static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_CURSOR **);
@@ -159,25 +160,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, uint32_t flags)
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    /*
-     * Manage the ingest cursor by role. A follower opens it on first use and never reopens it
-     * during normal operation. The leader keeps it closed: the ingest table is empty for reads and
-     * unused for writes, so an open ingest cursor only adds the per-operation cache/reopen and
-     * dhandle rwlock overhead. A step-up can leave behind an ingest cursor opened while a follower,
-     * so close it on the role change.
-     */
-    if (S2C(session)->layered_table_manager.leader) {
-        if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
-            WT_CURSOR *ingest = clayered->ingest_cursor;
-            if (clayered->current_cursor == ingest)
-                clayered->current_cursor = NULL;
-            WT_RET(ingest->close(ingest));
-            clayered->ingest_cursor = NULL;
-        }
-    } else if (clayered->ingest_cursor == NULL) {
-        WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
-        WT_RET(__clayered_copy_bounds(clayered));
-    }
+    /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
+    WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags));
@@ -547,6 +531,35 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT
         __clayered_seed_random(session, clayered, cursor);
 
     *cursorp = cursor;
+
+    return (0);
+}
+
+/*
+ * __clayered_update_ingest --
+ *     Manage the ingest cursor lifecycle by node role. A follower opens it on first use and never
+ *     reopens it during normal operation. The leader keeps it closed: the ingest table is empty for
+ *     reads and unused for writes, so an open ingest cursor only adds the per-operation
+ *     cache/reopen and dhandle rwlock overhead. A step-up can leave behind an ingest cursor opened
+ *     while a follower, so close it on the role change.
+ */
+static int
+__clayered_update_ingest(WT_CURSOR_LAYERED *clayered, uint32_t flags)
+{
+    WT_SESSION_IMPL *const session = CUR2S(clayered);
+
+    if (S2C(session)->layered_table_manager.leader) {
+        if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+            WT_CURSOR *ingest = clayered->ingest_cursor;
+            if (clayered->current_cursor == ingest)
+                clayered->current_cursor = NULL;
+            WT_RET(ingest->close(ingest));
+            clayered->ingest_cursor = NULL;
+        }
+    } else if (clayered->ingest_cursor == NULL) {
+        WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
+        WT_RET(__clayered_copy_bounds(clayered));
+    }
 
     return (0);
 }
