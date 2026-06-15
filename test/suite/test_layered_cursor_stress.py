@@ -185,9 +185,15 @@ class State:
         self.n_full_scan = 0     # full-table cross-checks run (scen_full_scan guard)
         self.n_bulk_insert = 0   # bulk-insert batches applied (scen_bulk_insert guard)
         self.n_bulk_remove = 0   # bulk-remove/truncate batches applied (scen_bulk_remove guard)
+        # Chain-length + fill/empty instrumentation (connection-global, across all seeds).
+        self.chain_total = 0     # sum of completed positioned-run lengths
+        self.chain_count = 0     # number of completed positioned runs
+        self.reached_full = False       # py_table ever held every pool key
+        self.full_then_empty = False    # ... and later emptied
         self.new_sequence()
 
     def new_sequence(self):
+        self.chain_run = 0             # current run of consecutive positioned ops
         self.py_table = {}             # logical key->value, for op generation only
         self.cur_pos = None            # key both cursor pairs are positioned on (None = unpositioned)
         self.txn = Txn.NO              # current transaction context (NO = autocommit)
@@ -731,6 +737,34 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         cands = [op for op in self.ops if self._legal(op)]
         op = rnd.choices(cands, weights=[op.weight for op in cands], k=1)[0]
         op.fn(nodes, rnd, trace)
+        # Instrumentation: positioned-run length + table fill/empty cycle.
+        s = self.state
+        if s.cur_pos is not None:
+            s.chain_run += 1
+        elif s.chain_run:
+            s.chain_total += s.chain_run; s.chain_count += 1; s.chain_run = 0
+        n = len(s.py_table)
+        if n >= len(self.pool):
+            s.reached_full = True
+        elif n == 0 and s.reached_full:
+            s.full_then_empty = True
+
+    def metrics(self):
+        # Aggregate run shape (instrumentation, not a product check).
+        s = self.state
+        chain_avg = (s.chain_total / s.chain_count) if s.chain_count else 0.0
+        stable, ingest = self.DEV_ONLY_follower_read_split()
+        stable_frac = (stable / (stable + ingest)) if (stable + ingest) else 0.0
+        return dict(chain_avg=chain_avg, chain_count=s.chain_count, reached_full=s.reached_full,
+                    full_then_empty=s.full_then_empty, stable_frac=stable_frac, stable=stable, ingest=ingest)
+
+    def log_metrics(self):
+        m = self.metrics()
+        self.pr('METRICS: chain_avg=%.1f chain_count=%d reached_full=%s full_then_empty=%s '
+                'stable_frac=%.3f stable=%d ingest=%d'
+                % (m['chain_avg'], m['chain_count'], m['reached_full'], m['full_then_empty'],
+                   m['stable_frac'], m['stable'], m['ingest']))
+        return m
 
     # --- driver ----------------------------------------------------------
 
@@ -751,6 +785,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 self.commit_txn(nodes) # close any txn left open before verifying
             # scan the tables as a final verification
             self.full_scan(nodes, trace)
+            if self.state.chain_run:   # flush the final positioned run into the average
+                self.state.chain_total += self.state.chain_run
+                self.state.chain_count += 1
+                self.state.chain_run = 0
+            self.log_metrics()         # running aggregate over all seeds so far
         finally:
             # A txn left open by a mid-sequence failure rolls back when the connection closes at
             # teardown (these are never prepared), so no explicit rollback here.
