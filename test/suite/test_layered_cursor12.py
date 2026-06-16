@@ -30,13 +30,13 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#   Test that follower cursors see updated data after a new checkpoint is applied.
+# Test that follower cursors see updated data after a new checkpoint is applied.
 #
-#   Key scenarios:
-#   - Unpositioned cursor sees new data after checkpoint advance.
-#   - Cursor preserves position correctly when checkpoint advances.
-#   - With read timestamp, iteration triggers a checkpoint advance.
-#   - Data added/updated/removed across checkpoints is visible after checkpoint advances.
+# Key scenarios:
+# - Unpositioned cursor sees new data after checkpoint advance.
+# - Cursor preserves position correctly when checkpoint advances.
+# - With read timestamp, iteration triggers a checkpoint advance.
+# - Data added/updated/removed across checkpoints is visible after checkpoint advances.
 
 @disagg_test_class
 class test_layered_cursor12(wttest.WiredTigerTestCase):

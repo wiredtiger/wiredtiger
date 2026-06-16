@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Transactions: Empty checkpoints and log removal.
+# Transactions: Empty checkpoints and log removal.
 
 import fnmatch, os
 from suite_subprocess import suite_subprocess

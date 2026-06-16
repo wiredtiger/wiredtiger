@@ -30,7 +30,7 @@
 # config_api
 # [END_TAGS]
 #
-#    Configuration
+# Configuration
 #
 
 import json

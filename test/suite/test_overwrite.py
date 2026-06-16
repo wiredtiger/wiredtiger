@@ -31,7 +31,7 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet
 from wtdataset import ComplexDataSet
 from wtscenario import filter_scenarios, make_scenarios
 
-#    cursor overwrite configuration method
+# cursor overwrite configuration method
 class test_overwrite(wttest.WiredTigerTestCase):
     name = 'overwrite'
     keyfmt = [

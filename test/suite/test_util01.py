@@ -30,7 +30,7 @@ import string, random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-#    Utilities: wt dump, as well as the dump cursor
+# Utilities: wt dump, as well as the dump cursor
 class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     """
     Test wt dump.  We check for specific output.

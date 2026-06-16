@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test if foreground compaction proceeds depending on the free_space_target field.
+# Test if foreground compaction proceeds depending on the free_space_target field.
 #
 
 import wttest

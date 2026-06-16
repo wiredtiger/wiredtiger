@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Check for prepare-conflict return after fast-truncate committed.
+# Check for prepare-conflict return after fast-truncate committed.
 #
 
 import wttest

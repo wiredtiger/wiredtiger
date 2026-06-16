@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test file_max configuration and reconfiguration for the history store table.
+# Test file_max configuration and reconfiguration for the history store table.
 #
 
 import wiredtiger, wttest

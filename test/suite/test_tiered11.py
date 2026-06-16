@@ -31,7 +31,7 @@ from helper_tiered import get_conn_config, gen_tiered_storage_sources, TieredCon
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-#    Test flush time and flush timestamp in metadata.
+# Test flush time and flush timestamp in metadata.
 class test_tiered11(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     test_name = __qualname__

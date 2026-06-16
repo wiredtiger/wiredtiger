@@ -31,7 +31,7 @@ from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-#    Statistics cursor configurations.
+# Statistics cursor configurations.
 class test_stat_cursor_config(wttest.WiredTigerTestCase):
     test_name = __qualname__
     pfx = test_name

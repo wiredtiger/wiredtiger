@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   After a prepared key triggers a conflict mid-scan and the prepared transaction is
-#   later rolled back, the ingest cursor is left unpositioned. A subsequent scan must
-#   skip the key comparison rather than asserting on the missing key.
+# After a prepared key triggers a conflict mid-scan and the prepared transaction is
+# later rolled back, the ingest cursor is left unpositioned. A subsequent scan must
+# skip the key comparison rather than asserting on the missing key.
 
 import wiredtiger
 import wttest

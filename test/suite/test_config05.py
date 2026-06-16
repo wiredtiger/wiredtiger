@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 
-#    Test multiple connection opens
+# Test multiple connection opens
 class test_config05(wttest.WiredTigerTestCase):
     test_name = __qualname__
     table_name1 = test_name

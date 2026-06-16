@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 
-#    basic tests for indices
+# basic tests for indices
 class test_index01(wttest.WiredTigerTestCase):
     '''Test basic operations for indices'''
     test_name = __qualname__

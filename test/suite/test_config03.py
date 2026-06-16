@@ -29,7 +29,7 @@
 import wiredtiger, wtscenario, wttest
 import test_base03
 
-#    More configuration strings for wiredtiger_open, combined probabilistically.
+# More configuration strings for wiredtiger_open, combined probabilistically.
 class test_config03(test_base03.test_base03):
     K = 1024
     M = 1024 * K

@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#    Test the basic ability to insert on a follower.
+# Test the basic ability to insert on a follower.
 @disagg_test_class
 class test_layered_stepup02(wttest.WiredTigerTestCase):
     test_name = __qualname__

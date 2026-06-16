@@ -30,7 +30,7 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#    Utilities: wt create
+# Utilities: wt create
 class test_util03(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     tablename = f'{test_name}.a'

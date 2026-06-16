@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test that prepare discover cursor should return an error when closed with unclaimed prepared transactions
+# Test that prepare discover cursor should return an error when closed with unclaimed prepared transactions
 
 import wiredtiger
 from suite_subprocess import suite_subprocess

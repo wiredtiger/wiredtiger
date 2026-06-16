@@ -35,8 +35,8 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from wtbackup import backup_base
 
-#   This test is to run checkpoint and eviction in parallel with timing
-#   stress for checkpoint and let eviction write more data than checkpoint.
+# This test is to run checkpoint and eviction in parallel with timing
+# stress for checkpoint and let eviction write more data than checkpoint.
 #
 @wttest.skip_for_hook("disagg", "Disagg requires precise checkpoint which does not work well with small cache size.")
 class test_checkpoint_snapshot02(backup_base):

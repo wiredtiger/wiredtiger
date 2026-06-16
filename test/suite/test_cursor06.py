@@ -34,7 +34,7 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
-#    Test cursor reconfiguration.
+# Test cursor reconfiguration.
 class test_cursor06(wttest.WiredTigerTestCase):
     name = 'reconfigure'
     scenarios = make_scenarios([

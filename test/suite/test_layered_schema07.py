@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test WT_SESSION::publish for disaggregated storage.
+# Test WT_SESSION::publish for disaggregated storage.
 #
-#   Schema operations (create, drop) on a leader do not get included in the next checkpoint
-#   until they are published with a schema epoch.
+# Schema operations (create, drop) on a leader do not get included in the next checkpoint
+# until they are published with a schema epoch.
 
 import os, time
 import wiredtiger, wttest
@@ -38,7 +38,7 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-#   Test WT_SESSION::publish for disaggregated storage.
+# Test WT_SESSION::publish for disaggregated storage.
 @disagg_test_class
 class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__

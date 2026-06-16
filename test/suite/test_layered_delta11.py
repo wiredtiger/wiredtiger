@@ -31,7 +31,7 @@ from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test never build an internal page delta if the first key is modified.
+# Test never build an internal page delta if the first key is modified.
 @disagg_test_class
 class test_layered_delta11(wttest.WiredTigerTestCase, DisaggConfigMixin):
     test_name = __qualname__

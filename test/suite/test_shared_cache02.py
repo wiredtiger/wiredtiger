@@ -31,7 +31,7 @@ import os
 import shutil
 import wiredtiger, wttest
 
-#    Shared cache tests
+# Shared cache tests
 # Test shared cache shared among multiple connections.
 class test_shared_cache02(wttest.WiredTigerTestCase):
 

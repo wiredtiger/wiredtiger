@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#    WT_CURSOR navigation (next/prev) tests with prepared transactions
+# WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor02(wttest.WiredTigerTestCase):
 
     test_name = __qualname__

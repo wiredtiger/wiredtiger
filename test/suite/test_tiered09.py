@@ -31,7 +31,7 @@ from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_con
 from wtscenario import make_scenarios
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-#    Test tiered storage with sequential connections with different prefixes.
+# Test tiered storage with sequential connections with different prefixes.
 class test_tiered09(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
 

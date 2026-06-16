@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test mismatches error conditions with encryption.
+# Test mismatches error conditions with encryption.
 #
 
 import random

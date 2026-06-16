@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 
-#    test of commit following failed op in a read only transaction.
+# test of commit following failed op in a read only transaction.
 class test_txn12(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     name = test_name

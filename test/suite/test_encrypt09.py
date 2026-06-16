@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test some error conditions with the libsodium encryption extension.
+# Test some error conditions with the libsodium encryption extension.
 #
 
 import wiredtiger, wttest

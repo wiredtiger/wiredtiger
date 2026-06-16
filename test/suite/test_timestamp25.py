@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: backward compatible oldest and stable names.
+# Timestamps: backward compatible oldest and stable names.
 #
 
 import wttest

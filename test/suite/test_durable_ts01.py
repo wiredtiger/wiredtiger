@@ -30,8 +30,8 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#    Checking visibility and durability of updates with durable_timestamp and
-#    with restart.
+# Checking visibility and durability of updates with durable_timestamp and
+# with restart.
 @wttest.skip_for_hook("disagg", "RTS does not run during recovery for disaggregated storage")
 class test_durable_ts01(wttest.WiredTigerTestCase):
 

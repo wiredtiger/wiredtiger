@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test unintended timestamp usage on an update and ensure behavior
-#   matches expectations. Additionally, move the timestamp to ensure
-#   that values read are still consistent after those timestamps are
-#   moved.
+# Test unintended timestamp usage on an update and ensure behavior
+# matches expectations. Additionally, move the timestamp to ensure
+# that values read are still consistent after those timestamps are
+# moved.
 #
 
 from suite_subprocess import suite_subprocess

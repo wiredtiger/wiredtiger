@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Check for fast-truncate rollback-to-stable timestamps.
+# Check for fast-truncate rollback-to-stable timestamps.
 
 import wttest
 from helper import simulate_crash_restart

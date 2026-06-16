@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test version cursor show_prepared_rollback config across prepared insert,
-#   update, and delete rollback scenarios.
+# Test version cursor show_prepared_rollback config across prepared insert,
+# update, and delete rollback scenarios.
 #
 import wttest
 import wiredtiger

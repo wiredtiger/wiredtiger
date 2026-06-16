@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Prepare: Rounding up prepared transactions Timestamps.
+# Prepare: Rounding up prepared transactions Timestamps.
 #
 
 from suite_subprocess import suite_subprocess

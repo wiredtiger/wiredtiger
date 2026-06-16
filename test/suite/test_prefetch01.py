@@ -30,7 +30,7 @@ import os
 import helper, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#    Test basic functionality of the prefetch configuration.
+# Test basic functionality of the prefetch configuration.
 
 class test_prefetch01(wttest.WiredTigerTestCase):
     new_dir = 'new.dir'

@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-#    Test special cursor index bounds case. This python test aims to test the edge cases of
+# Test special cursor index bounds case. This python test aims to test the edge cases of
 # increment_bounds_array function. When max values are given as a key, it will not increment and
 # can turn off the upper bounds setting in some edge cases.
 class test_cursor_bound20(bound_base):

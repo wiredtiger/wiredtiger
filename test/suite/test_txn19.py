@@ -30,7 +30,7 @@
 # recovery:log_files
 # [END_TAGS]
 #
-#   Transactions: test recovery with corrupted log files
+# Transactions: test recovery with corrupted log files
 #
 
 import os, re

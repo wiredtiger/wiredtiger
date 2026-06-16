@@ -31,7 +31,7 @@
 # cursors:search
 # [END_TAGS]
 #
-#       Regression tests for cursor search and cursor search near.
+# Regression tests for cursor search and cursor search near.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet

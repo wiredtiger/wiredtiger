@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Durability: make sure the metadata is stable after exclusive operations
-#   cause files to be closed.
+# Durability: make sure the metadata is stable after exclusive operations
+# cause files to be closed.
 #
 
 from helper import copy_wiredtiger_home

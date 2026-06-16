@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-#    Test to ensure that dropping layered tables works and subsequent sweep doesn't crash
+# Test to ensure that dropping layered tables works and subsequent sweep doesn't crash
 @disagg_test_class
 class test_layered_schema03(wttest.WiredTigerTestCase):
     test_name = __qualname__

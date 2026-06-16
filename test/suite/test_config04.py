@@ -30,7 +30,7 @@ import os, shutil
 import wiredtiger, wttest
 from wiredtiger import stat
 
-#    Individually test config options
+# Individually test config options
 class test_config04(wttest.WiredTigerTestCase):
     test_name = __qualname__
     table_name1 = test_name

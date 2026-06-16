@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
-#   Test basic fast truncate functionality.
+# Test basic fast truncate functionality.
 @disagg_test_class
 class test_layered_fast_truncate01(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 

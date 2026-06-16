@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: Saving and querying the last checkpoint and recovery timestamps.
+# Timestamps: Saving and querying the last checkpoint and recovery timestamps.
 #
 
 from suite_subprocess import suite_subprocess

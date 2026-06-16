@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Verify that fast truncate prevents internal page delta writes.
-#   Phase 2 proves delta fires for a normal update (sanity); Phase 3 proves it
-#   is suppressed when reconciliation encounters a WT_REF_DELETED child.
+# Verify that fast truncate prevents internal page delta writes.
+# Phase 2 proves delta fires for a normal update (sanity); Phase 3 proves it
+# is suppressed when reconciliation encounters a WT_REF_DELETED child.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

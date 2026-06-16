@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Prepare updates can be resolved for both commit // rollback operations.
+# Prepare updates can be resolved for both commit // rollback operations.
 #
 
 import random

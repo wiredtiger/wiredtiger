@@ -29,7 +29,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-#    Testing basic scenarios with cursor bound functionality on dump cursors.
+# Testing basic scenarios with cursor bound functionality on dump cursors.
 class test_cursor_bound16(bound_base):
     test_name = __qualname__
     file_name = test_name

@@ -34,7 +34,7 @@
 import os
 import wiredtiger, wttest
 
-#    The home directory for wiredtiger_open
+# The home directory for wiredtiger_open
 @wttest.skip_for_hook("tiered", "using environment variable to set WT home")
 class test_config02(wttest.WiredTigerTestCase):
     test_name = __qualname__

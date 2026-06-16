@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   When two prepared sessions share the same prepared_id, a follower
-#   stepping up to leader must resolve all of them.
+# When two prepared sessions share the same prepared_id, a follower
+# stepping up to leader must resolve all of them.
 #
-#   The follower holds two prepared sessions with prepared_id=42:
-#   top_session (no writes) and work_session (table writes). Without the
-#   fix, step-up fails to resolve work_session's writes, causing step-up
-#   to fail with a conflict.
+# The follower holds two prepared sessions with prepared_id=42:
+# top_session (no writes) and work_session (table writes). Without the
+# fix, step-up fails to resolve work_session's writes, causing step-up
+# to fail with a conflict.
 
 import wiredtiger
 import wttest

@@ -32,7 +32,7 @@
 
 import wiredtiger, wttest
 
-#    connection level version operation.
+# connection level version operation.
 class test_version(wttest.WiredTigerTestCase):
 
     # Test version call.

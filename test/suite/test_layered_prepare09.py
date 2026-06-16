@@ -26,20 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Tests that prepared transactions captured unresolved in a leader checkpoint are correctly
-#   resolved (committed or rolled back) on follower step-up. Covers seven operation types:
-#   - test_prepare_insert: prepared inserts on new keys
-#   - test_prepare_update: prepared updates on existing keys
-#   - test_prepare_delete: prepared deletes on existing keys
-#   - test_prepare_delete_between_values: prepared delete sandwiched between two committed values
-#   - test_prepare_multiple_updates_same_key: single prepared transaction writes the same key
-#     multiple times, all updates captured unresolved in the checkpoint
-#   - test_prepare_not_captured_insert: prepared insert with prepare_ts > stable_ts; prepare not
-#     in checkpoint so the key is absent on the follower
-#   - test_prepare_not_captured_update: prepared update with prepare_ts > stable_ts; prepare not
-#     in checkpoint so the follower sees only the pre-prepare committed value
-#   - test_prepare_not_captured_delete: prepared delete with prepare_ts > stable_ts; prepare not
-#     in checkpoint so the follower sees the key as still present
+# Tests that prepared transactions captured unresolved in a leader checkpoint are correctly
+# resolved (committed or rolled back) on follower step-up. Covers seven operation types:
+# - test_prepare_insert: prepared inserts on new keys
+# - test_prepare_update: prepared updates on existing keys
+# - test_prepare_delete: prepared deletes on existing keys
+# - test_prepare_delete_between_values: prepared delete sandwiched between two committed values
+# - test_prepare_multiple_updates_same_key: single prepared transaction writes the same key
+#   multiple times, all updates captured unresolved in the checkpoint
+# - test_prepare_not_captured_insert: prepared insert with prepare_ts > stable_ts; prepare not
+#   in checkpoint so the key is absent on the follower
+# - test_prepare_not_captured_update: prepared update with prepare_ts > stable_ts; prepare not
+#   in checkpoint so the follower sees only the pre-prepare committed value
+# - test_prepare_not_captured_delete: prepared delete with prepare_ts > stable_ts; prepare not
+#   in checkpoint so the follower sees the key as still present
 
 import wiredtiger
 import wttest

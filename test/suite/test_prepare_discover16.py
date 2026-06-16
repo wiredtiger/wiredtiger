@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   A prepared delete that is captured by a checkpoint and later rolled
-#   back via the follower discover/claim flow must not affect reads of the
-#   underlying committed value once the rollback timestamp is stable. A
-#   fresh follower that opens the post-rollback checkpoint must read the
-#   key's original committed value.
+# A prepared delete that is captured by a checkpoint and later rolled
+# back via the follower discover/claim flow must not affect reads of the
+# underlying committed value once the rollback timestamp is stable. A
+# fresh follower that opens the post-rollback checkpoint must read the
+# key's original committed value.
 
 import wiredtiger
 import wttest

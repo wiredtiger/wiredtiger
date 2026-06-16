@@ -29,7 +29,7 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-#    Utilities: wt copyright
+# Utilities: wt copyright
 class test_util08(wttest.WiredTigerTestCase, suite_subprocess):
     def test_copyright(self):
         """

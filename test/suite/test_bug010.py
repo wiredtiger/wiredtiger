@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       check that checkpoints don't leave files marked clean when they
-#       did not write all updates out.
+# check that checkpoints don't leave files marked clean when they
+# did not write all updates out.
 #
 
 import wttest, wtthread

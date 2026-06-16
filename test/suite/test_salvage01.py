@@ -31,7 +31,7 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#    Utilities: wt salvage
+# Utilities: wt salvage
 
 # Note that this class is reused by test_encrypt07 test_salvage02; be sure
 # to test any changes with that version as well.

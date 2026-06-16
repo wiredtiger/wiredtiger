@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Tests that a follower correctly handles pages that were fast-truncated on the
-#   leader: stable pages must never be dirtied, and deleted state must survive
-#   eviction and reopen.
+# Tests that a follower correctly handles pages that were fast-truncated on the
+# leader: stable pages must never be dirtied, and deleted state must survive
+# eviction and reopen.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

@@ -30,7 +30,7 @@ import os, os.path, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test layered table modify
+# Test layered table modify
 @disagg_test_class
 class test_layered_cursor07(wttest.WiredTigerTestCase):
     test_name = __qualname__

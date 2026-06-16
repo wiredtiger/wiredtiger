@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-#    Basic layered tree cursor insert and read
+# Basic layered tree cursor insert and read
 @disagg_test_class
 class test_layered_cursor04(wttest.WiredTigerTestCase):
 

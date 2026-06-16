@@ -30,7 +30,7 @@ import os, queue, threading, wttest
 from wtbackup import backup_base
 from wtthread import op_thread
 
-#    Run create/drop operations while backup is ongoing.
+# Run create/drop operations while backup is ongoing.
 class test_backup21(backup_base):
     # Backup directory name.
     test_name = __qualname__

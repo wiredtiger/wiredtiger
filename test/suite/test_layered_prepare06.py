@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test layered cursor walks on a follower with an advanced checkpoint, exercising the
-#   two-cursor merge path. Verifies correct behavior when:
-#   - An overwrite update positions only the ingest cursor, then next() forces the stable
-#     cursor to open.
-#   - A prepared conflict occurs mid-walk and the cursor retries after the prepare resolves.
+# Test layered cursor walks on a follower with an advanced checkpoint, exercising the
+# two-cursor merge path. Verifies correct behavior when:
+# - An overwrite update positions only the ingest cursor, then next() forces the stable
+#   cursor to open.
+# - A prepared conflict occurs mid-walk and the cursor retries after the prepare resolves.
 
 import os
 import wiredtiger

@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: Test that rollback_to_stable obeys expected visibility rules.
+# Timestamps: Test that rollback_to_stable obeys expected visibility rules.
 #
 
 from suite_subprocess import suite_subprocess

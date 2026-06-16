@@ -28,7 +28,7 @@
 
 import wttest
 
-#   Make sure UTF8 config can be passed to WT_SESSION::create.
+# Make sure UTF8 config can be passed to WT_SESSION::create.
 # Python turns Unicode strings into UTF-8.
 class test_unicode01(wttest.WiredTigerTestCase):
     def test_unicode(self):

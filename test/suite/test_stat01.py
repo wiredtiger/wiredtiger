@@ -31,7 +31,7 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 
-#    Statistics operations
+# Statistics operations
 class test_stat01(wttest.WiredTigerTestCase):
     """
     Test statistics

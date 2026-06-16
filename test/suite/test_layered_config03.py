@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-#    Ensure overflow keys and values are not being generated in disaggregated storage.
+# Ensure overflow keys and values are not being generated in disaggregated storage.
 
 @disagg_test_class
 class test_layered_config03(wttest.WiredTigerTestCase):

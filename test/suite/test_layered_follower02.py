@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wiredtiger import stat
 from helper import WiredTigerCursor, statistic_uri
 
-#    Test the basic ability to insert on a follower.
+# Test the basic ability to insert on a follower.
 
 @disagg_test_class
 class test_layered_follower02(wttest.WiredTigerTestCase):

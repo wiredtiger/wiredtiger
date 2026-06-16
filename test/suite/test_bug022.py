@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       Testing that we don't allow modifies on top of tombstone updates.
+# Testing that we don't allow modifies on top of tombstone updates.
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios

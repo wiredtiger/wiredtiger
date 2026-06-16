@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test duplicate key return values.
+# Test duplicate key return values.
 
 import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test duplicate key.
+# Test duplicate key.
 @disagg_test_class
 class test_layered_cursor08(wttest.WiredTigerTestCase):
     test_name = __qualname__

@@ -38,7 +38,7 @@ try:
 except:
     None
 
-#    Test that opening a backup cursor does not open file handles.
+# Test that opening a backup cursor does not open file handles.
 class test_backup06(backup_base):
     conn_config = 'statistics=(fast)'
     # This will create several hundred tables.

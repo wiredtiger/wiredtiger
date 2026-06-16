@@ -31,9 +31,9 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-#    Test garbage collection ensures that prepared updates and aborted
-#    prepared updates are not removed if the rollback timestamps are newer than
-#    the checkpoint timestamp of the stable table.
+# Test garbage collection ensures that prepared updates and aborted
+# prepared updates are not removed if the rollback timestamps are newer than
+# the checkpoint timestamp of the stable table.
 @disagg_test_class
 class test_layered_prepare04(wttest.WiredTigerTestCase):
     test_name = __qualname__

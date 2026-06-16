@@ -30,7 +30,7 @@ import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wiredtiger import stat
 
-#    Ensure that we do not read any freed pages.
+# Ensure that we do not read any freed pages.
 @disagg_test_class
 class test_layered_checkpoint14(wttest.WiredTigerTestCase):
 

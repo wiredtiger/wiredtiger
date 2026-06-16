@@ -30,7 +30,7 @@ from suite_subprocess import suite_subprocess
 import wttest
 from wtscenario import make_scenarios
 
-#   Utilities: wt downgrade
+# Utilities: wt downgrade
 class test_util19(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     tablename = f'{test_name}.a'

@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       Bulk-load testing.
+# Bulk-load testing.
 
 import time
 import wiredtiger, wttest
@@ -35,7 +35,7 @@ from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
 
 # test_bulkload_checkpoint
-#       Test bulk-load with checkpoints.
+# Test bulk-load with checkpoints.
 class test_bulkload_checkpoint(wttest.WiredTigerTestCase, suite_subprocess):
     types = [
         ('file', dict(uri='file:data')),

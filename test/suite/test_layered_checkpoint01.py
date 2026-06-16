@@ -30,7 +30,7 @@ import os, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wiredtiger import stat
 
-#    Add enough content to trigger a checkpoint in the stable table.
+# Add enough content to trigger a checkpoint in the stable table.
 @disagg_test_class
 class test_layered_checkpoint01(wttest.WiredTigerTestCase):
     test_name = __qualname__

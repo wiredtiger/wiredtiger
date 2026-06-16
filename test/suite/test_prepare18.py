@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
-#    Test that prepare on a logged file returns an error.
+# Test that prepare on a logged file returns an error.
 class test_prepare18(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'
 

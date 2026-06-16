@@ -30,8 +30,8 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#     Test that a follower correctly picks up multiple checkpoints for the same table.
-#     Includes a cursor_copy variant to catch use-after-free bugs in accessing metadata cursor values.
+# Test that a follower correctly picks up multiple checkpoints for the same table.
+# Includes a cursor_copy variant to catch use-after-free bugs in accessing metadata cursor values.
 
 @disagg_test_class
 class test_layered_checkpoint11(wttest.WiredTigerTestCase):

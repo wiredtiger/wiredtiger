@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Evicting a page after rolling back a prepared transaction that reserved
-#   and then deleted a key must succeed when preserve_prepared is configured.
+# Evicting a page after rolling back a prepared transaction that reserved
+# and then deleted a key must succeed when preserve_prepared is configured.
 
 import wttest
 

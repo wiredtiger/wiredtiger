@@ -29,7 +29,7 @@
 from suite_subprocess import suite_subprocess
 import fnmatch, os, time, wiredtiger, wttest
 
-#    Test the debug mode settings. Test checkpoint_retention use.
+# Test the debug mode settings. Test checkpoint_retention use.
 class test_debug_mode02(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'file:test_debug'
 

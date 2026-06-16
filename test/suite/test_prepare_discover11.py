@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   A prepared transaction claimed and committed by a follower must be
-#   readable at its commit timestamp after the follower steps up to leader,
-#   even when the stable timestamp has advanced past the durable timestamp
-#   and the affected pages have been evicted from memory.
+# A prepared transaction claimed and committed by a follower must be
+# readable at its commit timestamp after the follower steps up to leader,
+# even when the stable timestamp has advanced past the durable timestamp
+# and the affected pages have been evicted from memory.
 
 import wiredtiger
 import wttest

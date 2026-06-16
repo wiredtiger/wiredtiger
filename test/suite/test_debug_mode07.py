@@ -28,7 +28,7 @@
 
 import wttest
 
-#   Test the debug mode settings. Test realloc_exact use (from WT-4919).
+# Test the debug mode settings. Test realloc_exact use (from WT-4919).
 class test_debug_mode07(wttest.WiredTigerTestCase):
     test_name = __qualname__
     conn_config = 'debug_mode=(realloc_exact=true)'

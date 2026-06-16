@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test that backups can be performed similar to MongoDB's fsyncLock.
-#   We assume writes are not being performed, a checkpoint is done and
-#   then we open a backup cursor to prevent log removal and other file
-#   manipulations.  Manually copy the directory and verify it.
+# Test that backups can be performed similar to MongoDB's fsyncLock.
+# We assume writes are not being performed, a checkpoint is done and
+# then we open a backup cursor to prevent log removal and other file
+# manipulations.  Manually copy the directory and verify it.
 #
 
 import os

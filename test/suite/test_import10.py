@@ -31,7 +31,7 @@ from wtscenario import make_scenarios
 from wtbackup import backup_base
 from wiredtiger import stat
 
-#    Run import/export while backup cursor is open.
+# Run import/export while backup cursor is open.
 class test_import10(backup_base):
     test_name = __qualname__
     create_config = 'allocation_size=512,key_format=i,value_format=i'

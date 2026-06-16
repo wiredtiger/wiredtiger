@@ -26,19 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Verifies that a prepared transaction active on a follower at step-up time can be
-#   committed or rolled back after step-up completes.
+# Verifies that a prepared transaction active on a follower at step-up time can be
+# committed or rolled back after step-up completes.
 #
-#   Covered operations (each run as a cross-product of all scenario dimensions):
-#     - prepared INSERT on new keys
-#     - prepared UPDATE on existing keys
-#     - prepared DELETE on existing keys
+# Covered operations (each run as a cross-product of all scenario dimensions):
+#   - prepared INSERT on new keys
+#   - prepared UPDATE on existing keys
+#   - prepared DELETE on existing keys
 #
-#   Scenario dimensions:
-#     resolve:       commit | rollback
-#     in_checkpoint: True   prepare captured by the last checkpoint
-#                    False  prepare made after the last checkpoint
-#     multi_table:   True   the prepared transaction also covers a second layered table
+# Scenario dimensions:
+#   resolve:       commit | rollback
+#   in_checkpoint: True   prepare captured by the last checkpoint
+#                  False  prepare made after the last checkpoint
+#   multi_table:   True   the prepared transaction also covers a second layered table
 
 import wiredtiger
 import wttest

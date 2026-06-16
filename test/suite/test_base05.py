@@ -29,7 +29,7 @@
 import wttest
 from wtscenario import make_scenarios
 
-#    Cursor operations
+# Cursor operations
 class test_base05(wttest.WiredTigerTestCase):
     """
     Test that various types of content can be stored

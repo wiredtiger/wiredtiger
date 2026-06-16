@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test that prepare discover cursor can discover and commit a pending prepared delete
+# Test that prepare discover cursor can discover and commit a pending prepared delete
 
 import wiredtiger
 from suite_subprocess import suite_subprocess

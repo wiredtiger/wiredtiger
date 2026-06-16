@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Prepare: Update and read operations generate prepared conflict error.
+# Prepare: Update and read operations generate prepared conflict error.
 #
 
 import random

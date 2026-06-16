@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       Search_near with a key past the end.
+# Search_near with a key past the end.
 
 import wttest
 from wtscenario import make_scenarios

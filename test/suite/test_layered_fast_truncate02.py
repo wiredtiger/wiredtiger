@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Validates visibility and cursor behavior when a follower picks up a
-#   checkpoint containing fast-truncated pages.
+# Validates visibility and cursor behavior when a follower picks up a
+# checkpoint containing fast-truncated pages.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

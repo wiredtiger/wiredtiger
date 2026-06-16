@@ -33,7 +33,7 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#    Ensure that a crash during checkpoint will not corrupt key provider meta information.
+# Ensure that a crash during checkpoint will not corrupt key provider meta information.
 @disagg_test_class
 class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__

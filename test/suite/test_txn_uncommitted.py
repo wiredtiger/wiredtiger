@@ -30,7 +30,7 @@ import os
 from unittest import skip
 import wiredtiger, wttest
 
-#    Stats for uncommitted txn data.
+# Stats for uncommitted txn data.
 class test_txn_uncommitted(wttest.WiredTigerTestCase):
 
     test_name = __qualname__

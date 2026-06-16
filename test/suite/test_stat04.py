@@ -31,7 +31,7 @@ from wtscenario import make_scenarios
 import wttest
 from wiredtiger import stat
 
-#    Statistics key/value pair count
+# Statistics key/value pair count
 class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     uripfx = f'table:{test_name}.'

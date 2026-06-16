@@ -32,7 +32,7 @@ from suite_subprocess import suite_subprocess
 import wttest
 from wtscenario import make_scenarios
 
-#    Test schema operations on recovery.
+# Test schema operations on recovery.
 # Test all schema operations alter, create, drop.
 # After doing the operation, create a backup copy of the directory,
 # walk the log recording each LSN, truncate the backup copy of the

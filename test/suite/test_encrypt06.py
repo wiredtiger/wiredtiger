@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test that encryption is effective, it leaves no clear text
+# Test that encryption is effective, it leaves no clear text
 #
 
 import os

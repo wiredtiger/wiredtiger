@@ -31,8 +31,8 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet
 from wtdataset import ComplexDataSet
 from wtscenario import make_scenarios
 
-#    WT_CURSOR position tests: remove (if not already positioned), and insert
-#    leave the cursor without position or information.
+# WT_CURSOR position tests: remove (if not already positioned), and insert
+# leave the cursor without position or information.
 class test_cursor11(wttest.WiredTigerTestCase):
 
     test_name = __qualname__

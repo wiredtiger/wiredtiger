@@ -29,8 +29,8 @@
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 
-#   Forward iteration on a layered cursor after the very first next() returns
-#   WT_PREPARE_CONFLICT must resume correctly and return all visible keys.
+# Forward iteration on a layered cursor after the very first next() returns
+# WT_PREPARE_CONFLICT must resume correctly and return all visible keys.
 
 @disagg_test_class
 class test_layered_prepare03(wttest.WiredTigerTestCase):

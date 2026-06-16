@@ -31,11 +31,11 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-#    A dirty disaggregated leaf that reconciles to a skip-write single-block REPLACE while
-#    ahead of the materialization frontier must be kept in cache, not discarded. Reproduces
-#    the case where an obsolete-time-window cleanup dirties such a page, the skip-write REPLACE
-#    path drops the scrubbed disk image, eviction discards the page, and a subsequent read
-#    faults it back in ahead of the frontier.
+# A dirty disaggregated leaf that reconciles to a skip-write single-block REPLACE while
+# ahead of the materialization frontier must be kept in cache, not discarded. Reproduces
+# the case where an obsolete-time-window cleanup dirties such a page, the skip-write REPLACE
+# path drops the scrubbed disk image, eviction discards the page, and a subsequent read
+# faults it back in ahead of the frontier.
 @disagg_test_class
 class test_layered_eviction06(wttest.WiredTigerTestCase):
     test_name = __qualname__

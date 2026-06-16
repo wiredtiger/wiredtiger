@@ -28,7 +28,7 @@
 
 import wttest
 
-#    Test the debug mode settings. Test eviction use.
+# Test the debug mode settings. Test eviction use.
 class test_debug_mode04(wttest.WiredTigerTestCase):
     conn_config = 'debug_mode=(eviction=true)'
     uri = 'file:test_debug'

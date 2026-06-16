@@ -29,7 +29,7 @@
 import wtscenario, wttest
 import test_base03
 
-#    Configuration strings for wiredtiger_open
+# Configuration strings for wiredtiger_open
 class test_config01(test_base03.test_base03):
     scenarios = wtscenario.wtscenario.session_create_scenario()
 

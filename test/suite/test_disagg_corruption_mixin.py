@@ -30,8 +30,8 @@ import wttest
 from helper_disagg import DisaggCorruptionMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Exercise the DisaggCorruptionMixin helpers against a palite-backed
-#    disaggregated database.
+# Exercise the DisaggCorruptionMixin helpers against a palite-backed
+# disaggregated database.
 @disagg_test_class
 class test_disagg_corruption_mixin(wttest.WiredTigerTestCase, DisaggCorruptionMixin):
     def conn_config(self):

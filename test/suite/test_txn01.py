@@ -33,7 +33,7 @@
 import wttest
 from wtscenario import make_scenarios
 
-#    Transactions: basic functionality
+# Transactions: basic functionality
 class test_txn01(wttest.WiredTigerTestCase):
     nentries = 1000
     scenarios = make_scenarios([

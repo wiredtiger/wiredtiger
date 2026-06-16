@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#    Basic operations
+# Basic operations
 class test_base01(wttest.WiredTigerTestCase):
     """
     Test basic operations

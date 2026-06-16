@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       Search_near with a key past the end much like search_near_01, but
-#       this time use timestamps to ensure the update isn't visible.
+# Search_near with a key past the end much like search_near_01, but
+# this time use timestamps to ensure the update isn't visible.
 
 import wttest
 from wtscenario import make_scenarios

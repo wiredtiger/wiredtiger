@@ -30,7 +30,7 @@ import os, os.path, shutil, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Check timestamps.
+# Check timestamps.
 @disagg_test_class
 class test_layered_checkpoint15(wttest.WiredTigerTestCase):
     test_name = __qualname__

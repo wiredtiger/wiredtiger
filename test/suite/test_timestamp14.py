@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Global timestamps: oldest reader, all durable, pinned
+# Global timestamps: oldest reader, all durable, pinned
 #
 
 from suite_subprocess import suite_subprocess

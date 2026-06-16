@@ -30,7 +30,7 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#    Checking visibility and durability of updates with durable_timestamp
+# Checking visibility and durability of updates with durable_timestamp
 class test_durable_ts03(wttest.WiredTigerTestCase):
 
     test_name = __qualname__

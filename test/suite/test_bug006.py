@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       Regression tests.
+# Regression tests.
 
 import wiredtiger, wttest
 from wtdataset import simple_key, simple_value

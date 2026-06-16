@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test layered cursor prepare conflict handling
-#   - Verify cursor key state is preserved when WT_PREPARE_CONFLICT is returned
-#   - Ensure retry loops work correctly after prepare conflicts
-#   - Test search, search_near, next, and prev operations
+# Test layered cursor prepare conflict handling
+# - Verify cursor key state is preserved when WT_PREPARE_CONFLICT is returned
+# - Ensure retry loops work correctly after prepare conflicts
+# - Test search, search_near, next, and prev operations
 
 import wiredtiger
 import wttest

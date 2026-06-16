@@ -26,12 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test that shared metadata queue operations are deferred until a checkpoint runs.
+# Test that shared metadata queue operations are deferred until a checkpoint runs.
 #
-#   Schema operations (create, drop) on a leader enqueue metadata updates with deferred=true.
-#   The checkpoint prepare step undefers all existing entries, and they are applied at the end
-#   of that same checkpoint. Operations enqueued concurrently with a running checkpoint (after
-#   prepare) remain deferred until the next checkpoint.
+# Schema operations (create, drop) on a leader enqueue metadata updates with deferred=true.
+# The checkpoint prepare step undefers all existing entries, and they are applied at the end
+# of that same checkpoint. Operations enqueued concurrently with a running checkpoint (after
+# prepare) remain deferred until the next checkpoint.
 
 import time, wiredtiger, wttest, wtthread
 from checkpoint_util import checkpoint_util

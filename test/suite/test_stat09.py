@@ -29,7 +29,7 @@
 import random
 import wttest
 
-#    Check oldest active read timestamp statistic
+# Check oldest active read timestamp statistic
 class test_stat09(wttest.WiredTigerTestCase):
     test_name = __qualname__
     tablename = test_name

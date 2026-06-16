@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: Test persisting the stable disaggregated schema epoch in the checkpoint.
+# Timestamps: Test persisting the stable disaggregated schema epoch in the checkpoint.
 
 import wttest
 from helper_disagg import disagg_test_class

@@ -31,10 +31,10 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 
-#   Validate cursor read-path behavior over fast-truncated ranges on a
-#   standby (follower) node: next/prev scans, search_near positioning,
-#   open-ended truncation, multiple truncated ranges, and mixed
-#   update-then-truncate workloads.
+# Validate cursor read-path behavior over fast-truncated ranges on a
+# standby (follower) node: next/prev scans, search_near positioning,
+# open-ended truncation, multiple truncated ranges, and mixed
+# update-then-truncate workloads.
 @disagg_test_class
 class test_layered_fast_truncate04(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 

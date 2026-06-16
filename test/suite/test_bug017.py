@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 
-#       WT-2987: opening a cursor on an incomplete table drops core
+# WT-2987: opening a cursor on an incomplete table drops core
 class test_bug017(wttest.WiredTigerTestCase):
 
     def test_bug017_run(self):

@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#    Cursor operations
+# Cursor operations
 # Basic smoke-test of file and table cursors: tests get/set key, insert
 # and forward/backward iteration, and mostly because we don't test them
 # anywhere else, cursor duplication and equality.

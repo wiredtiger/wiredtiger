@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Follower-initiated truncate stores a bounded range in the truncate list.
-#   Verifies NULL start/stop from the session API are resolved to the table's
-#   first/last visible key, both via the verbose log line and by the row set
-#   visible on subsequent reads.
+# Follower-initiated truncate stores a bounded range in the truncate list.
+# Verifies NULL start/stop from the session API are resolved to the table's
+# first/last visible key, both via the verbose log line and by the row set
+# visible on subsequent reads.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

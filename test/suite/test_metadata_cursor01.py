@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#    Metadata cursor operations
+# Metadata cursor operations
 # Basic smoke-test of metadata cursor: test backward and forward iteration
 # as well as search.
 class test_metadata_cursor01(wttest.WiredTigerTestCase):

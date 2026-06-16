@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Transactions: more granular testing of isolation levels
+# Transactions: more granular testing of isolation levels
 #
 
 import wttest

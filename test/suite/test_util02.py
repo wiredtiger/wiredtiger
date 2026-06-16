@@ -32,7 +32,7 @@ from suite_subprocess import suite_subprocess
 from wtdataset import ComplexDataSet
 from wtscenario import make_scenarios
 
-#    Utilities: wt load
+# Utilities: wt load
 class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
     """
     Test wt load

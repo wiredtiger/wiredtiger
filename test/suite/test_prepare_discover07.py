@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test layered cursor with prepared tombstone transaction discovery in disaggregated storage:
-#   - Setup layered cursor as leader, insert and commit data
-#   - Prepare transaction, advance stable timestamp, checkpoint
-#   - Reopen as follower and pickup checkpoint, verify committed data visibility
-#   - Step up as leader, discover and claim prepared transaction, commit and verify
+# Test layered cursor with prepared tombstone transaction discovery in disaggregated storage:
+# - Setup layered cursor as leader, insert and commit data
+# - Prepare transaction, advance stable timestamp, checkpoint
+# - Reopen as follower and pickup checkpoint, verify committed data visibility
+# - Step up as leader, discover and claim prepared transaction, commit and verify
 
 import wiredtiger
 import wttest

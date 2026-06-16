@@ -37,7 +37,7 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 
-#    Utilities: wt dump
+# Utilities: wt dump
 # Test the dump utility (I'm not testing the dump cursors, that's what the
 # utility uses underneath).
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):

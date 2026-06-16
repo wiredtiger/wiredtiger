@@ -33,7 +33,7 @@ from wtdataset import SimpleDataSet, ComplexDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-#    session level compact operation
+# session level compact operation
 class test_compact(compact_util, suite_subprocess):
     test_name = __qualname__
     name = test_name

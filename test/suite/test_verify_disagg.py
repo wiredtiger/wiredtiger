@@ -30,7 +30,7 @@ import errno, os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    SESSION::verify() testing for disagg storage
+# SESSION::verify() testing for disagg storage
 
 @disagg_test_class
 class test_verify_disagg(wttest.WiredTigerTestCase):

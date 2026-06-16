@@ -30,8 +30,8 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test evicting pages that haven't been materialized when closing a file
-#    returns an error.
+# Test evicting pages that haven't been materialized when closing a file
+# returns an error.
 @disagg_test_class
 class test_layered_eviction04(wttest.WiredTigerTestCase):
     test_name = __qualname__

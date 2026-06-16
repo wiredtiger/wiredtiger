@@ -35,8 +35,8 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#   Checkpoint snapshot - Create multiple sessions which creates snapshots and
-#   checkpoint to save the snapshot details in metadata file.
+# Checkpoint snapshot - Create multiple sessions which creates snapshots and
+# checkpoint to save the snapshot details in metadata file.
 #
 
 class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):

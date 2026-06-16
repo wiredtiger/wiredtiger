@@ -31,7 +31,7 @@ from suite_subprocess import suite_subprocess
 import os
 import wiredtiger, wttest
 
-#   JIRA WT-3590: if writing table data fails during close then tables
+# JIRA WT-3590: if writing table data fails during close then tables
 # that were updated within the same transaction could get out of sync with
 # each other.
 @wttest.skip_for_hook("nonstandalone", "fails for nonstandalone")

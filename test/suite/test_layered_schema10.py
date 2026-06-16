@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test the publish API on followers and step-up behavior.
+# Test the publish API on followers and step-up behavior.
 #
-#   Schema operations (create, drop) queued on a follower are replayed during
-#   step-up, which uses the metadata operation queue populated while the node
-#   was a follower.
+# Schema operations (create, drop) queued on a follower are replayed during
+# step-up, which uses the metadata operation queue populated while the node
+# was a follower.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

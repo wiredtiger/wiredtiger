@@ -35,9 +35,9 @@ from helper import copy_wiredtiger_home
 from wiredtiger import stat
 from wtbackup import backup_base
 
-#   This test is to run checkpoint and truncate and insert followed by eviction
-#   for one table in parallel with timing stress for checkpoint and let eviction
-#   write more data than checkpoint.
+# This test is to run checkpoint and truncate and insert followed by eviction
+# for one table in parallel with timing stress for checkpoint and let eviction
+# write more data than checkpoint.
 class test_checkpoint_snapshot06(backup_base):
 
     # Create two tables.

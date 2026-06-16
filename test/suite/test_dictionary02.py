@@ -30,7 +30,7 @@
 # compression
 # [END_TAGS]
 #
-#       Test cells with same values are reused through the dictionary despite RLE information.
+# Test cells with same values are reused through the dictionary despite RLE information.
 
 from wtscenario import make_scenarios
 from wtdataset import simple_key

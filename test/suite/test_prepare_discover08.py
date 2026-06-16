@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   After reopening the connection, "prepared_discover:" must discover and
-#   allow claims of the persisted prepared transaction even when no cursor
-#   has yet been opened on the layered table on the new connection. Exercised
-#   for both roles the connection can come back as.
+# After reopening the connection, "prepared_discover:" must discover and
+# allow claims of the persisted prepared transaction even when no cursor
+# has yet been opened on the layered table on the new connection. Exercised
+# for both roles the connection can come back as.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

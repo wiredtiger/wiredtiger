@@ -28,7 +28,7 @@
 
 import wttest
 
-#    Cursor operations
+# Cursor operations
 class test_base03(wttest.WiredTigerTestCase):
     """
     Test basic operations

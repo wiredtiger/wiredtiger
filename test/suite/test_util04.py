@@ -30,7 +30,7 @@ import os
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-#    Utilities: wt drop
+# Utilities: wt drop
 class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     tablename = f'{test_name}.a'

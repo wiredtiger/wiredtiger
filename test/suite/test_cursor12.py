@@ -32,7 +32,7 @@ from helper import copy_wiredtiger_home
 from wtdataset import SimpleDataSet
 from wtscenario import filter_scenarios, make_scenarios
 
-#    Test cursor modify call
+# Test cursor modify call
 class test_cursor12(wttest.WiredTigerTestCase):
     keyfmt = [
         ('recno', dict(keyfmt='r')),

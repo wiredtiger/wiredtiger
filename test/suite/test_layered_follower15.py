@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test MODIFY dependent on a GC-eligible base value.
+# Test MODIFY dependent on a GC-eligible base value.
 #
-#   Covers reads via cursor.next and cursor.search, and the case where
-#   the on-disk base is not yet GC-eligible and must remain readable
-#   across its full visibility window.
+# Covers reads via cursor.next and cursor.search, and the case where
+# the on-disk base is not yet GC-eligible and must remain readable
+# across its full visibility window.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

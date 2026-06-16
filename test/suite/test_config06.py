@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 
-#    Test session.create configurations.
+# Test session.create configurations.
 class test_config06(wttest.WiredTigerTestCase):
     test_name = __qualname__
     uri = f'table:{test_name}'

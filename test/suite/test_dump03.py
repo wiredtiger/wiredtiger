@@ -34,7 +34,7 @@ import wttest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
-#     Test 'wt dump' window functionality.
+# Test 'wt dump' window functionality.
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     table_format = 'key_format=u,value_format=u'

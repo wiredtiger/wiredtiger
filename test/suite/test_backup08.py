@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: Verify the saved checkpoint timestamp survives a backup.
+# Timestamps: Verify the saved checkpoint timestamp survives a backup.
 #
 
 import os, shutil

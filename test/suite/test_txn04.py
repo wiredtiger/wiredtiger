@@ -31,7 +31,7 @@
 # recovery
 # [END_TAGS]
 #
-#   Transactions: hot backup and recovery
+# Transactions: hot backup and recovery
 #
 
 import shutil, os

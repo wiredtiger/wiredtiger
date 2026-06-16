@@ -31,8 +31,8 @@ import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class
 
-#    Ensure a secondary that drops a table does not fall back to reading
-#    the stable table.
+# Ensure a secondary that drops a table does not fall back to reading
+# the stable table.
 @disagg_test_class
 class test_layered_schema02(wttest.WiredTigerTestCase):
     test_name = __qualname__

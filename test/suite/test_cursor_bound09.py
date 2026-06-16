@@ -31,7 +31,7 @@ from wiredtiger import wiredtiger_strerror, WT_PREPARE_CONFLICT, WiredTigerError
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-#    Test that cursor API usage generates expected error in prepared state with bounded cursors.
+# Test that cursor API usage generates expected error in prepared state with bounded cursors.
 class test_cursor_bound09(bound_base):
     test_name = __qualname__
     file_name = test_name

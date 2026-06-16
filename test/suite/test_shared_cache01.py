@@ -31,7 +31,7 @@ import os
 import shutil
 import wiredtiger, wttest
 
-#    Checkpoint tests
+# Checkpoint tests
 # Test shared cache shared among multiple connections.
 class test_shared_cache01(wttest.WiredTigerTestCase):
 

@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: smoke test that commit is tested at both commit and set time.
+# Timestamps: smoke test that commit is tested at both commit and set time.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet

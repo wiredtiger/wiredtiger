@@ -30,7 +30,7 @@ import wttest
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
 
-#    Test that more than 64K cursors can be opened on a data source
+# Test that more than 64K cursors can be opened on a data source
 class test_cursor14(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
         ('file-r', dict(type='file:', keyfmt='r', valfmt='S', dataset=SimpleDataSet)),

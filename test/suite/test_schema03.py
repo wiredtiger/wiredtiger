@@ -43,8 +43,8 @@ try:
 except:
     None
 
-#    Bigger, more 'randomly generated' schemas and data.
-#    This test is complex.  If it fails, rerun with modified values for
+# Bigger, more 'randomly generated' schemas and data.
+# This test is complex.  If it fails, rerun with modified values for
 # SHOW_PYTHON* variables.
 def extract_random_from_list(rand, list):
     pos = rand.rand_range(0, len(list))

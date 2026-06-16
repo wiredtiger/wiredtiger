@@ -30,7 +30,7 @@
 # session_api:verify
 # [END_TAGS]
 #
-#       Regression tests.
+# Regression tests.
 
 import wttest
 from wtdataset import simple_key, simple_value

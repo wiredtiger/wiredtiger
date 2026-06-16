@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test the reserve() operation on layered cursors for keys in different states:
-#   present in stable, present in ingest, present in both, or not present.
+# Test the reserve() operation on layered cursors for keys in different states:
+# present in stable, present in ingest, present in both, or not present.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

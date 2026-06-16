@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#       Smoke test empty row-store values.
+# Smoke test empty row-store values.
 
 from wiredtiger import stat
 import wttest

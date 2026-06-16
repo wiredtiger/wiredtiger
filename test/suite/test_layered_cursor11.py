@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test remove returns not found when deleting an non-existent key
+# Test remove returns not found when deleting an non-existent key
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

@@ -30,7 +30,7 @@
 # checkpoint:history_store
 # [END_TAGS]
 #
-#   Test that checkpoint writes out updates to the history store file.
+# Test that checkpoint writes out updates to the history store file.
 #
 
 from suite_subprocess import suite_subprocess

@@ -30,7 +30,7 @@
 # compression
 # [END_TAGS]
 #
-#       Smoke test dictionary compression.
+# Smoke test dictionary compression.
 
 from wtscenario import make_scenarios
 from wtdataset import simple_key

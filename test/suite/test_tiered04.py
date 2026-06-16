@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-#    Basic tiered storage API test.
+# Basic tiered storage API test.
 class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
     # Make scenarios for different cloud service providers
     test_name = __qualname__

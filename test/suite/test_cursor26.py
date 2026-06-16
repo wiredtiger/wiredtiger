@@ -26,12 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Version cursor with show_prepared_rollback=true must emit every
-#   version of a key that a caller would need to reconstruct its
-#   history: both rolled-back prepared values and any underlying
-#   committed value that persists after the rollback. Regression for
-#   WT-17240, where an underlying committed value was dropped when it
-#   had been reconciled to disk before the prepared rollback.
+# Version cursor with show_prepared_rollback=true must emit every
+# version of a key that a caller would need to reconstruct its
+# history: both rolled-back prepared values and any underlying
+# committed value that persists after the rollback. Regression for
+# WT-17240, where an underlying committed value was dropped when it
+# had been reconciled to disk before the prepared rollback.
 #
 
 import wttest

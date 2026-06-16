@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
-#    Basic layered tree creation test
+# Basic layered tree creation test
 @disagg_test_class
 class test_layered_schema01(wttest.WiredTigerTestCase):
 

@@ -30,8 +30,8 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#   Test cursor iteration and iteration after search/search_near on layered cursors
-#   with a 1000-key dataset.
+# Test cursor iteration and iteration after search/search_near on layered cursors
+# with a 1000-key dataset.
 
 @disagg_test_class
 class test_layered_cursor14(wttest.WiredTigerTestCase):

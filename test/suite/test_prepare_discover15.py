@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Rolling back a follower-claimed prepared transaction is durable across
-#   checkpoints. After the rollback completes and a new checkpoint is taken,
-#   reopening prepared_discover against that checkpoint must not surface the
-#   already-rolled-back prepared id.
+# Rolling back a follower-claimed prepared transaction is durable across
+# checkpoints. After the rollback completes and a new checkpoint is taken,
+# reopening prepared_discover against that checkpoint must not surface the
+# already-rolled-back prepared id.
 
 import wiredtiger
 import wttest

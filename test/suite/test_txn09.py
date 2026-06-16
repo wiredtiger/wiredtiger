@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Transactions: recovery toggling logging
+# Transactions: recovery toggling logging
 #
 
 from suite_subprocess import suite_subprocess

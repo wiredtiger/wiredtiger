@@ -32,8 +32,8 @@ from wtbackup import backup_base
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-#   Test utility dump of backup and original database when the transaction ids are
-#   written to disk.
+# Test utility dump of backup and original database when the transaction ids are
+# written to disk.
 class test_checkpoint_snapshot04(backup_base):
     test_name = __qualname__
     dir = 'backup.dir'

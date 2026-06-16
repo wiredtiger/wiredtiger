@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test version cursor for modifies.
+# Test version cursor for modifies.
 #
 import wttest
 import wiredtiger

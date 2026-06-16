@@ -39,8 +39,8 @@ from wtthread import flush_checkpoint_thread
 from wtscenario import make_scenarios
 
 
-#   Run background checkpoints, sometimes with flush operations while inserting
-#   data into a table from another thread.
+# Run background checkpoints, sometimes with flush operations while inserting
+# data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
 
     test_name = __qualname__

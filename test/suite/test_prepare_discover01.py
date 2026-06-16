@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test that pending prepared transaction artifacts can be discovered after recovery
-#   and rolled back
+# Test that pending prepared transaction artifacts can be discovered after recovery
+# and rolled back
 
 import random, sys
 from suite_subprocess import suite_subprocess

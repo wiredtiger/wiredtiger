@@ -30,7 +30,7 @@
 # encryption
 # [END_TAGS]
 #
-#   Encryption using passwords
+# Encryption using passwords
 #
 
 import random

@@ -28,8 +28,8 @@
 
 import wttest, wiredtiger
 
-#   Test the debug mode settings. Test slow_checkpoint use (from WT-4981).
-#   Note: testing timing will make results unreliable so we won't do that.
+# Test the debug mode settings. Test slow_checkpoint use (from WT-4981).
+# Note: testing timing will make results unreliable so we won't do that.
 class test_debug_mode06(wttest.WiredTigerTestCase):
     test_name = __qualname__
     conn_config = 'debug_mode=(slow_checkpoint=true),statistics=(all)'

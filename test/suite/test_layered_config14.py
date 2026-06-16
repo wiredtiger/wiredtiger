@@ -30,7 +30,7 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Start without local files.
+# Start without local files.
 @disagg_test_class
 class test_layered_config14(wttest.WiredTigerTestCase):
     test_name = __qualname__

@@ -30,8 +30,8 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#   Transactions and eviction: Test if using snapshot isolation for eviction threads helps with
-#   cache stuck issue.
+# Transactions and eviction: Test if using snapshot isolation for eviction threads helps with
+# cache stuck issue.
 class test_txn24(wttest.WiredTigerTestCase):
     test_name = __qualname__
     table_params_values = [

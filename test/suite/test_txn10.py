@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Transactions: commits and rollbacks
+# Transactions: commits and rollbacks
 #
 
 from helper import simulate_crash_restart

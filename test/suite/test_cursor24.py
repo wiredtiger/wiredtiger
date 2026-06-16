@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test version cursor prepare metadata fields and rollback visibility.
+# Test version cursor prepare metadata fields and rollback visibility.
 #
 import wttest
 import wiredtiger

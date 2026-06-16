@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-#    Test basic cursor index bounds operations. To test index table formats the populate function
+# Test basic cursor index bounds operations. To test index table formats the populate function
 # has duplicate pair values for each key. This will construct an index table that needs to separate
 # the duplicate values.
 class test_cursor_bound19(bound_base):

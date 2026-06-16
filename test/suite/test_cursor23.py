@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test cursor get_raw_key_value using complex schema
+# Test cursor get_raw_key_value using complex schema
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet

@@ -30,7 +30,7 @@
 # verify:prepare
 # [END_TAGS]
 #
-#   Mixing timestamped and non-timestamped writes.
+# Mixing timestamped and non-timestamped writes.
 #
 
 import wiredtiger, wttest

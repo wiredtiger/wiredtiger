@@ -30,7 +30,7 @@ import sys, wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
-#    Smoke-test the session alter operations.
+# Smoke-test the session alter operations.
 class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
     entries = 500
     # Binary values.

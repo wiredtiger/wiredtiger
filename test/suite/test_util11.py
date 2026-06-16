@@ -33,7 +33,7 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-#    Utilities: wt list
+# Utilities: wt list
 class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     tablenamepfx = f'{test_name}.'

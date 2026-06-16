@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test the largest_key interface under various scenarios.
+# Test the largest_key interface under various scenarios.
 #
 import wttest
 import wiredtiger

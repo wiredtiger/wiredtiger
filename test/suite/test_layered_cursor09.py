@@ -31,7 +31,7 @@ from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test cursor walk with delta.
+# Test cursor walk with delta.
 @disagg_test_class
 class test_layered_cursor09(wttest.WiredTigerTestCase):
     test_name = __qualname__

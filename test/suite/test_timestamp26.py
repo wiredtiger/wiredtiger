@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Timestamps: assert commit settings
+# Timestamps: assert commit settings
 #
 
 import wiredtiger, wttest, errno

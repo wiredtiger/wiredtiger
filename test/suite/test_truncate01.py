@@ -30,7 +30,7 @@
 # truncate
 # [END_TAGS]
 #
-#       session level operations on tables
+# session level operations on tables
 #
 
 import wiredtiger, wttest

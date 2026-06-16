@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-#     Cursor operations
+# Cursor operations
 class test_cursor04(wttest.WiredTigerTestCase):
     """
     Test cursor search and search_near

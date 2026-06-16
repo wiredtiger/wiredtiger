@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Regression test for WT-17267. Verify on a layered URI forces a close/reopen of the
-#   layered dhandle. The follower's in-memory truncate list must survive that cycle;
-#   before the fix it was discarded, causing truncated rows to reappear and the truncate
-#   to be torn down.
+# Regression test for WT-17267. Verify on a layered URI forces a close/reopen of the
+# layered dhandle. The follower's in-memory truncate list must survive that cycle;
+# before the fix it was discarded, causing truncated rows to reappear and the truncate
+# to be torn down.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

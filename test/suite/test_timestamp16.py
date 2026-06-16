@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#   Test to ensure read timestamp is properly cleared at the
-#   end of a txn.
+# Test to ensure read timestamp is properly cleared at the
+# end of a txn.
 #
 
 from suite_subprocess import suite_subprocess

@@ -30,7 +30,7 @@ import threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test reading the pinned history store on standby.
+# Test reading the pinned history store on standby.
 @disagg_test_class
 class test_layered_follower06(wttest.WiredTigerTestCase):
     test_name = __qualname__

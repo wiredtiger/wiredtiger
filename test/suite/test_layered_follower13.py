@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test that when a key is garbage collected during eviction on an ingest
-#   btree, its associated on-disk value is also deleted.
+# Test that when a key is garbage collected during eviction on an ingest
+# btree, its associated on-disk value is also deleted.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

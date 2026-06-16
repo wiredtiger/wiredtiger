@@ -29,7 +29,7 @@
 import wttest
 from wtscenario import make_scenarios
 
-#    Transactions: basic functionality with prepare
+# Transactions: basic functionality with prepare
 class test_prepare01(wttest.WiredTigerTestCase):
 
     nentries = 1000

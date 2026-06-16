@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   A single prepared transaction that touches both a layered table and a
-#   regular (non-layered) table must be discoverable via
-#   "prepared_discover:" on the follower. Resolving the claim (commit or
-#   rollback) must apply to the updates on every table the transaction
-#   wrote, not only the layered ones.
+# A single prepared transaction that touches both a layered table and a
+# regular (non-layered) table must be discoverable via
+# "prepared_discover:" on the follower. Resolving the claim (commit or
+# rollback) must apply to the updates on every table the transaction
+# wrote, not only the layered ones.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

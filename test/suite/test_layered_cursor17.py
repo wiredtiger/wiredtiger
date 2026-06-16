@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test that cursor operations succeed (or fail) on a follower for keys that exist
-#   only in the stable table (i.e. written by the leader and checkpointed).
+# Test that cursor operations succeed (or fail) on a follower for keys that exist
+# only in the stable table (i.e. written by the leader and checkpointed).
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

@@ -31,7 +31,7 @@ from checkpoint_util import checkpoint_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-#    Test stepping down concurrently with a checkpoint.
+# Test stepping down concurrently with a checkpoint.
 #
 # If WiredTiger makes a role change while a checkpoint is running, it could cause a part of a
 # checkpoint to complete with the old role and a part with the new role, which would lead to an

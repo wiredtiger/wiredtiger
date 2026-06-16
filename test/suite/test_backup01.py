@@ -40,7 +40,7 @@ import wiredtiger
 from wtdataset import SimpleDataSet, ComplexDataSet
 from helper import compare_files
 
-#    Utilities: wt backup
+# Utilities: wt backup
 # Test backup (both backup cursors and the wt backup command).
 class test_backup(backup_base):
     test_name = __qualname__
