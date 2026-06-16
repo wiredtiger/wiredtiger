@@ -121,7 +121,7 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_FOLLOWER_OVERWRITE 0x1u /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x1u        /* Follower writing without reading stable. */
 #define CLAYERED_ENTER_ITERATION 0x2u          /* Cursor is performing iteration. */
 #define CLAYERED_ENTER_RESET 0x4u              /* Reset constituent cursors if needed. */
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u        /* Leader/follower role changed since last access. */
@@ -144,7 +144,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, uint32_t flags)
     }
 
     /* Follower overwrites update ingest tables without accessing the stable table. */
-    if (!LF_ISSET(CLAYERED_ENTER_FOLLOWER_OVERWRITE))
+    if (!LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
         F_SET(clayered, WT_CLAYERED_READ_STABLE);
 
     /*
@@ -555,7 +555,7 @@ __clayered_update_stable(WT_CURSOR_LAYERED *clayered, uint32_t flags)
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed. */
         bool follower_open_stable =
-          (!FLD_ISSET(flags, CLAYERED_ENTER_FOLLOWER_OVERWRITE) && conn_lsn != WT_DISAGG_LSN_NONE);
+          (!FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
         if (conn->layered_table_manager.leader || follower_open_stable) {
             F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
             WT_RET(__clayered_open_stable(clayered, false));
@@ -2345,7 +2345,7 @@ __clayered_insert(WT_CURSOR *cursor)
     /* With a read timestamp the conflict check needs the stable table; don't skip opening it. */
     if (!S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
-        FLD_SET(enter_flags, CLAYERED_ENTER_FOLLOWER_OVERWRITE);
+        FLD_SET(enter_flags, CLAYERED_ENTER_SKIP_STABLE);
     WT_ERR(__clayered_enter(clayered, enter_flags));
 
     /*
@@ -2428,7 +2428,7 @@ __clayered_update(WT_CURSOR *cursor)
     /* With a read timestamp the conflict check needs the stable table. */
     if (!S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
-        FLD_SET(enter_flags, CLAYERED_ENTER_FOLLOWER_OVERWRITE);
+        FLD_SET(enter_flags, CLAYERED_ENTER_SKIP_STABLE);
     WT_ERR(__clayered_enter(clayered, enter_flags));
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
