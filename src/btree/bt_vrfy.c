@@ -1372,7 +1372,7 @@ __verify_key_hs(
     btree = S2BT(session);
     hs_btree_id = btree->id;
 
-    /* TODO comment */
+    /* Read the HS at the same checkpoint as the data store, so the two views are consistent. */
     WT_ASSERT(session, session->hs_checkpoint == NULL);
     session->hs_checkpoint = vs->hs_checkpoint_name;
     ret = __wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor);
@@ -1569,11 +1569,15 @@ __verify_page_content_leaf(
 
         /* Verify key-associated history-store entries. */
         if (page->type == WT_PAGE_ROW_LEAF) {
-            if (unpack.type != WT_CELL_VALUE && unpack.type != WT_CELL_VALUE_COPY &&
-              unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
+            /*
+             * Advance row index with key cells, since a globally visible delete has no value cell.
+             */
+            if (unpack.type != WT_CELL_KEY && unpack.type != WT_CELL_KEY_OVFL)
                 continue;
 
-            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
+            WT_RET(__wt_row_leaf_key(session, page, rip, vs->tmp1, false));
+            __wti_read_row_time_window(session, page, rip, tw);
+            ++rip;
             if (!vs->skip_hs)
                 WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
