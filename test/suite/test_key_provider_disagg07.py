@@ -60,12 +60,6 @@ class test_key_provider_disagg07(KeyProviderBase):
         sess.create(self.uri, self.table_config)
         sess.close()
 
-    def tearDown(self):
-        if self.follower_conn is not None:
-            self.follower_conn.close()
-            self.follower_conn = None
-        super().tearDown()
-
     def write_and_checkpoint(self, conn=None):
         # A checkpoint only runs the key provider when there is dirty data to flush.
         if conn is None:
@@ -92,7 +86,7 @@ class test_key_provider_disagg07(KeyProviderBase):
         self.conn, self.follower_conn = self.follower_conn, self.conn
         self.session = self.conn.open_session()
 
-    def test_role_round_trip_monotonic(self):
+    def test_step_up_keeps_timestamps_monotonic(self):
         self.populate_table()
         self.setup_follower()
         self.baseline_kek(10)
@@ -114,6 +108,8 @@ class test_key_provider_disagg07(KeyProviderBase):
         # Keys advanced 10, 20, 30 across the switches.
         keys = [p['key'] for p in self.fetch_key_provider_pages()]
         self.assertEqual(keys, [self.generate_crypt_key(10), self.generate_crypt_key(20), self.generate_crypt_key(30)])
+
+        self.follower_conn.close()
 
     def test_follower_prunes_on_pickup(self):
         self.populate_table()
@@ -140,6 +136,8 @@ class test_key_provider_disagg07(KeyProviderBase):
         self.write_and_checkpoint()
         self.validate_latest_kek(50)
 
+        self.follower_conn.close()
+
     def test_step_up_rotation_waits_for_stable(self):
         self.populate_table()
         self.setup_follower()
@@ -158,3 +156,5 @@ class test_key_provider_disagg07(KeyProviderBase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         self.write_and_checkpoint()
         self.validate_latest_kek(30)
+
+        self.follower_conn.close()

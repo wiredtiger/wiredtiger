@@ -75,7 +75,7 @@ class test_key_provider_disagg06(KeyProviderBase):
         self.write_and_checkpoint()
         self.validate_latest_kek(5)
 
-    def test_progressive_drain(self):
+    def test_drain_as_stable_advances(self):
         self.populate_table()
 
         # Each checkpoint consumes a prefix of the queue and advances, writing a new page each time.
@@ -101,7 +101,7 @@ class test_key_provider_disagg06(KeyProviderBase):
         self.assertEqual(lsns, sorted(lsns))
         self.assertEqual(len(set(lsns)), 3)
 
-    def test_future_only_queue(self):
+    def test_future_keys_wait_for_stable(self):
         self.populate_table()
 
         # A checkpoint whose only queued key is in the future writes nothing new.
@@ -131,7 +131,7 @@ class test_key_provider_disagg06(KeyProviderBase):
         self.write_and_checkpoint()
         self.validate_latest_kek(11)
 
-    def test_decreasing_vs_queue_tail(self):
+    def test_reject_decreasing_timestamp(self):
         self.populate_table()
 
         # Reject a timestamp not strictly above the last queued key.
