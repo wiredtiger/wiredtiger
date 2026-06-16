@@ -144,12 +144,16 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ITEM *cache_buf = &buf_orig;
     WT_ITEM *compressed_buf = NULL;
     WT_PAGE_HEADER *dsk;
+    uint64_t time_start;
     bool compressed = false;
     bool data_checksum = true;
 
-    /* Optionally compress the data before caching. */
+    /* Optionally compress the data before caching, timing the compression cost. */
+    time_start = __wt_clock(session);
     WT_IGNORE_RET(
       __wt_blkcache_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
+    __wt_stat_usecs_hist_incr_disaggblkcachecompress(
+      session, WT_CLOCKDIFF_US(__wt_clock(session), time_start));
     if (compressed_buf != NULL)
         cache_buf = compressed_buf;
 
