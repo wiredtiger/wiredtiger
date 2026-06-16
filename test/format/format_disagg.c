@@ -244,6 +244,7 @@ disagg_switch_roles(void)
          */
         track("[role change] leader -> follower", 0ULL);
         wts_reopen();
+        disagg_key_history_clear();
         follower_read_latest_checkpoint();
         wts_prepare_discover(g.wts_conn);
     } else {
@@ -260,6 +261,9 @@ disagg_switch_roles(void)
         timestamp_sync_threads_commit_ts();
         timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
+
+        /* Verify the key this step-up checkpoint persisted correct KEK. */
+        disagg_key_validate_after_checkpoint(session);
         wt_wrap_close_session(session);
     }
 

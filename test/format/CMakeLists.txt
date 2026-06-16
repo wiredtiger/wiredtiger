@@ -16,6 +16,7 @@ set(format_sources
     format_util.c
     hs.c
     import.c
+    key_rotation.c
     kv.c
     ops.c
     random.c
