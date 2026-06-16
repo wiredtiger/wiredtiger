@@ -184,7 +184,6 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
         cursor = self.position_follower(1)
 
         self.session_follow.begin_transaction()
-        cursor.set_key(1)
         self.assertEqual(cursor.reserve(), 0)
         cursor.set_value('w')
         self.assertEqual(cursor.update(), 0)
