@@ -63,12 +63,12 @@ key_push_history_append(wt_timestamp_t ts)
 }
 
 /*
- * expected_kek_ts --
+ * expected_key_ts --
  *     The expected persisted timestamp for a checkpoint, the latest pushed timestamp at or below
  *     the checkpoint timestamp, or WT_TS_NONE if none was pushed.
  */
 static wt_timestamp_t
-expected_kek_ts(wt_timestamp_t checkpoint_ts)
+expected_key_ts(wt_timestamp_t checkpoint_ts)
 {
     wt_timestamp_t expected_ts;
     size_t i;
@@ -83,11 +83,11 @@ expected_kek_ts(wt_timestamp_t checkpoint_ts)
 }
 
 /*
- * disagg_validate_kek_page --
+ * disagg_validate_key_page --
  *     Assert a persisted KEK page's timestamp and key bytes match the expected key.
  */
 static void
-disagg_validate_kek_page(
+disagg_validate_key_page(
   const WT_ITEM *page, wt_timestamp_t expected_ts, wt_timestamp_t checkpoint_ts)
 {
     WT_CRYPT_HEADER hdr;
@@ -96,7 +96,7 @@ disagg_validate_kek_page(
     const uint8_t *key_data;
     char buf[64];
 
-    /* Byteswap the leading crypt header before reading its fields. */
+    /* Byte-swap the leading crypt header before reading its fields. */
     testutil_assert(page->size >= sizeof(WT_CRYPT_HEADER));
     memcpy(&hdr, page->data, sizeof(hdr));
     __wt_crypt_header_byteswap(&hdr);
@@ -118,16 +118,16 @@ disagg_validate_kek_page(
 }
 
 /*
- * disagg_read_kek_page --
+ * disagg_read_key_page --
  *     Read the KEK page referenced by a checkpoint's metadata.
  */
 static void
-disagg_read_kek_page(
+disagg_read_key_page(
   WT_SESSION *session, WT_PAGE_LOG *page_log, const WT_DISAGG_METADATA *metadata, WT_ITEM *page)
 {
     WT_CONFIG_ITEM lsn_cval, page_cval;
     WT_PAGE_LOG_GET_ARGS get_args;
-    WT_PAGE_LOG_HANDLE *kek;
+    WT_PAGE_LOG_HANDLE *plh;
     uint64_t key_provider_lsn;
     uint32_t count;
     u_int retry;
@@ -144,21 +144,21 @@ disagg_read_kek_page(
     key_provider_lsn = (uint64_t)lsn_cval.val;
 
     testutil_check(
-      page_log->pl_open_handle(page_log, session, WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID, &kek));
+      page_log->pl_open_handle(page_log, session, WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID, &plh));
     WT_CLEAR(get_args);
     get_args.lsn = key_provider_lsn;
 
     for (retry = 0;; ++retry) {
         count = 1;
-        testutil_check(kek->plh_get(
-          kek, session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, 0, &get_args, page, &count));
+        testutil_check(plh->plh_get(
+          plh, session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, 0, &get_args, page, &count));
         if (count == 1)
             break;
         testutil_assert(retry < 100);
         __wt_sleep(0, 10000);
     }
 
-    testutil_check(kek->plh_close(kek, session));
+    testutil_check(plh->plh_close(plh, session));
     __wt_free((WT_SESSION_IMPL *)session, kp_str);
 }
 
@@ -173,29 +173,29 @@ disagg_key_validate_persisted(WT_SESSION *session, WT_PAGE_LOG *page_log,
     WT_ITEM page;
     wt_timestamp_t expected_ts;
 
-    expected_ts = expected_kek_ts(checkpoint_ts);
+    expected_ts = expected_key_ts(checkpoint_ts);
     if (expected_ts == WT_TS_NONE)
         return;
 
-    disagg_read_kek_page(session, page_log, metadata, &page);
-    disagg_validate_kek_page(&page, expected_ts, checkpoint_ts);
+    disagg_read_key_page(session, page_log, metadata, &page);
+    disagg_validate_key_page(&page, expected_ts, checkpoint_ts);
     free(page.mem);
 }
 
 /*
  * disagg_key_validate_after_checkpoint --
  *     After a leader checkpoint, read the latest complete checkpoint's persisted KEK page and
- * verify it is the latest key pushed at or below the checkpoint timestamp.
+ *     verify it is the latest key pushed at or below the checkpoint timestamp.
  */
 void
 disagg_key_validate_after_checkpoint(WT_SESSION *session)
 {
     WT_CONNECTION *conn;
+    WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM full_metadata;
     WT_PAGE_LOG *page_log;
     WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
-    WT_DECL_RET;
 
     /* Only push mode persists rotated keys, and the read-back is PALite-specific. */
     if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH ||
