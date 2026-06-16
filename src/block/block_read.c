@@ -277,7 +277,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
 
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) ||
-      F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT))
+      F_ISSET(S2C(session), WT_CONN_READ_SKIP_CORRUPT))
         return (WT_ERROR);
 
     __wti_block_extlist_dump_all(session, block);

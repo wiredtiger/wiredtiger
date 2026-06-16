@@ -301,10 +301,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
             /*
-             * Warm the cache, if possible. Skip when WT_SESSION_READ_SKIP_CORRUPT is set as we want
-             * to defer handling corrupt internal pages until after the btree has been opened.
+             * Warm the cache, if possible. Skip when the connection is in read-corrupt mode: any
+             * corrupt internal page should be encountered via the explicit walk, not via preload,
+             * so the panic gate isn't hit on a child page conn-internal sessions don't otherwise
+             * need at open time.
              */
-            if (!__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT)) {
+            if (!__wt_conn_is_disagg(session) &&
+              !F_ISSET(S2C(session), WT_CONN_READ_SKIP_CORRUPT)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
                 WT_ERR(ret);
             }

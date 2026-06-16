@@ -1492,6 +1492,12 @@ wiredtiger_open_common =\
         not yet committed or rolled back will be preserved in the database. This is useful for
         applications that want to preserve prepared transactions across restarts.''',
         type='boolean'),
+    Config('read_corrupt', 'false', r'''
+        open connection in read-corrupt mode. Block reads that fail their checksum return
+        WT_ERROR instead of panicking the connection, and tree walks honor a skip flag so
+        cursor iteration continues past corrupt subtrees. Intended for diagnostic CLI
+        modes such as \c "wt -q"; not for normal operation.''',
+        type='boolean'),
     Config('readonly', 'false', r'''
         open connection in read-only mode. The database must exist. All methods that may
         modify a database are disabled. See @ref readonly for more information''',

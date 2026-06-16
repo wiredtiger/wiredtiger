@@ -181,7 +181,9 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
 
     def test_dump_with_q_produces_partial_output_disagg(self):
         # Graceful counterpart: -q runs the walker which skips bad pages
-        # and continues. Output is partial; rc == 1 to flag the skip.
+        # and continues. Output is partial; rc == 0 because the walk
+        # completed (corruption is signaled via stderr __wt_errx, not
+        # via the exit code).
         # Asserts that records before and after the corrupt page made it
         # through, and that the total is less than nrows (something was
         # skipped) and more than half (didn't give up early).
@@ -189,8 +191,8 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
         rc, stdout, stderr = self._run_wt_follower(
             '-q', 'dump', self.uri,
             out='dump_q.out', err='dump_q.err')
-        self.assertEqual(rc, 1,
-            f'wt -q dump on corrupt disagg returned rc={rc}; expected 1')
+        self.assertEqual(rc, 0,
+            f'wt -q dump on corrupt disagg returned rc={rc}; expected 0')
         self.assertNotIn('WT_PANIC', stderr,
             'wt -q dump panicked despite -q on disagg storage')
         self.assertTrue(stdout.startswith('WiredTiger Dump (WiredTiger Version'),
@@ -224,7 +226,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
         rc, stdout, _ = self._run_wt_follower(
             '-q', 'dump', self.uri,
             out='dump_q.out', err='dump_q.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         emitted = self._parse_dumped_keys(stdout)
         expected = {'k%08d' % i for i in range(self.nrows)}
         missing = expected - emitted
@@ -257,7 +259,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
         rc, stdout, _ = self._run_dump_q('-j',
                                          outname='dump_q_json.out',
                                          errname='dump_q_json.err')
-        self.assertEqual(rc, 1, f'wt -q -j dump rc={rc}, expected 1')
+        self.assertEqual(rc, 0, f'wt -q -j dump rc={rc}, expected 0')
         doc = json.loads(stdout)
         self.assertIn(self.uri, doc, 'dump JSON missing URI key')
         records = doc[self.uri][1]['data']
@@ -275,7 +277,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
         rc, stdout, _ = self._run_dump_q('-x',
                                          outname='dump_q_hex.out',
                                          errname='dump_q_hex.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         lines = [ln for ln in stdout.splitlines() if ln]
         self.assertIn('Data', lines,
             'hex dump missing "Data" section marker')
@@ -294,7 +296,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
         rc, stdout, _ = self._run_dump_q('-r',
                                          outname='dump_q_rev.out',
                                          errname='dump_q_rev.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         ordered_keys = []
         for line in stdout.splitlines():
             if (len(line) == 12 and line.endswith('\\00')
@@ -320,7 +322,7 @@ class test_util_read_corrupt_disagg(wttest.WiredTigerTestCase,
             '-u', 'k%08d\\00' % (self.nrows - 1),
             outname='dump_q_b.out',
             errname='dump_q_b.err')
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
         emitted = self._parse_dumped_keys(stdout)
         self.assertIn('k%08d' % 0, emitted)
         self.assertIn('k%08d' % (self.nrows - 1), emitted)

@@ -529,6 +529,145 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertIn(self.uri, text,
             'wt -q list omitted the user table from the metadata listing')
 
+    def test_list_with_q_skips_corrupt_metadata_leaf(self):
+        # Harder list -q case: corrupt a leaf of WiredTiger.wt itself
+        # (the metadata btree). The conn-level read_corrupt flag must
+        # propagate to internal sessions so __btree_preload at
+        # metadata-dhandle-open doesn't panic on the corrupt child
+        # page; the metadata cursor walk in list_print must then skip
+        # the corrupt leaf and continue to the surviving URIs. Pins:
+        #   1. fixture validity: plain `wt list` (no -q) panics on
+        #      the corruption, proving we landed on a live leaf;
+        #   2. rc == 0 from `wt -q list` (walk completes cleanly);
+        #   3. partial output: emitted < total_uris and > 0 URIs.
+        # Leaves containing conn-open-required keys (system:*,
+        # file:WiredTiger.wt, file:WiredTigerHS.wt) are filtered out
+        # of the candidate set: their corruption isn't tolerated by
+        # callers in the conn-open / recovery path even with the flag
+        # set. The two probes plus the filter pin us to a leaf the
+        # explicit metadata cursor walk reaches.
+        import re
+        import shutil
+        import struct
+        self.skip_test_if_disagg()
+        self.close_conn()
+
+        # 20 tables each padded with ~800B of app_metadata inflates the
+        # metadata btree enough to split off live leaves whose entries
+        # are only user-table file:* URIs. Without the padding a 20-
+        # table fixture packs every leaf with at least one conn-open
+        # key and the filter rules them all out.
+        n_tables = 20
+        pad = 'x' * 800
+        # Per user table: file:t*.wt + colgroup:t* + table:t*. Plus
+        # file:WiredTigerHS.wt. (file:WiredTiger.wt and system:* are
+        # filtered out by list_print's WT_PREFIX_MATCH check.)
+        total_uris = 3 * n_tables + 1
+
+        home = 'metadata_corrupt_home'
+        os.makedirs(home, exist_ok=True)
+        import wiredtiger
+        conn = wiredtiger.wiredtiger_open(home, 'create')
+        s = conn.open_session()
+        for i in range(n_tables):
+            s.create('table:m%04d' % i,
+                'key_format=S,value_format=S,app_metadata="%s"' % pad)
+        s.checkpoint()
+        conn.close()
+
+        # Scan WiredTiger.wt for row_leaf pages, skipping any whose
+        # entries include a conn-open key.
+        ALLOC = 4096
+        WT_PAGE_HEADER_SIZE = 28
+        conn_open_re = re.compile(
+            rb'(system:[A-Za-z0-9_]+|file:WiredTiger(?:HS)?\.wt)')
+        path = os.path.join(home, 'WiredTiger.wt')
+        leaves = []
+        with open(path, 'rb') as f:
+            size = os.path.getsize(path)
+            for off in range(0, size, ALLOC):
+                f.seek(off)
+                hdr = f.read(WT_PAGE_HEADER_SIZE + 12)
+                if len(hdr) < WT_PAGE_HEADER_SIZE + 12 or hdr[24] != 7:
+                    continue
+                ds = struct.unpack_from('<I', hdr, 28)[0]
+                if ds == 0 or ds > size or ds % ALLOC != 0:
+                    continue
+                f.seek(off)
+                if conn_open_re.search(f.read(ds)):
+                    continue
+                leaves.append((off, ds))
+        self.assertGreater(len(leaves), 0,
+            'no user-only metadata leaves to corrupt; bump n_tables or '
+            'app_metadata padding')
+
+        # Live vs stale image isn't determinable from header data, so
+        # sweep from the file tail (block manager appends, so tail
+        # offsets are more likely current) and validate each batch
+        # with TWO probes:
+        #   plain `wt list` must fail   (corruption is reached);
+        #   `wt -q list` must succeed with partial output (cursor walk
+        #     actually skipped surviving entries).
+        # Stale images can satisfy the first via preload-touch but
+        # not the second. Restoring between batches keeps the search
+        # deterministic.
+        pristine = home + '.pristine'
+        if os.path.exists(pristine):
+            shutil.rmtree(pristine)
+        shutil.copytree(home, pristine)
+
+        def restore():
+            shutil.rmtree(home)
+            shutil.copytree(pristine, home)
+
+        def corrupt_batch(batch):
+            with open(path, 'r+b') as f:
+                for off, _ in batch:
+                    f.seek(off + 64)
+                    f.write(b'\xde\xad\xbe\xef' * 32)
+
+        def run_list(extra_argv):
+            argv = [self._wt_path(), '-h', home] + extra_argv + ['list']
+            with open('mdl.out', 'w') as o, open('mdl.err', 'w') as e:
+                rc = subprocess.call(argv, stdout=o, stderr=e)
+            with open('mdl.out') as o:
+                return rc, o.read()
+
+        def count_uris(text):
+            prefixes = ('table:', 'colgroup:', 'file:', 'system:', 'index:')
+            return sum(1 for line in text.splitlines()
+                       if any(line.startswith(p) for p in prefixes))
+
+        tail_first = sorted(leaves, key=lambda p: -p[0])
+        live = None
+        BATCH = 2
+        for c in range(0, len(tail_first), BATCH):
+            batch = tail_first[c:c + BATCH]
+            corrupt_batch(batch)
+            rc_plain, out_plain = run_list([])
+            rc_q, out_q = run_list(['-q'])
+            rows_plain = count_uris(out_plain)
+            rows_q = count_uris(out_q)
+            if (rc_plain != 0 or rows_plain != total_uris) and \
+               rc_q == 0 and 0 < rows_q < total_uris:
+                live = (batch, rows_q)
+                break
+            restore()
+        self.assertIsNotNone(live,
+            'exhausted user-only leaves without finding a live one; '
+            'every candidate was a stale image (current root references '
+            'a different copy)')
+        _, rows_q = live
+        # Sanity-check both endpoints of the partial output band: at
+        # least one URI survived (walk reached the other side of the
+        # corrupt leaf), and not every URI (corruption was exercised).
+        self.assertGreater(rows_q, 0,
+            'wt -q list emitted no URIs after metadata-leaf corruption; '
+            'the walk aborted instead of skipping')
+        self.assertLess(rows_q, total_uris,
+            'wt -q list emitted all %d URIs; corruption was not exercised '
+            '(emitted=%d)' % (total_uris, rows_q))
+
     # ---------- verify -c regression coverage ----------
 
     def test_verify_c_still_works_with_q_landed(self):
