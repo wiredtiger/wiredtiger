@@ -131,6 +131,16 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
+     * The disk image cached here is only refreshed when the page is instantiated. A page reconciled
+     * in place (for example by a checkpoint) keeps a stale image even as its block metadata
+     * advances to the newly written version, so caching it would pair an old image with newer
+     * metadata. Reconciled pages take the dirty-eviction path rather than this clean one, so the
+     * image is current by the time we get here; assert the invariant that lets us rely on that: the
+     * page was never reconciled, or its last reconciliation result has already been consumed.
+     */
+    WT_ASSERT(session, page->modify == NULL || page->modify->rec_result == 0);
+
+    /*
      * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
      * path expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
      */
