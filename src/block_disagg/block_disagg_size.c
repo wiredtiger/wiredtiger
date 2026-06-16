@@ -30,19 +30,21 @@ __wti_block_disagg_increase_size(WT_BLOCK_DISAGG *block_disagg, uint64_t size)
 
 /*
  * __wti_block_disagg_decrease_size --
- *     Decrease the total byte count.
+ *     Decrease the total byte count. When block_meta is non-NULL, asserts that the cumulative size
+ *     is currently counted (persistent == true) and clears the flag after decrementing, enforcing
+ *     the invariant that size is never subtracted twice for the same chain.
  */
 void
-__wti_block_disagg_decrease_size(
-  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, uint64_t size)
+__wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
+  WT_PAGE_BLOCK_META *block_meta, uint64_t size)
 {
     WT_UNUSED(session);
 
-    /* FIXME WT-16864: re-enable this assert once the disagg block size accounting bug is fixed. */
-    if (__wt_atomic_load_uint64(&block_disagg->size) < size)
-        __wt_atomic_store_uint64(&block_disagg->size, 0);
-    else
-        (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
+    WT_ASSERT(session, block_meta == NULL || block_meta->persistent);
+    WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->size) >= size);
+    (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
+    if (block_meta != NULL)
+        block_meta->persistent = false;
 }
 
 /*
@@ -68,19 +70,6 @@ __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 }
 
 /*
- * __wt_block_disagg_obsolete_delta_chain --
- *     Notify the block manager that a delta chain has been obsoleted by a full page image. The
- *     cumulative size of the old chain is no longer counted toward the total.
- */
-void
-__wt_block_disagg_obsolete_delta_chain(WT_SESSION_IMPL *session, uint64_t cumulative_size)
-{
-    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    __wti_block_disagg_decrease_size(
-      session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, cumulative_size);
-}
-
-/*
  * __wti_block_disagg_apply_root_size --
  *     Account for the root page size transition during checkpoint. Subtract the previous root page
  *     size and add the new one, recording the generation so the change can be rolled back on
@@ -95,7 +84,7 @@ __wti_block_disagg_apply_root_size(
 
     block_disagg->root_size_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
-    __wti_block_disagg_decrease_size(session, block_disagg, block_disagg->previous_root_size);
+    __wti_block_disagg_decrease_size(session, block_disagg, NULL, block_disagg->previous_root_size);
     __wti_block_disagg_increase_size(block_disagg, block_disagg->current_root_size);
 }
 
@@ -118,7 +107,7 @@ __wt_block_disagg_checkpoint_rollback(WT_SESSION_IMPL *session)
     if (block_disagg->root_size_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
         return;
 
-    __wti_block_disagg_decrease_size(session, block_disagg, block_disagg->current_root_size);
+    __wti_block_disagg_decrease_size(session, block_disagg, NULL, block_disagg->current_root_size);
     __wti_block_disagg_increase_size(block_disagg, block_disagg->previous_root_size);
 
     block_disagg->current_root_size = block_disagg->previous_root_size;

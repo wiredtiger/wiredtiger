@@ -177,12 +177,12 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
 
         addr_cookie cookie;
         // Perform a write.
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                   cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
 
         // Validate data checksum.
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                   cookie.addr.data(), &cookie.size, true, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, true);
 
@@ -201,7 +201,7 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
             create_write_buffer(&bm, session, str, &buf, 0, allocation_size);
 
             addr_cookie cookie;
-            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                       cookie.addr.data(), &cookie.size, false, false) == 0);
 
             validate_write_block(&bm, session, &buf, cookie, str, false);
@@ -225,7 +225,7 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
             create_write_buffer(&bm, session, str, &buf, str.length(), allocation_size);
 
             addr_cookie cookie;
-            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                       cookie.addr.data(), &cookie.size, false, false) == 0);
 
             validate_write_block(&bm, session, &buf, cookie, str, false);
@@ -249,21 +249,21 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
 
         // The first block write should succeed.
         addr_cookie cookie;
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                   cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == std::stoi(ALLOCATION_SIZE));
 
         // At this point the file written is greater than os_cache_dirty_max, make sure that
         // the session flag must be set before the fh->written is cleared.
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                   cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == std::stoi(ALLOCATION_SIZE) * 2);
 
         // Flag is now set, the block write should be flushed with fsync.
         F_SET(session->get_wt_session_impl(), WT_SESSION_CAN_WAIT);
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, NULL, buf.size,
                   cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == 0);

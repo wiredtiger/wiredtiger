@@ -221,11 +221,12 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
  */
 int
 __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
-  bool data_checksum, bool checkpoint_io)
+  WT_PAGE_BLOCK_META *block_meta, WT_PAGE_BLOCK_META *old_block_meta, size_t page_image_size,
+  uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_DECL_RET;
     uint32_t checksum, size;
     uint8_t *endp;
 
@@ -243,10 +244,29 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
      */
     __wt_page_header_byteswap(buf->mem);
 
-    WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
-      page_image_size, &size, &checksum, data_checksum, checkpoint_io));
+    /*
+     * On write failure block_meta has not entered the persistent store, so clear persistent
+     * regardless of what the caller set before the call.
+     */
+    if ((ret = __wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
+           page_image_size, &size, &checksum, data_checksum, checkpoint_io)) != 0) {
+        block_meta->persistent = false;
+        return (ret);
+    }
+
+    /*
+     * Subtract the old chain before counting the new write. If this full-image write replaces an
+     * existing chain on the same page_id, the caller passes old_block_meta so the old chain's bytes
+     * are removed from block_disagg->size in the same critical section as the new increment.
+     */
+    if (old_block_meta != NULL) {
+        WT_ASSERT(session, old_block_meta->persistent);
+        __wti_block_disagg_decrease_size(
+          session, block_disagg, old_block_meta, old_block_meta->cumulative_size);
+    }
 
     /* Update the running total of bytes. */
+    WT_ASSERT(session, !block_meta->persistent);
     __wti_block_disagg_increase_size(block_disagg, size);
 
     __wt_page_header_byteswap(buf->mem);
@@ -258,7 +278,11 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.base_lsn = block_meta->base_lsn;
     cookie.checksum = checksum;
 
-    /* Calculate the cumulative size and store it in cookie.size. */
+    /*
+     * For delta writes, accumulate the chain size in cookie.size so a single page_discard subtracts
+     * the entire chain. Full-image writes use physical size only; the caller subtracts the old
+     * chain via __wti_block_disagg_decrease_size before or after this call.
+     */
     if (block_meta->delta_count == 0)
         cookie.size = size;
     else
@@ -266,6 +290,7 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     /* Update the block_meta for future delta writes. */
     block_meta->cumulative_size = cookie.size;
+    block_meta->persistent = true;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
@@ -309,7 +334,7 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
      * cause the old root page size to be subtracted twice.
      */
     if (!is_root)
-        __wti_block_disagg_decrease_size(session, block_disagg, cookie.size);
+        __wti_block_disagg_decrease_size(session, block_disagg, NULL, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {
