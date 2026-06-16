@@ -63,12 +63,12 @@ key_push_history_append(wt_timestamp_t ts)
 }
 
 /*
- * expected_key_ts --
+ * expected_kek_ts --
  *     The expected persisted timestamp for a checkpoint, the latest pushed timestamp at or below
  *     the checkpoint timestamp, or WT_TS_NONE if none was pushed.
  */
 static wt_timestamp_t
-expected_key_ts(wt_timestamp_t checkpoint_ts)
+expected_kek_ts(wt_timestamp_t checkpoint_ts)
 {
     wt_timestamp_t expected_ts;
     size_t i;
@@ -83,11 +83,11 @@ expected_key_ts(wt_timestamp_t checkpoint_ts)
 }
 
 /*
- * disagg_validate_key_page --
+ * disagg_validate_kek_page --
  *     Assert a persisted KEK page's timestamp and key bytes match the expected key.
  */
 static void
-disagg_validate_key_page(
+disagg_validate_kek_page(
   const WT_ITEM *page, wt_timestamp_t expected_ts, wt_timestamp_t checkpoint_ts)
 {
     WT_CRYPT_HEADER hdr;
@@ -118,11 +118,11 @@ disagg_validate_key_page(
 }
 
 /*
- * disagg_read_key_page --
+ * disagg_read_kek_page --
  *     Read the KEK page referenced by a checkpoint's metadata.
  */
 static void
-disagg_read_key_page(
+disagg_read_kek_page(
   WT_SESSION *session, WT_PAGE_LOG *page_log, const WT_DISAGG_METADATA *metadata, WT_ITEM *page)
 {
     WT_CONFIG_ITEM lsn_cval, page_cval;
@@ -173,12 +173,12 @@ disagg_key_validate_persisted(WT_SESSION *session, WT_PAGE_LOG *page_log,
     WT_ITEM page;
     wt_timestamp_t expected_ts;
 
-    expected_ts = expected_key_ts(checkpoint_ts);
+    expected_ts = expected_kek_ts(checkpoint_ts);
     if (expected_ts == WT_TS_NONE)
         return;
 
-    disagg_read_key_page(session, page_log, metadata, &page);
-    disagg_validate_key_page(&page, expected_ts, checkpoint_ts);
+    disagg_read_kek_page(session, page_log, metadata, &page);
+    disagg_validate_kek_page(&page, expected_ts, checkpoint_ts);
     free(page.mem);
 }
 
