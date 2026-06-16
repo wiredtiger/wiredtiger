@@ -30,7 +30,7 @@ import wttest
 from wiredtiger import stat
 
 # test_stat17.py
-#   Tests for btree_row_leaf_avg_entries and btree_row_leaf_pages (WT-17175).
+#   Tests for btree_row_leaf_avg_entries and btree_row_leaf_pages.
 #
 #   btree_row_leaf_avg_entries: EWMA of K/V pairs per row-store leaf page.
 #   btree_row_leaf_pages:       incremental approximate leaf page count.
