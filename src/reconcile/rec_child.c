@@ -32,8 +32,10 @@ __rec_child_deleted(
      * If there's no page-delete structure, the truncate must be globally visible. Discard any
      * underlying disk blocks and don't write anything in the internal page.
      */
-    if (page_del == NULL)
-        return (__wt_ref_block_free(session, ref, true));
+    if (page_del == NULL) {
+        WT_RET(__wt_ref_block_free(session, ref, true));
+        return (0);
+    }
 
     /*
      * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
