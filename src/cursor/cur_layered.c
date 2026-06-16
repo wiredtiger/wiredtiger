@@ -121,10 +121,10 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x1u        /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_ITERATION 0x2u          /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u              /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x8u        /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
  * __clayered_enter --
