@@ -286,6 +286,7 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
     crypt.keys.data = (uint8_t *)key_item.data + crypt_header->header_size;
     crypt.keys.size = crypt_header->crypt_size;
     crypt.r.lsn = lsn;
+    crypt.timestamp = crypt_header->timestamp;
 
     /* Callback to load the encryption key data into the key provider. */
     WT_ERR(key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt));
