@@ -149,9 +149,13 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     bool data_checksum = true;
 
     /*
-     * Optionally compress the data before caching. Caching is best effort, so on a compression
-     * failure log the error and fall back to caching the uncompressed image rather than abandoning
-     * the put.
+     * Compress the page before caching it. A non-zero return is a genuine failure - scratch buffer
+     * allocation (OOM), the compressor's pre_size, or the compress callback itself. The block being
+     * too small or incompressible is reported with a zero return. Such failures should be rare.
+     * Compression here is best effort: the victim cache needs it for neither correctness nor
+     * effectiveness, so on failure we log the error and cache the uncompressed image rather than
+     * abandon the put. We deliberately don't propagate it - this is optional cache population, not
+     * an operation worth failing.
      */
     if ((ret = __wt_blkcache_compress(
            session, &buf_orig, false, &compressed_buf, NULL, &compressed)) != 0)
