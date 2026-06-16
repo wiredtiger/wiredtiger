@@ -2623,6 +2623,15 @@ static const char *const __stats_connection_desc[] = {
   "perf: block manager write latency histogram (bucket 8) - 500-999ms",
   "perf: block manager write latency histogram (bucket 9) - 1000ms+",
   "perf: block manager write latency histogram total (msecs)",
+  "perf: disagg block cache compress latency histogram (bucket 1) - 50-99us",
+  "perf: disagg block cache compress latency histogram (bucket 2) - 100-249us",
+  "perf: disagg block cache compress latency histogram (bucket 3) - 250-499us",
+  "perf: disagg block cache compress latency histogram (bucket 4) - 500-999us",
+  "perf: disagg block cache compress latency histogram (bucket 5) - 1000-2499us",
+  "perf: disagg block cache compress latency histogram (bucket 6) - 2500-4999us",
+  "perf: disagg block cache compress latency histogram (bucket 7) - 5000-9999us",
+  "perf: disagg block cache compress latency histogram (bucket 8) - 10000us+",
+  "perf: disagg block cache compress latency histogram total (usecs)",
   "perf: disagg block manager read latency histogram (bucket 1) - 50-99us",
   "perf: disagg block manager read latency histogram (bucket 2) - 100-249us",
   "perf: disagg block manager read latency histogram (bucket 3) - 250-499us",
@@ -3694,6 +3703,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_bmwrite_latency_lt1000 = 0;
     stats->perf_hist_bmwrite_latency_gt1000 = 0;
     stats->perf_hist_bmwrite_latency_total_msecs = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt100 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt250 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt500 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt1000 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt2500 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt5000 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_lt10000 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_gt10000 = 0;
+    stats->perf_hist_disaggblkcachecompress_latency_total_usecs = 0;
     stats->perf_hist_disaggbmread_latency_lt100 = 0;
     stats->perf_hist_disaggbmread_latency_lt250 = 0;
     stats->perf_hist_disaggbmread_latency_lt500 = 0;
@@ -4908,6 +4926,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_gt1000);
     to->perf_hist_bmwrite_latency_total_msecs +=
       WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_total_msecs);
+    to->perf_hist_disaggblkcachecompress_latency_lt100 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt100);
+    to->perf_hist_disaggblkcachecompress_latency_lt250 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt250);
+    to->perf_hist_disaggblkcachecompress_latency_lt500 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt500);
+    to->perf_hist_disaggblkcachecompress_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt1000);
+    to->perf_hist_disaggblkcachecompress_latency_lt2500 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt2500);
+    to->perf_hist_disaggblkcachecompress_latency_lt5000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt5000);
+    to->perf_hist_disaggblkcachecompress_latency_lt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_lt10000);
+    to->perf_hist_disaggblkcachecompress_latency_gt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_gt10000);
+    to->perf_hist_disaggblkcachecompress_latency_total_usecs +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggblkcachecompress_latency_total_usecs);
     to->perf_hist_disaggbmread_latency_lt100 +=
       WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt100);
     to->perf_hist_disaggbmread_latency_lt250 +=

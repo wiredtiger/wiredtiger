@@ -1137,6 +1137,15 @@ struct __wt_connection_stats {
     int64_t perf_hist_bmwrite_latency_lt1000;
     int64_t perf_hist_bmwrite_latency_gt1000;
     int64_t perf_hist_bmwrite_latency_total_msecs;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt100;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt250;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt500;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt1000;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt2500;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt5000;
+    int64_t perf_hist_disaggblkcachecompress_latency_lt10000;
+    int64_t perf_hist_disaggblkcachecompress_latency_gt10000;
+    int64_t perf_hist_disaggblkcachecompress_latency_total_usecs;
     int64_t perf_hist_disaggbmread_latency_lt100;
     int64_t perf_hist_disaggbmread_latency_lt250;
     int64_t perf_hist_disaggbmread_latency_lt500;
