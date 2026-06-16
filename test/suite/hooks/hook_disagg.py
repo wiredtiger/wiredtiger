@@ -54,14 +54,11 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_
 
 # These are the hook functions that are run when particular APIs are called.
 
-# A single extensions list entry for the page log. The config is omitted when none was given.
 def page_log_extension_entry(path, config):
     if config is None:
         return f'"{path}"'
     return f'"{path}"=(config="{config}")'
 
-# A single extensions list entry for the key provider. Low verbosity avoids unexpected output;
-# key_expires=0 forces a key rotation on every checkpoint.
 def key_provider_extension_entry(path):
     return f'"{path}"=(early_load=true,config="verbose=-1,key_expires=0")'
 
