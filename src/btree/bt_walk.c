@@ -397,7 +397,6 @@ done:
     if (time_diff_ms > 10 * WT_THOUSAND)
         __wt_verbose_warning(session, WT_VERB_READ,
           "tree walk took more than 10 seconds (%" PRIu64 "ms)", time_diff_ms);
-
 err:
     WT_TRET(__wt_page_release(session, couple, flags));
     WT_TRET(__wt_page_release(session, ref_orig, flags));

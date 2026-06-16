@@ -3594,8 +3594,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
 
     /*
-     * Set read-corrupt mode before __wti_connection_open so the metadata-dhandle open path —
-     * including __btree_preload — honors it and doesn't panic on a corrupt metadata leaf.
+     * Set read-corrupt mode before __wti_connection_open so the metadata-dhandle open path honors
+     * it and doesn't panic on a corrupt metadata leaf.
      */
     WT_ERR(__wt_config_gets(session, cfg, "read_corrupt", &cval));
     if (cval.val)

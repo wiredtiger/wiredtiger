@@ -2652,8 +2652,8 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
         return (WT_RESTART);
     /*
-     * Skip-on-corrupt: caller wants to keep the parent pinned and decide whether to advance to the
-     * next sibling. Return the error like NOTFOUND does, without releasing held.
+     * Skip-on-corrupt: treat corrupt pages as expected and return without releasing the page to
+     * advance to the next sibling to the next sibling.
      */
     if (LF_ISSET(WT_READ_SKIP_CORRUPT) && (ret == WT_ERROR || ret == EIO))
         return (ret);

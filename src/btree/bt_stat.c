@@ -120,7 +120,6 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
 
 err:
     WT_IGNORE_RET(__wt_page_release(session, next_walk, 0));
-
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
