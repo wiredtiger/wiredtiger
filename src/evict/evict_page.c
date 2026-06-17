@@ -131,9 +131,10 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * Time the victim-cache work - compression, checksum and put - to track its average cost. The
-     * puts are also counted by thread role: application threads pay this on a user operation's
-     * critical path under cache pressure, eviction threads pay it in the background.
+     * Time the victim-cache work - compression, checksum and put - and count the pages cached.
+     * Track totals across all threads and, separately, the share borne by application threads,
+     * which pay it on a user operation's critical path under cache pressure rather than in the
+     * background.
      */
     uint64_t time_start = __wt_clock(session);
 
@@ -225,10 +226,10 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       .lsn = page->disagg_info->block_meta.disagg_lsn,
     };
 
-    if (!F_ISSET(session, WT_SESSION_INTERNAL))
+    bool is_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
+    WT_STAT_CONN_INCR(session, block_cache_puts);
+    if (is_app_thread)
         WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
-    else
-        WT_STAT_CONN_INCR(session, block_cache_eviction_thread_puts);
 
     WT_IGNORE_RET(plh->plh_cache_put(
       plh, &session->iface, page->disagg_info->block_meta.page_id, 0, &args, cache_buf));
@@ -239,8 +240,10 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Swap page header back to native order. */
         __wt_page_header_byteswap(dsk);
 
-    WT_STAT_CONN_INCRV(
-      session, block_cache_put_time, WT_CLOCKDIFF_US(__wt_clock(session), time_start));
+    uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
+    WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);
+    if (is_app_thread)
+        WT_STAT_CONN_INCRV(session, block_cache_app_thread_put_time, elapsed);
 }
 
 /*
