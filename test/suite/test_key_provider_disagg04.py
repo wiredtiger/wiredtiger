@@ -37,7 +37,10 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_key_provider_disagg04(wttest.WiredTigerTestCase):
     def conn_config(self):
-        return self.extensionsConfig() + ',disaggregated=(role="leader")'
+        # Enable disaggregated-storage verbosity so the crypt-key load message is emitted; restarts
+        # assert on it to confirm the persisted timestamp round-trips.
+        return self.extensionsConfig() + \
+            ',disaggregated=(role="leader"),verbose=[disaggregated_storage:0]'
 
     start_versions = [
         ('v0', dict(start_version=0)),
@@ -71,11 +74,16 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
             crypt.timestamp = self.push_ts
             self.assertEqual(self.conn.get_key_provider().set_key(self.session, crypt), 0)
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.push_ts))
+            self.persisted_ts = self.push_ts
         self.session.checkpoint()
 
     def restart_with_version(self, version):
         self.current_version = version
-        self.restart_without_local_files()
+        # On restart, the persisted crypt key must load back with the timestamp it was stored with. A
+        # version 1 key carries its push timestamp, a version 0 key carries none.
+        pattern = r'Loading persisted crypt key: lsn=\d+, timestamp=%d' % self.persisted_ts
+        with self.expectedStdoutPattern(pattern, maxchars=1000000):
+            self.restart_without_local_files()
 
     def test_key_provider_version_toggle(self):
         if (self.ds_name != "palite"):
@@ -83,6 +91,9 @@ class test_key_provider_disagg04(wttest.WiredTigerTestCase):
 
         # Monotonic push timestamp for this test; advances on each push-mode checkpoint.
         self.push_ts = 0
+
+        # Timestamp of the last persisted key; restarts assert it loads back unchanged.
+        self.persisted_ts = 0
 
         # The scenario runs start -> other -> start -> other, covering both directions.
         other_version = 1 - self.start_version

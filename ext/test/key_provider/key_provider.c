@@ -178,11 +178,7 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 
     assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
-    if (kp->version == 1) {
-        /* A real key load must carry a valid timestamp. */
-        assert(crypt->keys.data == NULL || crypt->timestamp != 0);
-        kp->state.timestamp = crypt->timestamp;
-    }
+    kp->state.timestamp = crypt->timestamp;
 
     /* Reset expiration if a valid key was loaded. */
     if (crypt->keys.data != NULL)

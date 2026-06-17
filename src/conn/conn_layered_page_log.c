@@ -288,6 +288,9 @@ __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metada
     crypt.r.lsn = lsn;
     crypt.timestamp = crypt_header->timestamp;
 
+    __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Loading persisted crypt key: lsn=%" PRIu64 ", timestamp=%" PRIu64, lsn, crypt.timestamp);
+
     /* Callback to load the encryption key data into the key provider. */
     WT_ERR(key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt));
 
