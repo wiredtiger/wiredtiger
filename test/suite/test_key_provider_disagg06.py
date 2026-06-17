@@ -32,18 +32,18 @@ from helper_key_provider import KeyProviderBase
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg06.py
-#    push-mode key provider scenarios:
-#    - persist the newest key at or below stable
-#    - future keys wait for stable to catch up
-#    - reject empty, non-increasing, or stale keys
-#    - persisted key survives restart
+# Push-mode key provider scenarios:
+# - persist the newest key at or below stable
+# - future keys wait for stable to catch up
+# - reject empty, non-increasing, or stale keys
+# - persisted key survives restart
 @disagg_test_class
 class test_key_provider_disagg06(KeyProviderBase):
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg06', disagg_only=True)
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = "layered:test_key_provider_disagg06"
+    uri = f"layered:{test_name}"
 
     def populate_table(self):
         # A populated table gives every checkpoint real work to flush.

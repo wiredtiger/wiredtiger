@@ -31,15 +31,15 @@ from helper_key_provider import KeyProviderBase
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg05.py
-#    Push-mode key provider: exercise the pending-key list across multiple checkpoints and verify
-#    each checkpoint persists a fully valid key-provider page holding the selected key.
+# Push-mode key provider: exercise the pending-key list across multiple checkpoints and verify
+# each checkpoint persists a fully valid key-provider page holding the selected key.
 @disagg_test_class
 class test_key_provider_disagg05(KeyProviderBase):
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg05', disagg_only=True)
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = "layered:test_key_provider_disagg05"
+    uri = f"layered:{test_name}"
 
     def populate_table(self):
         # A populated table gives every checkpoint real work to flush.

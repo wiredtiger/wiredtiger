@@ -31,15 +31,15 @@ from helper_key_provider import KeyProviderBase
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg03.py
-#    Push-mode key provider smoke test: verify the pushed key is durably persisted to the turtle
-#    key-provider page after a checkpoint, and that the on-disk crypt page is fully valid.
+# Push-mode key provider smoke test: verify the pushed key is durably persisted to the turtle
+# key-provider page after a checkpoint, and that the on-disk crypt page is fully valid.
 @disagg_test_class
 class test_key_provider_disagg03(KeyProviderBase):
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg03', disagg_only=True)
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = "layered:test_key_provider_disagg03"
+    uri = f"layered:{test_name}"
 
     def test_set_key_persists(self):
         ds = SimpleDataSet(self, self.uri, 10)

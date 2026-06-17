@@ -31,10 +31,10 @@ from helper_key_provider import KeyProviderBase
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg01.py
-#    Test basic pull key provider scenarios.
+# Test basic pull key provider scenarios.
 @disagg_test_class
 class test_key_provider_disagg01(KeyProviderBase):
+    test_name = __qualname__
     # Pull (get_key) model.
     key_provider_version = 0
 
@@ -43,11 +43,11 @@ class test_key_provider_disagg01(KeyProviderBase):
         ('crash', dict(crash=True)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, crash_value)
 
     nentries = 1000
-    uri = "layered:test_key_provider_disagg01"
+    uri = f"layered:{test_name}"
 
     def validate_number_elements(self, home="."):
         kek = self.key_provider_page_count(home)

@@ -31,11 +31,11 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg02.py
-#    Ensure that a crash during checkpoint will not corrupt key provider meta information.
+# Ensure that a crash during checkpoint will not corrupt key provider meta information.
 @disagg_test_class
 class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     key_provider_versions = [
         ('pull', dict(key_provider_version=0)),
@@ -50,7 +50,7 @@ class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
 
     scenarios = make_scenarios(disagg_storages, key_provider_versions, crash_points)
     nentries = 1000
-    uri = "layered:test_key_provider_disagg02"
+    uri = f"layered:{test_name}"
 
     # In push mode a checkpoint only persists a key once stable reaches its timestamp, so push at a
     # fresh timestamp and advance stable to it. Pull mode rotates through get_key, so it is a no-op.
@@ -79,7 +79,7 @@ class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
 
         subdir = 'SUBPROCESS'
         [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
-            'test_key_provider_disagg02.test_key_provider_disagg02.subprocess_func', silent=True)
+            f'{self.test_name}.{self.test_name}.subprocess_func', silent=True)
 
         # The subprocess wrote to new_home_dir; its turtle reference survived the crash intact.
         self.validate_turtle_page(home=new_home_dir)

@@ -31,18 +31,18 @@ from helper_key_provider import KeyProviderBase
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_key_provider_disagg07.py
-#    leader/follower push-mode key provider scenarios:
-#    - follower's queued key persists after step-up
-#    - timestamps stay monotonic across role switches
-#    - follower prunes its queue on pickup
-#    - a queued rotation completes once stable reaches it
+# Leader/follower push-mode key provider scenarios:
+# - follower's queued key persists after step-up
+# - timestamps stay monotonic across role switches
+# - follower prunes its queue on pickup
+# - a queued rotation completes once stable reaches it
 @disagg_test_class
 class test_key_provider_disagg07(KeyProviderBase):
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg07', disagg_only=True)
+    test_name = __qualname__
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = "layered:test_key_provider_disagg07"
+    uri = f"layered:{test_name}"
     table_config = 'key_format=S,value_format=S'
     follower_conn = None
 

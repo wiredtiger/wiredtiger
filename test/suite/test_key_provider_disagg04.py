@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_key_provider_disagg04.py
-#    Toggle the key_provider API version across restarts and verify the database stays readable.
+# Toggle the key_provider API version across restarts and verify the database stays readable.
 
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from helper_key_provider import KeyProviderBase
@@ -36,15 +35,16 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_key_provider_disagg04(KeyProviderBase):
+    test_name = __qualname__
     start_versions = [
         ('v0', dict(start_version=0)),
         ('v1', dict(start_version=1)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg04', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, start_versions)
 
-    uri = "layered:test_key_provider_disagg04"
+    uri = f"layered:{test_name}"
     nentries = 200
 
     # Restart re-invokes conn_extensions, so flipping this field switches the loaded provider.
