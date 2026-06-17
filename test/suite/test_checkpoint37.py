@@ -66,12 +66,6 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
         cursor.close()
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def test_checkpoint(self):
         uri = 'table:checkpoint37'
         nrows = 1000

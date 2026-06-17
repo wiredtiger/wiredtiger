@@ -76,15 +76,6 @@ class test_tiered04(wttest.WiredTigerTestCase, TieredConfigMixin):
         c.close()
         self.assertTrue(val_str in val)
 
-    def get_stat(self, stat, uri):
-        if uri == None:
-            stat_cursor = self.session.open_cursor('statistics:')
-        else:
-            stat_cursor = self.session.open_cursor('statistics:' + uri)
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def check(self, tc, base, n):
         get_check(self, tc, base, n)
 

@@ -39,12 +39,6 @@ class test_eviction05(wttest.WiredTigerTestCase):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def test_eviction_page_size_stats(self):
         uri = 'table:test_eviction05'
 

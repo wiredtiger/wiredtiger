@@ -45,12 +45,6 @@ class test_app_thread_evict01(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(format_values)
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def test_app_thread_evict01(self):
         format='key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, format)

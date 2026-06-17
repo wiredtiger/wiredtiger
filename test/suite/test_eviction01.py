@@ -41,12 +41,6 @@ class test_eviction01(wttest.WiredTigerTestCase):
     nrows = 100
     iterations = 500
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def test_eviction(self):
         uri = "table:test_eviction01"
         ds = SimpleDataSet(self, uri, self.nrows, key_format='S', value_format='u')

@@ -65,12 +65,6 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():

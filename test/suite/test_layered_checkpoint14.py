@@ -45,12 +45,6 @@ class test_layered_checkpoint14(wttest.WiredTigerTestCase):
     uri = "layered:" + table_name
     stable_uri = "file:" + table_name + ".wt_stable"
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     # Test records into a layered tree and restarting
     def test_layered_checkpoint14(self):
         session_config = 'key_format=S,value_format=S'

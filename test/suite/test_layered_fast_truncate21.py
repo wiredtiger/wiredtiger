@@ -58,12 +58,6 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered_fast_truncate21', disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def get_stat(self, conn, stat_key, uri=None):
-        s = conn.open_session('')
-        val = s.open_cursor('statistics:' + (uri or ''))[stat_key][2]
-        s.close()
-        return val
-
     def leader_checkpoint(self, ts):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
                                 ',oldest_timestamp=' + self.timestamp_str(1))

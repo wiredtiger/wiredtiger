@@ -35,12 +35,6 @@ from wtdataset import SimpleDataSet
 class test_cc04(test_cc_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def test_cc(self):
         nrows = 10000
 

@@ -91,14 +91,6 @@ class compact_util(wttest.WiredTigerTestCase):
         cstat.close()
         return sz
 
-    def get_stat(self, stat, uri = None):
-        if not uri:
-            uri = ''
-        stat_cursor = self.session.open_cursor(f'statistics:{uri}', None, None)
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def populate(self, uri, start_key, num_keys, value=None, value_size=1024):
         c = self.session.open_cursor(uri, None)
         for k in range(start_key, num_keys):

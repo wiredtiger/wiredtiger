@@ -107,15 +107,6 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess):
             session = self.session
         session.publish(uri, 'disaggregated=(schema_epoch=' + self.timestamp_str(epoch) + ')')
 
-    def get_stat(self, stat_name):
-        """
-        Get the value of a statistic by name.
-        """
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat_name][2]
-        stat_cursor.close()
-        return value
-
     def assertStatEqual(self, stat_name, expected_value, retries=10):
         """
         Assert that a statistic has the expected value, retrying if necessary.

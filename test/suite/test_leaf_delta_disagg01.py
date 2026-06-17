@@ -71,14 +71,6 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + self.conn_delta_config
 
-    def get_stat(self, stat, uri = None):
-        if not uri:
-            uri = ''
-        stat_cursor = self.session.open_cursor(f'statistics:{uri}', None, None)
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def insert_or_update(self, ids, vals):
         cursor = self.session.open_cursor(self.uri, None, None)
         for id, val in zip(ids, vals):

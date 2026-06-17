@@ -57,12 +57,6 @@ class test_layered_config02(wttest.WiredTigerTestCase):
     def early_setup(self):
         self.skipTest("FIXME-WT-15663: currently block cache is disabled.")
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     # Test long delta chains
     def test_layered_config02(self):
 

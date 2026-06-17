@@ -36,12 +36,6 @@ from wiredtiger import stat
 # Timestamps: Test setting and querying the stable disaggregated schema epoch.
 class test_timestamp29(wttest.WiredTigerTestCase):
 
-    def get_stat(self, stat_name):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat_name][2]
-        stat_cursor.close()
-        return value
-
     def assertEpochEqual(self, expected_ts):
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=stable_disaggregated_schema_epoch'),

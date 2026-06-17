@@ -132,16 +132,6 @@ class test_layered_checkpoint10(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-    def get_stat(self, stat_key):
-        """Read a connection-level statistic from the follower."""
-        stat_cursor = self.session_follow.open_cursor('statistics:')
-        stat_cursor.set_key(stat_key)
-        stat_cursor.search()
-        val = stat_cursor.get_value()
-        stat_cursor.close()
-        # val is (description, type_string, value)
-        return val[2]
-
     def begin_read_ts_txn(self):
         """Begin a transaction with a read timestamp on the follower."""
         read_ts = self.ts

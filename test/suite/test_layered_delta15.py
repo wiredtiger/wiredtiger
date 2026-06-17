@@ -90,12 +90,6 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def insert(self, kv, ts=None):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():

@@ -68,13 +68,6 @@ class test_leaf_delta_disagg02(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + self.conn_delta_config
 
-    def get_stat(self, stat_key, uri=None):
-        target = f'statistics:{uri}' if uri else 'statistics:'
-        cursor = self.session.open_cursor(target, None, None)
-        val = cursor[stat_key][2]
-        cursor.close()
-        return val
-
     def make_key(self, i):
         # Zero-pad so all keys are the same width, helping prefix compression produce
         # a deterministic page layout.
