@@ -102,13 +102,13 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
         self.setup_leader(',' + self.page_cfg)
         self.reopen_disagg_conn(self.conn_config())
 
-        rd_fast_before = self.get_stat(self.conn, stat.conn.rec_page_delete_fast)
-        read_del_before = self.get_stat(self.conn, stat.conn.cache_read_deleted)
+        rd_fast_before = self.get_stat(stat.conn.rec_page_delete_fast)
+        read_del_before = self.get_stat(stat.conn.cache_read_deleted)
 
         # Phase 2: fast-truncate and checkpoint with oldest still at 1, so the deletion is not
         # globally visible and the parent keeps a proxy cell referencing each truncated leaf.
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
-        self.assertGreater(self.get_stat(self.conn, stat.conn.rec_page_delete_fast),
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delete_fast),
             rd_fast_before, "fast truncate did not trigger -- check page eligibility")
 
         # Phase 3: read keys inside the truncated range below the truncate timestamp to
@@ -123,7 +123,7 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
             self.assertEqual(cur.get_value(), self.value)
         self.session.rollback_transaction()
         cur.close()
-        self.assertGreater(self.get_stat(self.conn, stat.conn.cache_read_deleted),
+        self.assertGreater(self.get_stat(stat.conn.cache_read_deleted),
             read_del_before, "truncated leaf was not instantiated")
 
         # Phase 4: advance oldest past the truncate so the deletion is globally visible.
