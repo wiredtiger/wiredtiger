@@ -848,18 +848,16 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
         /* Reverse split removes a deleted/empty leaf, not a split replacement. */
-        if (new_entries == 0 && btree->type == BTREE_ROW &&
-          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) > 0)
-            (void)__wt_atomic_sub_uint64(&btree->approx_leaf_pages, 1);
+        if (new_entries == 0 && btree->type == BTREE_ROW)
+            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
           session, next_ref, parent, &parent_decr, split_gen, exclusive));
-        if (btree->type == BTREE_ROW &&
-          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) > 0)
-            (void)__wt_atomic_sub_uint64(&btree->approx_leaf_pages, 1);
+        if (btree->type == BTREE_ROW)
+            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
 
     /*
