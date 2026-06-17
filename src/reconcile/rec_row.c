@@ -379,9 +379,10 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
      */
     custom_value_size = 1 + value.size;
     WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
-    ((uint8_t *)custom_value->mem)[0] = flags;
+    p = custom_value->mem;
+    *p++ = flags;
     if (value.size > 0)
-        memcpy((uint8_t *)custom_value->mem + 1, value.data, value.size);
+        memcpy(p, value.data, value.size);
     custom_value->size = custom_value_size;
 
     /* Pack the custom value into a standard cell structure. */
