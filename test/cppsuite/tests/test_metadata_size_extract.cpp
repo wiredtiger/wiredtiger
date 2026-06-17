@@ -60,6 +60,9 @@ extern "C" {
 
 #include <array>
 #include <charconv>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -198,6 +201,55 @@ collection_index(std::string_view key)
 }
 
 /*
+ * extract_latest_checkpoint_api --
+ *     The same extraction as extract_latest_checkpoint, but using WiredTiger's public configuration
+ *     parser (wiredtiger_config_parser_open) instead of hand-rolled string scanning. This is the
+ *     other tool an embedder such as MongoDB has on hand; the microbenchmark compares the two. It
+ *     needs three nested parsers: one for the metadata value, one for the checkpoint group, and one
+ *     per checkpoint block to read its order and size.
+ */
+static bool
+extract_latest_checkpoint_api(const std::string &value, uint64_t *sizep, long *orderp)
+{
+    WT_CONFIG_PARSER *top, *group, *block;
+    WT_CONFIG_ITEM ckpt_group, ckpt_name, ckpt_block, order_item, size_item;
+
+    *sizep = 0;
+    *orderp = -1;
+
+    testutil_check(wiredtiger_config_parser_open(nullptr, value.c_str(), value.size(), &top));
+    if (top->get(top, "checkpoint", &ckpt_group) != 0) {
+        testutil_check(top->close(top));
+        return (false);
+    }
+
+    /* The struct item spans the brackets, which the parser strips when re-opened on it. */
+    testutil_check(wiredtiger_config_parser_open(nullptr, ckpt_group.str, ckpt_group.len, &group));
+    long best_order = -1;
+    uint64_t best_size = 0;
+    bool found = false;
+    while (group->next(group, &ckpt_name, &ckpt_block) == 0) {
+        testutil_check(
+          wiredtiger_config_parser_open(nullptr, ckpt_block.str, ckpt_block.len, &block));
+        if (block->get(block, "order", &order_item) == 0 &&
+          block->get(block, "size", &size_item) == 0 && order_item.val > best_order) {
+            best_order = (long)order_item.val;
+            best_size = (uint64_t)size_item.val;
+            found = true;
+        }
+        testutil_check(block->close(block));
+    }
+    testutil_check(group->close(group));
+    testutil_check(top->close(top));
+
+    if (found) {
+        *sizep = best_size;
+        *orderp = best_order;
+    }
+    return (found);
+}
+
+/*
  * create_collections --
  *     Create NUM_COLLECTIONS empty disaggregated stable files.
  */
@@ -318,6 +370,77 @@ verify_with_statistics(scoped_session &session, const std::array<uint64_t, NUM_C
 }
 
 /*
+ * microbenchmark --
+ *     Extract the latest checkpoint size from a real metadata value many times with each method and
+ *     report the timings, to answer whether the WiredTiger config-parser API is faster than the
+ *     hand-rolled string scan for this job.
+ */
+static void
+microbenchmark(scoped_session &session)
+{
+    static constexpr int ITERATIONS = 10000;
+
+    /* Grab one real metadata value as an owned copy to parse repeatedly. */
+    std::string sample;
+    {
+        scoped_cursor cursor = session.open_scoped_cursor("metadata:");
+        int ret;
+        const char *key, *value;
+        while ((ret = cursor->next(cursor.get())) == 0) {
+            testutil_check(cursor->get_key(cursor.get(), &key));
+            if (collection_index(key) < 0)
+                continue;
+            testutil_check(cursor->get_value(cursor.get(), &value));
+            sample = value;
+            break;
+        }
+        testutil_assert(!sample.empty());
+    }
+
+    /* Cross-check the two methods agree before timing them; this also warms both paths. */
+    uint64_t size_scan, size_api;
+    long order_scan, order_api;
+    testutil_assert(extract_latest_checkpoint(sample, &size_scan, &order_scan));
+    testutil_assert(extract_latest_checkpoint_api(sample, &size_api, &order_api));
+    testutil_assertfmt(size_scan == size_api && order_scan == order_api,
+      "method mismatch: hand-rolled (order=%ld, size=%" PRIu64 ") vs API (order=%ld, size=%" PRIu64
+      ")",
+      order_scan, size_scan, order_api, size_api);
+
+    uint64_t size, sum_scan = 0, sum_api = 0;
+    long order;
+
+    auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < ITERATIONS; ++i) {
+        extract_latest_checkpoint(sample, &size, &order);
+        sum_scan += size;
+    }
+    auto t1 = std::chrono::steady_clock::now();
+    for (int i = 0; i < ITERATIONS; ++i) {
+        extract_latest_checkpoint_api(sample, &size, &order);
+        sum_api += size;
+    }
+    auto t2 = std::chrono::steady_clock::now();
+
+    /* The sums keep the loops from being optimized away and re-check correctness. */
+    testutil_assert(sum_scan == sum_api && sum_scan > 0);
+
+    double scan_ns =
+      (double)std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count() / ITERATIONS;
+    double api_ns =
+      (double)std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count() / ITERATIONS;
+
+    std::ostringstream report;
+    report << std::fixed << std::setprecision(1)
+           << "Microbenchmark: extract latest checkpoint size " << ITERATIONS << " times from a "
+           << sample.size() << "-byte metadata value\n"
+           << "  hand-rolled string parse:    " << scan_ns << " ns/op\n"
+           << "  WiredTiger config-parser API: " << api_ns << " ns/op\n"
+           << "  the API is " << (api_ns / scan_ns) << "x the cost of the hand-rolled parse";
+    logger::log_msg(LOG_INFO, report.str());
+}
+
+/*
  * main --
  *     Create disaggregated collections and checkpoint twice with different data, then re-open the
  *     database and confirm the metadata walk reads the latest checkpoint's size for each
@@ -381,6 +504,9 @@ main(int argc, char *argv[])
 
         /* The parse must agree with WiredTiger's own (latest) size for every collection. */
         verify_with_statistics(session, sizes);
+
+        /* Compare the hand-rolled parse against the WiredTiger config-parser API. */
+        microbenchmark(session);
     }
     connection_manager::instance().close();
 
