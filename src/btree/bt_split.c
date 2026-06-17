@@ -699,10 +699,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * frees the blocks for the deleted pages, which can corrupt the free list calculated by the
      * sync.
      *
-     * We can't do this at all for disaggregated trees. The block free is immediate and
-     * irreversible, so a checkpoint that has already sealed this parent's image could end up
-     * referencing a discarded page. Reconciliation handles the discard safely by dropping the block
-     * and cell together.
+     * We can't do this at all for disaggregated trees. The parent's page-log image may already
+     * contain a proxy cell for the deleted page, either from this checkpoint or an earlier one.
+     * Freeing the block here would leave that reference dangling. Reconciliation handles this
+     * safely by dropping both the block and proxy cell together.
      */
     deleted_entries = 0;
     if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !__wt_btree_syncing_by_other_sessions(session))
