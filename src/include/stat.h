@@ -468,9 +468,10 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
+    int64_t block_cache_puts;
     int64_t block_cache_app_thread_puts;
-    int64_t block_cache_eviction_thread_puts;
     int64_t block_cache_blocks_removed;
+    int64_t block_cache_app_thread_put_time;
     int64_t block_cache_blocks_removed_blocked;
     int64_t block_cache_put_time;
     int64_t block_cache_blocks;
