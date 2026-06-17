@@ -370,13 +370,19 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
         twp = &tw;
     }
 
-    /* Pack the flags and delta value into a custom value. */
-    WT_ERR(
-      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
+    /*
+     * The delta leaf value format is one raw byte followed by raw item data with no length prefix,
+     * so the encoded size is always exactly 1 + the value length. Encode directly rather than using
+     * the generic struct packing functions to avoid format string parsing and variadic argument
+     * overhead on this per-key hot path.
+     */
+    custom_value_size = 1 + value.size;
     WT_ERR(__wt_buf_init(session, custom_value, custom_value_size));
+    p = custom_value->mem;
+    *p++ = flags;
+    if (value.size > 0)
+        memcpy(p, value.data, value.size);
     custom_value->size = custom_value_size;
-    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value_size,
-      WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
