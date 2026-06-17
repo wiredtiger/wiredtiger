@@ -163,6 +163,11 @@ class test_stat17(wttest.WiredTigerTestCase):
     def test_checkpoint_persistence(self):
         self.session.create(self.uri, self.create_params)
         self._insert(self.nrows)
+
+        # Two checkpoints: the first flushes all dirty pages; the second runs
+        # after eviction has had a chance to clean up any deleted refs, so the
+        # saved approx_leaf_pages value is stable when we read pages_before.
+        self.session.checkpoint()
         self.session.checkpoint()
 
         avg_before   = self._dsrc_stat(stat.dsrc.btree_row_leaf_avg_entries)
@@ -178,14 +183,5 @@ class test_stat17(wttest.WiredTigerTestCase):
 
         self.assertEqual(avg_after, avg_before,
             'btree_row_leaf_avg_entries must survive checkpoint/restart')
-
-        # approx_leaf_pages is racy: the checkpoint snapshot and the stat reads
-        # are independent moments, so background eviction can shift the counter
-        # by a small amount between them. Allow proportional tolerance; this
-        # still catches a stat reset to 0 or a grossly wrong restored value.
-        tolerance = max(3, pages_before // 10)
-        self.assertGreater(pages_after, 0,
-            'btree_row_leaf_pages must be non-zero after checkpoint/restart')
-        self.assertLessEqual(abs(pages_after - pages_before), tolerance,
-            'btree_row_leaf_pages %d too far from pre-restart value %d'
-            % (pages_after, pages_before))
+        self.assertEqual(pages_after, pages_before,
+            'btree_row_leaf_pages must survive checkpoint/restart')
