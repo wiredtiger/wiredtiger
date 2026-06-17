@@ -26,15 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Regression test for disaggregated btree handling across step-down/step-up.
-#   On step-down every disaggregated btree is marked readonly so the follower
-#   does not checkpoint it, and the handle is marked outdated so the next leader
-#   opens a fresh one. A handle left readonly across step-up is otherwise
-#   skipped by the next step-up checkpoint, leaving its disaggregated block-size
-#   accounting stale and tripping the checkpoint-size assertion
-#   (ckpt->size == __wt_block_disagg_get_size) on the second cycle. A single
-#   fresh-follower step-up does not exercise this -- two full
-#   leader->follower->leader cycles on the same connection are required.
+# Regression test for disaggregated btree handling across step-down/step-up.
+# On step-down every disaggregated btree is marked readonly so the follower
+# does not checkpoint it, and the handle is marked outdated so the next leader
+# opens a fresh one. A handle left readonly across step-up is otherwise
+# skipped by the next step-up checkpoint, leaving its disaggregated block-size
+# accounting stale and tripping the checkpoint-size assertion
+# (ckpt->size == __wt_block_disagg_get_size) on the second cycle. A single
+# fresh-follower step-up does not exercise this -- two full
+# leader->follower->leader cycles on the same connection are required.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog

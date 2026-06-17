@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Verify that the stable cursor lifecycle is correct when a cursor survives a
-#   step-up: the cursor was open on the follower and is reused after the same
-#   connection becomes the leader.
+# Verify that the stable cursor lifecycle is correct when a cursor survives a
+# step-up: the cursor was open on the follower and is reused after the same
+# connection becomes the leader.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

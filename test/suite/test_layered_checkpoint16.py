@@ -32,9 +32,9 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-#     Test that picking up the same checkpoint a second time does not update file metadata.
-#     The disagg_pick_up_file_meta_updated stat tracks actual metadata writes.
-#     Re-applying an identical checkpoint must leave the stat unchanged.
+# Test that picking up the same checkpoint a second time does not update file metadata.
+# The disagg_pick_up_file_meta_updated stat tracks actual metadata writes.
+# Re-applying an identical checkpoint must leave the stat unchanged.
 
 @disagg_test_class
 class test_layered_checkpoint16(wttest.WiredTigerTestCase):

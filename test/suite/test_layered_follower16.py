@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   The stable cursor on a follower must not open until the first read after the
-#   follower has picked up a checkpoint. Writes with default overwrite must never
-#   open stable; non-overwrite writes and all reads must open it.
+# The stable cursor on a follower must not open until the first read after the
+# follower has picked up a checkpoint. Writes with default overwrite must never
+# open stable; non-overwrite writes and all reads must open it.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

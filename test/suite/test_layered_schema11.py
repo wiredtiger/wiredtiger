@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-#   Test that checkpoint pickup on a follower does not recreate tables that
-#   have been locally dropped, even when those tables still appear in the
-#   shared metadata from an older checkpoint.
+# Test that checkpoint pickup on a follower does not recreate tables that
+# have been locally dropped, even when those tables still appear in the
+# shared metadata from an older checkpoint.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages

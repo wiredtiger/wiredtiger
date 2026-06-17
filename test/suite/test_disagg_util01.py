@@ -32,7 +32,6 @@ from helper_disagg import disagg_test_class
 from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
-# test_disagg_util01.py.py
 # Verify automatic pickup of the latest disaggregated checkpoint at open time:
 #  - test_leader_auto_pickup exercises the in-library leader-mode pickup.
 #  - test_follower_auto_pickup_via_wt exercises the util-driven follower
