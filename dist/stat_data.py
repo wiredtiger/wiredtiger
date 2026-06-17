@@ -235,7 +235,6 @@ conn_stats = [
     ##########################################
     # Block cache statistics
     ##########################################
-    BlockCacheStat('block_cache_app_thread_put_time', 'application thread time spent adding pages to the disaggregated victim cache (usecs)', 'no_clear'),
     BlockCacheStat('block_cache_app_thread_puts', 'pages added to the disaggregated victim cache by application threads'),
     BlockCacheStat('block_cache_blocks', 'total blocks'),
     BlockCacheStat('block_cache_blocks_evicted', 'evicted blocks'),
@@ -261,6 +260,7 @@ conn_stats = [
     BlockCacheStat('block_cache_lookups', 'lookups'),
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
+    BlockCacheStat('block_cache_put_time', 'time spent adding pages to the disaggregated victim cache (usecs)'),
 
     ##########################################
     # Block manager statistics
