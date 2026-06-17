@@ -70,6 +70,12 @@ create_test_executable(test_disagg_failover_perf
     CXX
 )
 
+create_test_executable(test_metadata_size_extract
+    SOURCES tests/test_metadata_size_extract.cpp
+    LIBS cppsuite_test_harness
+    CXX
+)
+
 if(ENABLE_ANTITHESIS)
     target_link_libraries(run wt::voidstar)
     target_link_libraries(csuite_style_example_test wt::voidstar)
@@ -80,6 +86,10 @@ add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 
 add_test(NAME csuite_style_example COMMAND csuite_style_example_test)
 set_tests_properties(csuite_style_example PROPERTIES LABELS "check;cppsuite")
+
+# Disaggregated-storage test: extracts checkpoint sizes from the metadata without WiredTiger APIs.
+add_test(NAME test_metadata_size_extract COMMAND test_metadata_size_extract)
+set_tests_properties(test_metadata_size_extract PROPERTIES LABELS "disagg")
 
 # Run this during a "ctest check" smoke test.
 set_tests_properties(cppsuite PROPERTIES LABELS "check;cppsuite")
