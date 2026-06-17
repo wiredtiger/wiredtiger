@@ -459,6 +459,7 @@ struct __wt_connection_stats {
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
+    int64_t block_cache_put_time_max;
     int64_t block_cache_not_evicted_overhead;
     int64_t block_cache_bypass_writealloc;
     int64_t block_cache_bypass_overhead_put;
