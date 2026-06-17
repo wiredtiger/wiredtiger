@@ -36,6 +36,12 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_key_provider_disagg04(KeyProviderBase):
     test_name = __qualname__
+
+    def conn_config(self):
+        # Raise disaggregated-storage verbosity to INFO so the crypt-key load message is emitted;
+        # restarts assert on it to confirm the persisted timestamp round-trips.
+        return super().conn_config() + ',verbose=[disaggregated_storage:0]'
+
     start_versions = [
         ('v0', dict(start_version=0)),
         ('v1', dict(start_version=1)),
@@ -61,6 +67,7 @@ class test_key_provider_disagg04(KeyProviderBase):
             self.push_ts += 1
             self.push_crypt_key(self.push_ts)
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.push_ts))
+            self.persisted_ts = self.push_ts
         self.session.checkpoint()
 
         # Only push mode has a known key to validate.
@@ -69,11 +76,18 @@ class test_key_provider_disagg04(KeyProviderBase):
 
     def restart_with_version(self, version):
         self.key_provider_version = version
-        self.restart_without_local_files()
+        # On restart, the persisted crypt key must load back with the timestamp it was stored with. A
+        # version 1 key carries its push timestamp, a version 0 key carries none.
+        pattern = r'Loading persisted crypt key: lsn=\d+, timestamp=%d' % self.persisted_ts
+        with self.expectedStdoutPattern(pattern, maxchars=1000000):
+            self.restart_without_local_files()
 
     def test_key_provider_version_toggle(self):
         # Monotonic push timestamp for this test; advances on each push-mode checkpoint.
         self.push_ts = 0
+
+        # Timestamp of the last persisted key; restarts assert it loads back unchanged.
+        self.persisted_ts = 0
 
         # The scenario runs start -> other -> start -> other, covering both directions.
         other_version = 1 - self.start_version
