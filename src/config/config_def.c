@@ -475,8 +475,8 @@ static const char *confchk_json_output_choices[] = {
   __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_load_control_subconfigs[] = {
-  {"control_threshold", "int", NULL, "min=10,max=200", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    288, 10, 200, NULL},
+  {"control_threshold", "int", NULL, "min=0,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
+    288, 0, 1000, NULL},
   {"enable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 287, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
@@ -4208,7 +4208,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     ",eviction_obsolete_tw_pages_dirty_max=100,"
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
-    "load_control=(control_threshold=100,enable=false),"
+    "load_control=(control_threshold=200,enable=false),"
     "log=(archive=true,os_cache_dirty_pct=0,prealloc=true,"
     "prealloc_init_count=1,remove=true,zero_fill=false),"
     "operation_timeout_ms=0,operation_tracking=(enabled=false,"
@@ -4547,7 +4547,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "in_memory=false,io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],live_restore=(enabled=false,path=,read_size=1MB,"
-    "threads_max=8),load_control=(control_threshold=100,enable=false)"
+    "threads_max=8),load_control=(control_threshold=200,enable=false)"
     ",log=(archive=true,compressor=,enabled=false,file_max=100MB,"
     "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
     ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
@@ -4620,7 +4620,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "in_memory=false,io_capacity=(chunk_cache=0,total=0),"
     "json_output=[],live_restore=(enabled=false,path=,read_size=1MB,"
-    "threads_max=8),load_control=(control_threshold=100,enable=false)"
+    "threads_max=8),load_control=(control_threshold=200,enable=false)"
     ",log=(archive=true,compressor=,enabled=false,file_max=100MB,"
     "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
     ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
@@ -4693,7 +4693,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "live_restore=(enabled=false,path=,read_size=1MB,threads_max=8),"
-    "load_control=(control_threshold=100,enable=false),"
+    "load_control=(control_threshold=200,enable=false),"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
     "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
     ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"
@@ -4765,7 +4765,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "obsolete_tw_btree_max=100),history_store=(file_max=0),"
     "io_capacity=(chunk_cache=0,total=0),json_output=[],"
     "live_restore=(enabled=false,path=,read_size=1MB,threads_max=8),"
-    "load_control=(control_threshold=100,enable=false),"
+    "load_control=(control_threshold=200,enable=false),"
     "log=(archive=true,compressor=,enabled=false,file_max=100MB,"
     "force_write_wait=0,os_cache_dirty_pct=0,path=\".\",prealloc=true"
     ",prealloc_init_count=1,recover=on,remove=true,zero_fill=false),"

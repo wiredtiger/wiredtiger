@@ -957,9 +957,11 @@ connection_runtime_config = [
             Load control will actively reject the work, based on other settings, to keep the
             system healthy.''',
             type='boolean'),
-        Config('control_threshold', '100', r'''
-            Threshold at which load control will actively start rejecting the work.''',
-            min=10, max=200),
+        Config('control_threshold', '200', r'''
+            Load level, expressed as a percentage of the cache eviction trigger (100 means at
+            the eviction trigger, 200 means twice the trigger), at or above which load control
+            sheds incoming operations. Set to 0 to disable shedding.''',
+            min=0, max=1000),
         ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',

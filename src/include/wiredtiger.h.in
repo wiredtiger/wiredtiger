@@ -2447,13 +2447,14 @@ struct __wt_connection {
      * chosen from the following options: \c "error"\, \c "message"; default \c [].}
      * @config{load_control = (, enable the load control subsystem., a set of related configuration
      * options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;control_threshold, Threshold at
-     * which load control will actively start rejecting the work., an integer between \c 10 and \c
-     * 200; default \c 100.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enable, Load control will actively
-     * reject the work\, based on other settings\, to keep the system healthy., a boolean flag;
-     * default \c false.}
-     * @config{ ),,}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;control_threshold, Load level\,
+     * expressed as a percentage of the cache eviction trigger (100 means at the eviction trigger\,
+     * 200 means twice the trigger)\, at or above which load control sheds incoming operations.  Set
+     * to 0 to disable shedding., an integer between \c 0 and \c 1000; default \c 200.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;enable, Load control will actively reject the work\, based on
+     * other settings\, to keep the system healthy., a boolean flag; default \c false.}
+     * @config{
+     * ),,}
      * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
      * session_max., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\,
@@ -3449,11 +3450,12 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{load_control = (, enable the load control subsystem., a set of related configuration
  * options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;control_threshold, Threshold at
- * which load control will actively start rejecting the work., an integer between \c 10 and \c 200;
- * default \c 100.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enable, Load control will actively reject the
- * work\, based on other settings\, to keep the system healthy., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;control_threshold, Load level\,
+ * expressed as a percentage of the cache eviction trigger (100 means at the eviction trigger\, 200
+ * means twice the trigger)\, at or above which load control sheds incoming operations.  Set to 0 to
+ * disable shedding., an integer between \c 0 and \c 1000; default \c 200.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enable, Load control will actively reject the work\, based on
+ * other settings\, to keep the system healthy., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined as follows.}

@@ -273,7 +273,7 @@
         if (API_USER_ENTRY(s) &&                                                               \
           (!F_ISSET(                                                                           \
             s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE))) { \
-            if (__wt_conn_load_control_read_overload(s)) {                                     \
+            if (__wt_conn_load_control_read_loadshed(s)) {                                     \
                 WT_STAT_CONN_INCR(s, read_reject_count);                                       \
                 (ret) = WT_ROLLBACK;                                                           \
                 goto err;                                                                      \
@@ -323,7 +323,7 @@
     TXN_API_CALL_NOCONF(s, WT_CURSOR, remove, (dh));                                               \
     if (API_USER_ENTRY(s) &&                                                                       \
       (!F_ISSET(s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE))) { \
-        if (__wt_conn_load_control_write_overload(s)) {                                            \
+        if (__wt_conn_load_control_write_loadshed(s)) {                                            \
             WT_STAT_CONN_INCR(s, write_reject_count);                                              \
             (ret) = WT_ROLLBACK;                                                                   \
             goto err;                                                                              \
@@ -336,7 +336,7 @@
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, ((WT_CURSOR_BTREE *)(cur))->dhandle);             \
     if (API_USER_ENTRY(s) &&                                                                       \
       (!F_ISSET(s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE))) { \
-        if (__wt_conn_load_control_write_overload(s)) {                                            \
+        if (__wt_conn_load_control_write_loadshed(s)) {                                            \
             WT_STAT_CONN_INCR(s, write_reject_count);                                              \
             (ret) = WT_ROLLBACK;                                                                   \
             goto err;                                                                              \
@@ -352,7 +352,7 @@
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, dh);                                              \
     if (API_USER_ENTRY(s) &&                                                                       \
       (!F_ISSET(s, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_IGNORE_CACHE_SIZE))) { \
-        if (__wt_conn_load_control_write_overload(s)) {                                            \
+        if (__wt_conn_load_control_write_loadshed(s)) {                                            \
             WT_STAT_CONN_INCR(s, write_reject_count);                                              \
             (ret) = WT_ROLLBACK;                                                                   \
             goto err;                                                                              \
