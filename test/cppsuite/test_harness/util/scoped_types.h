@@ -37,6 +37,8 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
+#include <string>
+
 extern "C" {
 #include "test_util.h"
 }

@@ -38,6 +38,7 @@
 #endif
 
 #include <mutex>
+#include <string>
 
 extern "C" {
 #include "test_util.h"
