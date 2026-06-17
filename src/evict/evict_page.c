@@ -226,11 +226,6 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       .lsn = page->disagg_info->block_meta.disagg_lsn,
     };
 
-    bool is_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
-    WT_STAT_CONN_INCR(session, block_cache_puts);
-    if (is_app_thread)
-        WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
-
     WT_IGNORE_RET(plh->plh_cache_put(
       plh, &session->iface, page->disagg_info->block_meta.page_id, 0, &args, cache_buf));
 
@@ -241,9 +236,12 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_page_header_byteswap(dsk);
 
     uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
+    WT_STAT_CONN_INCR(session, block_cache_puts);
     WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);
-    if (is_app_thread)
+    if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+        WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
         WT_STAT_CONN_INCRV(session, block_cache_app_thread_put_time, elapsed);
+    }
 }
 
 /*
