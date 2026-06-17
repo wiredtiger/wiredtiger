@@ -30,28 +30,28 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_cursor23.py
-#   When a read timestamp is set, a layered cursor must behave exactly like a classic cursor for the
-#   same logical key state. The expected outcome is determined live: each scenario loads a regular
-#   (non-layered) reference table holding the values the role's cursor sees, and the same operations
-#   run against both.
+# When a read timestamp is set, a layered cursor must behave exactly like a classic cursor for the
+# same logical key state. The expected outcome is determined live: each scenario loads a regular
+# (non-layered) reference table holding the values the role's cursor sees, and the same operations
+# run against both.
 #
-#   The four scenario flags place a visible (commit_ts < read_ts) and/or an invisible
-#   (read_ts < commit_ts) committed version on the stable and/or ingest constituent. The reference
-#   table is loaded with what the role's layered cursor sees:
-#     leader role  : stable values only (a leader disregards the ingest table);
-#     follower role: the union of stable and ingest (a value present in either constituent).
+# The four scenario flags place a visible (commit_ts < read_ts) and/or an invisible
+# (read_ts < commit_ts) committed version on the stable and/or ingest constituent. The reference
+# table is loaded with what the role's layered cursor sees:
+#   leader role  : stable values only (a leader disregards the ingest table);
+#   follower role: the union of stable and ingest (a value present in either constituent).
 #
-#   test_methods drives every write method on a single key and compares the outcomes.
-#   test_traverse brackets the scenario key with two neighbors (one visible only on ingest, one
-#   only on stable) and walks the table with next()/prev(), optionally applying a write to the
-#   current record between steps, comparing the whole sequence to the classic cursor. The neighbors
-#   ensure a mid-walk write on a follower resets the alternate constituent while the other still has
-#   keys to return -- which must not drop them from the scan.
+# test_methods drives every write method on a single key and compares the outcomes.
+# test_traverse brackets the scenario key with two neighbors (one visible only on ingest, one
+# only on stable) and walks the table with next()/prev(), optionally applying a write to the
+# current record between steps, comparing the whole sequence to the classic cursor. The neighbors
+# ensure a mid-walk write on a follower resets the alternate constituent while the other still has
+# keys to return -- which must not drop them from the scan.
 @disagg_test_class
 class test_layered_cursor23(wttest.WiredTigerTestCase):
-    uri = 'layered:test_layered_cursor23'
-    uri_ref = 'table:test_layered_cursor23_ref'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
+    uri_ref = f'table:{test_name}_ref'
     key = 'k'
     conn_base_config = ',create,statistics=(all),'
 
@@ -66,7 +66,7 @@ class test_layered_cursor23(wttest.WiredTigerTestCase):
     invis_stable_opts = [('xs1', dict(invis_stable=True)), ('xs0', dict(invis_stable=False))]
     invis_ingest_opts = [('xi1', dict(invis_ingest=True)), ('xi0', dict(invis_ingest=False))]
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor23', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, roles, overwrite_opts,
         vis_stable_opts, vis_ingest_opts, invis_stable_opts, invis_ingest_opts)
 
