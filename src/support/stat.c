@@ -1910,8 +1910,13 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of hits",
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
+  "block-cache: pages added to the disaggregated victim cache",
+  "block-cache: pages added to the disaggregated victim cache by application threads",
   "block-cache: removed blocks",
+  "block-cache: time application threads spent adding pages to the disaggregated victim cache "
+  "(usecs)",
   "block-cache: time sleeping to remove block (usecs)",
+  "block-cache: time spent adding pages to the disaggregated victim cache (usecs)",
   "block-cache: total blocks",
   "block-cache: total blocks inserted on read path",
   "block-cache: total blocks inserted on write path",
@@ -2479,6 +2484,8 @@ static const char *const __stats_connection_desc[] = {
   "disagg: apply checkpoint metadata most recent time (msecs)",
   "disagg: connection reconfiguration",
   "disagg: database size",
+  "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
@@ -3023,8 +3030,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_hits = 0;
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
+    stats->block_cache_puts = 0;
+    stats->block_cache_app_thread_puts = 0;
     stats->block_cache_blocks_removed = 0;
+    stats->block_cache_app_thread_put_time = 0;
     stats->block_cache_blocks_removed_blocked = 0;
+    stats->block_cache_put_time = 0;
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
@@ -3548,6 +3559,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_apply_checkpoint_meta_time = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
+    stats->disagg_pick_up_file_meta_updated = 0;
+    stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
@@ -4066,9 +4079,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_hits += WT_STAT_CONN_READ(from, block_cache_hits);
     to->block_cache_misses += WT_STAT_CONN_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_CONN_READ(from, block_cache_bypass_chkpt);
+    to->block_cache_puts += WT_STAT_CONN_READ(from, block_cache_puts);
+    to->block_cache_app_thread_puts += WT_STAT_CONN_READ(from, block_cache_app_thread_puts);
     to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
+    to->block_cache_app_thread_put_time += WT_STAT_CONN_READ(from, block_cache_app_thread_put_time);
     to->block_cache_blocks_removed_blocked +=
       WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
+    to->block_cache_put_time += WT_STAT_CONN_READ(from, block_cache_put_time);
     to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
@@ -4732,6 +4749,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_apply_checkpoint_meta_time);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
+    to->disagg_pick_up_file_meta_updated +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_pick_up_file_meta_inserted +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
