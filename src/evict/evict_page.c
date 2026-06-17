@@ -135,7 +135,6 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      * puts are also counted by thread role: application threads pay this on a user operation's
      * critical path under cache pressure, eviction threads pay it in the background.
      */
-    bool app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
     uint64_t time_start = __wt_clock(session);
 
     /*
@@ -226,7 +225,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       .lsn = page->disagg_info->block_meta.disagg_lsn,
     };
 
-    if (app_thread)
+    if (!F_ISSET(session, WT_SESSION_INTERNAL))
         WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
     else
         WT_STAT_CONN_INCR(session, block_cache_eviction_thread_puts);
