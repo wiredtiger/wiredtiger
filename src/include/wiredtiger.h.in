@@ -6316,61 +6316,61 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BACKUP_BLOCKS_COMPRESSED		1025
 /*! backup: total modified incremental blocks without compressed data */
 #define	WT_STAT_CONN_BACKUP_BLOCKS_UNCOMPRESSED		1026
-/*!
- * block-cache: application thread time spent adding pages to the
- * disaggregated victim cache (usecs)
- */
-#define	WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUT_TIME	1027
 /*! block-cache: cached blocks updated */
-#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE		1028
+#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_UPDATE		1027
 /*! block-cache: cached bytes updated */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYTES_UPDATE		1029
+#define	WT_STAT_CONN_BLOCK_CACHE_BYTES_UPDATE		1028
 /*!
  * block-cache: cold collection pages not added to the disaggregated
  * victim cache during eviction
  */
-#define	WT_STAT_CONN_BLOCK_CACHE_COLD_NOT_CACHED	1030
+#define	WT_STAT_CONN_BLOCK_CACHE_COLD_NOT_CACHED	1029
 /*! block-cache: evicted blocks */
-#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_EVICTED		1031
+#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_EVICTED		1030
 /*! block-cache: file size causing bypass */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE	1032
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE	1031
 /*! block-cache: lookups */
-#define	WT_STAT_CONN_BLOCK_CACHE_LOOKUPS		1033
+#define	WT_STAT_CONN_BLOCK_CACHE_LOOKUPS		1032
 /*! block-cache: number of blocks not evicted due to overhead */
-#define	WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD	1034
+#define	WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD	1033
 /*!
  * block-cache: number of bypasses because no-write-allocate setting was
  * on
  */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC	1035
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC	1034
 /*! block-cache: number of bypasses due to overhead on put */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT	1036
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT	1035
 /*! block-cache: number of bypasses on get */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET		1037
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET		1036
 /*! block-cache: number of bypasses on put because file is too small */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT		1038
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT		1037
 /*! block-cache: number of eviction passes */
-#define	WT_STAT_CONN_BLOCK_CACHE_EVICTION_PASSES	1039
+#define	WT_STAT_CONN_BLOCK_CACHE_EVICTION_PASSES	1038
 /*! block-cache: number of hits */
-#define	WT_STAT_CONN_BLOCK_CACHE_HITS			1040
+#define	WT_STAT_CONN_BLOCK_CACHE_HITS			1039
 /*! block-cache: number of misses */
-#define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1041
+#define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1040
 /*! block-cache: number of put bypasses on checkpoint I/O */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT		1042
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_CHKPT		1041
 /*!
  * block-cache: pages added to the disaggregated victim cache by
  * application threads
  */
-#define	WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUTS	1043
+#define	WT_STAT_CONN_BLOCK_CACHE_APP_THREAD_PUTS	1042
 /*!
  * block-cache: pages added to the disaggregated victim cache by eviction
  * threads
  */
-#define	WT_STAT_CONN_BLOCK_CACHE_EVICTION_THREAD_PUTS	1044
+#define	WT_STAT_CONN_BLOCK_CACHE_EVICTION_THREAD_PUTS	1043
 /*! block-cache: removed blocks */
-#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED		1045
+#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED		1044
 /*! block-cache: time sleeping to remove block (usecs) */
-#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED_BLOCKED	1046
+#define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED_BLOCKED	1045
+/*!
+ * block-cache: time spent adding pages to the disaggregated victim cache
+ * (usecs)
+ */
+#define	WT_STAT_CONN_BLOCK_CACHE_PUT_TIME		1046
 /*! block-cache: total blocks */
 #define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS			1047
 /*! block-cache: total blocks inserted on read path */

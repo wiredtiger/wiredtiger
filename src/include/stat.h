@@ -453,7 +453,6 @@ struct __wt_connection_stats {
     int64_t backup_blocks;
     int64_t backup_blocks_compressed;
     int64_t backup_blocks_uncompressed;
-    int64_t block_cache_app_thread_put_time;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
     int64_t block_cache_cold_not_cached;
@@ -473,6 +472,7 @@ struct __wt_connection_stats {
     int64_t block_cache_eviction_thread_puts;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks_removed_blocked;
+    int64_t block_cache_put_time;
     int64_t block_cache_blocks;
     int64_t block_cache_blocks_insert_read;
     int64_t block_cache_blocks_insert_write;

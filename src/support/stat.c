@@ -1895,8 +1895,6 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks",
   "backup: total modified incremental blocks with compressed data",
   "backup: total modified incremental blocks without compressed data",
-  "block-cache: application thread time spent adding pages to the disaggregated victim cache "
-  "(usecs)",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
   "block-cache: cold collection pages not added to the disaggregated victim cache during eviction",
@@ -1916,6 +1914,7 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: pages added to the disaggregated victim cache by eviction threads",
   "block-cache: removed blocks",
   "block-cache: time sleeping to remove block (usecs)",
+  "block-cache: time spent adding pages to the disaggregated victim cache (usecs)",
   "block-cache: total blocks",
   "block-cache: total blocks inserted on read path",
   "block-cache: total blocks inserted on write path",
@@ -3014,7 +3013,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->backup_blocks = 0;
     stats->backup_blocks_compressed = 0;
     stats->backup_blocks_uncompressed = 0;
-    /* not clearing block_cache_app_thread_put_time */
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
     stats->block_cache_cold_not_cached = 0;
@@ -3034,6 +3032,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_eviction_thread_puts = 0;
     stats->block_cache_blocks_removed = 0;
     stats->block_cache_blocks_removed_blocked = 0;
+    stats->block_cache_put_time = 0;
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
@@ -4061,7 +4060,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks += WT_STAT_CONN_READ(from, backup_blocks);
     to->backup_blocks_compressed += WT_STAT_CONN_READ(from, backup_blocks_compressed);
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
-    to->block_cache_app_thread_put_time += WT_STAT_CONN_READ(from, block_cache_app_thread_put_time);
     to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
     to->block_cache_cold_not_cached += WT_STAT_CONN_READ(from, block_cache_cold_not_cached);
@@ -4084,6 +4082,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
     to->block_cache_blocks_removed_blocked +=
       WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
+    to->block_cache_put_time += WT_STAT_CONN_READ(from, block_cache_put_time);
     to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
