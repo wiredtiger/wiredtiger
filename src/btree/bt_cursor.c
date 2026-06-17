@@ -543,13 +543,7 @@ __cursor_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 
 /*
  * __cursor_truncate_nontxn --
- *     Non-transactional remove for truncate: insert a globally visible tombstone. Mirrors the
- *     history store's __curhs_remove_int --
- *     the tombstone carries WT_TXN_NONE/WT_TS_NONE (from the zeroed allocation) and is applied
- *     through the upd_arg path of __wt_{row,col}_modify, so it bypasses __wt_txn_modify entirely:
- *     no transaction id is stamped and no transaction op is recorded. The delete is therefore
- *     visible to everyone immediately rather than depending on a transaction becoming globally
- *     visible later.
+ *     Non-transactional remove for truncate: insert a globally visible tombstone.
  */
 static WT_INLINE int
 __cursor_truncate_nontxn(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
@@ -570,11 +564,6 @@ __cursor_truncate_nontxn(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modif
         ret =
           __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false);
 
-    /*
-     * On the upd_arg path the update is only linked into the chain on success; on failure
-     * (including WT_RESTART, which the truncate walker retries) the caller owns it and must free
-     * it.
-     */
     if (ret != 0)
         __wt_free(session, tombstone);
     return (ret);
@@ -1954,8 +1943,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         /*
          * A non-transactional truncate writes globally visible tombstones that cannot be rolled
          * back, so it must not be logged: there would be no in-memory operations to undo on
-         * recovery. Callers only set this for in-memory, unlogged tables (e.g. the layered ingest
-         * table during step-up).
+         * recovery.
          */
         WT_ASSERT(session, !logging);
         WT_ERR(__wt_cursor_truncate(start, stop, __cursor_truncate_nontxn));

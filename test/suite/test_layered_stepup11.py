@@ -31,7 +31,7 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered_stepup11.py
-# The step-up ingest-table clear writes non-transactional, globally visible tombstones,
+# The step-up ingest-table clear should write non-transactional, globally visible tombstones,
 # so eviction reconciling the cleared ingest table under a concurrent pinned reader should succeed.
 @disagg_test_class
 class test_layered_stepup11(wttest.WiredTigerTestCase):
@@ -50,7 +50,7 @@ class test_layered_stepup11(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    # The crash path is eviction-only (it asserts WT_REC_EVICT), so force eviction.
+    # The crash path is eviction-only, so force eviction.
     def evict_ingest(self, session):
         evict_cursor = session.open_cursor(self.ingest_uri, None, "debug=(release_evict)")
         for i in range(self.nitems):
@@ -63,8 +63,7 @@ class test_layered_stepup11(wttest.WiredTigerTestCase):
     def test_ingest_clear_evict_with_pinned_reader(self):
         ts = 10
 
-        # Write as a follower so the keys live only in the ingest table, with no
-        # on-disk value behind them.
+        # Write as a follower so the keys live only in the ingest table.
         self.session.create(self.uri, self.create_config)
         self.conn.reconfigure('disaggregated=(role="follower")')
 

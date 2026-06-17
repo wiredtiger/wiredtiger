@@ -138,11 +138,10 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     WT_RET(__wt_txn_begin(session, NULL));
 
     /*
-     * Make the truncate write WT_TXN_NONE/WT_TS_NONE tombstones (like the history store) instead of
-     * transactional ones: they are globally visible to everyone immediately rather than only once
-     * this transaction commits, which avoids an eviction thread reconciling an ingest page whose
-     * deletes are not yet globally visible during step-up. WT_TXN_TS_NOT_SET keeps the timestamp
-     * consistency checks happy for the non-timestamped deletes.
+     * Clearing the ingest table is final and owned by no transaction, so the truncate writes
+     * non-transactional WT_TXN_NONE/WT_TS_NONE tombstones: the deletes are globally visible to
+     * every reader immediately. WT_TXN_TS_NOT_SET satisfies the timestamp checks for the
+     * non-timestamped deletes.
      */
     F_SET(session->txn, WT_TXN_TS_NOT_SET | WT_TXN_NON_TRANSACTIONAL_TRUNCATE);
 
