@@ -173,9 +173,8 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     LOG_DEBUG(kp, session, "Current key: LSN=%" PRIu64 ", key_time=%" PRIu64 ", size=%" PRIzu,
       kp->state.lsn, kp->state.key_time, kp->state.key_size);
 
-    LOG_INFO(kp, session,
-      "Loading key for LSN=%" PRIu64 ", timestamp=%" PRIu64 ", size=%" PRIzu, crypt->r.lsn,
-      crypt->timestamp, crypt->keys.size);
+    LOG_INFO(kp, session, "Loading key for LSN=%" PRIu64 ", timestamp=%" PRIu64 ", size=%" PRIzu,
+      crypt->r.lsn, crypt->timestamp, crypt->keys.size);
 
     assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
