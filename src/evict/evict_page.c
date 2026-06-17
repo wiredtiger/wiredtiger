@@ -131,13 +131,12 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * Time the victim-cache work done by application threads: this compression, checksum and put
-     * sit on a user operation's critical path, reached only because the cache is already under
-     * pressure. Eviction threads do the same work in the background, so only the application-thread
-     * cost is worth measuring.
+     * Time the victim-cache work - compression, checksum and put - to track its average cost. The
+     * puts are also counted by thread role: application threads pay this on a user operation's
+     * critical path under cache pressure, eviction threads pay it in the background.
      */
     bool app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
-    uint64_t time_start = app_thread ? __wt_clock(session) : 0;
+    uint64_t time_start = __wt_clock(session);
 
     /*
      * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
@@ -241,9 +240,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Swap page header back to native order. */
         __wt_page_header_byteswap(dsk);
 
-    if (time_start != 0)
-        WT_STAT_CONN_INCRV(session, block_cache_app_thread_put_time,
-          WT_CLOCKDIFF_US(__wt_clock(session), time_start));
+    WT_STAT_CONN_INCRV(
+      session, block_cache_put_time, WT_CLOCKDIFF_US(__wt_clock(session), time_start));
 }
 
 /*
