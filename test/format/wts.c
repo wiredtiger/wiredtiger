@@ -710,6 +710,10 @@ precise_checkpoint_init(void)
      * be set. Set it to the minimum value, which should not interfere with any later operations.
      */
     timestamp_once(session, false, false);
+
+    /* The create-time connection is checkpointed on close; push mode needs a key to persist. */
+    disagg_key_push_initial(session);
+
     testutil_check(session->close(session, NULL));
 }
 

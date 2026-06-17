@@ -63,6 +63,76 @@ key_push_history_append(wt_timestamp_t ts)
 }
 
 /*
+ * disagg_key_push --
+ *     Push a new key one timestamp above the given floor, recording it on success. Returns EINVAL
+ *     without recording when stable advanced past the chosen timestamp, leaving the caller to
+ *     retry.
+ */
+static int
+disagg_key_push(
+  WT_SESSION *session, WT_KEY_PROVIDER *kp, wt_timestamp_t floor_ts, wt_timestamp_t *push_tsp)
+{
+    WT_CRYPT_KEYS crypt;
+    WT_DECL_RET;
+    wt_timestamp_t push_ts;
+    char key_buf[64];
+
+    push_ts = floor_ts + 1;
+
+    WT_CLEAR(crypt);
+    testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
+    crypt.keys.data = key_buf;
+    crypt.keys.size = strlen(key_buf);
+    crypt.timestamp = push_ts;
+
+    if ((ret = kp->set_key(kp, session, &crypt)) == EINVAL)
+        return (EINVAL);
+    testutil_check(ret);
+
+    key_push_history_append(push_ts);
+    *push_tsp = push_ts;
+    return (0);
+}
+
+/*
+ * disagg_key_push_initial --
+ *     Push a first key on the leader before the create-time connection is checkpointed. In push
+ *     mode the key provider has no persisted KEK page until a checkpoint drains a pushed key whose
+ *     timestamp is at or below the checkpoint timestamp, and a checkpoint taken before that asserts
+ *     on the missing page. set_key requires a timestamp above stable, so advance stable to the
+ *     pushed key for the checkpoint to drain it.
+ */
+void
+disagg_key_push_initial(WT_SESSION *session)
+{
+    WT_CONNECTION *conn;
+    WT_KEY_PROVIDER *kp;
+    wt_timestamp_t push_ts;
+    char ts_buf[WT_TS_HEX_STRING_SIZE + 24];
+
+    if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH || !g.disagg_leader)
+        return;
+
+    conn = session->connection;
+    testutil_check(conn->get_key_provider(conn, &kp));
+
+    /*
+     * The caller set stable via timestamp_once, and no committers run at create time, so the push
+     * above stable cannot race.
+     */
+    testutil_check(disagg_key_push(session, kp, g.stable_timestamp, &push_ts));
+
+    /*
+     * set_key requires a timestamp above stable, but the create-time checkpoint only persists a key
+     * at or below its (stable) timestamp. Advance stable to the pushed key so the checkpoint drains
+     * it, otherwise the key provider page is never written and the checkpoint asserts.
+     */
+    testutil_snprintf(ts_buf, sizeof(ts_buf), "stable_timestamp=%" PRIx64, (uint64_t)push_ts);
+    testutil_check(conn->set_timestamp(conn, ts_buf));
+    g.stable_timestamp = push_ts;
+}
+
+/*
  * expected_kek_ts --
  *     The expected persisted timestamp for a checkpoint, the latest pushed timestamp at or below
  *     the checkpoint timestamp, or WT_TS_NONE if none was pushed.
@@ -230,13 +300,10 @@ WT_THREAD_RET
 disagg_key_rotation(void *arg)
 {
     SAP sap;
-    WT_CRYPT_KEYS crypt;
-    WT_DECL_RET;
     WT_KEY_PROVIDER *kp;
     WT_SESSION *session;
     wt_timestamp_t last_push_ts, push_ts, stable_ts;
     u_int counter, secs;
-    char key_buf[64];
 
     (void)arg;
 
@@ -257,22 +324,12 @@ disagg_key_rotation(void *arg)
         secs = mmrand(&g.extra_rnd, 1, 5);
 
         WT_ACQUIRE_READ_WITH_BARRIER(stable_ts, g.stable_timestamp);
-        push_ts = WT_MAX(stable_ts, last_push_ts) + 1;
-
-        WT_CLEAR(crypt);
-        testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
-        crypt.keys.data = key_buf;
-        crypt.keys.size = strlen(key_buf);
-        crypt.timestamp = push_ts;
 
         /* Stable can pass push_ts between the read and the call, so a benign EINVAL just retries.
          */
-        ret = kp->set_key(kp, session, &crypt);
-        if (ret == EINVAL)
+        if (disagg_key_push(session, kp, WT_MAX(stable_ts, last_push_ts), &push_ts) == EINVAL)
             continue;
-        testutil_check(ret);
         last_push_ts = push_ts;
-        key_push_history_append(push_ts);
         trace_msg(session, "key rotation #%u pushed timestamp %" PRIu64, ++counter, push_ts);
 
         /* Validate pushed key list against latest checkpoint. */
