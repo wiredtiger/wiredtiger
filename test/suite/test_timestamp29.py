@@ -29,7 +29,6 @@
 # test_timestamp29.py
 #   Timestamps: Test setting and querying the stable disaggregated schema epoch.
 
-import time
 import wiredtiger, wttest
 from wiredtiger import stat
 
@@ -41,16 +40,6 @@ class test_timestamp29(wttest.WiredTigerTestCase):
             self.conn.query_timestamp('get=stable_disaggregated_schema_epoch'),
             self.timestamp_str(expected_ts))
 
-    def assertStatEqual(self, stat_name, expected_value, retries=10):
-        # Stats may be updated asynchronously, so retry a few times if the expected value is not
-        # observed.
-        for attempt in range(retries):
-            value = self.get_stat(stat_name)
-            if value == expected_value:
-                return
-            if attempt < retries - 1:
-                time.sleep(0.1)
-        self.assertEqual(value, expected_value)
 
     def test_base(self):
         '''
@@ -66,8 +55,8 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         self.assertEpochEqual(10)
 
         # Stats: one call, one update.
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 1)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 1)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 1)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 1)
 
         # Advance the epoch forward, which is a legal transition.
         self.conn.set_timestamp(
@@ -75,8 +64,8 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         self.assertEpochEqual(20)
 
         # Stats: two calls, two updates.
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 2)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 2)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
 
         # Setting the epoch to its current value is a no-op (not an error, not an update).
         self.conn.set_timestamp(
@@ -84,8 +73,8 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         self.assertEpochEqual(20)
 
         # Stats: three calls, still two updates.
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 3)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 3)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
 
         # Moving the epoch backwards is illegal.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -98,8 +87,8 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         self.assertEpochEqual(20)
 
         # Stats: call counter increments even on failed backward attempt; upd counter does not.
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 4)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 4)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
 
         # Setting zero is not permitted.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -109,8 +98,8 @@ class test_timestamp29(wttest.WiredTigerTestCase):
 
         # The epoch was not changed, but the call stat was still incremented.
         self.assertEpochEqual(20)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 5)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 5)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 2)
 
         # The epoch can be set together with other timestamps in one call.
         self.conn.set_timestamp(
@@ -124,8 +113,8 @@ class test_timestamp29(wttest.WiredTigerTestCase):
             self.conn.query_timestamp('get=oldest_timestamp'), self.timestamp_str(10))
 
         # Stats: six calls, three updates.
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 6)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 3)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 6)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 3)
 
         # The epoch has no ordering constraint relative to oldest or stable timestamps.
         # It can be set above, equal to, or below either of them.
@@ -137,5 +126,5 @@ class test_timestamp29(wttest.WiredTigerTestCase):
         self.assertEpochEqual(100)
 
         # Stats: eight calls, five updates.
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch, 8)
-        self.assertStatEqual(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 5)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch, 8)
+        self.assertStatEqualSoon(stat.conn.txn_set_ts_stable_disagg_epoch_upd, 5)

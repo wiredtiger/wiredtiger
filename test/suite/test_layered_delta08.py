@@ -30,7 +30,6 @@ import random, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
-import time
 
 
 # test_layered_delta08.py
@@ -60,14 +59,10 @@ class test_layered_delta08(wttest.WiredTigerTestCase):
 
     def verify_stat(self):
         # Assert that we have deleted at least one internal key page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal_key_deleted][2], 0)
-        stat_cursor.close()
+        self.assertGreater(self.get_stat(stat.dsrc.rec_page_delta_internal_key_deleted, self.uri), 0)
 
         # Assert that we have written at least one internal page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal][2], 0)
-        stat_cursor.close()
+        self.assertGreater(self.get_stat(stat.dsrc.rec_page_delta_internal, self.uri), 0)
 
     def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)

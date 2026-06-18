@@ -1009,7 +1009,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         finally:
             shutil.rmtree(path, ignore_errors=True)
 
-    def get_stat(self, stat, uri="", session=None):
+    def get_stat(self, stat, uri="", session=None, conn=None):
+        if conn is not None:
+            session = conn.open_session('')
+            val = session.open_cursor(f'statistics:{uri}')[stat][2]
+            session.close()
+            return val
         if session is None:
             session = self.session
         stat_cursor = session.open_cursor(f'statistics:{uri}')
@@ -1038,8 +1043,23 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 return
             if time.time() >= deadline:
                 break
-            time.sleep(0.01)
+            time.sleep(0.1)
         self.assertGreater(val, threshold, msg)
+
+    def assertStatEqualSoon(self, stat, expected, uri="", session=None, timeout=0.5, msg=None):
+        """Assert that a statistic equals expected within timeout seconds, retrying if needed."""
+        if session is None:
+            session = self.session
+        deadline = time.time() + timeout
+        val = None
+        while True:
+            val = self.get_stat(stat, uri=uri, session=session)
+            if val == expected:
+                return
+            if time.time() >= deadline:
+                break
+            time.sleep(0.1)
+        self.assertEqual(val, expected, msg)
 
     def checkpoint_and_verify_stats(self, expected_changes, uri, session=None, timeout=0.5):
         if session is None:

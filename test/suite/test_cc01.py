@@ -76,18 +76,14 @@ class test_cc_base(wttest.WiredTigerTestCase):
     # Trigger checkpoint cleanup. The function waits for checkpoint cleanup to make progress before
     # exiting.
     def wait_for_cc_to_run(self, ckpt_name = ""):
-        c = self.session.open_cursor('statistics:')
-        cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
-        c.close()
+        cc_success = prev_cc_success = self.get_stat(stat.conn.checkpoint_cleanup_success)
         ckpt_config = "debug=(checkpoint_cleanup=true)"
         if ckpt_name:
             ckpt_config += f",name={ckpt_name}"
         self.session.checkpoint(ckpt_config)
         while cc_success - prev_cc_success == 0:
             time.sleep(0.1)
-            c = self.session.open_cursor('statistics:')
-            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
-            c.close()
+            cc_success = self.get_stat(stat.conn.checkpoint_cleanup_success)
 
     # Trigger checkpoint clean up and check it has visited and removed pages.
     def check_cc_stats(self, ckpt_name = ""):
