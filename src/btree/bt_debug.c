@@ -54,7 +54,7 @@ static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *, uint32_t);
 static int __debug_disagg_image(
   WT_SESSION_IMPL *, uint64_t, WT_ITEM *, WT_ITEM **, const WT_PAGE_HEADER **);
 static int __debug_disk_delta(
-  WT_SESSION_IMPL *, const WT_PAGE_HEADER *, const WT_PAGE_HEADER *, const char *, bool, bool);
+  WT_SESSION_IMPL *, const WT_PAGE_HEADER *, const WT_PAGE_HEADER *, const char *);
 static int __debug_modify(WT_DBG *, const uint8_t *);
 static int __debug_page(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *);
@@ -477,8 +477,8 @@ __debug_disagg_image(WT_SESSION_IMPL *session, uint64_t page_id, WT_ITEM *result
  *     path.
  */
 int
-__wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
-  const char *ofile, bool dump_all_data, bool dump_key_data)
+__wt_debug_disagg_page_id(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_BTREE *btree;
@@ -549,12 +549,11 @@ __wt_debug_disagg_page_id(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t l
         if (i == 0) {
             WT_ERR(__debug_disagg_image(
               session, page_id, &results[i], &base_decompressed, &base_display));
-            WT_TRET(__wti_debug_disk(session, base_display, ofile, dump_all_data, dump_key_data));
+            WT_TRET(__wti_debug_disk(session, base_display, ofile, false, false));
         } else {
             WT_ERR(__debug_disagg_image(
               session, page_id, &results[i], &delta_decompressed, &delta_display));
-            WT_TRET(__debug_disk_delta(
-              session, base_display, delta_display, ofile, dump_all_data, dump_key_data));
+            WT_TRET(__debug_disk_delta(session, base_display, delta_display, ofile));
             __wt_scr_free(session, &delta_decompressed);
         }
     }
@@ -945,22 +944,15 @@ __debug_cell_delta_int(WT_DBG *ds, WT_CELL_UNPACK_DELTA_INT *unpack)
  */
 static int
 __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
-  const WT_PAGE_HEADER *delta_dsk, const char *ofile, bool dump_all_data, bool dump_key_data)
+  const WT_PAGE_HEADER *delta_dsk, const char *ofile)
 {
     WT_DBG *ds, _ds;
     WT_DECL_RET;
-    uint32_t flags;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
     ds = &_ds;
-    flags = 0;
-    WT_ASSERT(session, !(dump_all_data && dump_key_data));
-    if (dump_all_data)
-        LF_SET(WT_DEBUG_UNREDACT_ALL);
-    if (dump_key_data)
-        LF_SET(WT_DEBUG_UNREDACT_KEYS);
-    WT_RET(__debug_config(session, ds, ofile, flags));
+    WT_RET(__debug_config(session, ds, ofile, 0));
 
     WT_ERR(ds->f(ds,
       "- delta page (underlying: %s)\n"

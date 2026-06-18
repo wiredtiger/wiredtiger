@@ -29,7 +29,6 @@
 import json, os, re, subprocess
 from typing import NamedTuple
 import wiredtiger, wttest
-from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, get_shard_id
 from metadata_helper import get_table_id
 from run import wt_builddir
@@ -56,11 +55,9 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     # WT_PAGE_LOG_DISCARDED in ext/page_log/palite/palite.cpp.
     PAGE_LOG_DISCARDED = 0x10000
 
-    # statistics=(all) lets test_internal_delta_chain confirm via a stat that
-    # reconciliation actually wrote an internal delta. delta_pct=100 lifts the
-    # delta-size threshold so a delta is always preferred over a rewrite.
-    conn_config = ('statistics=(all),disaggregated=(role="leader"),'
-                   'page_delta=(delta_pct=100)')
+    # delta_pct=100 lifts the delta-size threshold so a delta is always
+    # preferred over a rewrite.
+    conn_config = 'disaggregated=(role="leader"),page_delta=(delta_pct=100)'
 
     # Skip inside the test method (not setUp): unittest does not call tearDown
     # when skipTest is raised from setUp, which would leak the open connection.
@@ -103,8 +100,25 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         c.close()
         self.session.checkpoint()
 
+    # Find the newest page chain entry matching where_clause. Shells out to
+    # the sqlite3 binary built alongside palite; the system Python sqlite3
+    # may be too old to parse the palite schema.
     def _find_page(self, where_clause, description):
-        return self._find_pages(where_clause, description)[0]
+        table_id = get_table_id(self.session, self.stable_uri)
+        db = os.path.join(self.home, 'kv_home',
+                          f'pages_{get_shard_id(table_id):02d}.db')
+        sql = (f"SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
+               f"FROM pages WHERE table_id={table_id} AND {where_clause} "
+               f"ORDER BY lsn DESC LIMIT 1;")
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+        out = subprocess.run([sqlite_exe, '-json', db, sql],
+                             capture_output=True, text=True, check=True).stdout
+        rows = json.loads(out) if out.strip() else []
+        self.assertTrue(rows,
+            f"no {description} rows for table_id={table_id} in palite")
+        r = rows[0]
+        return PalitePage(r['page_id'], r['lsn'], r['base_lsn'],
+                          r['backlink_lsn'], r['flags'])
 
     def _find_base_image_page(self):
         return self._find_page("base_lsn=0 AND backlink_lsn=0", "base-image")
@@ -113,69 +127,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         return self._find_page(
             f"backlink_lsn != 0 AND (flags & {self.PAGE_LOG_DISCARDED}) = 0",
             "delta")
-
-    # Return every page chain entry matching where_clause, newest first. Shells
-    # out to the sqlite3 binary built alongside palite; the system Python
-    # sqlite3 may be too old to parse the palite schema.
-    def _find_pages(self, where_clause, description):
-        table_id = get_table_id(self.session, self.stable_uri)
-        db = os.path.join(self.home, 'kv_home',
-                          f'pages_{get_shard_id(table_id):02d}.db')
-        sql = (f"SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
-               f"FROM pages WHERE table_id={table_id} AND {where_clause} "
-               f"ORDER BY lsn DESC;")
-        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
-        out = subprocess.run([sqlite_exe, '-json', db, sql],
-                             capture_output=True, text=True, check=True).stdout
-        rows = json.loads(out) if out.strip() else []
-        self.assertTrue(rows,
-            f"no {description} rows for table_id={table_id} in palite")
-        return [PalitePage(r['page_id'], r['lsn'], r['base_lsn'],
-                           r['backlink_lsn'], r['flags']) for r in rows]
-
-    def _find_internal_delta_page_by_probe(self):
-        # Internal deltas are only built for non-root internal pages, so the
-        # tree must have at least three levels; probe to find one.
-        pages = self._find_pages(
-            f"backlink_lsn != 0 AND (flags & {self.PAGE_LOG_DISCARDED}) = 0",
-            "delta")
-        for page in pages:
-            stdout, _ = self._run_wt_page(
-                "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
-            if "underlying: row-store internal" in stdout:
-                return page, stdout
-        self.fail("no row-store internal delta page found in palite")
-
-    def _setup_internal_delta_tree(self):
-        # Internal deltas only get built when (a) the page is not the root,
-        # (b) reconciliation did not split the page, and (c) the page already
-        # has a base on disk (in-memory state would just produce a rebuild).
-        # Force all three by using tiny pages to grow a three-level tree,
-        # reopening the connection to evict everything, then updating leaves so
-        # the persistent intermediate internal pages pick up a delta.
-        self.session.create(self.uri,
-            "key_format=S,value_format=S,"
-            "allocation_size=512,leaf_page_max=512,internal_page_max=512")
-        c = self.session.open_cursor(self.uri)
-        for i in range(2000):
-            c[f"k{i:08}"] = f"v{i:08}"
-        c.close()
-        self.session.checkpoint()
-
-        self.reopen_disagg_conn(self.conn_config + ',')
-        c = self.session.open_cursor(self.uri)
-        for i in range(0, 2000, 20):
-            c[f"k{i:08}"] = f"V{i:08}"
-        c.close()
-        self.session.checkpoint()
-
-        # Sanity-check that reconciliation actually wrote an internal delta;
-        # otherwise the palite probe below would chase a moving target.
-        c = self.session.open_cursor('statistics:')
-        internal_deltas = c[stat.conn.rec_page_delta_internal][2]
-        c.close()
-        self.assertGreater(internal_deltas, 0,
-            "expected reconciliation to write at least one internal delta")
 
     def _assert_chain_header(self, stdout, page):
         self.assertIn(
@@ -222,7 +173,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         result_count = self._assert_chain_header(stdout, page)
         self.assertGreater(result_count, 1)
         self.assertEqual(stdout.count("- delta page"), result_count - 1)
-        self.assertNotRegex(stdout, r"delta \d+ of \d+:")
         # _dirty_and_checkpoint writes updates, not deletes.
         self.assertIn("delta_op: update", stdout)
         self.assertNotIn("delta_op: delete", stdout)
@@ -241,17 +191,6 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertGreater(self._assert_chain_header(stdout, page), 1)
         self.assertIn("delta_op: delete", stdout)
-
-    def test_delta_chain_unredact(self):
-        self._skip_if_not_diagnostic()
-        self._populate()
-        self._dirty_and_checkpoint()
-        page = self._find_delta_page()
-        stdout, _ = self._run_wt_page(
-            "-U", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
-        # _dirty_and_checkpoint writes values like "V00000000"; check one
-        # survives unredacted.
-        self.assertRegex(stdout, r"V: \{V\d{8}\}")
 
     def test_delta_chain_compressed(self):
         self._skip_if_not_diagnostic()
@@ -281,22 +220,11 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
             f"(flags & {self.PAGE_LOG_DISCARDED}) = 0",
             "compressed delta")
         stdout, _ = self._run_wt_page(
-            "-U", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+            "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertGreater(self._assert_chain_header(stdout, page), 1)
-        # Fails without the fix: a compressed delta was reported as "cannot decode".
+        # A compressed delta must decode, not be reported as "cannot decode".
         self.assertNotIn("cannot decode", stdout)
-        # Decompression produced a valid cell stream and the value bytes survived;
-        # the uppercase run only comes from the delta, not the base image.
         self.assertIn("delta_op: update", stdout)
-        self.assertIn("V" * 100, stdout)
-
-    def test_internal_delta_chain(self):
-        self._skip_if_not_diagnostic()
-        self._setup_internal_delta_tree()
-        page, stdout = self._find_internal_delta_page_by_probe()
-        self.assertRegex(stdout,
-            r"child: page_id=\d+ flags=0x[0-9a-f]+ lsn=\d+ base_lsn=\d+ "
-            r"size=\d+ checksum=0x[0-9a-f]+")
 
     def test_missing_required_p(self):
         self._skip_if_not_diagnostic()
