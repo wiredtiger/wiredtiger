@@ -1153,6 +1153,7 @@ ikey
 im
 img
 impl
+incompressible
 incr
 incrementals
 incrementing
@@ -1308,6 +1309,7 @@ mb
 mbll
 mbss
 mci
+md
 mdb
 mem
 memadvise
@@ -1526,6 +1528,7 @@ proc
 progname
 programmatically
 prout
+providerp
 proxied
 prunable
 ps

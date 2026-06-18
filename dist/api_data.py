@@ -193,11 +193,7 @@ connection_reconfigure_disaggregated_configuration = [
         type='category', subconfig=connection_disaggregated_config_common),
 ]
 wiredtiger_open_page_delta_configuration = connection_page_delta_config
-connection_reconfigure_page_delta_configuration = [
-    Config('page_delta', '', r'''
-        configure page delta settings for this connection''',
-        type='category', subconfig=connection_page_delta_config_common),
-]
+connection_reconfigure_page_delta_configuration = connection_page_delta_config
 
 format_meta = common_meta + [
     Config('key_format', 'u', r'''
@@ -1549,6 +1545,12 @@ wiredtiger_open = wiredtiger_open_common + [
         type='boolean'),
     Config('exclusive', 'false', r'''
         fail if the database already exists, generally used with the \c create option''',
+        type='boolean'),
+    Config('extensions_strict', 'false', r'''
+        if true, fail ::wiredtiger_open with \c EINVAL when an early-loaded extension
+        recorded in \c WiredTiger.basecfg is not passed in the open configuration. The
+        default is to log a warning and continue with the extension absent. See @ref
+        extensions_loadable''',
         type='boolean'),
     Config('in_memory', 'false', r'''
         keep data in memory only. See @ref in_memory for more information''',
