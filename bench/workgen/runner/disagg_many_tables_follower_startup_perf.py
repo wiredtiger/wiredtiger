@@ -26,38 +26,31 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# disagg_many_dhandle_startup_perf.py
-#   Disagg follower startup performance benchmark for the many-dhandle case.
+# disagg_many_tables_follower_startup_perf.py
+#   Disagg follower startup performance benchmark for the many-table case.
 #   Measures how long it takes a fresh follower to (a) open and (b) ingest a
-#   checkpoint produced by a leader that just created N layered tables. Cost
-#   scales primarily with the number of dhandles materialized during pickup.
+#   checkpoint produced by a leader that just created N layered tables.
 #
 #     Phase 1 (leader):    create N layered tables, light timestamped populate,
 #                          checkpoint, capture checkpoint_meta from PALI, close.
 #     Phase 2 (follower):  open the same home as a follower (no checkpoint_meta
-#                          on the open call)  timed in isolation, then drive
-#                          the pickup separately via reconfigure(checkpoint_meta=)
-#                           also timed. A brief read workload follows to
-#                          exercise first-cursor-open lazy ingest creation.
+#                          on the open call) timed in isolation, then drive
+#                          the pickup separately via reconfigure(checkpoint_meta=),
+#                          also timed.
 #
 #   Both phases run against the same WT home directory and the same PALI store
 #   (kv_home/, auto-created by palite under <home>/). When the follower opens
 #   after the leader has closed, disaggregated.local_files_action=delete (the
 #   default) wipes the leader's leftover .wt / .wt_ingest files while kv_home/
-#   stays put  that's where the checkpoint we're picking up actually lives.
+#   stays put where the checkpoint we're picking up actually lives.
 #
 #   --skip-setup skips phase 1 (use when a leader has already populated <home>
-#   and checkpointed). Phase 2 opens the follower, obtains checkpoint_meta (see
-#   below), runs pickup, and counts tables via the metadata cursor (no
-#   --num-tables). Mutually exclusive with --num-tables.
-#
-#   Checkpoint meta for --skip-setup is loaded in order: (1) --checkpoint-meta-file,
-#   (2) sidecar <home>/disagg_many_dhandle_checkpoint_meta written by phase 1 of
-#   this script, (3) pl_get_complete_checkpoint on the follower (requires a
-#   populated kv_home/checkpoints.db from the same leader run). Opening the
-#   follower creates an empty kv_home if it is missing, which yields WT_NOTFOUND
-#   for (3); copy the leader's kv_home/ (or use a sidecar / meta file from the
-#   leader) before skip-setup.
+#   and checkpointed). Phase 2 opens the follower, obtains checkpoint_meta via
+#   pl_get_complete_checkpoint on the follower (PALI under <home>/kv_home/ from
+#   the same leader run), runs pickup, and counts tables via the metadata cursor
+#   (no --num-tables). Mutually exclusive with --num-tables. If kv_home/ is
+#   missing or empty, follower open creates a fresh PALI store and lookup returns
+#   WT_NOTFOUND; copy the leader's entire kv_home/ under the home before skip-setup.
 #
 #   Env: WT_BUILDDIR must point at the build dir containing
 #        ext/page_log/palite/libwiredtiger_palite.so.
@@ -75,8 +68,6 @@ KEYS_PER_TABLE = 5            # tiny populate so tables are non-empty
 
 PAGE_LOG = "palite"
 TABLE_PREFIX = "test_disagg_pickup_"
-# Phase 1 writes this UTF-8 sidecar so --skip-setup can avoid PALI lookup.
-CHECKPOINT_META_SIDECAR = "disagg_many_dhandle_checkpoint_meta"
 
 # ----------------------------------------------------------------------
 # Set up home. We use a single WT home for both the leader and the follower:
@@ -92,9 +83,7 @@ _setup_group.add_argument("--num-tables", dest="num_tables", type=int, default=N
     help="Number of layered tables the leader creates (default: 10000; not allowed with --skip-setup)")
 _setup_group.add_argument("--skip-setup", dest="skip_setup", action="store_true",
     help="Skip phase 1; run phase 2 only against an existing home. Table count is derived from metadata after pickup.")
-context.parser.add_argument("--checkpoint-meta-file", dest="checkpoint_meta_file", type=str, default=None,
-    help="With --skip-setup only: read checkpoint_meta text from this file instead of PALI (when set).")
-# Preserve the existing home (sidecar + kv_home/) when skipping phase 1.
+# Preserve the existing home (kv_home/ and WT files) when skipping phase 1.
 # --keep must be in sys.argv before initialize() calls parse_args() and rmtree.
 if "--skip-setup" in sys.argv and "--keep" not in sys.argv:
     sys.argv.append("--keep")
@@ -102,8 +91,6 @@ context.initialize()           # parses all args, creates args.home
 home = context.args.home
 
 SKIP_SETUP = context.args.skip_setup
-if context.args.checkpoint_meta_file and not SKIP_SETUP:
-    raise RuntimeError("--checkpoint-meta-file is only valid with --skip-setup")
 if SKIP_SETUP:
     NUM_TABLES = None
 else:
@@ -129,16 +116,6 @@ base_conn_config = (
 )
 
 
-def read_checkpoint_meta_utf8(path):
-    with open(path, "rb") as f:
-        return f.read().decode("utf-8", errors="surrogateescape")
-
-
-def write_checkpoint_meta_utf8(path, ckpt_meta):
-    with open(path, "wb") as f:
-        f.write(ckpt_meta.encode("utf-8", errors="surrogateescape"))
-
-
 def fetch_checkpoint_meta(conn):
     # Latest complete-checkpoint blob from PALI via the page log.
     print("  fetching checkpoint_meta from PALI")
@@ -150,13 +127,11 @@ def fetch_checkpoint_meta(conn):
         if "WT_NOTFOUND" not in str(ex):
             raise
         kv = os.path.join(home, "kv_home", "checkpoints.db")
-        side = os.path.join(home, CHECKPOINT_META_SIDECAR)
         raise RuntimeError(
             "pl_get_complete_checkpoint: WT_NOTFOUND (no completed checkpoint in PALI). "
             "Follower open with an empty or missing kv_home creates a new empty PALI store. "
-            "Copy the leader's entire kv_home/ under this home, re-run phase 1 of this script "
-            f"(which writes the sidecar {CHECKPOINT_META_SIDECAR}), or use --checkpoint-meta-file. "
-            f"Expected PALI DB roughly at: {kv} ; sidecar: {side}"
+            "Copy the leader's entire kv_home/ under this home (or run phase 1 here first). "
+            f"Expected PALI DB roughly at: {kv}"
         ) from ex
     finally:
         page_log.terminate(meta_session)
@@ -241,30 +216,16 @@ else:
     print(f"  checkpoint completed in {time.time()-t0:.1f}s")
 
     ckpt_meta = fetch_checkpoint_meta(leader_conn)
-    sidecar_path = os.path.join(home, CHECKPOINT_META_SIDECAR)
-    write_checkpoint_meta_utf8(sidecar_path, ckpt_meta)
-    print(f"  wrote checkpoint_meta sidecar {CHECKPOINT_META_SIDECAR}")
 
     leader_conn.close()
     print("  leader closed")
 
 # ----------------------------------------------------------------------
-# Phase 2: follower opens with checkpoint_meta. Time wiredtiger_open only.
+# Phase 2: times follower open, and reconfigure with checkpoint_meta.
 # ----------------------------------------------------------------------
 print("=" * 70)
 print("Phase 2: follower picking up the checkpoint")
 print("=" * 70)
-
-ckpt_meta_skip = None
-if SKIP_SETUP:
-    if context.args.checkpoint_meta_file:
-        print(f"  reading checkpoint_meta from {context.args.checkpoint_meta_file}")
-        ckpt_meta_skip = read_checkpoint_meta_utf8(context.args.checkpoint_meta_file)
-    else:
-        _sidecar = os.path.join(home, CHECKPOINT_META_SIDECAR)
-        if os.path.isfile(_sidecar):
-            print(f"  reading checkpoint_meta from sidecar {_sidecar}")
-            ckpt_meta_skip = read_checkpoint_meta_utf8(_sidecar)
 
 # Open the follower WITHOUT checkpoint_meta first, so the open call does no
 # pickup work  this isolates pure connection-open cost.
@@ -281,7 +242,7 @@ print(f"  WIREDTIGER_OPEN (no pickup) took {open_elapsed:.2f}s")
 print(f"PERF wiredtiger_open_no_pickup_secs: {open_elapsed:.4f}")
 
 if SKIP_SETUP:
-    ckpt_meta = ckpt_meta_skip if ckpt_meta_skip is not None else fetch_checkpoint_meta(follower_conn)
+    ckpt_meta = fetch_checkpoint_meta(follower_conn)
 
 # Now drive the checkpoint pickup via reconfigure. This matches MongoDB's
 # real usage (control plane hands the follower a checkpoint_meta after open)
@@ -299,10 +260,14 @@ if SKIP_SETUP:
     NUM_TABLES = count_tables_uri_prefix(follower_conn, table_uri_prefix)
     print(f"  derived num_tables from metadata: {NUM_TABLES} ({table_uri_prefix}*)")
 
-# Linearly walk every table on the follower: open cursor (triggers lazy
-# ingest creation on first touch), check that the keys we wrote on the
-# leader read back, close. We time the whole loop  that's the materialize-
-# all-ingest-tables cost, complementing the pickup-only number above.
+# ----------------------------------------------------------------------
+# Phase 3: uncomment below to time a brief workload, if we switch to
+# first-cursor-open lazy ingest creation.
+# Linearly walk every table on the follower: open cursor, check that the keys
+# we wrote on the leader read back, close. We time the whole loop that's the
+# materialize-all-ingest-tables cost, complementing the pickup-only number above.
+# ----------------------------------------------------------------------
+#
 # print(f"  reading every table on the follower (linear, timed)")
 # follower_session = follower_conn.open_session()
 # read_t0 = time.time()

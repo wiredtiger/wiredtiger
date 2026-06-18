@@ -6158,7 +6158,7 @@ tasks:
         vars:
           test-name: cache_workload_update_trigger.py
 
-  - name: perf-disagg-many-dhandle-startup
+  - name: perf-disagg-many-tables-follower-startup
     depends_on:
       - name: compile
     commands:
@@ -6172,15 +6172,15 @@ tasks:
           test_type: workgen
           exec_path: ${python_binary|python3}
           perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: disagg_many_dhandle_startup_perf.py
+          perf-test-name: disagg_many_tables_follower_startup_perf.py
           maxruns: 1
           wtarg: -ops ['"wiredtiger_open_no_pickup", "reconfigure_pickup"'] -args '["--num-tables", "500000"]'
       - func: "upload stats to atlas"
         vars:
-          test-name: disagg_many_dhandle_startup_perf.py
+          test-name: disagg_many_tables_follower_startup_perf.py
       - func: "upload stats to evergreen"
         vars:
-          test-name: disagg_many_dhandle_startup_perf.py
+          test-name: disagg_many_tables_follower_startup_perf.py
 
     ###########################################
     # Performance Tests for log consolidation #
