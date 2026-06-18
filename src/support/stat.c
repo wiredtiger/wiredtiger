@@ -51,7 +51,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: overflow pages",
   "btree: row-store empty values",
   "btree: row-store internal pages",
-  "btree: row-store leaf page average entries (approximate)",
+  "btree: row-store leaf page recent average entries (EWMA)",
   "btree: row-store leaf pages",
   "btree: row-store leaf pages (approximate, incremental)",
   "btree: time spent walking the tree for checkpoint including dirty page reconciliation time "

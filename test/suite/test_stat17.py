@@ -120,9 +120,8 @@ class test_stat17(wttest.WiredTigerTestCase):
             'btree_row_leaf_avg_entries %d too high vs exact avg %d'
             % (approx_avg, exact_avg))
 
-    # After a tree walk (statistics=(all)), btree_row_leaf_pages in the stat
-    # cursor must equal the exact btree_row_leaf count. The walk corrects the
-    # approximate counter to the exact value and re-emits it into the cursor.
+    # After a tree walk (statistics=(all)), both btree_row_leaf_pages and
+    # btree_row_leaf_avg_entries must equal the exact values from the walk.
     def test_corrected_by_tree_walk(self):
         self.session.create(self.uri, self.create_params)
         self._insert(self.nrows)
@@ -130,17 +129,22 @@ class test_stat17(wttest.WiredTigerTestCase):
 
         sc = self.session.open_cursor('statistics:' + self.uri, None,
                                       'statistics=(all)')
-        exact     = sc[stat.dsrc.btree_row_leaf][2]
-        corrected = sc[stat.dsrc.btree_row_leaf_pages][2]
+        exact_pages   = sc[stat.dsrc.btree_row_leaf][2]
+        exact_entries = sc[stat.dsrc.btree_entries][2]
+        corrected_pages = sc[stat.dsrc.btree_row_leaf_pages][2]
+        corrected_avg   = sc[stat.dsrc.btree_row_leaf_avg_entries][2]
         sc.close()
 
-        self.assertGreater(exact, 0)
-        self.assertEqual(corrected, exact,
+        self.assertGreater(exact_pages, 0)
+        self.assertEqual(corrected_pages, exact_pages,
             'btree_row_leaf_pages (%d) must equal btree_row_leaf (%d) after tree walk'
-            % (corrected, exact))
+            % (corrected_pages, exact_pages))
+        self.assertEqual(corrected_avg, exact_entries // exact_pages,
+            'btree_row_leaf_avg_entries (%d) must equal exact avg (%d) after tree walk'
+            % (corrected_avg, exact_entries // exact_pages))
 
-    # After a tree walk corrects approx_leaf_pages in memory, a subsequent
-    # fast-stat read (no walk) must return the corrected value.
+    # After a tree walk corrects both counters in memory, subsequent fast-stat
+    # reads (no walk) must return the corrected values.
     def test_correction_persists_in_memory(self):
         self.session.create(self.uri, self.create_params)
         self._insert(self.nrows)
@@ -148,14 +152,19 @@ class test_stat17(wttest.WiredTigerTestCase):
 
         sc = self.session.open_cursor('statistics:' + self.uri, None,
                                       'statistics=(all)')
-        exact = sc[stat.dsrc.btree_row_leaf][2]
+        exact_pages   = sc[stat.dsrc.btree_row_leaf][2]
+        exact_entries = sc[stat.dsrc.btree_entries][2]
         sc.close()
 
         fast_pages = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages)
+        fast_avg   = self._dsrc_stat(stat.dsrc.btree_row_leaf_avg_entries)
 
-        self.assertEqual(fast_pages, exact,
+        self.assertEqual(fast_pages, exact_pages,
             'fast read after tree-walk correction should return %d, got %d'
-            % (exact, fast_pages))
+            % (exact_pages, fast_pages))
+        self.assertEqual(fast_avg, exact_entries // exact_pages,
+            'fast avg after tree-walk correction should return %d, got %d'
+            % (exact_entries // exact_pages, fast_avg))
 
     # Both stats must survive a server restart. The checkpoint during the
     # insert run saves the values; after reopen they are restored from the

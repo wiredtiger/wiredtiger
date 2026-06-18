@@ -9166,7 +9166,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * statistics are enabled
  */
 #define	WT_STAT_DSRC_BTREE_ROW_INTERNAL			2047
-/*! btree: row-store leaf page average entries (approximate) */
+/*! btree: row-store leaf page recent average entries (EWMA) */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF_AVG_ENTRIES		2048
 /*!
  * btree: row-store leaf pages, only reported if tree_walk or all
