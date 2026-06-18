@@ -1,0 +1,712 @@
+#!/usr/bin/env python3
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+#
+# wt_usage_view
+#       View WiredTiger per-btree "usage" statistics captured in mongod FTDC.
+#       A leaderboard of the busiest btrees, each expandable into a compact card:
+#       a 7-op x 5-position activity matrix (rendered as magnitude/position
+#       glyphs over real counts) plus per-level key sizes and value size.
+
+import argparse
+import curses
+import datetime
+import math
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from py_common import ftdc_usage as fu  # noqa: E402
+
+# Read ops, then a visual divider, then write ops -- separating reads from writes.
+READ_COLS = ["search", "search_near"]
+WRITE_COLS = ["insert", "insert_overwrite", "update", "modify", "remove"]
+OP_LABEL = {
+    "search": "srch", "search_near": "near", "insert": "ins",
+    "insert_overwrite": "over", "update": "upd", "modify": "mod", "remove": "rem",
+}
+COL_W = 7          # width of one op column
+RW_GAP = "    "    # divider between the read group and the write group
+INDENT = "    "
+
+# Position center-of-mass -> a slope cell whose glyph *and* horizontal offset encode
+# the lean: '/' sits at column 0, '|' at 1, '\' at 2, with '/|' and '|\' spanning.
+_SLOPE_CELL = [(0.7, "/"), (1.5, "/|"), (2.5, " |"), (3.3, " |\\"), (99, "  \\")]
+# Key levels top-to-bottom (paired with the magnitude/label/slope/value rows).
+LEVEL_ROWS = [("i3", "I3+"), ("i2", "I2"), ("i1", "I1"), ("leaf", "L")]
+BRACKETS = [(1, "top"), (2, "top2"), (4, "top4"), (8, "top8"), (16, "top16")]
+
+# An underlined '+' renders the "plus or minus" spread (the most inclusive glyph).
+PM = "\x1b[4m+\x1b[24m"
+_ESC = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def vlen(s):
+    return len(_ESC.sub("", s))
+
+
+def vljust(s, w):
+    return s + " " * max(0, w - vlen(s))
+
+
+def humanize(v):
+    """Two-to-three significant figures with K/M/G/T suffix; plain below 1000."""
+    v = int(v)
+    if v < 1000:
+        return str(v)
+    for unit, div in (("T", 1e12), ("G", 1e9), ("M", 1e6), ("K", 1e3)):
+        if v >= div:
+            scaled = v / div
+            return ("%.1f%s" % (scaled, unit)) if scaled < 10 else ("%d%s" % (round(scaled), unit))
+    return str(v)
+
+
+def mag_glyph(v):
+    """Order-of-magnitude glyph: dots for thousands (.=1e3, ..=1e4, ...=1e5),
+    stars for millions and up (*=1e6, **=1e7, ...). Blank below 1000."""
+    if v < 1000:
+        return ""
+    e = int(math.floor(math.log10(v)))
+    return ("." * (e - 2)) if e < 6 else ("*" * (e - 5))
+
+
+def slope_cell(weights):
+    """Map a five-bucket position distribution to a slope cell (glyph + offset)."""
+    tot = sum(weights)
+    if tot == 0:
+        return ""
+    com = sum(i * w for i, w in enumerate(weights)) / tot
+    for cutoff, cell in _SLOPE_CELL:
+        if com < cutoff:
+            return cell
+    return "  \\"
+
+
+def fold_size(stats):
+    """Render an (mean, sd, n) triple as 'mean (<u>+</u>sd)', flagging small n."""
+    mean, sd, n = stats
+    if n <= 0:
+        return ""
+    s = "%s (%s%s)" % (humanize(round(mean)), PM, humanize(round(sd)))
+    if n < fu.Btree.SMALL_N:
+        s += " <<"
+    return s
+
+
+def aggregate(intervals):
+    """Sum a set of interval snapshots into one btree-id -> Btree dict."""
+    out = {}
+    for iv in intervals:
+        for bid, bt in iv.btrees.items():
+            agg = out.get(bid)
+            if agg is None:
+                agg = out[bid] = fu.Btree(bid, bt.uri)
+            agg.add(bt)
+    return out
+
+
+def brackets(intervals):
+    """For each btree id, the headline (pct, label): the tightest bracket it sits
+    in for >=50% of intervals, else its raw top-16 presence."""
+    n = len(intervals) or 1
+    counts = {}  # bid -> {K: intervals ranked <= K}
+    for iv in intervals:
+        ranked = sorted(iv.btrees.values(), key=lambda b: b.op_total(), reverse=True)
+        for pos, bt in enumerate(ranked, start=1):
+            c = counts.setdefault(bt.id, {k: 0 for k, _ in BRACKETS})
+            for k, _ in BRACKETS:
+                if pos <= k:
+                    c[k] += 1
+    out = {}
+    for bid, c in counts.items():
+        chosen = None
+        for k, label in BRACKETS:
+            if c[k] / n >= 0.5:
+                chosen = (round(100 * c[k] / n), label)
+                break
+        if chosen is None:
+            chosen = (round(100 * c[16] / n), "top16")
+        out[bid] = chosen
+    return out
+
+
+def header_line(rank, bt, hl):
+    pct, label = hl
+    name = bt.uri if bt.id >= 0 else ("(HS)" if bt.id == -1 else "(random)")
+    rf = bt.read_frac()
+    readstr = "%d%% read" % round(rf * 100) if rf is not None else "  -  "
+    tag = "(%d%% %s)" % (pct, label) if bt.id >= 0 else "(%s)" % name
+    head = "#%-2d %-13s %-26s %9s %6s" % (rank, tag, name[:26], readstr, humanize(bt.access_total()))
+    if bt.is_column_store():
+        head += "  [COLUMN-STORE]"  # unusual for MongoDB (collections are row-store)
+    return head
+
+
+# Trees that split far fewer pages into many more (>= this factor) grow fast on a small footprint --
+# worth flagging in the leaderboard's one-line collapsed view.
+_SPLIT_FLAG_FACTOR = 10
+
+
+def split_factor(bt):
+    """Resulting pages / splitting pages, closest integer, or None when there were no splits."""
+    sp = bt.split
+    return round(sp["pages"] / sp["count"]) if sp["count"] else None
+
+
+def collapsed_tail(bt):
+    """Trailing magnitude glyph for the collapsed view, plus a split-factor flag for fast-growing
+    trees. The glyph is padded so the flags line up across rows despite the glyph's varying width."""
+    glyph = mag_glyph(bt.access_total())
+    f = split_factor(bt)
+    if f is not None and f >= _SPLIT_FLAG_FACTOR:
+        return "  %-3s  %dx splits" % (glyph, f)
+    return "  " + glyph
+
+
+def _op_row(cell_fn):
+    """Lay out one op row: read group, divider gap, write group."""
+    read = "".join("%-*s" % (COL_W, cell_fn(o)) for o in READ_COLS)
+    write = "".join("%-*s" % (COL_W, cell_fn(o)) for o in WRITE_COLS)
+    return INDENT + read + RW_GAP + write
+
+
+# Width of the op block, and the column where the "|" divider (and the level
+# table / keysz-valuesz headers to its right) begins -- a little past the block.
+_LEFT_W = len(INDENT) + len(READ_COLS) * COL_W + len(RW_GAP) + len(WRITE_COLS) * COL_W
+_DIV_COL = _LEFT_W + 5
+
+# Split summary line. Its indent is normally _LEFT_W so it sits under the right of the card, but is
+# pulled left when even the widest case (5-char humanized numbers, a 2-digit factor) would overflow
+# a 100-column screen. A pathological larger value still overflows, which is acceptable.
+_SPLIT_FMT = "splits: ~%s keys/P   %s -> %s P : %sx"
+_SPLIT_INDENT = " " * max(0, min(_LEFT_W, 100 - len(_SPLIT_FMT % ("1000K", "1000K", "1000K", "99"))))
+
+
+def card_body(bt):
+    """The four-row op matrix (magnitude / labels / slope / values) joined with
+    the right-hand four-row key/value-size level table."""
+    def mag(o):
+        return mag_glyph(bt.op_total_for(o))
+
+    def lab(o):
+        return OP_LABEL[o]
+
+    def slope(o):
+        return slope_cell(bt.op_by_position(o)) if bt.op_total_for(o) else ""
+
+    def val(o):
+        t = bt.op_total_for(o)
+        return humanize(t) if t else ""
+
+    left = [_op_row(mag), _op_row(lab), _op_row(slope), _op_row(val)]
+
+    right = []
+    for (lvl, lbl) in LEVEL_ROWS:
+        ks = fold_size(bt.key_stats(lvl))
+        if lvl == "leaf":
+            vs = fold_size(bt.val_stats())
+            cell = vljust(ks, 16) + vs if vs else ks
+        else:
+            cell = ks
+        right.append(("%-4s %s" % (lbl, cell)).rstrip())
+    rows = [("%-*s | %s" % (_DIV_COL, left[i], right[i])).rstrip() for i in range(4)]
+    # Blank line, then the split summary: estimated keys per splitting page, splitting-pages ->
+    # resulting-pages, and the split factor (resulting / splitting, closest integer). Just
+    # "splits:" when there were none.
+    sp = bt.split
+    rows.append("")
+    if sp["count"]:
+        rows.append(_SPLIT_INDENT + _SPLIT_FMT % (
+            humanize(round(sp["keys"] / sp["count"])), humanize(sp["count"]),
+            humanize(sp["pages"]), split_factor(bt)))
+    else:
+        rows.append(_SPLIT_INDENT + "splits:")
+    return rows
+
+
+def _iso(ms):
+    return datetime.datetime.utcfromtimestamp(ms / 1000).isoformat() if ms else "?"
+
+
+def _aggregate_window(timeline, ws, we):
+    """Aggregate one timeline's intervals within [ws, we] into ranked btrees,
+    dropping the idle (0-traffic) detail slots. The snapshot always publishes a
+    fixed set of slots, so idle leftovers would otherwise show as noise."""
+    ivs = [iv for iv in timeline.intervals if ws <= iv.ts_ms <= we]
+    aggr = aggregate(ivs)
+    hl = brackets(ivs)
+    ordered = sorted((b for b in aggr.values() if b.access_total() > 0),
+                     key=lambda b: b.access_total(), reverse=True)
+    active = max((iv.active_count for iv in ivs), default=0)
+    ver = max((iv.version for iv in ivs), default=0)
+    return ordered, hl, active, ver
+
+
+def _section_header(label, n_shown, active, ver, ws, we, ts_fn, zoom_desc=None):
+    # "btrees shown" (distinct in the window) and "active per interval" are different
+    # measures -- over a window more distinct btrees pass through the slots than are
+    # busy in any single interval -- so report them separately, not as "X of Y".
+    head = "%s: %d btrees shown" % (label, n_shown)
+    if active:
+        head += ", up to %d active per interval" % active
+    head += "  [%s .. %s]" % (ts_fn(ws), ts_fn(we))
+    if ver:
+        head += "  (usage v%d)" % ver
+    if zoom_desc:
+        head += "  (%s)" % zoom_desc
+    return head
+
+
+def render(sections, expanded):
+    """Static report: each section rendered over its own full span."""
+    out = ["=" * 100]
+    for label, tl in sections:
+        t0, t1 = tl.span_ms()
+        ordered, hl, active, ver = _aggregate_window(tl, t0, t1)
+        out.append(_section_header(label, len(ordered), active, ver, t0, t1, _iso))
+        out.append("")
+        for rank, bt in enumerate(ordered, start=1):
+            h = header_line(rank, bt, hl.get(bt.id, (0, "top16"))).rstrip()
+            if expanded:
+                out.append(vljust(vljust(h, _DIV_COL + 8) + "keysz", _DIV_COL + 24) + "valuesz")
+                out.extend(card_body(bt))
+                out.append("")
+            else:
+                out.append(h + collapsed_tail(bt))
+        out.append("=" * 100)
+    return "\n".join(out)
+
+
+def _ts(ms):
+    return datetime.datetime.utcfromtimestamp(ms / 1000).strftime("%H:%M:%S") if ms else "?"
+
+
+def _strip(s):
+    return _ESC.sub("", s)
+
+
+class Zoom:
+    """A flat zoom over the timeline. At level L the whole span is divided into
+    SPLIT**L equal parts and one is selected by absolute index; there is no tree.
+    ctrl-down/up change the level (split more/less), ctrl-left/right pan the index
+    across the entire range (not bounded by any parent)."""
+
+    SPLIT = 4
+    MIN_PART_MS = 1000  # don't zoom finer than ~1s, the FTDC sample resolution
+
+    def __init__(self, t0, t1):
+        self.t0, self.t1 = t0, t1
+        self.level = 0
+        self.index = 0
+
+    def parts(self):
+        return self.SPLIT ** self.level
+
+    def window(self):
+        span = (self.t1 - self.t0) / self.parts()
+        return (self.t0 + self.index * span, self.t0 + (self.index + 1) * span)
+
+    def zoom_in(self):
+        if (self.t1 - self.t0) / (self.parts() * self.SPLIT) < self.MIN_PART_MS:
+            return False
+        self.level += 1
+        self.index *= self.SPLIT  # land on the first sub-part of the current window
+        return True
+
+    def zoom_out(self):
+        if self.level == 0:
+            return False
+        self.level -= 1
+        self.index //= self.SPLIT
+        return True
+
+    def pan(self, delta):
+        nidx = self.index + delta
+        if nidx < 0 or nidx >= self.parts():
+            return False
+        self.index = nidx
+        return True
+
+    def describe(self):
+        if self.level == 0:
+            return "whole span"
+        return "level %d, part %d/%d" % (self.level, self.index + 1, self.parts())
+
+
+def _build_items(sections, zoom, expanded):
+    """Navigable items across all sections for the current (global) zoom window.
+    Each item is {anchor, body, bid, sec}; section headers have bid=None. The
+    expanded map is keyed by (section_index, btree_id) since ids repeat per node."""
+    ws, we = zoom.window()
+    items = []
+    for si, (label, tl) in enumerate(sections):
+        ordered, hl, active, ver = _aggregate_window(tl, ws, we)
+        head = _section_header(label, len(ordered), active, ver, ws, we, _ts, zoom.describe())
+        items.append({"anchor": head, "body": [], "bid": None, "sec": si})
+        for rank, bt in enumerate(ordered, start=1):
+            h = header_line(rank, bt, hl.get(bt.id, (0, "top16"))).rstrip()
+            if expanded.get((si, bt.id), False):
+                anchor = vljust(vljust(h, _DIV_COL + 8) + "keysz", _DIV_COL + 24) + "valuesz"
+                body = card_body(bt)
+            else:
+                anchor = h + collapsed_tail(bt)
+                body = []
+            items.append({"anchor": anchor, "body": body, "bid": bt.id, "sec": si})
+    return items
+
+
+_HINTS = "Arrow keys or jk move   space expand   shift-arrow or HJKL time   ? help   q quit"
+
+# Custom keycodes for shift-arrows (above curses.KEY_MAX so they never collide).
+_SHIFT_UP, _SHIFT_DOWN, _SHIFT_RIGHT, _SHIFT_LEFT = 1001, 1002, 1003, 1004
+
+
+def _define_shift_arrows():
+    """Map the shift-arrow escape sequences (xterm '1;2' modifier, and the 'O'
+    form) to custom keycodes. Time nav also has the HJKL fallback, so terminals
+    that don't forward shift-arrows still work."""
+    seqs = {
+        "\x1b[1;2A": _SHIFT_UP, "\x1b[1;2B": _SHIFT_DOWN,
+        "\x1b[1;2C": _SHIFT_RIGHT, "\x1b[1;2D": _SHIFT_LEFT,
+        "\x1bO1;2A": _SHIFT_UP, "\x1bO1;2B": _SHIFT_DOWN,
+        "\x1bO1;2C": _SHIFT_RIGHT, "\x1bO1;2D": _SHIFT_LEFT,
+    }
+    define = getattr(curses, "define_key", None)
+    if define is None:
+        return
+    for seq, code in seqs.items():
+        try:
+            define(seq, code)
+        except curses.error:
+            pass
+
+
+def _setup_colors():
+    """Black text on a light MongoDB-leaf-green background, with a brighter-green
+    row highlight. Returns (normal_attr, highlight_attr) or None if no color."""
+    if not curses.has_colors():
+        return None
+    curses.start_color()
+    try:
+        if curses.can_change_color() and curses.COLORS > 17:
+            curses.init_color(16, 843, 1000, 843)   # pale leaf  (~#d7ffd7)
+            curses.init_color(17, 686, 1000, 686)   # brighter leaf for the cursor row
+            norm_bg, hi_bg = 16, 17
+        elif curses.COLORS >= 256:
+            norm_bg, hi_bg = 194, 157                # xterm-256 light greens
+        else:
+            norm_bg, hi_bg = curses.COLOR_GREEN, curses.COLOR_GREEN
+        curses.init_pair(1, curses.COLOR_BLACK, norm_bg)
+        curses.init_pair(2, curses.COLOR_BLACK, hi_bg)
+        return curses.color_pair(1), curses.color_pair(2)
+    except curses.error:
+        return None
+
+
+# The '?' help page. Kept verbatim (exact spacing / content / ordering); do not reflow.
+HELP_TEXT = r"""=-=-=-=-=-=  Navigation and Commands  =-=-=-=-=-=
+
+  j  Down-Arrow    down one                  J  Shift-Down-Arrow    split timeline (by 4)
+  k  Up-Arrow      up one                    K  Shift-Up-Arrow      join timeline (by 4)
+  space            expand/collapse           H  Shift-Left-Arrow    one step earlier in timeline
+                                             L  Shift-Right-Arrow   one step later in timeline
+  ?                help page
+  q                quit
+
+=-=-=-=-=-=  Leaderboard  =-=-=-=-=-=
+
+  #1  (51% top2)    collection_a06e3c71_e483_4  68% read    15M **
+
+          Shows position in leaderboard, position over time, btree name,
+          read percentage, total activity in time period, activity magnitude
+
+=-=-=-=-=-=  Activity Magnitude  =-=-=-=-=-=
+
+  .       1K or more              *       1M or more
+  ..      10K or more             **      10M or more
+  ...     100K or more            ***     100M or more
+
+=-=-=-=-=-=  Expanded view  =-=-=-=-=-=
+
+  **                *                           ...
+  srch   near       ins    over   upd    mod    rem
+   |\                 \                         /
+  10M               4.8M                        915K
+
+           Read operations: search and search_near
+           Write operations: insert, insert that overwrites, update, modify, remove
+
+  /        left leaf activity (lower keys)
+  /|       near left side
+   |       mid tree
+   |\      near right
+    \      right leaf page
+
+=-=-=-=-=-=  Keys and Values  =-=-=-=-=-=
+
+       keysz           valuesz
+  I3+  9 (+0) <<                             Level 3 and above internal
+  I2   11 (+1)                               Level 2 internal nodes
+  I1   13 (+2)                               Lowest internal nodes
+  L    30 (+6)         205.7K (+617)         Leaf key and value size average, with variance.
+
+  << indicates tiny sample size
+
+=-=-=-=-=-=  Splits  =-=-=-=-=-=
+
+  splits: ~5.2K keys/P   22K -> 345K P : 14x
+
+  5.2K keys per page at the time of split. Approximations based in part on skip list depths.
+  22K pages split into 345K pages, or about a 14x split factor.
+
+=-=-=-=-=-=-=-=-=-=-=
+
+  wt_usage_viewer version 0.1
+
+  "Usage" statistics gathered are approximate, based on 1 in N (often 1000) operations being sampled."""
+
+
+def _show_help(stdscr, attr):
+    """Scrollable '?' help overlay; the page content is fixed, only the viewport moves."""
+    lines = HELP_TEXT.split("\n")
+    top = 0
+    while True:
+        stdscr.erase()
+        h, w = stdscr.getmaxyx()
+        for row in range(h - 1):
+            if top + row >= len(lines):
+                break
+            try:
+                stdscr.addstr(row, 0, lines[top + row][:w - 1], attr)
+            except curses.error:
+                pass
+        foot = "j/k or arrows scroll   space page   q or ? to close"
+        try:
+            stdscr.addstr(h - 1, 0, foot[:w - 1], attr | curses.A_BOLD)
+        except curses.error:
+            pass
+        stdscr.refresh()
+        c = stdscr.getch()
+        maxtop = max(0, len(lines) - (h - 1))
+        if c in (ord("q"), ord("?"), 27):
+            return
+        elif c in (ord("j"), curses.KEY_DOWN):
+            top = min(top + 1, maxtop)
+        elif c in (ord("k"), curses.KEY_UP):
+            top = max(top - 1, 0)
+        elif c == ord(" "):
+            top = min(top + (h - 1), maxtop)
+
+
+def run_tui(stdscr, sections):
+    curses.curs_set(0)
+    stdscr.keypad(True)
+    _define_shift_arrows()
+    colors = _setup_colors()
+    if colors:
+        normal_attr, hi_attr = colors
+        stdscr.bkgd(" ", normal_attr)
+    else:
+        normal_attr, hi_attr = curses.A_NORMAL, curses.A_REVERSE
+    zoom = Zoom(*_global_span(sections))  # one time axis shared across all sections
+    expanded = {}      # (section_index, bid) -> bool
+    cursor = 0         # index into the navigable items
+    top = 0            # first display line shown (vertical scroll)
+    while True:
+        items = _build_items(sections, zoom, expanded)
+        cursor = max(0, min(cursor, len(items) - 1))
+
+        # Flatten to display lines, remembering each line's owning item + anchor.
+        lines = []  # (text, item_index, is_anchor)
+        for ii, it in enumerate(items):
+            lines.append((it["anchor"], ii, True))
+            for b in it["body"]:
+                lines.append((b, ii, False))
+            if it["body"]:
+                lines.append(("", ii, False))  # blank line below an expanded card
+        # Scroll so the whole cursor item is visible -- its header *and*, when expanded,
+        # its card body -- not just the header line. If the item is taller than the
+        # screen, anchor it to the top so at least the card starts on screen.
+        h, w = stdscr.getmaxyx()
+        body_h = h - 1
+        owned = [i for i, ln in enumerate(lines) if ln[1] == cursor]
+        first, last = owned[0], owned[-1]
+        if first < top:
+            top = first
+        elif last >= top + body_h:
+            top = last - body_h + 1
+            if first < top:  # item taller than the screen: show its start
+                top = first
+
+        stdscr.erase()
+        for row in range(body_h):
+            li = top + row
+            if li >= len(lines):
+                break
+            text, ii, is_anchor = lines[li]
+            text = _strip(text)[:w - 1]
+            if ii == cursor and is_anchor:
+                text = text.ljust(w - 1)  # extend the highlight across the row
+                attr = hi_attr
+            else:
+                attr = normal_attr
+            try:
+                stdscr.addstr(row, 0, text, attr)
+            except curses.error:
+                pass
+        try:
+            stdscr.addstr(h - 1, 0, _HINTS[:w - 1], normal_attr | curses.A_BOLD)
+        except curses.error:
+            pass
+        stdscr.refresh()
+
+        c = stdscr.getch()
+        if c == ord("q"):
+            break
+        elif c == ord("?"):
+            _show_help(stdscr, normal_attr)
+        elif c in (ord("j"), 14, curses.KEY_DOWN):  # move cursor down
+            cursor = min(len(items) - 1, cursor + 1)
+        elif c in (ord("k"), 16, curses.KEY_UP):    # move cursor up
+            cursor = max(0, cursor - 1)
+        elif c == ord(" "):
+            it = items[cursor]
+            sec = it["sec"]
+            if it["bid"] is None:
+                # Section header: collapse all in this section if any expanded, else expand all.
+                in_sec = [x for x in items if x["bid"] is not None and x["sec"] == sec]
+                any_exp = any(expanded.get((sec, x["bid"])) for x in in_sec)
+                for x in in_sec:
+                    expanded[(sec, x["bid"])] = not any_exp
+            else:
+                expanded[(sec, it["bid"])] = not expanded.get((sec, it["bid"]), False)
+        elif c in (_SHIFT_RIGHT, curses.KEY_SRIGHT, ord("L")):  # pan time forward
+            if not zoom.pan(1):
+                curses.beep()
+        elif c in (_SHIFT_LEFT, curses.KEY_SLEFT, ord("H")):    # pan time backward
+            if not zoom.pan(-1):
+                curses.beep()
+        elif c in (_SHIFT_DOWN, ord("J")):                      # split more (finer)
+            if not zoom.zoom_in():
+                curses.beep()
+        elif c in (_SHIFT_UP, ord("K")):                        # split less (coarser)
+            if not zoom.zoom_out():
+                curses.beep()
+
+
+def _expand_paths(paths):
+    """Expand directories to the metrics.* files within (skipping interim files)."""
+    out = []
+    for p in paths:
+        if os.path.isdir(p):
+            for root, _, files in os.walk(p):
+                for f in files:
+                    if f.startswith("metrics.") and "interim" not in f:
+                        out.append(os.path.join(root, f))
+        else:
+            out.append(p)
+    return sorted(out)
+
+
+def _node_key(path):
+    """A stable per-node key from the file path: a 'mongod.N' segment if present
+    (DSI preserves it), else the parent directory name."""
+    m = re.search(r"mongod\.\d+", path)
+    if m:
+        return m.group(0)
+    return os.path.basename(os.path.dirname(path)) or os.path.basename(path)
+
+
+def _global_span(sections):
+    spans = [tl.span_ms() for _, tl in sections if tl.intervals]
+    if not spans:
+        return (0, 0)
+    return (min(s[0] for s in spans), max(s[1] for s in spans))
+
+
+_ROLE_ORDER = {"primary": 0, "secondary": 1, "unknown": 2}
+
+
+def load_sections(paths, label_override=None):
+    """Load metrics files/directories, group by node, merge each node's files by
+    time, and return [(label, timeline)] sorted primary-first."""
+    bynode = {}
+    for f in _expand_paths(paths):
+        try:
+            tl = fu.load(f)
+        except Exception:
+            continue  # not a readable FTDC file; skip it
+        if tl.intervals:
+            bynode.setdefault(_node_key(f), []).append(tl)
+    nodes = []
+    for node, tls in bynode.items():
+        merged = fu.merge_timelines(tls)
+        nodes.append((node, fu.timeline_role(merged), merged))
+    nodes.sort(key=lambda n: (_ROLE_ORDER.get(n[1], 2), n[0]))
+    sections = []
+    scount = 0
+    for node, role, tl in nodes:
+        if label_override and len(nodes) == 1:
+            lbl = label_override
+        elif role == "primary":
+            lbl = "Primary [%s]" % node
+        elif role == "secondary":
+            scount += 1
+            lbl = "Secondary S%d [%s]" % (scount, node)
+        else:
+            lbl = "[%s]" % node
+        sections.append((lbl, tl))
+    return sections
+
+
+def main():
+    ap = argparse.ArgumentParser(description="View WiredTiger btree usage stats from mongod FTDC.")
+    ap.add_argument("metrics", nargs="+",
+                    help="FTDC metrics.* file(s) or directories (one per replica; grouped by node)")
+    ap.add_argument("--collapsed", action="store_true", help="one line per btree (leaderboard only)")
+    ap.add_argument("--print", dest="print_static", action="store_true",
+                    help="print a static report instead of the interactive viewer")
+    ap.add_argument("--label", default=None, help="override the section label (single input only)")
+    args = ap.parse_args()
+    for p in args.metrics:
+        if not os.path.exists(p):
+            sys.exit("wt_usage_view: no such file or directory: %s" % p)
+    sections = load_sections(args.metrics, args.label)
+    if not sections:
+        sys.exit(
+            "wt_usage_view: no WiredTiger btree-usage stats found in the given input.\n"
+            "  The FTDC has no 'usage_' keys -- it likely came from a mongod without the\n"
+            "  WT-17717 usage sampling (a stock build emits none).")
+    if args.collapsed or args.print_static or not sys.stdout.isatty():
+        print(render(sections, expanded=not args.collapsed))
+    else:
+        curses.wrapper(run_tui, sections)
+
+
+if __name__ == "__main__":
+    main()

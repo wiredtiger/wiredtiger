@@ -1529,6 +1529,8 @@ extern int __wti_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_boun
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[],
   bool *cacheablep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_curstat_usage_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile,
   bool dump_all_data, bool dump_key_data) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1764,6 +1766,9 @@ extern void __wt_bm_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTR
 extern void __wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
+extern void __wt_btree_usage_collect(WT_SESSION_IMPL *session);
+extern void __wt_btree_usage_op_fire(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t op, uint32_t key_size, uint32_t value_size);
 extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
 extern void __wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session);
@@ -1955,6 +1960,10 @@ extern void __wti_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el);
 extern void __wti_block_size_free(WT_SESSION_IMPL *session, WT_SIZE **sz);
 extern void __wti_bm_method_set(WT_BM *bm, bool readonly);
 extern void __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt);
+extern void __wti_btree_usage_int_keys(
+  WT_SESSION_IMPL *session, u_int level, uint64_t count, uint64_t sum, uint64_t sumsq);
+extern void __wti_btree_usage_split_sample(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE *page2, uint32_t result_pages);
 extern void __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
   const char *ckpt_name, const uint8_t *ckpt_string, size_t ckpt_size);
 extern void __wti_conn_backup_destroy(WT_SESSION_IMPL *session);
@@ -1968,6 +1977,7 @@ extern void __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
 extern void __wti_cursor_set_key_notsup(WT_CURSOR *cursor, ...);
 extern void __wti_cursor_set_notsup(WT_CURSOR *cursor);
 extern void __wti_cursor_set_value_notsup(WT_CURSOR *cursor, ...);
+extern void __wti_curstat_usage_close(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst);
 extern void __wti_debug_crash_if_flag_set(
   WT_SESSION_IMPL *session, uint32_t flag, const char *msg, const char *uri);
 extern void __wti_disagg_pending_crypt_key_clear(WT_SESSION_IMPL *session);
@@ -2070,6 +2080,8 @@ static WT_INLINE bool __wt_page_is_empty(WT_PAGE *page)
 static WT_INLINE bool __wt_page_is_modified(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_page_is_reconciling(WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_random_hotpath_1000(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2533,6 +2545,8 @@ static WT_INLINE uint64_t __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 static WT_INLINE void __wt_block_header_byteswap(WT_BLOCK_HEADER *blk);
 static WT_INLINE void __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to);
 static WT_INLINE void __wt_btree_disable_bulk(WT_SESSION_IMPL *session);
+static WT_INLINE void __wt_btree_usage_op_sample(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t op, uint32_t key_size, uint32_t value_size);
 static WT_INLINE void __wt_buf_free(WT_SESSION_IMPL *session, WT_ITEM *buf);
 static WT_INLINE void __wt_cache_decr_check_size(
   WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld);

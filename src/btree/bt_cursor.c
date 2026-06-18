@@ -787,6 +787,10 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 #endif
 
     if (ret == 0)
+        __wt_btree_usage_op_sample(
+          session, cbt->ref, WT_BTREE_USAGE_OP_SEARCH, cbt->iface.key.size, cbt->iface.value.size);
+
+    if (ret == 0)
         WT_ERR(__wti_btcur_evict_reposition(cbt));
 
 err:
@@ -970,6 +974,10 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     }
 
     if (ret == 0)
+        __wt_btree_usage_op_sample(session, cbt->ref, WT_BTREE_USAGE_OP_SEARCH_NEAR,
+          cbt->iface.key.size, cbt->iface.value.size);
+
+    if (ret == 0)
         WT_ERR(__wti_btcur_evict_reposition(cbt));
 err:
     if (ret == 0 && exactp != NULL)
@@ -1125,6 +1133,13 @@ duplicate:
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (ret == 0) {
 done:
+        /*
+	 * When sampling, we distinguish a regular insert, when no key was previously found,
+	 * from an overwrite, where the comparison was equal.
+	 */
+        __wt_btree_usage_op_sample(session, cbt->ref,
+          cbt->compare == 0 ? WT_BTREE_USAGE_OP_INSERT_OVERWRITE : WT_BTREE_USAGE_OP_INSERT,
+          cursor->key.size, cursor->value.size);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         if (append_key)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
@@ -1303,6 +1318,9 @@ err:
     }
 
     if (ret == 0) {
+        /* Sample while still positioned: the !positioned path resets the cursor just below. */
+        __wt_btree_usage_op_sample(session, cbt->ref, WT_BTREE_USAGE_OP_REMOVE, 0, 0);
+
         /*
          * If positioned originally, but we had to do a search, acquire a position so we can return
          * success.
@@ -1636,6 +1654,9 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     if (overwrite)
         F_SET(cursor, WT_CURSTD_OVERWRITE);
 
+    if (ret == 0)
+        __wt_btree_usage_op_sample(session, cbt->ref, WT_BTREE_USAGE_OP_MODIFY, 0, 0);
+
     /*
      * We have our own cursor state restoration because we've modified the cursor before calling the
      * underlying cursor update function and we need to restore it to its original state. This means
@@ -1703,7 +1724,10 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
-    return (__btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD));
+    WT_RET(__btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD));
+
+    __wt_btree_usage_op_sample(session, cbt->ref, WT_BTREE_USAGE_OP_UPDATE, 0, cursor->value.size);
+    return (0);
 }
 
 /*

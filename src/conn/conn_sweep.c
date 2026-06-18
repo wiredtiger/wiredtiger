@@ -504,6 +504,9 @@ __sweep_server(void *arg)
         if (conn->sweep.idle_time != 0)
             __sweep_mark(session, now);
 
+        /* Collect btree usage stats and refresh the top-N snapshot. */
+        __wt_btree_usage_collect(session);
+
         /*
          * Close handles if we have reached the configured limit or in disaggregated storage. If
          * sweep_idle_time is 0, handles never become idle.

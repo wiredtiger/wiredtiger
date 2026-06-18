@@ -66,6 +66,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
     WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
+    WT_RET(__wt_rwlock_init(session, &conn->btree_usage_lock));
 
     /* Hot backup subsystem. */
     WT_RET(__wti_conn_backup_init(session));
@@ -120,6 +121,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->disaggregated_storage.pending_crypt_key_lock);
     __wt_rwlock_destroy(session, &conn->log_mgr.debug_log_retention_lock);
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
+    __wt_rwlock_destroy(session, &conn->btree_usage_lock);
     __wt_spin_destroy(session, &conn->fh_lock);
     __wti_conn_backup_destroy(session);
     __wt_spin_destroy(session, &conn->metadata_lock);

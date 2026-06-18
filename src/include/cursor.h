@@ -406,7 +406,10 @@ struct __wt_cursor_stat {
     bool notinitialized; /* Cursor not initialized */
     bool notpositioned;  /* Cursor not positioned */
 
-    int64_t *stats;  /* Statistics */
+    int64_t *stats;       /* Statistics */
+    int64_t *stats_alloc; /* Heap-allocated stats array, when not the union copy (freed on close) */
+    char
+      *usage_uris; /* Per-slot btree URIs for the connection usage virtual stats (freed on close) */
     int stats_base;  /* Base statistics value */
     int stats_count; /* Count of statistics values */
     int (*stats_desc)(WT_CURSOR_STAT *, int, const char **);

@@ -1074,6 +1074,16 @@ struct __wt_connection_impl {
 
     WT_CONN_SWEEP sweep; /* Handle sweep thread and configuration */
 
+    /*
+     * Btree usage stats, updated by the sweep server each interval: WT_BTREE_USAGE_SLOT_COUNT slots
+     * = the top-N most active btrees, then the pinned history-store slot (index
+     * WT_BTREE_USAGE_SLOT_PIN_HS), then one random "sample" slot (index
+     * WT_BTREE_USAGE_SLOT_SAMPLE).
+     */
+    WT_BTREE_USAGE_SNAPSHOT btree_usage[WT_BTREE_USAGE_SLOT_COUNT];
+    int64_t btree_usage_active; /* Count of btrees with any sampled activity this interval. */
+    WT_RWLOCK btree_usage_lock; /* Protects btree_usage[] and btree_usage_active */
+
     WT_CONN_EXTENSIONS ext; /* Extension interface lists */
 
     void *lang_private; /* Language specific private storage */

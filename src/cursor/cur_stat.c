@@ -85,7 +85,7 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
     WT_SESSION_IMPL *session;
     size_t size;
     uint64_t *v;
-    const char *desc, **p;
+    const char *desc, *pval, **p;
     va_list ap;
 
     cst = (WT_CURSOR_STAT *)cursor;
@@ -94,13 +94,15 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
     WT_ERR(__cursor_needvalue(cursor));
 
     WT_ERR(cst->stats_desc(cst, WT_STAT_KEY_OFFSET(cst), &desc));
+
+    WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
+    pval = cst->pv.data;
+
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
-        /* The printed value is currently null. Create it now, it's needed for the packed result. */
-        WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
-        WT_ERR(__wt_struct_size(session, &size, cursor->value_format, desc, cst->pv.data, cst->v));
+        WT_ERR(__wt_struct_size(session, &size, cursor->value_format, desc, pval, cst->v));
         WT_ERR(__wt_buf_initsize(session, &cursor->value, size));
         WT_ERR(__wt_struct_pack(
-          session, cursor->value.mem, size, cursor->value_format, desc, cst->pv.data, cst->v));
+          session, cursor->value.mem, size, cursor->value_format, desc, pval, cst->v));
 
         va_start(ap, cursor);
         item = va_arg(ap, WT_ITEM *);
@@ -115,11 +117,8 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
         va_start(ap, cursor);
         if ((p = va_arg(ap, const char **)) != NULL)
             *p = desc;
-        if ((p = va_arg(ap, const char **)) != NULL) {
-            /* Create the printed value only when needed. */
-            WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
-            *p = cst->pv.data;
-        }
+        if ((p = va_arg(ap, const char **)) != NULL)
+            *p = pval;
         if ((v = va_arg(ap, uint64_t *)) != NULL)
             *v = cst->v;
         va_end(ap);
@@ -350,6 +349,7 @@ err:
 
     __wt_buf_free(session, &cst->pv);
     __wt_free(session, cst->desc_buf);
+    __wti_curstat_usage_close(session, cst);
 
     __wt_cursor_close(cursor);
 
@@ -360,7 +360,7 @@ err:
  * __curstat_conn_init --
  *     Initialize the statistics for a connection.
  */
-static void
+static int
 __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
     WT_CONNECTION_IMPL *conn;
@@ -377,10 +377,8 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     if (F_ISSET(cst, WT_STAT_CLEAR))
         __wt_stat_connection_clear_all(conn->stats);
 
-    cst->stats = (int64_t *)&cst->u.conn_stats;
-    cst->stats_base = WT_CONNECTION_STATS_BASE;
-    cst->stats_count = sizeof(WT_CONNECTION_STATS) / sizeof(int64_t);
-    cst->stats_desc = __wt_stat_connection_desc;
+    /* Append the per-btree usage snapshot as virtual entries on the connection stats. */
+    return (__wti_curstat_usage_conn_init(session, cst));
 }
 
 /*
@@ -662,10 +660,8 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
 {
     const char *dsrc_uri;
 
-    if (strcmp(uri, "statistics:") == 0) {
-        __curstat_conn_init(session, cst);
-        return (0);
-    }
+    if (strcmp(uri, "statistics:") == 0)
+        return (__curstat_conn_init(session, cst));
 
     /* Data source statistics are only available after recovery completes. */
     WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_RECOVERY_COMPLETE));
