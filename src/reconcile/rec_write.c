@@ -3330,19 +3330,17 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
         /*
-         * Only invalidate the page_id when the write actually reached the page log (persistent is
-         * true on multi->block_meta). If the write failed before plh_put, the old chain is still
-         * valid; leaving page_id intact lets the next reconciliation's wrapup call
-         * __wt_ref_block_free to subtract the old chain cleanly on success. Invalidating page_id in
-         * that case would prevent that wrapup decrement, permanently inflating block_disagg->size.
+         * Only invalidate the page_id when the write actually reached the page log, persistent is
+         * true. If the write failed, the old chain is still valid; leaving page_id intact lets the
+         * next reconciliation wrapup to decrease the old chain size cleanly on success.
+         * Invalidating page_id in that case would prevent that wrapup decrement, permanently
+         * inflating block_disagg->size.
          */
         if (r->multi->block_meta->persistent) {
             if (r->multi->block_meta->delta_count == 0) {
                 /*
-                 * Full-image write succeeded but reconciliation failed before wrapup.
-                 * __rec_write_image subtracted the old chain via decrease_size; block_free above
-                 * decremented the new image's physical bytes. Free the stale replacement cookie so
-                 * the next WT_PM_REC_REPLACE wrapup takes the block_cookie==NULL branch.
+                 * Full-image write succeeded, would have reduced the old chain size. block_free
+                 * above decremented the new image's physical bytes. Free the block cookie.
                  */
                 __wt_free(session, mod->mod_replace.block_cookie);
                 mod->mod_replace.block_cookie_size = 0;
@@ -3350,11 +3348,9 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             } else if (r->multi->block_meta->delta_count > 0 &&
               mod->rec_result == WT_PM_REC_REPLACE && page->disagg_info->block_meta.persistent) {
                 /*
-                 * Delta write: page_discard freed the new block using cookie.size ==
-                 * cumulative_size + delta_size, which already subtracted the entire old chain from
-                 * block_disagg->size. Clear persistent and free the stale cookie so the next wrapup
-                 * takes the block_cookie==NULL branch via WT_PM_REC_REPLACE and does not subtract
-                 * the old chain a second time.
+                 * Delta write succeeded. block free above decremented based on cookie size, which
+                 * equals previous chain + this delta. Free the block cookie and clear the
+                 * persistent flag.
                  */
                 page->disagg_info->block_meta.persistent = false;
                 __wt_free(session, mod->mod_replace.block_cookie);

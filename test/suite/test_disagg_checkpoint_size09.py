@@ -49,7 +49,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #         multi->block_meta->cumulative_size > 0;
 #   immediately after the struct copy, matching the pattern already applied to
 #   the two __rec_write_wrapup call sites fixed by the companion rec_write.c
-#   changes (covered by test_disagg_checkpoint_size08.py).
+#   changes (covered by test_disagg_checkpoint_size09.py).
 #
 #   Crash path (before fix):
 #     1. Build a delta chain so cumulative_size > 0 on disk.

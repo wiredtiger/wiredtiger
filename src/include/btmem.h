@@ -273,7 +273,7 @@ struct __wt_page_block_meta {
     /*
      * Indicates whether block exists in persistent storage or not. It is used to avoid double
      * counting the size of a delta chain in the block disaggregated size when the same delta chain
-     * is reused by multiple pages. This is designed as an in-memory construct, and not to be not
+     * is reused by multiple pages. This is designed as an in-memory construct, and not to be
      * persisted to disk.
      */
     bool persistent;

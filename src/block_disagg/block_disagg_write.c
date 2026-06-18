@@ -280,8 +280,10 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     /*
      * For delta writes, accumulate the chain size in cookie.size so a single page_discard subtracts
-     * the entire chain. Full-image writes use physical size only; the caller subtracts the old
-     * chain via __wti_block_disagg_decrease_size before or after this call.
+     * the entire chain. Full-image writes use physical size only; delta writes use cumulative size,
+     * which is the sum of the delta and all previous images. The cumulative size is stored in
+     * block_meta so it can be updated with each delta write and used for the next delta write
+     * cookie and the page_discard when the page is finally discarded.
      */
     if (block_meta->delta_count == 0)
         cookie.size = size;
