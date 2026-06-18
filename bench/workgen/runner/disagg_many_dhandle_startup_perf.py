@@ -46,6 +46,19 @@
 #   default) wipes the leader's leftover .wt / .wt_ingest files while kv_home/
 #   stays put  that's where the checkpoint we're picking up actually lives.
 #
+#   --skip-setup skips phase 1 (use when a leader has already populated <home>
+#   and checkpointed). Phase 2 opens the follower, obtains checkpoint_meta (see
+#   below), runs pickup, and counts tables via the metadata cursor (no
+#   --num-tables). Mutually exclusive with --num-tables.
+#
+#   Checkpoint meta for --skip-setup is loaded in order: (1) --checkpoint-meta-file,
+#   (2) sidecar <home>/disagg_many_dhandle_checkpoint_meta written by phase 1 of
+#   this script, (3) pl_get_complete_checkpoint on the follower (requires a
+#   populated kv_home/checkpoints.db from the same leader run). Opening the
+#   follower creates an empty kv_home if it is missing, which yields WT_NOTFOUND
+#   for (3); copy the leader's kv_home/ (or use a sidecar / meta file from the
+#   leader) before skip-setup.
+#
 #   Env: WT_BUILDDIR must point at the build dir containing
 #        ext/page_log/palite/libwiredtiger_palite.so.
 #
@@ -62,6 +75,8 @@ KEYS_PER_TABLE = 5            # tiny populate so tables are non-empty
 
 PAGE_LOG = "palite"
 TABLE_PREFIX = "test_disagg_pickup_"
+# Phase 1 writes this UTF-8 sidecar so --skip-setup can avoid PALI lookup.
+CHECKPOINT_META_SIDECAR = "disagg_many_dhandle_checkpoint_meta"
 
 # ----------------------------------------------------------------------
 # Set up home. We use a single WT home for both the leader and the follower:
@@ -72,12 +87,27 @@ TABLE_PREFIX = "test_disagg_pickup_"
 # where the checkpoint we're picking up actually lives.
 # ----------------------------------------------------------------------
 context = Context()
-context.parser.add_argument("--num-tables", dest="num_tables", type=int, default=10000,
-    help="Number of layered tables the leader creates (default: 10000)")
+_setup_group = context.parser.add_mutually_exclusive_group()
+_setup_group.add_argument("--num-tables", dest="num_tables", type=int, default=None,
+    help="Number of layered tables the leader creates (default: 10000; not allowed with --skip-setup)")
+_setup_group.add_argument("--skip-setup", dest="skip_setup", action="store_true",
+    help="Skip phase 1; run phase 2 only against an existing home. Table count is derived from metadata after pickup.")
+context.parser.add_argument("--checkpoint-meta-file", dest="checkpoint_meta_file", type=str, default=None,
+    help="With --skip-setup only: read checkpoint_meta text from this file instead of PALI (when set).")
+# Preserve the existing home (sidecar + kv_home/) when skipping phase 1.
+# --keep must be in sys.argv before initialize() calls parse_args() and rmtree.
+if "--skip-setup" in sys.argv and "--keep" not in sys.argv:
+    sys.argv.append("--keep")
 context.initialize()           # parses all args, creates args.home
 home = context.args.home
 
-NUM_TABLES = context.args.num_tables
+SKIP_SETUP = context.args.skip_setup
+if context.args.checkpoint_meta_file and not SKIP_SETUP:
+    raise RuntimeError("--checkpoint-meta-file is only valid with --skip-setup")
+if SKIP_SETUP:
+    NUM_TABLES = None
+else:
+    NUM_TABLES = context.args.num_tables if context.args.num_tables is not None else 10000
 
 wt_builddir = os.environ.get("WT_BUILDDIR")
 if not wt_builddir:
@@ -98,74 +128,125 @@ base_conn_config = (
     f"disaggregated=(page_log={PAGE_LOG},lose_all_my_data=true,"
 )
 
+
+def read_checkpoint_meta_utf8(path):
+    with open(path, "rb") as f:
+        return f.read().decode("utf-8", errors="surrogateescape")
+
+
+def write_checkpoint_meta_utf8(path, ckpt_meta):
+    with open(path, "wb") as f:
+        f.write(ckpt_meta.encode("utf-8", errors="surrogateescape"))
+
+
+def fetch_checkpoint_meta(conn):
+    # Latest complete-checkpoint blob from PALI via the page log.
+    print("  fetching checkpoint_meta from PALI")
+    page_log = conn.get_page_log(PAGE_LOG)
+    meta_session = conn.open_session()
+    try:
+        (_, _, _, ckpt_meta) = page_log.pl_get_complete_checkpoint(meta_session)
+    except Exception as ex:
+        if "WT_NOTFOUND" not in str(ex):
+            raise
+        kv = os.path.join(home, "kv_home", "checkpoints.db")
+        side = os.path.join(home, CHECKPOINT_META_SIDECAR)
+        raise RuntimeError(
+            "pl_get_complete_checkpoint: WT_NOTFOUND (no completed checkpoint in PALI). "
+            "Follower open with an empty or missing kv_home creates a new empty PALI store. "
+            "Copy the leader's entire kv_home/ under this home, re-run phase 1 of this script "
+            f"(which writes the sidecar {CHECKPOINT_META_SIDECAR}), or use --checkpoint-meta-file. "
+            f"Expected PALI DB roughly at: {kv} ; sidecar: {side}"
+        ) from ex
+    finally:
+        page_log.terminate(meta_session)
+        meta_session.close()
+    assert ckpt_meta, "no complete checkpoint metadata returned from PALI"
+    print(f"  checkpoint_meta length: {len(ckpt_meta)} bytes")
+    return ckpt_meta
+
+
+def count_tables_uri_prefix(conn, table_uri_prefix):
+    # Count metadata: keys starting with table_uri_prefix.
+    session = conn.open_session()
+    md = session.open_cursor("metadata:", None, None)
+    n = 0
+    for key, _ in md:
+        if key.startswith(table_uri_prefix):
+            n += 1
+    md.close()
+    session.close()
+    return n
+
+
 # ----------------------------------------------------------------------
 # Phase 1: leader creates N layered tables, populates a few keys, checkpoints.
 # ----------------------------------------------------------------------
-print("=" * 70)
-print(f"Phase 1: leader creating {NUM_TABLES} layered tables")
-print("=" * 70)
+if SKIP_SETUP:
+    print("=" * 70)
+    print("Phase 1 skipped (--skip-setup; using existing home and PALI checkpoint)")
+    print("=" * 70)
+else:
+    print("=" * 70)
+    print(f"Phase 1: leader creating {NUM_TABLES} layered tables")
+    print("=" * 70)
 
-leader_conn = wiredtiger_open(
-    home, "create," + base_conn_config + 'role="leader")')
-leader_session = leader_conn.open_session()
+    leader_conn = wiredtiger_open(
+        home, "create," + base_conn_config + 'role="leader")')
+    leader_session = leader_conn.open_session()
 
-# Initialize timestamps before any writes so commits can use commit_timestamp.
-leader_conn.set_timestamp("stable_timestamp=1")
+    # Initialize timestamps before any writes so commits can use commit_timestamp.
+    leader_conn.set_timestamp("stable_timestamp=1")
 
-table_cfg = "key_format=S,value_format=S,type=layered,block_manager=disagg"
+    table_cfg = "key_format=S,value_format=S,type=layered,block_manager=disagg"
 
-# Create + populate in a single linear pass. Avoids workgen Op-chain blowup
-# at large NUM_TABLES, and creating + writing each table back-to-back keeps
-# the dhandle hot in cache for its inserts. We close and reopen the session
-# every 1000 tables to release cached dhandles and avoid EMFILE (too many
-# open files) when NUM_TABLES is large.
-t0 = time.time()
-ts = 2
-for i in range(NUM_TABLES):
-    uri = f"table:{TABLE_PREFIX}{i}"
-    leader_session.create(uri, table_cfg)
-    # c = leader_session.open_cursor(uri)
-    # leader_session.begin_transaction("isolation=snapshot")
-    # for k in range(KEYS_PER_TABLE):
-    #     c[f"k{k:08d}"] = f"v{k:08d}"
-    # leader_session.commit_transaction(f"commit_timestamp={ts:x}")
-    ts += 1
-    # c.close()
-    if (i + 1) % 100 == 0:
-        leader_conn.set_timestamp(f"stable_timestamp={ts -1:x}")
-        leader_session.checkpoint()
-        leader_session.close()
-        leader_session = leader_conn.open_session()
-    if (i + 1) % 1000 == 0:
-        print(f"  created+populated {i+1}/{NUM_TABLES}  ({time.time()-t0:.1f}s)")
-        # Release cached dhandles to avoid running out of file descriptors.
-        # Yield so the sweep server can grab the dhandle/handle-list locks
-        # the create loop has been hammering, and actually expire idle
-        # dhandles. Without this, sweep can stall for tens of seconds at a
-        # time under heavy schema activity.
-        time.sleep(1)
-print(f"  all {NUM_TABLES} tables created+populated in {time.time()-t0:.1f}s")
+    # Create + populate in a single linear pass. Avoids workgen Op-chain blowup
+    # at large NUM_TABLES, and creating + writing each table back-to-back keeps
+    # the dhandle hot in cache for its inserts. We close and reopen the session
+    # every 1000 tables to release cached dhandles and avoid EMFILE (too many
+    # open files) when NUM_TABLES is large.
+    t0 = time.time()
+    ts = 2
+    for i in range(NUM_TABLES):
+        uri = f"table:{TABLE_PREFIX}{i}"
+        leader_session.create(uri, table_cfg)
+        # c = leader_session.open_cursor(uri)
+        # leader_session.begin_transaction("isolation=snapshot")
+        # for k in range(KEYS_PER_TABLE):
+        #     c[f"k{k:08d}"] = f"v{k:08d}"
+        # leader_session.commit_transaction(f"commit_timestamp={ts:x}")
+        ts += 1
+        # c.close()
+        if (i + 1) % 100 == 0:
+            leader_conn.set_timestamp(f"stable_timestamp={ts -1:x}")
+            leader_session.checkpoint()
+            leader_session.close()
+            leader_session = leader_conn.open_session()
+        if (i + 1) % 1000 == 0:
+            print(f"  created+populated {i+1}/{NUM_TABLES}  ({time.time()-t0:.1f}s)")
+            # Release cached dhandles to avoid running out of file descriptors.
+            # Yield so the sweep server can grab the dhandle/handle-list locks
+            # the create loop has been hammering, and actually expire idle
+            # dhandles. Without this, sweep can stall for tens of seconds at a
+            # time under heavy schema activity.
+            time.sleep(1)
+    print(f"  all {NUM_TABLES} tables created+populated in {time.time()-t0:.1f}s")
 
-# Push stable to the latest commit so the checkpoint captures every write.
-leader_conn.set_timestamp(f"stable_timestamp={ts - 1:x}")
+    # Push stable to the latest commit so the checkpoint captures every write.
+    leader_conn.set_timestamp(f"stable_timestamp={ts - 1:x}")
 
-print("  taking checkpoint")
-t0 = time.time()
-leader_session.checkpoint()
-print(f"  checkpoint completed in {time.time()-t0:.1f}s")
+    print("  taking checkpoint")
+    t0 = time.time()
+    leader_session.checkpoint()
+    print(f"  checkpoint completed in {time.time()-t0:.1f}s")
 
-# Pull the complete-checkpoint metadata from PALI before closing the leader.
-print("  fetching checkpoint_meta from PALI")
-page_log = leader_conn.get_page_log(PAGE_LOG)
-meta_session = leader_conn.open_session()
-(_, _, _, ckpt_meta) = page_log.pl_get_complete_checkpoint_ext(meta_session)
-page_log.terminate(meta_session)
-meta_session.close()
-assert ckpt_meta, "no complete checkpoint metadata returned from PALI"
-print(f"  checkpoint_meta length: {len(ckpt_meta)} bytes")
+    ckpt_meta = fetch_checkpoint_meta(leader_conn)
+    sidecar_path = os.path.join(home, CHECKPOINT_META_SIDECAR)
+    write_checkpoint_meta_utf8(sidecar_path, ckpt_meta)
+    print(f"  wrote checkpoint_meta sidecar {CHECKPOINT_META_SIDECAR}")
 
-leader_conn.close()
-print("  leader closed")
+    leader_conn.close()
+    print("  leader closed")
 
 # ----------------------------------------------------------------------
 # Phase 2: follower opens with checkpoint_meta. Time wiredtiger_open only.
@@ -173,6 +254,17 @@ print("  leader closed")
 print("=" * 70)
 print("Phase 2: follower picking up the checkpoint")
 print("=" * 70)
+
+ckpt_meta_skip = None
+if SKIP_SETUP:
+    if context.args.checkpoint_meta_file:
+        print(f"  reading checkpoint_meta from {context.args.checkpoint_meta_file}")
+        ckpt_meta_skip = read_checkpoint_meta_utf8(context.args.checkpoint_meta_file)
+    else:
+        _sidecar = os.path.join(home, CHECKPOINT_META_SIDECAR)
+        if os.path.isfile(_sidecar):
+            print(f"  reading checkpoint_meta from sidecar {_sidecar}")
+            ckpt_meta_skip = read_checkpoint_meta_utf8(_sidecar)
 
 # Open the follower WITHOUT checkpoint_meta first, so the open call does no
 # pickup work  this isolates pure connection-open cost.
@@ -188,6 +280,9 @@ print(f"  WIREDTIGER_OPEN (no pickup) took {open_elapsed:.2f}s")
 # Machine-readable line for the evergreen perf parser.
 print(f"PERF wiredtiger_open_no_pickup_secs: {open_elapsed:.4f}")
 
+if SKIP_SETUP:
+    ckpt_meta = ckpt_meta_skip if ckpt_meta_skip is not None else fetch_checkpoint_meta(follower_conn)
+
 # Now drive the checkpoint pickup via reconfigure. This matches MongoDB's
 # real usage (control plane hands the follower a checkpoint_meta after open)
 # and lets us time pickup separately from open.
@@ -198,6 +293,11 @@ pickup_elapsed = time.time() - pickup_t0
 print(f"  RECONFIGURE (pickup) took {pickup_elapsed:.2f}s")
 # Machine-readable line for the evergreen perf parser.
 print(f"PERF reconfigure_pickup_secs: {pickup_elapsed:.4f}")
+
+if SKIP_SETUP:
+    table_uri_prefix = f"table:{TABLE_PREFIX}"
+    NUM_TABLES = count_tables_uri_prefix(follower_conn, table_uri_prefix)
+    print(f"  derived num_tables from metadata: {NUM_TABLES} ({table_uri_prefix}*)")
 
 # Linearly walk every table on the follower: open cursor (triggers lazy
 # ingest creation on first touch), check that the keys we wrote on the
