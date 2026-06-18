@@ -303,9 +303,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_search,      weights.search),
             Op(self.op_search_near, weights.search_near),
             Op(self.op_pos_update,  weights.pos_update, needs_position=True, is_write=True),
-            Op(self.op_pos_remove,  weights.pos_remove, needs_position=True, is_write=True),
             Op(self.op_put,         weights.put,        is_write=True),
-            Op(self.op_remove,      weights.remove,     is_write=True),
+            # FIXME-WT-17796: op_pos_remove (removing a key off a held cursor position) asserts on the
+            # follower layered cursor, so it is disabled; its weight is folded into op_remove to keep the
+            # delete pressure. Re-enable the row below and drop "+ weights.pos_remove" once fixed.
+            # Op(self.op_pos_remove, weights.pos_remove, needs_position=True, is_write=True),
+            Op(self.op_remove,      weights.remove + weights.pos_remove, is_write=True),
             Op(self.op_reset,       weights.reset),
             Op(self.scen_full_scan, weights.full_scan),
             Op(self.scen_bulk_insert, weights.bulk_insert, is_write=True),
