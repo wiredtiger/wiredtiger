@@ -350,7 +350,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool checkpoint_expected)
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
 static bool
-__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bool iteration)
 {
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
@@ -359,6 +359,10 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
 
     /* A leader does not require advancing a stable table. */
     if (S2C(session)->layered_table_manager.leader)
+        return (false);
+
+    /* No need to advance if there is no newer checkpoint. */
+    if (clayered->stable_checkpoint_meta_lsn == conn_lsn)
         return (false);
 
     /*
@@ -591,7 +595,8 @@ __clayered_update_stable(WT_CURSOR_LAYERED *clayered, uint32_t flags)
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
         }
     } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
-      __clayered_can_advance_stable(clayered, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
+      __clayered_can_advance_stable(
+        clayered, conn_lsn, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
         /*
          * Reopen the cursor.
          *
