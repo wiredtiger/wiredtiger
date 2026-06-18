@@ -1629,7 +1629,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
               supd->onpage_tombstone != NULL && supd->onpage_upd == NULL) {
                 for (WT_UPDATE *scan = upd; scan != NULL && scan != supd->onpage_tombstone;
-                     scan = scan->next) {
+                  scan = scan->next) {
                     if (scan->prepared_id != WT_PREPARED_ID_NONE) {
                         retain_tombstone = true;
                         break;
@@ -1657,7 +1657,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                  * truncate all the updates starting from the onpage value.
                  */
                 for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
-                     prev_onpage = prev_onpage->next)
+                  prev_onpage = prev_onpage->next)
                     ;
                 WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
@@ -2346,9 +2346,18 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * reference structures.
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
-    for (i = 0; i < new_entries; ++i)
+    for (i = 0; i < new_entries; ++i) {
         WT_ERR(__wt_multi_to_ref(session, ref, page, &mod->mod_multi[i], new_entries, &ref_new[i],
           &parent_incr, i == 0, closing));
+        /*
+         * A disaggregated child without a retained disk image has been pushed to WT_REF_DISK. Its
+         * backing block must be behind the materialization frontier so it can be read back safely.
+         */
+        WT_ASSERT(session,
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM ||
+            (mod->mod_multi[i].block_meta != NULL &&
+              __wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)));
+    }
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.

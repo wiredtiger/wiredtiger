@@ -46,7 +46,7 @@ __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t 
     *shared_dsk_retp = NULL;
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    WT_ASSERT(session, shared_dsk_cache->enabled);
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
 
     hash = __wt_hash_city64(addr, addr_size);
     bucket = hash % shared_dsk_cache->hash_size;
@@ -103,7 +103,7 @@ __wt_shared_dsk_cache_put(WT_SESSION_IMPL *session, void *data, size_t data_size
 #endif
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    WT_ASSERT(session, shared_dsk_cache->enabled);
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
     cache_inserted = false;
     shared_dsk_store = NULL;
     *shared_dsk_retp = NULL;
@@ -198,7 +198,7 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
     WT_ASSERT(session, shared_dsk_item != NULL);
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
-    WT_ASSERT(session, shared_dsk_cache->enabled);
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
     hash = __wt_hash_city64(shared_dsk_item->addr, shared_dsk_item->addr_size);
     bucket = hash % shared_dsk_cache->hash_size;
     lock_idx = bucket % shared_dsk_cache->hash_lock_size;
@@ -230,11 +230,11 @@ __wt_shared_dsk_cache_release(WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shar
 }
 
 /*
- * __wti_shared_dsk_cache_init --
+ * __wt_shared_dsk_cache_init --
  *     Initialize the shared disk cache.
  */
 int
-__wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
+__wt_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
 {
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
@@ -242,8 +242,7 @@ __wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
 
     shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
     shared_dsk_cache->hash_size = hash_size;
-    /* FIXME-WT-17066: We should pick a WT_SHARED_DSK_CACHE_MAX_LOCKS wisely. */
-    shared_dsk_cache->hash_lock_size = WT_MIN(hash_size, WT_SHARED_DSK_CACHE_MAX_LOCKS);
+    shared_dsk_cache->hash_lock_size = WT_MIN(hash_size, WT_THOUSAND * 2);
 #ifdef HAVE_DIAGNOSTIC
     shared_dsk_cache->max_bucket_walk = 0;
     shared_dsk_cache->max_ref_count = 0;
@@ -259,6 +258,8 @@ __wti_shared_dsk_cache_init(WT_SESSION_IMPL *session, u_int hash_size)
         WT_ERR(__wt_spin_init(
           session, &shared_dsk_cache->hash_locks[i], "shared disk cache bucket locks"));
 
+    WT_STAT_CONN_SET(session, cache_shared_dsk_hash_size, hash_size);
+
     return (0);
 
 err:
@@ -273,19 +274,48 @@ err:
 void
 __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(tmp);
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
     WT_SHARED_DSK_ITEM *shared_dsk_item;
+    uint64_t leaked_bytes, leaked_entries;
+    uint32_t first_fid;
     u_int i;
+    const char *first_addr;
+    bool check_leaks;
 
-    shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
+    conn = S2C(session);
+    shared_dsk_cache = &conn->cache->shared_dsk_cache;
+    leaked_bytes = leaked_entries = 0;
+    first_fid = 0;
+    first_addr = NULL;
 
     if (shared_dsk_cache->hash == NULL || shared_dsk_cache->hash_locks == NULL)
         goto done;
+
+    /*
+     * On a clean close every page has been discarded and released its reference, so the table must
+     * be empty, otherwise we should check as surviving entries are leaked references.
+     */
+    check_leaks = !F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC | WT_CONN_LEAK_MEMORY);
+    if (check_leaks)
+        WT_IGNORE_RET(__wt_scr_alloc(session, 0, &tmp));
 
     for (i = 0; i < shared_dsk_cache->hash_size; i++) {
         while (!TAILQ_EMPTY(&shared_dsk_cache->hash[i])) {
             shared_dsk_item = TAILQ_FIRST(&shared_dsk_cache->hash[i]);
             TAILQ_REMOVE(&shared_dsk_cache->hash[i], shared_dsk_item, hashq);
+
+            if (check_leaks) {
+                ++leaked_entries;
+                leaked_bytes += shared_dsk_item->data_size;
+                if (first_addr == NULL && tmp != NULL) {
+                    first_fid = shared_dsk_item->fid;
+                    first_addr = __wt_addr_string(
+                      session, shared_dsk_item->addr, shared_dsk_item->addr_size, tmp);
+                }
+            }
+
             __wt_overwrite_and_free_len(session, shared_dsk_item->data, shared_dsk_item->data_size);
             __wt_free(session, shared_dsk_item);
         }
@@ -296,4 +326,12 @@ __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
 done:
     __wt_free(session, shared_dsk_cache->hash);
     __wt_free(session, shared_dsk_cache->hash_locks);
+
+    if (leaked_entries != 0)
+        __wt_errx(session,
+          "shared disk cache: exiting with %" PRIu64 " entries (%" PRIu64
+          " bytes) still referenced, first leaked entry has file ID %" PRIu32 ", address %s",
+          leaked_entries, leaked_bytes, first_fid, first_addr == NULL ? "[unknown]" : first_addr);
+
+    __wt_scr_free(session, &tmp);
 }

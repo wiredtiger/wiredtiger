@@ -27,6 +27,7 @@ Alakuijala
 Alexandrescu's
 Alloc
 Alves
+AssertionError
 Async
 Athlon
 Auth
@@ -81,6 +82,7 @@ CMake
 CMakeFiles
 CMakeLists
 CMakePresets
+CONCAT
 CONF
 CONFIG
 CPP
@@ -141,6 +143,7 @@ DeleteFileW
 Deterministically
 DisAgg
 Disagg
+DisaggCorruptionMixin
 Disaggregated
 Dk
 DmpeRkvXx
@@ -330,6 +333,7 @@ Munge
 Mutex
 Mutexes
 MySecret
+NN
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -379,6 +383,7 @@ PSD
 PSE
 PTR
 PYTHONMALLOC
+Palite
 Palites
 Pe
 PlatformSDK
@@ -799,6 +804,7 @@ comparators
 comparep
 compat
 compilable
+concurrencytest
 cond
 conditionalize
 conf
@@ -998,7 +1004,6 @@ exc
 exe
 execfn
 existp
-extendedp
 extern
 extlist
 extlists
@@ -1148,6 +1153,7 @@ ikey
 im
 img
 impl
+incompressible
 incr
 incrementals
 incrementing
@@ -1303,6 +1309,7 @@ mb
 mbll
 mbss
 mci
+md
 mdb
 mem
 memadvise
@@ -1521,6 +1528,7 @@ proc
 progname
 programmatically
 prout
+providerp
 proxied
 prunable
 ps
