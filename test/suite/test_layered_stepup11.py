@@ -50,8 +50,7 @@ class test_layered_stepup11(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    # The crash path is eviction-only, so force eviction.
-    def evict_ingest(self, session):
+    def force_evict_ingest(self, session):
         evict_cursor = session.open_cursor(self.ingest_uri, None, "debug=(release_evict)")
         for i in range(self.nitems):
             evict_cursor.set_key(str(i))
@@ -88,8 +87,11 @@ class test_layered_stepup11(wttest.WiredTigerTestCase):
         # Step up: drains then clears the ingest table.
         self.conn.reconfigure('disaggregated=(role="leader")')
 
+        # Evict while a reader still pins the oldest id: that is the window in which a
+        # transactional truncate's tombstones would not yet be globally visible, and attempting to
+        # evict would result in a crash. Using non-transactional truncate prevents this.
         evict_session = self.conn.open_session('')
-        self.evict_ingest(evict_session)
+        self.force_evict_ingest(evict_session)
         evict_session.close()
 
         pin_cursor.close()
