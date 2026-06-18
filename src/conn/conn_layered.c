@@ -1023,7 +1023,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * session used to call this function cannot do that.
      */
     WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    F_SET(internal_session, WT_SESSION_STEPPING_UP);
 
     /*
      * We need to hold the checkpoint lock while stepping up, because if we change the role
@@ -1140,11 +1139,10 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
-    F_SET(session, WT_SESSION_STEPPING_DOWN);
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
 
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     __wt_verbose_debug1(
@@ -1161,7 +1159,6 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __disagg_shared_metadata_queue_clear(session);
 
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
-    F_CLR(session, WT_SESSION_STEPPING_DOWN);
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had

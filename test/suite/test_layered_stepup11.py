@@ -38,7 +38,7 @@
 #   Each scenario runs in a subprocess so that the expected abort is caught as a
 #   non-zero exit code without killing the test runner.
 
-import signal, threading, time, wiredtiger, wttest
+import signal, threading, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -50,7 +50,7 @@ class test_layered_stepup11(wttest.WiredTigerTestCase, suite_subprocess):
     new_uri = 'layered:' + tablename + '_new'
     num_rows = 100
 
-    disagg_storages = gen_disagg_storages('test_layered_stepup11', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     transitions = [
         ('step_up',   dict(start_role='follower', target_role='leader')),
         ('step_down', dict(start_role='leader',   target_role='follower')),
