@@ -459,11 +459,6 @@ open:
         goto err;
     }
 
-    /*
-     * -q drives the wt CLI's session through corrupt-block reads without panicking, swapping the
-     * panic for WT_ERROR so per-utility loops can decide whether to continue. Set the flag after
-     * open_session so the wiredtiger_open path (which uses internal sessions) is unaffected.
-     */
     if (read_corrupt)
         F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
 
