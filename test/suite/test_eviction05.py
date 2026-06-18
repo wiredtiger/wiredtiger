@@ -61,10 +61,10 @@ class test_eviction05(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
         # Check that updates page stat was incremented
-        self.assertGreater(self.get_stat(stat.conn.eviction_maximum_updates_page_size_per_checkpoint), 0)
+        self.assertStatGreaterSoon(stat.conn.eviction_maximum_updates_page_size_per_checkpoint, 0)
 
         # Check that dirty page stat was incremented
-        self.assertGreater(self.get_stat(stat.conn.eviction_maximum_dirty_page_size_per_checkpoint), 0)
+        self.assertStatGreaterSoon(stat.conn.eviction_maximum_dirty_page_size_per_checkpoint, 0)
 
         # Check that clean page stat was not incremented
         self.assertEqual(self.get_stat(stat.conn.eviction_maximum_clean_page_size_per_checkpoint), 0)
@@ -82,7 +82,7 @@ class test_eviction05(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
         # Check that clean page stat was incremented
-        self.assertGreater(self.get_stat(stat.conn.eviction_maximum_clean_page_size_per_checkpoint), 0)
+        self.assertStatGreaterSoon(stat.conn.eviction_maximum_clean_page_size_per_checkpoint, 0)
 
         # Run a checkpoint and verify that eviction max stats per database run are not reset.
         self.session.checkpoint()

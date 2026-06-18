@@ -132,7 +132,7 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
         self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
-        self.assertGreater(self.get_stat(stat.conn.cache_obsolete_updates_removed), 0)
+        self.assertStatGreaterSoon(stat.conn.cache_obsolete_updates_removed, 0)
 
 if __name__ == '__main__':
     wttest.run()

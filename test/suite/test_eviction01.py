@@ -54,5 +54,5 @@ class test_eviction01(wttest.WiredTigerTestCase):
             self.session.rollback_transaction()
         cursor.close()
 
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty), 0)
+        self.assertStatGreaterSoon(stat.conn.cache_eviction_dirty, 0)
         self.assertEqual(self.get_stat(stat.conn.cache_eviction_blocked_no_progress), 0)

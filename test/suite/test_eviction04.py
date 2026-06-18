@@ -64,7 +64,7 @@ class test_eviction04(wttest.WiredTigerTestCase):
         self.assertEqual(evict_cursor.reset(), 0)
         evict_cursor.close()
 
-        self.assertGreater(self.get_stat(stat.dsrc.cache_write_restore_invisible, uri=uri), 0)
+        self.assertStatGreaterSoon(stat.dsrc.cache_write_restore_invisible, 0, uri=uri)
 
         session2.commit_transaction()
         cursor2.close()

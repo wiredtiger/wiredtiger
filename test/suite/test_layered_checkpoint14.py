@@ -96,7 +96,7 @@ class test_layered_checkpoint14(wttest.WiredTigerTestCase):
                 freed_pages.add(page_number)
         self.assertGreater(len(freed_pages), 0)
 
-        self.assertGreater(self.get_stat(stat.conn.disagg_block_page_discard), 0)
+        self.assertStatGreaterSoon(stat.conn.disagg_block_page_discard, 0)
 
         #
         # Part 2: Open a follower, read the data, and check that we do not read any freed pages.

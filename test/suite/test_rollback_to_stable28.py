@@ -149,8 +149,7 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         self.assertGreater(recovery_run_write_gen, checkpoint_write_gen)
         self.assertGreater(recovery_write_gen, recovery_run_write_gen)
 
-        # Read the statistics of pages that have been update restored (to check the mechanism was used).
-        self.assertGreater(self.get_stat(stat.conn.cache_write_restore_scrub), 0)
+        self.assertStatGreaterSoon(stat.conn.cache_write_restore_scrub, 0)
 
         # Check that after recovery, we see the correct data with respect to our previous stable timestamp (40).
         self.check(value_c, uri, nrows, 40)

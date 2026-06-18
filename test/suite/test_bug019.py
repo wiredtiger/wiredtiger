@@ -112,11 +112,10 @@ class test_bug019(wttest.WiredTigerTestCase):
             # iteration. There could be a race with the internal thread otherwise.
             self.prepfiles()
             self.populate(self.entries, i)
+            self.assertStatGreaterSoon(stat.conn.log_prealloc_used, used)
             newused = self.get_prealloc_used()
             self.pr("Iteration " + str(i))
             self.pr("previous used " + str(used) + " now " + str(newused))
-
-            self.assertTrue(used < newused)
             used = newused
 
             self.session.checkpoint()

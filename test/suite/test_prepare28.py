@@ -62,7 +62,7 @@ class test_prepare28(wttest.WiredTigerTestCase):
 
         ooo_thread.join()
 
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.txn_read_race_prepare_commit), 0)
+        self.assertStatGreaterSoon(wiredtiger.stat.conn.txn_read_race_prepare_commit, 0)
 
     def read_update(self):
         sleep(0.1)
