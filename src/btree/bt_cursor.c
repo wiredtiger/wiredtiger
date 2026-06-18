@@ -1943,9 +1943,10 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         /*
          * A non-transactional truncate writes globally visible tombstones that cannot be rolled
          * back, so it must not be logged: there would be no in-memory operations to undo on
-         * recovery.
+         * recovery. It is only allowed for clearing the ingest table during step-up.
          */
         WT_ASSERT(session, !logging);
+        WT_ASSERT(session, WT_URI_IS_INGEST(CUR2BT(start)->dhandle->name));
         WT_ERR(__wt_cursor_truncate(start, stop, __cursor_truncate_nontxn));
     } else
         WT_ERR(__wt_cursor_truncate(start, stop, __cursor_modify));
