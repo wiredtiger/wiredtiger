@@ -1167,7 +1167,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
      * one, otherwise it was kept alive and is reused.
      */
-    shared_dsk_cache = &S2C(session)->cache->shared_dsk_cache;
+    shared_dsk_cache = &conn->cache->shared_dsk_cache;
     if (shared_dsk_cache->hash == NULL)
         WT_IGNORE_RET(
           __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
