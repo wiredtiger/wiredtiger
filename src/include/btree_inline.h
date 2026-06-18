@@ -2950,19 +2950,6 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
 }
 
 /*
- * __wt_cache_page_footprint_incr --
- *     Increment a page's memory footprint without touching cache or btree totals.
- */
-static WT_INLINE void
-__wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
-{
-    WT_ASSERT(session, size < WT_EXABYTE);
-    if (size == 0)
-        return;
-    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
-}
-
-/*
  * __wt_cache_shared_dsk_inmem_incr --
  *     Increment the shared disk in memory cache statistics.
  */
