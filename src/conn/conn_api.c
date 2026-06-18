@@ -3593,14 +3593,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         F_SET(conn, WT_CONN_SALVAGE);
     }
 
-    /*
-     * Set read-corrupt mode before __wti_connection_open so the metadata-dhandle open path honors
-     * it and doesn't panic on a corrupt metadata leaf.
-     */
-    WT_ERR(__wt_config_gets(session, cfg, "read_corrupt", &cval));
-    if (cval.val)
-        F_SET(conn, WT_CONN_READ_SKIP_CORRUPT);
-
     WT_ERR(__wt_conf_compile_init(session, cfg));
     WT_ERR(__wti_conn_statistics_config(session, cfg));
     __wt_live_restore_init_stats(session);

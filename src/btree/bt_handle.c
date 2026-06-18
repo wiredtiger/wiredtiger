@@ -304,8 +304,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
              * Warm the cache, if possible. Skip when the connection is in read-corrupt mode so that
              * corrupt pages are handled during the explicit walk instead of via preload.
              */
-            if (!__wt_conn_is_disagg(session) &&
-              !F_ISSET(S2C(session), WT_CONN_READ_SKIP_CORRUPT)) {
+            if (!__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
                 WT_ERR(ret);
             }

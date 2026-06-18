@@ -691,7 +691,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             LF_SET(WT_READ_VISIBLE_ALL);
 
         /* In read-corrupt mode, skip corrupt refs during the walk. */
-        if (F_ISSET(S2C(session), WT_CONN_READ_SKIP_CORRUPT))
+        if (F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT))
             LF_SET(WT_READ_SKIP_CORRUPT);
 
         /*

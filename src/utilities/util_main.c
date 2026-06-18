@@ -20,7 +20,6 @@ static const char *command; /* Command name */
 /* Give users a hint in the help output for if they're trying to read MongoDB data files */
 static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=snappy)";
 
-#define READ_CORRUPT "read_corrupt=true"
 #define READONLY "readonly=true"
 #define REC_ERROR "log=(recover=error)"
 #define REC_LOGOFF "log=(enabled=false)"
@@ -406,8 +405,6 @@ open:
         len += strlen("false");
     if (meta_verify)
         len += strlen(VERIFY_METADATA);
-    if (read_corrupt)
-        len += strlen(READ_CORRUPT);
     if (readonly)
         len += strlen(READONLY);
     if (salvage)
@@ -424,13 +421,12 @@ open:
         goto err;
     }
     if ((ret = __wt_snprintf(p, len,
-           "error_prefix=wt,%s,%s,live_restore=(enabled=%s,threads_max=0,path=%s),%s,%s,%s,%s,%s%s%"
-           "s%s",
+           "error_prefix=wt,%s,%s,live_restore=(enabled=%s,threads_max=0,path=%s),%s,%s,%s,%s%s%s%"
+           "s",
            conn_config == NULL ? "" : conn_config, cmd_config == NULL ? "" : cmd_config,
            live_restore_path == NULL ? "false" : "true",
            live_restore_path == NULL ? "" : live_restore_path, meta_verify ? VERIFY_METADATA : "",
-           read_corrupt ? READ_CORRUPT : "", readonly ? READONLY : "", rec_config,
-           salvage ? SALVAGE : "", p1, p2, p3)) != 0) {
+           readonly ? READONLY : "", rec_config, salvage ? SALVAGE : "", p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
@@ -462,6 +458,14 @@ open:
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
+
+    /*
+     * -q drives the wt CLI's session through corrupt-block reads without panicking, swapping the
+     * panic for WT_ERROR so per-utility loops can decide whether to continue. Set the flag after
+     * open_session so the wiredtiger_open path (which uses internal sessions) is unaffected.
+     */
+    if (read_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
 
     if ((ret = util_disagg_pick_up_latest_checkpoint(conn, session)) != 0) {
         (void)util_err(session, ret, "failed to pick up latest disaggregated checkpoint");
