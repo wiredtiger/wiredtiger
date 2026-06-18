@@ -1399,8 +1399,15 @@ __verify_key_hs(
 
         __wt_hs_upd_time_window(hs_cursor, &tw);
 
-        /* Verify the newer record's start is later than the older record's stop. */
-        if (newer_start_ts != WT_TS_NONE && newer_start_ts < tw->stop_ts) {
+        /*
+         * Verify the newer record's start is later than the older record's stop. Skip cases where
+         * we don't have a start timestamp or if we have multiple entries at the same start
+         * timestamp. In the latter case, it's because we don't want to compare the "first" entry's
+         * start timestamp to the stop timestamp of the "later" entry (or entries), because we
+         * expect those to overlap.
+         */
+        if (newer_start_ts != WT_TS_NONE && older_start_ts < newer_start_ts &&
+          newer_start_ts < tw->stop_ts) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has an overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
