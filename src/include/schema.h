@@ -299,7 +299,7 @@ struct __wt_import_list {
             !FLD_ISSET(session->lock_flags,                                                      \
               WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                        \
                 WT_SESSION_LOCKED_TABLE));                                                       \
-        WT_ASSERT(session,                                                                       \
+        WT_ASSERT_ALWAYS(session,                                                                \
           !F_ISSET_ATOMIC_32(                                                                    \
             S2C(session), WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) ||    \
             F_ISSET(                                                                             \
@@ -314,7 +314,7 @@ struct __wt_import_list {
             !FLD_ISSET(session->lock_flags,                                                      \
               WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                        \
                 WT_SESSION_LOCKED_TABLE));                                                       \
-        WT_ASSERT(session,                                                                       \
+        WT_ASSERT_ALWAYS(session,                                                                \
           !F_ISSET_ATOMIC_32(                                                                    \
             S2C(session), WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) ||    \
             F_ISSET(                                                                             \
