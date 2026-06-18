@@ -44,7 +44,8 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_cursor22(wttest.WiredTigerTestCase):
-    uri = 'layered:test_layered_cursor22'
+    test_name = __qualname__
+    uri = f'layered:{test_name}'
 
     # Which constituent(s) hold the key under test.
     placement = [
@@ -52,7 +53,7 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
         ('stable', dict(place='stable')),
         ('both',   dict(place='both')),
     ]
-    disagg_storages = gen_disagg_storages('test_layered_cursor22', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages, placement)
 
     def conn_config(self):

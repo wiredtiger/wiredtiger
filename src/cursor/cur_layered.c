@@ -367,13 +367,15 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bo
 
     /*
      * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
-     * position. FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never
-     * select a checkpoint with an oldest timestamp greater than the pinned timestamp, we should
-     * safely advance to a newer checkpoint. This is because the version we intend to read would
-     * still be present in the newer checkpoint.
+     * position.
+     *
+     * FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never select a
+     * checkpoint with an oldest timestamp greater than the pinned timestamp, we should safely
+     * advance to a newer checkpoint. This is because the version we intend to read would still be
+     * present in the newer checkpoint.
      */
-    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-      clayered->current_cursor == clayered->stable_cursor)
+    if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->stable_cursor &&
+      F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
         return (false);
 
     /*
@@ -2241,9 +2243,11 @@ __clayered_remove_follower(
 
     WT_RET(__clayered_modify_check(session, clayered, key));
 
-    if (!positioned ||
-      (clayered->current_cursor != NULL &&
-        !F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT))) {
+    /* The cached value can be stale once VALUE_INT is cleared (localized at a txn boundary). */
+    bool hold_value =
+      clayered->current_cursor != NULL && F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT);
+
+    if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
         WT_RET(__clayered_lookup(session, clayered, &value));
