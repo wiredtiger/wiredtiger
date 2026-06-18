@@ -1901,6 +1901,8 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: evicted blocks",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
+  "block-cache: maximum time spent adding a single page to the disaggregated victim cache, reset "
+  "per checkpoint (usecs)",
   "block-cache: number of blocks not evicted due to overhead",
   "block-cache: number of bypasses because no-write-allocate setting was on",
   "block-cache: number of bypasses due to overhead on put",
@@ -3021,6 +3023,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_blocks_evicted = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
+    /* not clearing block_cache_put_time_max */
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_overhead_put = 0;
@@ -4069,6 +4072,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
+    to->block_cache_put_time_max += WT_STAT_CONN_READ(from, block_cache_put_time_max);
     to->block_cache_not_evicted_overhead +=
       WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
