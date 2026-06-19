@@ -1966,10 +1966,10 @@ methods = {
         type='boolean'),
     Config('log_size', 'false', r'''
         Report a database-level size summary using the application's message handler: per-page-type
-        counts and uncompressed bytes, leaf key and value bytes and counts, the on-disk (compressed)
-        byte total, and a leaf page-size histogram. The values are raw constituents intended for
-        downstream analysis; derived figures such as overhead and compression ratio are not computed.
-        Key and value figures are only produced for row-store objects''',
+        counts and uncompressed bytes, leaf key and value bytes and counts, and a leaf page-size
+        histogram. The values are raw constituents intended for downstream analysis; derived figures
+        such as overhead are not computed. Key and value figures are only produced for row-store
+        objects''',
         type='boolean'),
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It

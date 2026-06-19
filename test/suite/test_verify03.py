@@ -33,8 +33,8 @@ from test_verbose01 import test_verbose_base
 # test_verify03.py
 # Verify emits a database-level size summary when the 'log_size' verify option is set, and stays
 # silent otherwise. The summary is raw constituents only (per-page-type counts and bytes, leaf
-# key/value bytes and counts, the on-disk compressed total, and a leaf page-size histogram);
-# derived figures such as overhead and compression ratio are computed by this test, not the engine.
+# key/value bytes and counts, and a leaf page-size histogram); derived figures such as overhead are
+# computed by this test, not the engine.
 class test_verify03(test_verbose_base):
     uri = 'table:test_verify03'
     # 32KB leaf / 16KB internal mirrors the MongoDB collection/index page targets.
@@ -60,7 +60,6 @@ class test_verify03(test_verbose_base):
             value=find(r'value bytes=(\d+)'),
             key_count=find(r'key count=(\d+)'),
             value_count=find(r'value count=(\d+)'),
-            compressed=find(r'compressed bytes=(\d+)'),
         )
         s['total'] = s['leaf_bytes'] + s['internal_bytes'] + s['overflow_bytes']
         s['overhead'] = s['total'] - (s['key'] + s['value'])
@@ -131,8 +130,7 @@ class test_verify03(test_verbose_base):
 
     # Append-only workload: a single btree filled with monotonically increasing keys, never updated
     # or deleted. Leaf pages pack tightly, the opposite end of the spectrum from the underfull tree
-    # above. No block compressor is configured, so the on-disk database is close to the uncompressed
-    # image size and the workload genuinely materializes the target size on disk.
+    # above.
     def populate_append(self, nrecords, valuesize):
         self.close_conn()
         conn = self.wiredtiger_open(self.home, 'create,cache_size=2GB')
@@ -187,11 +185,11 @@ class test_verify03(test_verbose_base):
         output = self.verify_capture(log_size=True)
         for expected in ['Size metrics:', 'leaf pages=', 'internal pages=', 'overflow pages=',
           'leaf bytes=', 'internal bytes=', 'overflow bytes=', 'key bytes=', 'value bytes=',
-          'key count=', 'value count=', 'compressed bytes=', 'Leaf page-size histogram']:
+          'key count=', 'value count=', 'Leaf page-size histogram']:
             self.assertIn(expected, output)
-        # The retired derived figures must no longer be emitted by the engine.
-        for unexpected in ['compression ratio=', 'leaf fullness=', 'overhead bytes=',
-          'fullness deciles=', 'prefix-compression savings=']:
+        # The retired derived figures and the on-disk size must no longer be emitted by the engine.
+        for unexpected in ['compressed bytes=', 'compression ratio=', 'leaf fullness=',
+          'overhead bytes=', 'fullness deciles=', 'prefix-compression savings=']:
             self.assertNotIn(unexpected, output)
 
         # The scalar constituents are a single line, prefixed with the object's (file) URI.
@@ -207,8 +205,6 @@ class test_verify03(test_verbose_base):
         # Non-empty values mean one value cell per key.
         self.assertEqual(s['key_count'], s['value_count'])
         self.assertGreater(s['key_count'], 0)
-        # A non-empty tree has a non-zero on-disk footprint.
-        self.assertGreater(s['compressed'], 0)
         # The histogram covers every leaf page exactly once.
         self.assertEqual(sum(self.parse_histogram(output)), s['leaf'])
 

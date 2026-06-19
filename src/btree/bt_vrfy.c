@@ -48,14 +48,6 @@ typedef struct {
     uint64_t key_count, value_count; /* Counts of leaf key and value cells. */
 
     /*
-     * On-disk (compressed) byte total, summed from the address cookie of every data block (leaf,
-     * internal, overflow and root). The block manager rounds each block to the allocation unit, so
-     * this is the on-disk footprint of the data blocks rather than the raw compressed payload, and
-     * it excludes block-manager metadata such as the avail list.
-     */
-    uint64_t disk_total;
-
-    /*
      * Leaf page-size histogram, bucketed on the uncompressed image size. All but the last bucket
      * are equal-width slices of [0, maxleafpage); the final bucket holds pages at or above
      * maxleafpage. Bucket width is maxleafpage / (WT_VRFY_HIST_BUCKETS - 1), so the bucket count is
@@ -74,7 +66,6 @@ typedef struct {
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
-static int __verify_accumulate_disk_size(WT_SESSION_IMPL *, WT_VSTUFF *, const uint8_t *, size_t);
 static int __verify_compare_page_id(const void *, const void *);
 static int __verify_disagg_accumulate_size(WT_SESSION_IMPL *, WT_VSTUFF *, const void *, size_t);
 static int __verify_page_content_int(
@@ -227,9 +218,8 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 /*
  * __dump_size --
  *     Report the database-level size summary as raw constituents: per-page-type counts and
- *     uncompressed bytes, leaf key/value bytes and counts, the on-disk (compressed) byte total, and
- *     a leaf page-size histogram. Derived figures (overhead, compression ratio, fullness) are left
- *     to downstream analysis.
+ *     uncompressed bytes, leaf key/value bytes and counts, and a leaf page-size histogram. Derived
+ *     figures (overhead, fullness) are left to downstream analysis.
  */
 static int
 __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
@@ -248,10 +238,10 @@ __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
       "%s: Size metrics: leaf pages=%" PRIu64 ", internal pages=%" PRIu64
       ", overflow pages=%" PRIu64 ", leaf bytes=%" PRIu64 ", internal bytes=%" PRIu64
       ", overflow bytes=%" PRIu64 ", key bytes=%" PRIu64 ", value bytes=%" PRIu64
-      ", key count=%" PRIu64 ", value count=%" PRIu64 ", compressed bytes=%" PRIu64,
+      ", key count=%" PRIu64 ", value count=%" PRIu64,
       session->dhandle->name, vs->leaf_cnt, vs->internal_cnt, vs->overflow_cnt, vs->leaf_mem,
       vs->internal_mem, vs->overflow_mem, vs->key_bytes, vs->value_bytes, vs->key_count,
-      vs->value_count, vs->disk_total));
+      vs->value_count));
 
     /*
      * The leaf page-size histogram is a second message: the in-range buckets are
@@ -295,39 +285,6 @@ __verify_disagg_accumulate_size(
     WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &cookie));
 
     vs->total_block_size += cookie.size;
-    return (0);
-}
-
-/*
- * __verify_accumulate_disk_size --
- *     Decode an address cookie and add the referenced block's on-disk (compressed) size to the size
- *     summary. The block manager rounds each block to the allocation unit, so the running total is
- *     the on-disk footprint of the data blocks, not the raw compressed payload.
- */
-static int
-__verify_accumulate_disk_size(
-  WT_SESSION_IMPL *session, WT_VSTUFF *vs, const uint8_t *addr, size_t addr_size)
-{
-    WT_BLOCK_DISAGG_ADDRESS_COOKIE disagg_cookie;
-    WT_BTREE *btree;
-    wt_off_t offset;
-    uint32_t checksum, objectid, size;
-    const uint8_t *buf;
-
-    /* The root's parent reference is a synthetic cell with no cookie; nothing to account for. */
-    if (!vs->log_size || addr == NULL || addr_size == 0)
-        return (0);
-
-    btree = S2BT(session);
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-        buf = addr;
-        WT_RET(__wt_block_disagg_addr_unpack(session, &buf, addr_size, &disagg_cookie));
-        vs->disk_total += disagg_cookie.size;
-    } else {
-        WT_RET(__wt_block_addr_unpack(
-          session, btree->bm->block, addr, addr_size, &objectid, &offset, &size, &checksum));
-        vs->disk_total += size;
-    }
     return (0);
 }
 
@@ -625,9 +582,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Account for the root page in the accumulated total block size. */
             WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
-            /* The root has no parent cell; account for it from the root address. */
-            WT_TRET(__verify_accumulate_disk_size(session, vs, root_addr, root_addr_size));
-
             /* Validate the size of the btree. */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
                 /*
@@ -759,7 +713,6 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
     vs->leaf_mem = vs->internal_mem = vs->overflow_mem = 0;
     vs->key_bytes = vs->value_bytes = 0;
     vs->key_count = vs->value_count = 0;
-    vs->disk_total = 0;
     memset(vs->leaf_size_hist, 0, sizeof(vs->leaf_size_hist));
 }
 
@@ -1148,13 +1101,6 @@ __verify_tree(
                     hist_bucket = (size_t)WT_MIN(page_mem / bucket_width, WT_VRFY_HIST_BUCKETS - 1);
                 ++vs->leaf_size_hist[hist_bucket];
             }
-            /*
-             * The parent reference cell carries this page's on-disk address; its cookie gives the
-             * compressed block size. The root's cell is synthetic with no cookie; the caller
-             * accounts for it.
-             */
-            WT_RET(
-              __verify_accumulate_disk_size(session, vs, addr_unpack->data, addr_unpack->size));
         }
     }
 
@@ -1480,13 +1426,12 @@ __verify_overflow(
     /*
      * Count the overflow page against the totals. The payload (datalen) is the key or value data,
      * counted against the same key/value byte totals as on-page items so downstream overhead stays
-     * correct; the overflow page header is overhead, and the on-page cookie is part of the
-     * referencing page's image. Count the item so per-key/value averages remain accurate.
+     * correct; the overflow page header is overhead. Count the item so per-key/value averages stay
+     * accurate.
      */
     if (vs->log_size) {
         ++vs->overflow_cnt;
         vs->overflow_mem += dsk->mem_size;
-        WT_RET(__verify_accumulate_disk_size(session, vs, addr, addr_size));
         if (S2BT(session)->type == BTREE_ROW) {
             if (kind == WT_VRFY_OVFL_KEY) {
                 vs->key_bytes += dsk->u.datalen;
