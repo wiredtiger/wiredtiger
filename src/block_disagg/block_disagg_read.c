@@ -419,8 +419,8 @@ __wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t tabl
       npage_log->page_log, &session->iface, table_id, &plhandle));
 
     tmp_count = (uint32_t)*results_count;
-    ret = plhandle->plh_get(
-      plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count);
+    ret =
+      plhandle->plh_get(plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count);
     if (ret == 0) {
         WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
         *results_count = tmp_count;

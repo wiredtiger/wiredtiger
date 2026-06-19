@@ -53,9 +53,8 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
 
     def _run_wt(self, *args, failure=False):
         cmd = ['-C', self._follower_config()] + list(args)
-        # reopensession=False: the Python connection stays closed after wt exits;
-        # the test does not need it again, and the corrupt checkpoint would make
-        # open_conn() fail anyway.
+        # Do not reopen the session after wt exits; the test does not need it
+        # again and the corrupt checkpoint would make open_conn() fail anyway.
         self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
                    failure=failure, reopensession=False)
         with open('wt.out') as f:

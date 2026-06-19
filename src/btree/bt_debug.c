@@ -538,8 +538,8 @@ err:
 
 /*
  * __wt_debug_disagg_page_id --
- *     Fetch and dump a disaggregated page chain by (page_id, lsn) for the current dhandle, bypassing
- *     the address-cookie path.
+ *     Fetch and dump a disaggregated page chain by (page_id, lsn) for the current dhandle,
+ *     bypassing the address-cookie path.
  */
 int
 __wt_debug_disagg_page_id(
@@ -589,12 +589,12 @@ __wt_debug_disagg_page_id_raw(
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE fake_dhandle;
     WT_DATA_HANDLE *saved_dhandle;
-    bool fake_dhandle_installed;
     WT_DECL_RET;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_NAMED_COMPRESSOR *ncomp;
     WT_PAGE_LOG_GET_ARGS get_args;
     u_int count, i, ncompressors;
+    bool fake_dhandle_installed;
 
     conn = S2C(session);
     fake_dhandle_installed = false;
@@ -615,8 +615,8 @@ __wt_debug_disagg_page_id_raw(
 
     /*
      * The page dump machinery requires a session with a valid dhandle and btree. Synthesize minimal
-     * versions on the stack so cell iteration and display work without opening the table — the
-     * only critical field is block_header, which governs where page cells start. Set the SPECIAL
+     * versions on the stack so cell iteration and display work without opening the table. The only
+     * critical field is block_header, which governs where page cells start. Set the SPECIAL
      * namespace on the fake btree id to suppress history store cursor setup.
      */
     memset(&fake_btree, 0, sizeof(fake_btree));
@@ -931,7 +931,7 @@ __debug_cell_kv(
     if (page == NULL && S2BT(session)->bm == NULL &&
       (unpack->raw == WT_CELL_KEY_OVFL || unpack->raw == WT_CELL_VALUE_OVFL ||
         unpack->raw == WT_CELL_VALUE_OVFL_RM))
-        return (ds->f(ds, "\t%s%soverflow item not resolved (no block manager)\n",
+        return (ds->f(ds, "\t%s%s(overflow item not resolved: no block manager)\n",
           tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
 
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, unpack, ds->t1) :
