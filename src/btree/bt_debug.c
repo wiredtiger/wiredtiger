@@ -928,17 +928,6 @@ __debug_cell_kv(
     if (unpack->raw == WT_CELL_DEL)
         return (0);
 
-    /*
-     * Overflow cells store their data through the block manager. The raw page-dump path (wt page
-     * -t) has no open btree and thus no block manager, so note the overflow and skip resolving it
-     * rather than dereferencing a NULL block manager.
-     */
-    if (page == NULL && S2BT(session)->bm == NULL &&
-      (unpack->raw == WT_CELL_KEY_OVFL || unpack->raw == WT_CELL_VALUE_OVFL ||
-        unpack->raw == WT_CELL_VALUE_OVFL_RM))
-        return (ds->f(ds, "\t%s%s(overflow item not resolved: no block manager)\n",
-          tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
-
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
