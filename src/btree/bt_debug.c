@@ -584,8 +584,12 @@ int
 __wt_debug_disagg_page_id_raw(
   WT_SESSION_IMPL *session, uint64_t table_id, uint64_t page_id, uint64_t lsn)
 {
+    WT_BTREE fake_btree;
     WT_COMPRESSOR *compressor;
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE fake_dhandle;
+    WT_DATA_HANDLE *saved_dhandle;
+    bool fake_dhandle_installed;
     WT_DECL_RET;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_NAMED_COMPRESSOR *ncomp;
@@ -593,6 +597,7 @@ __wt_debug_disagg_page_id_raw(
     u_int count, i, ncompressors;
 
     conn = S2C(session);
+    fake_dhandle_installed = false;
     memset(results, 0, sizeof(results));
     count = WT_ELEMENTS(results);
 
@@ -608,11 +613,31 @@ __wt_debug_disagg_page_id_raw(
     WT_ERR(__wt_block_disagg_debug_read_page_id_raw(
       session, table_id, page_id, lsn, &get_args, results, &count));
 
+    /*
+     * The page dump machinery requires a session with a valid dhandle and btree. Synthesize minimal
+     * versions on the stack so cell iteration and display work without opening the table — the
+     * only critical field is block_header, which governs where page cells start. Set the SPECIAL
+     * namespace on the fake btree id to suppress history store cursor setup.
+     */
+    memset(&fake_btree, 0, sizeof(fake_btree));
+    fake_btree.block_header = WT_BLOCK_DISAGG_HEADER_SIZE;
+    fake_btree.key_format = "u";
+    fake_btree.value_format = "u";
+    fake_btree.id = WT_BTREE_ID_NAMESPACED(0, WT_BTREE_ID_NAMESPACE_SPECIAL);
+
+    memset(&fake_dhandle, 0, sizeof(fake_dhandle));
+    fake_dhandle.handle = &fake_btree;
+
+    saved_dhandle = session->dhandle;
+    session->dhandle = &fake_dhandle;
+    fake_dhandle_installed = true;
     WT_ERR(__wt_msg(session, "table_id: %" PRIu64, table_id));
     WT_TRET(__debug_disagg_dump_results(
       session, results, count, &get_args, page_id, lsn, compressor, NULL));
 
 err:
+    if (fake_dhandle_installed)
+        session->dhandle = saved_dhandle;
     for (i = 0; i < WT_ELEMENTS(results); i++)
         __wt_buf_free(session, &results[i]);
     return (ret);

@@ -26,8 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import json, os, re, subprocess
 import wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, DisaggCorruptionMixin
+from helper_disagg import DisaggConfigMixin, DisaggCorruptionMixin, get_shard_id
+from metadata_helper import get_table_id
+from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 # Reading individual pages in follower mode without a checkpoint pickup
@@ -78,6 +81,46 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         # and must exit zero, with a warning rather than an abort.
         _, err = self._run_wt('list')
         self.assertIn('proceeding with empty metadata', err)
+
+    def _find_base_image_page(self):
+        # Newest base-image row (no backlink) for the data table.
+        table_id = get_table_id(self.session, self.stable_uri)
+        shard = get_shard_id(table_id)
+        db = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
+        sql = (f"SELECT page_id, lsn FROM pages WHERE table_id={table_id} "
+               f"AND base_lsn=0 AND backlink_lsn=0 ORDER BY lsn DESC LIMIT 1;")
+        sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
+        out = subprocess.run([sqlite_exe, '-json', db, sql],
+                             capture_output=True, text=True, check=True).stdout
+        rows = json.loads(out) if out.strip() else []
+        self.assertTrue(rows, f"no base-image row for table_id={table_id}")
+        return table_id, int(rows[0]['page_id']), int(rows[0]['lsn'])
+
+    def test_raw_read_after_corrupt_checkpoint(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('wt page requires a diagnostic build')
+        self._populate()
+        table_id, page_id, lsn = self._find_base_image_page()
+        self.corrupt_checkpoint_metadata_page()
+        out, err = self._run_wt(
+            'page', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn))
+        self.assertIn('proceeding with empty metadata', err)
+        self.assertIn(f"table_id: {table_id}", out)
+        self.assertIn("- row-store ", out)
+
+    def test_raw_read_unknown_page(self):
+        if self.ds_name != 'palite':
+            self.skipTest('palite-only test')
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('wt page requires a diagnostic build')
+        self._populate()
+        table_id = get_table_id(self.session, self.stable_uri)
+        _, err = self._run_wt(
+            'page', '-t', str(table_id), '-p', '99999999', '-l', '1',
+            failure=True)
+        self.assertIn("WT_NOTFOUND", err)
 
 if __name__ == '__main__':
     wttest.run()
