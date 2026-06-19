@@ -86,31 +86,20 @@ util_page(WT_SESSION *session, int argc, char *argv[])
 
     /*
      * With an explicit table id, read directly off the connection page log without opening the
-     * table. This works even when the checkpoint cannot be picked up.
+     * table; this works even when the checkpoint cannot be picked up. Otherwise resolve the URI to a
+     * dhandle and read through it.
      */
-    if (have_table_id) {
-#ifdef HAVE_DIAGNOSTIC
-        ret = __wt_debug_disagg_page_id_raw(session_impl, table_id, page_id, lsn);
-#else
-        fprintf(stderr,
-          "%s: page: this subcommand requires a diagnostic build "
-          "(rebuild WiredTiger with -DHAVE_DIAGNOSTIC=1)\n",
-          progname);
-        ret = ENOTSUP;
-#endif
-        if (ret != 0)
-            (void)util_err(session, ret, "page");
-        return (ret == 0 ? 0 : 1);
+    if (!have_table_id) {
+        if (argc != 1)
+            return (usage());
+        if ((uri = util_uri(session, *argv, "file")) == NULL)
+            return (1);
+        WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
     }
 
-    if (argc != 1)
-        return (usage());
-    if ((uri = util_uri(session, *argv, "file")) == NULL)
-        return (1);
-
-    WT_ERR(__wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0));
 #ifdef HAVE_DIAGNOSTIC
-    ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
+    ret = have_table_id ? __wt_debug_disagg_page_id_raw(session_impl, table_id, page_id, lsn) :
+                          __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
 #else
     fprintf(stderr,
       "%s: page: this subcommand requires a diagnostic build "
@@ -118,7 +107,9 @@ util_page(WT_SESSION *session, int argc, char *argv[])
       progname);
     ret = ENOTSUP;
 #endif
-    WT_TRET(__wt_session_release_dhandle(session_impl));
+
+    if (!have_table_id)
+        WT_TRET(__wt_session_release_dhandle(session_impl));
 
 err:
     util_free(uri);
