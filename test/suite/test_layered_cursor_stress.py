@@ -80,7 +80,10 @@ def write_allowed(txn):
 
 # The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
 # WORKLOAD_PROFILES and are what the suite actually runs.
-# FIXME-WT-17827: add a modify op once fixed (modify on a deleted slot aborts the follower layered cursor).
+# FIXME-WT-17827: the follower layered cursor mishandles operating on a just-removed cursor -- a repeat
+# remove of an already-deleted key leaves a stale position (a later iterate then diverges) and modify on
+# a deleted slot aborts. So op_pos_remove resets the dsc cursor in that case (see there) and there is no
+# modify op; revisit both once WT-17827 lands.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
 @dataclass(frozen=True)
@@ -269,7 +272,7 @@ WORKLOAD_PROFILES = {
 class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=1GB,statistics=(all),'
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor_stress', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     profiles = [(name, dict(profile=name)) for name in WORKLOAD_PROFILES]
     scenarios = make_scenarios(disagg_storages, profiles)
 
@@ -303,12 +306,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             Op(self.op_search,      weights.search),
             Op(self.op_search_near, weights.search_near),
             Op(self.op_pos_update,  weights.pos_update, needs_position=True, is_write=True),
+            Op(self.op_pos_remove,  weights.pos_remove, needs_position=True, is_write=True),
             Op(self.op_put,         weights.put,        is_write=True),
-            # FIXME-WT-17796: op_pos_remove (removing a key off a held cursor position) asserts on the
-            # follower layered cursor, so it is disabled; its weight is folded into op_remove to keep the
-            # delete pressure. Re-enable the row below and drop "+ weights.pos_remove" once fixed.
-            # Op(self.op_pos_remove, weights.pos_remove, needs_position=True, is_write=True),
-            Op(self.op_remove,      weights.remove + weights.pos_remove, is_write=True),
+            Op(self.op_remove,      weights.remove,     is_write=True),
             Op(self.op_reset,       weights.reset),
             Op(self.scen_full_scan, weights.full_scan),
             Op(self.scen_bulk_insert, weights.bulk_insert, is_write=True),
@@ -561,11 +561,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.py_table[key] = value   # only record the key if the update actually hit
 
     def op_pos_remove(self, nodes, rnd, trace):
-        # Removes the current key; the cursor stays on the (now deleted) slot.
+        # Removes the current key.
         key = self.state.cur_pos
+        already_removed = key not in self.state.py_table   # a repeat remove of an already-deleted key
         trace.log('pos_remove %r' % key)
         self._positional(nodes, lambda c: c.remove(), 'pos_remove')
         self.state.py_table.pop(key, None)
+        # FIXME-WT-17827: removing an already-removed key returns WT_NOTFOUND but does not clean up the
+        # follower layered cursor's position (a plain cursor resets), so a later iterate would diverge.
+        # Reset just the layered (dsc) cursor to realign it with the reference. Remove once WT-17827 lands.
+        if already_removed:
+            for n in nodes:
+                n.dsc_c.reset()
+            self.state.cur_pos = None
 
     def op_txn_begin(self, nodes, rnd, trace):
         # No txn open -> begin one (flavor by the txn_mode weights); a txn open -> end it.
