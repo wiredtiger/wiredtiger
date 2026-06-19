@@ -42,8 +42,13 @@ typedef struct {
     bool log_size;
     uint64_t leaf_cnt, internal_cnt, overflow_cnt;
     uint64_t leaf_mem, internal_mem, overflow_mem;
-    uint64_t key_bytes, value_bytes; /* Physical (on-page) leaf key and value bytes. */
-    uint64_t key_count, value_count; /* Counts of leaf key and value cells. */
+    /*
+     * Leaf key/value bytes and counts. Keys are physical (on-page) length; prefix compression is
+     * not resolved. These are leaf-only, overflow keys/values referenced from leaf pages are
+     * included, but overflow keys on internal pages are not.
+     */
+    uint64_t key_bytes, value_bytes;
+    uint64_t key_count, value_count;
 
     /*
      * Leaf page-size histogram, bucketed on the uncompressed image size. All but the last bucket
