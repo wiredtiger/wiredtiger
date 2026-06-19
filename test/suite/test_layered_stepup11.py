@@ -28,6 +28,7 @@
 
 import time
 import wiredtiger, wttest
+from helper import WiredTigerCursor
 from helper_disagg import disagg_test_class
 
 # On step-up the shared disk cache goes read-only; after the sweep server's
@@ -55,25 +56,26 @@ class test_layered_stepup11(wttest.WiredTigerTestCase):
         return str(i).zfill(5)
 
     def scan_cache_diff(self, session, limit=None):
-        stat_cursor = session.open_cursor('statistics:')
-        miss_before = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_miss][2]
-        hit_before = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_hit][2]
-        stat_cursor.close()
+        with WiredTigerCursor(session, 'statistics:') as stat_cursor:
+            miss_before = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_miss][2]
+            hit_before = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_hit][2]
 
-        cursor = session.open_cursor(self.uri)
-        count = 0
-        while cursor.next() == 0:
-            count += 1
-            if limit is not None and count >= limit:
-                break
-        cursor.close()
-        if limit is None:
-            self.assertEqual(count, self.nrows)
+        with WiredTigerCursor(session, self.uri) as cursor:
+            count = 0
+            ret = 0
+            while ret == 0:
+                ret = cursor.next()
+                if ret == 0:
+                    count += 1
+                if limit is not None and count >= limit:
+                    break
+            if limit is None:
+                self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+                self.assertEqual(count, self.nrows)
 
-        stat_cursor = session.open_cursor('statistics:')
-        miss = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_miss][2] - miss_before
-        hit = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_hit][2] - hit_before
-        stat_cursor.close()
+        with WiredTigerCursor(session, 'statistics:') as stat_cursor:
+            miss = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_miss][2] - miss_before
+            hit = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_hit][2] - hit_before
         return miss, hit
 
     def update_one_and_checkpoint(self, session, value):
