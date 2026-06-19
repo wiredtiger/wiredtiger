@@ -470,7 +470,7 @@ open:
     /* Call the function after opening the database and session. */
     ret = func(session, argc, argv);
 
-    /* 
+    /*
      * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site.
      */
     if (ret == 0 && read_corrupt &&
