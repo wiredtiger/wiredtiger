@@ -98,8 +98,10 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     }
 
 #ifdef HAVE_DIAGNOSTIC
-    ret = have_table_id ? __wt_debug_disagg_page_id_raw(session_impl, table_id, page_id, lsn) :
-                          __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
+    if (have_table_id)
+        ret = __wt_debug_disagg_page_id_raw(session_impl, table_id, page_id, lsn);
+    else
+        ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
 #else
     fprintf(stderr,
       "%s: page: this subcommand requires a diagnostic build "
