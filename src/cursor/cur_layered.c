@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
+static int __clayered_update_ingest(WT_CURSOR_LAYERED *, uint32_t);
 static int __clayered_update_stable(WT_CURSOR_LAYERED *, uint32_t);
 static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_CURSOR **);
@@ -121,10 +122,10 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_FOLLOWER_OVERWRITE 0x1u /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_ITERATION 0x2u          /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u              /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x8u        /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
  * __clayered_enter --
@@ -144,7 +145,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, uint32_t flags)
     }
 
     /* Follower overwrites update ingest tables without accessing the stable table. */
-    if (!LF_ISSET(CLAYERED_ENTER_FOLLOWER_OVERWRITE))
+    if (!LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
         F_SET(clayered, WT_CLAYERED_READ_STABLE);
 
     /*
@@ -159,11 +160,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, uint32_t flags)
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    /* Open the ingest on first use. We never reopen it during normal operation. */
-    if (clayered->ingest_cursor == NULL) {
-        WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
-        WT_RET(__clayered_copy_bounds(clayered));
-    }
+    /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
+    WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags));
@@ -352,7 +350,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool checkpoint_expected)
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
 static bool
-__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bool iteration)
 {
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
@@ -363,15 +361,21 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, bool iteration)
     if (S2C(session)->layered_table_manager.leader)
         return (false);
 
+    /* No need to advance if there is no newer checkpoint. */
+    if (clayered->stable_checkpoint_meta_lsn == conn_lsn)
+        return (false);
+
     /*
      * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
-     * position. FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never
-     * select a checkpoint with an oldest timestamp greater than the pinned timestamp, we should
-     * safely advance to a newer checkpoint. This is because the version we intend to read would
-     * still be present in the newer checkpoint.
+     * position.
+     *
+     * FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never select a
+     * checkpoint with an oldest timestamp greater than the pinned timestamp, we should safely
+     * advance to a newer checkpoint. This is because the version we intend to read would still be
+     * present in the newer checkpoint.
      */
-    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-      clayered->current_cursor == clayered->stable_cursor)
+    if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->stable_cursor &&
+      F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
         return (false);
 
     /*
@@ -538,6 +542,35 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT
 }
 
 /*
+ * __clayered_update_ingest --
+ *     Manage the ingest cursor lifecycle by node role. A follower opens it on first use and never
+ *     reopens it during normal operation. The leader keeps it closed: the ingest table is empty for
+ *     reads and unused for writes, so an open ingest cursor only adds the per-operation
+ *     cache/reopen and dhandle rwlock overhead. A step-up can leave behind an ingest cursor opened
+ *     while a follower, so close it on the role change.
+ */
+static int
+__clayered_update_ingest(WT_CURSOR_LAYERED *clayered, uint32_t flags)
+{
+    WT_SESSION_IMPL *const session = CUR2S(clayered);
+
+    if (S2C(session)->layered_table_manager.leader) {
+        if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+            WT_CURSOR *ingest = clayered->ingest_cursor;
+            if (clayered->current_cursor == ingest)
+                clayered->current_cursor = NULL;
+            WT_RET(ingest->close(ingest));
+            clayered->ingest_cursor = NULL;
+        }
+    } else if (clayered->ingest_cursor == NULL) {
+        WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
+        WT_RET(__clayered_copy_bounds(clayered));
+    }
+
+    return (0);
+}
+
+/*
  * __clayered_update_stable --
  *     Manage the stable cursor lifecycle: open it for the first time, advance it to a newer
  *     checkpoint, or reopen it in a different mode after a role change.
@@ -555,7 +588,7 @@ __clayered_update_stable(WT_CURSOR_LAYERED *clayered, uint32_t flags)
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed. */
         bool follower_open_stable =
-          (!FLD_ISSET(flags, CLAYERED_ENTER_FOLLOWER_OVERWRITE) && conn_lsn != WT_DISAGG_LSN_NONE);
+          (!FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
         if (conn->layered_table_manager.leader || follower_open_stable) {
             F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
             WT_RET(__clayered_open_stable(clayered, false));
@@ -564,7 +597,8 @@ __clayered_update_stable(WT_CURSOR_LAYERED *clayered, uint32_t flags)
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
         }
     } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
-      __clayered_can_advance_stable(clayered, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
+      __clayered_can_advance_stable(
+        clayered, conn_lsn, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
         /*
          * Reopen the cursor.
          *
@@ -1965,7 +1999,8 @@ done:
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV)) {
         if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->ingest_cursor)
             WT_ERR(clayered->stable_cursor->reset(clayered->stable_cursor));
-        else if (clayered->current_cursor == clayered->stable_cursor)
+        else if (clayered->ingest_cursor != NULL &&
+          clayered->current_cursor == clayered->stable_cursor)
             WT_ERR(clayered->ingest_cursor->reset(clayered->ingest_cursor));
     }
 
@@ -2100,6 +2135,99 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 }
 
 /*
+ * __clayered_cell_check --
+ *     Detect a write conflict on a positioned constituent cursor.
+ */
+static int
+__clayered_cell_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+    WT_TIME_WINDOW tw;
+
+    /* Ignore prepared updates, matching the leader. */
+    if (__wt_read_cell_time_window(cbt, &tw) && WT_TIME_WINDOW_HAS_PREPARE(&tw))
+        return (0);
+
+    /* Ensure the pinned page is valid. */
+    WT_ASSERT(session, cbt->ref != NULL && cbt->ref->page != NULL);
+
+    /* Use the in-memory update chain if present (ingest). */
+    WT_UPDATE *upd = NULL;
+    if (cbt->ins != NULL)
+        upd = cbt->ins->upd;
+    else if (CUR2BT(cbt)->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
+      cbt->ref->page->modify->mod_row_update != NULL) {
+        WT_ASSERT(session, cbt->slot != UINT32_MAX);
+        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+    }
+
+    return (__wt_txn_modify_check(session, cbt, upd, NULL, WT_UPDATE_STANDARD));
+}
+
+/*
+ * __clayered_constituent_check --
+ *     Check a constituent for a write conflict on the key.
+ */
+static int
+__clayered_constituent_check(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_CURSOR *c, const WT_ITEM *key)
+{
+    if (c == NULL)
+        return (0);
+
+    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)c;
+    WT_DECL_RET;
+
+    if (clayered->current_cursor == c && F_ISSET(c, WT_CURSTD_KEY_INT)) {
+        /* Positioned on the key: check the held cell and keep the position. */
+        WT_WITH_DHANDLE(session, cbt->dhandle, ret = __clayered_cell_check(session, cbt));
+    } else {
+        WT_WITH_DHANDLE(session, cbt->dhandle, {
+            /* Release any page held from a prior op before searching. */
+            ret = __wt_btcur_reset(cbt);
+            if (ret == 0) {
+                WT_WITH_PAGE_INDEX(
+                  session, ret = __wt_row_search(cbt, (WT_ITEM *)key, false, NULL, false, NULL));
+                if (ret == 0 && cbt->compare == 0)
+                    ret = __clayered_cell_check(session, cbt);
+            }
+            WT_TRET(__wt_btcur_reset(cbt));
+        });
+    }
+
+    return (ret);
+}
+
+/*
+ * __clayered_modify_check --
+ *     Detect a write conflict for a follower write: a committed update invisible to this
+ *     transaction in either constituent.
+ */
+static int
+__clayered_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key)
+{
+    /* No read timestamp means every update is visible; nothing to probe. */
+    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+        return (0);
+
+    /* The leader's underlying stable cursor runs the check itself. */
+    if (S2C(session)->layered_table_manager.leader)
+        return (0);
+
+    /*
+     * The probe searches and resets the constituent cursors, destroying the walk-consistent
+     * positions an in-progress iteration relies on. Clear the iteration flags so the next
+     * next()/prev() re-seats both constituents.
+     */
+    F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
+
+    /* Probe the ingest and stable tables. */
+    WT_RET(__clayered_constituent_check(session, clayered, clayered->ingest_cursor, key));
+    WT_RET(__clayered_constituent_check(session, clayered, clayered->stable_cursor, key));
+
+    return (0);
+}
+
+/*
  * __clayered_remove_follower --
  *     Remove an entry from the ingest table.
  */
@@ -2107,32 +2235,33 @@ static WT_INLINE int
 __clayered_remove_follower(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
-    WT_CURSOR *const c = clayered->ingest_cursor;
+    WT_CURSOR *const c_ingest = clayered->ingest_cursor;
     WT_DECL_RET;
     WT_ITEM value;
 
     WT_CLEAR(value);
 
-    if (positioned) {
-        if (clayered->current_cursor == c) {
-            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
-            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_VALUE_INT));
-            /*
-             * If we are erasing a record that is already a tombstone, don't write another one: we
-             * don't ever want consecutive tombstones on an update chain.
-             */
-            WT_ITEM_SET(value, c->value);
-            if (__wt_clayered_deleted(&value))
-                return (WT_NOTFOUND);
-        }
-    } else {
+    WT_RET(__clayered_modify_check(session, clayered, key));
+
+    /* The cached value can be stale once VALUE_INT is cleared (localized at a txn boundary). */
+    bool hold_value =
+      clayered->current_cursor != NULL && F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT);
+
+    if (!positioned || !hold_value) {
+        /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
         WT_RET(__clayered_lookup(session, clayered, &value));
+    } else if (clayered->current_cursor == c_ingest) {
+        WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
+        /* Skip an existing tombstone: no consecutive tombstones on an update chain. */
+        WT_ITEM_SET(value, c_ingest->value);
+        if (__wt_clayered_deleted(&value))
+            return (WT_NOTFOUND);
     }
 
     /* If we are positioned on the stable table, we need to set the key. */
-    if (clayered->current_cursor != c)
-        c->set_key(c, key);
+    if (clayered->current_cursor != c_ingest)
+        c_ingest->set_key(c_ingest, key);
 
     /*
      * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
@@ -2147,9 +2276,9 @@ __clayered_remove_follower(
      */
     WT_RET(__wt_layered_table_truncate_detect_write_conflict(
       session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
-    c->set_value(c, &__wt_tombstone);
-    WT_ERR(c->update(c));
-    clayered->current_cursor = c;
+    c_ingest->set_value(c_ingest, &__wt_tombstone);
+    WT_ERR(c_ingest->update(c_ingest));
+    clayered->current_cursor = c_ingest;
 
 err:
     if (ret != 0)
@@ -2247,8 +2376,10 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
 
-    if (!S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
-        enter_flags |= CLAYERED_ENTER_FOLLOWER_OVERWRITE;
+    /* With a read timestamp the conflict check needs the stable table; don't skip opening it. */
+    if (!S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+      !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+        FLD_SET(enter_flags, CLAYERED_ENTER_SKIP_STABLE);
     WT_ERR(__clayered_enter(clayered, enter_flags));
 
     /*
@@ -2257,14 +2388,13 @@ __clayered_insert(WT_CURSOR *cursor)
      */
     if (!S2C(session)->layered_table_manager.leader && !F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(session, clayered, &value)) != WT_NOTFOUND) {
-        if (ret == 0) {
-            WT_ERR(__clayered_copy_duplicate_kv(cursor));
-            WT_ERR(__clayered_reset_cursors(clayered, false));
-            WT_ERR(WT_DUPLICATE_KEY);
-        }
-
-        goto err;
+        WT_ERR(ret);
+        WT_ERR(__clayered_copy_duplicate_kv(cursor));
+        WT_ERR(__clayered_reset_cursors(clayered, false));
+        WT_ERR(WT_DUPLICATE_KEY);
     }
+
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
     ret = __clayered_put(session, clayered, &cursor->key, &value, WT_CLAYERED_PUT_INSERT);
@@ -2329,9 +2459,13 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
 
-    if (!S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
-        enter_flags |= CLAYERED_ENTER_FOLLOWER_OVERWRITE;
+    /* With a read timestamp the conflict check needs the stable table. */
+    if (!S2C(session)->layered_table_manager.leader && F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+      !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+        FLD_SET(enter_flags, CLAYERED_ENTER_SKIP_STABLE);
     WT_ERR(__clayered_enter(clayered, enter_flags));
+
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     if (!S2C(session)->layered_table_manager.leader && !F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__clayered_lookup(session, clayered, &value));
@@ -2341,6 +2475,7 @@ __clayered_update(WT_CURSOR *cursor)
          */
         WT_ERR(__cursor_needkey(cursor));
     }
+
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
     WT_ERR(__clayered_put(session, clayered, &cursor->key, &value, WT_CLAYERED_PUT_UPDATE));
 
@@ -2452,8 +2587,14 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_enter(clayered, 0));
 
-    /* WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. */
-    WT_ERR(__clayered_lookup(session, clayered, &value));
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
+
+    /*
+     * WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. The
+     * leader's stable cursor reserves without overwrite and runs the check itself.
+     */
+    if (!S2C(session)->layered_table_manager.leader)
+        WT_ERR(__clayered_lookup(session, clayered, &value));
 
     WT_ERR(__clayered_put(session, clayered, &cursor->key, NULL, WT_CLAYERED_PUT_RESERVE));
 
@@ -2501,9 +2642,11 @@ __clayered_largest_key(WT_CURSOR *cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
-    WT_ERR_NOTFOUND_OK(ingest_cursor->largest_key(ingest_cursor), true);
-    if (ret == 0)
-        ingest_found = true;
+    if (ingest_cursor != NULL) {
+        WT_ERR_NOTFOUND_OK(ingest_cursor->largest_key(ingest_cursor), true);
+        if (ret == 0)
+            ingest_found = true;
+    }
 
     if (stable_cursor != NULL) {
         WT_ERR_NOTFOUND_OK(stable_cursor->largest_key(stable_cursor), true);
@@ -2665,6 +2808,8 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     if (c == NULL || ret == WT_NOTFOUND) {
         c = clayered->ingest_cursor;
+        if (c == NULL)
+            WT_ERR(WT_NOTFOUND);
         WT_ERR(__wti_curfile_next_random(c));
     }
 
@@ -2752,11 +2897,17 @@ __clayered_modify_follower(
 
     WT_CLEAR(value);
 
-    /* Do a search if we're not positioned. */
-    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))
-        WT_ERR_NOTFOUND_OK(__clayered_lookup(session, clayered, &value), true);
+    /*
+     * Modify requires a visible base value: search before the conflict check so a missing value
+     * returns WT_NOTFOUND.
+     */
+    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
+      !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
+        WT_ERR(__clayered_lookup(session, clayered, &value));
     else
         WT_ITEM_SET(value, cursor->value);
+
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     if (clayered->current_cursor != ingest) {
         /*
@@ -2777,7 +2928,7 @@ __clayered_modify_follower(
          * also cannot serve as the base value for a modify. In these cases, perform a full update
          * instead.
          */
-        if (ret == WT_NOTFOUND || __wt_clayered_deleted(&ingest->value) ||
+        if (__wt_clayered_deleted(&ingest->value) ||
           __clayered_is_deleted_encoded(&ingest->value)) {
             __clayered_deleted_decode(&ingest->value);
             WT_ERR(__wt_modify_apply_api(ingest, entries, nentries));

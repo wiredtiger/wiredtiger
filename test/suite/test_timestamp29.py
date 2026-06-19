@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp29.py
-#   Timestamps: Test setting and querying the stable disaggregated schema epoch.
+# Timestamps: Test setting and querying the stable disaggregated schema epoch.
 
 import wiredtiger, wttest
 from wiredtiger import stat
