@@ -85,9 +85,9 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * Without an explicit table id, resolve the URI to a dhandle and read through it. An explicit
-     * table id instead reads directly off the connection page log without opening the table, which
-     * works even when the checkpoint cannot be picked up.
+     * An explicit table id reads directly off the connection page log without opening the table,
+     * which works even when the checkpoint cannot be picked up. Otherwise resolve the URI to a
+     * dhandle and read through it.
      */
 #ifdef HAVE_DIAGNOSTIC
     if (have_table_id) {
