@@ -40,7 +40,6 @@ class test_layered_stepup11(sweep_util):
     conn_base_config = 'statistics=(all),' \
                      + 'disaggregated=(lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
-    # close_scan_interval=1 ensures the sweep server ticks within the 8s sleep window.
     conn_follow_config = conn_base_config \
         + 'file_manager=(close_scan_interval=1),' \
         + 'disaggregated=(role="follower")'
@@ -70,8 +69,12 @@ class test_layered_stepup11(sweep_util):
                 if limit is not None and count >= limit:
                     break
             if limit is None:
+                # Full scan must reach end of records cleanly.
                 self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
                 self.assertEqual(count, self.nrows)
+            else:
+                # Partial scan stops mid-table, so the last cursor.next() succeeded.
+                self.assertEqual(ret, 0)
 
         with WiredTigerCursor(session, 'statistics:') as stat_cursor:
             miss = stat_cursor[wiredtiger.stat.conn.cache_shared_dsk_miss][2] - miss_before
