@@ -81,8 +81,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 
     /*
      * Run through the keys, returning non-zero on error or if any requested key isn't found. Under
-     * read-corrupt, a WT_ERROR/EIO from a key's descent is reported and the loop moves on; other
-     * errors propagate as hard failures.
+     * read-corrupt, a WT_ERROR from a key's descent is reported and the loop moves on.
      */
     for (rval = false; *++argv != NULL;) {
         if (rkey) {
@@ -96,7 +95,8 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         case 0:
             if ((ret = cursor->get_value(cursor, &value)) != 0) {
                 (void)util_cerr(cursor, "get_value", ret);
-                if (!read_corrupt || (ret != WT_ERROR && ret != EIO))
+                if (!read_corrupt || ret != WT_ERROR ||
+                  !F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION))
                     return (1);
                 rval = true;
                 break;
@@ -110,7 +110,8 @@ util_read(WT_SESSION *session, int argc, char *argv[])
             break;
         default:
             (void)util_cerr(cursor, "search", ret);
-            if (!read_corrupt || (ret != WT_ERROR && ret != EIO))
+            if (!read_corrupt || ret != WT_ERROR ||
+              !F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION))
                 return (1);
             rval = true;
             break;
