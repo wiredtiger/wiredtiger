@@ -1608,10 +1608,11 @@ struct __wt_session {
      * application's message handler\, intended for debugging; requires optional support from the
      * block manager., a boolean flag; default \c false.}
      * @config{log_size, Report a database-level size summary using the application's message
-     * handler: the uncompressed byte breakdown of user data versus overhead (page headers\, cell
-     * metadata\, internal and overflow pages)\, the on-disk (compressed) byte total and the
-     * resulting compression ratio\, and per-page fullness relative to the configured page sizes.
-     * The summary is only produced for row-store objects., a boolean flag; default \c false.}
+     * handler: per-page-type counts and uncompressed bytes\, leaf key and value bytes and counts\,
+     * the on-disk (compressed) byte total\, and a leaf page-size histogram.  The values are raw
+     * constituents intended for downstream analysis; derived figures such as overhead and
+     * compression ratio are not computed.  Key and value figures are only produced for row-store
+     * objects., a boolean flag; default \c false.}
      * @config{read_corrupt, A mode that allows verify to continue reading after encountering a
      * checksum error.  It will skip past the corrupt block and continue with the verification
      * process., a boolean flag; default \c false.}

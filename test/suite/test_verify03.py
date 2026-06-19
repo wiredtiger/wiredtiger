@@ -31,50 +31,48 @@ import wttest
 from test_verbose01 import test_verbose_base
 
 # test_verify03.py
-# Verify emits a database-level size summary (overhead byte breakdown, on-disk compressed size and
-# compression ratio, and page fullness) when the 'log_size' verify option is set, and stays silent
-# otherwise.
+# Verify emits a database-level size summary when the 'log_size' verify option is set, and stays
+# silent otherwise. The summary is raw constituents only (per-page-type counts and bytes, leaf
+# key/value bytes and counts, the on-disk compressed total, and a leaf page-size histogram);
+# derived figures such as overhead and compression ratio are computed by this test, not the engine.
 class test_verify03(test_verbose_base):
     uri = 'table:test_verify03'
     # 32KB leaf / 16KB internal mirrors the MongoDB collection/index page targets.
     params = 'key_format=S,value_format=S,leaf_page_max=32KB,internal_page_max=16KB'
     nrecords = 10000
 
-    # Pull the numeric fields out of verify's output. 'data', 'total' and 'compressed' come from the
-    # always-on API message; the per-page-type and overhead fields come from the verbose detail
-    # message, so a full parse requires output captured with verbose verify enabled.
+    # Pull the raw constituent fields out of verify's "Size metrics" message. All fields are on the
+    # single always-emitted line. Overhead and the uncompressed total are derived here, mirroring the
+    # downstream analysis the engine deliberately leaves to the consumer.
     def parse_summary(self, output):
         def find(pattern):
             m = re.search(pattern, output)
             self.assertTrue(m is not None, 'missing "%s" in verify output' % pattern)
             return int(m.group(1))
-        return dict(
-            data=find(r'data bytes=(\d+)'),
-            total=find(r'total bytes=(\d+)'),
-            compressed=find(r'compressed bytes=(\d+)'),
+        s = dict(
             leaf=find(r'leaf pages=(\d+)'),
             internal=find(r'internal pages=(\d+)'),
             overflow=find(r'overflow pages=(\d+)'),
+            leaf_bytes=find(r'leaf bytes=(\d+)'),
+            internal_bytes=find(r'internal bytes=(\d+)'),
+            overflow_bytes=find(r'overflow bytes=(\d+)'),
             key=find(r'key bytes=(\d+)'),
             value=find(r'value bytes=(\d+)'),
-            overhead=find(r'overhead bytes=(\d+)'),
+            key_count=find(r'key count=(\d+)'),
+            value_count=find(r'value count=(\d+)'),
+            compressed=find(r'compressed bytes=(\d+)'),
         )
+        s['total'] = s['leaf_bytes'] + s['internal_bytes'] + s['overflow_bytes']
+        s['overhead'] = s['total'] - (s['key'] + s['value'])
+        return s
 
-    # Pull the average leaf fullness (from the API message) and the leaf decile histogram (decile ->
-    # page count, from the verbose detail message). The leaf decile list runs from its label to the
-    # internal decile label.
-    def parse_leaf_fullness(self, output):
-        avg = None
-        m = re.search(r'leaf fullness=([\d.]+)%', output)
-        if m:
-            avg = float(m.group(1))
-        buckets = {}
-        block = re.search(
-            r'leaf fullness deciles=(.*?)(?:, internal fullness deciles=|\Z)', output, re.S)
-        if block:
-            for bm in re.finditer(r'(\d+)%:\s*(\d+)', block.group(1)):
-                buckets[int(bm.group(1)) // 10] = int(bm.group(2))
-        return avg, buckets
+    # Pull the leaf page-size histogram as an ordered list of per-bucket page counts. The buckets run
+    # low to high with the final entry being the ">=maxleafpage" bucket; the sum equals the leaf page
+    # count.
+    def parse_histogram(self, output):
+        line = next((l for l in output.splitlines() if 'Leaf page-size histogram' in l), None)
+        self.assertIsNotNone(line, 'missing leaf page-size histogram in verify output')
+        return [int(c) for c in re.findall(r'B:(\d+)', line)]
 
     # Build a tree spanning many leaf pages, then delete most of the keys so the pages are left
     # underfull (WiredTiger does not merge pages back together). Every keep_mod-th key survives, so
@@ -104,11 +102,11 @@ class test_verify03(test_verbose_base):
         conn.close()
 
     # Run verify against a fresh connection, optionally passing the 'log_size' option, and return
-    # everything it printed to stdout via the application's message handler. With verbose=True the
-    # connection enables the verify verbose category, which surfaces the detailed size message.
-    def verify_capture(self, log_size, verbose=False):
+    # everything it printed to stdout via the application's message handler. The size summary is
+    # always emitted when log_size is set; it is not gated behind verbose verify.
+    def verify_capture(self, log_size):
         self.cleanStdout()
-        conn = self.wiredtiger_open(self.home, 'verbose=[verify]' if verbose else '')
+        conn = self.wiredtiger_open(self.home, '')
         session = conn.open_session()
         config = 'log_size=true' if log_size else None
         self.assertEqual(session.verify(self.uri, config), 0)
@@ -159,11 +157,11 @@ class test_verify03(test_verbose_base):
 
         self.populate_append(nrecords, valuesize)
 
-        output = self.verify_capture(log_size=True, verbose=True)
+        output = self.verify_capture(log_size=True)
         s = self.parse_summary(output)
 
-        # Byte accounting stays self-consistent at scale.
-        self.assertEqual(s['overhead'], s['total'] - (s['key'] + s['value']))
+        # Overhead (derived) is non-negative and a small fraction of well-packed user data.
+        self.assertGreaterEqual(s['overhead'], 0)
 
         # A single append-only btree at this scale: many leaf pages, no overflow, multiple GB. The
         # 'u' value format stores exactly valuesize bytes per record (no trailing NUL).
@@ -171,104 +169,91 @@ class test_verify03(test_verbose_base):
         self.assertEqual(s['overflow'], 0)
         self.assertGreaterEqual(s['total'], 4 * 1024 * 1024 * 1024)
         self.assertGreaterEqual(s['value'], nrecords * valuesize)
+        self.assertEqual(s['key_count'], s['value_count'])
 
-        # Append-only leaves pack tightly: fullness is high and overhead is a small fraction of user
-        # data, unlike the underfull pathology.
-        avg, buckets = self.parse_leaf_fullness(output)
-        self.assertIsNotNone(avg)
-        self.assertGreaterEqual(avg, 60)
-        self.assertEqual(sum(buckets.values()), s['leaf'])
+        # Append-only leaves pack tightly: the histogram weight sits in the high buckets and overhead
+        # is a small fraction of user data, unlike the underfull pathology.
+        hist = self.parse_histogram(output)
+        self.assertEqual(sum(hist), s['leaf'])
+        # The top two in-range buckets (>=75% of maxleafpage) hold the bulk of the pages.
+        self.assertGreaterEqual(hist[-3] + hist[-2], int(0.8 * s['leaf']))
         self.assertLess(s['overhead'] * 100 // (s['key'] + s['value']), 25)
 
     def test_verify_size_metrics(self):
         self.populate_underfull()
 
-        # The always-on API message carries only data bytes, total bytes and leaf fullness. It is a
-        # single line and must not leak the detailed breakdown or the histogram.
-        api = self.verify_capture(log_size=True)
-        for expected in ['Size metrics (uncompressed image):', 'data bytes=', 'total bytes=',
-          'compressed bytes=', 'compression ratio=', 'leaf fullness=', 'overhead=']:
-            self.assertIn(expected, api)
-        for unexpected in ['Size metrics detail:', 'key bytes=', 'overhead bytes=',
-          'fullness deciles=']:
-            self.assertNotIn(unexpected, api)
-        api_line = next(l for l in api.splitlines() if 'Size metrics (uncompressed image):' in l)
-        # The verified object's URI is logged at the start of the message (the underlying file URI).
-        self.assertTrue(api_line.startswith('file:test_verify03.wt: Size metrics'),
-          'expected the object URI at the start of the message: %s' % api_line)
-        for expected in ['data bytes=', 'total bytes=', 'compressed bytes=', 'compression ratio=',
-          'leaf fullness=', 'overhead=']:
-            self.assertIn(expected, api_line)
-        # The compression ratio is reported to two decimals followed by 'x'.
-        self.assertIsNotNone(re.search(r'compression ratio=\d+\.\d{2}x', api_line))
-
-        # With verbose verify enabled, a second message provides the detailed breakdown and the
-        # fullness histograms.
-        output = self.verify_capture(log_size=True, verbose=True)
-        for expected in ['Size metrics detail:', 'leaf pages=', 'key bytes=', 'value bytes=',
-          'overhead bytes=', 'avg internal fullness=', 'leaf fullness deciles=',
-          'internal fullness deciles=']:
+        # The size summary is always emitted (not gated behind verbose) as two messages: the scalar
+        # constituents and the leaf page-size histogram.
+        output = self.verify_capture(log_size=True)
+        for expected in ['Size metrics:', 'leaf pages=', 'internal pages=', 'overflow pages=',
+          'leaf bytes=', 'internal bytes=', 'overflow bytes=', 'key bytes=', 'value bytes=',
+          'key count=', 'value count=', 'compressed bytes=', 'Leaf page-size histogram']:
             self.assertIn(expected, output)
-        # The detail is a single line.
-        detail_line = next(l for l in output.splitlines() if 'Size metrics detail:' in l)
-        for expected in ['leaf pages=', 'overhead bytes=', 'leaf fullness deciles=']:
-            self.assertIn(expected, detail_line)
+        # The retired derived figures must no longer be emitted by the engine.
+        for unexpected in ['compression ratio=', 'leaf fullness=', 'overhead bytes=',
+          'fullness deciles=', 'prefix-compression savings=']:
+            self.assertNotIn(unexpected, output)
 
-        # The byte breakdown must be self-consistent: overhead is whatever is not user data, and the
-        # API data-bytes figure equals key + value.
+        # The scalar constituents are a single line, prefixed with the object's (file) URI.
+        line = next(l for l in output.splitlines() if 'Size metrics:' in l)
+        self.assertTrue(line.startswith('file:test_verify03.wt: Size metrics:'),
+          'expected the object URI at the start of the message: %s' % line)
+
         s = self.parse_summary(output)
-        self.assertEqual(s['overhead'], s['total'] - (s['key'] + s['value']))
+        # Byte accounting is self-consistent: derived overhead is non-negative, and uncompressed
+        # bytes are at least the counted user data.
+        self.assertGreaterEqual(s['overhead'], 0)
         self.assertGreaterEqual(s['total'], s['key'] + s['value'])
-        self.assertEqual(s['data'], s['key'] + s['value'])
-        # A non-empty tree has a non-zero on-disk footprint. With no block compressor configured the
-        # on-disk size is the uncompressed image plus block headers rounded to the allocation unit,
-        # so it is in the same ballpark as the uncompressed total rather than dramatically smaller.
+        # Non-empty values mean one value cell per key.
+        self.assertEqual(s['key_count'], s['value_count'])
+        self.assertGreater(s['key_count'], 0)
+        # A non-empty tree has a non-zero on-disk footprint.
         self.assertGreater(s['compressed'], 0)
+        # The histogram covers every leaf page exactly once.
+        self.assertEqual(sum(self.parse_histogram(output)), s['leaf'])
 
-        # Without the option, neither message must appear.
-        output = self.verify_capture(log_size=False, verbose=True)
+        # Without the option, no summary must appear.
+        output = self.verify_capture(log_size=False)
         self.assertFalse('Size metrics' in output,
           'size summary should only be emitted when log_size=true is set')
 
     # Delete 99% of the keys, leaving a large population of near-empty leaf pages that WiredTiger
-    # never merges back together. This is the pathology the fullness histogram exists to surface:
-    # the average alone says "bad", but the histogram shows the pages are uniformly underfull.
+    # never merges back together. This is the pathology the page-size histogram exists to surface:
+    # the pages are uniformly underfull, concentrated in the smallest bucket.
     def test_verify_size_underfull(self):
         self.populate_underfull(keep_mod=100, nrecords=200000)
 
-        output = self.verify_capture(log_size=True, verbose=True)
+        output = self.verify_capture(log_size=True)
         s = self.parse_summary(output)
 
         # Byte accounting stays self-consistent regardless of tree shape.
-        self.assertEqual(s['overhead'], s['total'] - (s['key'] + s['value']))
+        self.assertGreaterEqual(s['overhead'], 0)
 
         # The tree is built from many leaf pages, and after the deletes they are heavily underfull.
         self.assertGreater(s['leaf'], 50)
-        avg, buckets = self.parse_leaf_fullness(output)
-        self.assertIsNotNone(avg)
-        self.assertLessEqual(avg, 10)
 
-        # The signal the histogram adds over the average: the underfull pages are a uniform
-        # population, not a few outliers. The bottom decile (<10% full) holds the vast majority.
-        self.assertIn(0, buckets)
-        self.assertGreaterEqual(buckets[0], int(0.8 * s['leaf']))
-        # All histogram buckets must sum to the reported leaf page count.
-        self.assertEqual(sum(buckets.values()), s['leaf'])
+        # The underfull pages are a uniform population, not a few outliers: the smallest bucket
+        # (<1/8 of maxleafpage) holds the vast majority, and the buckets sum to the leaf page count.
+        hist = self.parse_histogram(output)
+        self.assertEqual(sum(hist), s['leaf'])
+        self.assertGreaterEqual(hist[0], int(0.8 * s['leaf']))
 
-    # An overflow item's payload is user data, not overhead: it must be counted against key/value
-    # bytes (via the overflow page), keeping overhead a small fraction of a well-packed tree.
+    # An overflow item's payload is counted against value bytes (via the overflow page), so it is not
+    # mistaken for overhead, keeping derived overhead a small fraction of a well-packed tree.
     def test_verify_size_overflow(self):
         nrecords, valuesize = 500, 2000
         self.populate_overflow(nrecords, valuesize)
 
-        output = self.verify_capture(log_size=True, verbose=True)
+        output = self.verify_capture(log_size=True)
         s = self.parse_summary(output)
 
         # Large values must have produced overflow pages.
         self.assertGreater(s['overflow'], 0)
-        # The byte-accounting invariant holds.
-        self.assertEqual(s['overhead'], s['total'] - (s['key'] + s['value']))
-        # The overflow payloads (valuesize + NUL for the S format) dominate user value bytes; if
-        # they were miscounted as overhead, overhead would balloon past the user data.
+        # The overflow payloads (valuesize + NUL for the S format) dominate user value bytes; if they
+        # were miscounted as overhead, derived overhead would balloon past the user data.
         self.assertGreaterEqual(s['value'], nrecords * valuesize)
+        self.assertGreaterEqual(s['overhead'], 0)
         self.assertLess(s['overhead'], s['key'] + s['value'])
+        # Each record contributes one key and one value, including overflow values.
+        self.assertEqual(s['value_count'], nrecords)
+        self.assertEqual(s['key_count'], nrecords)

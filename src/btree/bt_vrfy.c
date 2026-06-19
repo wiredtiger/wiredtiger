@@ -36,16 +36,16 @@ typedef struct {
     bool read_corrupt;
 
     /*
-     * Uncompressed size accounting, accumulated per checkpoint and reported as a database-level
-     * summary for the most recent checkpoint. Only collected when the "log_size" option is set, and
-     * only meaningful for row-store objects.
+     * Size accounting, accumulated per checkpoint and reported as a database-level summary for the
+     * most recent checkpoint. Only collected when the "log_size" option is set, and the key/value
+     * byte and count fields are only meaningful for row-store objects. Everything reported is a raw
+     * constituent: derived figures (overhead, compression ratio, fullness) are computed downstream.
      */
     bool log_size;
     uint64_t leaf_cnt, internal_cnt, overflow_cnt;
     uint64_t leaf_mem, internal_mem, overflow_mem;
-    uint64_t key_bytes, value_bytes;
-    uint64_t key_prefix_savings; /* Logical key bytes elided by prefix compression. */
-    uint64_t fullness_leaf[11], fullness_internal[11];
+    uint64_t key_bytes, value_bytes; /* Physical (on-page) leaf key and value bytes. */
+    uint64_t key_count, value_count; /* Counts of leaf key and value cells. */
 
     /*
      * On-disk (compressed) byte total, summed from the address cookie of every data block (leaf,
@@ -54,6 +54,15 @@ typedef struct {
      * it excludes block-manager metadata such as the avail list.
      */
     uint64_t disk_total;
+
+    /*
+     * Leaf page-size histogram, bucketed on the uncompressed image size. All but the last bucket
+     * are equal-width slices of [0, maxleafpage); the final bucket holds pages at or above
+     * maxleafpage. Bucket width is maxleafpage / (WT_VRFY_HIST_BUCKETS - 1), so the bucket count is
+     * fixed across configurations and only the width changes.
+     */
+#define WT_VRFY_HIST_BUCKETS 9
+    uint64_t leaf_size_hist[WT_VRFY_HIST_BUCKETS];
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
@@ -217,8 +226,10 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 
 /*
  * __dump_size --
- *     Report the database-level uncompressed size breakdown: overhead bytes versus user data, and
- *     page-fullness relative to the target page sizes.
+ *     Report the database-level size summary as raw constituents: per-page-type counts and
+ *     uncompressed bytes, leaf key/value bytes and counts, the on-disk (compressed) byte total, and
+ *     a leaf page-size histogram. Derived figures (overhead, compression ratio, fullness) are left
+ *     to downstream analysis.
  */
 static int
 __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
@@ -227,84 +238,36 @@ __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t i;
-    uint64_t compress_ratio, internal_cap, leaf_cap, leaf_fullness, overhead, overhead_pct,
-      physical_user, total_mem, user_data;
+    uint32_t bucket_width;
 
     btree = S2BT(session);
+    bucket_width = btree->maxleafpage / (WT_VRFY_HIST_BUCKETS - 1);
 
-    total_mem = vs->leaf_mem + vs->internal_mem + vs->overflow_mem;
-
-    /*
-     * Keys are counted at their logical (pre-prefix-compression) length, so user data is the data
-     * the application stored. Overhead is structural (page headers, cell descriptors, validity
-     * windows, internal and overflow pages, free space), which only exists in the page image, so it
-     * is measured against the bytes physically present: the elided key-prefix bytes are a
-     * compression saving, not present in the image, and excluding them keeps overhead non-negative.
-     */
-    user_data = vs->key_bytes + vs->value_bytes;
-    physical_user = (vs->key_bytes - vs->key_prefix_savings) + vs->value_bytes;
-    overhead = total_mem > physical_user ? total_mem - physical_user : 0;
-    leaf_cap = vs->leaf_cnt * (uint64_t)btree->maxleafpage;
-    internal_cap = vs->internal_cnt * (uint64_t)btree->maxintlpage;
-    /* Leaf fullness, overhead and the compression ratio are reported to two decimals, so carry them
-     * as hundredths. */
-    leaf_fullness = leaf_cap == 0 ? 0 : (vs->leaf_mem * 10000) / leaf_cap;
-    overhead_pct = user_data == 0 ? 0 : (overhead * 10000) / user_data;
-    /* Compression ratio is uncompressed image bytes over on-disk bytes (e.g. 3.50x). */
-    compress_ratio = vs->disk_total == 0 ? 0 : (total_mem * 100) / vs->disk_total;
-
-    /*
-     * The headline summary always goes to the application via the message handler: user data, the
-     * total uncompressed image size, the on-disk (compressed) size and the resulting compression
-     * ratio, leaf-page fullness, and overhead. The full breakdown (per-page-type counts and bytes,
-     * overhead bytes, and the fullness histograms) is only of interest when debugging, so it is
-     * logged at the verify verbose level.
-     */
+    /* The scalar constituents are a single comma-separated message via the message handler. */
     WT_RET(__wt_msg(session,
-      "%s: Size metrics (uncompressed image): data bytes=%" PRIu64 ", total bytes=%" PRIu64
-      ", compressed bytes=%" PRIu64 ", compression ratio=%" PRIu64 ".%02" PRIu64
-      "x, leaf fullness=%" PRIu64 ".%02" PRIu64 "%%, overhead=%" PRIu64 ".%02" PRIu64
-      "%% of user data",
-      session->dhandle->name, user_data, total_mem, vs->disk_total, compress_ratio / 100,
-      compress_ratio % 100, leaf_fullness / 100, leaf_fullness % 100, overhead_pct / 100,
-      overhead_pct % 100));
+      "%s: Size metrics: leaf pages=%" PRIu64 ", internal pages=%" PRIu64
+      ", overflow pages=%" PRIu64 ", leaf bytes=%" PRIu64 ", internal bytes=%" PRIu64
+      ", overflow bytes=%" PRIu64 ", key bytes=%" PRIu64 ", value bytes=%" PRIu64
+      ", key count=%" PRIu64 ", value count=%" PRIu64 ", compressed bytes=%" PRIu64,
+      session->dhandle->name, vs->leaf_cnt, vs->internal_cnt, vs->overflow_cnt, vs->leaf_mem,
+      vs->internal_mem, vs->overflow_mem, vs->key_bytes, vs->value_bytes, vs->key_count,
+      vs->value_count, vs->disk_total));
 
-    if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
-        return (0);
-
-    /* The detail line is a single comma-separated message, not a multi-line block. */
+    /*
+     * The leaf page-size histogram is a second message: the in-range buckets are
+     * "<lo>-<hi>B:<count>" and the final bucket is ">=<maxleafpage>B:<count>". All buckets are
+     * printed, including empty ones, so the bucket layout is unambiguous to a downstream parser.
+     */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
+    WT_ERR(__wt_buf_fmt(
+      session, buf, "%s: Leaf page-size histogram (uncompressed):", session->dhandle->name));
+    for (i = 0; i < WT_VRFY_HIST_BUCKETS - 1; ++i)
+        WT_ERR(__wt_buf_catfmt(session, buf, " %" WT_SIZET_FMT "-%" WT_SIZET_FMT "B:%" PRIu64,
+          (size_t)(i * bucket_width), (size_t)((i + 1) * bucket_width), vs->leaf_size_hist[i]));
+    WT_ERR(__wt_buf_catfmt(session, buf, " >=%" PRIu32 "B:%" PRIu64, btree->maxleafpage,
+      vs->leaf_size_hist[WT_VRFY_HIST_BUCKETS - 1]));
 
-    WT_ERR(__wt_buf_fmt(session, buf,
-      "%s: Size metrics detail: leaf pages=%" PRIu64 ", internal pages=%" PRIu64
-      ", overflow pages=%" PRIu64 ", key bytes=%" PRIu64 " (logical), value bytes=%" PRIu64
-      ", prefix-compression savings=%" PRIu64 ", overhead bytes=%" PRIu64,
-      session->dhandle->name, vs->leaf_cnt, vs->internal_cnt, vs->overflow_cnt, vs->key_bytes,
-      vs->value_bytes, vs->key_prefix_savings, overhead));
-
-    if (user_data != 0)
-        WT_ERR(__wt_buf_catfmt(session, buf,
-          ", overhead=%" PRIu64 "%% of user data (logical; prefix-compression savings excluded)",
-          (overhead * 100) / user_data));
-
-    if (internal_cap != 0)
-        WT_ERR(
-          __wt_buf_catfmt(session, buf, ", avg internal fullness=%" PRIu64 "%% of %" PRIu32 "B",
-            (vs->internal_mem * 100) / internal_cap, btree->maxintlpage));
-
-    /* Fullness deciles (last bucket is >=100%); printed inline as "<decile>%:<page count>". */
-    WT_ERR(__wt_buf_catfmt(session, buf, ", leaf fullness deciles="));
-    for (i = 0; i < WT_ELEMENTS(vs->fullness_leaf); ++i)
-        if (vs->fullness_leaf[i] != 0)
-            WT_ERR(__wt_buf_catfmt(
-              session, buf, " %" WT_SIZET_FMT "0%%:%" PRIu64, i, vs->fullness_leaf[i]));
-    WT_ERR(__wt_buf_catfmt(session, buf, ", internal fullness deciles="));
-    for (i = 0; i < WT_ELEMENTS(vs->fullness_internal); ++i)
-        if (vs->fullness_internal[i] != 0)
-            WT_ERR(__wt_buf_catfmt(
-              session, buf, " %" WT_SIZET_FMT "0%%:%" PRIu64, i, vs->fullness_internal[i]));
-
-    __wt_verbose(session, WT_VERB_VERIFY, "%s", (const char *)buf->data);
+    WT_ERR(__wt_msg(session, "%s", (const char *)buf->data));
 
 err:
     __wt_scr_free(session, &buf);
@@ -795,10 +758,9 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
     vs->leaf_cnt = vs->internal_cnt = vs->overflow_cnt = 0;
     vs->leaf_mem = vs->internal_mem = vs->overflow_mem = 0;
     vs->key_bytes = vs->value_bytes = 0;
-    vs->key_prefix_savings = 0;
+    vs->key_count = vs->value_count = 0;
     vs->disk_total = 0;
-    memset(vs->fullness_leaf, 0, sizeof(vs->fullness_leaf));
-    memset(vs->fullness_internal, 0, sizeof(vs->fullness_internal));
+    memset(vs->leaf_size_hist, 0, sizeof(vs->leaf_size_hist));
 }
 
 /*
@@ -990,7 +952,9 @@ __verify_tree(
     WT_PAGE *page;
     WT_REF *child_ref;
     size_t my_stack_level, next_stack_level;
-    uint64_t fullness_bucket, page_max, page_mem;
+    size_t hist_bucket;
+    uint32_t bucket_width;
+    uint64_t page_mem;
     uint32_t entry;
 
     btree = S2BT(session);
@@ -1157,28 +1121,32 @@ __verify_tree(
         }
 
         /*
-         * Accumulate page counts, sizes, and fullness for the database-level summary, measured from
-         * the on-disk page image (dsk->mem_size, the bytes the image occupies when instantiated).
-         * This block runs only when a disk image exists: a page created in memory and never written
-         * has a NULL dsk and no on-disk footprint, so it is skipped and has no bearing on fullness.
-         * Verify is expected to run against a quiescent, non-live database. Internal pages are pure
-         * overhead; leaf key and value bytes are accumulated from the same image in the
-         * page-content checks above, piggybacking on their cell walks.
+         * Accumulate page counts and sizes for the database-level summary, measured from the
+         * on-disk page image (dsk->mem_size, the bytes the image occupies when instantiated). This
+         * block runs only when a disk image exists: a page created in memory and never written has
+         * a NULL dsk and no on-disk footprint, so it is skipped. Verify is expected to run against
+         * a quiescent, non-live database. Internal pages are pure overhead; leaf key and value
+         * bytes are accumulated from the same image in the page-content checks above, piggybacking
+         * on their cell walks.
          */
         if (vs->log_size) {
             page_mem = page->dsk->mem_size;
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
                 ++vs->internal_cnt;
                 vs->internal_mem += page_mem;
-                page_max = btree->maxintlpage;
-                fullness_bucket = page_max == 0 ? 0 : WT_MIN((page_mem * 10) / page_max, 10);
-                ++vs->fullness_internal[fullness_bucket];
             } else {
                 ++vs->leaf_cnt;
                 vs->leaf_mem += page_mem;
-                page_max = btree->maxleafpage;
-                fullness_bucket = page_max == 0 ? 0 : WT_MIN((page_mem * 10) / page_max, 10);
-                ++vs->fullness_leaf[fullness_bucket];
+                /*
+                 * Bucket the leaf by uncompressed size: equal-width slices of [0, maxleafpage),
+                 * with the final bucket for pages at or above the configured maximum.
+                 */
+                bucket_width = btree->maxleafpage / (WT_VRFY_HIST_BUCKETS - 1);
+                if (bucket_width == 0)
+                    hist_bucket = 0;
+                else
+                    hist_bucket = (size_t)WT_MIN(page_mem / bucket_width, WT_VRFY_HIST_BUCKETS - 1);
+                ++vs->leaf_size_hist[hist_bucket];
             }
             /*
              * The parent reference cell carries this page's on-disk address; its cookie gives the
@@ -1510,19 +1478,23 @@ __verify_overflow(
           __wt_addr_string(session, addr, addr_size, vs->tmp1));
 
     /*
-     * Count the overflow page against the totals. The payload (datalen) is user data when it backs
-     * a leaf key or value; the page header and the on-page cookie are overhead. The cookie lives on
-     * the referencing page and is already part of that page's image.
+     * Count the overflow page against the totals. The payload (datalen) is the key or value data,
+     * counted against the same key/value byte totals as on-page items so downstream overhead stays
+     * correct; the overflow page header is overhead, and the on-page cookie is part of the
+     * referencing page's image. Count the item so per-key/value averages remain accurate.
      */
     if (vs->log_size) {
         ++vs->overflow_cnt;
         vs->overflow_mem += dsk->mem_size;
         WT_RET(__verify_accumulate_disk_size(session, vs, addr, addr_size));
         if (S2BT(session)->type == BTREE_ROW) {
-            if (kind == WT_VRFY_OVFL_KEY)
+            if (kind == WT_VRFY_OVFL_KEY) {
                 vs->key_bytes += dsk->u.datalen;
-            else if (kind == WT_VRFY_OVFL_VALUE)
+                ++vs->key_count;
+            } else if (kind == WT_VRFY_OVFL_VALUE) {
                 vs->value_bytes += dsk->u.datalen;
+                ++vs->value_count;
+            }
         }
     }
 
@@ -1774,22 +1746,22 @@ __verify_page_content_leaf(
         }
 
         /*
-         * Accumulate user data bytes for the size summary, piggybacking on this walk. Row-store
-         * only; overflow payloads are counted against their pages in __verify_overflow above.
+         * Accumulate leaf key and value bytes and counts for the size summary, piggybacking on this
+         * walk. Row-store only; overflow payloads are counted against their pages in
+         * __verify_overflow above.
          *
-         * Keys are prefix-compressed on the page: the cell stores only the suffix that follows the
-         * bytes shared with the preceding key. Reconstruct the logical key length by adding back
-         * the shared-prefix count (unpack.prefix), which the unpack already provides, so the figure
-         * reflects the key the application stored rather than its compressed on-page footprint. The
-         * elided prefix bytes are a compression saving, not part of the page image, so user data
-         * can legitimately exceed the bytes physically present.
+         * Keys are counted at their physical (on-page) length: prefix compression is deliberately
+         * not resolved, so for indexes this is the prefix-compressed figure, matching what occupies
+         * the page image.
          */
         if (vs->log_size && page->type == WT_PAGE_ROW_LEAF) {
             if (unpack.type == WT_CELL_KEY) {
-                vs->key_bytes += unpack.prefix + unpack.size;
-                vs->key_prefix_savings += unpack.prefix;
-            } else if (unpack.type == WT_CELL_VALUE)
+                vs->key_bytes += unpack.size;
+                ++vs->key_count;
+            } else if (unpack.type == WT_CELL_VALUE) {
                 vs->value_bytes += unpack.size;
+                ++vs->value_count;
+            }
         }
 
         switch (unpack.type) {

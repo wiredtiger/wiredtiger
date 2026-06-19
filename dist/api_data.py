@@ -1955,11 +1955,11 @@ methods = {
         message handler, intended for debugging''',
         type='boolean'),
     Config('log_size', 'false', r'''
-        Report a database-level size summary using the application's message handler: the
-        uncompressed byte breakdown of user data versus overhead (page headers, cell metadata,
-        internal and overflow pages), the on-disk (compressed) byte total and the resulting
-        compression ratio, and per-page fullness relative to the configured page sizes. The
-        summary is only produced for row-store objects''',
+        Report a database-level size summary using the application's message handler: per-page-type
+        counts and uncompressed bytes, leaf key and value bytes and counts, the on-disk (compressed)
+        byte total, and a leaf page-size histogram. The values are raw constituents intended for
+        downstream analysis; derived figures such as overhead and compression ratio are not computed.
+        Key and value figures are only produced for row-store objects''',
         type='boolean'),
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It
