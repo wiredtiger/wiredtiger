@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import json, os, re, subprocess
+import json, os, subprocess
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, DisaggCorruptionMixin, get_shard_id
 from metadata_helper import get_table_id
@@ -121,6 +121,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
             'page', '-t', str(table_id), '-p', '99999999', '-l', '1',
             failure=True)
         self.assertIn("WT_NOTFOUND", err)
+
 
 if __name__ == '__main__':
     wttest.run()

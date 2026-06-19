@@ -621,6 +621,7 @@ __wt_debug_disagg_page_id_raw(
      */
     memset(&fake_btree, 0, sizeof(fake_btree));
     fake_btree.block_header = WT_BLOCK_DISAGG_HEADER_SIZE;
+    /* "u" (raw bytes) because the table's real formats are unknown without a btree. */
     fake_btree.key_format = "u";
     fake_btree.value_format = "u";
     fake_btree.id = WT_BTREE_ID_NAMESPACED(0, WT_BTREE_ID_NAMESPACE_SPECIAL);
@@ -921,6 +922,17 @@ __debug_cell_kv(
     /* Early exit for column store deleted cells. There's nothing further to print. */
     if (unpack->raw == WT_CELL_DEL)
         return (0);
+
+    /*
+     * Overflow cells store their data through the block manager. The raw page-dump path (wt page
+     * -t) has no open btree and thus no block manager, so note the overflow and skip resolving it
+     * rather than dereferencing a NULL block manager.
+     */
+    if (page == NULL && S2BT(session)->bm == NULL &&
+      (unpack->raw == WT_CELL_KEY_OVFL || unpack->raw == WT_CELL_VALUE_OVFL ||
+        unpack->raw == WT_CELL_VALUE_OVFL_RM))
+        return (ds->f(ds, "\t%s%soverflow item not resolved (no block manager)\n",
+          tag == NULL ? "" : tag, tag == NULL ? "" : ": "));
 
     WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
