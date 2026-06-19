@@ -96,24 +96,24 @@ disagg_key_push(
 
 /*
  * disagg_key_push_initial --
- *     Push a first key on the leader before a checkpoint that has no previously persisted key. In
- *     push mode the key provider has no persisted KEK page until a checkpoint drains a pushed key
- *     whose timestamp is at or below the checkpoint timestamp, and a checkpoint taken before that
- *     asserts on the missing page. set_key requires a timestamp above stable, so advance stable to
- *     the pushed key for the checkpoint to drain it. Called at create time and on every step-up.
+ *     Push a first key before a checkpoint that has no previously persisted key. In push mode the
+ *     key provider has no persisted KEK page until a checkpoint drains a pushed key whose timestamp
+ *     is at or below the checkpoint timestamp, and a checkpoint taken before that asserts on the
+ *     missing page. set_key requires a timestamp above stable, so advance stable to the pushed key
+ *     for the checkpoint to drain it. Called at create time and on every step-up.
  */
 void
-disagg_key_push_initial(WT_SESSION *session)
+disagg_key_push_initial(WT_CONNECTION *conn)
 {
-    WT_CONNECTION *conn;
     WT_KEY_PROVIDER *kp;
+    WT_SESSION *session;
     wt_timestamp_t push_ts;
     char ts_buf[WT_TS_HEX_STRING_SIZE + 24];
 
-    if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH || !g.disagg_leader)
+    if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH)
         return;
 
-    conn = session->connection;
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(conn->get_key_provider(conn, &kp));
 
     /*
@@ -130,6 +130,8 @@ disagg_key_push_initial(WT_SESSION *session)
     testutil_snprintf(ts_buf, sizeof(ts_buf), "stable_timestamp=%" PRIx64, (uint64_t)push_ts);
     testutil_check(conn->set_timestamp(conn, ts_buf));
     g.stable_timestamp = push_ts;
+
+    testutil_check(session->close(session, NULL));
 }
 
 /*

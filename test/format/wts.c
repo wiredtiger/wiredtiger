@@ -590,6 +590,9 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
 
+    /* Push mode requires a key to be set before checkpoint happens. */
+    disagg_key_push_initial(conn);
+
     *connp = conn;
 }
 
@@ -710,10 +713,6 @@ precise_checkpoint_init(void)
      * be set. Set it to the minimum value, which should not interfere with any later operations.
      */
     timestamp_once(session, false, false);
-
-    /* The create-time connection is checkpointed on close; push mode needs a key to persist. */
-    disagg_key_push_initial(session);
-
     testutil_check(session->close(session, NULL));
 }
 
