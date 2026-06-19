@@ -630,7 +630,7 @@ abc
 abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
-ackSstu
+acklSstu
 acqrel
 addr
 addrs
@@ -643,6 +643,7 @@ allocator
 allocators
 allocfile
 allocsize
+analytics
 aor
 ap
 api
@@ -1850,6 +1851,7 @@ undeferred
 undefers
 undeleted
 underflowed
+underfull
 unencoded
 unencrypted
 unesc

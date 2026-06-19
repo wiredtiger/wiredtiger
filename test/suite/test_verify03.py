@@ -41,7 +41,7 @@ class test_verify03(test_verbose_base):
     params = 'key_format=S,value_format=S,leaf_page_max=32KB,internal_page_max=16KB'
     nrecords = 10000
 
-    # Pull the raw constituent fields out of verify's "Size metrics" message. All fields are on the
+    # Pull the raw constituent fields out of the "Size metrics" message. All fields are on the
     # single always-emitted line. Overhead and the uncompressed total are derived here, mirroring the
     # downstream analysis the engine deliberately leaves to the consumer.
     def parse_summary(self, output):
@@ -65,12 +65,12 @@ class test_verify03(test_verbose_base):
         s['overhead'] = s['total'] - (s['key'] + s['value'])
         return s
 
-    # Pull the leaf page-size histogram as an ordered list of per-bucket page counts. The buckets run
-    # low to high with the final entry being the ">=maxleafpage" bucket; the sum equals the leaf page
-    # count.
+    # Pull the leaf page-size histogram as an ordered list of per-bucket page counts. The histogram is
+    # part of the single "Size metrics" message; buckets run low to high with the final entry being
+    # the ">= leaf page max" bucket, and the sum equals the leaf page count.
     def parse_histogram(self, output):
-        line = next((l for l in output.splitlines() if 'Leaf page-size histogram' in l), None)
-        self.assertIsNotNone(line, 'missing leaf page-size histogram in verify output')
+        line = next((l for l in output.splitlines() if 'Size metrics:' in l), None)
+        self.assertIsNotNone(line, 'missing size metrics message in verify output')
         return [int(c) for c in re.findall(r'B:(\d+)', line)]
 
     # Build a tree spanning many leaf pages, then delete most of the keys so the pages are left
@@ -173,29 +173,32 @@ class test_verify03(test_verbose_base):
         # is a small fraction of user data, unlike the underfull pathology.
         hist = self.parse_histogram(output)
         self.assertEqual(sum(hist), s['leaf'])
-        # The top two in-range buckets (>=75% of maxleafpage) hold the bulk of the pages.
+        # The top two in-range buckets (>=75% of leaf page max) hold the bulk of the pages.
         self.assertGreaterEqual(hist[-3] + hist[-2], int(0.8 * s['leaf']))
         self.assertLess(s['overhead'] * 100 // (s['key'] + s['value']), 25)
 
     def test_verify_size_metrics(self):
         self.populate_underfull()
 
-        # The size summary is always emitted (not gated behind verbose) as two messages: the scalar
-        # constituents and the leaf page-size histogram.
+        # The size summary is always emitted (not gated behind verbose) as a single message carrying
+        # the scalar constituents and the leaf page-size histogram.
         output = self.verify_capture(log_size=True)
         for expected in ['Size metrics:', 'leaf pages=', 'internal pages=', 'overflow pages=',
           'leaf bytes=', 'internal bytes=', 'overflow bytes=', 'key bytes=', 'value bytes=',
-          'key count=', 'value count=', 'Leaf page-size histogram']:
+          'key count=', 'value count=', 'leaf page-size histogram']:
             self.assertIn(expected, output)
         # The retired derived figures and the on-disk size must no longer be emitted by the engine.
         for unexpected in ['compressed bytes=', 'compression ratio=', 'leaf fullness=',
           'overhead bytes=', 'fullness deciles=', 'prefix-compression savings=']:
             self.assertNotIn(unexpected, output)
 
-        # The scalar constituents are a single line, prefixed with the object's (file) URI.
-        line = next(l for l in output.splitlines() if 'Size metrics:' in l)
+        # The whole summary is a single line, prefixed with the object's (file) URI.
+        lines = [l for l in output.splitlines() if 'Size metrics:' in l]
+        self.assertEqual(len(lines), 1, 'expected exactly one size metrics message: %s' % lines)
+        line = lines[0]
         self.assertTrue(line.startswith('file:test_verify03.wt: Size metrics:'),
           'expected the object URI at the start of the message: %s' % line)
+        self.assertIn('leaf page-size histogram', line)
 
         s = self.parse_summary(output)
         # Byte accounting is self-consistent: derived overhead is non-negative, and uncompressed
@@ -229,7 +232,7 @@ class test_verify03(test_verbose_base):
         self.assertGreater(s['leaf'], 50)
 
         # The underfull pages are a uniform population, not a few outliers: the smallest bucket
-        # (<1/8 of maxleafpage) holds the vast majority, and the buckets sum to the leaf page count.
+        # (<1/8 of leaf page max) holds the vast majority, and the buckets sum to the leaf page count.
         hist = self.parse_histogram(output)
         self.assertEqual(sum(hist), s['leaf'])
         self.assertGreaterEqual(hist[0], int(0.8 * s['leaf']))

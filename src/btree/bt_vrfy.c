@@ -36,10 +36,8 @@ typedef struct {
     bool read_corrupt;
 
     /*
-     * Size accounting, accumulated per checkpoint and reported as a database-level summary for the
-     * most recent checkpoint. Only collected when the "log_size" option is set, and the key/value
-     * byte and count fields are only meaningful for row-store objects. Everything reported is a raw
-     * constituent: derived figures (overhead, compression ratio, fullness) are computed downstream.
+     * Size accounting, accumulated per checkpoint and reported as a collection-level summary for
+     * the most recent checkpoint. Only collected when the "log_size" option is set.
      */
     bool log_size;
     uint64_t leaf_cnt, internal_cnt, overflow_cnt;
@@ -49,9 +47,8 @@ typedef struct {
 
     /*
      * Leaf page-size histogram, bucketed on the uncompressed image size. All but the last bucket
-     * are equal-width slices of [0, maxleafpage); the final bucket holds pages at or above
-     * maxleafpage. Bucket width is maxleafpage / (WT_VRFY_HIST_BUCKETS - 1), so the bucket count is
-     * fixed across configurations and only the width changes.
+     * are equal-width slices of [0, leaf page max); the final bucket holds pages at or above leaf
+     * page max.
      */
 #define WT_VRFY_HIST_BUCKETS 9
     uint64_t leaf_size_hist[WT_VRFY_HIST_BUCKETS];
@@ -217,9 +214,7 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 
 /*
  * __dump_size --
- *     Report the database-level size summary as raw constituents: per-page-type counts and
- *     uncompressed bytes, leaf key/value bytes and counts, and a leaf page-size histogram. Derived
- *     figures (overhead, fullness) are left to downstream analysis.
+ *     Report the collection-level size summary.
  */
 static int
 __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
@@ -233,24 +228,21 @@ __dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
     btree = S2BT(session);
     bucket_width = btree->maxleafpage / (WT_VRFY_HIST_BUCKETS - 1);
 
-    /* The scalar constituents are a single comma-separated message via the message handler. */
-    WT_RET(__wt_msg(session,
+    /*
+     * The entire summary is emitted as a single message via the message handler: the scalar
+     * constituents followed by the leaf page-size histogram. The in-range histogram buckets are
+     * "<lo>-<hi>B:<count>" and the final bucket is ">=<leaf page max>B:<count>"; all buckets are
+     * printed, including empty ones, so the layout is unambiguous to a downstream parser.
+     */
+    WT_RET(__wt_scr_alloc(session, 0, &buf));
+    WT_ERR(__wt_buf_fmt(session, buf,
       "%s: Size metrics: leaf pages=%" PRIu64 ", internal pages=%" PRIu64
       ", overflow pages=%" PRIu64 ", leaf bytes=%" PRIu64 ", internal bytes=%" PRIu64
       ", overflow bytes=%" PRIu64 ", key bytes=%" PRIu64 ", value bytes=%" PRIu64
-      ", key count=%" PRIu64 ", value count=%" PRIu64,
+      ", key count=%" PRIu64 ", value count=%" PRIu64 ", leaf page-size histogram (uncompressed):",
       session->dhandle->name, vs->leaf_cnt, vs->internal_cnt, vs->overflow_cnt, vs->leaf_mem,
       vs->internal_mem, vs->overflow_mem, vs->key_bytes, vs->value_bytes, vs->key_count,
       vs->value_count));
-
-    /*
-     * The leaf page-size histogram is a second message: the in-range buckets are
-     * "<lo>-<hi>B:<count>" and the final bucket is ">=<maxleafpage>B:<count>". All buckets are
-     * printed, including empty ones, so the bucket layout is unambiguous to a downstream parser.
-     */
-    WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_buf_fmt(
-      session, buf, "%s: Leaf page-size histogram (uncompressed):", session->dhandle->name));
     for (i = 0; i < WT_VRFY_HIST_BUCKETS - 1; ++i)
         WT_ERR(__wt_buf_catfmt(session, buf, " %" WT_SIZET_FMT "-%" WT_SIZET_FMT "B:%" PRIu64,
           (size_t)(i * bucket_width), (size_t)((i + 1) * bucket_width), vs->leaf_size_hist[i]));
@@ -1074,13 +1066,8 @@ __verify_tree(
         }
 
         /*
-         * Accumulate page counts and sizes for the database-level summary, measured from the
-         * on-disk page image (dsk->mem_size, the bytes the image occupies when instantiated). This
-         * block runs only when a disk image exists: a page created in memory and never written has
-         * a NULL dsk and no on-disk footprint, so it is skipped. Verify is expected to run against
-         * a quiescent, non-live database. Internal pages are pure overhead; leaf key and value
-         * bytes are accumulated from the same image in the page-content checks above, piggybacking
-         * on their cell walks.
+         * Accumulate page counts and sizes for the collection-level summary, measured from the
+         * on-disk page image (dsk->mem_size, the bytes the image occupies when instantiated).
          */
         if (vs->log_size) {
             page_mem = page->dsk->mem_size;
@@ -1091,7 +1078,7 @@ __verify_tree(
                 ++vs->leaf_cnt;
                 vs->leaf_mem += page_mem;
                 /*
-                 * Bucket the leaf by uncompressed size: equal-width slices of [0, maxleafpage),
+                 * Bucket the leaf by uncompressed size: equal-width slices of [0, leaf page max),
                  * with the final bucket for pages at or above the configured maximum.
                  */
                 bucket_width = btree->maxleafpage / (WT_VRFY_HIST_BUCKETS - 1);
@@ -1424,10 +1411,11 @@ __verify_overflow(
           __wt_addr_string(session, addr, addr_size, vs->tmp1));
 
     /*
-     * Count the overflow page against the totals. The payload (datalen) is the key or value data,
-     * counted against the same key/value byte totals as on-page items so downstream overhead stays
-     * correct; the overflow page header is overhead. Count the item so per-key/value averages stay
-     * accurate.
+     * Count the overflow page against the totals.
+     *
+     * The payload (datalen) is the key or value data, counted against the same key/value byte
+     * totals as on-page items so downstream overhead stays correct. The overflow page header is
+     * counted as overhead. Ensure we also count the keys and values on the page.
      */
     if (vs->log_size) {
         ++vs->overflow_cnt;
@@ -1692,10 +1680,9 @@ __verify_page_content_leaf(
 
         /*
          * Accumulate leaf key and value bytes and counts for the size summary, piggybacking on this
-         * walk. Row-store only; overflow payloads are counted against their pages in
-         * __verify_overflow above.
+         * walk. Overflow pages are counted separately above.
          *
-         * Keys are counted at their physical (on-page) length: prefix compression is deliberately
+         * Keys are counted at their physical (on-page) length, prefix compression is deliberately
          * not resolved, so for indexes this is the prefix-compressed figure, matching what occupies
          * the page image.
          */
