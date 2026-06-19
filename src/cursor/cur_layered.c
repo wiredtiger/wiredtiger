@@ -2035,11 +2035,11 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 
     WT_ERR(__clayered_search_near_int(session, cursor, exactp));
 
+    WT_ASSERT(session, clayered->current_cursor != NULL);
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
-    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_ingest);
     else
