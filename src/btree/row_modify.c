@@ -355,6 +355,15 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
         WT_ERR(__wt_txn_op_set_key(session, key));
     }
 
+    /*
+     * Announce this dirty leaf to the per-btree ring so eviction can drain it without walking the
+     * tree. Skip exclusive callers (page instantiate, split-apply, fast-truncate undo, rollback to
+     * stable, prepared discovery): they batch many updates on a page they own; per-update insertion
+     * is redundant and some clear the page modify state immediately after the batch.
+     */
+    if (!exclusive)
+        WT_IGNORE_RET(__wt_dirty_index_insert(session, S2BT(session), cbt->ref));
+
     if (0) {
 err:
         /*

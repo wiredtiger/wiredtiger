@@ -635,6 +635,11 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
 
     /*
+     * The dirty-index ring entry was cleared when the page was freed (the back-pointer and the
+     * matching slot are set to NULL up front); the ring no longer references this ref.
+     */
+
+    /*
      * Set the WT_REF state. It may be possible to immediately free the WT_REF, so this is our last
      * chance.
      */
@@ -2285,7 +2290,7 @@ err:
          * up the cache statistics.
          */
         __wt_page_modify_clear(session, right);
-        __wt_page_out(session, &right);
+        __wt_page_out(session, NULL, &right);
     }
     return (ret);
 }
@@ -2392,7 +2397,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * discard the page.
      */
     __wt_page_modify_clear(session, page);
-    __wt_page_out(session, &page);
+    __wt_page_out(session, NULL, &page);
 
     if (0) {
 err:
@@ -2532,6 +2537,12 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
     WT_RET(__wt_calloc_one(session, &new));
     new->ref_recno = ref->ref_recno;
 
+    /*
+     * The producer skips refs without WT_REF_FLAG_LEAF, so this scratch ref will not be inserted
+     * into the ring during the cursor operations performed by the in-memory split helper. The drain
+     * cannot safely dereference scratch refs after they are freed, which is exactly why we must
+     * keep them out of the ring.
+     */
     WT_ERR(__split_multi_inmem(session, page, multi, new));
 
     /*

@@ -798,7 +798,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
             }
         if (0) {
 err:
-            __wt_page_out(session, &page);
+            __wt_page_out(session, NULL, &page);
             return (ret);
         }
         break;
@@ -1207,7 +1207,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     return (0);
 
 err:
-    __wt_page_out(session, &page);
+    __wt_page_out(session, NULL, &page);
     return (ret);
 }
 

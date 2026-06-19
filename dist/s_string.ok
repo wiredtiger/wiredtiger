@@ -139,6 +139,7 @@ DUPLICATEV
 DataSet
 Decrementing
 Decrypt
+Dedup
 DeleteFileW
 Deterministically
 DisAgg
@@ -899,6 +900,7 @@ decrypted
 decrypting
 decryptor
 decrypts
+deduplicates
 deflateEnd
 deflateInit
 del

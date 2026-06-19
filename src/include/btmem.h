@@ -822,7 +822,15 @@ struct __wt_page {
     uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
                                       but fails */
     uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
-    /* 2 uint16_t hole expected. */
+
+    /*
+     * Slot index (1-based) of this page in the btree's dirty-index ring. Zero means the page is not
+     * currently in the ring. Stored as slot+1 so that the calloc-zeroed default (0) means "not
+     * present". Set by the producer (modify path), cleared by the consumer (drain), and actively
+     * cleared during page eviction so the ring entry is invalidated synchronously with page
+     * teardown.
+     */
+    wt_shared uint32_t dirty_index_slot;
 
     WT_PAGE_DISAGG_INFO *disagg_info;
 
