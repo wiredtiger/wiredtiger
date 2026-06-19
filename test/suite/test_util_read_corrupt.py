@@ -201,10 +201,11 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
         self.corrupt_root()
 
     # Keys that didn't show up in `wt -q dump`, i.e. the keys on the corrupted
-    # leaf. Used to pin read/stat tests to known-unreachable keys.
+    # leaf. Used to pin read/stat tests to known-unreachable keys. The dump is
+    # expected to exit non-zero under -q because corruption was encountered;
+    # the helper cares only about the stdout it captured.
     def _missing_keys(self):
-        rc, stdout, _ = self.run_wt('-q', 'dump', self._effective_uri())
-        self.assertEqual(rc, 0, 'helper dump failed: rc=%d' % rc)
+        _, stdout, _ = self.run_wt('-q', 'dump', self._effective_uri())
         found = set()
         for line in stdout.splitlines():
             if (len(line) == 12 and line.startswith('k') and line.endswith('\\00')
@@ -219,11 +220,12 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
         self.assertNotEqual(rc, 0, 'wt dump returned rc=%d; expected non-zero' % rc)
         self.assertIn('WT_PANIC', stderr, 'wt dump stderr missing WT_PANIC despite corruption')
 
-    # With -q, corrupt-leaf dump exits 0 with partial output (first/last keys present).
+    # With -q, corrupt-leaf dump emits partial output and exits non-zero to flag
+    # that corruption was encountered (first/last keys present).
     def test_dump_with_q_corrupt_page(self):
         self.setup_corrupt_leaf_table()
         rc, stdout, stderr = self.run_wt('-q', 'dump', self._effective_uri())
-        self.assertEqual(rc, 0, 'wt -q dump returned rc=%d; expected 0' % rc)
+        self.assertNotEqual(rc, 0, 'wt -q dump returned rc=0; expected non-zero')
         self.assertNotIn('WT_PANIC', stderr, 'wt -q dump panicked despite -q')
 
         first_key = 'k%08d\\00\n' % 0
@@ -242,10 +244,12 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
 
     # With -q, corrupt-root dump emits no records. The exact failure point
     # differs (ASC fails at cursor open; disagg fails at first next()), so we
-    # just assert no panic and no records.
+    # just assert no panic, no records, and non-zero rc since corruption was
+    # encountered.
     def test_dump_with_q_corrupted_root(self):
         self.setup_corrupt_root_table()
-        _, stdout, stderr = self.run_wt('-q', 'dump', self._effective_uri())
+        rc, stdout, stderr = self.run_wt('-q', 'dump', self._effective_uri())
+        self.assertNotEqual(rc, 0, 'wt -q dump returned rc=0; expected non-zero')
         self.assertNotIn('WT_PANIC', stderr, 'wt -q dump panicked despite -q')
         record_count = sum(1 for line in stdout.splitlines()
                            if len(line) == 12 and line.endswith('\\00')
@@ -285,9 +289,10 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
             self._corrupt_asc_leaf(leaf_addr, base_leaf)
             self._corrupt_asc_leaf(root_addr, base_root)
 
-        _, stdout, stderr = self.run_wt('-q', 'dump', '-j',
-                                        self._effective_uri(base_leaf),
-                                        self._effective_uri(base_root))
+        rc, stdout, stderr = self.run_wt('-q', 'dump', '-j',
+                                         self._effective_uri(base_leaf),
+                                         self._effective_uri(base_root))
+        self.assertNotEqual(rc, 0, 'wt -q dump -j returned rc=0; expected non-zero')
         self.assertNotIn('WT_PANIC', stderr, 'wt -q dump -j panicked despite -q')
 
         try:
@@ -350,11 +355,12 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
         self.assertNotEqual(rc, 0, 'wt stat returned rc=%d; expected non-zero' % rc)
         self.assertIn('WT_PANIC', stderr, 'wt stat stderr missing WT_PANIC despite corruption')
 
-    # With -q, stat tolerates the corrupt leaf and still emits stats.
+    # With -q, stat tolerates the corrupt leaf, emits stats, and exits non-zero
+    # to flag that corruption was encountered.
     def test_stat_with_q_corrupt_leaf(self):
         self.setup_corrupt_leaf_table()
         rc, stdout, stderr = self.run_wt('-q', 'stat', self._effective_uri())
-        self.assertEqual(rc, 0, 'wt -q stat returned rc=%d; expected 0' % rc)
+        self.assertNotEqual(rc, 0, 'wt -q stat returned rc=0; expected non-zero')
         self.assertNotIn('WT_PANIC', stderr, 'wt -q stat panicked despite -q')
         self.assertTrue(stdout.strip(), 'wt -q stat produced no output')
 

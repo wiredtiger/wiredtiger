@@ -138,7 +138,7 @@ usage(void)
       "-q",
       "continue past corrupt pages where possible: asks WiredTiger to skip corrupt pages instead "
       "of panicking, for read-oriented commands (dump, read, stat, list, page, printlog). Output "
-      "is best-effort and the command exits non-zero.",
+      "is best-effort and the command exits non-zero when corruption was encountered.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
@@ -469,6 +469,13 @@ open:
 
     /* Call the function after opening the database and session. */
     ret = func(session, argc, argv);
+
+    /* 
+     * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site.
+     */
+    if (ret == 0 && read_corrupt &&
+      F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION))
+        ret = WT_ERROR;
 
     if (0) {
 err:
