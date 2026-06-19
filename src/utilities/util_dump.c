@@ -111,7 +111,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *end_key, *key, *start_key;
     bool explore, hex, json, pretty, reverse, search_near;
-    bool in_json_table = false;
+    bool in_json_table, table_emitted;
+
+    in_json_table = table_emitted = false;
 
     session_impl = (WT_SESSION_IMPL *)session;
     window = 0;
@@ -214,13 +216,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
     for (i = 0; i < argc; i++) {
-        if (json && i > 0)
-            if (dump_json_separator(session) != 0)
-                goto err;
-
-        if (json)
-            in_json_table = true;
-
         util_free(uri);
         util_free(simpleuri);
         uri = simpleuri = NULL;
@@ -250,6 +245,17 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
                 continue;
             }
             goto err;
+        }
+
+        /*
+         * Open succeeded, the table envelope will be written. Emit a JSON separator only when a
+         * previous table actually made it into the output; under -q, earlier URIs may have been
+         * skipped on cursor-open failure and must not leave an orphan separator behind.
+         */
+        if (json) {
+            if (table_emitted && dump_json_separator(session) != 0)
+                goto err;
+            in_json_table = true;
         }
 
         if ((simpleuri = util_strdup(uri)) == NULL) {
@@ -301,6 +307,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             goto err;
 
         in_json_table = false;
+        table_emitted = true;
 
         if (hs_dump_cursor != NULL)
             F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);

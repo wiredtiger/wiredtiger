@@ -136,9 +136,9 @@ usage(void)
       "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
       "data)",
       "-q",
-      "continue past corrupt pages where possible: sets the session-level quiet-corrupt flag for "
-      "read-oriented commands (dump, read, stat, list, page). Output is best-effort and the "
-      "command exits non-zero. Pair with -p (disable prefetch) when inspecting damaged data.",
+      "continue past corrupt pages where possible: asks WiredTiger to skip corrupt pages instead "
+      "of panicking, for read-oriented commands (dump, read, stat, list, page, printlog). Output "
+      "is best-effort and the command exits non-zero.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
@@ -383,8 +383,8 @@ main(int argc, char *argv[])
     if (read_corrupt && func != util_dump && func != util_read && func != util_stat &&
       func != util_list && func != util_page && func != util_printlog) {
         fprintf(stderr,
-          "%s: -q is only valid for read-oriented commands: dump, read, stat, list, page "
-          "(verify has its own -c flag)\n",
+          "%s: -q is only valid for read-oriented commands: dump, read, stat, list, page, "
+          "printlog (verify has its own -c flag)\n",
           progname);
         goto err;
     }

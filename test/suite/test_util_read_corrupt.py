@@ -254,10 +254,9 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
             'wt -q dump emitted %d data records with the root corrupted' % record_count)
 
     # Two tables in one dump (corrupt-leaf + corrupt-root). Distinct value
-    # prefixes let us tell records apart. We assert via raw-string search
-    # because util_dump.c emits a stray ',' separator when read_corrupt skips
-    # a URI's failed cursor open -- the ASC corrupt-root case leaves the JSON
-    # envelope malformed.
+    # prefixes let us tell records apart. The envelope must round-trip through
+    # json.loads -- under -q a skipped URI must not orphan a separator or close
+    # an unopened table.
     def test_dump_with_q_and_json(self):
         base_leaf = self.uri + '_leaf'
         base_root = self.uri + '_root'
@@ -290,6 +289,11 @@ class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
                                         self._effective_uri(base_leaf),
                                         self._effective_uri(base_root))
         self.assertNotIn('WT_PANIC', stderr, 'wt -q dump -j panicked despite -q')
+
+        try:
+            json.loads(stdout)
+        except ValueError as exc:
+            self.fail('wt -q dump -j emitted malformed JSON: %s\noutput:\n%s' % (exc, stdout))
 
         # Leaf table: partial output with first and last values present.
         self.assertIn('vleaf%08d' % 0, stdout, 'leaf-table first value missing from JSON')
