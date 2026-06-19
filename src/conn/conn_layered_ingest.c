@@ -132,6 +132,9 @@ err:
 static int
 __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    bool pin = false;
+
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
     /* Truncate needs a running txn to drive the cursor. */
@@ -145,7 +148,18 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
      */
     F_SET(session->txn, WT_TXN_TS_NOT_SET | WT_TXN_NON_TRANSACTIONAL_TRUNCATE);
 
+    /* Failpoint: the first clear pins the oldest id and holds it open across a sibling's commit. */
+    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_DISAGG_INGEST_CLEAR) &&
+      __wt_atomic_cas_uint32(&conn->layered_table_manager.ingest_clear_pin_done, 0, 1)) {
+        conn->layered_table_manager.ingest_clear_pin_session = session;
+        WT_RET(__wt_txn_id_check(session));
+        pin = true;
+    }
+
     WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
+
+    if (pin)
+        __wt_sleep(3, 0);
 
     WT_RET(__wt_txn_commit(session, NULL));
 

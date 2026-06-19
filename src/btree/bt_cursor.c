@@ -1876,6 +1876,24 @@ retry:
         WT_ERR(rmfunc(start, NULL, WT_UPDATE_TOMBSTONE));
         ++records_truncated;
 
+        /* Failpoint: drop the value behind one sibling clear tombstone, leaving a lone tombstone.
+         */
+        if (FLD_ISSET(
+              S2C(session)->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_DISAGG_INGEST_CLEAR) &&
+          F_ISSET(CUR2BT(start), WT_BTREE_GARBAGE_COLLECT) &&
+          (void *)session != S2C(session)->layered_table_manager.ingest_clear_pin_session &&
+          start->ins != NULL && start->ins->upd != NULL &&
+          start->ins->upd->type == WT_UPDATE_TOMBSTONE && start->ins->upd->next != NULL &&
+          __wt_atomic_cas_uint32(
+            &S2C(session)->layered_table_manager.ingest_clear_lone_done, 0, 1)) {
+            WT_UPDATE *lost = start->ins->upd->next, *lost_next;
+            start->ins->upd->next = NULL;
+            for (; lost != NULL; lost = lost_next) {
+                lost_next = lost->next;
+                __wt_free(session, lost);
+            }
+        }
+
         if (stop != NULL && __cursor_equals(start, stop)) {
             WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);

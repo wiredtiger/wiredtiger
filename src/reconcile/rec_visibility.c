@@ -1090,6 +1090,9 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) &&
+          !(FLD_ISSET(
+              S2C(session)->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_DISAGG_INGEST_CLEAR) &&
+            F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && upd->type == WT_UPDATE_TOMBSTONE) &&
           (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= upd->txnid :
                                                     !__wt_txn_visible_id(session, upd->txnid))) {
             /*
