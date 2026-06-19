@@ -85,9 +85,9 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     }
 
     /*
-     * With an explicit table id, read directly off the connection page log without opening the
-     * table; this works even when the checkpoint cannot be picked up. Otherwise resolve the URI to a
-     * dhandle and read through it.
+     * Without an explicit table id, resolve the URI to a dhandle and read through it. An explicit
+     * table id instead reads directly off the connection page log without opening the table, which
+     * works even when the checkpoint cannot be picked up.
      */
     if (!have_table_id) {
         if (argc != 1)
