@@ -418,47 +418,32 @@ __wti_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *
 }
 
 /*
- * __wt_debug_disagg_page_id --
- *     Fetch and dump a disaggregated page chain by (page_id, lsn), bypassing the address-cookie
- *     path; deltas are raw-dumped because structured delta decoding is not yet supported.
+ * __debug_disagg_dump_results --
+ *     Validate and dump a disaggregated page chain returned by the page log. The base image is
+ *     decoded and printed; deltas are raw-dumped because structured delta decoding is not yet
+ *     supported. A compressed base image with no available compressor, or an encrypted image, is
+ *     raw-dumped rather than treated as fatal. Does not free the result buffers.
  */
-int
-__wt_debug_disagg_page_id(
-  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
+static int
+__debug_disagg_dump_results(WT_SESSION_IMPL *session, WT_ITEM *results, u_int count,
+  WT_PAGE_LOG_GET_ARGS *get_args, uint64_t page_id, uint64_t lsn, WT_COMPRESSOR *compressor,
+  const char *ofile)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
-    WT_BTREE *btree;
-    WT_COMPRESSOR *compressor;
     WT_DECL_ITEM(decompressed);
     WT_DECL_RET;
-    WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_PAGE_HEADER *dsk;
     const WT_PAGE_HEADER *display;
-    WT_PAGE_LOG_GET_ARGS get_args;
     size_t result_len;
     uint32_t size;
     uint8_t expected_magic;
-    u_int count, i;
+    u_int i;
 
-    WT_ASSERT(session, S2BT_SAFE(session) != NULL);
-    btree = S2BT(session);
-
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-        WT_RET_MSG(session, ENOTSUP, "wt page is only supported in disaggregated storage mode");
-
-    compressor = btree->compressor;
-    memset(results, 0, sizeof(results));
-    count = WT_ELEMENTS(results);
-
-    WT_ERR(__wt_block_disagg_debug_read_page_id(
-      btree->bm, session, page_id, lsn, &get_args, results, &count));
-
-    WT_ERR(__wt_msg(session, "uri: %s", session->dhandle->name));
     WT_ERR(__wt_msg(session,
       "disagg_meta: page_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64 " backlink_lsn=%" PRIu64
       " base_ckpt=%" PRIu64 " backlink_ckpt=%" PRIu64 " delta_count=%" PRIu64,
-      page_id, lsn, get_args.base_lsn, get_args.backlink_lsn, get_args.base_checkpoint_id,
-      get_args.backlink_checkpoint_id, get_args.delta_count));
+      page_id, lsn, get_args->base_lsn, get_args->backlink_lsn, get_args->base_checkpoint_id,
+      get_args->backlink_checkpoint_id, get_args->delta_count));
     WT_ERR(__wt_msg(session, "results: count=%u", count));
 
     if (count > 1)
@@ -500,17 +485,22 @@ __wt_debug_disagg_page_id(
             dsk = (WT_PAGE_HEADER *)results[i].data;
             display = dsk;
 
-            if (F_ISSET(dsk, WT_PAGE_ENCRYPTED))
-                WT_ERR_MSG(session, ENOTSUP,
-                  "page %" PRIu64 " is encrypted; wt page does not yet support decryption",
-                  page_id);
+            if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
+                __wt_log_data_dump(session, results[i].data, results[i].size,
+                  "encrypted base page (decryption unsupported): page_id %" PRIu64 ", lsn %" PRIu64,
+                  page_id, lsn);
+                continue;
+            }
 
             if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
-                if (compressor == NULL || compressor->decompress == NULL)
-                    WT_ERR_MSG(session, ENOTSUP,
-                      "page %" PRIu64
-                      " is compressed but no decompressor is configured on the dhandle",
-                      page_id);
+                /* Without a btree the table's compressor may be unknown; raw-dump if so. */
+                if (compressor == NULL || compressor->decompress == NULL) {
+                    __wt_log_data_dump(session, results[i].data, results[i].size,
+                      "compressed base page (no compressor available): page_id %" PRIu64
+                      ", lsn %" PRIu64,
+                      page_id, lsn);
+                    continue;
+                }
 
                 WT_ERR(__wt_scr_alloc(session, dsk->mem_size, &decompressed));
                 decompressed->size = dsk->mem_size;
@@ -543,6 +533,86 @@ __wt_debug_disagg_page_id(
 
 err:
     __wt_scr_free(session, &decompressed);
+    return (ret);
+}
+
+/*
+ * __wt_debug_disagg_page_id --
+ *     Fetch and dump a disaggregated page chain by (page_id, lsn) for the current dhandle, bypassing
+ *     the address-cookie path.
+ */
+int
+__wt_debug_disagg_page_id(
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_PAGE_LOG_GET_ARGS get_args;
+    u_int count, i;
+
+    WT_ASSERT(session, S2BT_SAFE(session) != NULL);
+    btree = S2BT(session);
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        WT_RET_MSG(session, ENOTSUP, "wt page is only supported in disaggregated storage mode");
+
+    memset(results, 0, sizeof(results));
+    count = WT_ELEMENTS(results);
+
+    WT_ERR(__wt_block_disagg_debug_read_page_id(
+      btree->bm, session, page_id, lsn, &get_args, results, &count));
+
+    WT_ERR(__wt_msg(session, "uri: %s", session->dhandle->name));
+    WT_TRET(__debug_disagg_dump_results(
+      session, results, count, &get_args, page_id, lsn, btree->compressor, ofile));
+
+err:
+    for (i = 0; i < WT_ELEMENTS(results); i++)
+        __wt_buf_free(session, &results[i]);
+    return (ret);
+}
+
+/*
+ * __wt_debug_disagg_page_id_raw --
+ *     Fetch and dump a disaggregated page chain by (table_id, page_id, lsn) directly off the
+ *     connection page log, without opening the table. Used when the checkpoint is unreadable. With
+ *     no btree the table's compressor is unknown, so the sole registered compressor is used if
+ *     unambiguous, otherwise a compressed image is raw-dumped.
+ */
+int
+__wt_debug_disagg_page_id_raw(
+  WT_SESSION_IMPL *session, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+{
+    WT_COMPRESSOR *compressor;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_NAMED_COMPRESSOR *ncomp;
+    WT_PAGE_LOG_GET_ARGS get_args;
+    u_int count, i, ncompressors;
+
+    conn = S2C(session);
+    memset(results, 0, sizeof(results));
+    count = WT_ELEMENTS(results);
+
+    compressor = NULL;
+    ncompressors = 0;
+    TAILQ_FOREACH (ncomp, &conn->ext.compqh, q) {
+        compressor = ncomp->compressor;
+        ++ncompressors;
+    }
+    if (ncompressors != 1)
+        compressor = NULL;
+
+    WT_ERR(__wt_block_disagg_debug_read_page_id_raw(
+      session, table_id, page_id, lsn, &get_args, results, &count));
+
+    WT_ERR(__wt_msg(session, "table_id: %" PRIu64, table_id));
+    WT_TRET(__debug_disagg_dump_results(
+      session, results, count, &get_args, page_id, lsn, compressor, NULL));
+
+err:
     for (i = 0; i < WT_ELEMENTS(results); i++)
         __wt_buf_free(session, &results[i]);
     return (ret);
