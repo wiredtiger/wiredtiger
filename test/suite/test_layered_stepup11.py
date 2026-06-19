@@ -26,15 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
 import wiredtiger, wttest
 from helper import WiredTigerCursor
 from helper_disagg import disagg_test_class
+from sweep_util import sweep_util
 
 # On step-up the shared disk cache goes read-only; after the sweep server's
 # grace period it goes dead, blocking GET entirely.
 @disagg_test_class
-class test_layered_stepup11(wttest.WiredTigerTestCase):
+class test_layered_stepup11(sweep_util):
     nrows = 5000
 
     conn_base_config = 'statistics=(all),' \
@@ -128,7 +128,7 @@ class test_layered_stepup11(wttest.WiredTigerTestCase):
         # entirely so those cold pages produce neither a hit nor a miss,
         # proving the cache is fully bypassed and not just buffer-pool-warm.
         #
-        time.sleep(8)
+        self.wait_for_sweep(increment=7, timeout=60, poll_interval=1, session=session_follow)
         miss, hit = self.scan_cache_diff(session_follow)
         self.assertEqual(hit, 0)
         self.assertEqual(miss, 0)
