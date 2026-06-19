@@ -64,7 +64,7 @@ import os, time
 # ----------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------
-KEYS_PER_TABLE = 5            # tiny populate so tables are non-empty
+KEYS_PER_TABLE = 5            # tiny populate for phase 3 (currently commented out)
 
 PAGE_LOG = "palite"
 TABLE_PREFIX = "test_disagg_pickup_"
@@ -178,7 +178,7 @@ else:
     # Create + populate in a single linear pass. Avoids workgen Op-chain blowup
     # at large NUM_TABLES, and creating + writing each table back-to-back keeps
     # the dhandle hot in cache for its inserts. We close and reopen the session
-    # every 1000 tables to release cached dhandles and avoid EMFILE (too many
+    # every 100 tables to release cached dhandles and avoid EMFILE (too many
     # open files) when NUM_TABLES is large.
     t0 = time.time()
     ts = 2
@@ -190,8 +190,8 @@ else:
         # for k in range(KEYS_PER_TABLE):
         #     c[f"k{k:08d}"] = f"v{k:08d}"
         # leader_session.commit_transaction(f"commit_timestamp={ts:x}")
-        ts += 1
         # c.close()
+        ts += 1
         if (i + 1) % 100 == 0:
             leader_conn.set_timestamp(f"stable_timestamp={ts -1:x}")
             leader_session.checkpoint()
