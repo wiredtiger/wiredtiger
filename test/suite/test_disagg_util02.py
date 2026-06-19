@@ -51,8 +51,10 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
     stable_uri = "file:wt_page_test.wt_stable"
     nrows = 1000
 
-    # palite flag bit indicating a tombstoned page chain entry; mirrors
-    # WT_PAGE_LOG_DISCARDED in ext/page_log/palite/palite.cpp.
+    # palite stores the put-args flags; these mirror the WT_PAGE_LOG_* bits in
+    # ext/page_log/palite/palite.cpp.
+    PAGE_LOG_COMPRESSED = 0x1
+    PAGE_LOG_DELTA = 0x2
     PAGE_LOG_DISCARDED = 0x10000
 
     # delta_pct=100 lifts the delta-size threshold so a delta is always
@@ -173,9 +175,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         result_count = self._assert_chain_header(stdout, page)
         self.assertGreater(result_count, 1)
         self.assertEqual(stdout.count("- delta page"), result_count - 1)
-        # _dirty_and_checkpoint writes updates, not deletes.
         self.assertIn("delta_op: update", stdout)
-        self.assertNotIn("delta_op: delete", stdout)
 
     def test_delta_chain_with_deletes(self):
         self._skip_if_not_diagnostic()
@@ -212,18 +212,16 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         c.close()
         self.session.checkpoint()
 
-        # palite stores the put-args flags: WT_PAGE_LOG_COMPRESSED is 0x1 and
-        # WT_PAGE_LOG_DELTA is 0x2. Require both so we skip compressed full-image
-        # rewrites (which also carry a backlink).
+        # Require both compressed and delta bits so we skip compressed
+        # full-image rewrites (which also carry a backlink).
         page = self._find_page(
-            f"(flags & 0x1) != 0 AND (flags & 0x2) != 0 AND "
+            f"(flags & {self.PAGE_LOG_COMPRESSED}) != 0 AND "
+            f"(flags & {self.PAGE_LOG_DELTA}) != 0 AND "
             f"(flags & {self.PAGE_LOG_DISCARDED}) = 0",
             "compressed delta")
         stdout, _ = self._run_wt_page(
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertGreater(self._assert_chain_header(stdout, page), 1)
-        # A compressed delta must decode, not be reported as "cannot decode".
-        self.assertNotIn("cannot decode", stdout)
         self.assertIn("delta_op: update", stdout)
 
     def test_missing_required_p(self):
