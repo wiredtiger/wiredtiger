@@ -106,8 +106,11 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         out, err = self._run_wt(
             'page', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn))
         self.assertIn('proceeding with empty metadata', err)
+        # The page-log metadata is printed to stdout; the page image itself is
+        # dumped as raw bytes to stderr (no decode without the table's formats).
         self.assertIn(f"table_id: {table_id}", out)
-        self.assertIn("- row-store ", out)
+        self.assertIn("results: count=1", out)
+        self.assertIn(f"result 0 of 1: page_id {page_id}", err)
 
     def test_raw_read_unknown_page(self):
         if self.ds_name != 'palite':

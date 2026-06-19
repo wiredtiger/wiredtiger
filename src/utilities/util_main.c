@@ -116,8 +116,7 @@ util_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
      */
     if ((ret = conn->reconfigure(conn, reconfig)) != 0) {
         fprintf(stderr,
-          "%s: failed to pick up the latest disaggregated checkpoint (%s); proceeding with empty "
-          "metadata\n",
+          "%s: failed to pick up the latest checkpoint (%s); proceeding with empty metadata\n",
           progname, wiredtiger_strerror(ret));
         ret = 0;
     }
