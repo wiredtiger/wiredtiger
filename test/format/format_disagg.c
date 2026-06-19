@@ -260,6 +260,10 @@ disagg_switch_roles(void)
         /* Advance timestamps to cover all in-memory commits from the follower phase. */
         timestamp_sync_threads_commit_ts();
         timestamp_once(session, false, false);
+
+        /* The step-up checkpoint needs a key to persist, same as the create-time checkpoint. */
+        disagg_key_push_initial(session);
+
         testutil_check(session->checkpoint(session, NULL));
 
         /* Verify the key this step-up checkpoint persisted correct KEK. */
