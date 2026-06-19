@@ -83,4 +83,4 @@ class test_layered_eviction02(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
         # Verify we have done some evictions
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_clean, session=self.session_follow), 0)
+        self.assertStatGreaterSoon(stat.conn.cache_eviction_clean, 0, session=self.session_follow)

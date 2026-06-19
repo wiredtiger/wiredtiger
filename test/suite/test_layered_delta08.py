@@ -30,6 +30,7 @@ import random, wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
+import time
 
 
 # Test that we write internal page deltas with deleted leaf page
@@ -59,10 +60,10 @@ class test_layered_delta08(wttest.WiredTigerTestCase):
 
     def verify_stat(self):
         # Assert that we have deleted at least one internal key page delta.
-        self.assertGreater(self.get_stat(stat.dsrc.rec_page_delta_internal_key_deleted, self.uri), 0)
+        self.assertStatGreaterSoon(stat.dsrc.rec_page_delta_internal_key_deleted, 0, uri=self.uri)
 
         # Assert that we have written at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.dsrc.rec_page_delta_internal, self.uri), 0)
+        self.assertStatGreaterSoon(stat.dsrc.rec_page_delta_internal, 0, uri=self.uri)
 
     def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)

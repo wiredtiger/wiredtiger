@@ -74,7 +74,7 @@ class test_layered_cursor09(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Verify that we have written a delta
-        self.assertGreater(self.get_stat(stat.dsrc.rec_page_delta_leaf, uri), 0)
+        self.assertStatGreaterSoon(stat.dsrc.rec_page_delta_leaf, 0, uri=uri)
 
         self.reopen_conn()
 

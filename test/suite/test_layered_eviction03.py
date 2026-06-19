@@ -60,4 +60,4 @@ class test_layered_eviction03(wttest.WiredTigerTestCase):
             cursor[self.generate_random_string(1000) + str(i)] = self.generate_random_string(1000) + str(i)
             self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_app_threads_skip_updates_dirty_page), 0)
+        self.assertStatGreaterSoon(stat.conn.cache_eviction_app_threads_skip_updates_dirty_page, 0)

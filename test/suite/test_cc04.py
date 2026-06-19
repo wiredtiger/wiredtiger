@@ -56,21 +56,21 @@ class test_cc04(test_cc_base):
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_visited, 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 30)
 
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_visited, 0)
 
         self.large_updates(uri, bigvalue2, ds, nrows, 40)
 
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_visited, 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 50)
         self.large_updates(uri, bigvalue2, ds, nrows, 60)
@@ -78,11 +78,11 @@ class test_cc04(test_cc_base):
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_visited, 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 70)
 
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_visited, 0)

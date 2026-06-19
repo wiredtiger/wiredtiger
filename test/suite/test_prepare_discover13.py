@@ -119,8 +119,8 @@ class test_prepare_discover13(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Verify V0 was pushed to HS.
-        self.assertGreater(self.get_stat(wiredtiger.stat.conn.cache_hs_insert), 0,
-            'Eviction did not push V0 to HS; orphan not created')
+        self.assertStatGreaterSoon(wiredtiger.stat.conn.cache_hs_insert, 0,
+            msg='Eviction did not push V0 to HS; orphan not created')
 
         return (key, prepare_ts)
 

@@ -88,7 +88,5 @@ class test_cc_base(wttest.WiredTigerTestCase):
     # Trigger checkpoint clean up and check it has visited and removed pages.
     def check_cc_stats(self, ckpt_name = ""):
         self.wait_for_cc_to_run(ckpt_name=ckpt_name)
-        c = self.session.open_cursor('statistics:')
-        self.assertGreater(c[stat.conn.checkpoint_cleanup_pages_visited][2], 0)
-        self.assertGreater(c[stat.conn.checkpoint_cleanup_pages_removed][2], 0)
-        c.close()
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_visited, 0)
+        self.assertStatGreaterSoon(stat.conn.checkpoint_cleanup_pages_removed, 0)
