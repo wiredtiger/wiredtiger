@@ -625,6 +625,11 @@ __wt_debug_disagg_page_id_raw(
     fake_btree.key_format = "u";
     fake_btree.value_format = "u";
     fake_btree.id = WT_BTREE_ID_NAMESPACED(0, WT_BTREE_ID_NAMESPACE_SPECIAL);
+    /*
+     * base_write_gen is left 0: cell time-window cleanup compares it against the page's write
+     * generation, which is always non-zero on a real disagg page, so the comparison never triggers
+     * cleanup.
+     */
 
     memset(&fake_dhandle, 0, sizeof(fake_dhandle));
     fake_dhandle.handle = &fake_btree;
