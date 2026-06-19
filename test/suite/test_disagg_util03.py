@@ -33,10 +33,12 @@ from helper_disagg import DisaggConfigMixin
 from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
-# Test the `wt turtle` command against a palite backed disaggregated storage
-# database. A leader connection writes a checkpoint, then `wt turtle` is run as
-# a subprocess in follower mode against the same cell to inspect the turtle
-# blob returned by pl_get_complete_checkpoint.
+# Test the `wt turtle` command. Most cases exercise the disaggregated-storage
+# path against a palite-backed cell: a leader writes a checkpoint, then `wt
+# turtle` is run as a subprocess in follower mode to inspect the turtle blob
+# returned by pl_get_complete_checkpoint. test_asc_turtle covers the
+# attached-storage path against a plain WT home, where the turtle lives in the
+# local WiredTiger.turtle file.
 @wttest.skip_for_hook("tiered", "wt turtle does not run under tiered hook")
 class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
     uri = "layered:wt_turtle_test"
@@ -131,8 +133,11 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self.assertNotIn('checksum=MISMATCH', stdout_old)
 
     def test_no_checkpoint_yet(self):
-        # Leader connection up, but no checkpoint has run -- so palite has no
-        # checkpoints row and pl_get_complete_checkpoint returns WT_NOTFOUND.
+        # Step down so close_conn does not write a shutdown checkpoint that
+        # would populate palite's checkpoints row; without the step-down,
+        # pl_get_complete_checkpoint returns success and the WT_NOTFOUND branch
+        # under test never fires.
+        self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
         stdout, _ = self._run_wt_turtle()
@@ -151,21 +156,30 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         _, stderr_bad = self._run_wt_turtle('-l', 'abc', failure=True)
         self.assertIn('usage:', stderr_bad)
 
-    def test_not_disagg(self):
-        # Running wt turtle against a plain (non-disagg) WT home must hit the
-        # missing-page-log guard in fetch_latest_turtle and exit with EINVAL.
+    def test_asc_turtle(self):
+        # Running wt turtle against a plain (non-disagg) WT home dumps the
+        # on-disk WiredTiger.turtle file verbatim.
         self.close_conn()
         plain_home = os.path.join(self.home, 'plain_home')
         os.mkdir(plain_home)
         wt = os.path.join(wt_builddir, 'wt')
-        # Create the home with no disagg config in its basecfg. `list` opens and
-        # closes the connection, which is enough to write the basecfg.
+        # `list` opens and closes the connection, which writes the turtle file.
         subprocess.run([wt, '-h', plain_home, '-C', 'create', 'list'],
                        check=True, capture_output=True)
+
         proc = subprocess.run([wt, '-h', plain_home, 'turtle'],
                               capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0,
+                         msg=f'stderr: {proc.stderr}')
+        self.assertIn('=== WiredTiger.turtle ===', proc.stdout)
+        self.assertIn('WiredTiger version', proc.stdout)
+        self.assertIn('file:WiredTiger.wt', proc.stdout)
+
+        # -l is page-log-only; rejected on an ASC home.
+        proc = subprocess.run([wt, '-h', plain_home, 'turtle', '-l', '42'],
+                              capture_output=True, text=True)
         self.assertNotEqual(proc.returncode, 0)
-        self.assertIn('requires a disaggregated-storage connection',
+        self.assertIn('-l requires a disaggregated-storage connection',
                       proc.stderr)
 
     def test_metadata_page_missing(self):

@@ -643,6 +643,7 @@ argc
 args
 argv
 asan
+asc
 ascii
 assertEqual
 assertGreater
@@ -1458,6 +1459,7 @@ packv
 pagesize
 pali
 palite
+palite's
 param
 params
 parens

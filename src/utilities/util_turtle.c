@@ -9,22 +9,15 @@
 #include "util.h"
 
 /*
- * The set of fields parsed out of a turtle blob. Each presence flag tracks whether the
- * corresponding field was found; the dump is lenient so that a blob written by a newer or
- * partly-incompatible writer still prints what we can read.
+ * WT_DISAGG_CHECKPOINT_META is the production carrier for the disagg turtle blob's fields, and
+ * already tracks metadata_checksum presence. The other four fields are required by the production
+ * parser and have no presence flags there; the forensic dump must report them as <missing> when
+ * absent, so track presence on the side.
  */
-struct util_turtle_fields {
-    bool have_metadata_lsn;
-    uint64_t metadata_lsn;
-    bool have_metadata_checksum;
-    uint32_t metadata_checksum;
-    bool have_database_size;
-    uint64_t database_size;
-    bool have_version;
-    uint32_t version;
-    bool have_compatible_version;
-    uint32_t compatible_version;
-};
+#define WT_TURTLE_HAS_METADATA_LSN 0x1u
+#define WT_TURTLE_HAS_DATABASE_SIZE 0x2u
+#define WT_TURTLE_HAS_VERSION 0x4u
+#define WT_TURTLE_HAS_COMPATIBLE_VERSION 0x8u
 
 /*
  * usage --
@@ -34,8 +27,8 @@ static int
 usage(void)
 {
     static const char *options[] = {"-l lsn",
-      "optional: dump the shared metadata page at this LSN instead of the latest turtle "
-      "(decimal or 0x-prefixed hex)",
+      "disaggregated-storage only: dump the shared metadata page at this LSN instead of the "
+      "latest turtle (decimal or 0x-prefixed hex)",
       "-?", "show this message", NULL, NULL};
 
     util_usage("turtle [-l lsn]", "options:", options);
@@ -44,12 +37,13 @@ usage(void)
 
 /*
  * parse_turtle --
- *     Lenient parse of the turtle blob. Unlike the production parser, this does not enforce version
- *     compatibility; a forensic tool must print whatever is on disk.
+ *     Lenient parse of the disagg turtle blob. Unlike __wti_disagg_pick_up_checkpoint_meta, this
+ *     does not enforce that required fields are present nor that the version is compatible; a
+ *     forensic tool must print whatever is on disk.
  */
 static int
-parse_turtle(
-  WT_SESSION_IMPL *session, const char *buf, size_t buf_len, struct util_turtle_fields *out)
+parse_turtle(WT_SESSION_IMPL *session, const char *buf, size_t buf_len,
+  WT_DISAGG_CHECKPOINT_META *metap, uint32_t *presentp)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -57,14 +51,15 @@ parse_turtle(
     char *meta_str;
 
     meta_str = NULL;
-    WT_CLEAR(*out);
+    WT_CLEAR(*metap);
+    *presentp = 0;
 
     WT_ERR(__wt_strndup(session, buf, buf_len, &meta_str));
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_lsn", &cval), true);
     if (ret == 0 && cval.len != 0) {
-        out->metadata_lsn = (uint64_t)cval.val;
-        out->have_metadata_lsn = true;
+        metap->metadata_lsn = (uint64_t)cval.val;
+        *presentp |= WT_TURTLE_HAS_METADATA_LSN;
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_checksum", &cval), true);
@@ -72,30 +67,30 @@ parse_turtle(
         WT_ERR(__wt_conf_parse_hex(session, "metadata_checksum", &hex_val, &cval));
         if (hex_val > UINT32_MAX)
             WT_ERR_MSG(session, EINVAL, "metadata_checksum out of range: %" PRIx64, hex_val);
-        out->metadata_checksum = (uint32_t)hex_val;
-        out->have_metadata_checksum = true;
+        metap->metadata_checksum = (uint32_t)hex_val;
+        metap->has_metadata_checksum = true;
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "database_size", &cval), true);
     if (ret == 0 && cval.len != 0) {
-        out->database_size = (uint64_t)cval.val;
-        out->have_database_size = true;
+        metap->database_size = (uint64_t)cval.val;
+        *presentp |= WT_TURTLE_HAS_DATABASE_SIZE;
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "version", &cval), true);
     if (ret == 0 && cval.len != 0) {
         if (cval.val < 0 || (uint64_t)cval.val > UINT32_MAX)
             WT_ERR_MSG(session, EINVAL, "version out of range: %" PRId64, cval.val);
-        out->version = (uint32_t)cval.val;
-        out->have_version = true;
+        metap->version = (uint32_t)cval.val;
+        *presentp |= WT_TURTLE_HAS_VERSION;
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "compatible_version", &cval), true);
     if (ret == 0 && cval.len != 0) {
         if (cval.val < 0 || (uint64_t)cval.val > UINT32_MAX)
             WT_ERR_MSG(session, EINVAL, "compatible_version out of range: %" PRId64, cval.val);
-        out->compatible_version = (uint32_t)cval.val;
-        out->have_compatible_version = true;
+        metap->compatible_version = (uint32_t)cval.val;
+        *presentp |= WT_TURTLE_HAS_COMPATIBLE_VERSION;
     }
 
     ret = 0;
@@ -111,28 +106,28 @@ err:
  *     dump shape is stable for tooling.
  */
 static void
-print_turtle(uint64_t lsn, const struct util_turtle_fields *t)
+print_turtle(uint64_t lsn, const WT_DISAGG_CHECKPOINT_META *meta, uint32_t present)
 {
     printf("=== turtle ===\n");
     printf("lsn=%" PRIu64 "\n", lsn);
-    if (t->have_metadata_lsn)
-        printf("metadata_lsn=%" PRIu64 "\n", t->metadata_lsn);
+    if (present & WT_TURTLE_HAS_METADATA_LSN)
+        printf("metadata_lsn=%" PRIu64 "\n", meta->metadata_lsn);
     else
         printf("metadata_lsn=<missing>\n");
-    if (t->have_metadata_checksum)
-        printf("metadata_checksum=0x%08" PRIx32 "\n", t->metadata_checksum);
+    if (meta->has_metadata_checksum)
+        printf("metadata_checksum=0x%08" PRIx32 "\n", meta->metadata_checksum);
     else
         printf("metadata_checksum=<missing>\n");
-    if (t->have_database_size)
-        printf("database_size=%" PRIu64 "\n", t->database_size);
+    if (present & WT_TURTLE_HAS_DATABASE_SIZE)
+        printf("database_size=%" PRIu64 "\n", meta->database_size);
     else
         printf("database_size=<missing>\n");
-    if (t->have_version)
-        printf("version=%" PRIu32 "\n", t->version);
+    if (present & WT_TURTLE_HAS_VERSION)
+        printf("version=%" PRIu32 "\n", meta->version);
     else
         printf("version=<missing>\n");
-    if (t->have_compatible_version)
-        printf("compatible_version=%" PRIu32 "\n", t->compatible_version);
+    if (present & WT_TURTLE_HAS_COMPATIBLE_VERSION)
+        printf("compatible_version=%" PRIu32 "\n", meta->compatible_version);
     else
         printf("compatible_version=<missing>\n");
 }
@@ -246,24 +241,69 @@ print_metadata_page(
 }
 
 /*
+ * dump_asc_turtle --
+ *     Dump the on-disk WiredTiger.turtle file from the home directory verbatim. Used when the
+ *     connection has no disaggregated-storage page log; the turtle here is a local text file rather
+ *     than a checkpoint metadata blob in the page log.
+ */
+static int
+dump_asc_turtle(WT_SESSION_IMPL *session)
+{
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    WT_FSTREAM *fs;
+    bool exist;
+
+    fs = NULL;
+
+    WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
+    if (!exist) {
+        printf("no %s in home directory\n", WT_METADATA_TURTLE);
+        return (0);
+    }
+
+    WT_RET(__wt_fopen(session, WT_METADATA_TURTLE, 0, WT_STREAM_READ, &fs));
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
+
+    printf("=== %s ===\n", WT_METADATA_TURTLE);
+    for (;;) {
+        WT_ERR(__wt_getline(session, fs, buf));
+        if (buf->size == 0)
+            break;
+        printf("%s\n", (const char *)buf->data);
+    }
+
+err:
+    WT_TRET(__wt_fclose(session, &fs));
+    __wt_scr_free(session, &buf);
+    return (ret);
+}
+
+/*
  * util_turtle --
- *     The turtle command: dump the disaggregated-storage turtle blob (and chase to the shared
- *     metadata page it points at).
+ *     The turtle command. For a disaggregated-storage connection, dump the turtle blob from the
+ *     page log and chase to the shared metadata page. For a plain (attached-storage) connection,
+ *     dump the local WiredTiger.turtle file.
  */
 int
 util_turtle(WT_SESSION *session, int argc, char *argv[])
 {
-    struct util_turtle_fields fields;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_ITEM meta, page_item;
+    WT_DISAGG_CHECKPOINT_META turtle_meta;
+    WT_ITEM meta_blob, page_item;
     WT_SESSION_IMPL *session_impl;
     uint64_t lsn, lsn_arg;
+    uint32_t present;
     int ch;
     bool have_lsn_arg, suppress_util_err;
 
     session_impl = (WT_SESSION_IMPL *)session;
-    WT_CLEAR(meta);
+    conn = S2C(session_impl);
+    WT_CLEAR(turtle_meta);
+    WT_CLEAR(meta_blob);
     WT_CLEAR(page_item);
+    present = 0;
     lsn = 0;
     lsn_arg = 0;
     have_lsn_arg = false;
@@ -289,6 +329,22 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
+    /*
+     * Route on whether the connection has a disaggregated-storage page log. ASC homes have no page
+     * log and store the turtle locally; -l is page-log-only.
+     */
+    if (conn->disaggregated_storage.npage_log == NULL) {
+        if (have_lsn_arg) {
+            fprintf(
+              stderr, "%s: turtle: -l requires a disaggregated-storage connection\n", progname);
+            return (usage());
+        }
+        ret = dump_asc_turtle(session_impl);
+        if (ret != 0)
+            (void)util_err(session, ret, "turtle");
+        return (ret == 0 ? 0 : 1);
+    }
+
     if (have_lsn_arg) {
         ret = fetch_metadata_page(session_impl, lsn_arg, &page_item);
         if (ret == WT_NOTFOUND) {
@@ -302,7 +358,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
         goto err;
     }
 
-    ret = fetch_latest_turtle(session_impl, &lsn, &meta);
+    ret = fetch_latest_turtle(session_impl, &lsn, &meta_blob);
     if (ret == WT_NOTFOUND) {
         printf("no complete checkpoint yet\n");
         ret = 0;
@@ -310,21 +366,22 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     }
     WT_ERR(ret);
 
-    WT_ERR(parse_turtle(session_impl, (const char *)meta.data, meta.size, &fields));
-    print_turtle(lsn, &fields);
+    WT_ERR(parse_turtle(
+      session_impl, (const char *)meta_blob.data, meta_blob.size, &turtle_meta, &present));
+    print_turtle(lsn, &turtle_meta, present);
 
-    if (fields.have_metadata_lsn) {
-        ret = fetch_metadata_page(session_impl, fields.metadata_lsn, &page_item);
+    if (present & WT_TURTLE_HAS_METADATA_LSN) {
+        ret = fetch_metadata_page(session_impl, turtle_meta.metadata_lsn, &page_item);
         if (ret == WT_NOTFOUND) {
             printf(
               "\n"
               "metadata page not found at lsn=%" PRIu64 " (may have been pruned)\n",
-              fields.metadata_lsn);
+              turtle_meta.metadata_lsn);
             ret = 1;
             suppress_util_err = true;
         } else if (ret == 0) {
-            if (print_metadata_page(fields.metadata_lsn, &page_item, fields.have_metadata_checksum,
-                  fields.metadata_checksum)) {
+            if (print_metadata_page(turtle_meta.metadata_lsn, &page_item,
+                  turtle_meta.has_metadata_checksum, turtle_meta.metadata_checksum)) {
                 ret = 1;
                 suppress_util_err = true;
             }
@@ -333,7 +390,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     }
 
 err:
-    __wt_buf_free(session_impl, &meta);
+    __wt_buf_free(session_impl, &meta_blob);
     __wt_buf_free(session_impl, &page_item);
     if (ret != 0 && !suppress_util_err)
         (void)util_err(session, ret, "turtle");
