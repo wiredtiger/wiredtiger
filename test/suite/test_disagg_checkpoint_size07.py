@@ -31,9 +31,9 @@ from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_disagg_checkpoint_size07.py
-#   Directly exercises the WT-16864 fix code in __rec_write_err using
-#   Failpoint_REC_BEFORE_wrapup to inject a failure after a full-image eviction
-#   write over an existing delta chain (mod->rec_result == WT_PM_REC_REPLACE).
+#   Directly exercises __rec_write_err using failpoint_rec_before_wrapup to
+#   inject a failure after a full-image eviction write over an existing delta
+#   chain (mod->rec_result == WT_PM_REC_REPLACE).
 #
 # Bug: when a full-image write fails in __rec_write_err for a page that had a live
 # delta chain, the old chain's cumulative_size was not subtracted from block_disagg->size.
@@ -42,8 +42,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #
 # This test enables timing_stress_for_test=[failpoint_rec_before_wrapup], which fires
 # 1% of the time during eviction reconciliation (WT_REC_EVICT), and loops until the
-# rec_free_page_id_due_to_failed_replacement_reconciliation stat is incremented  the
-# signal that the error path was reached and the fix code ran.
+# rec_free_page_id_due_to_failed_replacement_reconciliation stat increments -- the
+# signal that the error path ran.
 
 @disagg_test_class
 class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
@@ -91,7 +91,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
     # test_rec_write_err_full_image_over_delta
     # -----------------------------------------------------------------------
-    # Directly exercises __rec_write_err with the WT-16864 conditions:
+    # Directly exercises __rec_write_err with the conditions:
     #   - delta_count == 0   (full-image write, from delta_pct=1)
     #   - mod->rec_result == WT_PM_REC_REPLACE  (page has a prior successful reconciliation)
     #   - cumulative_size > 0  (live delta chain on disk)
@@ -104,7 +104,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
     #   5. Dirty the page and force eviction in a loop.  Initial evictions succeed,
     #      re-establishing mod->rec_result == WT_PM_REC_REPLACE in cache.  Eventually
     #      the 1% failpoint fires after the full-image write, entering __rec_write_err
-    #      with all three conditions true and exercising the fix code.
+    #      with all three conditions true and exercising the cleanup path.
     #   6. Disable failpoint and run a final checkpoint.
     #   7. Assert the stat counter is > 0 (error path was reached).
     #   8. Assert the checkpoint size is not inflated by the leaked cumulative_size.
@@ -174,12 +174,9 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         self.assertGreater(self.get_stat(stat_key), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 
-        # Step 8: Size check  without the WT-16864 fix, __rec_write_err skipped
-        # obsolete_delta_chain, leaking cumulative_size into block_disagg->size.
-        # The next checkpoint then added the new block on top of the already-counted
-        # cumulative_size, making size_after_recovery  size_with_delta + size_initial.
-        # With the fix, the old chain is cleaned up in __rec_write_err and the
-        # checkpoint size is not inflated.
+        # Step 8: Size bound -- __rec_write_err must clean up the old chain's cumulative_size
+        # in block_disagg->size, otherwise the recovery checkpoint would record
+        # (old_chain + new_block) instead of just the new block.
         self.assertLess(size_after_recovery, size_with_delta + size_initial,
             f'Checkpoint size {size_after_recovery} after error-path recovery is too large '
             f'(size_initial={size_initial}, size_with_delta={size_with_delta}). '

@@ -40,8 +40,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #   phase runs the same failpoint against a wide multi-block table so the
 #   multi-block err-cleanup loop also exercises page_discard.  If accounting
 #   in any prior write didn't increment block_disagg->size by the correct
-#   amount, the underflow assertion at block_disagg_size.c:44 aborts the
-#   process.
+#   amount, the underflow assertion in __wti_block_disagg_decrease_size aborts
+#   the process.
 
 @disagg_test_class
 class test_disagg_checkpoint_size16(wttest.WiredTigerTestCase):

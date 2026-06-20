@@ -38,11 +38,21 @@ void
 __wti_block_disagg_decrease_size(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
   WT_PAGE_BLOCK_META *block_meta, uint64_t size)
 {
-    WT_UNUSED(session);
+    uint64_t current;
+
+    current = __wt_atomic_load_uint64(&block_disagg->size);
 
     WT_ASSERT(session, block_meta == NULL || block_meta->persistent);
-    WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->size) >= size);
-    (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
+    WT_ASSERT(session, current >= size);
+
+    if (current < size) {
+        __wt_verbose_error(session, WT_VERB_CHECKPOINT,
+          "Block disaggregated size underflow: decreasing %" PRIu64 " from %" PRIu64, size,
+          current);
+        __wt_atomic_store_uint64(&block_disagg->size, 0);
+    } else
+        (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
+
     if (block_meta != NULL)
         block_meta->persistent = false;
 }

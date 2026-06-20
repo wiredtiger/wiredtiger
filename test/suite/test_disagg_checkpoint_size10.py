@@ -61,9 +61,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #     3. Uncommitted updates are rolled back.
 #     4. A subsequent checkpoint or eviction reconciles the page cleanly (no
 #        uncommitted updates), writing a full-image that reuses the same page_id.
-#        wrapup enters the multiblock case as the old state.
-#        Without the fix: S1 leaks into block_disagg->size indefinitely.
-#        With the fix: S1 is subtracted via obsolete_delta_chain.
+#        wrapup enters the multiblock case as the old state and must subtract S1
+#        via obsolete_delta_chain; if it doesn't, S1 leaks indefinitely.
 #
 #   This test verifies the broader accounting invariant: after repeated
 #   save_update_restore eviction cycles followed by full-image checkpoint writes,
@@ -194,9 +193,8 @@ class test_disagg_checkpoint_size10(wttest.WiredTigerTestCase):
             )
 
         # Step 4: run a few more full-image checkpoints to confirm size stability.
-        # Without the fix, block_disagg->size would grow by the old cumulative S1
-        # on every cycle where the multiblock old-state path is reached, making
-        # size_final >> size_with_delta.
+        # If the multiblock old-state path failed to subtract the old cumulative S1,
+        # block_disagg->size would grow on every cycle, making size_final >> size_with_delta.
         for _ in range(5):
             self.conn.reconfigure('page_delta=(delta_pct=1)')
             c = self.session.open_cursor(self.uri)

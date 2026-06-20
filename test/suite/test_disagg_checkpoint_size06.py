@@ -115,9 +115,6 @@ class test_disagg_checkpoint_size06(wttest.WiredTigerTestCase):
     # This test runs multiple cycles of this sequence to verify that the
     # checkpoint size stabilizes and does not grow by multiples per cycle,
     # which would indicate a leak of the cumulative_size.
-    # At the moment the leak doesn't occur even without the WT-16864 fix,
-    # due to the workaround in place to circumvent the issue.
-    # This test is designed to validate the WT-16864 fix.
     def test_size_stable_through_delta_full_image_cycles(self):
         nrows = 20
         ncycles = 5
@@ -226,10 +223,6 @@ class test_disagg_checkpoint_size06(wttest.WiredTigerTestCase):
         # Step 5: After a full-image write that terminates the delta chain, the
         # checkpoint size should drop back toward the baseline, not remain inflated
         # by the cumulative_size of the old chain.
-        #
-        # Without the WT-16864 fix, if the error path was taken here and the
-        # cumulative_size was not subtracted, size_after_full would be approximately
-        # size_after_delta + size_baseline (double-counted).
         self.assertLess(size_after_full, size_after_delta + size_baseline,
             f'Checkpoint size {size_after_full} after full-image write looks inflated: '
             f'baseline={size_baseline}, after_delta={size_after_delta}. '

@@ -31,40 +31,33 @@ from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_disagg_checkpoint_size09.py
-#   Exercises the WT-16864 fix in bt_split.c:__split_multi_inmem for the
-#   persistent invariant.
+#   Exercises __split_multi_inmem for the persistent invariant.
 #
 #   When eviction encounters a page with uncommitted updates that cannot be
 #   moved to the history store, it falls back to save_update_restore: the page is
 #   kept in memory via __wt_split_rewrite  __split_multi_inmem, which
 #   instantiates a new in-memory page from the existing disk image.
 #
-#   Before the fix, __split_multi_inmem did not restore
-#   persistent after copying multi->block_meta into
-#   page->disagg_info->block_meta.  The copy-site reset left the field false
-#   even though the on-disk delta chain is already counted in block_disagg->size.
+#   After copying multi->block_meta into page->disagg_info->block_meta,
+#   __split_multi_inmem must restore persistent = (cumulative_size > 0): the
+#   copy-site leaves the field false even though the on-disk delta chain is
+#   already counted in block_disagg->size.  This matches the same restore
+#   pattern applied at the two __rec_write_wrapup call sites in rec_write.c.
 #
-#   The fix adds:
-#     page->disagg_info->block_meta.persistent =
-#         multi->block_meta->cumulative_size > 0;
-#   immediately after the struct copy, matching the pattern already applied to
-#   the two __rec_write_wrapup call sites fixed by the companion rec_write.c
-#   changes (covered by test_disagg_checkpoint_size09.py).
-#
-#   Crash path (before fix):
+#   Path exercised:
 #     1. Build a delta chain so cumulative_size > 0 on disk.
 #     2. An uncommitted write on the page forces save_update_restore on eviction.
-#        __split_multi_inmem creates page N with aggregated=false (bug).
+#        __split_multi_inmem instantiates the new page with persistent=true.
 #     3. Rolling back the uncommitted write leaves the page dirty with only
 #        aborted updates; the committed value has WT_UPDATE_DURABLE.
 #     4. Checkpoint: newer_updates_than_last_rec_used stays false so skip_write
-#        fires.  The rec_write.c line 3205 wrapup sets mod->rec_result=REPLACE.
-#        Without the companion rec_write.c fix it also propagated aggregated=false;
-#        with the bt_split.c fix correct, the rec_write.c fix restores it to true.
-#     5. Enable Failpoint_REC_BEFORE_wrapup, dirty the page, and force eviction.
+#        fires.  The skip-write branch of __rec_write_wrapup sets
+#        mod->rec_result=REPLACE and restores persistent on its own copy site.
+#     5. Enable failpoint_rec_before_wrapup, dirty the page, and force eviction.
 #        The failpoint fires after the full-image write but before wrapup, calling
-#        __rec_write_err.  Without the fixes: REPLACE + cumulative_size>0 +
-#        aggregated=false triggers the assert at rec_write.c:3356.
+#        __rec_write_err with REPLACE + cumulative_size>0 + persistent=true --
+#        if persistent had been left false, the persistent assert in
+#        __wti_block_disagg_decrease_size would trip.
 #
 #   Verification:
 #     - cache_scrub_restore > 0 proves __split_multi_inmem was reached.
@@ -118,7 +111,7 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
     # test_split_multi_inmem_aggregated_flag
     # -----------------------------------------------------------------------
-    # Regression for bt_split.c:__split_multi_inmem fix (WT-16864).
+    # Regression for __split_multi_inmem fix.
     #
     # __split_multi_inmem is called from __wt_split_rewrite when eviction
     # produces a multiblock reconciliation result with exactly one entry that has
@@ -138,15 +131,14 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
     #         the previously committed 'B' value with WT_UPDATE_DURABLE.
     #      c. Checkpoint.  __rec_selected_key_changed returns false for the
     #         WT_UPDATE_DURABLE 'B' value, so newer_updates_than_last_rec_used
-    #         stays false and skip_write fires.  The wrapup (rec_write.c
-    #         line ~3205, now fixed) sets mod->rec_result=REPLACE and restores
+    #         stays false and skip_write fires.  The skip-write branch of
+    #         __rec_write_wrapup sets mod->rec_result=REPLACE and restores
     #         persistent=(cumulative_size>0).
-    #      d. Enable Failpoint_REC_BEFORE_wrapup + delta_pct=1.  Write new
+    #      d. Enable failpoint_rec_before_wrapup + delta_pct=1.  Write new
     #         committed data to dirty the page and force a full-image eviction.
     #         The failpoint fires ~1% of the time, calling __rec_write_err with
-    #         delta_count=0, rec_result=REPLACE, cumulative_size>0.
-    #         Before the fixes: aggregated=false  process abort.
-    #         After the fixes: aggregated=true  stat incremented, no crash.
+    #         delta_count=0, rec_result=REPLACE, cumulative_size>0.  With
+    #         persistent=true, the err path completes; rec_free_page_id increments.
     #   4. Run a final checkpoint and verify size is not inflated.
     def test_split_multi_inmem_aggregated_flag(self):
         nrows = 20
@@ -196,8 +188,7 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
 
             # (c) Checkpoint: skip_write fires because newer_updates_than_last_rec_used
             #     stays false (the only visible update is already WT_UPDATE_DURABLE).
-            #     The wrapup sets mod->rec_result=REPLACE and (after the fix)
-            #     persistent=true.
+            #     The wrapup sets mod->rec_result=REPLACE and restores persistent=true.
             self.session.checkpoint()
 
             # (d) Enable the failpoint and force a full-image eviction.
@@ -234,9 +225,9 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0 '
             'after running with failpoint_rec_before_wrapup')
 
-        # Checkpoint size is not inflated.  Without the fixes, __rec_write_err
-        # skipped the obsolete_delta_chain cleanup, leaking cumulative_size into
-        # block_disagg->size on every error-path hit.
+        # Checkpoint size is not inflated.  __rec_write_err must invoke the
+        # obsolete_delta_chain cleanup; otherwise cumulative_size would leak
+        # into block_disagg->size on every error-path hit.
         self.assertLess(size_after_recovery, size_with_delta + size_baseline,
             f'Checkpoint size {size_after_recovery} after recovery is inflated: '
             f'baseline={size_baseline}, after_delta={size_with_delta}. '

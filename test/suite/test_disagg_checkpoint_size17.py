@@ -86,16 +86,17 @@ class test_disagg_checkpoint_size17(wttest.WiredTigerTestCase):
         self.insert_rows(c, 0, nrows, 'C')
         c.close()
 
-        # The buggy code path: opening a checkpoint cursor on the stable file
-        # routes through __btree_open and (before the fix) stored ckpt.size
-        # into the WT_BLOCK_DISAGG shared with the live writer.
+        # Opening a checkpoint cursor on the stable file routes through
+        # __btree_open.  That path must NOT store the historical ckpt.size into
+        # the WT_BLOCK_DISAGG shared with the live writer.
         ckpt_c = self.session.open_cursor(self.stable_uri, None,
                                           'checkpoint=WiredTigerCheckpoint')
         ckpt_c.close()
 
         # Force evictions that subtract cookie bytes via page_discard ->
-        # __wti_block_disagg_decrease_size.  Without the fix, the running
-        # total has been clobbered and the underflow assertion aborts here.
+        # __wti_block_disagg_decrease_size.  If the running total had been
+        # clobbered by the checkpoint-cursor open, the underflow assertion
+        # would abort here.
         for k in (0, nrows // 2, nrows, nrows + nrows // 2):
             self.evict_page(f'key{k:08d}')
 

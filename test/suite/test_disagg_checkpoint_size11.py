@@ -229,16 +229,14 @@ class test_disagg_checkpoint_size11(wttest.WiredTigerTestCase):
         self.assertGreater(self.get_stat(stat_key), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 
-        # Step 8: Guard against double-decrement corruption.  Without the fix,
-        # __rec_write_err would leave persistent=true after the delta error.
-        # The recovery checkpoint would then pass old_block_meta with
-        # persistent=true to __wti_block_disagg_write, which calls
-        # decrease_size(old_cumulative) on a chain already removed by
-        # page_discard -- asserting in __wti_block_disagg_decrease_size or,
-        # with assertions disabled, wrapping block_disagg->size to a huge value.
-        # Use size_with_delta + size_initial as the upper bound: the correct path
-        # gives approximately size_initial; the bug path wraps block_disagg->size
-        # far above size_with_delta + size_initial.
+        # Step 8: Guard against double-decrement corruption.  __rec_write_err must
+        # clear persistent after a delta error; otherwise the recovery checkpoint
+        # would pass old_block_meta with persistent=true to
+        # __wti_block_disagg_write, which calls decrease_size(old_cumulative) on a
+        # chain already removed by page_discard -- asserting in
+        # __wti_block_disagg_decrease_size or, with assertions disabled, wrapping
+        # block_disagg->size to a huge value.  Use size_with_delta + size_initial
+        # as the upper bound: the correct path gives approximately size_initial.
         self.assertLess(size_after_recovery, size_with_delta + size_initial,
             f'Checkpoint size {size_after_recovery} after delta error-path recovery '
             f'is too large (size_initial={size_initial}, '

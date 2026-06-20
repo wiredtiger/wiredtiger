@@ -31,10 +31,9 @@ from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_disagg_checkpoint_size08.py
-#   Exercises the WT-16864 fix for persistent invariant
-#   violations introduced by two __rec_write_wrapup paths:
+#   Exercises the persistent invariant in two __rec_write_wrapup paths:
 #
-#   Path 1  save_update_restore wrapup (rec_write.c ~line 3185):
+#   Path 1  save_update_restore wrapup in __rec_write_wrapup:
 #     When eviction keeps a page in memory with restored updates (because an
 #     active reader transaction prevents those updates from becoming globally
 #     visible), it copies r->multi->block_meta into page->disagg_info->block_meta
@@ -42,7 +41,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #     the field false even though the on-disk size is still counted in
 #     block_disagg->size.
 #
-#   Path 2  skip-write wrapup (rec_write.c ~line 3205):
+#   Path 2  skip-write wrapup in __rec_write_wrapup (single-block replace path):
 #     When eviction reuses the page's existing on-disk address (content unchanged
 #     since the last write), __rec_copy_prev_addr also resets
 #     persistent to false in multi->block_meta.  The wrapup then
@@ -73,10 +72,11 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #       Builds a delta chain (cumulative_size > 0), then writes to the page and
 #       rolls back, leaving a dirty page with only aborted updates.  A checkpoint
 #       fires skip-write (newer_updates_than_last_rec_used is false because the
-#       committed on-page update has WT_UPDATE_DURABLE).  The skip-write wrapup at
-#       line 3205 incorrectly set persistent=false before the fix.
+#       committed on-page update has WT_UPDATE_DURABLE).  The skip-write wrapup
+#       must restore persistent = (cumulative_size > 0).
 #       With failpoint_rec_before_wrapup, the next eviction enters __rec_write_err
-#       and hits the assert.  Verifies the same invariants as the save_update_restore test.
+#       and would hit the assert if persistent were left false.  Verifies the
+#       same invariants as the save_update_restore test.
 
 @disagg_test_class
 class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
@@ -129,19 +129,14 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
     # test_supd_restore_wrapup_aggregated_flag
     # -----------------------------------------------------------------------
-    # Regression for rec_write.c wrapup line ~3185 fix.
+    # Regression for the save_update_restore wrapup path in __rec_write_wrapup.
     #
-    # Before the fix, the save_update_restore wrapup path copied r->multi->block_meta
-    # (which had persistent=false from the copy-site reset) into
-    # page->disagg_info->block_meta.  When a skip-write reconciliation ran next
-    # it set mod->rec_result=WT_PM_REC_REPLACE without restoring the flag.  A
-    # subsequent failed full-image write then aborted with the assert at
-    # rec_write.c:3356.
-    #
-    # The fix adds:
-    #   page->disagg_info->block_meta.persistent =
-    #       r->multi->block_meta->cumulative_size > 0;
-    # immediately after the struct copy.
+    # The wrapup copies r->multi->block_meta (where the copy-site has reset
+    # persistent=false) into page->disagg_info->block_meta, then must restore
+    # persistent = (cumulative_size > 0).  Without that restore, a subsequent
+    # skip-write reconciliation propagates persistent=false into the REPLACE
+    # state, and a later failed full-image write trips the persistent assert
+    # in __wti_block_disagg_decrease_size.
     #
     # Setup:
     #   1. Write initial rows and checkpoint (full-image baseline).
@@ -197,9 +192,9 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         # delta_pct=1 forces full-image writes; the blocker transaction forces
         # save_update_restore on the first eviction attempt of pages with ts>=2 updates.
         # After save_update_restore the page remains in cache with the multiblock
-        # reconciliation result; a subsequent skip-write turns it to REPLACE with
-        # (before the fix) aggregated=false.  The failpoint then fires during the
-        # next full-image write and __rec_write_err triggers the assert.
+        # reconciliation result; a subsequent skip-write turns it to REPLACE.  The
+        # failpoint then fires during the next full-image write -- __rec_write_err
+        # would trip the persistent assert if the wrapup did not restore the flag.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'
             'timing_stress_for_test=[failpoint_rec_before_wrapup]'
@@ -243,18 +238,17 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
     # -----------------------------------------------------------------------
     # test_skip_write_wrapup_aggregated_flag
     # -----------------------------------------------------------------------
-    # Regression for rec_write.c wrapup line ~3205 fix.
+    # Regression for the skip-write wrapup path in __rec_write_wrapup
+    # (single-block replace branch).
     #
-    # Before the fix, the skip-write wrapup path (WT_MULTI_SKIP_WRITE) copied
-    # r->multi->block_meta (persistent=false, set by
-    # __rec_copy_prev_addr) into page->disagg_info->block_meta and set
-    # mod->rec_result=WT_PM_REC_REPLACE.  A subsequent failed eviction write
-    # then hit the assert at rec_write.c:3356.
-    #
-    # The fix adds persistent = (cumulative_size > 0) after the
-    # struct copy, so the flag correctly reflects that the size IS counted in
-    # block_disagg->size (skip-write reuses the existing on-disk address without
-    # subtracting or re-adding to the size).
+    # The skip-write wrapup (WT_MULTI_SKIP_WRITE) copies r->multi->block_meta
+    # (where __rec_copy_prev_addr has reset persistent=false) into
+    # page->disagg_info->block_meta and sets mod->rec_result=WT_PM_REC_REPLACE.
+    # It must then restore persistent = (cumulative_size > 0) so the flag
+    # reflects that the size IS counted in block_disagg->size (skip-write reuses
+    # the existing on-disk address without subtracting or re-adding to the size).
+    # Otherwise a subsequent failed eviction write trips the persistent assert
+    # in __wti_block_disagg_decrease_size.
     #
     # Skip-write (skip_write=true in __rec_split_write) fires when:
     #   - last_block && multi_next==1 (single-page result)
@@ -273,14 +267,14 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
     #      as the on-page update.  Because it is already durable,
     #      __rec_selected_key_changed returns false  newer_updates_than_last_rec_used
     #      stays false  skip_write=true fires.
-    #      The checkpoint wrapup at line 3205 copies r->multi->block_meta (where
+    #      The checkpoint wrapup copies r->multi->block_meta (where
     #      __rec_copy_prev_addr reset persistent to false) into
-    #      page->disagg_info->block_meta.  The page remains in cache with REPLACE
-    #      result and (before the fix) aggregated=false.
+    #      page->disagg_info->block_meta and must restore persistent=true.
+    #      The page remains in cache with REPLACE result.
     #   4. Enable failpoint_rec_before_wrapup and evict with delta_pct=1.
     #      The eviction writes a full-image (delta_count=0); the failpoint fires and
-    #      __rec_write_err finds REPLACE + cumulative_size>0 + aggregated=false.
-    #      Before the fix this aborts.
+    #      __rec_write_err finds REPLACE + cumulative_size>0.  If persistent had
+    #      been left false the assert would trip here.
     def test_skip_write_wrapup_aggregated_flag(self):
         nrows = 20
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
@@ -310,14 +304,13 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         #      aborted updates; the committed 'B' data still has WT_UPDATE_DURABLE.
         #   b. Checkpoint.  skip_write fires: newer_updates_than_last_rec_used stays
         #      false because __rec_selected_key_changed returns false for the already-
-        #      durable 'B' update.  The skip-write wrapup (line 3205, now fixed)
-        #      correctly restores persistent = (cumulative_size > 0).
-        #      Before the fix, it propagated persistent=false from
-        #      __rec_copy_prev_addr, leaving the page in cache with wrong state.
+        #      durable 'B' update.  The skip-write wrapup restores
+        #      persistent = (cumulative_size > 0), reflecting that the chain is
+        #      still counted in block_disagg->size.
         #   c. Enable failpoint + delta_pct=1 and write committed data.
-        #   d. Evict: full-image write  failpoint fires  __rec_write_err.
-        #      Before fix: REPLACE + cumulative_size>0 + aggregated=false  assert.
-        #      After fix: aggregated=true  no assert, stat incremented.
+        #   d. Evict: full-image write -> failpoint fires -> __rec_write_err.
+        #      With persistent=true on entry, the error path completes; the
+        #      page_id is invalidated and the rec_free_page_id stat increments.
         max_iters = 500
         for i in range(max_iters):
             # (a) Write + rollback: dirty page, only aborted updates, content unchanged.
