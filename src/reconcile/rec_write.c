@@ -3350,24 +3350,25 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * inflating block_disagg->size.
          */
         if (r->multi->block_meta->persistent) {
-            if (r->multi->block_meta->delta_count == 0) {
-                /*
-                 * Full-image write succeeded, would have reduced the old chain size. block_free
-                 * above decremented the new image's physical bytes. Free the block cookie.
-                 */
-                __wt_free(session, mod->mod_replace.block_cookie);
-                mod->mod_replace.block_cookie_size = 0;
-                __wt_free(session, mod->mod_disk_image);
-            } else if (r->multi->block_meta->delta_count > 0 &&
-              mod->rec_result == WT_PM_REC_REPLACE && page->disagg_info->block_meta.persistent) {
-                /*
-                 * Delta write succeeded. block free above decremented based on cookie size, which
-                 * equals previous chain + this delta. Free the block cookie and clear the
-                 * persistent flag.
-                 */
+            /*
+             * Full-image (delta_count==0): block_free above decremented the new image's physical
+             * bytes; the new write decrease_size already reduced the old chain. Net: chain is fully
+             * gone.
+             *
+             * Delta (delta_count>0): block_free cookie_size = prev_cumulative + delta, so it
+             * subtracts both the old chain and the new delta in one call. This is only safe when
+             * persistent==true on the old chain; otherwise block_free would over-subtract.
+             *
+             * In both cases the chain referenced by page->disagg_info->block_meta has been removed
+             * from block_disagg->size, so clear the persistent flag and free the replacement cookie
+             * and cached disk image.
+             */
+            if (r->multi->block_meta->delta_count == 0 ||
+              (mod->rec_result == WT_PM_REC_REPLACE && page->disagg_info->block_meta.persistent)) {
                 page->disagg_info->block_meta.persistent = false;
                 __wt_free(session, mod->mod_replace.block_cookie);
                 mod->mod_replace.block_cookie_size = 0;
+                __wt_free(session, mod->mod_disk_image);
             }
             page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
             WT_STAT_CONN_DSRC_INCR(

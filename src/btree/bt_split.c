@@ -1505,7 +1505,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /* Preserve the relevant metadata. */
     if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = *multi->block_meta;
-        /* Page is re-created from a disk image, mark its persistent state. */
+        /*
+         * Page is re-instantiated from a disk image; mark its persistent state. Unlike a fresh
+         * btree open from on-disk metadata, we cannot assert cumulative_size > 0 here: this path
+         * runs under save_update_restore / scrub eviction, which can re-instantiate a page that has
+         * never been persisted (no log handle put yet, so cumulative_size == 0 and persistent is
+         * false).
+         */
         page->disagg_info->block_meta.persistent = multi->block_meta->cumulative_size > 0;
         ref->page->disagg_info->old_rec_lsn_max = multi->block_meta->disagg_lsn;
         page->disagg_info->rec_lsn_max = multi->block_meta->disagg_lsn;
