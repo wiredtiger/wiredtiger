@@ -131,6 +131,14 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
+     * Time the victim-cache work - compression, checksum and put - and count the pages cached.
+     * Track totals across all threads and, separately, the share borne by application threads,
+     * which pay it on a user operation's critical path under cache pressure rather than in the
+     * background.
+     */
+    uint64_t time_start = __wt_clock(session);
+
+    /*
      * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
      * path expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
      */
@@ -143,13 +151,24 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     };
     WT_ITEM *cache_buf = &buf_orig;
     WT_ITEM *compressed_buf = NULL;
+    WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     bool compressed = false;
     bool data_checksum = true;
 
-    /* Optionally compress the data before caching. */
-    WT_IGNORE_RET(
-      __wt_blkcache_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
+    /*
+     * Compress the page before caching it. A non-zero return is a genuine failure - scratch buffer
+     * allocation (OOM), the compressor's pre_size, or the compress callback itself. The block being
+     * too small or incompressible is reported with a zero return. Such failures should be rare.
+     * Compression here is best effort: the victim cache needs it for neither correctness nor
+     * effectiveness, so on failure we log the error and cache the uncompressed image rather than
+     * abandon the put. We deliberately don't propagate it - this is optional cache population, not
+     * an operation worth failing.
+     */
+    if ((ret = __wt_blkcache_compress(
+           session, &buf_orig, false, &compressed_buf, NULL, &compressed)) != 0)
+        __wt_err(session, ret,
+          "victim cache: failed to compress block before caching, caching uncompressed");
     if (compressed_buf != NULL)
         cache_buf = compressed_buf;
 
@@ -226,6 +245,15 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     else
         /* Swap page header back to native order. */
         __wt_page_header_byteswap(dsk);
+
+    uint64_t elapsed = WT_CLOCKDIFF_US(__wt_clock(session), time_start);
+    WT_STAT_CONN_INCR(session, block_cache_puts);
+    WT_STAT_CONN_INCRV(session, block_cache_put_time, elapsed);
+    __wt_atomic_stats_max_uint64(&S2C(session)->evict->evict_max_victim_cache_put_us, elapsed);
+    if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+        WT_STAT_CONN_INCR(session, block_cache_app_thread_puts);
+        WT_STAT_CONN_INCRV(session, block_cache_app_thread_put_time, elapsed);
+    }
 }
 
 /*

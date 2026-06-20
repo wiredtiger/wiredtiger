@@ -459,6 +459,7 @@ struct __wt_connection_stats {
     int64_t block_cache_blocks_evicted;
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_lookups;
+    int64_t block_cache_put_time_max;
     int64_t block_cache_not_evicted_overhead;
     int64_t block_cache_bypass_writealloc;
     int64_t block_cache_bypass_overhead_put;
@@ -468,8 +469,12 @@ struct __wt_connection_stats {
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_bypass_chkpt;
+    int64_t block_cache_puts;
+    int64_t block_cache_app_thread_puts;
     int64_t block_cache_blocks_removed;
+    int64_t block_cache_app_thread_put_time;
     int64_t block_cache_blocks_removed_blocked;
+    int64_t block_cache_put_time;
     int64_t block_cache_blocks;
     int64_t block_cache_blocks_insert_read;
     int64_t block_cache_blocks_insert_write;
@@ -481,6 +486,7 @@ struct __wt_connection_stats {
     int64_t disagg_block_get;
     int64_t disagg_block_get_cold;
     int64_t disagg_block_hs_get;
+    int64_t disagg_block_plh_put_failed;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_put_cold;
@@ -1461,6 +1467,7 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_get;
     int64_t disagg_block_get_cold;
     int64_t disagg_block_hs_get;
+    int64_t disagg_block_plh_put_failed;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_put_cold;
@@ -1500,7 +1507,9 @@ struct __wt_dsrc_stats {
     int64_t btree_overflow;
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
+    int64_t btree_row_leaf_avg_entries;
     int64_t btree_row_leaf;
+    int64_t btree_row_leaf_pages;
     int64_t btree_checkpoint_reconcile_duration;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
