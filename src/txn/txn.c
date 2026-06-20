@@ -2405,8 +2405,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(
       session, stats, txn_pinned_timestamp_checkpoint_lag, checkpoint_pinned_ts_lag);
 
-    WT_STATP_CONN_SET(
-      session, stats, txn_pinned_timestamp_oldest, durable_timestamp - oldest_timestamp);
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_oldest,
+      (durable_timestamp != WT_TS_NONE && durable_timestamp > oldest_timestamp) ?
+        durable_timestamp - oldest_timestamp :
+        0);
 
     __wti_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
     if (oldest_active_read_timestamp != WT_TS_NONE &&
