@@ -268,10 +268,14 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /*
      * Initialize the block manager's size from the checkpoint metadata. Skip checkpoint-cursor
-     * opens: the live writer handle and checkpoint-cursor handles for the same file share one
-     * WT_BLOCK_DISAGG, and storing the historical ckpt.size would clobber the live running total.
+     * opens (both traditional checkpoint cursors with dhandle->checkpoint set, and disagg-shared
+     * opens where the trailing /WiredTigerCheckpoint.N suffix has been parsed into the local
+     * `checkpoint` variable above): the live writer handle and checkpoint-cursor handles for
+     * the same file share one WT_BLOCK_DISAGG, and storing the historical ckpt.size would
+     * clobber the live running total.
      */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_DHANDLE_IS_CHECKPOINT(dhandle))
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_DHANDLE_IS_CHECKPOINT(dhandle) &&
+      checkpoint == NULL)
         __wt_block_disagg_set_size(session, ckpt.size);
 
     /*
