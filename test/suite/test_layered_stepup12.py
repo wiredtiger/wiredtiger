@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_stepup11.py
+# test_layered_stepup12.py
 #   Verify that schema operations on layered tables are illegal during a role transition.
 #   Attempting to take a schema lock fires an assert when step-up or step-down is ongoing,
 #   aborting the process.
@@ -44,8 +44,8 @@ from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_stepup11(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_layered_stepup11'
+class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
+    tablename = 'test_layered_stepup12'
     uri = 'layered:' + tablename
     new_uri = 'layered:' + tablename + '_new'
     num_rows = 100
@@ -120,7 +120,7 @@ class test_layered_stepup11(wttest.WiredTigerTestCase, suite_subprocess):
     def test_race(self):
         rc, _ = self.run_subprocess_function(
             'SUBPROCESS',
-            'test_layered_stepup11.test_layered_stepup11.subprocess_race',
+            'test_layered_stepup12.test_layered_stepup12.subprocess_race',
             silent=True)
         self.assertEqual(rc, -signal.SIGABRT,
             f'expected process to abort (rc={-signal.SIGABRT}) but got rc={rc}')
