@@ -1158,8 +1158,6 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
 
-    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
-
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
      * one, otherwise it was kept alive and is reused.
@@ -1172,6 +1170,8 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     WT_ASSERT(session, shared_dsk_cache->hash != NULL);
     if (shared_dsk_cache->hash != NULL)
         __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
+
+    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
 }
 
 /*
