@@ -38,9 +38,7 @@ from run import wt_builddir
 from suite_subprocess import suite_subprocess
 import wttest
 
-class test_util_read_corrupt_unified(wttest.WiredTigerTestCase,
-                                     DisaggCorruptionMixin,
-                                     suite_subprocess):
+class test_util_read_corrupt(wttest.WiredTigerTestCase, DisaggCorruptionMixin, suite_subprocess):
     uri = 'test_util_read_corrupt'
     nrows = 1000
     value_pad = 'x' * 1000
