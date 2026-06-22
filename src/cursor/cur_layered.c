@@ -202,7 +202,7 @@ __clayered_op_init_finish(WT_CLAYERED_OP *op)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
 
-    op->ingest = clayered->ingest_cursor;
+    op->ingest = (op->role == WT_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
     op->stable = clayered->stable_cursor;
     op->table = (WT_LAYERED_TABLE *)clayered->dhandle;
     op->collator = op->table->collator;
@@ -607,6 +607,14 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     WT_RET(__wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &cursor));
+
+    /*
+     * We always open ingest in overwrite mode to be able to rewrite tombstones with insert().
+     *
+     * FIXME-WT-XXXX: It might be possible that it'll be technically simpler to inherit OVERWRITE
+     * only if it's set for the top cursor and always call update() to put something on top of an
+     * ingest tombstone.
+     */
     F_SET(cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
     if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
@@ -723,14 +731,6 @@ __clayered_get_current(WT_CLAYERED_OP *op, bool smallest)
      */
     if (op->ingest != NULL && F_ISSET(op->ingest, WT_CURSTD_KEY_INT))
         ingest_positioned = true;
-
-    /*
-     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty. This will need
-     * revisiting when asynchronous step-up is supported, because ingest may legitimately contain
-     * data for some time after promotion.
-     */
-    if (op->role == WT_CLAYERED_ROLE_LEADER)
-        ingest_positioned = false;
 
     if (op->stable != NULL && F_ISSET(op->stable, WT_CURSTD_KEY_INT))
         stable_positioned = true;
@@ -1173,17 +1173,10 @@ __clayered_iterate_constituents(WT_CLAYERED_OP *op, uint32_t iter_flag)
 
     current_moved = false;
     forward = (iter_flag == WT_CLAYERED_ITERATE_NEXT);
-    /* Local copy: leader mode clears the ingest cursor to NULL below. */
+
+    /* The ingest cursor is NULL when it's fine to access stable table only (e.g. on leader). */
     WT_CURSOR *c_ingest = op->ingest;
     WT_CURSOR *c_stable = op->stable;
-
-    /*
-     * FIXME-WT-16810: In leader mode, skip iterating through ingest as it should be empty. This
-     * will need revisiting when asynchronous step-up is supported, because ingest may legitimately
-     * contain data for some time after promotion.
-     */
-    if (op->role == WT_CLAYERED_ROLE_LEADER)
-        c_ingest = NULL;
 
     /*
      * FIXME-WT-15058: Both cursors are expected to be initialized, but we currently have an issue
@@ -1740,7 +1733,7 @@ __clayered_lookup(WT_CLAYERED_OP *op, WT_ITEM *value)
     cursor = &clayered->iface;
     found = false;
 
-    if (op->role == WT_CLAYERED_ROLE_FOLLOWER) {
+    if (op->ingest != NULL) {
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->ingest, value), true);
         if (ret == 0) {
             found = true;
@@ -1899,12 +1892,8 @@ __clayered_search_near_int(WT_CLAYERED_OP *op, int *exactp)
      * * Otherwise a larger key is preferred if one exists.
      * * Otherwise a smaller key should be returned.
      * If both constituents have a larger key available, return the one closes to the search term.
-     *
-     * FIXME-WT-16810: In leader mode, skip searching ingest as it should be empty.
-     * This will need revisiting when asynchronous step-up is supported, because ingest may
-     * legitimately contain data for some time after promotion.
      */
-    if (op->role == WT_CLAYERED_ROLE_FOLLOWER) {
+    if (op->ingest != NULL) {
         op->ingest->set_key(op->ingest, &cursor->key);
         WT_ERR_NOTFOUND_OK(op->ingest->search_near(op->ingest, &ingest_cmp), true);
         if (ret == 0) {
@@ -2044,6 +2033,7 @@ done:
      * constituent cursor that is not the current cursor to prevent unnecessarily pinning the page
      * in memory.
      */
+    WT_ASSERT(session, clayered->current_cursor == op->ingest || clayered->current_cursor == op->stable);
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV)) {
         if (op->stable != NULL && clayered->current_cursor == op->ingest)
             WT_ERR(op->stable->reset(op->stable));
@@ -2113,12 +2103,11 @@ __clayered_reserve_constituent(WT_CLAYERED_OP *op, WT_CURSOR *constituent)
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     /*
-     * Pass overwrite=true for followers: a follower's ingest table may not contain the key yet (it
-     * lives only in the stable table), so we need overwrite mode to allow the reserve to succeed
-     * without the key being present in the update tree.
+     * Pass overwrite=true for ingest table, it may not contain the key yet (it lives only in the
+     * stable table), so we need overwrite mode to allow the reserve to succeed without the key
+     * being present in the update tree.
      */
-    WT_ERR(
-      __wt_btcur_reserve((WT_CURSOR_BTREE *)constituent, op->role == WT_CLAYERED_ROLE_FOLLOWER));
+    WT_ERR(__wt_btcur_reserve((WT_CURSOR_BTREE *)constituent, constituent == op->ingest));
 
 err:
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_reserve);
@@ -2136,9 +2125,10 @@ __clayered_put(
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    bool leader = op->role == WT_CLAYERED_ROLE_LEADER;
+    WT_CURSOR *c = op->ingest != NULL ? op->ingest : op->stable;
+    WT_ASSERT(session, c != NULL);
 
-    if (!leader) {
+    if (c == op->ingest) {
         /*
          * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
          * Doing so would remove the cursor write operation dependency on the truncate list.
@@ -2153,7 +2143,6 @@ __clayered_put(
             WT_RET(__clayered_reset_cursors(clayered, true));
     }
 
-    WT_CURSOR *c = leader ? op->stable : op->ingest;
     c->set_key(c, key);
     /* Reserve does not require a value. */
     if (put_op != WT_CLAYERED_PUT_RESERVE)
@@ -2272,11 +2261,11 @@ __clayered_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, c
 }
 
 /*
- * __clayered_remove_follower --
+ * __clayered_remove_from_ingest --
  *     Remove an entry from the ingest table.
  */
 static WT_INLINE int
-__clayered_remove_follower(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
+__clayered_remove_from_ingest(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -2331,11 +2320,11 @@ err:
 }
 
 /*
- * __clayered_remove_leader --
+ * __clayered_remove_from_stable --
  *     Remove an entry from the stable table.
  */
 static WT_INLINE int
-__clayered_remove_leader(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
+__clayered_remove_from_stable(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -2360,8 +2349,8 @@ __clayered_remove_leader(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned
 static WT_INLINE int
 __clayered_remove_int(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
-    return (op->role == WT_CLAYERED_ROLE_LEADER ? __clayered_remove_leader(op, key, positioned) :
-                                                  __clayered_remove_follower(op, key, positioned));
+    return (op->ingest == NULL ? __clayered_remove_from_stable(op, key, positioned) :
+                                 __clayered_remove_from_ingest(op, key, positioned));
 }
 
 /*
@@ -2387,6 +2376,22 @@ __clayered_copy_duplicate_kv(WT_CLAYERED_OP *op)
     WT_RET(__clayered_reset_cursors(clayered, false));
 
     return (0);
+}
+
+/*
+ * __clayered_needs_pre_lookup --
+ *     Return whether a write must look up the key before modifying the ingest table.
+ */
+static bool
+__clayered_needs_pre_lookup(WT_CLAYERED_OP *op)
+{
+    /*
+     * The ingest cursor is always in overwrite mode so insert() can write over an ingest tombstone,
+     * which means non-overwrite duplicate detection has to happen here instead. This lookup also
+     * covers the cases that need both constituents consulted, currently a subset of having an
+     * ingest cursor.
+     */
+    return (op->ingest != NULL && !F_ISSET(&op->clayered->iface, WT_CURSTD_OVERWRITE));
 }
 
 /*
@@ -2422,14 +2427,17 @@ __clayered_insert(WT_CURSOR *cursor)
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
-     * lookup results in an error, and a failed lookup leaves the original key intact.
+     * lookup results in an error, and a failed lookup leaves the original key intact. A successful
+     * lookup is a duplicate; WT_NOTFOUND is the happy path that falls through to the insert; any
+     * other error is returned.
      */
-    if (op.role == WT_CLAYERED_ROLE_FOLLOWER && !F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-      (ret = __clayered_lookup(&op, &value)) != WT_NOTFOUND) {
-        WT_ERR(ret);
-        WT_ERR(__clayered_copy_duplicate_kv(&op));
-        WT_ERR(__clayered_reset_cursors(clayered, false));
-        WT_ERR(WT_DUPLICATE_KEY);
+    if (__clayered_needs_pre_lookup(&op) && (ret = __clayered_lookup(&op, &value)) != WT_NOTFOUND) {
+        if (ret == 0) {
+            WT_ERR(__clayered_copy_duplicate_kv(&op));
+            WT_ERR(__clayered_reset_cursors(clayered, false));
+            WT_ERR(WT_DUPLICATE_KEY);
+        }
+        goto err;
     }
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
@@ -2502,7 +2510,7 @@ __clayered_update(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
-    if (op.role == WT_CLAYERED_ROLE_FOLLOWER && !F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+    if (__clayered_needs_pre_lookup(&op)) {
         WT_ERR(__clayered_lookup(&op, &value));
         /*
          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
@@ -2844,8 +2852,10 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     if (c == NULL || ret == WT_NOTFOUND) {
         c = op.ingest;
+        /* No ingest cursor to fall back to: there is no random row available. */
         if (c == NULL)
             WT_ERR(WT_NOTFOUND);
+
         WT_ERR(__wti_curfile_next_random(c));
     }
 
@@ -2881,11 +2891,11 @@ err:
 }
 
 /*
- * __clayered_modify_leader --
- *     Apply a set of modifications on a leader node.
+ * __clayered_modify_stable --
+ *     Apply a set of modifications to the stable table.
  */
 static int
-__clayered_modify_leader(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
+__clayered_modify_stable(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -2919,11 +2929,11 @@ err:
 }
 
 /*
- * __clayered_modify_follower --
- *     Apply a set of modifications on a leader node.
+ * __clayered_modify_ingest --
+ *     Apply a set of modifications to the ingest table.
  */
 static int
-__clayered_modify_follower(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
+__clayered_modify_ingest(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -2994,15 +3004,15 @@ err:
 
 /*
  * __clayered_modify_int --
- *     Dispatch a modify call based on leader/follower status.
+ *     Dispatch a modify call based on whether an ingest cursor is present.
  */
 static int
 __clayered_modify_int(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
-    if (op->role == WT_CLAYERED_ROLE_LEADER)
-        WT_RET(__clayered_modify_leader(op, entries, nentries));
+    if (op->ingest == NULL)
+        WT_RET(__clayered_modify_stable(op, entries, nentries));
     else
-        WT_RET(__clayered_modify_follower(op, entries, nentries));
+        WT_RET(__clayered_modify_ingest(op, entries, nentries));
 
     return (0);
 }

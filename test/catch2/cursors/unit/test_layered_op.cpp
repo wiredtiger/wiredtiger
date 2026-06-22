@@ -201,9 +201,14 @@ TEST_CASE(
     {
         position_at(ingest, "i");
         position_at(stable, "s");
+        /*
+         * A leader-mode op has no ingest constituent: __clayered_op_finalize leaves op->ingest NULL
+         * on the leader, and __clayered_get_current keys off op->ingest, not op->role.
+         */
         op.role = WT_CLAYERED_ROLE_LEADER;
+        op.ingest = nullptr;
         REQUIRE(__clayered_get_current(&op, true) == 0);
-        /* Ingest is skipped in leader mode, so stable wins even though 'i' < 's'. */
+        /* With no ingest cursor, stable is the only candidate even though 'i' < 's'. */
         REQUIRE(clayered.current_cursor == stable);
     }
 
