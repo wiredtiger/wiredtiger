@@ -1957,7 +1957,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
      * truncate so we're good to go: if that ever changes, we'd need to do something here to ensure
      * a fully instantiated cursor.
      */
-    if (F_ISSET(session->txn, WT_TXN_NON_TRANSACTIONAL_TRUNCATE)) {
+    if (F_ISSET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE)) {
         /*
          * A non-transactional truncate writes globally visible tombstones that cannot be rolled
          * back, so it must not be logged: there would be no in-memory operations to undo on

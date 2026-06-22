@@ -133,36 +133,32 @@ static int
 __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DECL_RET;
     bool pin = false;
 
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
-    /* Truncate needs a running txn to drive the cursor. */
-    WT_RET(__wt_txn_begin(session, NULL));
-
-    /*
-     * Clearing the ingest table is final and owned by no transaction, so the truncate writes
-     * non-transactional WT_TXN_NONE/WT_TS_NONE tombstones: the deletes are globally visible to
-     * every reader immediately. WT_TXN_TS_NOT_SET satisfies the timestamp checks for the
-     * non-timestamped deletes.
-     */
-    F_SET(session->txn, WT_TXN_TS_NOT_SET | WT_TXN_NON_TRANSACTIONAL_TRUNCATE);
-
-    /* Failpoint: the first clear pins the oldest id and holds it open across a sibling's commit. */
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_DISAGG_INGEST_CLEAR) &&
       __wt_atomic_cas_uint32(&conn->layered_table_manager.ingest_clear_pin_done, 0, 1)) {
         conn->layered_table_manager.ingest_clear_pin_session = session;
+        WT_RET(__wt_txn_begin(session, NULL));
         WT_RET(__wt_txn_id_check(session));
         pin = true;
     }
 
-    WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
+    /*
+     * Clearing the ingest table is final and owned by no transaction. The session flag makes the
+     * truncate write globally visible tombstones that are immediately visible to every reader.
+     */
+    F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
+    ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
+    F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
+    WT_RET(ret);
 
-    if (pin)
+    if (pin) {
         __wt_sleep(3, 0);
-
-    WT_RET(__wt_txn_commit(session, NULL));
-
+        WT_RET(__wt_txn_commit(session, NULL));
+    }
     return (0);
 }
 
