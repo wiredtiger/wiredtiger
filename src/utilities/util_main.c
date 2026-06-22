@@ -481,8 +481,7 @@ open:
     ret = func(session, argc, argv);
 
     /*
-     * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site. Order the
-     * conditions so the common (non-read-corrupt) case short-circuits first.
+     * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site.
      */
     if (read_corrupt &&
       F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION) && ret == 0)
