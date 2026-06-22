@@ -293,7 +293,7 @@ struct __wt_import_list {
  *	must be taken first.
  *
  * FIXME-WT-17880: Remove the "role transition" assertions once we have asynchronous
- * step-up/step-down
+ * step-up/step-down.
  */
 #define WT_WITH_SCHEMA_LOCK(session, op)                                                      \
     do {                                                                                      \
