@@ -1166,6 +1166,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initn
 initsize
 initval
@@ -1579,6 +1583,7 @@ rebalancing
 recency
 recno
 recnos
+recognises
 reconfig
 reconfigurations
 reconfigures
@@ -1850,6 +1855,7 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
 unencoded
 unencrypted
 unesc

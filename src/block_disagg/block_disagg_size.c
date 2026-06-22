@@ -75,8 +75,21 @@ __wt_block_disagg_get_size(WT_SESSION_IMPL *session)
 void
 __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 {
+    WT_BLOCK_DISAGG *block_disagg;
+
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-    (void)__wt_atomic_store_uint64(&((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->size, size);
+    block_disagg = (WT_BLOCK_DISAGG *)S2BT(session)->bm->block;
+    (void)__wt_atomic_store_uint64(&block_disagg->size, size);
+
+    /*
+     * Disagg block manager handles are cached by filename and reused across opens of the same file.
+     * The root-size bookkeeping is per-open state, so reset it here whenever the running total is
+     * (re-)initialised from a checkpoint's metadata. Otherwise the next checkpoint's root-size
+     * transition would subtract a stale previous root size left over from a prior handle's
+     * lifetime.
+     */
+    block_disagg->current_root_size = 0;
+    block_disagg->previous_root_size = 0;
 }
 
 /*
