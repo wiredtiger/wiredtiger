@@ -124,13 +124,14 @@ done:
 
 /*
  * util_func_supports_read_corrupt --
- *     Whether a wt subcommand accepts the -q (read-corrupt) flag.
+ *     Whether a wt subcommand accepts the -q (read-corrupt) flag. Only supported for read-oriented
+ *     commands. Verify has it's own read_corrupt flag. List and printlog do not benefit from
+ *     read_corrupt.
  */
 static bool
 util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
 {
-    return (func == util_dump || func == util_read || func == util_stat || func == util_list ||
-      func == util_page || func == util_printlog);
+    return (func == util_dump || func == util_read || func == util_stat);
 }
 
 /*
@@ -393,8 +394,8 @@ main(int argc, char *argv[])
      */
     if (read_corrupt && !util_func_supports_read_corrupt(func)) {
         fprintf(stderr,
-          "%s: -q is only valid for read-oriented commands: dump, read, stat, list, page, "
-          "printlog (verify has its own -c flag)\n",
+          "%s: -q is only valid for read-oriented commands: dump, read, stat (verify has its own "
+          "-c flag)\n",
           progname);
         goto err;
     }
