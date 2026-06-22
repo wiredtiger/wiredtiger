@@ -138,9 +138,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 
     /*
      * Clearing the ingest table is final and owned by no transaction. The session flag makes the
-     * truncate write globally visible WT_TXN_NONE/WT_TS_NONE tombstones without a running
-     * transaction, so the deletes are immediately visible to every reader. Driving the truncate
-     * with a real transaction is unnecessary: the tombstones bypass transactional update tracking.
+     * truncate write globally visible tombstones that are immediately visible to every reader.
      */
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
