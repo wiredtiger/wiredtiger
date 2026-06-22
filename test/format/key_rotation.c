@@ -96,11 +96,8 @@ disagg_key_push(
 
 /*
  * disagg_key_push_initial --
- *     Push a first key before a checkpoint that has no previously persisted key. In push mode the
- *     key provider has no persisted KEK page until a checkpoint drains a pushed key whose timestamp
- *     is at or below the checkpoint timestamp, and a checkpoint taken before that asserts on the
- *     missing page. set_key requires a timestamp above stable, so advance stable to the pushed key
- *     for the checkpoint to drain it. Called at create time and on every step-up.
+ *     Push an initial key so the first checkpoint has a persisted KEK page. Called at create time
+ *     for the leader and before step-up for the follower.
  */
 void
 disagg_key_push_initial(WT_CONNECTION *conn)
