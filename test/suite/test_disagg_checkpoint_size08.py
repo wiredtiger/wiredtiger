@@ -26,60 +26,60 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, wttest
+import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size08.py
-#   Exercises the persistent invariant in two __rec_write_wrapup paths:
+#   Exercises the persistent flag invariant in two reconciliation commit paths:
 #
-#   Path 1  save_update_restore wrapup in __rec_write_wrapup:
+#   Path 1 -- the save-update-restore path in the reconciliation commit path:
 #     When eviction keeps a page in memory with restored updates (because an
 #     active reader transaction prevents those updates from becoming globally
-#     visible), it copies r->multi->block_meta into page->disagg_info->block_meta
-#     without restoring persistent.  The copy-site reset leaves
-#     the field false even though the on-disk size is still counted in
-#     block_disagg->size.
+#     visible), it copies the reconciled block's metadata into the page's block
+#     metadata without restoring the persistent flag.  The copy site reset leaves
+#     the flag false even though the on-disk size is still counted in the
+#     file's running byte total.
 #
-#   Path 2  skip-write wrapup in __rec_write_wrapup (single-block replace path):
+#   Path 2 -- skip-write in the reconciliation commit path (single-block replace path):
 #     When eviction reuses the page's existing on-disk address (content unchanged
-#     since the last write), __rec_copy_prev_addr also resets
-#     persistent to false in multi->block_meta.  The wrapup then
-#     copies that false value into page->disagg_info->block_meta while setting
-#     mod->rec_result = WT_PM_REC_REPLACE.
+#     since the last write), the address copy path also resets the persistent flag
+#     in the reconciled block's metadata.  The reconciliation commit path then copies
+#     that false value into the page's block metadata while setting a single-page
+#     replacement result.
 #
-#   In both cases a subsequent failed full-image write in __rec_write_err hit:
-#     WT_ASSERT(session, page->disagg_info->block_meta.persistent)
-#   and aborted the process.
+#   In both cases a subsequent failed full-image write in the reconciliation error
+#   path hit an assertion on the persistent flag and aborted the process.
 #
-#   The fix restores persistent = (cumulative_size > 0) after the
-#   struct copy at both wrapup sites, matching the same pattern already applied in
-#   bt_split.c:__split_multi_inmem.
+#   The fix restores the persistent flag = (cumulative size > 0) after the struct
+#   copy at both reconciliation commit path sites, matching the same pattern already
+#   applied in the page re-instantiation path.
 #
 #   Tests:
 #     test_supd_restore_wrapup_aggregated_flag
 #       A long-running reader session pins an early read timestamp, preventing
 #       updates written at later timestamps from becoming globally visible.  This
-#       forces save_update_restore during eviction of dirty pages.  With
+#       forces the save-update-restore path during eviction of dirty pages.  With
 #       timing_stress_for_test=[failpoint_rec_before_wrapup] enabled, a later
-#       failed full-image write exercises the assert path.  Verifies:
-#         - The process does not abort (assert is not reached).
+#       failed full-image write exercises the assertion path.  Verifies:
+#         - The process does not abort (assertion is not reached).
 #         - rec_free_page_id_due_to_failed_replacement_reconciliation > 0
-#           (the __rec_write_err error path ran at least once).
-#         - Checkpoint size is not inflated by a leaked cumulative_size.
+#           (the reconciliation error path ran at least once).
+#         - Checkpoint size is not inflated by a leaked chain's cumulative size.
 #
 #     test_skip_write_wrapup_aggregated_flag
-#       Builds a delta chain (cumulative_size > 0), then writes to the page and
-#       rolls back, leaving a dirty page with only aborted updates.  A checkpoint
+#       Builds a delta chain (chain's cumulative size > 0), then writes to the page
+#       and rolls back, leaving a dirty page with only aborted updates.  A checkpoint
 #       fires skip-write (newer_updates_than_last_rec_used is false because the
-#       committed on-page update has WT_UPDATE_DURABLE).  The skip-write wrapup
-#       must restore persistent = (cumulative_size > 0).
-#       With failpoint_rec_before_wrapup, the next eviction enters __rec_write_err
-#       and would hit the assert if persistent were left false.  Verifies the
-#       same invariants as the save_update_restore test.
+#       committed on-page update is a durable update).  The skip-write path in the
+#       reconciliation commit path must restore the persistent flag =
+#       (cumulative size > 0).
+#       With failpoint_rec_before_wrapup, the next eviction enters the reconciliation
+#       error path and would hit the assertion if the persistent flag were left false.
+#       Verifies the same invariants as the save-update-restore test.
 
 @disagg_test_class
-class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size08'
     # delta_pct=90: small updates produce deltas; switched to 1 when a full image is needed.
@@ -90,22 +90,9 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
     uri = 'layered:' + uri_base
     stable_uri = 'file:' + uri_base + '.wt_stable'
 
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
     # -----------------------------------------------------------------------
     # Helpers
     # -----------------------------------------------------------------------
-
-    def get_checkpoint_size(self):
-        mc = self.session.open_cursor('metadata:')
-        mc.set_key(self.stable_uri)
-        self.assertEqual(mc.search(), 0)
-        sizes = re.findall(r',size=(\d+),', mc.get_value())
-        mc.close()
-        self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
-        return int(sizes[-1])
 
     def insert_rows(self, cursor, start, count, value_char):
         for i in range(start, start + count):
@@ -120,35 +107,30 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         evict.close()
         self.session.rollback_transaction()
 
-    def get_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:' + self.stable_uri)
-        val = s[stat_key][2]
-        s.close()
-        return val
-
     # -----------------------------------------------------------------------
     # test_supd_restore_wrapup_aggregated_flag
     # -----------------------------------------------------------------------
-    # Regression for the save_update_restore wrapup path in __rec_write_wrapup.
+    # Regression for the save-update-restore path in the reconciliation commit path.
     #
-    # The wrapup copies r->multi->block_meta (where the copy-site has reset
-    # persistent=false) into page->disagg_info->block_meta, then must restore
-    # persistent = (cumulative_size > 0).  Without that restore, a subsequent
-    # skip-write reconciliation propagates persistent=false into the REPLACE
-    # state, and a later failed full-image write trips the persistent assert
-    # in __wti_block_disagg_decrease_size.
+    # The reconciliation commit path copies the reconciled block's metadata (where the
+    # copy site has reset the persistent flag to false) into the page's block
+    # metadata, then must restore the persistent flag = (cumulative size > 0).
+    # Without that restore, a subsequent skip-write reconciliation propagates
+    # the false flag into the single-page replacement result, and a later failed
+    # full-image write trips the persistent flag assertion in the running-total
+    # decrement.
     #
     # Setup:
     #   1. Write initial rows and checkpoint (full-image baseline).
     #   2. Partially update rows and checkpoint (builds delta chain,
-    #      cumulative_size > 0).
+    #      chain's cumulative size > 0).
     #   3. Open a blocker session that pins an old read timestamp, preventing
     #      updates at newer timestamps from becoming globally visible.
     #   4. Continue writing at new timestamps; eviction sees pages with updates
     #      that cannot be flushed to the history store (blocked), triggering
-    #      save_update_restore to keep the updates in memory.
+    #      the save-update-restore path to keep the updates in memory.
     #   5. Enable failpoint_rec_before_wrapup so a later full-image write fails
-    #      and enters __rec_write_err with the invariant conditions.
+    #      and enters the reconciliation error path with the invariant conditions.
     #   6. Verify no abort, stat > 0, and size is not inflated.
     def test_supd_restore_wrapup_aggregated_flag(self):
         nrows = 20
@@ -165,7 +147,7 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         size_baseline = self.get_checkpoint_size()
         self.assertGreater(size_baseline, 0)
 
-        # Step 2: partial update to build a delta chain (cumulative_size > 0).
+        # Step 2: partial update to build a delta chain (chain's cumulative size > 0).
         c = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         self.insert_rows(c, 0, nrows // 2, 'B')
@@ -180,21 +162,22 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         # Step 3: blocker session pins read_timestamp=1.  Updates at ts>=2 are
         # not globally visible while this transaction is open, so eviction of pages
         # carrying those updates cannot write them to the history store and falls
-        # back to save_update_restore (restores updates into the in-memory page).
+        # back to the save-update-restore path (restores updates into the in-memory page).
         blocker = self.conn.open_session()
         blocker.begin_transaction('read_timestamp=1')
 
         # Evict the page so the next read re-loads it from disk with the delta-chain
-        # block_meta (cumulative_size > 0, persistent = true).
+        # block metadata (chain's cumulative size > 0, persistent flag set).
         self.evict_page('key000000')
 
-        # Step 45: enable failpoint and loop until __rec_write_err is reached.
+        # Step 45: enable failpoint and loop until the reconciliation error path is reached.
         # delta_pct=1 forces full-image writes; the blocker transaction forces
-        # save_update_restore on the first eviction attempt of pages with ts>=2 updates.
-        # After save_update_restore the page remains in cache with the multiblock
-        # reconciliation result; a subsequent skip-write turns it to REPLACE.  The
-        # failpoint then fires during the next full-image write -- __rec_write_err
-        # would trip the persistent assert if the wrapup did not restore the flag.
+        # the save-update-restore path on the first eviction attempt of pages with ts>=2
+        # updates.  After the save-update-restore path the page remains in cache with the
+        # reconciliation's multi-block state; a subsequent skip-write turns it to a
+        # single-page replacement result.  The failpoint then fires during the next
+        # full-image write -- the reconciliation error path would trip the persistent flag
+        # assertion if the reconciliation commit path did not restore the flag.
         self.conn.reconfigure(
             'page_delta=(delta_pct=1),'
             'timing_stress_for_test=[failpoint_rec_before_wrapup]'
@@ -226,55 +209,56 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         if self.get_stat(stat_key) == 0:
             self.skipTest('failpoint_rec_before_wrapup did not fire in this run')
 
-        # Verify size is not inflated.  Without the wrapup fix, the save_update_restore path
-        # left persistent=false; skip-write then set REPLACE with the
-        # wrong flag; __rec_write_err skipped obsolete_delta_chain, leaking
-        # cumulative_size into block_disagg->size on every error-path iteration.
+        # Verify size is not inflated.  Without the fix, the save-update-restore path
+        # left the persistent flag false; the skip-write path then set a single-page
+        # replacement result with the wrong flag; the reconciliation error path skipped
+        # the delta chain discard, leaking the chain's cumulative size into the file's
+        # running byte total on every error-path iteration.
         self.assertLess(size_after_recovery, size_with_delta + size_baseline,
             f'Checkpoint size {size_after_recovery} after recovery is inflated: '
             f'baseline={size_baseline}, after_delta={size_with_delta}. '
-            f'Old delta chain cumulative_size may have been double-counted.')
+            f'Old delta chain cumulative size may have been double-counted.')
 
     # -----------------------------------------------------------------------
     # test_skip_write_wrapup_aggregated_flag
     # -----------------------------------------------------------------------
-    # Regression for the skip-write wrapup path in __rec_write_wrapup
+    # Regression for the skip-write path in the reconciliation commit path
     # (single-block replace branch).
     #
-    # The skip-write wrapup (WT_MULTI_SKIP_WRITE) copies r->multi->block_meta
-    # (where __rec_copy_prev_addr has reset persistent=false) into
-    # page->disagg_info->block_meta and sets mod->rec_result=WT_PM_REC_REPLACE.
-    # It must then restore persistent = (cumulative_size > 0) so the flag
-    # reflects that the size IS counted in block_disagg->size (skip-write reuses
-    # the existing on-disk address without subtracting or re-adding to the size).
-    # Otherwise a subsequent failed eviction write trips the persistent assert
-    # in __wti_block_disagg_decrease_size.
+    # The skip-write path (the skip-write flag) copies the reconciled block's metadata
+    # (where the address copy path has reset the persistent flag to false) into the
+    # page's block metadata and sets a single-page replacement result.  It must then
+    # restore the persistent flag = (cumulative size > 0) so the flag reflects that
+    # the size IS counted in the file's running byte total (skip-write reuses the
+    # existing on-disk address without subtracting or re-adding to the running total).
+    # Otherwise a subsequent failed eviction write trips the persistent flag assertion
+    # in the running-total decrement.
     #
-    # Skip-write (skip_write=true in __rec_split_write) fires when:
-    #   - last_block && multi_next==1 (single-page result)
-    #   - block_meta->page_id is valid (page written before)
-    #   - WT_REC_RESULT_SINGLE_PAGE (mod->rec_result is REPLACE)
+    # Skip-write fires when:
+    #   - last_block && single-page (single-page reconciliation result)
+    #   - address cookie has a valid page_id (page written before)
+    #   - a single-page reconciliation result (the reconciliation result is REPLACE)
     #   - !newer_updates_than_last_rec_used (no new committed updates)
     #
     # To reliably trigger skip-write during CHECKPOINT (so the page stays in cache
-    # with the wrong flag set by the wrapup):
-    #   1. Write data and checkpoint  page has REPLACE result, cumulative_size > 0.
-    #      The on-page committed updates get WT_UPDATE_DURABLE.
+    # with the wrong flag set by the reconciliation commit path):
+    #   1. Write data and checkpoint: page has REPLACE result, chain's cumulative
+    #      size > 0.  The on-page committed updates become durable updates.
     #   2. Write to the page and ROLLBACK.  The rolled-back update is aborted and
     #      invisible to reconciliation.  The page is dirty (has a modify struct)
-    #      but all visible committed updates were already written with WT_UPDATE_DURABLE.
-    #   3. Checkpoint.  Reconciliation selects the WT_UPDATE_DURABLE committed value
-    #      as the on-page update.  Because it is already durable,
-    #      __rec_selected_key_changed returns false  newer_updates_than_last_rec_used
-    #      stays false  skip_write=true fires.
-    #      The checkpoint wrapup copies r->multi->block_meta (where
-    #      __rec_copy_prev_addr reset persistent to false) into
-    #      page->disagg_info->block_meta and must restore persistent=true.
-    #      The page remains in cache with REPLACE result.
+    #      but all visible committed updates were already written as durable updates.
+    #   3. Checkpoint.  Reconciliation selects the committed durable update as the
+    #      on-page update.  Because it is already durable, newer_updates_than_last_rec_used
+    #      stays false and skip-write fires.
+    #      The reconciliation commit path copies the reconciled block's metadata (where
+    #      the address copy path reset the persistent flag to false) into the page's
+    #      block metadata and must restore the persistent flag to true.
+    #      The page remains in cache with a single-page replacement result.
     #   4. Enable failpoint_rec_before_wrapup and evict with delta_pct=1.
-    #      The eviction writes a full-image (delta_count=0); the failpoint fires and
-    #      __rec_write_err finds REPLACE + cumulative_size>0.  If persistent had
-    #      been left false the assert would trip here.
+    #      The eviction writes a full-image (delta count=0); the failpoint fires and
+    #      the reconciliation error path finds a single-page replacement result +
+    #      cumulative size > 0.  If the persistent flag had been left false the
+    #      assertion would trip here.
     def test_skip_write_wrapup_aggregated_flag(self):
         nrows = 20
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
@@ -289,7 +273,7 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         size_baseline = self.get_checkpoint_size()
         self.assertGreater(size_baseline, 0)
 
-        # Step 2: write a delta to create a cumulative_size > 0 on disk.
+        # Step 2: write a delta to create a chain's cumulative size > 0 on disk.
         c = self.session.open_cursor(self.uri)
         self.insert_rows(c, 0, nrows // 2, 'B')
         c.close()
@@ -301,15 +285,15 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         # Steps 34: loop until the error path fires.
         # Each iteration:
         #   a. Write to the page and rollback.  The page becomes dirty with only
-        #      aborted updates; the committed 'B' data still has WT_UPDATE_DURABLE.
-        #   b. Checkpoint.  skip_write fires: newer_updates_than_last_rec_used stays
-        #      false because __rec_selected_key_changed returns false for the already-
-        #      durable 'B' update.  The skip-write wrapup restores
-        #      persistent = (cumulative_size > 0), reflecting that the chain is
-        #      still counted in block_disagg->size.
+        #      aborted updates; the committed 'B' data is still a durable update.
+        #   b. Checkpoint.  Skip-write fires: newer_updates_than_last_rec_used stays
+        #      false because the already-durable 'B' update is unchanged.  The
+        #      skip-write path in the reconciliation commit path restores the persistent
+        #      flag = (cumulative size > 0), reflecting that the chain is still counted
+        #      in the file's running byte total.
         #   c. Enable failpoint + delta_pct=1 and write committed data.
-        #   d. Evict: full-image write -> failpoint fires -> __rec_write_err.
-        #      With persistent=true on entry, the error path completes; the
+        #   d. Evict: full-image write -> failpoint fires -> reconciliation error path.
+        #      With the persistent flag set on entry, the error path completes; the
         #      page_id is invalidated and the rec_free_page_id stat increments.
         max_iters = 500
         for i in range(max_iters):
@@ -320,8 +304,9 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
             c.close()
             self.session.rollback_transaction()
 
-            # (b) Checkpoint with skip-write. Sets aggregated=false (before fix) on the
-            # page, which stays in cache with mod->rec_result=WT_PM_REC_REPLACE.
+            # (b) Checkpoint with skip-write.  Before the fix, this set the persistent
+            # flag to false on the page, which stayed in cache with a single-page
+            # replacement result.
             self.session.checkpoint()
 
             # (c-d) Enable failpoint and evict with full-image mode.
@@ -350,4 +335,4 @@ class test_disagg_checkpoint_size08(wttest.WiredTigerTestCase):
         self.assertLess(size_after_recovery, size_with_delta + size_baseline,
             f'Checkpoint size {size_after_recovery} after recovery is inflated: '
             f'baseline={size_baseline}, after_delta={size_with_delta}. '
-            f'Old delta chain cumulative_size may have been double-counted.')
+            f'Old delta chain cumulative size may have been double-counted.')

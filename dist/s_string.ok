@@ -144,6 +144,7 @@ Deterministically
 DisAgg
 Disagg
 DisaggCorruptionMixin
+DisaggSizeTestMixin
 Disaggregated
 Dk
 DmpeRkvXx

@@ -26,47 +26,53 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, wttest
+import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size09.py
-#   Exercises __split_multi_inmem for the persistent invariant.
+#   Exercises the page re-instantiation path for the persistent flag invariant.
 #
 #   When eviction encounters a page with uncommitted updates that cannot be
-#   moved to the history store, it falls back to save_update_restore: the page is
-#   kept in memory via __wt_split_rewrite  __split_multi_inmem, which
-#   instantiates a new in-memory page from the existing disk image.
+#   moved to the history store, it falls back to the save-update-restore path:
+#   the page is kept in memory via the split-rewrite path -> the page
+#   re-instantiation path, which instantiates a new in-memory page from the
+#   existing disk image.
 #
-#   After copying multi->block_meta into page->disagg_info->block_meta,
-#   __split_multi_inmem must restore persistent = (cumulative_size > 0): the
-#   copy-site leaves the field false even though the on-disk delta chain is
-#   already counted in block_disagg->size.  This matches the same restore
-#   pattern applied at the two __rec_write_wrapup call sites in rec_write.c.
+#   After copying the reconciled block's metadata into the page's block metadata,
+#   the page re-instantiation path must restore the persistent flag =
+#   (cumulative size > 0): the copy site leaves the flag false even though
+#   the on-disk delta chain is already counted in the file's running byte total.
+#   This matches the same restore pattern applied at the two reconciliation commit
+#   path sites.
 #
 #   Path exercised:
-#     1. Build a delta chain so cumulative_size > 0 on disk.
-#     2. An uncommitted write on the page forces save_update_restore on eviction.
-#        __split_multi_inmem instantiates the new page with persistent=true.
+#     1. Build a delta chain so the chain's cumulative size > 0 on disk.
+#     2. An uncommitted write on the page forces the save-update-restore path on
+#        eviction.  The page re-instantiation path instantiates the new page with
+#        the persistent flag set.
 #     3. Rolling back the uncommitted write leaves the page dirty with only
-#        aborted updates; the committed value has WT_UPDATE_DURABLE.
-#     4. Checkpoint: newer_updates_than_last_rec_used stays false so skip_write
-#        fires.  The skip-write branch of __rec_write_wrapup sets
-#        mod->rec_result=REPLACE and restores persistent on its own copy site.
+#        aborted updates; the committed value is a durable update.
+#     4. Checkpoint: newer_updates_than_last_rec_used stays false so skip-write
+#        fires.  The skip-write branch of the reconciliation commit path sets a
+#        single-page replacement result and restores the persistent flag at its
+#        own copy site.
 #     5. Enable failpoint_rec_before_wrapup, dirty the page, and force eviction.
-#        The failpoint fires after the full-image write but before wrapup, calling
-#        __rec_write_err with REPLACE + cumulative_size>0 + persistent=true --
-#        if persistent had been left false, the persistent assert in
-#        __wti_block_disagg_decrease_size would trip.
+#        The failpoint fires after the full-image write but before the
+#        reconciliation commit path, invoking the reconciliation error path with
+#        a single-page replacement result + cumulative size > 0 + persistent flag
+#        set -- if the persistent flag had been left false, the persistent flag
+#        assertion in the running-total decrement would trip.
 #
 #   Verification:
-#     - cache_scrub_restore > 0 proves __split_multi_inmem was reached.
+#     - cache_scrub_restore > 0 proves the page re-instantiation path was reached.
 #     - rec_free_page_id_due_to_failed_replacement_reconciliation > 0 proves
-#       the __rec_write_err error path ran without crashing.
-#     - Checkpoint size after recovery is not inflated by leaked cumulative_size.
+#       the reconciliation error path ran without crashing.
+#     - Checkpoint size after recovery is not inflated by a leaked chain's
+#       cumulative size.
 
 @disagg_test_class
-class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size09'
     conn_config = (
@@ -75,19 +81,6 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
     )
     uri = 'layered:' + uri_base
     stable_uri = 'file:' + uri_base + '.wt_stable'
-
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    def get_checkpoint_size(self):
-        mc = self.session.open_cursor('metadata:')
-        mc.set_key(self.stable_uri)
-        self.assertEqual(mc.search(), 0)
-        sizes = re.findall(r',size=(\d+),', mc.get_value())
-        mc.close()
-        self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
-        return int(sizes[-1])
 
     def insert_rows(self, cursor, start, count, value_char):
         for i in range(start, start + count):
@@ -102,43 +95,39 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
         evict.close()
         self.session.rollback_transaction()
 
-    def get_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:' + self.stable_uri)
-        val = s[stat_key][2]
-        s.close()
-        return val
-
     # -----------------------------------------------------------------------
     # test_split_multi_inmem_aggregated_flag
     # -----------------------------------------------------------------------
-    # Regression for __split_multi_inmem fix.
+    # Regression for the page re-instantiation path fix.
     #
-    # __split_multi_inmem is called from __wt_split_rewrite when eviction
-    # produces a multiblock reconciliation result with exactly one entry that has
-    # WT_MULTI_SAVE_UPDATE_RESTORE set.  This happens when the page has uncommitted
-    # updates that cannot be written to the history store.
+    # The page re-instantiation path is called from the split-rewrite path when
+    # eviction produces a reconciliation's multi-block state with exactly one entry
+    # that has the save-update-restore path flag set.  This happens when the page
+    # has uncommitted updates that cannot be written to the history store.
     #
     # Flow:
     #   1. Write initial rows and checkpoint (full-image baseline).
     #   2. Partially update rows and checkpoint (builds delta chain,
-    #      cumulative_size > 0).
+    #      chain's cumulative size > 0).
     #   3. In a loop until both signal stats fire:
     #      a. Open session_a and write uncommitted updates to the page.
     #         Evict the page.  Because uncommitted updates from session_a cannot
-    #         go to the history store, eviction falls back to save_update_restore and
-    #         calls __split_multi_inmem.  cache_scrub_restore is incremented.
+    #         go to the history store, eviction falls back to the save-update-restore
+    #         path and calls the page re-instantiation path.  cache_scrub_restore
+    #         is incremented.
     #      b. Rollback session_a.  The page retains only aborted updates plus
-    #         the previously committed 'B' value with WT_UPDATE_DURABLE.
-    #      c. Checkpoint.  __rec_selected_key_changed returns false for the
-    #         WT_UPDATE_DURABLE 'B' value, so newer_updates_than_last_rec_used
-    #         stays false and skip_write fires.  The skip-write branch of
-    #         __rec_write_wrapup sets mod->rec_result=REPLACE and restores
-    #         persistent=(cumulative_size>0).
+    #         the previously committed 'B' value as a durable update.
+    #      c. Checkpoint.  The durable 'B' value is unchanged, so
+    #         newer_updates_than_last_rec_used stays false and skip-write fires.
+    #         The skip-write branch of the reconciliation commit path sets a
+    #         single-page replacement result and restores the persistent flag =
+    #         (cumulative size > 0).
     #      d. Enable failpoint_rec_before_wrapup + delta_pct=1.  Write new
     #         committed data to dirty the page and force a full-image eviction.
-    #         The failpoint fires ~1% of the time, calling __rec_write_err with
-    #         delta_count=0, rec_result=REPLACE, cumulative_size>0.  With
-    #         persistent=true, the err path completes; rec_free_page_id increments.
+    #         The failpoint fires ~1% of the time, invoking the reconciliation
+    #         error path with delta count=0, a single-page replacement result,
+    #         and cumulative size > 0.  With the persistent flag set, the error
+    #         path completes; rec_free_page_id increments.
     #   4. Run a final checkpoint and verify size is not inflated.
     def test_split_multi_inmem_aggregated_flag(self):
         nrows = 20
@@ -156,7 +145,7 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
         self.assertGreater(size_baseline, 0)
 
         # Step 2: partial update + checkpoint to build a delta chain so
-        # cumulative_size > 0 on disk.
+        # the chain's cumulative size > 0 on disk.
         c = self.session.open_cursor(self.uri)
         self.insert_rows(c, 0, nrows // 2, 'B')
         c.close()
@@ -165,14 +154,15 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
         self.assertGreater(size_with_delta, size_baseline,
             'Expected checkpoint size to grow after a delta write')
 
-        # Step 3: loop until __split_multi_inmem has been called at least once
-        # AND the __rec_write_err error path has been reached at least once.
+        # Step 3: loop until the page re-instantiation path has been called at least
+        # once AND the reconciliation error path has been reached at least once.
         max_iters = 500
         for i in range(max_iters):
-            # (a) Uncommitted write forces save_update_restore on eviction.
+            # (a) Uncommitted write forces the save-update-restore path on eviction.
             #     Uncommitted updates from session_a cannot be written to the history
             #     store (they may still be rolled back), so eviction keeps the page
-            #     in memory via __split_multi_inmem and increments cache_scrub_restore.
+            #     in memory via the page re-instantiation path and increments
+            #     cache_scrub_restore.
             session_a = self.conn.open_session()
             session_a.begin_transaction()
             ca = session_a.open_cursor(self.uri)
@@ -182,13 +172,14 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
             self.evict_page('key000000')
 
             # (b) Rollback: uncommitted updates become aborted.  The page now has
-            #     only the committed 'B' value (WT_UPDATE_DURABLE) plus aborted updates.
+            #     only the committed 'B' value (a durable update) plus aborted updates.
             session_a.rollback_transaction()
             session_a.close()
 
-            # (c) Checkpoint: skip_write fires because newer_updates_than_last_rec_used
-            #     stays false (the only visible update is already WT_UPDATE_DURABLE).
-            #     The wrapup sets mod->rec_result=REPLACE and restores persistent=true.
+            # (c) Checkpoint: skip-write fires because newer_updates_than_last_rec_used
+            #     stays false (the only visible update is already a durable update).
+            #     The reconciliation commit path sets a single-page replacement result
+            #     and restores the persistent flag.
             self.session.checkpoint()
 
             # (d) Enable the failpoint and force a full-image eviction.
@@ -208,27 +199,28 @@ class test_disagg_checkpoint_size09(wttest.WiredTigerTestCase):
                 break
         else:
             self.fail(
-                f'Failed to trigger both save_update_restore (__split_multi_inmem) and '
-                f'the __rec_write_err error path after {max_iters} iterations'
+                f'Failed to trigger both the save-update-restore path (page '
+                f're-instantiation) and the reconciliation error path after '
+                f'{max_iters} iterations'
             )
 
         # Step 4: final checkpoint after the error path has run.
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
 
-        # __split_multi_inmem was called (save_update_restore ran).
+        # The page re-instantiation path was called (the save-update-restore path ran).
         self.assertGreater(self.get_stat(scrub_stat), 0,
-            'cache_scrub_restore should be > 0: __split_multi_inmem was not reached')
+            'cache_scrub_restore should be > 0: page re-instantiation path was not reached')
 
-        # The __rec_write_err error path ran without crashing.
+        # The reconciliation error path ran without crashing.
         self.assertGreater(self.get_stat(err_stat), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0 '
             'after running with failpoint_rec_before_wrapup')
 
-        # Checkpoint size is not inflated.  __rec_write_err must invoke the
-        # obsolete_delta_chain cleanup; otherwise cumulative_size would leak
-        # into block_disagg->size on every error-path hit.
+        # Checkpoint size is not inflated.  The reconciliation error path must invoke
+        # the delta chain discard; otherwise the chain's cumulative size would leak
+        # into the file's running byte total on every error-path hit.
         self.assertLess(size_after_recovery, size_with_delta + size_baseline,
             f'Checkpoint size {size_after_recovery} after recovery is inflated: '
             f'baseline={size_baseline}, after_delta={size_with_delta}. '
-            f'Old delta chain cumulative_size may have been double-counted.')
+            f'Old delta chain cumulative size may have been double-counted.')

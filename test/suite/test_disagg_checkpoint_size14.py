@@ -26,21 +26,22 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, wttest
+import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size14.py
 #   Targets the failed-installation retry path: a reconciliation produces a
-#   multi-block result, __split_multi_lock returns EBUSY (the failpoint or real
-#   contention), and the page stays in multi block.  The next dirty
-#   cycle then re-reconciles with a fresh multi[] -- and the OLD multi[]'s
-#   contribution to block_disagg->size must be subtracted before the new state
-#   is installed.  If it isn't, block_disagg->size drifts and either trips the
-#   decrease_size assertion or inflates the recorded ckpt.size unbounded.
+#   multi-block result, the multi-block split path returns EBUSY (the failpoint
+#   or real contention), and the page stays in multi block.  The next dirty
+#   cycle then re-reconciles with fresh reconciliation multi-block state -- and
+#   the OLD state's contribution to the running total must be subtracted before
+#   the new state is installed.  If it isn't, the running total drifts and
+#   either trips the running-total decrement assertion or inflates the recorded
+#   ckpt.size unbounded.
 
 @disagg_test_class
-class test_disagg_checkpoint_size14(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size14'
     conn_config = (
@@ -52,19 +53,6 @@ class test_disagg_checkpoint_size14(wttest.WiredTigerTestCase):
     uri = 'layered:' + uri_base
     stable_uri = 'file:' + uri_base + '.wt_stable'
     table_config = 'key_format=S,value_format=S,leaf_page_max=8KB,internal_page_max=8KB'
-
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    def get_checkpoint_size(self):
-        mc = self.session.open_cursor('metadata:')
-        mc.set_key(self.stable_uri)
-        self.assertEqual(mc.search(), 0)
-        sizes = re.findall(r',size=(\d+),', mc.get_value())
-        mc.close()
-        self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
-        return int(sizes[-1])
 
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
@@ -86,12 +74,6 @@ class test_disagg_checkpoint_size14(wttest.WiredTigerTestCase):
                 self.session.rollback_transaction()
             except Exception:
                 pass
-
-    def get_conn_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:')
-        val = s[stat_key][2]
-        s.close()
-        return val
 
     def test_failed_install_retry_no_leak(self):
         # Aggressive workload; expect ~1 minute.
@@ -129,11 +111,12 @@ class test_disagg_checkpoint_size14(wttest.WiredTigerTestCase):
             'timing_stress_for_test=[failpoint_eviction_split]')
 
         # Walk through bands and append fresh ranges so pages keep growing past
-        # leaf_page_max (keeps __wt_split_multi running).  Double-evict each
-        # band: first try may EBUSY under the failpoint and strand
-        # Multi block; the next dirty cycle must discard it cleanly.
-        # Periodic checkpoints flush the disagg page-discard path -- the spot
-        # where any accounting drift would trip the decrease_size assertion.
+        # leaf_page_max (keeps the multi-block split path running).  Double-evict
+        # each band: first try may EBUSY under the failpoint and strand the
+        # reconciliation multi-block state; the next dirty cycle must discard it
+        # cleanly.  Periodic checkpoints flush the post-reconciliation chain
+        # discard -- the spot where any accounting drift would trip the
+        # running-total decrement assertion.
         for cycle in range(cycles):
             start = (cycle * band) % nrows
             new_start = nrows + cycle * band
@@ -181,7 +164,7 @@ class test_disagg_checkpoint_size14(wttest.WiredTigerTestCase):
 
         # Verify the layered table.  WT's verify recomputes the on-disk block
         # layout and cross-checks against the metadata-recorded size; drift
-        # accumulated in block_disagg->size would surface as a verify failure
-        # even if the decrease_size assertion never tripped.
+        # accumulated in the running total would surface as a verify failure
+        # even if the running-total decrement assertion never tripped.
         # Try past transient EBUSY while dirty state is still flushing.
         self.verifyUntilSuccess(uri=self.uri)

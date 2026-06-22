@@ -28,18 +28,19 @@
 
 import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size15.py
-#   Adds history-store pressure on top of the rec_write_err workload by
-#   holding an old read_timestamp pinned across many writer cycles, so updates
-#   at newer commit_timestamps push prior versions to the history store
+#   Adds history-store pressure on top of the reconciliation error path workload
+#   by holding an old read_timestamp pinned across many writer cycles, so
+#   updates at newer commit_timestamps push prior versions to the history store
 #   (WiredTigerSharedHS.wt_stable).  Combined with failpoint_rec_before_wrapup,
-#   this drives __rec_write_err on a btree with active HS activity -- the
-#   format-stress workload that originally produced the disagg underflow.
+#   this drives the reconciliation error path on a btree with active HS
+#   activity -- the format-stress workload that originally produced the disagg
+#   underflow.
 
 @disagg_test_class
-class test_disagg_checkpoint_size15(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size15'
     conn_config = (
@@ -54,10 +55,6 @@ class test_disagg_checkpoint_size15(wttest.WiredTigerTestCase):
                     'memory_page_max=200MB,'
                     'split_pct=50')
 
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
         for i in range(start, start + count):
@@ -71,12 +68,6 @@ class test_disagg_checkpoint_size15(wttest.WiredTigerTestCase):
         evict.reset()
         evict.close()
         self.session.rollback_transaction()
-
-    def get_conn_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:')
-        val = s[stat_key][2]
-        s.close()
-        return val
 
     def test_hs_pressure_rec_write_err(self):
         nrows = 2000

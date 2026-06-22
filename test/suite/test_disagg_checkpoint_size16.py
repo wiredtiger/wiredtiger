@@ -28,23 +28,23 @@
 
 import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size16.py
 #   Exercises the disagg delta-chain invalidation path: a hot single page is
 #   re-reconciled many times under failpoint_rec_before_wrapup so each
 #   reconciliation is a delta on the same page_id (delta_pct=90,
-#   max_consecutive_delta=32).  When the failpoint fires, __rec_write_err
-#   single-block branch invalidates the delta cookie via page_discard,
-#   subtracting the chain's cumulative_size from block_disagg->size.  A second
-#   phase runs the same failpoint against a wide multi-block table so the
-#   multi-block err-cleanup loop also exercises page_discard.  If accounting
-#   in any prior write didn't increment block_disagg->size by the correct
-#   amount, the underflow assertion in __wti_block_disagg_decrease_size aborts
-#   the process.
+#   max_consecutive_delta=32).  When the failpoint fires, the reconciliation
+#   error path's single-block branch invalidates the address cookie via the
+#   post-reconciliation chain discard, subtracting the chain's cumulative size
+#   from the running total.  A second phase runs the same failpoint against a
+#   wide multi-block table so the multi-block err-cleanup loop also exercises
+#   the post-reconciliation chain discard.  If accounting in any prior write
+#   didn't increment the running total by the correct amount, the
+#   running-total decrement assertion aborts the process.
 
 @disagg_test_class
-class test_disagg_checkpoint_size16(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size16(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size16'
     conn_config = (
@@ -54,10 +54,6 @@ class test_disagg_checkpoint_size16(wttest.WiredTigerTestCase):
         'statistics=(all)'
     )
     uri = 'layered:' + uri_base
-
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
@@ -72,12 +68,6 @@ class test_disagg_checkpoint_size16(wttest.WiredTigerTestCase):
         evict.reset()
         evict.close()
         self.session.rollback_transaction()
-
-    def get_conn_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:')
-        val = s[stat_key][2]
-        s.close()
-        return val
 
     def test_delta_chain_invalidation(self):
         nrows = 50
@@ -116,7 +106,7 @@ class test_disagg_checkpoint_size16(wttest.WiredTigerTestCase):
         # Phase A: rewrite the same nrows repeatedly.  Each cycle re-reconciles
         # the single page as a delta (delta_pct=90), with a full image every
         # max_consecutive_delta=32 cycles.  Some reconciliations fail at the
-        # failpoint, exercising the err-path delta-cookie page_discard.
+        # failpoint, exercising the error-path post-reconciliation chain discard.
         for i in range(cycles):
             char = chr(ord('a') + (i % 20))
             c = self.session.open_cursor(self.uri)

@@ -26,19 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, wttest
+import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size12.py
-#   Exercises disagg block_disagg->size accounting on the multi-block eviction
-#   path: leaf pages split under update pressure (__wt_split_multi), and
-#   failpoint_eviction_split routes some splits through the err-cleanup loop
-#   in __rec_write_err.  A leak there would underflow the decrease_size
-#   assertion or inflate the recorded checkpoint size unbounded.
+#   Exercises the running total accounting on the multi-block eviction path:
+#   leaf pages split under update pressure via the multi-block split, and
+#   failpoint_eviction_split routes some splits through the error-cleanup loop
+#   in the reconciliation error path.  A leak there would underflow the
+#   running-total decrement assertion or inflate the recorded checkpoint size
+#   unbounded.
 
 @disagg_test_class
-class test_disagg_checkpoint_size12(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size12(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size12'
     conn_config = (
@@ -57,19 +58,6 @@ class test_disagg_checkpoint_size12(wttest.WiredTigerTestCase):
                     'memory_page_max=200MB,'
                     'split_pct=50')
 
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    def get_checkpoint_size(self):
-        mc = self.session.open_cursor('metadata:')
-        mc.set_key(self.stable_uri)
-        self.assertEqual(mc.search(), 0)
-        sizes = re.findall(r',size=(\d+),', mc.get_value())
-        mc.close()
-        self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
-        return int(sizes[-1])
-
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
         for i in range(start, start + count):
@@ -83,12 +71,6 @@ class test_disagg_checkpoint_size12(wttest.WiredTigerTestCase):
         evict.reset()
         evict.close()
         self.session.rollback_transaction()
-
-    def get_conn_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:')
-        val = s[stat_key][2]
-        s.close()
-        return val
 
     def test_split_leaf_eviction_size_stable(self):
         nrows = 2000
@@ -124,9 +106,9 @@ class test_disagg_checkpoint_size12(wttest.WiredTigerTestCase):
             'timing_stress_for_test=[failpoint_eviction_split]')
 
         # Stress: existing-band updates plus appended fresh ranges so the
-        # keys keeps growing and producing leaf-page splits even after
-        # existing pages settle.  Any block_disagg->size accounting drift
-        # surfaces as a decrease_size underflow that aborts the process.
+        # keys keep growing and producing leaf-page splits even after
+        # existing pages settle.  Any running-total accounting drift surfaces
+        # as a decrement underflow that aborts the process.
         for i in range(cycles):
             start = ((i + cycles) * band) % nrows
             char = chr(ord('a') + (i % 20))
@@ -152,7 +134,7 @@ class test_disagg_checkpoint_size12(wttest.WiredTigerTestCase):
         self.assertLess(size_after_stress, size_initial * 8,
             f'Checkpoint size {size_after_stress} after split-evict stress is '
             f'much larger than baseline {size_initial} -- possible '
-            f'block_disagg->size leak in the multi-block err-cleanup path.')
+            f'running-total leak in the multi-block error-cleanup path.')
 
         expected_total = nrows + cycles * band
         c = self.session.open_cursor(self.uri)

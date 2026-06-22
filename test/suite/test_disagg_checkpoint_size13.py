@@ -28,17 +28,18 @@
 
 import wttest
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size13.py
-#   Exercises __rec_write_err multi-block cleanup loop on the disagg path by
-#   driving failpoint_rec_before_wrapup.  The failpoint fires AFTER the block
-#   write but BEFORE __rec_write_wrapup commits state, so reconciliation falls
-#   into __rec_write_err with each multi block_cookie already populated --
-#   the multi-block err cleanup loop then frees every chunk.
+#   Exercises the multi-block error-cleanup loop in the reconciliation error
+#   path on the disagg path by driving failpoint_rec_before_wrapup.  The
+#   failpoint fires AFTER the block write but BEFORE the reconciliation commit
+#   path records state, so reconciliation falls into the error path with each
+#   chunk's address cookie already populated -- the error-cleanup loop then
+#   frees every chunk.
 
 @disagg_test_class
-class test_disagg_checkpoint_size13(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size13(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size13'
     conn_config = (
@@ -48,17 +49,14 @@ class test_disagg_checkpoint_size13(wttest.WiredTigerTestCase):
         'statistics=(all)'
     )
     uri = 'layered:' + uri_base
-    # Small leaf_page_max forces wide N-way splits; large memory_page_max lets
-    # the in-memory page absorb many leaf_page_max worth of data before
-    # reconciliation, so the err-path cleanup loop covers many chunks per call.
+    # Small leaf_page_max forces wide N-way splits via the multi-block split;
+    # large memory_page_max lets the in-memory page absorb many leaf_page_max
+    # worth of data before reconciliation, so the error-cleanup loop covers
+    # many chunks per call.
     table_config = ('key_format=S,value_format=S,'
                     'leaf_page_max=4KB,internal_page_max=8KB,'
                     'memory_page_max=200MB,'
                     'split_pct=50')
-
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
@@ -74,12 +72,6 @@ class test_disagg_checkpoint_size13(wttest.WiredTigerTestCase):
         evict.close()
         self.session.rollback_transaction()
 
-    def get_conn_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:')
-        val = s[stat_key][2]
-        s.close()
-        return val
-
     def test_rec_write_err_path(self):
         nrows = 2000
         cycles = 30
@@ -87,7 +79,8 @@ class test_disagg_checkpoint_size13(wttest.WiredTigerTestCase):
         # Big fresh batches per cycle: with memory_page_max=200MB the tail
         # page absorbs ~2 MB at 1 KB/row, then reconciles into ~500 chunks at
         # leaf_page_max=4KB.  If failpoint_rec_before_wrapup fires during one
-        # of these wide reconciliations, __rec_write_err cleans up all chunks.
+        # of these wide reconciliations, the reconciliation error path cleans
+        # up all chunks.
         big_batch = 2000
 
         self.session.create(self.uri, self.table_config)

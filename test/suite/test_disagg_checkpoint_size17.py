@@ -27,17 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class
+from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size17.py
-#   A checkpoint-cursor open of a disagg btree used to call
-#   __wt_block_disagg_set_size unconditionally from __btree_open,
-#   storing the historical ckpt.size into the WT_BLOCK_DISAGG shared with the
-#   live writer handle and clobbering the live running total.  The next
-#   __wti_block_disagg_decrease_size then underflowed and aborted.
+#   A checkpoint-cursor open of a disagg btree used to unconditionally
+#   initialise the running total from the btree open path, storing the
+#   historical ckpt.size into the block state shared with the live writer
+#   handle and clobbering the live running total.  The next
+#   running-total decrement then underflowed and aborted.
 
 @disagg_test_class
-class test_disagg_checkpoint_size17(wttest.WiredTigerTestCase):
+class test_disagg_checkpoint_size17(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
 
     uri_base = 'test_disagg_ckpt_size17'
     conn_config = (
@@ -49,10 +49,6 @@ class test_disagg_checkpoint_size17(wttest.WiredTigerTestCase):
     uri = 'layered:' + uri_base
     stable_uri = 'file:' + uri_base + '.wt_stable'
     table_config = 'key_format=S,value_format=S,leaf_page_max=8KB,internal_page_max=8KB'
-
-    def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def insert_rows(self, cursor, start, count, value_char):
         value = value_char * 1024
@@ -77,26 +73,26 @@ class test_disagg_checkpoint_size17(wttest.WiredTigerTestCase):
         # is the historical checkpoint the cursor will open against.
         self.session.checkpoint()
 
-        # Grow the live block_disagg->size well above the empty checkpoint
-        # value.  No checkpoint between here and the cursor open so the live
-        # state stays divergent.
+        # Grow the live running total well above the empty checkpoint value.
+        # No checkpoint between here and the cursor open so the live state
+        # stays divergent.
         c = self.session.open_cursor(self.uri)
         self.insert_rows(c, 0, nrows, 'A')
         self.insert_rows(c, 0, nrows, 'B')
         self.insert_rows(c, 0, nrows, 'C')
         c.close()
 
-        # Opening a checkpoint cursor on the stable file routes through
-        # __btree_open.  That path must NOT store the historical ckpt.size into
-        # the WT_BLOCK_DISAGG shared with the live writer.
+        # Opening a checkpoint cursor on the stable file routes through the
+        # btree open path.  That path must NOT store the historical ckpt.size
+        # into the block state shared with the live writer.
         ckpt_c = self.session.open_cursor(self.stable_uri, None,
                                           'checkpoint=WiredTigerCheckpoint')
         ckpt_c.close()
 
-        # Force evictions that subtract cookie bytes via page_discard ->
-        # __wti_block_disagg_decrease_size.  If the running total had been
-        # clobbered by the checkpoint-cursor open, the underflow assertion
-        # would abort here.
+        # Force evictions that subtract cookie bytes via the post-reconciliation
+        # chain discard.  If the running total had been clobbered by the
+        # checkpoint-cursor open, the running-total decrement assertion would
+        # abort here.
         for k in (0, nrows // 2, nrows, nrows + nrows // 2):
             self.evict_page(f'key{k:08d}')
 
