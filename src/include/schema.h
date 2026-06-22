@@ -291,6 +291,9 @@ struct __wt_import_list {
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	Check that we are not already holding some other lock: the schema lock
  *	must be taken first.
+ *
+ * FIXME-WT-17880: Remove the "role transition" assertions once we have asynchronous
+ * step-up/step-down
  */
 #define WT_WITH_SCHEMA_LOCK(session, op)                                                      \
     do {                                                                                      \

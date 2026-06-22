@@ -37,6 +37,8 @@
 #
 #   Each scenario runs in a subprocess so that the expected abort is caught as a
 #   non-zero exit code without killing the test runner.
+#
+#   FIXME-WT-17880: Remove this test once we have asynchronous step-up/step-down
 
 import signal, threading, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
