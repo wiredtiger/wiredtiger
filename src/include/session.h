@@ -358,6 +358,13 @@ struct __wt_session_impl {
     uint32_t flags;
 
 /*
+ * The block managers consult both flags together: either one means "return WT_ERROR instead of
+ * panicking on a corrupt read".
+ */
+#define WT_SESSION_RETURNS_CORRUPT_ERROR(session) \
+    F_ISSET((session), WT_SESSION_QUIET_CORRUPT_FILE | WT_SESSION_READ_SKIP_CORRUPT)
+
+/*
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
  */

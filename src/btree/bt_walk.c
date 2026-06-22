@@ -379,12 +379,8 @@ descend:
             if (ret == WT_RESTART)
                 goto restart;
 
-            /*
-             * Skip-on-corrupt: require both WT_ERROR and the connection's corruption flag, set by
-             * the block managers when they detect a checksum mismatch.
-             */
-            if (LF_ISSET(WT_READ_SKIP_CORRUPT) && ret == WT_ERROR &&
-              F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION)) {
+            /* Skip-on-corrupt: treat as a clean break so the outer loop advances to the sibling. */
+            if (WT_READ_SKIP_CORRUPT_HIT(session, flags, ret)) {
                 WT_NOT_READ(ret, 0);
                 break;
             }

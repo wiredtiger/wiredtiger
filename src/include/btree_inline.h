@@ -2655,8 +2655,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
      * Skip-on-corrupt: treat corrupt pages as expected and return without releasing the page to
      * advance to the next sibling.
      */
-    if (LF_ISSET(WT_READ_SKIP_CORRUPT) && ret == WT_ERROR &&
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
+    if (WT_READ_SKIP_CORRUPT_HIT(session, flags, ret))
         return (ret);
 
     /* Discard the original held page on either success or error. */

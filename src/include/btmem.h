@@ -41,6 +41,14 @@
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
 /*
+ * A corrupt page read is identified by both the WT_READ_SKIP_CORRUPT walk flag (the caller opted
+ * in) and the connection-level corruption flag (a block manager actually detected one).
+ */
+#define WT_READ_SKIP_CORRUPT_HIT(session, flags, ret)                 \
+    (FLD_ISSET((flags), WT_READ_SKIP_CORRUPT) && (ret) == WT_ERROR && \
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
+
+/*
  * WT_PAGE_HEADER --
  *	Blocks have a common header, a WT_PAGE_HEADER structure followed by a
  * block-manager specific structure.

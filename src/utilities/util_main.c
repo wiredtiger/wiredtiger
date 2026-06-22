@@ -123,6 +123,17 @@ done:
 }
 
 /*
+ * util_func_supports_read_corrupt --
+ *     Whether a wt subcommand accepts the -q (read-corrupt) flag.
+ */
+static bool
+util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
+{
+    return (func == util_dump || func == util_read || func == util_stat || func == util_list ||
+      func == util_page || func == util_printlog);
+}
+
+/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -380,8 +391,7 @@ main(int argc, char *argv[])
      * -q is only meaningful for read-oriented commands. Reject it on anything else so users get
      * an immediate, clear error rather than a silently ignored flag.
      */
-    if (read_corrupt && func != util_dump && func != util_read && func != util_stat &&
-      func != util_list && func != util_page && func != util_printlog) {
+    if (read_corrupt && !util_func_supports_read_corrupt(func)) {
         fprintf(stderr,
           "%s: -q is only valid for read-oriented commands: dump, read, stat, list, page, "
           "printlog (verify has its own -c flag)\n",
@@ -471,10 +481,11 @@ open:
     ret = func(session, argc, argv);
 
     /*
-     * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site.
+     * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site. Order the
+     * conditions so the common (non-read-corrupt) case short-circuits first.
      */
-    if (ret == 0 && read_corrupt &&
-      F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION))
+    if (read_corrupt &&
+      F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION) && ret == 0)
         ret = WT_ERROR;
 
     if (0) {

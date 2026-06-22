@@ -240,6 +240,12 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));
+            /*
+             * Under -q, a cursor-open failure on a corrupt table is tolerated: skip this URI and
+             * continue with the remaining ones. open_cursor leaves *cursorp NULL on failure, so
+             * there is nothing to close; the assignment is defensive in case a future change stops
+             * zeroing it on the error path.
+             */
             if (read_corrupt) {
                 cursor = NULL;
                 continue;

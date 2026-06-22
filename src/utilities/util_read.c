@@ -95,6 +95,10 @@ util_read(WT_SESSION *session, int argc, char *argv[])
         case 0:
             if ((ret = cursor->get_value(cursor, &value)) != 0) {
                 (void)util_cerr(cursor, "get_value", ret);
+                /*
+                 * Exit the wt utility with status 1 unless this is a tolerable corruption hit under
+                 * -q; in that case record that something went wrong and keep going.
+                 */
                 if (!read_corrupt || ret != WT_ERROR ||
                   !F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION))
                     return (1);
