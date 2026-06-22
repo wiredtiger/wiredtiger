@@ -246,11 +246,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             goto err;
         }
 
-        /*
-         * Open succeeded, the table envelope will be written. Emit a JSON separator only when a
-         * previous table actually made it into the output; under -q, earlier URIs may have been
-         * skipped on cursor-open failure and must not leave an orphan separator behind.
-         */
         if (json) {
             if (table_emitted && dump_json_separator(session) != 0)
                 goto err;
