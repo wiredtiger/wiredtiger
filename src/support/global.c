@@ -37,7 +37,6 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
   {"failpoint_disagg_checkpoint_queue_drain",
     WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN},
-  {"failpoint_disagg_ingest_clear", WT_TIMING_STRESS_FAILPOINT_DISAGG_INGEST_CLEAR},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
