@@ -115,7 +115,7 @@ disagg_key_push_initial(WT_CONNECTION *conn)
 
     testutil_check(disagg_key_push(session, kp, g.stable_timestamp, &push_ts));
 
-    /* The checkpoint only persists keys at or below stable; advance stable so it drains the pushed key. */
+    /* Advance stable to the pushed key so the checkpoint drains it. */
     testutil_snprintf(ts_buf, sizeof(ts_buf), "stable_timestamp=%" PRIx64, (uint64_t)push_ts);
     testutil_check(conn->set_timestamp(conn, ts_buf));
     g.stable_timestamp = push_ts;
