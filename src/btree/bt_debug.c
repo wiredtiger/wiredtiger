@@ -550,10 +550,10 @@ err:
 
 /*
  * __wt_debug_disagg_page_id_raw --
- *     Fetch a disaggregated page chain by (table_id, page_id, lsn) directly off the connection page
- *     log, without opening the table, and dump each result as raw bytes. Used when the checkpoint
- *     is unreadable so the table cannot be opened; without a btree the on-disk formats are unknown,
- *     so no attempt is made to decode page contents.
+ *     Fetch a pages by (table_id, page_id, lsn) directly off the connection page log, without
+ *     opening the table, and dump each result as raw bytes. Used when the checkpoint is unreadable
+ *     so the table cannot be opened; without a btree the on-disk formats are unknown, so no attempt
+ *     is made to decode page contents.
  */
 int
 __wt_debug_disagg_page_id_raw(
@@ -579,8 +579,12 @@ __wt_debug_disagg_page_id_raw(
     WT_ERR(__wt_msg(session, "results: count=%u", count));
 
     for (i = 0; i < count; i++)
-        __wt_log_data_dump(session, results[i].data, results[i].size,
-          "result %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count, page_id, lsn);
+        if (i == 0)
+            __wt_log_data_dump(session, results[i].data, results[i].size,
+              "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64, count - 1, page_id, lsn);
+        else
+            __wt_log_data_dump(session, results[i].data, results[i].size,
+              "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
 
 err:
     for (i = 0; i < WT_ELEMENTS(results); i++)

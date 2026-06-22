@@ -18,8 +18,8 @@ usage(void)
     static const char *options[] = {"-p page_id",
       "required: numeric page id (decimal or 0x-prefixed hex)", "-l lsn",
       "required: numeric LSN (decimal or 0x-prefixed hex)", "-t table_id",
-      "numeric table id to read directly off the page log without opening the table (use when the "
-      "checkpoint is unreadable)",
+      "numeric table id to read directly off the page server without opening the table (use when "
+      "the checkpoint is unreadable)",
       "-?", "show this message", NULL, NULL};
 
     util_usage("page -p page_id -l lsn [-t table_id] [uri]", "options:", options);

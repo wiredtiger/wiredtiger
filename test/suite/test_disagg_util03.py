@@ -82,12 +82,14 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         self.assertIn('proceeding with empty metadata', err)
 
     def _find_base_image_page(self):
-        # Newest base-image row (no backlink) for the data table.
+        # Largest base-image row (no backlink) for the data table: the leaf
+        # data page rather than the small internal root.
         table_id = get_table_id(self.session, self.stable_uri)
         shard = get_shard_id(table_id)
         db = os.path.join(self.home, 'kv_home', f'pages_{shard:02d}.db')
         sql = (f"SELECT page_id, lsn FROM pages WHERE table_id={table_id} "
-               f"AND base_lsn=0 AND backlink_lsn=0 ORDER BY lsn DESC LIMIT 1;")
+               f"AND base_lsn=0 AND backlink_lsn=0 "
+               f"ORDER BY length(page_data) DESC LIMIT 1;")
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         out = subprocess.run([sqlite_exe, '-json', db, sql],
                              capture_output=True, text=True, check=True).stdout
@@ -106,11 +108,12 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         out, err = self._run_wt(
             'page', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn))
         self.assertIn('proceeding with empty metadata', err)
-        # The page-log metadata is printed to stdout; the page image itself is
-        # dumped as raw bytes to stderr (no decode without the table's formats).
+        # The page-log metadata is printed to stdout; the page image itself
+        # is dumped as raw bytes to stderr.
         self.assertIn(f"table_id: {table_id}", out)
         self.assertIn("results: count=1", out)
-        self.assertIn(f"result 0 of 1: page_id {page_id}", err)
+        self.assertIn(f"base of 0 delta(s): page_id {page_id}", err)
+        self.assertIn("(chunk 2 of ", err)
 
     def test_raw_read_unknown_page(self):
         if self.ds_name != 'palite':
