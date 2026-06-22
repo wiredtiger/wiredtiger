@@ -380,7 +380,7 @@ descend:
                 goto restart;
 
             /* Skip-on-corrupt: treat as a clean break so the outer loop advances to the sibling. */
-            if (WT_READ_SKIP_CORRUPT_HIT(session, flags, ret)) {
+            if (ret == WT_ERROR && WT_READ_SKIP_CORRUPT_HIT(session, flags)) {
                 WT_NOT_READ(ret, 0);
                 break;
             }
