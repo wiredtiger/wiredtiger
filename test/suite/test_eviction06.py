@@ -124,6 +124,12 @@ class test_eviction06(wttest.WiredTigerTestCase):
         uri = 'table:test_eviction06_off'
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
 
+        # Snapshot baseline after disabling: stats are cumulative so any
+        # inserts that fired during connection open (before reconfigure) must
+        # not be counted against the disabled assertion.
+        baseline_insert = self.get_stat(stat.conn.cache_eviction_dirty_index_insert)
+        baseline_drain  = self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned)
+
         self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
         self.conn.reconfigure('cache_size=20MB,'
                               'eviction_dirty_target=2,eviction_dirty_trigger=5')
@@ -131,8 +137,8 @@ class test_eviction06(wttest.WiredTigerTestCase):
             self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
             time.sleep(0.05)
 
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned), 0)
+        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert)       - baseline_insert, 0)
+        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned) - baseline_drain,  0)
 
 if __name__ == '__main__':
     wttest.run()
