@@ -181,14 +181,14 @@ __clayered_enter_flags(WT_CLAYERED_OP *op)
     flags = 0;
 
     if (op->mode == WT_CLAYERED_MODE_SEARCH)
-        FLD_SET(flags, CLAYERED_ENTER_RESET);
+        LF_SET(CLAYERED_ENTER_RESET);
     if (op->mode == WT_CLAYERED_MODE_ITERATE || op->mode == WT_CLAYERED_MODE_RANDOM)
-        FLD_SET(flags, CLAYERED_ENTER_ITERATION);
+        LF_SET(CLAYERED_ENTER_ITERATION);
     /* A follower overwrite write updates the ingest table without accessing the stable table. */
     if (!op->need_stable)
-        FLD_SET(flags, CLAYERED_ENTER_SKIP_STABLE);
+        LF_SET(CLAYERED_ENTER_SKIP_STABLE);
     if (op->role != op->clayered->last_role)
-        FLD_SET(flags, CLAYERED_ENTER_ROLE_CHANGE);
+        LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
 
     return (flags);
 }
@@ -232,7 +232,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
      * to adhere to that behavior. Ideally we should not be changing the active cursors counter
      * outside of the file cursor code.
      */
-    if (FLD_ISSET(flags, CLAYERED_ENTER_RESET) &&
+    if (LF_ISSET(CLAYERED_ENTER_RESET) &&
       __wt_txn_read_committed_should_release_snapshot(session)) {
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
         WT_RET(__clayered_reset_cursors(clayered, false));
