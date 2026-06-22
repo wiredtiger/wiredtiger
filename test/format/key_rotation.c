@@ -116,17 +116,10 @@ disagg_key_push_initial(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(conn->get_key_provider(conn, &kp));
 
-    /*
-     * The caller set stable via timestamp_once, and no committers run at create time, so the push
-     * above stable cannot race.
-     */
+    /* No committers run at create time, so stable cannot advance past the push. */
     testutil_check(disagg_key_push(session, kp, g.stable_timestamp, &push_ts));
 
-    /*
-     * set_key requires a timestamp above stable, but the create-time checkpoint only persists a key
-     * at or below its (stable) timestamp. Advance stable to the pushed key so the checkpoint drains
-     * it, otherwise the key provider page is never written and the checkpoint asserts.
-     */
+    /* The checkpoint only persists keys at or below stable; advance stable so it drains the pushed key. */
     testutil_snprintf(ts_buf, sizeof(ts_buf), "stable_timestamp=%" PRIx64, (uint64_t)push_ts);
     testutil_check(conn->set_timestamp(conn, ts_buf));
     g.stable_timestamp = push_ts;
@@ -312,7 +305,6 @@ disagg_key_rotation(void *arg)
     last_push_ts = 0;
     counter = 0;
 
-    /* Role and connection are stable within an operations() pass, so fetch them once. */
     testutil_check(g.wts_conn->get_key_provider(g.wts_conn, &kp));
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
