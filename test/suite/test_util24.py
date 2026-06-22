@@ -93,14 +93,14 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, DisaggCorruptionMixin, s
             stderr = e.read()
         return rc, stdout, stderr
 
-    def _corrupt_asc_leaf(self, offset, base=None):
+    def _corrupt_asc(self, offset, base=None):
         if base is None:
             base = self.uri
         with open(base + '.wt', 'r+b') as f:
             f.seek(offset + 64)
             f.write(b'\xde\xad\xbe\xef' * 16)
 
-    def _corrupt_disagg_leaf(self, table_id, ident):
+    def _corrupt_disagg(self, table_id, ident):
         page_id, lsn = ident
         sql = (f"UPDATE pages SET page_data = randomblob(length(page_data)) "
                f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
@@ -156,11 +156,11 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, DisaggCorruptionMixin, s
     # Corrupt the page at `addr`; the _corrupt_*_leaf helpers aren't leaf-specific.
     def _corrupt(self, addr, base, table_id):
         if self._is_disagg():
-            self._corrupt_disagg_leaf(table_id, addr)
+            self._corrupt_disagg(table_id, addr)
         else:
-            self._corrupt_asc_leaf(addr, base)
+            self._corrupt_asc(addr, base)
 
-    def corrupt_one_leaf(self, base=None):
+    def corrupt_leaf(self, base=None):
         base = base or self.uri
         table_id = get_table_id(self.session, self._stable_uri(base)) if self._is_disagg() else None
         leaves = self._live_leaves(base)
@@ -182,7 +182,7 @@ class test_util_read_corrupt(wttest.WiredTigerTestCase, DisaggCorruptionMixin, s
         self.session.create(self._effective_uri(), 'key_format=S,value_format=S')
         self.populate()
         self.session.checkpoint()
-        self.corrupt_one_leaf()
+        self.corrupt_leaf()
 
     def setup_corrupt_root_table(self):
         self.session.create(self._effective_uri(), 'key_format=S,value_format=S')
