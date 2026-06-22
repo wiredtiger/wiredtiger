@@ -652,6 +652,7 @@ argc
 args
 argv
 asan
+asc
 ascii
 assertEqual
 assertGreater
@@ -949,6 +950,7 @@ dryrun
 ds
 dsb
 dsbs
+dsc
 dsk
 dsrc
 dst
@@ -1048,6 +1050,7 @@ fixup
 floatnum
 fmt
 fmterr
+fn
 fnv
 fnvhash
 foc
@@ -1630,6 +1633,7 @@ salvageUntilSuccess
 sanitizer
 sanitizers
 scalable
+scen
 schemas
 sclose
 scr
