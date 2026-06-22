@@ -49,8 +49,8 @@ from helper_disagg import disagg_test_class
 #   underflowed the running total.
 #
 # Fix:
-#   The checkpoint-load path now bumps the running total up to at least the
-#   root cookie's size so the invariant `running_total >= current_root_size`
+#   The checkpoint-load path now seeds the running total from the root cookie's
+#   size so the invariant that the running total is at least the current root size
 #   holds before any root-size transition runs.  The (re-)initialisation
 #   path also resets the previous/current root-size bookkeeping when the
 #   running total is re-initialised from metadata, clearing stale state that
@@ -67,8 +67,9 @@ from helper_disagg import disagg_test_class
 #      the running-total decrement; an off-by-root-size drift here would
 #      trip the assertion guarding against underflow.
 #
-#   The bug is timing-dependent; the loop below runs several restart cycles
-#   to give the root-size drift multiple opportunities to surface.
+#   The drift is deterministic: the stale root-size accumulates across restarts
+#   and causes an underflow on the third restart.  Four cycles catches the crash
+#   and verifies the running total stays clean for one cycle beyond it.
 
 @disagg_test_class
 class test_disagg_checkpoint_size20(wttest.WiredTigerTestCase):
@@ -79,7 +80,7 @@ class test_disagg_checkpoint_size20(wttest.WiredTigerTestCase):
     table_config = 'key_format=S,value_format=S'
 
     nrows = 200
-    cycles = 6
+    cycles = 4
 
     def insert_rows(self, start, count, value_char):
         c = self.session.open_cursor(self.uri)
@@ -93,8 +94,8 @@ class test_disagg_checkpoint_size20(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.table_config)
 
         # Cycle: write, checkpoint, restart.  Each restart exercises the
-        # set_size + ckpt_load handshake on the shared metadata file and
-        # any subsequent checkpoint calls apply_root_size on it.
+        # running-total re-initialisation and checkpoint-load sequence on
+        # the shared metadata file.
         for cycle in range(self.cycles):
             char = chr(ord('A') + (cycle % 26))
             start = cycle * self.nrows
@@ -105,9 +106,9 @@ class test_disagg_checkpoint_size20(wttest.WiredTigerTestCase):
                 self.reopen_conn()
 
             # Force a checkpoint on the fresh connection so the metadata
-            # file's apply_root_size runs against the just-initialised
-            # block_disagg->size / current_root_size.  Insert a row first
-            # so the checkpoint has work to do and the chain is non-empty.
+            # file's root-size transition runs against the just-initialised
+            # running total and current root size.  Insert a row first so
+            # the checkpoint has work to do and the chain is non-empty.
             self.insert_rows(start + self.nrows // 2, 1, char)
             self.session.checkpoint()
 

@@ -258,16 +258,12 @@ __wti_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const ui
 
     block_disagg->current_root_size = root_cookie.size;
     /*
-     * The checkpoint size we loaded into the running total above does not always include the root
-     * page's bytes -- an empty or initial checkpoint records size=0 but still publishes a valid
-     * root address with a real root size. Bump the running total up to at least the root size so
-     * the next root-size transition can subtract the previous root size without underflowing.
+     * An empty or initial checkpoint records size=0 in the metadata but would have published a
+     * valid root address with a non-zero root size. Seed the running total so the first root-size
+     * transition does not subtract current_root_size from zero and underflow.
      */
-    if (root_cookie.size > 0) {
-        uint64_t curr = __wt_atomic_load_uint64(&block_disagg->size);
-        if (curr < root_cookie.size)
-            __wti_block_disagg_increase_size(block_disagg, root_cookie.size - curr);
-    }
+    if (0 == __wt_atomic_load_uint64(&block_disagg->size))
+        __wti_block_disagg_increase_size(block_disagg, root_cookie.size);
     /*
      * Read root page address.
      */
