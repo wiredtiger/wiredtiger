@@ -116,7 +116,6 @@ disagg_key_push_initial(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(conn->get_key_provider(conn, &kp));
 
-    /* No committers run at create time, so stable cannot advance past the push. */
     testutil_check(disagg_key_push(session, kp, g.stable_timestamp, &push_ts));
 
     /* The checkpoint only persists keys at or below stable; advance stable so it drains the pushed key. */
