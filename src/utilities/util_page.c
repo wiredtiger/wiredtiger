@@ -104,6 +104,7 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     }
 #else
     WT_UNUSED(have_table_id);
+    WT_UNUSED(session_impl);
     fprintf(stderr,
       "%s: page: this subcommand requires a diagnostic build "
       "(rebuild WiredTiger with -DHAVE_DIAGNOSTIC=1)\n",
