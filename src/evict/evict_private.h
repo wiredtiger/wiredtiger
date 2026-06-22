@@ -76,9 +76,11 @@ struct __wti_evict_entry {
 /*
  * Adaptive drain scheduling thresholds. The drain is attempted on odd passes; after EMPTY_THRESHOLD
  * consecutive empty drains the per-btree drain parks and re-probes once every PROBE_INTERVAL
- * passes.
+ * passes. FILTER_THRESHOLD is the same hysteresis depth applied to the filter-heavy condition:
+ * after that many consecutive passes where >90% of candidacy checks fail the drain is also parked.
  */
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
+#define WTI_DRAIN_FILTER_THRESHOLD 8u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
 
 /*

@@ -1234,6 +1234,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty_index_drain_reinserted', 'dirty index slots reinserted by drain after candidacy filter miss'),
     CacheStat('cache_eviction_dirty_index_drain_scanned', 'dirty index slots examined by drain'),
     CacheStat('cache_eviction_dirty_index_drain_skipped_checkpoint', 'dirty index drain skipped due to active checkpoint'),
+    CacheStat('cache_eviction_dirty_index_drain_skipped_filter_heavy', 'dirty index drain passes skipped because the ring filter rate exceeded the threshold'),
     CacheStat('cache_eviction_dirty_index_drain_stale', 'dirty index slots dropped by drain because the page was clean or already queued'),
     CacheStat('cache_eviction_dirty_index_grow', 'dirty index rings grown at runtime'),
     CacheStat('cache_eviction_dirty_index_insert', 'dirty index inserts'),

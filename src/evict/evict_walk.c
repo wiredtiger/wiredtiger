@@ -303,6 +303,27 @@ release:
         WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_filtered, filtered_total);
 
     /*
+     * Update the filter-heavy flag. When >90% of candidacy checks fail for
+     * WTI_DRAIN_FILTER_THRESHOLD consecutive passes the ring is not producing useful candidates for
+     * the active eviction mode; mark the btree so the walker skips the drain and runs the normal
+     * tree walk instead. Re-probe every WTI_DRAIN_PROBE_INTERVAL passes.
+     */
+    if (filtered_total + queued_total > 0) {
+        if (filtered_total > queued_total * 9) {
+            if (__wt_atomic_add_uint32(&btree->drain_consecutive_high_filter, 1) >=
+              WTI_DRAIN_FILTER_THRESHOLD) {
+                __wt_atomic_store_bool(&btree->drain_filter_heavy, true);
+                WT_STAT_CONN_DSRC_INCR(
+                  session, cache_eviction_dirty_index_drain_skipped_filter_heavy);
+            }
+        } else {
+            __wt_atomic_store_uint32(&btree->drain_consecutive_high_filter, 0);
+            if (__wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
+                __wt_atomic_store_bool(&btree->drain_filter_heavy, false);
+        }
+    }
+
+    /*
      * Credit the shared eviction-discovery stats. The drain examines, classifies, and queues pages
      * for eviction the same way the walker's tree scan does, so these counters reflect total
      * eviction discovery rather than walker-only work. "Pages walked for eviction" (eviction_walk)
@@ -1569,7 +1590,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * Disabled trees still probe periodically to detect a shift back to write-heavy.
      */
     pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
-    if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
+    if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled) ||
+      __wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
         should_drain = (pass_gen % WTI_DRAIN_PROBE_INTERVAL) == 0;
     else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         /*
