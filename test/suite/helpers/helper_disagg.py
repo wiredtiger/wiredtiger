@@ -750,8 +750,8 @@ class DisaggSizeTestMixin:
         self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
         return int(sizes[-1])
 
-    def get_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:' + self.stable_uri)
+    def get_stat(self, stat_key, uri=None):
+        s = self.session.open_cursor('statistics:' + (uri if uri is not None else self.stable_uri))
         val = s[stat_key][2]
         s.close()
         return val
