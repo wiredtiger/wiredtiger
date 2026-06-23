@@ -755,17 +755,17 @@ struct __wt_page {
 #define WT_PAGE_DISK_ALLOC 0x0004u        /* Disk image in allocated memory */
 #define WT_PAGE_DISK_MAPPED 0x0008u       /* Disk image in mapped memory */
 #define WT_PAGE_DISK_SHARED 0x0010u       /* Disk image is from shared dsk cache */
-#define WT_PAGE_EVICT_LRU 0x0020u         /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x0040u  /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x0080u /* Eviction doesn't count as progress */
-#define WT_PAGE_INMEM_SPLIT 0x0100u
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0200u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_INTL_PINDEX_UPDATE 0x0400u /* Page index updated */
-#define WT_PAGE_PREFETCH 0x0800u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x1000u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x2000u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x4000u      /* Ignore updates on page discard */
-#define WT_PAGE_EVICT_CLEAN_SCRUB 0x8000u  /* Page queued for clean-scrub re-instantiation */
+#define WT_PAGE_EVICT_CLEAN_SCRUB 0x0020u /* Page queued for clean-scrub re-instantiation */
+#define WT_PAGE_EVICT_LRU 0x0040u         /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0080u  /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0100u /* Eviction doesn't count as progress */
+#define WT_PAGE_INMEM_SPLIT 0x0200u
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0400u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0800u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x1000u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x2000u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x4000u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x8000u      /* Ignore updates on page discard */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 

@@ -2530,15 +2530,15 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.clean_scrub", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CLEAN_SCRUB);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_CLEAN_SCRUB);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.evict_walk_full", &cval));
     if (cval.val)
-        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_EVICT_WALK_FULL);
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_EVICT_WALK_FULL);
     else
-        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_EVICT_WALK_FULL);
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_EVICT_WALK_FULL);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
     if (cval.val)
@@ -2629,9 +2629,8 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
       {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
       {"checkpoint", WT_VERB_CHECKPOINT}, {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
-      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"chunkcache", WT_VERB_CHUNKCACHE},
-      {"compact", WT_VERB_COMPACT}, {"compact_progress", WT_VERB_COMPACT_PROGRESS},
-      {"configuration", WT_VERB_CONFIGURATION},
+      {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
+      {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"configuration", WT_VERB_CONFIGURATION},
       {"cross_checkpoint_cache", WT_VERB_CROSS_CHECKPOINT_CACHE},
       {"disaggregated_storage", WT_VERB_DISAGGREGATED_STORAGE},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},

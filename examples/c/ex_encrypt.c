@@ -36,8 +36,7 @@
  */
 __declspec(dllexport)
 #endif
-int
-add_my_encryptors(WT_CONNECTION *connection);
+int add_my_encryptors(WT_CONNECTION *connection);
 
 static const char *home;
 

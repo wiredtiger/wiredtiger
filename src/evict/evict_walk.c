@@ -1247,8 +1247,8 @@ fast:
             return;
         }
         /*
-         * Urgent queue is full or the page is already queued: fall through to the normal
-         * eviction queue so the page still gets a chance to be scrubbed.
+         * Urgent queue is full or the page is already queued: fall through to the normal eviction
+         * queue so the page still gets a chance to be scrubbed.
          */
     }
 
