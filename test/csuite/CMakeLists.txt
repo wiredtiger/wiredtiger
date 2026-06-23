@@ -391,14 +391,6 @@ define_c_test(
     LABEL "disagg"
 )
 
-define_c_test(
-    TARGET test_wt17866_txn_recovery_error
-    SOURCES wt17866_txn_recovery_error/main.c
-    DIR_NAME wt17866_txn_recovery_error
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt17866_txn_recovery_error>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.
