@@ -921,7 +921,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
-    
+
     /* Update the pinned timestamp. */
     __wt_txn_update_pinned_timestamp(session, false);
     uint64_t pinned_timestamp;
