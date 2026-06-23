@@ -108,3 +108,4 @@ class test_txn_pinned_timestamp_stat(wttest.WiredTigerTestCase):
             val = self.read_stat(key)
             self.assertGreaterEqual(val, 0,
                 f'{label} must be non-negative, got {val}')
+
