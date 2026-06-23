@@ -1012,8 +1012,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def get_stat(self, stat, uri="", session=None, conn=None):
         if conn is not None:
             session = conn.open_session('')
-            val = session.open_cursor(f'statistics:{uri}')[stat][2]
-            session.close()
+            try:
+                val = session.open_cursor(f'statistics:{uri}')[stat][2]
+            finally:
+                session.close()
             return val
         if session is None:
             session = self.session
@@ -1036,7 +1038,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if session is None:
             session = self.session
         deadline = time.time() + timeout
-        val = threshold
         while True:
             val = self.get_stat(stat, uri=uri, session=session)
             if val > threshold:
@@ -1077,7 +1078,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 self.assertStatGreaterSoon(stat, old_stats[stat], uri=uri, session=session,
                     timeout=timeout, msg=f"Stat {stat}: expected increase after checkpoint")
             else:
-                # A spontaneous increase is a real bug, not a timing artifact  check once.
+                # A spontaneous increase is a real bug, not a timing artifact - check once.
                 diff = self.get_stat(stat, uri=uri, session=session) - old_stats[stat]
                 self.assertEqual(diff, 0, f"Stat {stat}: expected no change, got diff {diff}")
 
