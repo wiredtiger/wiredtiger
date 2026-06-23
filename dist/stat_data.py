@@ -261,6 +261,7 @@ conn_stats = [
     BlockCacheStat('block_cache_misses', 'number of misses'),
     BlockCacheStat('block_cache_not_evicted_overhead', 'number of blocks not evicted due to overhead'),
     BlockCacheStat('block_cache_put_time', 'time spent adding pages to the disaggregated victim cache (usecs)'),
+    BlockCacheStat('block_cache_put_time_max', 'maximum time spent adding a single page to the disaggregated victim cache, reset per checkpoint (usecs)', 'no_clear,no_scale'),
     BlockCacheStat('block_cache_puts', 'pages added to the disaggregated victim cache'),
 
     ##########################################
@@ -1064,6 +1065,8 @@ dsrc_stats = [
     BtreeStat('btree_row_empty_values', 'row-store empty values', 'no_scale,tree_walk'),
     BtreeStat('btree_row_internal', 'row-store internal pages', 'no_scale,tree_walk'),
     BtreeStat('btree_row_leaf', 'row-store leaf pages', 'no_scale,tree_walk'),
+    BtreeStat('btree_row_leaf_avg_entries', 'row-store leaf page recent average entries (EWMA)', 'no_scale'),
+    BtreeStat('btree_row_leaf_pages', 'row-store leaf pages (approximate, incremental)', 'no_scale'),
 
     ##########################################
     # Eviction statistics
@@ -1376,6 +1379,7 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
+    BlockDisaggStat('disagg_block_plh_put_failed', 'Disaggregated block manager log handle put failure'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put'),
     BlockDisaggStat('disagg_block_put_cold', 'Disaggregated block manager put cold page'),
     BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),

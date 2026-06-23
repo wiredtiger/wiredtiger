@@ -170,6 +170,7 @@ EQ
 ERANGE
 ETIME
 ETIMEDOUT
+EWMA
 EXTLIST
 EXTLIST's
 EXTSUBPATH
@@ -650,6 +651,7 @@ argc
 args
 argv
 asan
+asc
 ascii
 assertEqual
 assertGreater
@@ -946,6 +948,7 @@ dryrun
 ds
 dsb
 dsbs
+dsc
 dsk
 dsrc
 dst
@@ -998,6 +1001,7 @@ ev
 evd
 eventv
 evictable
+ewma
 exactp
 exc
 exe
@@ -1044,6 +1048,7 @@ fixup
 floatnum
 fmt
 fmterr
+fn
 fnv
 fnvhash
 foc
@@ -1259,6 +1264,7 @@ lldb
 llll
 llu
 llvm
+loadshed
 loadtext
 loc
 localTime
@@ -1401,6 +1407,7 @@ nonconflicting
 nonliteral
 nonoverlapping
 nonstandalone
+nontxn
 noop
 nop
 nopos
@@ -1625,6 +1632,7 @@ salvageUntilSuccess
 sanitizer
 sanitizers
 scalable
+scen
 schemas
 sclose
 scr
