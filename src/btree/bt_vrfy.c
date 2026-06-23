@@ -1356,8 +1356,8 @@ msg:
  *     information and is used for verifying timestamp range overlaps.
  */
 static int
-__verify_key_hs(
-  WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts,
+  wt_timestamp_t newer_stop_ts, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
@@ -1407,7 +1407,8 @@ __verify_key_hs(
          * expect those to overlap.
          */
         if (newer_start_ts != WT_TS_NONE && older_start_ts < newer_start_ts &&
-          newer_start_ts < tw->stop_ts) {
+          newer_start_ts < tw->stop_ts &&
+          !(older_start_ts == WT_TS_NONE && tw->stop_ts == newer_stop_ts)) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has an overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
@@ -1586,7 +1587,7 @@ __verify_page_content_leaf(
             __wti_read_row_time_window(session, page, rip, tw);
             ++rip;
             if (!vs->skip_hs)
-                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, tw->stop_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
             p = vs->tmp1->mem;
@@ -1594,7 +1595,7 @@ __verify_page_content_leaf(
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
 
             if (!vs->skip_hs)
-                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, tw->stop_ts, vs));
 
             recno += rle;
             vs->records_so_far += rle;
