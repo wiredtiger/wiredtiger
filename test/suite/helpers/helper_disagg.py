@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+import re
 import wiredtiger
 import functools, json, os, shutil, subprocess, wttest
 from run import wt_builddir
@@ -733,3 +734,30 @@ class DisaggCorruptionMixin:
             raise AssertionError(
                 f"expected 1 affected row, got {affected} for "
                 f"table_id={table_id}, page_id={page_id}, lsn={lsn}")
+
+
+class DisaggSizeTestMixin:
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        DisaggConfigMixin.conn_extensions(self, extlist)
+
+    def get_checkpoint_size(self):
+        mc = self.session.open_cursor('metadata:')
+        mc.set_key(self.stable_uri)
+        self.assertEqual(mc.search(), 0)
+        sizes = re.findall(r',size=(\d+),', mc.get_value())
+        mc.close()
+        self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
+        return int(sizes[-1])
+
+    def get_stat(self, stat_key):
+        s = self.session.open_cursor('statistics:' + self.stable_uri)
+        val = s[stat_key][2]
+        s.close()
+        return val
+
+    def get_conn_stat(self, stat_key):
+        s = self.session.open_cursor('statistics:')
+        val = s[stat_key][2]
+        s.close()
+        return val
