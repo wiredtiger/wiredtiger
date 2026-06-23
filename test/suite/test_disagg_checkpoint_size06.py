@@ -74,15 +74,6 @@ class test_disagg_checkpoint_size06(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         evict.close()
         self.session.rollback_transaction()
 
-<<<<<<< Updated upstream
-    def get_conn_stat(self, stat_key):
-        s = self.session.open_cursor('statistics:')
-        val = s[stat_key][2]
-        s.close()
-        return val
-
-=======
->>>>>>> Stashed changes
     # -----------------------------------------------------------------------
     # test_size_stable_through_delta_full_image_cycles
     # -----------------------------------------------------------------------
