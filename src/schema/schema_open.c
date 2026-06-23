@@ -184,7 +184,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
      */
     __wt_config_subinit(session, &colconf, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&colconf, &ckey, &cval)) == 0;
-         i++) {
+      i++) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -406,7 +406,7 @@ __wt_schema_open_page_log(
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
+    TAILQ_FOREACH (npage_log, &conn->ext.pagelogqh, q)
         if (WT_CONFIG_MATCH(npage_log->name, *name)) {
             *npage_logp = npage_log;
             return (0);
@@ -432,7 +432,7 @@ __wt_schema_open_storage_source(
         return (0);
 
     conn = S2C(session);
-    TAILQ_FOREACH (nstorage, &conn->storagesrcqh, q)
+    TAILQ_FOREACH (nstorage, &conn->ext.storagesrcqh, q)
         if (WT_CONFIG_MATCH(nstorage->name, *name)) {
             *nstoragep = nstorage;
             return (0);
@@ -657,6 +657,11 @@ __schema_open_layered(WT_SESSION_IMPL *session)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
     /* FIXME-WT-14738: Setup collator information. */
+    WT_RET_NOTFOUND_OK(__wt_config_gets(session, layered_cfg, "collator", &cval));
+    if (cval.len != 0) {
+        __wt_err(session, EINVAL, "layered tables do not support custom collators");
+        return (EINVAL);
+    }
     layered->collator = NULL;
     layered->collator_owned = 0;
 
@@ -705,6 +710,8 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(ret);
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
+
+    F_SET(layered, WT_LAYERED_TABLE_OPEN);
 
     return (0);
 }

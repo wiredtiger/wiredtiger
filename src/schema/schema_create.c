@@ -86,7 +86,7 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 
     npage_log = NULL;
 
-    if (WT_PREFIX_MATCH(uri, "file:") && WT_SUFFIX_MATCH(uri, ".wt_stable")) {
+    if (WT_URI_IS_STABLE(uri)) {
         WT_RET_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
         if (ret == WT_NOTFOUND || page_log_item.len == 0)
@@ -906,7 +906,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
      */
     __wt_config_subinit(session, &pkcols, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&pkcols, &ckey, &cval)) == 0;
-         i++) {
+      i++) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -1094,14 +1094,14 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
      * table and to determine the stable component's URI. The correct logic works well with the
      * current implementation, but may not be robust to future changes.
      */
-    if (__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader)
+    if (__wt_conn_is_disagg(session))
         if (__wt_config_getones(session, config, "type", &cval) == 0 &&
           WT_CONFIG_LIT_MATCH("layered", cval)) {
             __wt_scr_free(session, &tmp);
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_fmt(session, tmp, "file:%s.wt_stable", tablename));
-            WT_ERR(__wt_disagg_enqueue_metadata_operation(
-              session, tmp->data, tablename, WT_SHARED_METADATA_CREATE));
+            WT_ERR(__wt_disagg_enqueue_metadata_operation(session, tmp->data, tablename,
+              WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
         }
 
 err:
@@ -1216,16 +1216,16 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
         __wt_free(session, constituent_cfg);
-
-        /*
-         * Update the shared metadata for the disaggregated storage.
-         *
-         * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a
-         * part of a table creation, it would result in doing extra work.
-         */
-        WT_ERR(__wt_disagg_enqueue_metadata_operation(
-          session, stable_uri, tablename, WT_SHARED_METADATA_CREATE));
     }
+
+    /*
+     * Update the shared metadata for the disaggregated storage.
+     *
+     * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a part
+     * of a table creation, it would result in doing extra work.
+     */
+    WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
+      WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
 
 err:
     __wt_scr_free(session, &disagg_config);
@@ -1554,6 +1554,21 @@ __create_parse_export(
 }
 
 /*
+ * __schema_create_uri_check --
+ *     Validate that a URI passed to session.create() has a non-empty name after the scheme prefix.
+ */
+static int
+__schema_create_uri_check(WT_SESSION_IMPL *session, const char *uri)
+{
+    const char *sep;
+
+    sep = strchr(uri, ':');
+    if (sep != NULL && sep[1] == '\0')
+        WT_RET_MSG(session, EINVAL, "%s: URI requires a non-empty name", uri);
+    return (0);
+}
+
+/*
  * __schema_create_config_check --
  *     Detects any invalid config combinations for schema create.
  */
@@ -1639,6 +1654,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
+    WT_RET(__schema_create_uri_check(session, uri));
     WT_RET(__schema_create_config_check(session, uri, config, import));
 
     /*
@@ -1661,7 +1677,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 
             /* Get suffix of the URI. */
             import_list.uri_suffix = strchr(uri, ':');
-            WT_ASSERT(session, import_list.uri_suffix != NULL && import_list.uri_suffix[1] != '\0');
+            WT_ASSERT(session, import_list.uri_suffix != NULL);
             ++import_list.uri_suffix;
 
             WT_ERR(__create_parse_export(session, export_file, &import_list));

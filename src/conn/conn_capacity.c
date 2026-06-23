@@ -1,4 +1,4 @@
-/*
+/*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
@@ -12,7 +12,7 @@
  * Compute the time in nanoseconds that must be reserved to represent a number of bytes in a
  * subsystem with a particular capacity per second.
  */
-#define WT_RESERVATION_NS(bytes, capacity) (((bytes)*WT_BILLION) / (capacity))
+#define WT_RESERVATION_NS(bytes, capacity) (((bytes) * WT_BILLION) / (capacity))
 
 /*
  * The fraction of a second's worth of capacity that will be stolen at a time. The number of bytes
@@ -28,13 +28,13 @@
 static int
 __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CAPACITY *cap;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    uint64_t chunkcache, total;
+    WT_THROTTLE *cap;
+    uint64_t total;
 
     conn = S2C(session);
-    chunkcache = total = 0;
+    total = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0) {
@@ -44,27 +44,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
         total = (uint64_t)cval.val;
     }
 
-    WT_RET(__wt_config_gets(session, cfg, "io_capacity.chunk_cache", &cval));
-    if (cval.val != 0) {
-        chunkcache = (uint64_t)cval.val;
-        if (chunkcache < WT_THROTTLE_MIN)
-            WT_RET_MSG(session, EINVAL,
-              "chunk cache I/O capacity value %" PRIu64 " below minimum %d", chunkcache,
-              WT_THROTTLE_MIN);
-        if (total < chunkcache)
-            WT_RET_MSG(session, EINVAL,
-              "chunk cache I/O capacity value %" PRIu64 " below total %" PRIu64, chunkcache, total);
-        if ((total - chunkcache) < WT_THROTTLE_MIN)
-            WT_RET_MSG(session, EINVAL,
-              "chunk cache I/O capacity value %" PRIu64
-              " leaves insufficient capacity for other subsystems (total %" PRIu64
-              ", remaining %" PRIu64 ")",
-              chunkcache, total, total - chunkcache);
-        total -= chunkcache;
-    }
-
-    cap = &conn->capacity;
-    cap->chunkcache = chunkcache;
+    cap = &conn->capacity.throttle;
     __wt_atomic_store_uint64_relaxed(&cap->total, total);
     if (total != 0) {
         /*
@@ -86,9 +66,6 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     } else
         WT_STAT_CONN_SET(session, capacity_threshold, 0);
 
-    if (chunkcache != 0)
-        cap->chunkcache = chunkcache;
-
     return (0);
 }
 
@@ -109,20 +86,20 @@ __capacity_server_run_chk(WT_SESSION_IMPL *session)
 static WT_THREAD_RET
 __capacity_server(void *arg)
 {
-    WT_CAPACITY *cap;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_THROTTLE *cap;
     uint64_t start, stop, time_ms;
 
     session = arg;
     conn = S2C(session);
-    cap = &conn->capacity;
+    cap = &conn->capacity.throttle;
     for (;;) {
         /*
          * Wait until signalled but check once per second in case the signal was missed.
          */
-        __wt_cond_wait(session, conn->capacity_cond, WT_MILLION, __capacity_server_run_chk);
+        __wt_cond_wait(session, conn->capacity.cond, WT_MILLION, __capacity_server_run_chk);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__capacity_server_run_chk(session))
@@ -162,16 +139,16 @@ __capacity_server_start(WT_CONNECTION_IMPL *conn)
      * The capacity server gets its own session.
      */
     WT_RET(
-      __wt_open_internal_session(conn, "capacity-server", false, 0, 0, &conn->capacity_session));
-    session = conn->capacity_session;
+      __wt_open_internal_session(conn, "capacity-server", false, 0, 0, &conn->capacity.session));
+    session = conn->capacity.session;
 
-    WT_RET(__wt_cond_alloc(session, "capacity server", &conn->capacity_cond));
+    WT_RET(__wt_cond_alloc(session, "capacity server", &conn->capacity.cond));
 
     /*
      * Start the thread.
      */
-    WT_RET(__wt_thread_create(session, &conn->capacity_tid, __capacity_server, session));
-    conn->capacity_tid_set = true;
+    WT_RET(__wt_thread_create(session, &conn->capacity.tid, __capacity_server, session));
+    conn->capacity.tid_set = true;
 
     return (0);
 }
@@ -195,7 +172,7 @@ __wti_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * have to worry about races where a running server is reading configuration information that
      * we're updating, and it's not expected that reconfiguration will happen a lot.
      */
-    if (conn->capacity_session != NULL)
+    if (conn->capacity.session != NULL)
         WT_RET(__wti_capacity_server_destroy(session));
     WT_RET(__capacity_config(session, cfg));
 
@@ -206,7 +183,7 @@ __wti_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) || !__wt_fsync_background_chk(session))
         return (0);
 
-    if (conn->capacity.total != 0)
+    if (conn->capacity.throttle.total != 0)
         WT_RET(__capacity_server_start(conn));
 
     return (0);
@@ -225,23 +202,23 @@ __wti_capacity_server_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CAPACITY);
-    if (conn->capacity_tid_set) {
-        __wt_cond_signal(session, conn->capacity_cond);
-        WT_TRET(__wt_thread_join(session, &conn->capacity_tid));
-        conn->capacity_tid_set = false;
+    if (conn->capacity.tid_set) {
+        __wt_cond_signal(session, conn->capacity.cond);
+        WT_TRET(__wt_thread_join(session, &conn->capacity.tid));
+        conn->capacity.tid_set = false;
     }
-    __wt_cond_destroy(session, &conn->capacity_cond);
+    __wt_cond_destroy(session, &conn->capacity.cond);
 
     /* Close the server thread's session. */
-    if (conn->capacity_session != NULL)
-        WT_TRET(__wt_session_close_internal(conn->capacity_session));
+    if (conn->capacity.session != NULL)
+        WT_TRET(__wt_session_close_internal(conn->capacity.session));
 
     /*
      * Ensure capacity settings are cleared - so that reconfigure doesn't get confused.
      */
-    conn->capacity_session = NULL;
-    conn->capacity_tid_set = false;
-    conn->capacity_cond = NULL;
+    conn->capacity.session = NULL;
+    conn->capacity.tid_set = false;
+    conn->capacity.cond = NULL;
 
     return (ret);
 }
@@ -253,13 +230,13 @@ __wti_capacity_server_destroy(WT_SESSION_IMPL *session)
 static void
 __capacity_signal(WT_SESSION_IMPL *session)
 {
-    WT_CAPACITY *cap;
     WT_CONNECTION_IMPL *conn;
+    WT_THROTTLE *cap;
 
     conn = S2C(session);
-    cap = &conn->capacity;
+    cap = &conn->capacity.throttle;
     if (cap->written >= cap->threshold && !cap->signalled) {
-        __wt_cond_signal(session, conn->capacity_cond);
+        __wt_cond_signal(session, conn->capacity.cond);
         cap->signalled = true;
     }
 }
@@ -290,50 +267,6 @@ __capacity_reserve(
 }
 
 /*
- * __throttle_chunkcache --
- *     Reserve a time to perform a chunk cache read or write, and wait until then. The chunk cache
- *     is the only subsystem with a separate IO throttle; ideally future subsystem-specific
- *     throttles could be combined into this implementation.
- */
-static void
-__throttle_chunkcache(WT_SESSION_IMPL *session, WT_CAPACITY *cap, uint64_t bytes)
-{
-    struct timespec now;
-    uint64_t capacity, now_ns, *reservation, res_value, sleep_us;
-
-    capacity = cap->chunkcache;
-    reservation = &cap->reservation_chunkcache;
-
-    WT_STAT_CONN_INCRV(session, capacity_bytes_chunkcache, bytes);
-    WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
-
-    if (capacity == 0 || F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return;
-
-    __capacity_signal(session);
-
-    /* If we get sizes larger than this, later calculations may overflow. */
-    WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
-    WT_ASSERT(session, capacity != 0);
-
-    /* Get the current time in nanoseconds since the epoch. */
-    __wt_epoch(session, &now);
-    now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
-
-    /* Take a reservation for the subsystem. */
-    __capacity_reserve(reservation, bytes, capacity, now_ns, &res_value);
-
-    if (res_value > now_ns) {
-        sleep_us = (res_value - now_ns) / WT_THOUSAND;
-        WT_STAT_CONN_INCRV(session, capacity_time_chunkcache, sleep_us);
-        if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US) {
-            /* Sleep handles large usec values. */
-            __wt_sleep(0, sleep_us);
-        }
-    }
-}
-
-/*
  * __wt_capacity_throttle --
  *     Reserve a time to perform a write operation for the subsystem, and wait until that time. The
  *     concept is that each write to a subsystem reserves a time slot to do its write, and
@@ -347,15 +280,15 @@ void
 __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 {
     struct timespec now;
-    WT_CAPACITY *cap;
     WT_CONNECTION_IMPL *conn;
+    WT_THROTTLE *cap;
     uint64_t best_res, capacity, new_res, now_ns, sleep_us, res_total_value;
     uint64_t res_value, steal_capacity, stolen_bytes, this_res;
     uint64_t *reservation, *steal;
     uint64_t total_capacity;
 
     conn = S2C(session);
-    cap = &conn->capacity;
+    cap = &conn->capacity.throttle;
     steal_capacity = 0;
     reservation = steal = NULL;
 
@@ -363,9 +296,6 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
     WT_NOT_READ(capacity, 0);
 
     switch (type) {
-    case WT_THROTTLE_CHUNKCACHE:
-        __throttle_chunkcache(session, cap, bytes);
-        return;
     case WT_THROTTLE_CKPT:
         capacity = cap->ckpt;
         reservation = &cap->reservation_ckpt;
@@ -489,13 +419,6 @@ again:
             WT_STAT_CONN_INCRV(session, capacity_time_total, sleep_us);
         else
             switch (type) {
-            case WT_THROTTLE_CHUNKCACHE:
-                /*
-                 * This section is not expected to be reached as we should have already returned
-                 * earlier in case of chunk cache usage throttling.
-                 */
-                WT_ASSERT(session, false);
-                break;
             case WT_THROTTLE_CKPT:
                 WT_STAT_CONN_INCRV(session, capacity_time_ckpt, sleep_us);
                 break;
@@ -513,4 +436,24 @@ again:
             /* Sleep handles large usec values. */
             __wt_sleep(0, sleep_us);
     }
+}
+
+/*
+ * __wti_conn_capacity_init --
+ *     Initialize the WT_CONN_CAPACITY structure embedded in a connection.
+ */
+void
+__wti_conn_capacity_init(WT_SESSION_IMPL *session)
+{
+    WT_UNUSED(session);
+}
+
+/*
+ * __wti_conn_capacity_destroy --
+ *     Destroy the WT_CONN_CAPACITY structure embedded in a connection.
+ */
+void
+__wti_conn_capacity_destroy(WT_SESSION_IMPL *session)
+{
+    WT_UNUSED(session);
 }

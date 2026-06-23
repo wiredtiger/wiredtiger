@@ -50,18 +50,15 @@ __rts_btree_walk_page_skip(
     if (WT_REF_GET_STATE(ref) == WT_REF_DELETED &&
       WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED)) {
         page_del = ref->page_del;
-        if (page_del == NULL ||
-          (__wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
-            page_del->pg_del_durable_ts <= rollback_timestamp)) {
-            /*
-             * We should never see a prepared truncate here; not at recovery time because prepared
-             * truncates can't be written to disk, and not during a runtime RTS either because it
-             * should not be possible to do that with an unresolved prepared transaction.
-             */
-            WT_ASSERT(session,
-              page_del == NULL || page_del->prepare_state == WT_PREPARE_INIT ||
-                page_del->prepare_state == WT_PREPARE_RESOLVED);
 
+        /*
+         * Prepared fast truncates must not be skipped: they were never stable. Guard against a
+         * false-positive from prepared having no transaction id on pages loaded from disk, which it
+         * would otherwise treat as committed.
+         */
+        if (page_del == NULL ||
+          (page_del->committed && __wti_rts_visibility_txn_visible_id(session, page_del->txnid) &&
+            page_del->pg_del_durable_ts <= rollback_timestamp)) {
             if (page_del == NULL)
                 __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
                   WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p: deleted page walk skipped", (void *)ref);
@@ -76,14 +73,27 @@ __rts_btree_walk_page_skip(
             *skipp = true;
         }
 
-        if (page_del != NULL)
-            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-              WT_RTS_VERB_TAG_PAGE_DELETE
-              "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
-              "rollback_timestamp=%s, txnid=%" PRIu64,
-              __wt_timestamp_to_string(page_del->pg_del_start_ts, time_string[0]),
-              __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
-              __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
+        if (page_del != NULL) {
+            /*
+             * A prepared truncate falls through with *skipp=false: the tree walk instantiates the
+             * page and creates per-key tombstones, which RTS then aborts individually.
+             */
+            if (page_del->prepare_state == WT_PREPARE_INPROGRESS) {
+                WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_prepared_fast_truncate);
+                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+                  WT_RTS_VERB_TAG_PAGE_DELETE "deleted page txnid=%" PRIu64
+                                              ", prepare_timestamp=%s, prepared_id=%" PRIu64,
+                  page_del->txnid, __wt_timestamp_to_string(page_del->prepare_ts, time_string[0]),
+                  page_del->prepared_id);
+            } else
+                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+                  WT_RTS_VERB_TAG_PAGE_DELETE
+                  "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
+                  "rollback_timestamp=%s, txnid=%" PRIu64,
+                  __wt_timestamp_to_string(page_del->pg_del_start_ts, time_string[0]),
+                  __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
+                  __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
+        }
 
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
@@ -120,20 +130,41 @@ __rts_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
     WT_REF *ref;
-    WT_TIMER timer;
-    uint64_t msg_count;
+    double max_npos, npos;
+    uint64_t btree_pages, btree_start_clock, clock_now, elapsed_ns, last_report_clock;
     uint32_t flags;
 
-    __wt_timer_start(session, &timer);
+    btree_start_clock = __wt_clock(session);
+    last_report_clock = btree_start_clock;
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
-    msg_count = 0;
+    btree_pages = 0;
+    max_npos = 0.0;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __rts_btree_walk_page_skip, &rollback_timestamp, flags)) == 0 &&
       ref != NULL) {
-        __wti_rts_progress_msg(session, &timer, 0, 0, &msg_count, true);
+        ++btree_pages;
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.pages_walked, 1);
+
+        /*
+         * Use the cheap rdtsc-based clock to check if a progress message is due. Only compute npos
+         * (which walks parent indexes) and emit the message when the period has elapsed.
+         */
+        clock_now = __wt_clock(session);
+        elapsed_ns = __wt_clock_to_nsec(clock_now, last_report_clock);
+        if (elapsed_ns >= (uint64_t)WT_BILLION * WT_PROGRESS_MSG_PERIOD) {
+            npos = __wt_page_npos(session, ref, 0.5, NULL, NULL, 0);
+            /*
+             * npos can fluctuate due to unbalanced trees, so track the maximum seen so far to get a
+             * monotonically increasing progress indicator.
+             */
+            if (npos > max_npos)
+                max_npos = npos;
+            __wti_rts_progress_msg_walk(
+              session, btree_start_clock, &last_report_clock, max_npos, btree_pages);
+        }
 
         if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_ERR(__wti_rts_btree_abort_updates(session, ref, rollback_timestamp));
@@ -256,8 +287,11 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           WT_RTS_VERB_TAG_SKIP_DAMAGE
           "%s: skipped performing rollback to stable because the file %s",
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
+        WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         ret = 0;
-    }
+    } else if (ret == 0)
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_processed, 1);
     return (ret);
 }
 
@@ -365,6 +399,8 @@ __wti_rts_btree_walk_btree_apply(
           WT_RTS_VERB_TAG_FILE_SKIP
           "skipping rollback to stable on file=%s because has never been checkpointed",
           uri);
+        WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
         return (0);
     }
 
@@ -411,8 +447,10 @@ __wti_rts_btree_walk_btree_apply(
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
-    if (file_skipped)
-        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_skipped);
+    if (file_skipped) {
+        WT_STAT_CONN_INCR(session, txn_rts_btrees_skipped);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->rts->progress.btrees_skipped, 1);
+    }
 
     /*
      * Truncate history store entries for the non-timestamped table.

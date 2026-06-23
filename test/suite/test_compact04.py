@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_compact04.py
-#   Test the accuracy of compact work estimation.
+# Test the accuracy of compact work estimation.
 #
 
 from wiredtiger import stat
@@ -37,10 +36,11 @@ from compact_util import compact_util
 class test_compact04(compact_util):
 
     # Keep debug messages on by default. This is useful for diagnosing spurious test failures.
+    test_name = __qualname__
     conn_config = 'statistics=(all),cache_size=100MB,verbose=(compact_progress,compact:4)'
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     table_numkv = 100 * 1000
-    table_uri_prefix='table:test_compact04-'
+    table_uri_prefix=f'table:{test_name}-'
 
     delete_range_len = 10 * 1000
     delete_ranges_count = 4
@@ -82,7 +82,12 @@ class test_compact04(compact_util):
             c_stat = self.session.open_cursor('statistics:' + table_uri, None, 'statistics=(all)')
             pages_rewritten = c_stat[stat.dsrc.btree_compact_pages_rewritten][2]
             pages_rewritten_expected = c_stat[stat.dsrc.btree_compact_pages_rewritten_expected][2]
+            pages_selected_inmem = c_stat[stat.dsrc.btree_compact_pages_selected_inmem][2]
             c_stat.close()
+
+            conn_stat = self.session.open_cursor('statistics:', None, 'statistics=(all)')
+            bytes_written_compact_inmem = conn_stat[stat.conn.session_table_compact_bytes_rewrite_inmem][2]
+            conn_stat.close()
 
             # Compact stats can be retrieved with tiered storage but they're not meaningful.
             # So if we're running tiered gather the stats but return before all the computation.
@@ -91,6 +96,8 @@ class test_compact04(compact_util):
 
             self.assertGreater(pages_rewritten, 0)
             self.assertGreater(pages_rewritten_expected, 0)
+            self.assertGreater(pages_selected_inmem, 0)
+            self.assertGreater(bytes_written_compact_inmem, 0)
 
             d = abs(pages_rewritten - pages_rewritten_expected) / pages_rewritten
 

@@ -30,8 +30,7 @@ import wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
-# test_schema02.py
-#    Columns, column groups, indexes
+# Columns, column groups, indexes
 class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
     """
     Test basic operations
@@ -91,8 +90,9 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.expect_failure_colgroup("main:c1", "columns=(S1,i2,bad)",
                                      "/Column 'bad' not found/")
 
-        # TODO: no columns allowed, or not?
-        #self.session.create("colgroup:main:c0", "columns=()")
+        # no columns
+        self.expect_failure_colgroup("main:c1", "columns=()",
+                                     "/Column '' not found/")
 
         # key in a column group
         self.expect_failure_colgroup("main:c1", "columns=(ikey,S1,i2)",
@@ -115,10 +115,6 @@ class test_schema02(TieredConfigMixin, wttest.WiredTigerTestCase):
         self.expect_failure_colgroup("main:c2", "columns=(S1,i4)",
                                      "/Column 'S3' in 'table:main' does not"
                                      " appear in a column group/")
-
-        # TODO: is repartitioning column groups allowed?
-        # this does not raise an error
-        # self.expect_failure_colgroup("main:c2", "columns=(S1,S3,i4)"
 
         # expect this to work
         self.session.create("colgroup:main:c2", "columns=(S3,i4)")

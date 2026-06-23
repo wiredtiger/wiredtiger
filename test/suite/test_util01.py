@@ -30,19 +30,19 @@ import string, random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-# test_util01.py
-#    Utilities: wt dump, as well as the dump cursor
+# Utilities: wt dump, as well as the dump cursor
 class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     """
     Test wt dump.  We check for specific output.
     Note that we don't test dumping {key,value}_format that are integer
     here.  That's because the integer values are encoded and we don't
     want to duplicate the encoding/decoding algorithms.  Integer dump
-    is tested implicity by test_util02 (which loads dumps created
+    is tested implicitly by test_util02 (which loads dumps created
     in various ways).
     """
+    test_name = __qualname__
 
-    tablename = 'test_util01.a'
+    tablename = f'{test_name}.a'
     nentries = 1000
     stringclass = ''.__class__
 

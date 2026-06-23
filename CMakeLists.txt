@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(WiredTiger C CXX ASM)
+project(WiredTiger C CXX)
 
 # Generate a compile_commands.json file containing the exact compiler calls for
 # all translation units of the project in machine-readable form.
@@ -16,31 +16,41 @@ include(cmake/gdb_autoloader_setup.cmake)
 # Define installation directory variables
 include(GNUInstallDirs)
 
-# If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
-# we will infer the target from the host. This is checked prior to the config option
-# being defined (in base.cmake) since it will prevent it having a default value.
+# Detect the endianness of the target platform.
+if(CMAKE_C_BYTE_ORDER STREQUAL "BIG_ENDIAN")
+    set(WORDS_BIGENDIAN TRUE)
+endif()
+
+# If the user doesn't manually specify the target ARCH and OS, infer them from
+# CMAKE_SYSTEM_PROCESSOR / CMAKE_SYSTEM_NAME. This is checked prior to the
+# config option being defined (in base.cmake) since it will prevent it having
+# a default value.
 if(NOT WT_ARCH)
-    # Defer to our hosts architecture as our target architecture.
     # PROCESSOR_ARCHITECTURE env variable could be unset on certain Windows systems,
     # in that case map the architecture to x86.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
+    if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|AMD64|)$")
         set(WT_ARCH "x86")
-    elseif ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
+    elseif("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "^(arm64|aarch64)$")
         set(WT_ARCH "aarch64")
     else()
-        set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+        set(WT_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
 endif()
 if(NOT WT_OS)
-    # Defer to our hosts OS as our target OS.
-    string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" host_os)
-    set(WT_OS "${host_os}")
+    string(TOLOWER "${CMAKE_SYSTEM_NAME}" WT_OS)
 endif()
 
-set(WT_CONFIG "cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
+# If the user explicitly passed -DWT_ARCH=... / -DWT_OS=... these
+# are already cached and the calls below are no-ops.
+set(WT_ARCH "${WT_ARCH}" CACHE STRING "Target architecture for WiredTiger")
+set(WT_OS "${WT_OS}" CACHE STRING "Target OS for WiredTiger")
 
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_CONFIG}")
-    message(FATAL_ERROR "${WT_CONFIG} does not exist")
+# Architecture and OS specific configuration files.
+set(WT_ARCH_FILE "cmake/platform/arch/${WT_ARCH}.cmake")
+set(WT_OS_FILE "cmake/platform/os/${WT_OS}.cmake")
+
+if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_OS_FILE}")
+    message(FATAL_ERROR "Unsupported WT_OS '${WT_OS}': ${WT_OS_FILE} does not exist")
 endif()
 
 # Try to use CCACHE if available - speeds up build times.
@@ -49,36 +59,37 @@ find_program(
     DOC "Ccache is a compiler cache that speeds up recompilation."
 )
 if(CCACHE)
-    set(CMAKE_C_COMPILER_LAUNCHER, ${CCACHE})
-    set(CMAKE_CXX_COMPILER_LAUNCHER, ${CCACHE})
+    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
     message(STATUS "Using ccache: ${CCACHE}")
 endif()
 
-# Load any configuration variables special to our target.
-include(${WT_CONFIG})
-# Load auto-configure variables (e.g. environment-related configs).
-include(cmake/configs/auto.cmake)
+# OS specific configuration.
+include(${WT_OS_FILE})
+
+# Optional architecture specific configuration.
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_ARCH_FILE}")
+    include(${WT_ARCH_FILE})
+endif()
+
+# Detect third-party libraries and expose imported targets.
+# Must run before base.cmake, which derives ENABLE_<lib> defaults from HAVE_LIB<lib>.
+include(cmake/third_party/pthread.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/iaa.cmake)
+include(cmake/third_party/memkind.cmake)
+
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
 
-# Import our third party library definitions.
-include(cmake/third_party/aws_sdk.cmake)
-include(cmake/third_party/gcp_sdk.cmake)
+# Build-time integrations that depend on base.cmake toggles.
 include(cmake/third_party/lazyfs.cmake)
-include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/memkind.cmake)
-include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/sodium.cmake)
-include(cmake/third_party/zlib.cmake)
-include(cmake/third_party/zstd.cmake)
-include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
 include(cmake/third_party/sqlite3.cmake)
-
-# Skip the AZURE SDK build step if the extension is not enabled.
-if(ENABLE_AZURE)
-    include(cmake/third_party/azure_sdk.cmake)
-endif()
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
     message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. "
@@ -91,13 +102,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(ENABLE_COLORIZE_OUTPUT)
-    # Colorize the build error output
+    # Colorize the build error output.
     if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
-        add_cmake_flag(CMAKE_C_FLAGS "-fdiagnostics-color=always")
-        add_cmake_flag(CMAKE_CXX_FLAGS "-fdiagnostics-color=always")
+        add_compile_options(-fdiagnostics-color=always)
     elseif(CLANG_C_COMPILER OR CLANG_CXX_COMPILER)
-        add_cmake_flag(CMAKE_C_FLAGS "-fcolor-diagnostics")
-        add_cmake_flag(CMAKE_CXX_FLAGS "-fcolor-diagnostics")
+        add_compile_options(-fcolor-diagnostics)
     endif()
 endif()
 
@@ -140,7 +149,6 @@ add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
-
 
 if(WT_WIN)
     list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)
@@ -202,15 +210,6 @@ if(WITH_PIC OR ENABLE_SHARED)
     endif()
     if(ENABLE_ANTITHESIS)
         target_include_directories(wt_objs PRIVATE ${CMAKE_SOURCE_DIR}/tools/voidstar/include)
-    endif()
-    if(HAVE_LIBPTHREAD)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBPTHREAD_INCLUDES})
-    endif()
-    if(HAVE_LIBRT)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBRT_INCLUDES})
-    endif()
-    if(HAVE_LIBDL)
-        target_include_directories(wt_objs PRIVATE ${HAVE_LIBDL_INCLUDES})
     endif()
     set_property(TARGET wt_objs PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()

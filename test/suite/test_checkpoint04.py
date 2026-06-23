@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_checkpoint04.py
 # Test that the checkpoints timing statistics are populated as expected.
 
 import wttest
@@ -130,7 +129,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             time_total = self.get_stat(stat.conn.checkpoint_time_total)
             self.pr('checkpoint_time_total ' + str(time_total))
 
-            # Account for When the connection re-opens on an existing datable as we perform a
+            # Account for when the connection re-opens on an existing database as we perform a
             # checkpoint during the open stage.
             expected_ckpts = 3 if multiplier > 1 else 2
             self.assertEqual(num_ckpt, expected_ckpts)

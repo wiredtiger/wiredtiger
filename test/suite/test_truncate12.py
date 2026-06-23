@@ -32,14 +32,11 @@ from wiredtiger import stat, WiredTigerError, wiredtiger_strerror, WT_NOTFOUND, 
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_truncate12.py
 #
 # Make sure that transaction IDs on truncates are handled properly after recovery,
 # even if the truncate information is loaded during recovery and stays in cache.
 #
 # This version uses timestamps and no logging.
-# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate12(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'

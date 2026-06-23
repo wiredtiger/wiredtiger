@@ -43,9 +43,8 @@ try:
 except:
     None
 
-# test_schema03.py
-#    Bigger, more 'randomly generated' schemas and data.
-#    This test is complex.  If it fails, rerun with modified values for
+# Bigger, more 'randomly generated' schemas and data.
+# This test is complex.  If it fails, rerun with modified values for
 # SHOW_PYTHON* variables.
 def extract_random_from_list(rand, list):
     pos = rand.rand_range(0, len(list))
@@ -114,7 +113,7 @@ class tabconfig:
             (colno, collist) = extract_random_from_list(rand, collist)
             cg.columns.append(colno)
 
-        # Then divy up remainder in the collist
+        # Then divvy up remainder in the collist
         for i in range(0, excess):
             pos = rand.rand_range(0, totalgroups)
             cg = self.cglist[pos]
@@ -138,7 +137,7 @@ class tabconfig:
         rand = suite_random.suite_random(ncolumns, totalindices)
 
         # Initially, all indices get one column from the collist.
-        # Overlaps are allowed.  Then probabalistically, add some
+        # Overlaps are allowed.  Then probabilistically, add some
         # more columns.
         for idx in self.idxlist:
             prob = 1.0

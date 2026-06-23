@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_truncate24.py
-#   Test commit timestamp is not overwritten when the reinstantiated
-#   deletes are committed.
+# Test commit timestamp is not overwritten when the reinstantiated
+# deletes are committed.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
@@ -49,6 +48,8 @@ class test_truncate24(wttest.WiredTigerTestCase):
 
     @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
     def test_truncate24(self):
+        if self.runningHook('disagg') and self.key_format == 'r':
+            self.skipTest("disagg does not support column-store")
         uri = 'table:truncate24'
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()

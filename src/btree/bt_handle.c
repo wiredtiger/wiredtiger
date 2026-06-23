@@ -54,9 +54,12 @@ __btree_clear(WT_SESSION_IMPL *session)
 static int
 __btree_pin_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
+    WT_DATA_HANDLE *hs_dhandle;
     WT_DECL_ITEM(hs_uri_buf);
     WT_DECL_RET;
     const char *hs_checkpoint_name;
+
+    hs_dhandle = NULL;
 
     /* Look up the most recent history store checkpoint. This fetches the exact name to use. */
     WT_RET(
@@ -70,7 +73,12 @@ __btree_pin_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_ERR(__wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, hs_checkpoint_name));
     WT_ERR(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
 
-    (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
+    /*
+     * Save the dhandle pointer before incrementing session_inuse: releasing the dhandle clears the
+     * reference unconditionally, so we need our own copy to undo the increment on the error path.
+     */
+    hs_dhandle = session->dhandle;
+    (void)__wt_atomic_add_int32(&hs_dhandle->session_inuse, 1);
     WT_ERR(__wt_session_release_dhandle(session));
     btree->hs_checkpoint_name = hs_checkpoint_name;
 
@@ -78,6 +86,8 @@ __btree_pin_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
     return (0);
 
 err:
+    if (hs_dhandle != NULL)
+        (void)__wt_atomic_sub_int32(&hs_dhandle->session_inuse, 1);
     __wt_scr_free(session, &hs_uri_buf);
     __wt_free(session, hs_checkpoint_name);
     return (ret);
@@ -150,6 +160,10 @@ __btree_pin_hs_dhandle_and_get_meta_checkpoint(WT_SESSION_IMPL *session, WT_BTRE
     F_SET(btree, WT_BTREE_READONLY);
 
 err:
+    /*
+     * On error, the pinned history store dhandle is not released here. The caller is responsible
+     * for releasing it on the error path.
+     */
     return (ret);
 }
 
@@ -252,6 +266,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
+    /* Initialize the block manager's size from the checkpoint metadata. */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        __wt_block_disagg_set_size(session, ckpt.size);
+
     /*
      * !!!
      * As part of block-manager configuration, we need to return the maximum
@@ -316,6 +334,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     if (0) {
 err:
+        /*
+         * Closing the btree releases the pinned history store dhandle, covering the case where the
+         * history store was pinned successfully but a later step failed.
+         */
         WT_TRET(__wt_btree_close(session));
     }
     __wt_free(session, lr_fh_meta.bitmap_str);
@@ -618,13 +640,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
      * replaced with something more robust.
      */
-    if (strstr(btree->dhandle->name, ".wt_ingest") != NULL)
+    if (WT_URI_IS_INGEST(btree->dhandle->name))
         /* Flag the ingest btree as participating in automatic garbage collection */
         F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
     else {
         WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-        if (strstr(btree->dhandle->name, ".wt_stable") != NULL ||
-          WT_CONFIG_LIT_MATCH("disagg", cval)) {
+        if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
             F_SET(btree, WT_BTREE_DISAGGREGATED);
 
             WT_RET(__btree_setup_page_log(session, btree));
@@ -644,7 +665,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (ret == 0)
         btree->flush_most_recent_secs = (uint64_t)cval.val;
 
-    btree->flush_most_recent_ts = 0;
+    btree->flush_most_recent_ts = WT_TS_NONE;
     ret = __wt_config_gets(session, cfg, "flush_timestamp", &cval);
     WT_RET_NOTFOUND_OK(ret);
     if (ret == 0 && cval.len != 0)
@@ -766,7 +787,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
-    /* If this is the first time opening the tree this run. */
+    /*
+     *  If this is the first time opening the tree this run.
+     *  FIXME-WT-17763: The runtime write generation should not always be updated in disagg mode,
+     *  the proper conditional is more narrow and needs to be implemented here.
+     */
     if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         btree->run_write_gen = btree->write_gen;
@@ -798,9 +823,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         btree->next_page_id = ckpt->next_page_id;
 
-    /* Load the total bytes for disaggregated storage. */
-    if (__wt_conn_is_disagg(session))
-        __wt_btree_set_size(session, ckpt->size);
+    __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, ckpt->leaf_entry_ewma);
+    __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, ckpt->approx_leaf_pages);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
@@ -906,7 +930,7 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
      * the disk image on return, the in-memory object steals it.
      */
     WT_ERR(__wti_page_inmem(session, NULL, dsk.data,
-      WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page, NULL));
+      WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, NULL, &page, NULL));
     dsk.mem = NULL;
     if (page->disagg_info != NULL)
         page->disagg_info->block_meta = block_meta;

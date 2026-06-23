@@ -30,8 +30,7 @@ import os
 import helper, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prefetch01.py
-#    Test basic functionality of the prefetch configuration.
+# Test basic functionality of the prefetch configuration.
 
 class test_prefetch01(wttest.WiredTigerTestCase):
     new_dir = 'new.dir'
@@ -42,8 +41,8 @@ class test_prefetch01(wttest.WiredTigerTestCase):
     ]
 
     conn_default = [
-        ('default-off', dict(default=True)),
-        ('default-on', dict(default=False)),
+        ('default-off', dict(default=False)),
+        ('default-on', dict(default=True)),
     ]
 
     session_cfg = [

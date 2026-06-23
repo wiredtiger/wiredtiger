@@ -47,6 +47,8 @@ import test_util
 test_util.setup_paths()
 wt_builddir = test_util.find_build_dir()
 suitedir = sys.path[0]
+sys.path.insert(1, os.path.join(suitedir, 'helpers'))
+sys.path.insert(1, os.path.join(suitedir, 'hooks'))
 
 # unittest will be imported later, near to when it is needed.
 unittest = None
@@ -126,7 +128,7 @@ def find(topdir, filename):
 # Show an environment variable if verbose enough.
 def show_env(verbose, envvar):
     if verbose >= 2:
-        print(envvar + "=" + os.getenv(envvar))
+        print(envvar + "=" + str(os.getenv(envvar)))
 
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util

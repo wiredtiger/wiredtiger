@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-# test_bug34.py
 # This tests for the scenario discovered in WT-12602.
 # Before WT-12602, it was possible that evicting a page when checkpoint is happening parallel would
 # lead to an incorrect EBUSY error. The page that was getting evicted required a modify to be
@@ -94,7 +93,7 @@ class test_bug34(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction()
 
-        # Apply update again to make sure that the update, modify and tombstome all go
+        # Apply update again to make sure that the update, modify and tombstone all go
         # to the HS.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
@@ -150,7 +149,7 @@ class test_bug34(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(8))
 
-        # Apply update again to make sure that the update, modify and tombstome all go
+        # Apply update again to make sure that the update, modify and tombstone all go
         # to the HS.
         self.session.begin_transaction()
         for i in range(1, self.nrows):

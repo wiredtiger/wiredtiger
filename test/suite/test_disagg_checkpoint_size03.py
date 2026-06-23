@@ -30,9 +30,8 @@ import re, wttest
 from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
-# test_disagg_checkpoint_size03.py
-#   Test that the checkpoint size does not grow excessively due to a bytes_total
-#   leak in the disaggregated checkpoint code.
+# Test that the checkpoint size does not grow excessively due to a bytes_total
+# leak in the disaggregated checkpoint code.
 @disagg_test_class
 class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
 
@@ -88,7 +87,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         self.assertEqual(delta_count, 0,
             f"Expected no deltas with delta_pct=20, but got {delta_count}")
 
-        # The data volume hasn't changed  same nrows, same val_size.
+        # The data volume hasn't changed, same nrows, same val_size.
         # The checkpoint size should stay near the baseline, not grow to ~3x.
         self.pr(f"Final: {final}, Baseline: {baseline}, multiple of baseline: {final/baseline:.1f}x")
         self.assertLess(final, baseline * 2,

@@ -33,7 +33,7 @@
  *     Return a one character descriptor of relative timestamp values.
  */
 static const char *
-track_ts_diff(uint64_t left_ts, uint64_t right_ts)
+track_ts_diff(wt_timestamp_t left_ts, wt_timestamp_t right_ts)
 {
     if (left_ts < right_ts)
         return "+";
@@ -83,10 +83,10 @@ track_write(char *msg, size_t len)
 void
 track_ops(TINFO *tinfo)
 {
-    static uint64_t last_cur, last_old, last_stable;
+    static wt_timestamp_t last_cur, last_old, last_stable;
     static u_int cur_dot_cnt, old_dot_cnt, stable_dot_cnt;
+    wt_timestamp_t cur_ts, old_ts, stable_ts;
     size_t len;
-    uint64_t cur_ts, old_ts, stable_ts;
     char msg[128], ts_msg[64];
 
     if (GV(QUIET))
@@ -245,6 +245,20 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
     lock->lock_type = LOCK_NONE;
 }
 
+#ifdef HAVE_DIAGNOSTIC
+static sigjmp_buf dump_crash_jmp;
+
+/*
+ * dump_crash_handler --
+ *     Handle crash during page dump.
+ */
+static void __attribute__((noreturn))
+dump_crash_handler(int sig)
+{
+    siglongjmp(dump_crash_jmp, sig);
+}
+#endif
+
 /*
  * cursor_dump_page --
  *     Dump a cursor page to a backing file.
@@ -254,20 +268,42 @@ cursor_dump_page(WT_CURSOR *cursor, const char *tag)
 {
 #ifdef HAVE_DIAGNOSTIC
     static int next;
+    struct sigaction new_sa, old_segv, old_bus;
     char buf[MAX_FORMAT_PATH];
+    int dump_ret, sig;
 
     testutil_snprintf(buf, sizeof(buf), "%s/FAIL.pagedump.%d", g.home, ++next);
 
-    fprintf(stderr, "%s: dumping to %s\n", tag, buf);
+    if (WT_PREFIX_MATCH(cursor->uri, "layered:"))
+        fprintf(
+          stderr, "%s: dumping to %s (suffixed with constituent for layered cursors)\n", tag, buf);
+    else
+        fprintf(stderr, "%s: dumping to %s\n", tag, buf);
     trace_msg(CUR2S(cursor), "%s: dumping to %s", tag, buf);
 
     /*
-     * We are calling into the debug code directly which does not take locks, so it's possible we
-     * will simply drop core. Turn off core dumps, those core files aren't interesting.
+     * The debug code does not take locks and can crash on a stale ref (e.g. during disagg
+     * mode=switch). Catch SIGSEGV/SIGBUS so the caller can continue collecting diagnostics even if
+     * the dump crashes; the dump file uses line-buffered I/O so all complete lines survive.
      */
+    memset(&new_sa, 0, sizeof(new_sa));
+    new_sa.sa_handler = dump_crash_handler;
+    sigemptyset(&new_sa.sa_mask);
+    sigaction(SIGSEGV, &new_sa, &old_segv);
+    sigaction(SIGBUS, &new_sa, &old_bus);
+
     set_core(true);
-    testutil_check(__wt_debug_cursor_page(cursor, buf));
+    if ((sig = sigsetjmp(dump_crash_jmp, 1)) == 0) {
+        dump_ret = __wt_debug_cursor_page(cursor, buf);
+        if (dump_ret != 0)
+            fprintf(stderr, "%s: page dump to %s failed: %d\n", tag, buf, dump_ret);
+    } else
+        fprintf(stderr, "%s: page dump to %s crashed (signal %d), dump may be incomplete\n", tag,
+          buf, sig);
     set_core(false);
+
+    sigaction(SIGSEGV, &old_segv, NULL);
+    sigaction(SIGBUS, &old_bus, NULL);
 #endif
 
     WT_UNUSED(cursor);
@@ -410,13 +446,17 @@ wt_wrap_close_session(WT_SESSION *session)
 }
 
 /*
- * enable_session_prefetch --
- *     Return true if prefetch should be enabled for a session. Note that prefetch needs to be
- *     enabled at the connection level before being available for a session.
+ * session_prefetch_cfg --
+ *     Return a session-level prefetch config string. If prefetch is not available at the connection
+ *     level, randomly return enabled=false, or NULL. Otherwise, randomly return enabled=true,
+ *     enabled=false, or NULL (inherit the connection default).
  */
-bool
-enable_session_prefetch(void)
+const char *
+session_prefetch_cfg(void)
 {
     /* Enable prefetch 20% of the time. */
-    return (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1);
+    if (GV(PREFETCH) && mmrand(&g.data_rnd, 1, 5) == 1)
+        return (SESSION_PREFETCH_CFG_ON);
+
+    return (mmrand(&g.data_rnd, 1, 2) == 1 ? SESSION_PREFETCH_CFG_OFF : NULL);
 }

@@ -81,7 +81,8 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
 
     WT_ASSERT(session, filename != NULL);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+    __wt_verbose(session, WT_VERB_BLOCK, "open: %s (table_id: %" PRIu64 ")", filename,
+      (uint64_t)S2BT(session)->id);
 
     conn = S2C(session);
     hash = __wt_hash_city64(filename, strlen(filename));
@@ -146,8 +147,8 @@ __wti_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg
 
     conn = S2C(session);
 
-    __wt_verbose(
-      session, WT_VERB_BLOCK, "close: %s", block_disagg->name == NULL ? "" : block_disagg->name);
+    __wt_verbose(session, WT_VERB_BLOCK, "close: %s (table_id: %" PRIu64 ")",
+      block_disagg->name == NULL ? "" : block_disagg->name, block_disagg->tableid);
 
     __wt_spin_lock(session, &conn->block_lock);
 
@@ -161,28 +162,61 @@ __wti_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg
 }
 
 /*
- * __wti_block_disagg_stat --
- *     Set the statistics for a live block handle.
+ * __wt_block_disagg_ckpt_size --
+ *     Return the size recorded in the most recent checkpoint for the given URIs metadata entry. For
+ *     disaggregated storage there is no underlying file, so the checkpoint size in the metadata is
+ *     used as the block_size. A missing metadata entry is not an error; *sizep will be zero.
  */
-void
+int
+__wt_block_disagg_ckpt_size(WT_SESSION_IMPL *session, const char *uri, uint64_t *sizep)
+{
+    WT_DECL_RET;
+    char *fileconf;
+
+    fileconf = NULL;
+    *sizep = 0;
+    /* Reading checkpoint size requires the file's metadata config string, so look it up first. */
+    ret = __wt_metadata_search(session, uri, &fileconf);
+    if (ret == 0) {
+        ret = __wt_ckpt_last_size(session, fileconf, sizep);
+        __wt_free(session, fileconf);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+    return (0);
+}
+
+/*
+ * __wti_block_disagg_stat --
+ *     Set the statistics for a live block handle. For disaggregated storage there is no underlying
+ *     file, so block_size is sourced from the most recent checkpoint in the metadata.
+ */
+int
 __wti_block_disagg_stat(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_DSRC_STATS *stats)
 {
+    uint64_t ckpt_size;
+
     WT_UNUSED(block_disagg);
 
-    /* Fill this out. */
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
+    WT_RET(__wt_block_disagg_ckpt_size(session, session->dhandle->name, &ckpt_size));
+    WT_STAT_WRITE(session, stats, block_size, (int64_t)ckpt_size);
+    return (0);
 }
 
 /*
  * __wti_block_disagg_manager_size --
- *     Return the size of a live block handle.
+ *     Return the size of a live block handle. For disaggregated storage there is no underlying
+ *     file, so we return the size of the most recent checkpoint instead.
  */
 int
 __wti_block_disagg_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 {
-    WT_UNUSED(session);
+    uint64_t ckpt_size;
 
-    *sizep = bm->block->size;
+    WT_UNUSED(bm);
+
+    WT_RET(__wt_block_disagg_ckpt_size(session, session->dhandle->name, &ckpt_size));
+    *sizep = (wt_off_t)ckpt_size;
     return (0);
 }

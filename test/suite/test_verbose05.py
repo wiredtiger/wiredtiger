@@ -35,14 +35,14 @@ from helper import WiredTigerCursor, statistic_uri
 import re
 import math
 
-# test_verbose05.py
 # Verify checkpoint progress verbose logging emits intermediate progress messages for
 # short checkpoints when page-write backoff thresholds are crossed.
 @wttest.skip_for_hook("disagg", "Checkpoint progress output is different under disagg")
 @wttest.skip_for_hook("tiered", "Checkpoint progress output is different under tiered storage")
 class test_verbose05(test_verbose_base):
 
-    uri = 'table:test_verbose05'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     create_config = 'key_format=S,value_format=S,allocation_size=4KB,leaf_page_max=4KB,memory_page_max=4KB'
     conn_config = 'statistics=(all),verbose=[checkpoint_progress:0]'
 
@@ -72,7 +72,8 @@ class test_verbose05(test_verbose_base):
 
         output = self.readStdout(checkpoint_pages_upper_bound * 100)
         progress_pattern = re.compile(
-            r'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint has been running for \d+ seconds ')
+            r'WT_VERB_CHECKPOINT_PROGRESS.*Checkpoint has been running for \d+ seconds, wrote \d+' \
+            r' pages \(\d+ MB\), walked \d+ pages and checkpointed \d+ files')
         log_count = len(progress_pattern.findall(output))
         upper_limit = 10 * math.log(checkpoint_pages_upper_bound, 10)
         self.assertLess(log_count, upper_limit, "Too many progress logs emitted: {}".format(log_count))

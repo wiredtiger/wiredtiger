@@ -31,7 +31,6 @@ from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_cc09.py
 # Verify checkpoint cleanup reads pages from the disk to remove any obsolete time window information
 # present on the page.
 @wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
@@ -71,7 +70,7 @@ class test_cc09(test_cc_base):
         self.session.checkpoint()
 
         # Bump the oldest timestamp to make some of the previously inserted data globally
-        # visible. This makes any time window informaton associated with that data obsolete and
+        # visible. This makes any time window information associated with that data obsolete and
         # eligible for cleanup.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(2 * nrows // 3))
 

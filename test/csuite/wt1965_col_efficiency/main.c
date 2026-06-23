@@ -39,7 +39,7 @@
 #define NR_OBJECTS 100
 #define NR_THREADS 4
 
-static uint64_t g_ts = 0;
+static wt_timestamp_t g_ts = 0;
 
 /*
  * thread_func --
@@ -67,7 +67,7 @@ thread_func(void *arg)
 
     for (ins_rotor = 1; ins_rotor < 10; ++ins_rotor) {
         for (ins_thr_idx = thr_idx, i = 0; ins_thr_idx < NR_OBJECTS;
-             ins_thr_idx += NR_THREADS, i += NR_FIELDS) {
+          ins_thr_idx += NR_THREADS, i += NR_FIELDS) {
 
             testutil_check(session->begin_transaction(session, "sync=false"));
 

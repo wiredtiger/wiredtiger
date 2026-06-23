@@ -8,38 +8,7 @@
 
 #include "wt_internal.h"
 
-/*
- * __layered_create_missing_ingest_table --
- *     Create a missing ingest table from an existing layered table configuration.
- */
-static int
-__layered_create_missing_ingest_table(
-  WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
-{
-    WT_CONFIG_ITEM key_format, value_format;
-    WT_DECL_ITEM(ingest_config);
-    WT_DECL_RET;
-
-    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
-
-    /* FIXME-WT-14728: Refactor this with __create_layered? */
-    WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
-    WT_ERR(__wt_buf_fmt(session, ingest_config,
-      "key_format=\"%.*s\",value_format=\"%.*s\","
-      "in_memory=true,log=(enabled=false),"
-      "disaggregated=(page_log=none,storage_source=none)",
-      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
-
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
-
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Created missing ingest table \"%s\" from \"%s\"", uri, layered_cfg);
-
-err:
-    __wt_scr_free(session, &ingest_config);
-    return (ret);
-}
+static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
  * __layered_create_missing_stable_table --
@@ -67,11 +36,12 @@ err:
 }
 
 /*
- * __layered_create_missing_stable_tables_helper --
- *     Create missing stable tables.
+ * __layered_create_missing_stable_tables_legacy --
+ *     Create missing stable tables in cases we don't use schema epochs. Note that this is
+ *     best-effort and is not able to handle all cases of operation interleaving.
  */
 static int
-__layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
+__layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor_check, *cursor_scan;
@@ -83,6 +53,14 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     stable_uri = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    /*
+     * Clear all existing queue entries: the legacy path rebuilds shared metadata by scanning local
+     * metadata directly rather than replaying queue entries, so stale entries (e.g. those enqueued
+     * on the follower when the stable constituent did not yet exist) must be cleared before new
+     * entries are added below.
+     */
+    __disagg_shared_metadata_queue_clear(session);
 
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
@@ -103,14 +81,22 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
         cursor_check->set_key(cursor_check, stable_uri);
         WT_ERR_NOTFOUND_OK(cursor_check->search(cursor_check), true);
 
-        /* Create the stable table if it does not exist. */
+        /*
+         * Create the stable table if it does not exist: We must have picked up a checkpoint with a
+         * new table.
+         */
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG_CHK(session,
               __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
-            /* Ensure that we properly handle empty tables. */
-            WT_ERR(__wt_disagg_enqueue_metadata_operation(
-              session, stable_uri, layered_uri + strlen("layered:"), WT_SHARED_METADATA_UPDATE));
+
+            /*
+             * Enqueue a metadata operation for creating the table. The schema epoch value does not
+             * matter, because we can get here only if we are not using schema epochs.
+             */
+            WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri,
+              layered_uri + strlen("layered:"), WT_SHARED_METADATA_CREATE,
+              WT_SCHEMA_EPOCH_UNPUBLISHED, true));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -123,6 +109,111 @@ err:
     __wt_free(session, stable_uri);
     WT_TRET(__wt_metadata_cursor_release(session, &cursor_check));
     WT_TRET(__wt_metadata_cursor_release(session, &cursor_scan));
+    return (ret);
+}
+
+/*
+ * __layered_create_has_following_remove --
+ *     Return true if there is a REMOVE entry for the same URI after the given CREATE entry in the
+ *     shared metadata queue.
+ */
+static bool
+__layered_create_has_following_remove(
+  WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_DISAGG_METADATA_OP *create_entry)
+{
+    WT_DISAGG_METADATA_OP *tmp;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    tmp = TAILQ_NEXT(create_entry, q);
+    if (tmp == NULL)
+        return (false);
+
+    TAILQ_FOREACH_FROM(tmp, &conn->disaggregated_storage.shared_metadata_qh, q)
+    {
+        if (tmp->metadata_op == WT_SHARED_METADATA_REMOVE &&
+          strcmp(tmp->stable_uri, create_entry->stable_uri) == 0) {
+            /*
+             * Assert queue ordering: the REMOVE must be at the same or later epoch as the CREATE. A
+             * REMOVE at an earlier epoch than the CREATE is a bug in the queue.
+             */
+            WT_ASSERT(session, tmp->schema_epoch >= create_entry->schema_epoch);
+            return (true);
+        }
+    }
+    return (false);
+}
+
+/*
+ * __layered_create_missing_stable_tables_helper --
+ *     Create missing stable tables.
+ */
+static int
+__layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
+    wt_timestamp_t stable_schema_epoch;
+
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /* If we don't use schema epochs, fall back to the legacy method. */
+    stable_schema_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE)
+        return (__layered_create_missing_stable_tables_legacy(session));
+
+    /* Create missing stable tables for new layered tables in the shared metadata queue. */
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+
+        /* Assert that older entries have been already pruned. */
+        WT_ASSERT(session, entry->schema_epoch > stable_schema_epoch);
+
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
+            continue;
+
+        WT_ASSERT(session, entry->layered_value != NULL);
+        WT_ASSERT(session, entry->stable_uri != NULL);
+        WT_ASSERT(session, WT_PREFIX_MATCH(entry->stable_uri, "file:"));
+
+        /* Check if the table was dropped. */
+        if (__layered_create_has_following_remove(session, conn, entry)) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Skip creating missing stable table \"%s\" with schema epoch %" PRIu64
+              " from layered config \"%s\" since it is being dropped",
+              entry->stable_uri, entry->schema_epoch, entry->layered_value);
+            continue;
+        }
+
+        /* The table hasn't been dropped, so create it. */
+        WT_ERR_MSG_CHK(session,
+          __layered_create_missing_stable_table(session, entry->stable_uri, entry->layered_value),
+          "Failed to create missing stable table \"%s\" with schema epoch %" PRIu64
+          " from layered config \"%s\"",
+          entry->stable_uri, entry->schema_epoch, entry->layered_value);
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Created missing stable table \"%s\" with schema epoch %" PRIu64 " from \"%s\"",
+          entry->stable_uri, entry->schema_epoch, entry->layered_value);
+
+        /*
+         * Populate the stable value from local metadata so the queue entry can flush it to the
+         * shared metadata table at the next checkpoint. This is needed when the create happened on
+         * a follower (where the stable constituent is absent), so the value was not captured at
+         * enqueue time.
+         */
+        if (entry->stable_value == NULL)
+            WT_ERR_MSG_CHK(session,
+              __wt_metadata_search(session, entry->stable_uri, &entry->stable_value),
+              "Failed to read stable table metadata \"%s\"", entry->stable_uri);
+    }
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
     return (ret);
 }
 
@@ -151,6 +242,7 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
 }
 
 /*
+<<<<<<< HEAD
  * __disagg_discard_old_checkpoint_check --
  *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
@@ -754,6 +846,8 @@ err:
 }
 
 /*
+=======
+>>>>>>> develop
  * __disagg_shared_metadata_queue_free --
  *     Free an entry in the update metadata queue.
  */
@@ -780,6 +874,8 @@ static inline const char *
 __shared_metadata_op_to_string(WT_SHARED_METADATA_OP op)
 {
     switch (op) {
+    case WT_SHARED_METADATA_NONE:
+        return ("NONE");
     case WT_SHARED_METADATA_UPDATE:
         return ("UPDATE");
     case WT_SHARED_METADATA_CREATE:
@@ -824,13 +920,13 @@ err:
  */
 int
 __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
-  const char *table_name, WT_SHARED_METADATA_OP metadata_op)
+  const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
+  bool deferred)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    bool ckpt_running;
 
     conn = S2C(session);
     cursor = NULL;
@@ -846,6 +942,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->metadata_op = metadata_op;
+    entry->schema_epoch = schema_epoch;
     WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
 
@@ -860,13 +957,15 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * When WiredTiger is running a checkpoint, prevent drop updates from entering the shared
-     * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
-     * to keep the checkpoints metadata and table state consistent.
+     * Schema operations (create, drop) start deferred: at the start of each checkpoint, while the
+     * schema lock is held, the deferred flag is cleared on all existing entries so they are applied
+     * at the end of that checkpoint. Entries enqueued after that point, including concurrent schema
+     * ops, will not be processed until the following checkpoint. The one exception is the block
+     * manager callback that records the new checkpointed state of each stable table: those entries
+     * pass deferred=false so that the updated checkpoint metadata is written to the shared metadata
+     * table in the same checkpoint.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
-    if (ckpt_running && (metadata_op == WT_SHARED_METADATA_REMOVE))
-        entry->deferred = true;
+    entry->deferred = deferred;
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
@@ -922,6 +1021,62 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_disagg_shared_metadata_queue_prune --
+ *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
+ */
+void
+__wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry, *tmp;
+
+    conn = S2C(session);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
+    {
+        /*
+         * When EPOCH_NONE is passed (legacy step-up path that doesn't use schema epochs), prune
+         * everything unconditionally. The legacy path rebuilds stable constituents directly from
+         * local metadata rather than replaying queue entries, so the queue is no longer needed.
+         */
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
+            continue;
+        TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+        __disagg_shared_metadata_queue_free(session, &entry);
+    }
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+}
+
+/*
+ * __wti_disagg_table_latest_create_remove --
+ *     Return the latest CREATE or REMOVE operation for the given table name in the shared metadata
+ *     queue. Returns WT_SHARED_METADATA_NONE as a sentinel when no CREATE or REMOVE entry is found.
+ *     UPDATE entries are skipped because they do not affect whether the table exists.
+ */
+WT_SHARED_METADATA_OP
+__wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    WT_SHARED_METADATA_OP last_op;
+
+    conn = S2C(session);
+    last_op = WT_SHARED_METADATA_NONE;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->table_name, table_name) == 0)
+            last_op = entry->metadata_op;
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (last_op);
+}
+
+/*
  * __disagg_shared_metadata_op_helper --
  *     Perform the remove/update operation in the shared metadata table.
  */
@@ -941,6 +1096,8 @@ __disagg_shared_metadata_op_helper(
     cursor->set_key(cursor, key);
 
     switch (metadata_op) {
+    case WT_SHARED_METADATA_NONE:
+        break;
     case WT_SHARED_METADATA_REMOVE:
         /*
          * Layered tables can be created via two methods. When created with the "table:" prefix, we
@@ -981,8 +1138,30 @@ err:
 static int
 __disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *queue_entry;
+
+    conn = S2C(session);
+
+    /*
+     * For UPDATE operations, verify that the table's CREATE will be applied at or before the schema
+     * epoch of the UPDATE, if it has not been applied yet. If a CREATE entry is still in the queue
+     * with a schema epoch ahead of this UPDATE operation's schema epoch (including
+     * WT_SCHEMA_EPOCH_UNPUBLISHED = WT_TS_MAX), the table will not be visible to followers before
+     * the update. Having stable data in an unpublished table is an API contract violation, which
+     * requires that a table must be published before the checkpoint that includes its data.
+     */
+    if (entry->metadata_op == WT_SHARED_METADATA_UPDATE) {
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+        TAILQ_FOREACH (queue_entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+            if (queue_entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+              queue_entry->schema_epoch > entry->schema_epoch &&
+              strcmp(queue_entry->table_name, entry->table_name) == 0)
+                WT_RET_MSG(session, EINVAL, "Stable data checkpointed for unpublished table \"%s\"",
+                  entry->table_name);
+    }
 
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
@@ -1010,7 +1189,8 @@ err:
  *     a read-only operation on the queue.
  */
 int
-__wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *drop_sizep)
+__wt_disagg_shared_metadata_queue_drop_size(
+  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch, uint64_t *drop_sizep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1024,8 +1204,13 @@ __wt_disagg_shared_metadata_queue_drop_size(WT_SESSION_IMPL *session, uint64_t *
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        if (!entry->deferred && entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
-          entry->stable_value != NULL) {
+        /* Skip entries that are not included in the current schema epoch. */
+        if (entry->deferred)
+            continue;
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
+            continue;
+
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
             uint64_t size;
             /*
              * A table that was created and dropped without ever being checkpointed won't have a
@@ -1043,17 +1228,81 @@ err:
 }
 
 /*
+ * __disagg_handle_create_remove_pairing --
+ *     Handle CREATE/REMOVE pairing detection during queue processing. If the entry is a CREATE with
+ *     no stable value, park it in the skipped list and return true (caller should continue). If the
+ *     entry is a REMOVE that cancels a parked CREATE, free both and return true. Otherwise return
+ *     false.
+ */
+static bool
+__disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
+  WT_DISAGG_METADATA_OP *entry, struct __wt_disagg_shared_metadata_qh *skipped_creates)
+{
+    WT_DISAGG_METADATA_OP *skipped, *skipped_tmp;
+    bool found;
+
+    /*
+     * A CREATE entry with no stable_value means the stable constituent was never created: step-up
+     * skipped it because a DROP follows in the queue, so the table no longer exists and we have no
+     * data to include in shared metadata. Park it in a local list.
+     *
+     * A matching REMOVE in the same checkpoint is the only valid resolution -- both epochs are
+     * stable so the table was never visible to any checkpoint, and we can safely skip both entries.
+     * Anything else is an API violation detected below.
+     */
+    if (entry->metadata_op == WT_SHARED_METADATA_CREATE && entry->stable_value == NULL) {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Tracking CREATE for \"%s\" with no stable value (epoch %" PRIu64
+          ") for API violation detection",
+          entry->stable_uri, entry->schema_epoch);
+        TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+        TAILQ_INSERT_TAIL(skipped_creates, entry, q);
+        return (true);
+    }
+
+    /*
+     * For a REMOVE, cancel any parked CREATE entry for the same URI. When both land in the same
+     * checkpoint, the table was created and dropped before any checkpoint required it to exist, so
+     * we can safely skip both without writing anything to shared metadata.
+     */
+    if (entry->metadata_op == WT_SHARED_METADATA_REMOVE) {
+        found = false;
+        TAILQ_FOREACH_SAFE(skipped, skipped_creates, q, skipped_tmp)
+        {
+            if (strcmp(skipped->stable_uri, entry->stable_uri) == 0) {
+                TAILQ_REMOVE(skipped_creates, skipped, q);
+                __disagg_shared_metadata_queue_free(session, &skipped);
+                found = true;
+            }
+        }
+        if (found) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Skipping CREATE and REMOVE for \"%s\" (epoch %" PRIu64
+              "): table created and dropped before any checkpoint required it to exist",
+              entry->stable_uri, entry->schema_epoch);
+            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+            __disagg_shared_metadata_queue_free(session, &entry);
+            return (true);
+        }
+    }
+
+    return (false);
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list.
  */
 int
-__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
+__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
 {
+    struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *tmp;
+    WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
 
     conn = S2C(session);
+    TAILQ_INIT(&skipped_creates);
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -1066,23 +1315,133 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
+        /* Defer entries that belong to the next checkpoint. */
         if (entry->deferred) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Defer metadata %s operation for table \"%s\"", entry->table_name,
-              __shared_metadata_op_to_string(entry->metadata_op));
+              "Defer metadata operation %s for table \"%s\"",
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name);
             entry->deferred = false;
             continue;
         }
 
+        /* Defer entries based on the schema epoch. */
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
+              entry->schema_epoch);
+            WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_unstable);
+            continue;
+        }
+
+        /* Park CREATE entries with no stable_value; cancel them if a matching REMOVE follows. */
+        if (__disagg_handle_create_remove_pairing(session, conn, entry, &skipped_creates))
+            continue;
+
+        /* Failpoint: inject error to test panic handling during queue processing. */
+        if (FLD_ISSET(conn->timing_stress_flags,
+              WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN)) {
+            ret = __wt_set_return(session, WT_ERROR);
+            goto err;
+        }
+
+        WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
     }
 
+    /*
+     * Any unmatched parked CREATE entry is an API violation: the stable epoch falls between the
+     * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata. But the
+     * table was dropped and its stable constituent was never created, so we have no data to write.
+     * Publish CREATE and DROP at the same epoch to avoid this window.
+     */
+    if (!TAILQ_EMPTY(&skipped_creates)) {
+        TAILQ_FOREACH (skipped, &skipped_creates, q)
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+              " and DROP at a later epoch. This checkpoint must include the table in shared "
+              "metadata, but the table was dropped and we have no data to write.",
+              skipped->table_name, skipped->schema_epoch);
+        WT_ERR_PANIC(session, EINVAL,
+          "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
+          cur_schema_epoch);
+    }
+
+err:
+    /*
+     * If we failed, put back the skipped creates, so that we can revisit them if the caller
+     * attempts to create a checkpoint again.
+     */
+    if (ret != 0)
+        while (!TAILQ_EMPTY(&skipped_creates)) {
+            skipped = TAILQ_LAST(&skipped_creates, __wt_disagg_shared_metadata_qh);
+            TAILQ_REMOVE(&skipped_creates, skipped, q);
+            TAILQ_INSERT_HEAD(&conn->disaggregated_storage.shared_metadata_qh, skipped, q);
+        }
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    while (!TAILQ_EMPTY(&skipped_creates)) {
+        skipped = TAILQ_FIRST(&skipped_creates);
+        TAILQ_REMOVE(&skipped_creates, skipped, q);
+        __disagg_shared_metadata_queue_free(session, &skipped);
+    }
+    return (ret);
+}
+
+/*
+ * __wt_disagg_shared_metadata_queue_publish --
+ *     Publish schema operations in the shared metadata queue for the given object.
+ */
+int
+__wt_disagg_shared_metadata_queue_publish(
+  WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t schema_epoch)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry, *tmp;
+    wt_timestamp_t prev_schema_epoch;
+
+    conn = S2C(session);
+    prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
+    {
+        if (strcmp(entry->table_name, table_name) != 0)
+            continue;
+
+        /* Update unpublished schema epochs before any ordering or range checks. */
+        if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
+              __shared_metadata_op_to_string(entry->metadata_op), entry->table_name, schema_epoch);
+            entry->schema_epoch = schema_epoch;
+        }
+
+        /* Check the ordering of schema epochs within the same table. */
+        if (entry->schema_epoch < prev_schema_epoch)
+            WT_ERR_MSG(session, EINVAL,
+              "Schema epoch of metadata operation for table \"%s\" is out of order: current schema "
+              "epoch %" PRIu64 ", previous schema epoch %" PRIu64,
+              table_name, entry->schema_epoch, prev_schema_epoch);
+        prev_schema_epoch = entry->schema_epoch;
+
+        /* Check for already-published entries at a future schema epoch. */
+        if (entry->schema_epoch > schema_epoch)
+            WT_ERR_PANIC(session, EINVAL,
+              "Table \"%s\" has published schema operations at future schema epoch %" PRIu64
+              ", while publishing at schema epoch %" PRIu64,
+              table_name, entry->schema_epoch, schema_epoch);
+    }
+
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
     return (ret);
 }
 
@@ -1159,6 +1518,7 @@ static int
 __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
 
     conn = S2C(session);
@@ -1186,10 +1546,15 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * checkpoint completion record and drop all later records. If there are no more updates after
      * the last complete checkpoint, the function would have no effect.
      */
-    WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface));
+    ret = disagg->npage_log->page_log->pl_abandon_checkpoint(
+      disagg->npage_log->page_log, &session->iface);
 
-    return (0);
+    if (ret == 0)
+        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_succeed);
+    else
+        WT_STAT_CONN_INCR(session, disagg_abandon_checkpoint_failed);
+
+    return (ret);
 }
 
 /*
@@ -1216,9 +1581,6 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
         WT_DISAGG_METADATA metadata = {0};
         WT_RET(__wti_disagg_load_crypt_key(session, &metadata));
     }
-
-    WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
-      disagg->npage_log->page_log, &session->iface, 0));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Begin next disaggregated storage checkpoint: num_meta_put=%" PRIu64, disagg->num_meta_put);
@@ -1255,17 +1617,18 @@ err:
 static int
 __disagg_step_up(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
+    WT_SESSION_IMPL *internal_session = NULL;
+    uint64_t now;
 
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /*
      * Some functionality in stepping up needs a session that can open data handles. The default
      * session used to call this function cannot do that.
      */
-    WT_RET(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
 
     /*
      * We need to hold the checkpoint lock while stepping up, because if we change the role
@@ -1276,7 +1639,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
-    F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
@@ -1306,16 +1668,28 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_ERR_MSG_CHK(session, __wti_layered_drain_ingest_tables(internal_session),
       "Failed to drain ingest tables");
 
+    /*
+     * Mark the shared disk cache read-only: reads can still reuse cached images but puts are
+     * blocked. Record the transition time so the sweep server can mark the cache dead once the
+     * grace period elapses.
+     */
+    WT_ASSERT(session,
+      __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state) == WT_DSK_CACHE_ACTIVE);
+    __wt_seconds(session, &now);
+    __wt_atomic_store_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since, now);
+    __wt_atomic_store_uint8_release(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_READONLY);
+
 err:
-    WT_TRET(__wt_session_close_internal(internal_session));
-    F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
+    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
 
 /*
  * __disagg_mark_btrees_readonly_then_step_down --
- *     Mark all disaggregated btrees as readonly. This must be called during leader step-down. And
- *     then step down to the follower mode.
+ *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
+ *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
  */
 static void
 __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
@@ -1347,6 +1721,15 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         /* Mark the disaggregated as readonly. */
         F_SET(btree, WT_BTREE_READONLY);
 
+        /*
+         * Mark the handle outdated so that if we step back up as leader in the future, we open a
+         * fresh one rather than reusing this handle's resident pages. Carrying those pages into a
+         * new leader era lets the drain dirty a page that still holds an unresolved on-disk
+         * prepared cell before the drain resolves it, which reconciliation cannot represent (leaked
+         * prepared update).
+         */
+        F_SET(dhandle, WT_DHANDLE_OUTDATED);
+
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
 
@@ -1362,7 +1745,11 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_SHARED_DSK_CACHE *shared_dsk_cache;
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
@@ -1376,6 +1763,41 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
+
+    /*
+     * Re-enable the shared disk cache on step-down. Create the table only if this node never had
+     * one, otherwise it was kept alive and is reused.
+     */
+    shared_dsk_cache = &conn->cache->shared_dsk_cache;
+    if (shared_dsk_cache->hash == NULL)
+        WT_IGNORE_RET(
+          __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
+
+    WT_ASSERT(session, shared_dsk_cache->hash != NULL);
+    if (shared_dsk_cache->hash != NULL)
+        __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
+
+    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+}
+
+/*
+ * __wt_disagg_config_get_role --
+ *     Parse the disaggregated role from the configuration and return whether this node is a leader.
+ */
+int
+__wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *leaderp)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
+        *leaderp = false;
+    else if (WT_CONFIG_LIT_MATCH("leader", cval))
+        *leaderp = true;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid node role");
+
+    return (0);
 }
 
 /*
@@ -1402,6 +1824,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* Reconfigure-only settings. */
     if (reconfig) {
+        WT_STAT_CONN_INCR(session, disagg_conn_reconfig);
 
         /* Pick up a new checkpoint (followers only). */
         WT_ERR_NOTFOUND_OK(
@@ -1414,7 +1837,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              */
             if (!leader) {
                 WT_ERR_MSG_CHK(session,
-                  __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+                  __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
                   "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             }
         }
@@ -1430,14 +1853,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR_MSG_CHK(session, __wti_disagg_set_last_materialized_lsn(session, (uint64_t)cval.val),
           "Failed to set the last materialized LSN to %" PRIu64, (uint64_t)cval.val);
 
-    /* Set the role. */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
-    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
-        leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
-        leader = true;
-    else
-        WT_ERR_MSG(session, EINVAL, "Invalid node role");
+    /* Get the configured role. */
+    WT_ERR(__wt_disagg_config_get_role(session, cfg, &leader));
 
     if (!reconfig) {
         /* Set the initial role. */
@@ -1490,6 +1907,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
+        /*
+         * FIXME-WT-17177: Read-only connections are currently not supported with disaggregated
+         * storage.
+         */
+        if (F_ISSET(conn, WT_CONN_READONLY))
+            WT_ERR_MSG(session, ENOTSUP,
+              "disaggregated storage is not supported with read-only connections");
+
         WT_ERR(__wti_layered_table_manager_init(session));
 
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
@@ -1505,7 +1930,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR_NOTFOUND_OK(
           __wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval), true);
         if (ret == 0 && cval.len > 0) {
-            WT_ERR_MSG_CHK(session, __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+            WT_ERR_MSG_CHK(session,
+              __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
               "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             picked_up = true;
         }
@@ -1517,7 +1943,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == 0) {
                 /* Pick up the checkpoint we just found. */
-                ret = __disagg_pick_up_checkpoint_meta(
+                ret = __wti_disagg_pick_up_checkpoint_meta(
                   session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
@@ -1548,6 +1974,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.delta_pct", &cval));
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.delta_pct = (uint32_t)cval.val;
+
+        /* Get the threshold fraction of keys removed from the disk image to force a full page. */
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.delete_pct", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->page_delta.delete_pct = (uint32_t)cval.val;
 
         /* Get the maximum number of consecutive deltas allowed for a single page. */
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.max_consecutive_delta", &cval));
@@ -1587,11 +2018,24 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
- * __on_file_in_wt_dir --
- *     Act on a file in WT directory: delete or fail depending on the flag.
+ * __wt_disagg_has_picked_up_checkpoint --
+ *     Return whether this connection is using disaggregated storage and has picked up a checkpoint.
+ */
+bool
+__wt_disagg_has_picked_up_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    return (__wt_conn_is_disagg(session) &&
+      __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) != WT_DISAGG_LSN_NONE);
+}
+
+/*
+ * __remove_or_fail_local_wt_file --
+ *     Remove a local WiredTiger file or fail with EEXIST, depending on the configured action.
  */
 static int
-__on_file_in_wt_dir(WT_SESSION_IMPL *session, const char *fname, bool fail)
+__remove_or_fail_local_wt_file(WT_SESSION_IMPL *session, const char *fname, bool fail)
 {
     if (fail)
         WT_RET_MSG(session, EEXIST,
@@ -1670,11 +2114,14 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         /*
          * Delete any WiredTiger files to prevent reading them during startup. But keep
          * WiredTiger.lock as a safety mechanism.
+         *
+         * Prevent deleting stat files since they can be useful for debugging.
          */
-        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
-            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
-        else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
-          WT_SUFFIX_MATCH(files[i], ".wt_stable"))
+        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD) &&
+          !WT_PREFIX_MATCH(files[i], "WiredTigerStat"))
+            WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
+        else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_URI_IS_INGEST(files[i]) ||
+          WT_URI_IS_STABLE(files[i]))
             /*
              * Delete all normal tables since they are not usable without metadata anyway.
              *
@@ -1682,7 +2129,7 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
              * are not deleted now, the files will be renamed and kept around - someone will have to
              * clean them up later.
              */
-            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
+            WT_ERR(__remove_or_fail_local_wt_file(session, full_path, fail));
         else
             __wt_verbose_debug1(session, WT_VERB_METADATA, "Keeping local file: %s", full_path);
     }
@@ -1835,27 +2282,24 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
-        WT_ERR(__wt_buf_fmt(session, meta,
-          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
-          ",version=%d,compatible_version=%d",
-          meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
-          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
-        /*
-         * FIXME-WT-16821: Remove the if branch keep non-ext version only.
-         */
-        if (disagg->npage_log->page_log->pl_complete_checkpoint != NULL) {
-            complete_args.checkpoint_id = 0;
-            complete_args.checkpoint_timestamp = checkpoint_timestamp;
-            complete_args.checkpoint_metadata = meta;
-            complete_args.checkpoint_oldest_timestamp =
-              conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
-            complete_args.lsn = 0;
-            WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint(
-              disagg->npage_log->page_log, &session->iface, &complete_args));
-        } else
-            WT_ERR(
-              disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
-                &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
+        WT_ERR_MSG_CHK(session,
+          __wt_buf_fmt(session, meta,
+            "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
+            ",version=%d,compatible_version=%d",
+            meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
+            WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION),
+          "Failed to format checkpoint metadata");
+
+        complete_args.checkpoint_id = 0;
+        complete_args.checkpoint_timestamp = checkpoint_timestamp;
+        complete_args.checkpoint_metadata = meta;
+        complete_args.checkpoint_oldest_timestamp =
+          conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
+        complete_args.lsn = 0;
+        WT_ERR_MSG_CHK(session,
+          disagg->npage_log->page_log->pl_complete_checkpoint(
+            disagg->npage_log->page_log, &session->iface, &complete_args),
+          "Failed to complete checkpoint");
 
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
@@ -1864,36 +2308,16 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           "Completed disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
           meta_lsn, checkpoint_timestamp,
           __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
-    }
+    } else
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Checkpoint completion skipped due to unsuccessful checkpoint: lsn=%" PRIu64
+          ", timestamp=%" PRIu64 " %s",
+          meta_lsn, checkpoint_timestamp,
+          __wt_timestamp_to_string(checkpoint_timestamp, ts_string));
 
-    WT_ERR(__disagg_begin_checkpoint(session));
+    WT_ERR_MSG_CHK(session, __disagg_begin_checkpoint(session), "Failed to begin a new checkpoint");
 
 err:
     __wt_scr_free(session, &meta);
     return (ret);
 }
-
-#ifdef HAVE_UNITTEST
-int
-__ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const char *meta_str,
-  uint32_t *out_version, uint32_t *out_compatible_version)
-{
-    WT_DISAGG_CHECKPOINT_META ckpt_meta;
-
-    /* Set default test value */
-    *out_version = 0;
-    *out_compatible_version = 0;
-
-    /* Initialize struct with defaults */
-    memset(&ckpt_meta, 0, sizeof(ckpt_meta));
-
-    /* Call the main version check function */
-    WT_RET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
-
-    /* Return parsed values */
-    *out_version = ckpt_meta.version;
-    *out_compatible_version = ckpt_meta.compatible_version;
-
-    return (0);
-}
-#endif

@@ -38,6 +38,8 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
      * array usage pattern in the architecture guide for more details.
      */
     WT_READ_ONCE(session_cnt, conn->session_array.cnt);
+    WT_ASSERT(session, session_cnt <= conn->session_array.size);
+    WT_ASSERT(session, WT_CONN_SESSIONS_GET(conn) != NULL);
 
     for (i = 0, array_session = WT_CONN_SESSIONS_GET(conn); i < session_cnt; i++, array_session++) {
         /*
@@ -56,6 +58,7 @@ __wt_session_array_walk(WT_SESSION_IMPL *session,
         if (skip_internal && F_ISSET(array_session, WT_SESSION_INTERNAL))
             continue;
 
+        WT_ASSERT(session, array_session->hazards.arr != NULL);
         WT_RET(walk_func(session, array_session, &exit_walk, cookiep));
         /* Early exit the walk if possible. */
         if (exit_walk)
@@ -75,13 +78,15 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
     WT_CURSOR *cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    const char *session_name;
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
     WT_ERR(__wt_msg(
       session, "Session: ID: %" PRIu32 " @: 0x%p", dump_session->id, (void *)dump_session));
-    WT_ERR(
-      __wt_msg(session, "  Name: %s", dump_session->name == NULL ? "EMPTY" : dump_session->name));
+
+    session_name = __wt_atomic_load_ptr_relaxed(&dump_session->name);
+    WT_ERR(__wt_msg(session, "  Name: %s", session_name == NULL ? "EMPTY" : session_name));
     WT_ERR(__wt_msg(session, "  Last operation: %s",
       dump_session->lastop == NULL ? "NONE" : dump_session->lastop));
     WT_ERR(__wt_msg(session, "  Current dhandle: %s",

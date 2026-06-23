@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 
-# test_jsondump.py
 # Test dump output from json cursors.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
@@ -347,7 +346,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
             self.generate_value(i, v, False)
             # A 'u' format requires a bytes type with Python3
             c5[bytes(k)] = bytes(v)
-            self.generate_value(i, v, True)   # no embedded nuls
+            self.generate_value(i, v, True)   # no embedded nulls
             kstr = self.bytes_to_str(k)
             vstr = self.bytes_to_str(v)
             c6[kstr] = vstr

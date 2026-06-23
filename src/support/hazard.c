@@ -197,7 +197,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
      * Clear the caller's hazard pointer. The common pattern is LIFO, so do a reverse search.
      */
     for (hp = session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse) - 1;
-         hp >= session->hazards.arr; --hp)
+      hp >= session->hazards.arr; --hp)
         if (hp->ref == ref) {
             /*
              * Release write the hazard pointer. We want to ensure that all operations performed on
@@ -241,7 +241,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
      * hazard pointer count, but this is a useful diagnostic.
      */
     for (found = false, hp = session->hazards.arr;
-         hp < session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse); ++hp)
+      hp < session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse); ++hp)
         if (hp->ref != NULL) {
             found = true;
             break;
@@ -266,7 +266,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
      * would be).
      */
     for (hp = session->hazards.arr;
-         hp < session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse); ++hp)
+      hp < session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse); ++hp)
         if (hp->ref != NULL) {
             hp->ref = NULL;
             --session->hazards.num_active;
@@ -317,6 +317,8 @@ __hazard_check_callback(
         WT_STAT_CONN_SET(session, cache_hazard_max, cookie->max);
     }
 
+    WT_ASSERT(session, hazard_inuse == 0 || *(uint8_t *)cookie->ret_hp != WT_DEBUG_BYTE);
+    WT_ASSERT(session, hazard_inuse <= array_session->hazards.size);
     for (i = 0; i < hazard_inuse; ++cookie->ret_hp, ++i) {
         ++cookie->walk_cnt;
         if (cookie->ret_hp->ref == cookie->search_ref) {
@@ -413,6 +415,8 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
             break;
         __wt_sleep(0, 10 * WT_THOUSAND);
     }
+
+    const char *session_name = __wt_atomic_load_ptr_relaxed(&s->name);
 #ifdef HAVE_DIAGNOSTIC
     /*
      * In diagnostic mode we also track the file and line where the hazard pointer is set. If this
@@ -420,10 +424,11 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
      */
     __wt_errx(session,
       "hazard pointer reference to discarded object: (%p: session %p name %s: %s, line %d)",
-      (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
+      (void *)hp->ref, (void *)s, session_name == NULL ? "UNKNOWN" : session_name, hp->func,
+      hp->line);
 #else
     __wt_errx(session, "hazard pointer reference to discarded object: (%p: session %p name %s)",
-      (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name);
+      (void *)hp->ref, (void *)s, session_name == NULL ? "UNKNOWN" : session_name);
 #endif
     return (false);
 }
@@ -439,7 +444,7 @@ __hazard_dump(WT_SESSION_IMPL *session)
     WT_HAZARD *hp;
 
     for (hp = session->hazards.arr;
-         hp < session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse); ++hp)
+      hp < session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse); ++hp)
         if (hp->ref != NULL)
             __wt_errx(session, "session %p: hazard pointer %p: %s, line %d", (void *)session,
               (void *)hp->ref, hp->func, hp->line);

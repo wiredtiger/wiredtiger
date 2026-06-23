@@ -34,10 +34,10 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_prepare_cursor01.py
-#    WT_CURSOR navigation (next/prev) tests with prepared transactions
+# WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor01(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     fmt = [
         ('row-store', dict(keyfmt='i')),
         ('column-store', dict(keyfmt='r')),
@@ -62,13 +62,13 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
     #   before cursor  : with timestamp earlier to prepare timestamp.
     #   between cursor : with timestamp between prepare and commit timestamps.
     #   after cursor   : with timestamp after commit timestamp.
-    # Cursor with out read timestamp behaviour should be same after cursor behavior.
+    # Cursor with out read timestamp behavior should be same after cursor behavior.
     #
     @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_cursor_navigate_prepare_transaction(self):
 
         # Build an object.
-        uri = self.uri + ':test_prepare_cursor01'
+        uri = self.uri + f':{self.test_name}'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
 

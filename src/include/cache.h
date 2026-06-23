@@ -38,6 +38,65 @@ struct __wt_cache_eviction_controls {
     wt_shared uint32_t flags_atomic;
 };
 
+struct __wt_shared_dsk_item {
+    TAILQ_ENTRY(__wt_shared_dsk_item) hashq;
+
+    void *data;
+    uint32_t data_size;
+
+    /*
+     * Reference count tracking how many pages share this disk image. Incremented on get or put
+     * collision, decremented on release. The entry is removed from the hash table when the count
+     * drops to zero. All accesses must be protected by the lock.
+     */
+    int32_t ref_count;
+
+    WT_PAGE_BLOCK_META block_meta; /* Block metadata, used for page disagg_info. */
+    uint32_t fid;                  /* File ID */
+    uint8_t addr_size;             /* Address cookie */
+    uint8_t addr[];
+};
+
+/*
+ * Best-effort sizing: budget 0.2% of the cache and assume one item per bucket, so dividing that
+ * budget by the per-bucket cost gives the count, with a floor of a thousand buckets.
+ */
+#define WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)                                      \
+    ((u_int)WT_MAX(S2C(session)->cache_size / 500 /                                         \
+        (sizeof(WT_SHARED_DSK_ITEM) + sizeof(*S2C(session)->cache->shared_dsk_cache.hash)), \
+      WT_THOUSAND))
+
+/* Shared disk cache state. */
+typedef enum {
+    WT_DSK_CACHE_OFF = 0,  /* No table: a leader that has never been a standby, or non-disagg. */
+    WT_DSK_CACHE_ACTIVE,   /* Standby: allow reads and puts. */
+    WT_DSK_CACHE_READONLY, /* Stepped-up leader: allow reads only. */
+    WT_DSK_CACHE_DEAD      /* Drained on a leader: both reads and writes are disabled. */
+} WT_DSK_CACHE_STATE;
+
+#define WT_DSK_CACHE_READABLE(state) \
+    ((state) == WT_DSK_CACHE_ACTIVE || (state) == WT_DSK_CACHE_READONLY)
+
+#define WT_DSK_CACHE_CAN_READ(state, btree) \
+    (WT_DSK_CACHE_READABLE(state) && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+
+#define WT_DSK_CACHE_CAN_WRITE(state, btree) \
+    ((state) == WT_DSK_CACHE_ACTIVE && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+
+struct __wt_shared_dsk_cache {
+    wt_shared uint8_t state;
+    wt_shared uint64_t readonly_since; /* Seconds when the cache went read-only on step-up. */
+
+    TAILQ_HEAD(__wt_shared_dsk_hash, __wt_shared_dsk_item) * hash;
+    WT_SPINLOCK *hash_locks;
+    u_int hash_size;
+    u_int hash_lock_size;
+#ifdef HAVE_DIAGNOSTIC
+    int32_t max_ref_count;
+    uint32_t max_bucket_walk;
+#endif
+};
+
 /*
  * WiredTiger cache structure.
  */
@@ -93,9 +152,11 @@ struct __wt_cache {
     wt_shared uint64_t pages_dirty_leaf_stable;
     wt_shared uint64_t pages_evicted;
     wt_shared uint64_t pages_evicted_ingest;
+    wt_shared uint64_t pages_evicted_leaf;
     wt_shared uint64_t pages_evicted_stable;
     wt_shared uint64_t pages_inmem;
     wt_shared uint64_t pages_inmem_ingest;
+    wt_shared uint64_t pages_inmem_leaf;
     wt_shared uint64_t pages_inmem_stable;
 
     u_int overhead_pct; /* Cache percent adjustment */
@@ -131,6 +192,8 @@ struct __wt_cache {
 #define WT_CACHE_POOL_RUN 0x2u            /* Cache pool thread running */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint16_t pool_flags_atomic; /* Cache pool flags */
+
+    WT_SHARED_DSK_CACHE shared_dsk_cache;
 };
 
 /*
@@ -156,12 +219,3 @@ struct __wt_cache_pool {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
-
-/*
- * Optimize comparisons against the history store URI, flag handles that reference the history store
- * file.
- */
-#define WT_IS_HS(dh) F_ISSET(dh, WT_DHANDLE_HS)
-
-/* Optimize comparisons against the shared metadata store for disaggregated storage. */
-#define WT_IS_DISAGG_META(dh) F_ISSET(dh, WT_DHANDLE_DISAGG_META)

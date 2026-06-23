@@ -43,11 +43,11 @@ race:__posix_file_close
 race:__handle_close
 race:__sweep_remove_handles
 race:__stash_discard
-race:__evict_lru_walk
+race:__wti_evict_lru_walk
 race:__tree_walk_internal
 race:__evict_queue_empty
 race:__evict_get_ref
-race:__evict_clear_all_walks
+race:__wti_evict_clear_all_walks_and_saved_tree
 race:__session_clear
 race:__rec_row_leaf_insert
 race:__wt_cache_dirty_decr
@@ -99,6 +99,9 @@ race:timestamp_minimum_committed
 race:snap_op_init
 race:snap_track
 race:snap_verify_callback
+
+# FIXME-WT-16783: Statistic logging flags have concurrent accesses
+race:__statlog_config
 
 # Recently introduced issues.
 # FIXME-WT-16312: Check synchornization for __cell_unpack_window_cleanup_kv
