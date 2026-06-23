@@ -89,6 +89,26 @@ struct __wt_truncate {
 };
 
 /*
+ * WT_TRUNCATE_LIST --
+ *	Fast-truncate range list for a layered table: the queue of truncate ranges and the lock
+ *	guarding its membership.
+ */
+struct __wt_truncate_list {
+    /*
+     * Queue head for fast truncate logic.
+     *
+     * FIXME-WT-17330: Evaluate data structure for performance optimization.
+     */
+    TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
+
+    /*
+     * Protects truncate list membership (insert/remove/clear). Per-entry visibility is synchronized
+     * lock-free via WT_TRUNCATE.committed.
+     */
+    WT_RWLOCK truncate_lock;
+};
+
+/*
  * WT_LAYERED_TABLE --
  *	Handle for a layered table.
  */
@@ -109,18 +129,7 @@ struct __wt_layered_table {
     const char *key_format, *value_format;
     const char *ingest_uri, *stable_uri;
 
-    /*
-     * Queue head for fast truncate logic.
-     *
-     * FIXME-WT-17330: Evaluate data structure for performance optimization.
-     */
-    TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
-
-    /*
-     * Protects truncate list membership (insert/remove/clear). Per-entry visibility is synchronized
-     * lock-free via WT_TRUNCATE.committed.
-     */
-    WT_RWLOCK truncate_lock;
+    WT_TRUNCATE_LIST truncate_list; /* Fast-truncate range list. */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LAYERED_TABLE_OPEN 0x1u

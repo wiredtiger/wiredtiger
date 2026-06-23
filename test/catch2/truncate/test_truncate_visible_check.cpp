@@ -44,8 +44,8 @@ struct TruncVisibleCheckFixture {
         /* Build a minimal WT_LAYERED_TABLE with the required "layered:" name prefix. */
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_LAYERED_TABLE), &layered_table) == 0);
         layered_table->iface.name = "layered:unit_test_table";
-        TAILQ_INIT(&layered_table->truncateqh);
-        REQUIRE(__wt_rwlock_init(session, &layered_table->truncate_lock) == 0);
+        TAILQ_INIT(&layered_table->truncate_list.truncateqh);
+        REQUIRE(__wt_rwlock_init(session, &layered_table->truncate_list.truncate_lock) == 0);
         layered_table->collator = nullptr;
     }
 
@@ -53,12 +53,12 @@ struct TruncVisibleCheckFixture {
     {
         /* Free every truncate entry (key data points to string literals; do not free it). */
         WT_TRUNCATE *t;
-        while ((t = TAILQ_FIRST(&layered_table->truncateqh)) != nullptr) {
-            TAILQ_REMOVE(&layered_table->truncateqh, t, q);
+        while ((t = TAILQ_FIRST(&layered_table->truncate_list.truncateqh)) != nullptr) {
+            TAILQ_REMOVE(&layered_table->truncate_list.truncateqh, t, q);
             __wt_free(session, t);
         }
 
-        __wt_rwlock_destroy(session, &layered_table->truncate_lock);
+        __wt_rwlock_destroy(session, &layered_table->truncate_list.truncate_lock);
         __wt_free(session, layered_table);
 
         __wt_free(session, session->txn);
@@ -86,7 +86,7 @@ struct TruncVisibleCheckFixture {
         t->stop_key.data = stop_key;
         t->stop_key.size = strlen(stop_key);
 
-        TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
+        TAILQ_INSERT_TAIL(&layered_table->truncate_list.truncateqh, t, q);
     }
 
     /* Build a stack-allocated WT_ITEM pointing at a string literal. */
@@ -258,8 +258,8 @@ TEST_CASE_METHOD(
         CHECK(
           __wt_truncate_delete_visible_check(session, layered_table, &key, nullptr, nullptr) == 0);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_lock);
+        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.truncate_lock) == 0);
+        __wt_writeunlock(session, &layered_table->truncate_list.truncate_lock);
     }
 
     SECTION("read lock is released after a miss")
@@ -270,8 +270,8 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr, nullptr) ==
           WT_NOTFOUND);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_lock);
+        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.truncate_lock) == 0);
+        __wt_writeunlock(session, &layered_table->truncate_list.truncate_lock);
     }
 
     SECTION("read lock is released when the truncate list is empty")
@@ -281,8 +281,8 @@ TEST_CASE_METHOD(
         CHECK(__wt_truncate_delete_visible_check(session, layered_table, &key, nullptr, nullptr) ==
           WT_NOTFOUND);
 
-        CHECK(__wt_try_writelock(session, &layered_table->truncate_lock) == 0);
-        __wt_writeunlock(session, &layered_table->truncate_lock);
+        CHECK(__wt_try_writelock(session, &layered_table->truncate_list.truncate_lock) == 0);
+        __wt_writeunlock(session, &layered_table->truncate_list.truncate_lock);
     }
 }
 
