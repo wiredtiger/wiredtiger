@@ -71,6 +71,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty index drain passes skipped because the ring filter rate exceeded the threshold",
   "cache: dirty index drain skipped due to active checkpoint",
+  "cache: dirty index drain skipped due to clean-page eviction pressure",
   "cache: dirty index inserts",
   "cache: dirty index inserts abandoned because a concurrent producer won the slot",
   "cache: dirty index inserts dropped due to full ring",
@@ -560,6 +561,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->eviction_fail = 0;
     stats->cache_eviction_dirty_index_drain_skipped_filter_heavy = 0;
     stats->cache_eviction_dirty_index_drain_skipped_checkpoint = 0;
+    stats->cache_eviction_dirty_index_drain_skipped_clean_pressure = 0;
     stats->cache_eviction_dirty_index_insert = 0;
     stats->cache_eviction_dirty_index_insert_contended = 0;
     stats->cache_eviction_dirty_index_insert_ring_full = 0;
@@ -1013,6 +1015,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_dirty_index_drain_skipped_filter_heavy;
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
       from->cache_eviction_dirty_index_drain_skipped_checkpoint;
+    to->cache_eviction_dirty_index_drain_skipped_clean_pressure +=
+      from->cache_eviction_dirty_index_drain_skipped_clean_pressure;
     to->cache_eviction_dirty_index_insert += from->cache_eviction_dirty_index_insert;
     to->cache_eviction_dirty_index_insert_contended +=
       from->cache_eviction_dirty_index_insert_contended;
@@ -1499,6 +1503,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_filter_heavy);
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_checkpoint);
+    to->cache_eviction_dirty_index_drain_skipped_clean_pressure +=
+      WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_clean_pressure);
     to->cache_eviction_dirty_index_insert +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_insert);
     to->cache_eviction_dirty_index_insert_contended +=
@@ -2100,6 +2106,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty index drain passes skipped because the ring filter rate exceeded the threshold",
   "cache: dirty index drain skipped due to active checkpoint",
+  "cache: dirty index drain skipped due to clean-page eviction pressure",
   "cache: dirty index inserts",
   "cache: dirty index inserts abandoned because a concurrent producer won the slot",
   "cache: dirty index inserts dropped due to full ring",
@@ -3223,6 +3230,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_dirty_index_drain_skipped_filter_heavy = 0;
     stats->cache_eviction_dirty_index_drain_skipped_checkpoint = 0;
+    stats->cache_eviction_dirty_index_drain_skipped_clean_pressure = 0;
     stats->cache_eviction_dirty_index_insert = 0;
     stats->cache_eviction_dirty_index_insert_contended = 0;
     stats->cache_eviction_dirty_index_insert_ring_full = 0;
@@ -4315,6 +4323,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_filter_heavy);
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_checkpoint);
+    to->cache_eviction_dirty_index_drain_skipped_clean_pressure +=
+      WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_clean_pressure);
     to->cache_eviction_dirty_index_insert +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_insert);
     to->cache_eviction_dirty_index_insert_contended +=

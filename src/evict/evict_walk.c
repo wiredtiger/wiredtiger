@@ -1613,22 +1613,35 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
     if (should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
       F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
-        drain_queued = __evict_dirty_index_drain(
-          session, btree, queue, (u_int)(end - queue->evict_queue), slotp);
+        if (F_ISSET(evict, WT_EVICT_CACHE_NOKEEP)) {
+            /*
+             * WT_EVICT_CACHE_NOKEEP means the cache is more than halfway to the eviction trigger;
+             * clean-page demand is dominant. Pre-queuing dirty pages from the ring competes for the
+             * same queue slots the walker needs for clean eviction. Skip without touching
+             * drain_consecutive_empty so the drain resumes as soon as pressure drops.
+             */
+            WT_STAT_CONN_DSRC_INCR(
+              session, cache_eviction_dirty_index_drain_skipped_clean_pressure);
+        } else {
+            drain_queued = __evict_dirty_index_drain(
+              session, btree, queue, (u_int)(end - queue->evict_queue), slotp);
 
-        /*
-         * Update the adaptive switch. Atomic accesses are used because eviction passes from
-         * different threads may visit this btree; the values carry no ordering dependency. A drain
-         * skipped because the tree is checkpointing also returns zero -- exclude that case so a
-         * long checkpoint does not park the drain on a tree whose ring is full, not empty.
-         */
-        if (drain_queued > 0) {
-            __wt_atomic_store_uint32(&btree->drain_consecutive_empty, 0);
-            if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
-                __wt_atomic_store_bool(&btree->drain_disabled, false);
-        } else if (!WT_BTREE_SYNCING(btree) &&
-          __wt_atomic_add_uint32(&btree->drain_consecutive_empty, 1) >= WTI_DRAIN_EMPTY_THRESHOLD)
-            __wt_atomic_store_bool(&btree->drain_disabled, true);
+            /*
+             * Update the adaptive switch. Atomic accesses are used because eviction passes from
+             * different threads may visit this btree; the values carry no ordering dependency. A
+             * drain skipped because the tree is checkpointing also returns zero -- exclude that
+             * case so a long checkpoint does not park the drain on a tree whose ring is full, not
+             * empty.
+             */
+            if (drain_queued > 0) {
+                __wt_atomic_store_uint32(&btree->drain_consecutive_empty, 0);
+                if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
+                    __wt_atomic_store_bool(&btree->drain_disabled, false);
+            } else if (!WT_BTREE_SYNCING(btree) &&
+              __wt_atomic_add_uint32(&btree->drain_consecutive_empty, 1) >=
+                WTI_DRAIN_EMPTY_THRESHOLD)
+                __wt_atomic_store_bool(&btree->drain_disabled, true);
+        }
     }
     if (drain_queued >= target_pages) {
         /*
