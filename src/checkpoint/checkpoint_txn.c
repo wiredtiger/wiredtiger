@@ -1123,10 +1123,12 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_UNUSED(original_snap_min);
 
     /*
-     * For parallel checkpoints, create a private read-only copy of the snapshot for the checkpoint
-     * workers to use. Workers will read from this instead of live txn->snapshot_data.
+     * For parallel checkpoints and precise checkpoints, create a private read-only copy of the
+     * checkpoint snapshot. Parallel workers read from this instead of live txn->snapshot_data.
+     * Precise checkpoint eviction reads from this to use full snapshot visibility rather than
+     * snapshot_min alone.
      */
-    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session)) {
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) || F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
         WT_TXN_SNAPSHOT *src, *dst;
         uint32_t capacity, count;
@@ -1146,14 +1148,19 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         WT_ERR(__wt_realloc_def(session, &ckpt_threads->checkpoint_snapshot_capacity, capacity,
           &ckpt_threads->checkpoint_snapshot_array));
 
-        /* Copy the checkpoint snapshot data */
-        dst->snap_min = src->snap_min;
+        /*
+         * Copy the checkpoint snapshot. Write snap_min last as a release flag: eviction checks
+         * snap_min != WT_TXN_NONE before reading snap_max and the snapshot array, so all other
+         * fields must be visible before snap_min is set.
+         */
         dst->snap_max = src->snap_max;
         dst->snapshot_count = count;
         dst->snapshot = ckpt_threads->checkpoint_snapshot_array;
 
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
+
+        __wt_atomic_store_uint64_release(&dst->snap_min, src->snap_min);
     }
 
     if (ckpt_cfg->use_timestamp)
@@ -1832,9 +1839,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
-     * the checkpoint_pinned flag.
+     * the checkpoint_pinned flag. Also invalidate the globally published checkpoint snapshot so
+     * that eviction reverts to the standard oldest-ID bound.
      */
     __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) || WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        __wt_atomic_store_uint64_release(
+          &conn->ckpt_reconcile_threads->checkpoint_snapshot.snap_min, WT_TXN_NONE);
 
     __checkpoint_stats(session);
 

@@ -611,6 +611,7 @@ struct __wt_connection_stats {
     int64_t eviction_threshold_dirty_trigger;
     int64_t eviction_threshold_updates_target;
     int64_t eviction_threshold_updates_trigger;
+    int64_t cache_eviction_checkpoint_snapshot_visible;
     int64_t eviction_walk_sleeps;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
@@ -1540,6 +1541,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_blocked_prefetched;
+    int64_t cache_eviction_checkpoint_snapshot_visible;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
     int64_t cache_eviction_pages_queued_dirty;
