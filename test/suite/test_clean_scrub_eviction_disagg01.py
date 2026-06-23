@@ -37,7 +37,7 @@ import wttest
 #       and verify that checkpoint reconciliation produces saved images.
 @disagg_test_class
 class test_clean_scrub_eviction_disagg01(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    disagg_storages = gen_disagg_storages('test_clean_scrub_eviction_disagg01', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_config = ('cache_size=50MB,statistics=(all),checkpoint=(wait=0),'
