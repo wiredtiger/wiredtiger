@@ -125,7 +125,7 @@ done:
 /*
  * util_func_supports_read_corrupt --
  *     Whether a wt subcommand accepts the -q (read-corrupt) flag. Only supported for read-oriented
- *     commands. Verify has it's own read_corrupt flag. List and printlog do not benefit from
+ *     commands. Verify has it's own read_corrupt flag. List, printlog, and page do not benefit from
  *     read_corrupt.
  */
 static bool
@@ -149,7 +149,7 @@ usage(void)
       "data)",
       "-q",
       "continue past corrupt pages where possible: asks WiredTiger to skip corrupt pages instead "
-      "of panicking, for read-oriented commands (dump, read, stat, list, page, printlog). Output "
+      "of panicking, for read-oriented commands (dump, read, stat). Output "
       "is best-effort and the command exits non-zero when corruption was encountered.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
