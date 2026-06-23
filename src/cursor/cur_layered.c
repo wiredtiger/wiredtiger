@@ -2033,7 +2033,8 @@ done:
      * constituent cursor that is not the current cursor to prevent unnecessarily pinning the page
      * in memory.
      */
-    WT_ASSERT(session, clayered->current_cursor == op->ingest || clayered->current_cursor == op->stable);
+    WT_ASSERT(
+      session, clayered->current_cursor == op->ingest || clayered->current_cursor == op->stable);
     if (!F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV)) {
         if (op->stable != NULL && clayered->current_cursor == op->ingest)
             WT_ERR(op->stable->reset(op->stable));
@@ -2427,17 +2428,17 @@ __clayered_insert(WT_CURSOR *cursor)
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
-     * lookup results in an error, and a failed lookup leaves the original key intact. A successful
-     * lookup is a duplicate; WT_NOTFOUND is the happy path that falls through to the insert; any
-     * other error is returned.
+     * lookup results in an error, and a failed lookup leaves the original key intact.
      */
-    if (__clayered_needs_pre_lookup(&op) && (ret = __clayered_lookup(&op, &value)) != WT_NOTFOUND) {
+    if (__clayered_needs_pre_lookup(&op)) {
+        WT_ERR_NOTFOUND_OK(__clayered_lookup(&op, &value), true);
         if (ret == 0) {
             WT_ERR(__clayered_copy_duplicate_kv(&op));
             WT_ERR(__clayered_reset_cursors(clayered, false));
             WT_ERR(WT_DUPLICATE_KEY);
+        } else if (ret != WT_NOTFOUND) { /* Not found is a happy path. */
+            goto err;
         }
-        goto err;
     }
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
