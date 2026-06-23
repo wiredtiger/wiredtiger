@@ -249,18 +249,15 @@ __truncate_read_entry_timestamps(
  *     the output parameter when non-NULL.
  */
 static int
-__truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key,
-  const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
+__truncate_search(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *tl, WT_COLLATOR *collator,
+  const WT_ITEM *key, const WT_TRUNCATE_SEARCH_MODE mode, WT_TRUNCATE **tp, bool *is_foundp)
 {
-    WT_TRUNCATE_LIST *tl = &layered_table->truncate_list;
-
     WT_ASSERT(session, is_foundp != NULL);
     WT_ASSERT(session, __wt_rwlock_islocked(session, &tl->truncate_lock));
     *is_foundp = false;
 
     WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
 
-    WT_COLLATOR *collator = layered_table->collator;
     WT_TRUNCATE *entry = NULL;
 
     TAILQ_FOREACH (entry, &tl->truncateqh, q) {
@@ -298,16 +295,13 @@ __truncate_search(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, con
  */
 int
 __wt_layered_table_truncate_detect_write_conflict(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
+  WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *tl, WT_COLLATOR *collator, const WT_ITEM *key)
 {
-    WT_TRUNCATE_LIST *tl = &layered_table->truncate_list;
     WT_DECL_RET;
     bool is_found = false;
 
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (0);
-
-    WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
 
     /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
     __wt_readlock(session, &tl->truncate_lock);
@@ -317,7 +311,7 @@ __wt_layered_table_truncate_detect_write_conflict(
      * ignore these entries.
      */
     ret = __truncate_search(
-      session, layered_table, key, WT_TRUNCATE_SEARCH_NOT_VISIBLE, NULL, &is_found);
+      session, tl, collator, key, WT_TRUNCATE_SEARCH_NOT_VISIBLE, NULL, &is_found);
 
     __wt_readunlock(session, &tl->truncate_lock);
     WT_RET(ret);
@@ -340,16 +334,14 @@ __wt_layered_table_truncate_detect_write_conflict(
  */
 int
 __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, const WT_ITEM *start_key, const WT_ITEM *stop_key)
+  WT_TRUNCATE_LIST *tl, WT_COLLATOR *collator, const WT_ITEM *start_key, const WT_ITEM *stop_key)
 {
-    WT_TRUNCATE_LIST *tl = &layered_table->truncate_list;
     WT_DECL_RET;
 
     __wt_readlock(session, &tl->truncate_lock);
 
     WT_STAT_CONN_INCR(session, layered_truncate_list_search_calls);
 
-    WT_COLLATOR *collator = layered_table->collator;
     WT_TRUNCATE *entry = NULL;
     bool is_found = false;
     TAILQ_FOREACH (entry, &tl->truncateqh, q) {
@@ -416,13 +408,12 @@ err:
  *     On success, the caller must free start_keyp and stop_keyp.
  */
 int
-__wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table,
-  WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
+__wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *tl,
+  WT_COLLATOR *collator, WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
 {
     /* We either want the full range or no range at all. */
     WT_ASSERT(session, ((start_keyp != NULL) == (stop_keyp != NULL)));
 
-    WT_TRUNCATE_LIST *tl = &layered_table->truncate_list;
     WT_DECL_RET;
     WT_TRUNCATE *tp = NULL;
     bool is_found = false;
@@ -435,8 +426,6 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
     if (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER))
         return (WT_NOTFOUND);
 
-    WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
-
     /* FIXME-WT-17384: Investigate the use of atomics to minimize locking. */
     __wt_readlock(session, &tl->truncate_lock);
 
@@ -445,7 +434,7 @@ __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *l
      * transaction.
      */
     WT_ERR(
-      __truncate_search(session, layered_table, key, WT_TRUNCATE_SEARCH_VISIBLE, &tp, &is_found));
+      __truncate_search(session, tl, collator, key, WT_TRUNCATE_SEARCH_VISIBLE, &tp, &is_found));
 
     if (is_found && start_keyp != NULL)
         WT_ERR(__truncate_entry_copy_keys(session, tp, start_keyp, stop_keyp));
