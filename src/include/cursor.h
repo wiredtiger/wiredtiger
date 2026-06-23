@@ -570,9 +570,10 @@ typedef enum {                       /* maps 1:1 onto the API methods */
  *	State gathered once for a single layered table cursor operation.
  */
 struct __wt_clayered_op {
-    WT_CURSOR_LAYERED *clayered; /* back-pointer; session via CUR2S(clayered) */
+    WT_CURSOR_LAYERED *clayered; /* back-pointer; being retired as the op decouples from it */
     WT_CLAYERED_OP_MODE mode;
     WT_CLAYERED_ROLE role;
+    WT_CURSOR *iface;                /* the public layered cursor; source of inputs and session */
     WT_CURSOR *ingest;               /* resolved slot == clayered->ingest_cursor (may be NULL) */
     WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */

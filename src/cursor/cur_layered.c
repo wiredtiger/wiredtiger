@@ -109,8 +109,7 @@ __clayered_get_collator(WT_CURSOR_LAYERED *clayered, WT_COLLATOR **collatorp)
 static int
 __clayered_cursor_compare(WT_CLAYERED_OP *op, WT_CURSOR *c1, WT_CURSOR *c2, int *cmpp)
 {
-    WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
 
     WT_ASSERT_ALWAYS(session, F_ISSET(c1, WT_CURSTD_KEY_SET) && F_ISSET(c2, WT_CURSTD_KEY_SET),
       "Can only compare cursors with keys available in layered tree");
@@ -151,6 +150,7 @@ __clayered_op_init(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLA
     WT_CONNECTION_IMPL *conn = S2C(session);
 
     op->clayered = clayered;
+    op->iface = &clayered->iface;
     op->mode = mode;
 
     /*
@@ -714,7 +714,7 @@ static int
 __clayered_get_current(WT_CLAYERED_OP *op, bool smallest)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *current;
     int cmp;
     bool ingest_positioned, stable_positioned;
@@ -803,8 +803,7 @@ err:
 static int
 __clayered_reposition_truncate_iterate(WT_CLAYERED_OP *op, WT_CURSOR *stable, bool forward)
 {
-    WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_DECL_RET;
     int cmp;
 
@@ -1079,8 +1078,7 @@ static int
 __clayered_position_alternate(
   WT_CLAYERED_OP *op, WT_CURSOR *current, WT_CURSOR *alternate, bool forward)
 {
-    WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     int cmp;
 
     WT_ASSERT(session, F_ISSET(current, WT_CURSTD_KEY_SET));
@@ -1172,7 +1170,7 @@ static int
 __clayered_iterate_constituents(WT_CLAYERED_OP *op, uint32_t iter_flag)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *c_alternate, *c_current;
     WT_DECL_RET;
     int cmp;
@@ -1720,7 +1718,7 @@ __clayered_lookup_constituent(WT_CLAYERED_OP *op, WT_CURSOR *c, WT_ITEM *value)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    cursor = &clayered->iface;
+    cursor = op->iface;
 
     c->set_key(c, &cursor->key);
     if ((ret = c->search(c)) == 0) {
@@ -1739,12 +1737,12 @@ static int
 __clayered_lookup(WT_CLAYERED_OP *op, WT_ITEM *value)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *cursor;
     WT_DECL_RET;
     bool found;
 
-    cursor = &clayered->iface;
+    cursor = op->iface;
     found = false;
 
     if (op->role == WT_CLAYERED_ROLE_FOLLOWER) {
@@ -1833,12 +1831,11 @@ static int
 __clayered_search_near_move_ingest_to_opposite_side(
   WT_CLAYERED_OP *op, int stable_cmp, int *ingest_cmp)
 {
-    WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *cursor, *c_ingest;
     WT_DECL_RET;
 
-    cursor = &clayered->iface;
+    cursor = op->iface;
     c_ingest = op->ingest;
 
     /*
@@ -1886,14 +1883,14 @@ static int
 __clayered_search_near_int(WT_CLAYERED_OP *op, int *exactp)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *closest, *cursor;
     WT_DECL_RET;
     int cmp, ingest_cmp, stable_cmp;
     bool deleted, ingest_found, match_deleted, stable_found;
 
     closest = NULL;
-    cursor = &clayered->iface;
+    cursor = op->iface;
     ingest_cmp = stable_cmp = 0;
     ingest_found = match_deleted = stable_found = false;
 
@@ -1933,7 +1930,7 @@ __clayered_search_near_int(WT_CLAYERED_OP *op, int *exactp)
         if (ret == 0 &&
           __wt_truncate_delete_visible_check(
             session, op->truncate_list, op->collator, &op->stable->key, NULL, NULL) == 0) {
-            WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+            WT_ASSERT(session, !F_ISSET(op->iface, WT_CURSTD_KEY_INT));
 
             WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, op->stable, true), true);
             if (ret == 0)
@@ -2026,7 +2023,7 @@ __clayered_search_near_int(WT_CLAYERED_OP *op, int *exactp)
     deleted = __wt_clayered_deleted(&closest->value);
     if (deleted) {
         /* Advance past the deleted record using normal cursor traversal interface */
-        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+        WT_ASSERT(session, !F_ISSET(op->iface, WT_CURSTD_KEY_INT));
         if ((ret = __clayered_iterate_int(op, WT_CLAYERED_ITERATE_NEXT)) == 0) {
             cmp = 1;
             deleted = false;
@@ -2037,7 +2034,7 @@ __clayered_search_near_int(WT_CLAYERED_OP *op, int *exactp)
 
     if (deleted) {
         WT_ASSERT(session, clayered->current_cursor == NULL);
-        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+        WT_ASSERT(session, !F_ISSET(op->iface, WT_CURSTD_KEY_INT));
         WT_ERR(__clayered_iterate_int(op, WT_CLAYERED_ITERATE_PREV));
         cmp = -1;
     }
@@ -2142,7 +2139,7 @@ __clayered_put(
   WT_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WT_CLAYERED_PUT_OP put_op)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     bool leader = op->role == WT_CLAYERED_ROLE_LEADER;
 
     if (!leader) {
@@ -2287,7 +2284,7 @@ static WT_INLINE int
 __clayered_remove_follower(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *const c_ingest = op->ingest;
     WT_DECL_RET;
     WT_ITEM value;
@@ -2302,7 +2299,7 @@ __clayered_remove_follower(WT_CLAYERED_OP *op, const WT_ITEM *key, bool position
 
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
-        WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
+        WT_ASSERT(session, F_ISSET(op->iface, WT_CURSTD_KEY_EXT));
         WT_RET(__clayered_lookup(op, &value));
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
@@ -2347,7 +2344,7 @@ static WT_INLINE int
 __clayered_remove_leader(WT_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
     WT_CURSOR *const c_stable = op->stable;
 
     /* There is no content on the ingest table. We must be positioned on the stable table. */
@@ -2381,8 +2378,8 @@ static int
 __clayered_copy_duplicate_kv(WT_CLAYERED_OP *op)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CURSOR *cursor = &clayered->iface;
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
+    WT_CURSOR *cursor = op->iface;
 
     WT_ASSERT(session,
       F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
@@ -2897,8 +2894,8 @@ static int
 __clayered_modify_leader(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CURSOR *cursor = &clayered->iface;
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
+    WT_CURSOR *cursor = op->iface;
     WT_CURSOR *c_stable = op->stable;
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
@@ -2935,8 +2932,8 @@ static int
 __clayered_modify_follower(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CURSOR *cursor = &clayered->iface;
+    WT_SESSION_IMPL *session = CUR2S(op->iface);
+    WT_CURSOR *cursor = op->iface;
     WT_CURSOR *c_ingest = op->ingest;
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
@@ -2948,8 +2945,7 @@ __clayered_modify_follower(WT_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
      * Modify requires a visible base value: search before the conflict check so a missing value
      * returns WT_NOTFOUND.
      */
-    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
-      !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
+    if (!F_ISSET(op->iface, WT_CURSTD_KEY_INT) || !F_ISSET(op->iface, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
