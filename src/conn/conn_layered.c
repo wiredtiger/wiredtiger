@@ -578,50 +578,6 @@ err:
 }
 
 /*
- * __wt_disagg_shared_metadata_queue_drop_size --
- *     Walk the metadata queue and sum the checkpoint sizes of non-deferred drop operations. This is
- *     a read-only operation on the queue.
- */
-int
-__wt_disagg_shared_metadata_queue_drop_size(
-  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch, uint64_t *drop_sizep)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry;
-
-    conn = S2C(session);
-    *drop_sizep = 0;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
-
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        /* Skip entries that are not included in the current schema epoch. */
-        if (entry->deferred)
-            continue;
-        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
-            continue;
-
-        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
-            uint64_t size;
-            /*
-             * A table that was created and dropped without ever being checkpointed won't have a
-             * checkpoint entry in its metadata, so WT_NOTFOUND is expected.
-             */
-            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
-            *drop_sizep += size;
-        }
-    }
-
-err:
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    return (ret);
-}
-
-/*
  * __disagg_handle_create_remove_pairing --
  *     Handle CREATE/REMOVE pairing detection during queue processing. If the entry is a CREATE with
  *     no stable value, park it in the skipped list and return true (caller should continue). If the
@@ -685,18 +641,24 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 
 /*
  * __wt_disagg_shared_metadata_queue_process --
- *     Process the update metadata list.
+ *     Process the update metadata list, returning the total checkpoint size of the tables actually
+ *     dropped so the caller can reduce the database size accordingly.
  */
 int
-__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
+__wt_disagg_shared_metadata_queue_process(
+  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch, uint64_t *drop_sizep)
 {
     struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
+    uint64_t drop_size;
+    char *stable_config;
 
     conn = S2C(session);
     TAILQ_INIT(&skipped_creates);
+    drop_size = 0;
+    stable_config = NULL;
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -742,6 +704,28 @@ __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
+        /*
+         * A successful schema drop op should contributes to the database size reduction.
+         */
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
+            /*
+             * The stable entry is gone only after a real drop; a rolled-back drop leaves it.
+             */
+            WT_ERR_NOTFOUND_OK(
+              __wt_metadata_search(session, entry->stable_uri, &stable_config), true);
+            __wt_free(session, stable_config);
+
+            if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+                uint64_t size = 0;
+                /*
+                 * A table dropped before it was ever checkpointed has no checkpoint entry, so
+                 * WT_NOTFOUND from the size lookup is expected and contributes nothing.
+                 */
+                WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
+                drop_size += size;
+            }
+        }
+
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
     }
@@ -769,6 +753,8 @@ err:
      * If we failed, put back the skipped creates, so that we can revisit them if the caller
      * attempts to create a checkpoint again.
      */
+    if (drop_sizep != NULL)
+        *drop_sizep = drop_size;
     if (ret != 0)
         while (!TAILQ_EMPTY(&skipped_creates)) {
             skipped = TAILQ_LAST(&skipped_creates, __wt_disagg_shared_metadata_qh);
@@ -782,6 +768,8 @@ err:
         TAILQ_REMOVE(&skipped_creates, skipped, q);
         __disagg_shared_metadata_queue_free(session, &skipped);
     }
+    if (stable_config != NULL)
+        __wt_free(session, stable_config);
     return (ret);
 }
 
