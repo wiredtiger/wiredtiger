@@ -72,8 +72,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: dirty index drain passes skipped because the ring filter rate exceeded the threshold",
   "cache: dirty index drain skipped because the disaggregated btree was already visited by the "
   "running checkpoint",
-  "cache: dirty index drain skipped because the pinned stable timestamp has not advanced past the "
-  "last unproductive pass",
   "cache: dirty index drain skipped due to active checkpoint",
   "cache: dirty index drain skipped due to clean-page eviction pressure",
   "cache: dirty index inserts",
@@ -565,7 +563,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->eviction_fail = 0;
     stats->cache_eviction_dirty_index_drain_skipped_filter_heavy = 0;
     stats->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed = 0;
-    stats->cache_eviction_dirty_index_drain_skipped_stable_unchanged = 0;
     stats->cache_eviction_dirty_index_drain_skipped_checkpoint = 0;
     stats->cache_eviction_dirty_index_drain_skipped_clean_pressure = 0;
     stats->cache_eviction_dirty_index_insert = 0;
@@ -1021,8 +1018,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_dirty_index_drain_skipped_filter_heavy;
     to->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed +=
       from->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed;
-    to->cache_eviction_dirty_index_drain_skipped_stable_unchanged +=
-      from->cache_eviction_dirty_index_drain_skipped_stable_unchanged;
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
       from->cache_eviction_dirty_index_drain_skipped_checkpoint;
     to->cache_eviction_dirty_index_drain_skipped_clean_pressure +=
@@ -1513,8 +1508,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_filter_heavy);
     to->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_disagg_checkpointed);
-    to->cache_eviction_dirty_index_drain_skipped_stable_unchanged +=
-      WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_stable_unchanged);
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_checkpoint);
     to->cache_eviction_dirty_index_drain_skipped_clean_pressure +=
@@ -2121,8 +2114,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty index drain passes skipped because the ring filter rate exceeded the threshold",
   "cache: dirty index drain skipped because the disaggregated btree was already visited by the "
   "running checkpoint",
-  "cache: dirty index drain skipped because the pinned stable timestamp has not advanced past the "
-  "last unproductive pass",
   "cache: dirty index drain skipped due to active checkpoint",
   "cache: dirty index drain skipped due to clean-page eviction pressure",
   "cache: dirty index inserts",
@@ -3248,7 +3239,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_dirty_index_drain_skipped_filter_heavy = 0;
     stats->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed = 0;
-    stats->cache_eviction_dirty_index_drain_skipped_stable_unchanged = 0;
     stats->cache_eviction_dirty_index_drain_skipped_checkpoint = 0;
     stats->cache_eviction_dirty_index_drain_skipped_clean_pressure = 0;
     stats->cache_eviction_dirty_index_insert = 0;
@@ -4343,8 +4333,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_filter_heavy);
     to->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_disagg_checkpointed);
-    to->cache_eviction_dirty_index_drain_skipped_stable_unchanged +=
-      WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_stable_unchanged);
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_checkpoint);
     to->cache_eviction_dirty_index_drain_skipped_clean_pressure +=
