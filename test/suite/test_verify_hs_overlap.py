@@ -141,8 +141,8 @@ class test_verify_hs_overlap(test_rollback_to_stable_base):
             # delayed history store phase, so the same checkpoint has HS times [0, B) and DS times
             # [A, B).
             self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(ts_B + 5))
-            self.write(uri, value2, C, start=2, step=2)
-            self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(C + 5))
+            self.write(uri, value2, ts_C, start=2, step=2)
+            self.conn.set_timestamp("stable_timestamp=" + self.timestamp_str(ts_C + 5))
             self.evict(uri)
         finally:
             done.set()
