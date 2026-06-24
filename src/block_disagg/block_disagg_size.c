@@ -51,7 +51,7 @@ __wti_block_disagg_decrease_size(
     } while (!__wt_atomic_cas_uint64(&block_disagg->size, orig, orig < size ? 0 : orig - size));
 
     if (orig < size)
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
           "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64
           ", clamped to 0",
           size, orig);
