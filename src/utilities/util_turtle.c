@@ -26,7 +26,7 @@ usage(void)
 
 /*
  * parse_turtle --
- *     Lenient parse of the disagg turtle blob. Does not enforce fields to be present.
+ *     Lenient parse of the disagg turtle blob.
  */
 static int
 parse_turtle(
@@ -99,18 +99,22 @@ print_turtle(uint64_t lsn, const WT_DISAGG_CHECKPOINT_META *meta)
         printf("metadata_lsn=%" PRIu64 "\n", meta->metadata_lsn);
     else
         printf("metadata_lsn=<missing>\n");
+
     if (meta->has_metadata_checksum)
         printf("metadata_checksum=0x%08" PRIx32 "\n", meta->metadata_checksum);
     else
         printf("metadata_checksum=<missing>\n");
+
     if (meta->has_database_size)
         printf("database_size=%" PRIu64 "\n", meta->database_size);
     else
         printf("database_size=<missing>\n");
+
     if (meta->has_version)
         printf("version=%" PRIu32 "\n", meta->version);
     else
         printf("version=<missing>\n");
+
     if (meta->has_compatible_version)
         printf("compatible_version=%" PRIu32 "\n", meta->compatible_version);
     else
@@ -133,32 +137,29 @@ fetch_latest_turtle(WT_SESSION_IMPL *session, uint64_t *lsnp, WT_ITEM *meta)
     WT_CLEAR(args);
 
     conn = S2C(session);
-    if (conn->disaggregated_storage.npage_log == NULL)
-        WT_RET_MSG(session, EINVAL,
-          "wt turtle requires a disaggregated-storage connection "
-          "(-C disaggregated=(page_log=...,role=\"follower\"))");
 
     page_log = conn->disaggregated_storage.npage_log->page_log;
     if (page_log->pl_get_complete_checkpoint == NULL)
-        WT_RET_MSG(session, ENOTSUP,
-          "this page log does not implement pl_get_complete_checkpoint; "
-          "pass -l <lsn> to dump the metadata page at a known LSN instead");
+        WT_RET_MSG(session, ENOTSUP, "page log does not implement pl_get_complete_checkpoint");
 
     ret = page_log->pl_get_complete_checkpoint(page_log, &session->iface, &args);
     if (ret == 0) {
         *lsnp = args.checkpoint_lsn;
         *meta = args.checkpoint_metadata;
         WT_CLEAR(args.checkpoint_metadata);
-    } else
+    } else {
+        if (ret == WT_NOTFOUND)
+            printf("no complete checkpoint\n");
         __wt_buf_free(session, &args.checkpoint_metadata);
+    }
 
     return (ret);
 }
 
 /*
  * fetch_metadata_page --
- *     plh_get the shared metadata page at page_id=1 and the supplied LSN via the page log handle
- *     the connection already opened.
+ *     plh_get the shared metadata page at page_id=WT_DISAGG_METADATA_MAIN_PAGE_ID and the supplied
+ *     LSN via the page log handle the connection already opened.
  */
 static int
 fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
@@ -171,9 +172,7 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
     conn = S2C(session);
     plh = conn->disaggregated_storage.page_log_meta;
     if (plh == NULL)
-        WT_RET_MSG(session, EINVAL,
-          "wt turtle requires a disaggregated-storage connection "
-          "(-C disaggregated=(page_log=...,role=\"follower\"))");
+        WT_RET_MSG(session, EINVAL, "wt turtle requires a disaggregated-storage connection");
 
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
@@ -188,8 +187,7 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
 /*
  * print_metadata_page --
  *     Print the metadata page bytes. If a checksum is available from the turtle, verify and report
- *     rather than abort on mismatch. Returns true on detected mismatch so the caller can surface a
- *     non-zero exit; the forensic mode passes have_expected_cksum=false and so never returns true.
+ *     rather than abort on mismatch.
  */
 static bool
 print_metadata_page(
@@ -219,11 +217,38 @@ print_metadata_page(
 }
 
 /*
- * dump_asc_turtle --
+ * fetch_and_print_metadata_page --
+ *     Fetch and print the metadata page bytes.
+ */
+static int
+fetch_and_print_metadata_page(
+  WT_SESSION_IMPL *session, uint64_t lsn, bool have_expected_cksum, uint32_t expected_cksum)
+{
+    WT_DECL_RET;
+    WT_ITEM page_item;
+
+    WT_CLEAR(page_item);
+
+    ret = fetch_metadata_page(session, lsn, &page_item);
+    if (ret == WT_NOTFOUND) {
+        printf("metadata page not found at lsn=%" PRIu64 "\n", lsn);
+        ret = 1;
+    } else if (ret == 0) {
+        if (print_metadata_page(lsn, &page_item, have_expected_cksum, expected_cksum))
+            ret = 1;
+    }
+
+    __wt_buf_free(session, &page_item);
+
+    return (ret);
+}
+
+/*
+ * dump_attached_turtle --
  *     Dump the on-disk WiredTiger.turtle file.
  */
 static int
-dump_asc_turtle(WT_SESSION_IMPL *session)
+dump_attached_turtle(WT_SESSION_IMPL *session)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -267,21 +292,19 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META turtle_meta;
-    WT_ITEM meta_blob, page_item;
+    WT_ITEM meta_blob;
     WT_SESSION_IMPL *session_impl;
     uint64_t lsn, lsn_arg;
     int ch;
-    bool have_lsn_arg, suppress_util_err;
+    bool have_lsn_arg;
 
     session_impl = (WT_SESSION_IMPL *)session;
     conn = S2C(session_impl);
     WT_CLEAR(turtle_meta);
     WT_CLEAR(meta_blob);
-    WT_CLEAR(page_item);
     lsn = 0;
     lsn_arg = 0;
     have_lsn_arg = false;
-    suppress_util_err = false;
 
     while ((ch = __wt_getopt(progname, argc, argv, "l:?")) != EOF)
         switch (ch) {
@@ -303,65 +326,36 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
-    /* ASC homes have no page log and store the turtle locally; -l is page-log-only. */
+    /* Attached storage has no page log and stores the turtle locally; -l is page-log-only. */
     if (conn->disaggregated_storage.npage_log == NULL) {
         if (have_lsn_arg) {
             fprintf(
               stderr, "%s: turtle: -l requires a disaggregated-storage connection\n", progname);
             return (usage());
         }
-        ret = dump_asc_turtle(session_impl);
+        ret = dump_attached_turtle(session_impl);
         if (ret != 0)
             (void)util_err(session, ret, "turtle");
-        return (ret == 0 ? 0 : 1);
+        return (ret);
     }
 
     if (have_lsn_arg) {
-        ret = fetch_metadata_page(session_impl, lsn_arg, &page_item);
-        if (ret == WT_NOTFOUND) {
-            printf("metadata page not found at lsn=%" PRIu64 " (may have been pruned)\n", lsn_arg);
-            ret = 1;
-            suppress_util_err = true;
-        } else if (ret == 0) {
-            (void)print_metadata_page(lsn_arg, &page_item, false, 0);
-        }
+        ret = fetch_and_print_metadata_page(session_impl, lsn_arg, false, 0);
         goto err;
     }
 
-    ret = fetch_latest_turtle(session_impl, &lsn, &meta_blob);
-    if (ret == WT_NOTFOUND) {
-        printf("no complete checkpoint yet\n");
-        ret = 0;
-        goto err;
-    }
-    WT_ERR(ret);
-
-    WT_ERR(parse_turtle(session_impl, (const char *)meta_blob.data, meta_blob.size, &turtle_meta));
+    /* No LSN argument provided, fetch the latest turtle. */
+    WT_ERR(fetch_latest_turtle(session_impl, &lsn, &meta_blob));
+    WT_ERR(parse_turtle(session_impl, meta_blob.data, meta_blob.size, &turtle_meta));
     print_turtle(lsn, &turtle_meta);
 
-    if (turtle_meta.has_metadata_lsn) {
-        ret = fetch_metadata_page(session_impl, turtle_meta.metadata_lsn, &page_item);
-        if (ret == WT_NOTFOUND) {
-            printf(
-              "\n"
-              "metadata page not found at lsn=%" PRIu64 " (may have been pruned)\n",
-              turtle_meta.metadata_lsn);
-            ret = 1;
-            suppress_util_err = true;
-        } else if (ret == 0) {
-            if (print_metadata_page(turtle_meta.metadata_lsn, &page_item,
-                  turtle_meta.has_metadata_checksum, turtle_meta.metadata_checksum)) {
-                ret = 1;
-                suppress_util_err = true;
-            }
-        }
-        WT_ERR(ret);
-    }
+    if (turtle_meta.has_metadata_lsn)
+        ret = fetch_and_print_metadata_page(session_impl, turtle_meta.metadata_lsn,
+          turtle_meta.has_metadata_checksum, turtle_meta.metadata_checksum);
 
 err:
     __wt_buf_free(session_impl, &meta_blob);
-    __wt_buf_free(session_impl, &page_item);
-    if (ret != 0 && !suppress_util_err)
+    if (ret != 0)
         (void)util_err(session, ret, "turtle");
     return (ret == 0 ? 0 : 1);
 }
