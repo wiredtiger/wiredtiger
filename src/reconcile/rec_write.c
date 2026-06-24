@@ -3356,7 +3356,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * tracked page ID so the next reconciliation assigns a fresh one; without this, the next wrapup
      * would attempt to free an already-discarded page ID. Skip when nothing reached PALI
      * (block_cookie == NULL, e.g. a pre-write failpoint): the existing page ID is still live and
-     * must not be orphaned.
+     * must not be orphaned. test_disagg_checkpoint_size18 catches a regression here.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->addr.block_cookie != NULL &&
@@ -3376,6 +3376,20 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
           page->disagg_info->block_meta.cumulative_size > 0)
             __wt_block_disagg_obsolete_delta_chain(
               session, page->disagg_info->block_meta.cumulative_size);
+        /*
+         * The page's on-disk chain has now been removed from the running byte total -- by the
+         * obsolete above for a failed full image, or by the failed block's discard (whose cookie
+         * carries the full cumulative size) for a failed delta. Clear the tracked cumulative size
+         * so the next reconciliation's wrapup does not obsolete the same chain a second time and
+         * underflow the total. Then discard the previous reconciliation's replacement cookie and
+         * disk image, mirroring the cleanup the success path performs; otherwise the next wrapup
+         * still sees the stale replace result and re-runs its cleanup against a chain this err-path
+         * already obsoleted, tripping the cookie-size sanity check in diagnostic builds.
+         */
+        page->disagg_info->block_meta.cumulative_size = 0;
+        __wt_free(session, page->modify->mod_replace.block_cookie);
+        page->modify->mod_replace.block_cookie_size = 0;
+        __wt_free(session, page->modify->mod_disk_image);
         /*
          * ref->addr still carries a cookie for the now-dead page id; a later wrapup that tries to
          * free it would produce a second discard in the chain and fail. Clear the stale reference
