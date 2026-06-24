@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# fast_truncate
-# recovery
+# checkpoint:recovery
+# truncate
 # [END_TAGS]
 
 import wiredtiger
