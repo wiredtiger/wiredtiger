@@ -726,17 +726,22 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     if (LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        /*
-         * If precise checkpoint is enabled, set the reconciliation's pinned id to the checkpoint's
-         * pinned id. This forbids eviction to evict anything that is not visible to the current
-         * checkpoint.
-         */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-            r->rec_start_pinned_id =
-              __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
-            if (r->rec_start_pinned_id == WT_TXN_NONE)
+            /*
+             * Prefer the published checkpoint snapshot's snap_min: it may be larger than the
+             * checkpoint's pinned_id. Fall back to pinned_id, then last_running.
+             */
+            uint64_t snap_min = __wt_atomic_load_uint64_acquire(
+              &conn->ckpt_reconcile_threads->checkpoint_snapshot.snap_min);
+            if (snap_min != WT_TXN_NONE)
+                r->rec_start_pinned_id = snap_min;
+            else {
                 r->rec_start_pinned_id =
-                  __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
+                  __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
+                if (r->rec_start_pinned_id == WT_TXN_NONE)
+                    r->rec_start_pinned_id =
+                      __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
+            }
         } else
             r->rec_start_pinned_id = __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
 

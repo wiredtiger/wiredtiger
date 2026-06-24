@@ -82,7 +82,6 @@ static const char *const __stats_dsrc_desc[] = {
   "is running",
   "cache: eviction gave up due to no progress being made",
   "cache: eviction server skipped the pages when prefetching",
-  "cache: eviction visibility checks using precise checkpoint snapshot instead of oldest ID",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
   "cache: eviction walk pages queued that were dirty",
@@ -562,7 +561,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
     stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_blocked_prefetched = 0;
-    stats->cache_eviction_checkpoint_snapshot_visible = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
     stats->cache_eviction_pages_queued_dirty = 0;
@@ -1013,8 +1011,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_blocked_remove_hs_race_with_checkpoint;
     to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
     to->cache_eviction_blocked_prefetched += from->cache_eviction_blocked_prefetched;
-    to->cache_eviction_checkpoint_snapshot_visible +=
-      from->cache_eviction_checkpoint_snapshot_visible;
     to->cache_eviction_pages_queued_updates += from->cache_eviction_pages_queued_updates;
     to->cache_eviction_pages_queued_clean += from->cache_eviction_pages_queued_clean;
     to->cache_eviction_pages_queued_dirty += from->cache_eviction_pages_queued_dirty;
@@ -1491,8 +1487,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_no_progress);
     to->cache_eviction_blocked_prefetched +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_prefetched);
-    to->cache_eviction_checkpoint_snapshot_visible +=
-      WT_STAT_DSRC_READ(from, cache_eviction_checkpoint_snapshot_visible);
     to->cache_eviction_pages_queued_updates +=
       WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_updates);
     to->cache_eviction_pages_queued_clean +=
@@ -2129,7 +2123,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction threshold dirty trigger multiplied by 100 for precision",
   "cache: eviction threshold updates target multiplied by 100 for precision",
   "cache: eviction threshold updates trigger multiplied by 100 for precision",
-  "cache: eviction visibility checks using precise checkpoint snapshot instead of oldest ID",
   "cache: eviction walk most recent sleeps for checkpoint handle gathering",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
@@ -3238,7 +3231,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_threshold_dirty_trigger = 0;
     stats->eviction_threshold_updates_target = 0;
     stats->eviction_threshold_updates_trigger = 0;
-    stats->cache_eviction_checkpoint_snapshot_visible = 0;
     stats->eviction_walk_sleeps = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
@@ -4359,8 +4351,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_threshold_updates_target);
     to->eviction_threshold_updates_trigger +=
       WT_STAT_CONN_READ(from, eviction_threshold_updates_trigger);
-    to->cache_eviction_checkpoint_snapshot_visible +=
-      WT_STAT_CONN_READ(from, cache_eviction_checkpoint_snapshot_visible);
     to->eviction_walk_sleeps += WT_STAT_CONN_READ(from, eviction_walk_sleeps);
     to->cache_eviction_pages_queued_updates +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_updates);

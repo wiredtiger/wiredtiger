@@ -1125,8 +1125,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     /*
      * For parallel checkpoints and precise checkpoints, create a private read-only copy of the
      * checkpoint snapshot. Parallel workers read from this instead of live txn->snapshot_data.
-     * Precise checkpoint eviction reads from this to use full snapshot visibility rather than
-     * snapshot_min alone.
+     * Eviction reads from this to use snap_min as a more precise on-page visibility bound.
      */
     if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) || F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -1149,9 +1148,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
           &ckpt_threads->checkpoint_snapshot_array));
 
         /*
-         * Copy the checkpoint snapshot. Write snap_min last as a release flag: eviction checks
-         * snap_min != WT_TXN_NONE before reading snap_max and the snapshot array, so all other
-         * fields must be visible before snap_min is set.
+         * Copy the checkpoint snapshot. Write snap_min last so that any parallel worker that
+         * observes a valid snap_min is guaranteed to see the fully written snap_max and snapshot
+         * array.
          */
         dst->snap_max = src->snap_max;
         dst->snapshot_count = count;
@@ -1839,11 +1838,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
-     * the checkpoint_pinned flag. Also invalidate the globally published checkpoint snapshot so
-     * that eviction reverts to the standard oldest-ID bound.
+     * the checkpoint_pinned flag. Also invalidate the published checkpoint snapshot so that
+     * eviction reverts to the standard pinned-ID bound.
      */
     __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
-    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) || WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) || F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
         __wt_atomic_store_uint64_release(
           &conn->ckpt_reconcile_threads->checkpoint_snapshot.snap_min, WT_TXN_NONE);
 

@@ -1032,11 +1032,9 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 static WT_INLINE bool
 __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
     uint64_t oldest_id;
 
-    conn = S2C(session);
     txn = session->txn;
 
     /* Make sure that checkpoint cursor transactions only read checkpoints, except for metadata. */
@@ -1068,20 +1066,6 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
           __wt_txn_visible_id_snapshot(id, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
             txn->snapshot_data.snapshot, txn->snapshot_data.snapshot_count));
 
-    /*
-     * When precise checkpoint is active and this is an eviction thread, use the full checkpoint
-     * snapshot rather than the oldest ID. This lets eviction reclaim pages visible to the
-     * checkpoint even if they post-date snapshot_min. Restrict to eviction sessions so that
-     * non-eviction callers (history store, sync, cursor ops) are unaffected.
-     */
-    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && F_ISSET(session, WT_SESSION_EVICTION)) {
-        WT_TXN_SNAPSHOT *ckpt_snap = &conn->ckpt_reconcile_threads->checkpoint_snapshot;
-        if (__wt_atomic_load_uint64_acquire(&ckpt_snap->snap_min) != WT_TXN_NONE) {
-            WT_STAT_CONN_INCR(session, cache_eviction_checkpoint_snapshot_visible);
-            return (__wt_txn_visible_id_snapshot(id, ckpt_snap->snap_min, ckpt_snap->snap_max,
-              ckpt_snap->snapshot, ckpt_snap->snapshot_count));
-        }
-    }
     oldest_id = __wt_txn_oldest_id(session);
 
     return (id < oldest_id);
