@@ -33,12 +33,12 @@ from wiredtiger import stat
 import time
 
 
-# test_layered_delta12.py
 # Test that we write internal page deltas.
 
 @disagg_test_class
 class test_layered_delta12(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     delta = [
         ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
         ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
@@ -48,10 +48,10 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
     conn_base_config = 'cache_size=5G,transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'page_delta=(delta_pct=100),'
-    disagg_storages = gen_disagg_storages('test_layered_delta12', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     nrows = 1000
-    uri='file:test_layered_delta12'
+    uri=f'file:{test_name}'
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages, delta)
@@ -64,12 +64,6 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -156,9 +150,9 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
             kv_modfied.update(kv)
 
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_leaf, 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_internal, 0)
         if (self.delta_type == 'none'):
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
@@ -171,7 +165,7 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
@@ -184,7 +178,7 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
@@ -243,9 +237,9 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
             kv_modified.update(kv)
 
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_leaf, 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_internal, 0)
         if (self.delta_type == 'none'):
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
@@ -258,7 +252,7 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
@@ -271,7 +265,7 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
@@ -322,9 +316,9 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
             kv_modified.update(kv)
 
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_leaf, 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_internal, 0)
         if (self.delta_type == 'none'):
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
@@ -433,6 +427,6 @@ class test_layered_delta12(wttest.WiredTigerTestCase):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)

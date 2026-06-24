@@ -34,6 +34,7 @@
 #ifdef HAVE_SETRLIMIT
 #include <sys/resource.h>
 #endif
+#include <setjmp.h>
 #include <signal.h>
 #include <sys/socket.h>
 
@@ -71,11 +72,11 @@
 #define SODIUM_TESTKEY "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 #undef M
-#define M(v) ((v)*WT_MILLION) /* Million */
+#define M(v) ((v) * WT_MILLION) /* Million */
 #undef KILOBYTE
-#define KILOBYTE(v) ((v)*WT_KILOBYTE)
+#define KILOBYTE(v) ((v) * WT_KILOBYTE)
 #undef MEGABYTE
-#define MEGABYTE(v) ((v)*WT_MEGABYTE)
+#define MEGABYTE(v) ((v) * WT_MEGABYTE)
 
 /* Format isn't careful about path buffers, an easy to fix hard-coded length. */
 #define MAX_FORMAT_PATH 1024
@@ -402,7 +403,7 @@ typedef struct {
     struct col_insert {
         uint32_t insert_list[256]; /* Inserted column-store records, maps one-to-one to tables */
         u_int insert_list_cnt;
-    } * col_insert;
+    } *col_insert;
 
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
@@ -512,7 +513,6 @@ wt_timestamp_t replay_read_ts(TINFO *);
 void replay_rollback(TINFO *);
 void replay_run_begin(WT_SESSION *);
 void replay_run_end(WT_SESSION *);
-bool replay_stale_read_ts(TINFO *);
 int timestamp_query(const char *, wt_timestamp_t *);
 void timestamp_teardown(WT_SESSION *);
 void trace_config(const char *);

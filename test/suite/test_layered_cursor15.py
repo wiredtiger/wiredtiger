@@ -30,8 +30,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from itertools import permutations, product
 
-# test_layered_cursor15.py
-#    Test layered cursor iteration.
+# Test layered cursor iteration.
 #
 # A follower layered table is more complex than on a leader. In a layered table on a follower
 # there are both ingest and stable tables. Assuming we have either a fixed timestamp, or aren't
@@ -202,7 +201,7 @@ class test_layered_cursor15(wttest.WiredTigerTestCase):
         ts = 100
         uri_sits = []
         for sit in sits:
-            uri = 'table:' + ''.join(sit)
+            uri = 'table:t' + ''.join(sit)
             self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
             uri_sits.append((uri, sit))
 

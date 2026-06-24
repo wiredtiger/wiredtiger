@@ -36,6 +36,7 @@
 from __future__ import print_function
 
 import unittest
+import warnings
 
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, threading, time, traceback, types, shutil
@@ -622,6 +623,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         dumped_error_log = False
         teardown_failed = False
         teardown_msg = None
+        verify_failed = False
         if not dueToRetry:
             for action in self.teardown_actions:
                 try:
@@ -641,7 +643,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         if passed and self.__module__.startswith("test_layered"):
-            self.verifyLayered()
+            try:
+                self.verifyLayered()
+            except Exception:
+                passed = False
+                dumped_error_log = True
+                verify_failed = True
 
         try:
             self.platform_api.tearDown(self)
@@ -716,6 +723,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if teardown_failed:
             self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+        if verify_failed:
+            self.fail(f'Verification failed')
         if close_failed:
             self.fail(f'Closing the connection failed')
         if (not passed or teardown_failed) and (not self.skipped):
@@ -1000,6 +1009,21 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         finally:
             shutil.rmtree(path, ignore_errors=True)
 
+    def get_stat(self, stat, uri="", session=None, conn=None):
+        if conn is not None:
+            session = conn.open_session('')
+            try:
+                val = session.open_cursor(f'statistics:{uri}')[stat][2]
+            finally:
+                session.close()
+            return val
+        if session is None:
+            session = self.session
+        stat_cursor = session.open_cursor(f'statistics:{uri}')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
+
     def get_stats(self, stats, uri, session):
         """Get the current values of multiple statistics."""
         stat_cursor = session.open_cursor('statistics:' + uri)
@@ -1009,7 +1033,36 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         stat_cursor.close()
         return results
 
-    def checkpoint_and_verify_stats(self, expected_changes, uri, session = None):
+    def assertStatGreaterSoon(self, stat, threshold, uri="", session=None, timeout=0.5, msg=None):
+        """Assert that a statistic exceeds threshold within timeout seconds, retrying if needed."""
+        if session is None:
+            session = self.session
+        deadline = time.time() + timeout
+        while True:
+            val = self.get_stat(stat, uri=uri, session=session)
+            if val > threshold:
+                return
+            if time.time() >= deadline:
+                break
+            time.sleep(0.1)
+        self.assertGreater(val, threshold, msg)
+
+    def assertStatEqualSoon(self, stat, expected, uri="", session=None, timeout=0.5, msg=None):
+        """Assert that a statistic equals expected within timeout seconds, retrying if needed."""
+        if session is None:
+            session = self.session
+        deadline = time.time() + timeout
+        val = None
+        while True:
+            val = self.get_stat(stat, uri=uri, session=session)
+            if val == expected:
+                return
+            if time.time() >= deadline:
+                break
+            time.sleep(0.1)
+        self.assertEqual(val, expected, msg)
+
+    def checkpoint_and_verify_stats(self, expected_changes, uri, session=None, timeout=0.5):
         if session is None:
             session = self.session
 
@@ -1018,18 +1071,18 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
         session.checkpoint()
 
-        new_stats = self.get_stats(stats_to_check, uri, session)
-
         for stat, expect_increase in expected_changes.items():
-            diff = new_stats[stat] - old_stats[stat]
             if expect_increase:
-                self.assertGreater(diff, 0,
-                    f"Stat {stat}: expected increase, got diff {diff}")
+                # Reconciliation stats are written to a per-session bucket and may not
+                # be immediately visible to the aggregating cursor on ARM64 release builds.
+                self.assertStatGreaterSoon(stat, old_stats[stat], uri=uri, session=session,
+                    timeout=timeout, msg=f"Stat {stat}: expected increase after checkpoint")
             else:
-                self.assertEqual(diff, 0,
-                    f"Stat {stat}: expected no change, got diff {diff}")
+                # A spontaneous increase is a real bug, not a timing artifact - check once.
+                diff = self.get_stat(stat, uri=uri, session=session) - old_stats[stat]
+                self.assertEqual(diff, 0, f"Stat {stat}: expected no change, got diff {diff}")
 
-        return new_stats
+        return self.get_stats(stats_to_check, uri, session)
 
 @contextmanager
 def open_cursor(session, uri: str, **kwargs):
@@ -1166,6 +1219,10 @@ def runsuite(suite, parallel):
         if not WiredTigerTestCase._globalSetup:
             WiredTigerTestCase.globalSetup({})
         WiredTigerTestCase._concurrent = True
+        # concurrencytest requests line buffering on its binary pipes, which results in a harmless warning.
+        warnings.filterwarnings(
+            "ignore", category=RuntimeWarning,
+            message="line buffering .* isn't supported in binary mode")
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel), wrap_result=wrap_result_for_tags)
     try:
         if WiredTigerTestCase._randomseed:

@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_checkpoint04.py
 # Test that the checkpoints timing statistics are populated as expected.
 
 import wttest
@@ -63,12 +62,6 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             cursor[ds.key(i)] = value
             session.commit_transaction()
         cursor.close()
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def test_checkpoint_stats(self):
         nrows = 100

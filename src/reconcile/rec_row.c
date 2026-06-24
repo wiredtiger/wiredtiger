@@ -315,12 +315,12 @@ __rec_pack_delta_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV 
  *     Pack a delta key and a delta value for a leaf page.
  */
 int
-__wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
+__wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd,
+  WT_ITEM *key, WT_ITEM *custom_value)
 {
     WT_CURSOR_BTREE *cbt;
-    WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
-    WT_ITEM *key, value;
+    WT_ITEM value;
     WT_TIME_WINDOW *twp, tw;
     size_t custom_value_size, new_size;
     uint8_t flags, *p;
@@ -332,7 +332,6 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
     WT_CLEAR(value);
 
     /* Get the key data and pack it into a key cell. */
-    WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wti_rec_get_row_leaf_key(session, S2BT(session), r, supd->ins, supd->rip, key));
     WT_ERR(__rec_cell_build_leaf_key(session, r, key->data, key->size, true, &ovfl_key));
     WT_ASSERT(session, !ovfl_key);
@@ -371,13 +370,19 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
         twp = &tw;
     }
 
-    /* Pack the flags and delta value into a custom value. */
-    WT_ERR(
-      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
-    WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
+    /*
+     * The delta leaf value format is one raw byte followed by raw item data with no length prefix,
+     * so the encoded size is always exactly 1 + the value length. Encode directly rather than using
+     * the generic struct packing functions to avoid format string parsing and variadic argument
+     * overhead on this per-key hot path.
+     */
+    custom_value_size = 1 + value.size;
+    WT_ERR(__wt_buf_init(session, custom_value, custom_value_size));
+    p = custom_value->mem;
+    *p++ = flags;
+    if (value.size > 0)
+        memcpy(p, value.data, value.size);
     custom_value->size = custom_value_size;
-    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value_size,
-      WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
@@ -398,8 +403,6 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
     __rec_delta_cell_tw_stats(r, twp);
 
 err:
-    __wt_scr_free(session, &key);
-    __wt_scr_free(session, &custom_value);
     return (ret);
 }
 
@@ -1167,7 +1170,7 @@ __wti_rec_row_leaf(
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
                 if (!upd_select.was_modify && __rec_row_garbage_collect_tw_eligible(r, twp)) {
                     upd = &upd_tombstone;
-                    r->key_removed_from_disk_image = true;
+                    ++r->keys_removed_from_disk_image_count;
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
                 }
             } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
@@ -1180,7 +1183,7 @@ __wti_rec_row_leaf(
                 if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
                   !upd_select.skip_aborted_prepared_value) {
                     upd = &upd_tombstone;
-                    r->key_removed_from_disk_image = true;
+                    ++r->keys_removed_from_disk_image_count;
                 }
             }
         }
@@ -1189,6 +1192,12 @@ __wti_rec_row_leaf(
         if (upd == NULL) {
             /* Clear the on-disk cell time window if it is obsolete. */
             __wti_rec_time_window_clear_obsolete(session, NULL, vpack, r);
+            /*
+             * A removed-overflow cell must never be written to disk: the backing block is already
+             * gone so copying its in-memory marker produces a corrupt page image.
+             */
+            WT_ASSERT(session,
+              vpack->cell == NULL || __wt_cell_type_raw(vpack->cell) != WT_CELL_VALUE_OVFL_RM);
 
             /*
              * When the page was read into memory, there may not have been a value item.
@@ -1281,7 +1290,7 @@ __wti_rec_row_leaf(
 
                 /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
-                r->key_removed_from_disk_image = true;
+                ++r->keys_removed_from_disk_image_count;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
