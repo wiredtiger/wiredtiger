@@ -145,9 +145,8 @@ usage(void)
       "load an object from a text file", "page", "read a single page through WT_PAGE_LOG",
       "printlog", "display the database log", "read", "read values from an object", "salvage",
       "salvage a file", "stat", "display statistics for an object", "truncate",
-      "truncate an object, removing all content", "turtle",
-      "dump the disaggregated-storage turtle blob", "verify", "verify an object", "write",
-      "write values to an object", NULL, NULL};
+      "truncate an object, removing all content", "turtle", "dump the turtle file", "verify",
+      "verify an object", "write", "write values to an object", NULL, NULL};
 
     fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
       WIREDTIGER_VERSION_MINOR);

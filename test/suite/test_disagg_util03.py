@@ -33,12 +33,7 @@ from helper_disagg import DisaggConfigMixin
 from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
-# Test the `wt turtle` command. Most cases exercise the disaggregated-storage
-# path against a palite-backed cell: a leader writes a checkpoint, then `wt
-# turtle` is run as a subprocess in follower mode to inspect the turtle blob
-# returned by pl_get_complete_checkpoint. test_asc_turtle covers the
-# attached-storage path against a plain WT home, where the turtle lives in the
-# local WiredTiger.turtle file.
+# Test the `wt turtle` command.
 @wttest.skip_for_hook("tiered", "wt turtle does not run under tiered hook")
 class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
     uri = "layered:wt_turtle_test"
@@ -53,7 +48,6 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
     def _follower_config(self):
         return self.extensionsConfig() + ',disaggregated=(role="follower")'
 
-    # Returns (stdout, stderr); failure=True asserts a non-zero exit.
     def _run_wt_turtle(self, *args, failure=False):
         cmd = ['-C', self._follower_config(), 'turtle'] + list(args)
         self.runWt(cmd, outfilename='wt.out', errfilename='wt.err',
@@ -100,13 +94,11 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         return int(m.group(1))
 
     def test_forensic_lsn(self):
-        # First checkpoint, then snapshot its metadata_lsn.
         self._populate_and_checkpoint()
         self.close_conn()
         stdout_first, _ = self._run_wt_turtle()
         first_metadata_lsn = self._extract_metadata_lsn(stdout_first)
 
-        # Reopen the leader, write different data, take a second checkpoint.
         self.reopen_conn(config=self.conn_config)
         c = self.session.open_cursor(self.uri)
         for i in range(self.nrows):
@@ -133,10 +125,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self.assertNotIn('checksum=MISMATCH', stdout_old)
 
     def test_no_checkpoint_yet(self):
-        # Step down so close_conn does not write a shutdown checkpoint that
-        # would populate palite's checkpoints row; without the step-down,
-        # pl_get_complete_checkpoint returns success and the WT_NOTFOUND branch
-        # under test never fires.
+        # Step down so close_conn does not write a shutdown checkpoint.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
@@ -148,17 +137,13 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self._populate_and_checkpoint()
         self.close_conn()
 
-        # Zero LSN is rejected at argument parsing time.
         _, stderr_zero = self._run_wt_turtle('-l', '0', failure=True)
         self.assertIn('usage:', stderr_zero)
 
-        # Non-numeric LSN.
         _, stderr_bad = self._run_wt_turtle('-l', 'abc', failure=True)
         self.assertIn('usage:', stderr_bad)
 
     def test_asc_turtle(self):
-        # Running wt turtle against a plain (non-disagg) WT home dumps the
-        # on-disk WiredTiger.turtle file verbatim.
         self.close_conn()
         plain_home = os.path.join(self.home, 'plain_home')
         os.mkdir(plain_home)
@@ -186,12 +171,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self._populate_and_checkpoint()
         self.close_conn()
 
-        # LSN 1 is below any real LSN palite assigns; the palite plh_get call returns count=0.
+        # LSN 1 is below any real LSN palite assigns.
         stdout, _ = self._run_wt_turtle('-l', '1', failure=True)
         self.assertIn('metadata page not found at lsn=1 (may have been pruned)', stdout)
-        # The success-path header always contains a parenthesized body, so check that
-        # prefix rather than a literal `=== metadata page ===` that never appears.
         self.assertNotIn('=== metadata page (', stdout)
-
-if __name__ == '__main__':
-    wttest.run()

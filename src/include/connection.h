@@ -232,13 +232,19 @@ struct __wt_page_delta_config {
  *     Checkpoint metadata structure for disaggregated storage.
  */
 typedef struct __wt_disagg_checkpoint_meta {
+    bool has_metadata_lsn;
     uint64_t metadata_lsn; /* The LSN of the metadata page. */
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
 
+    bool has_database_size;
     uint64_t database_size; /* The total database size. */
-    uint32_t version;       /* The version of the checkpoint_meta. */
+
+    bool has_version;
+    uint32_t version; /* The version of the checkpoint_meta. */
+
+    bool has_compatible_version;
     uint32_t
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
 } WT_DISAGG_CHECKPOINT_META;
