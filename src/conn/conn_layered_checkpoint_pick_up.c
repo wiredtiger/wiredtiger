@@ -922,7 +922,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
 
-    /* Update the pinned timestamp. */
+    /*
+     * Refresh the pinned timestamp before checking it against the checkpoint's oldest timestamp.
+     * The cached value may lag behind the actual minimum held by active transactions; using a stale
+     * (lower) value here would cause a false panic below.
+     */
     __wt_txn_update_pinned_timestamp(session, false);
     uint64_t pinned_timestamp;
     __wt_txn_pinned_timestamp(session, &pinned_timestamp);
