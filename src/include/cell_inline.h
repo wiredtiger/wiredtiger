@@ -1671,10 +1671,10 @@ __cell_redo_page_del_cleanup(
 
     /*
      * If there is no disk image the parent page was never reconciled, meaning the page_del was
-     * either created in-memory this run or moved here from an old parent during a B-tree split.
-     * In either case, skip the write-generation guard and always run the cleanup: stale
-     * previous-run txn IDs get cleared, and clearing a committed current-run txnid to WT_TXN_NONE
-     * is semantically correct (globally visible).
+     * either created in-memory this run or moved here from an old parent during a B-tree split. In
+     * either case, skip the write-generation guard and always run the cleanup: stale previous-run
+     * txn IDs get cleared, and clearing a committed current-run txnid to WT_TXN_NONE is
+     * semantically correct (globally visible).
      */
     if (dsk != NULL) {
         write_gen = S2BT(session)->base_write_gen;
