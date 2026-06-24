@@ -36,7 +36,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #   Internal disagg paths (notably checkpoint pick-up and role-switch step-up)
 #   open stable files via a suffix URI of the form
 #   file:X.wt_stable/WiredTigerCheckpoint.N.  The btree open path strips the
-#   checkpoint suffix and recognises the open as a checkpoint-cursor open, but
+#   checkpoint suffix and recognizes the open as a checkpoint-cursor open, but
 #   the block manager may reuse a cached block handle already held by a live
 #   writer for the same base file.  Without the guard, the open would
 #   unconditionally reset the shared running size total to the checkpoint's

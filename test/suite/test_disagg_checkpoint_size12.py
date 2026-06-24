@@ -86,8 +86,8 @@ class test_disagg_checkpoint_size12(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         size_initial = self.get_checkpoint_size()
         self.assertGreater(size_initial, 0)
 
-        # Warm-up: update + evict cycles without the failpoint, to push
-        # cache_eviction_split_leaf upward.
+        # Warm-up: update + evict cycles without the failpoint, to drive
+        # leaf pages split during eviction upward.
         for i in range(cycles):
             start = (i * band) % nrows
             char = chr(ord('B') + (i % 20))

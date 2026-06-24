@@ -60,8 +60,8 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #       page_id and writes a full image.
 #
 #   This test verifies that after a post-page-log delta write failure:
-#     1. rec_free_page_id_due_to_failed_replacement_reconciliation is
-#        incremented (the delta branch of the reconciliation error path was
+#     1. the free page ID due to failed page replacement reconciliation scenario is
+#        taken (the delta branch of the reconciliation error path was
 #        exercised).
 #     2. The recovery checkpoint size is not corrupted -- a bug that fails to
 #        clear the page's persistent flag would pass the page's block metadata

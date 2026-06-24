@@ -63,8 +63,8 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #       timing_stress_for_test=[failpoint_rec_before_wrapup] enabled, a later
 #       failed full-image write exercises the assertion path.  Verifies:
 #         - The process does not abort (assertion is not reached).
-#         - rec_free_page_id_due_to_failed_replacement_reconciliation > 0
-#           (the reconciliation error path ran at least once).
+#         - The free page ID due to failed page replacement reconciliation scenario, confirmed
+#           via its stat counter, shows the reconciliation error path ran at least once.
 #         - Checkpoint size is not inflated by a leaked chain's cumulative size.
 #
 #     test_skip_write_wrapup_aggregated_flag

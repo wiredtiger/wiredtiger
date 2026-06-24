@@ -65,8 +65,8 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   This test verifies the broader accounting invariant: after repeated
 #   save-update-restore eviction cycles followed by full-image checkpoint writes,
 #   checkpoint size remains stable and does not grow with each cycle.
-#   cache_scrub_restore > 0 confirms the save-update-restore path was reached
-#   (step 1).
+#   The reconciled pages scrubbed and added back to the cache clean scenario, confirmed via its
+#   stat counter, shows the save-update-restore path was reached (step 1).
 
 @disagg_test_class
 class test_disagg_checkpoint_size10(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
@@ -102,11 +102,12 @@ class test_disagg_checkpoint_size10(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #   1. Write initial rows and checkpoint (full-image baseline).
     #   2. Partial update + checkpoint to build a delta chain so
     #      the chain's cumulative size is > 0 on disk.
-    #   3. Loop until cache_scrub_restore > 0:
+    #   3. Loop until the reconciled pages scrubbed and added back to the cache clean scenario
+    #      fires (per its stat counter):
     #      a. Open session_a and write uncommitted updates to the page.
     #         Evict the page.  Uncommitted updates cannot go to the history
-    #         store, so eviction falls back to the save-update-restore path.
-    #         cache_scrub_restore is incremented.
+    #         store, so eviction falls back to the save-update-restore path,
+    #         exercising the reconciled pages scrubbed and added back to the cache clean path.
     #      b. Rollback session_a.
     #      c. Switch to delta_pct=1 to force a full-image write, then
     #         run a checkpoint.  The reconciliation commit path enters the
@@ -187,7 +188,8 @@ class test_disagg_checkpoint_size10(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         size_final = self.get_checkpoint_size()
 
-        # cache_scrub_restore > 0: the save-update-restore path was reached.
+        # The reconciled pages scrubbed and added back to the cache clean scenario, confirmed via
+        # its stat counter, shows the save-update-restore path was reached.
         self.assertGreater(self.get_stat(scrub_stat), 0,
             'cache_scrub_restore should be > 0: the save-update-restore path was not triggered')
 

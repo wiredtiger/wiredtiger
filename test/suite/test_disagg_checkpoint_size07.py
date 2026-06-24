@@ -42,8 +42,8 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #
 # This test enables timing_stress_for_test=[failpoint_rec_before_wrapup], which fires
 # 1% of the time during eviction reconciliation (WT_REC_EVICT), and loops until the
-# rec_free_page_id_due_to_failed_replacement_reconciliation stat increments -- the
-# signal that the error path ran.
+# free page ID due to failed page replacement reconciliation scenario increments its
+# statistic -- the signal that the error path ran.
 
 @disagg_test_class
 class test_disagg_checkpoint_size07(DisaggSizeTestMixin, wttest.WiredTigerTestCase):
@@ -129,7 +129,7 @@ class test_disagg_checkpoint_size07(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # The first several evictions succeed and re-establish a single-page replacement
         # result in cache.  Once that is set, a subsequent eviction that hits the 1%
         # failpoint enters the reconciliation error path with all three conditions true
-        # and increments rec_free_page_id_due_to_failed_replacement_reconciliation.
+        # and exercises the free page ID due to failed page replacement reconciliation scenario.
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
         max_iters = 500
         for i in range(max_iters):

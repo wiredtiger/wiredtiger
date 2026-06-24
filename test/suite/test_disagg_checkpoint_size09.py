@@ -65,9 +65,10 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #        assertion in the running-total decrement would trip.
 #
 #   Verification:
-#     - cache_scrub_restore > 0 proves the page re-instantiation path was reached.
-#     - rec_free_page_id_due_to_failed_replacement_reconciliation > 0 proves
-#       the reconciliation error path ran without crashing.
+#     - The reconciled pages scrubbed and added back to the cache clean scenario, confirmed via
+#       its stat counter, shows the page re-instantiation path was reached.
+#     - The free page ID due to failed page replacement reconciliation scenario, confirmed via
+#       its stat counter, shows the reconciliation error path ran without crashing.
 #     - Checkpoint size after recovery is not inflated by a leaked chain's
 #       cumulative size.
 
@@ -113,8 +114,8 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #      a. Open session_a and write uncommitted updates to the page.
     #         Evict the page.  Because uncommitted updates from session_a cannot
     #         go to the history store, eviction falls back to the save-update-restore
-    #         path and calls the page re-instantiation path.  cache_scrub_restore
-    #         is incremented.
+    #         path and calls the page re-instantiation path.  The reconciled pages
+    #         scrubbed and added back to the cache clean scenario is exercised.
     #      b. Rollback session_a.  The page retains only aborted updates plus
     #         the previously committed 'B' value as a durable update.
     #      c. Checkpoint.  The durable 'B' value is unchanged, so
@@ -161,8 +162,8 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             # (a) Uncommitted write forces the save-update-restore path on eviction.
             #     Uncommitted updates from session_a cannot be written to the history
             #     store (they may still be rolled back), so eviction keeps the page
-            #     in memory via the page re-instantiation path and increments
-            #     cache_scrub_restore.
+            #     in memory via the page re-instantiation path, exercising the
+            #     reconciled pages scrubbed and added back to the cache clean scenario.
             session_a = self.conn.open_session()
             session_a.begin_transaction()
             ca = session_a.open_cursor(self.uri)

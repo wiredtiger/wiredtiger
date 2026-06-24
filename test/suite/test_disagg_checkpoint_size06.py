@@ -141,7 +141,7 @@ class test_disagg_checkpoint_size06(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     # test_size_after_page_id_invalidation
     # -----------------------------------------------------------------------
     # Directly exercises the scenario where page_id is invalidated during eviction
-    # (triggering the rec_free_page_id_due_to_failed_replacement_reconciliation stat)
+    # (triggering the free page ID due to failed page replacement reconciliation scenario)
     # and verifies the subsequent checkpoint size is consistent.
     #
     # The reconciliation error path is reached when:
