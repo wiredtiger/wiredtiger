@@ -1172,7 +1172,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
         __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
 
     /* Clear the step-down timestamp after stepping down. */
-    __wt_atomic_store_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp, WT_TS_NONE);
+    __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
 }
 
