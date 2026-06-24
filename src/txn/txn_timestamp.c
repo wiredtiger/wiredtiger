@@ -379,6 +379,18 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
 
+    /*
+     * The step-down timestamp is only valid on a disaggregated leader and cannot be re-armed while
+     * one is already set. These are hard invariants, so validate them even under force.
+     */
+    if (has_step_down) {
+        if (!S2C(session)->layered_table_manager.leader)
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down timestamp can only be set on a disaggregated leader");
+        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE)
+            WT_RET_MSG(session, EINVAL, "set_timestamp: step down timestamp is already set");
+    }
+
     if (force) {
         WT_STAT_CONN_INCR(session, txn_set_ts_force);
         goto set;
@@ -496,9 +508,6 @@ set:
      * cannot be re-armed while one is already set.
      */
     if (has_step_down) {
-        WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
-        WT_ASSERT(
-          session, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) == WT_TS_NONE);
         __wt_atomic_store_uint64_relaxed(&txn_global->step_down_timestamp, step_down_ts);
         __wt_verbose_timestamp(session, step_down_ts, "Updated global step down timestamp");
     }
