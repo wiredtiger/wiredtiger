@@ -56,7 +56,7 @@ class test_truncate30(wttest.WiredTigerTestCase):
     # replays those operations, which triggers the leaf/internal page splits
     # that create the dsk==NULL pages we need to exercise the fix.
     #
-    # cache_size=1MB (the WiredTiger minimum).  With ~1 282 dirty leaf pages
+    # cache_size=1MB (the WiredTiger minimum). With ~1 282 dirty leaf pages
     # each expanding from 3-char to 15-char values (~1.3 KB per page in memory),
     # total in-memory data (~1.7 MB) exceeds the 1 MB budget, forcing eviction
     # to run during recovery and reconcile/split those leaves.
@@ -85,9 +85,9 @@ class test_truncate30(wttest.WiredTigerTestCase):
         lo.close()
         hi.close()
 
-        # Update every non-truncated key with a 15-char value.  Each leaf page
+        # Update every non-truncated key with a 15-char value. Each leaf page
         # (512 B, ~39 keys at 3 chars) will reconstitute to ~1170 B during
-        # eviction, forcing a split into 2-3 new pages.  With ~1282 dirty leaf
+        # eviction, forcing a split into 2-3 new pages. With ~1282 dirty leaf
         # pages and a 1 MB cache, eviction is aggressive throughout recovery.
         val = 'x' * 100
         cursor = self.session.open_cursor(self.uri)
@@ -96,15 +96,15 @@ class test_truncate30(wttest.WiredTigerTestCase):
         for i in range(self.trunc_hi + 1, self.nrows + 1):
             cursor[i] = val
         cursor.close()
-        # Intentionally no checkpoint here — all of Phase 2 is WAL-only.
+        # Intentionally no checkpoint here all of Phase 2 is WAL-only
 
         # ---- Phase 3: crash-restart ----
         # simulate_crash_restart copies files while the connection is still open
         # (capturing the WAL), then closes the original and opens the copy.
-        # Recovery replays Phase 2.  Under cache pressure, leaf splits cascade
+        # Recovery replays Phase 2. Under cache pressure, leaf splits cascade
         # into level-2 internal page splits that create dsk==NULL pages
         # inheriting page_del children from the replayed truncation.
-        # Without the fix: SIGSEGV.  With the fix: recovery completes cleanly.
+        # Without the fix: SIGSEGV. With the fix: recovery completes cleanly.
         simulate_crash_restart(self, '.', 'CRASH')
 
         # ---- Phase 4: verify integrity ----
