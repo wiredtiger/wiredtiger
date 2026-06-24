@@ -43,12 +43,12 @@ for f in "$@"; do
       ! expr "$f" : 'src/checksum.*' > /dev/null; then
 
         # Camel case style is not allowed.
-        if grep -E -r -n '\b[a-z]+[A-Z]' $f | grep -E -v ':[     ]+\*|"|UNCHECKED_STRING'; then
+        if grep -E -n '\b[a-z]+[A-Z]' $f | grep -E -v ':[     ]+\*|"|UNCHECKED_STRING'; then
             echo "$f: Styling requires variables that use underscores to separate parts of a name instead of camel casing.";
         fi
 
         # Return values should be wrapped in parentheses.
-        grep -E -r -n '^[^*/"]*[[:space:]]*return [^(]' $f > $t;
+        grep -E -n '^[^*/"]*[[:space:]]*return [^(]' $f > $t;
         test -s $t && {
             echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
             echo 'Add parentheses to return values indicated below in file '"$f"
