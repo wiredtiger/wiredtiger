@@ -26,11 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate21.py
-#   When an instantiated fast-truncate leaf has its deletion become globally visible, the
-#   parent reconciliation must rebuild a full base image rather than a delta, so that
-#   dropping the leaf's proxy cell and freeing its block happen together. This keeps the
-#   parent image free of any reference to the freed leaf block and verify passes.
+# When an instantiated fast-truncate leaf has its deletion become globally visible, the
+# parent reconciliation must rebuild a full base image rather than a delta, so that
+# dropping the leaf's proxy cell and freeing its block happen together. This keeps the
+# parent image free of any reference to the freed leaf block and verify passes.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -39,7 +38,8 @@ from wiredtiger import stat
 
 @disagg_test_class
 class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
-    uri         = 'layered:test_layered_fast_truncate21'
+    test_name = __qualname__
+    uri         = f'layered:{test_name}'
     nrows       = 200
     value       = 'a' * 50
     trunc_start = 50
@@ -55,14 +55,8 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate21', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def get_stat(self, conn, stat_key, uri=None):
-        s = conn.open_session('')
-        val = s.open_cursor('statistics:' + (uri or ''))[stat_key][2]
-        s.close()
-        return val
 
     def leader_checkpoint(self, ts):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
@@ -108,14 +102,14 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
         self.setup_leader(',' + self.page_cfg)
         self.reopen_disagg_conn(self.conn_config())
 
-        rd_fast_before = self.get_stat(self.conn, stat.conn.rec_page_delete_fast)
-        read_del_before = self.get_stat(self.conn, stat.conn.cache_read_deleted)
+        rd_fast_before = self.get_stat(stat.conn.rec_page_delete_fast)
+        read_del_before = self.get_stat(stat.conn.cache_read_deleted)
 
         # Phase 2: fast-truncate and checkpoint with oldest still at 1, so the deletion is not
         # globally visible and the parent keeps a proxy cell referencing each truncated leaf.
         self.truncate_and_checkpoint(self.trunc_start, self.trunc_stop, 20)
-        self.assertGreater(self.get_stat(self.conn, stat.conn.rec_page_delete_fast),
-            rd_fast_before, "fast truncate did not trigger -- check page eligibility")
+        self.assertStatGreaterSoon(stat.conn.rec_page_delete_fast, rd_fast_before,
+            msg="fast truncate did not trigger -- check page eligibility")
 
         # Phase 3: read keys inside the truncated range below the truncate timestamp to
         # instantiate the fully-covered leaves (modify->instantiated set).
@@ -129,8 +123,8 @@ class test_layered_fast_truncate21(wttest.WiredTigerTestCase):
             self.assertEqual(cur.get_value(), self.value)
         self.session.rollback_transaction()
         cur.close()
-        self.assertGreater(self.get_stat(self.conn, stat.conn.cache_read_deleted),
-            read_del_before, "truncated leaf was not instantiated")
+        self.assertStatGreaterSoon(stat.conn.cache_read_deleted, read_del_before,
+            msg="truncated leaf was not instantiated")
 
         # Phase 4: advance oldest past the truncate so the deletion is globally visible.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(30) +

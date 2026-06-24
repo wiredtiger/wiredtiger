@@ -26,14 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wttest
+import wttest
 from compact_util import compact_util
 from test_cc01 import test_cc_base
 from wiredtiger import stat
 
 kilobyte = 1024
 
-# test_compact12.py
 # This test creates:
 #
 # - One table with the first 1/4 of keys deleted and obsolete and the last 10th of the keys
@@ -43,18 +42,16 @@ kilobyte = 1024
 #
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
 class test_compact12(compact_util, test_cc_base):
+    test_name = __qualname__
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
-    uri_prefix = 'table:test_compact12'
+    uri_prefix = f'table:{test_name}'
 
     table_numkv = 10 * 1000
     value_size = kilobyte # The value should be small enough so that we don't create overflow pages.
 
     def get_fast_truncated_pages(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        stat_cursor.close()
-        return pages
+        return self.get_stat(stat.conn.rec_page_delete_fast)
 
     def populate(self, uri, num_keys):
         c = self.session.open_cursor(uri, None)

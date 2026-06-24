@@ -31,12 +31,12 @@ from wtscenario import make_scenarios
 from wtbound import bound_base
 from wiredtiger import stat
 
-# test_cursor_bound08.py
 # Test that the statistics added for cursor bound API are appropriately incremented for all different cursor
 # operations and edge cases.
 class test_cursor_bound08(bound_base):
+    test_name = __qualname__
     conn_config = 'statistics=(all)'
-    file_name = 'test_cursor_bound08'
+    file_name = test_name
     value_format = 'S'
     lower_inclusive = True
     upper_inclusive = True
@@ -93,12 +93,6 @@ class test_cursor_bound08(bound_base):
                 evict_cursor.reset()
             evict_cursor.close()
         return cursor
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def test_bound_basic_stat_scenario(self):
         cursor = self.create_session_and_cursor()

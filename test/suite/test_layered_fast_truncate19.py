@@ -26,10 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_fast_truncate19.py
-#   Verify that fast truncate prevents internal page delta writes.
-#   Phase 2 proves delta fires for a normal update (sanity); Phase 3 proves it
-#   is suppressed when reconciliation encounters a WT_REF_DELETED child.
+# Verify that fast truncate prevents internal page delta writes.
+# Phase 2 proves delta fires for a normal update (sanity); Phase 3 proves it
+# is suppressed when reconciliation encounters a WT_REF_DELETED child.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -38,7 +37,8 @@ from wiredtiger import stat
 
 @disagg_test_class
 class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
-    uri         = 'layered:test_layered_fast_truncate19'
+    test_name = __qualname__
+    uri         = f'layered:{test_name}'
     nrows       = 200
     value       = 'a' * 50
     trunc_start = 50
@@ -54,14 +54,8 @@ class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate19', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def get_stat(self, conn, stat_key, uri=None):
-        s = conn.open_session('')
-        val = s.open_cursor('statistics:' + (uri or ''))[stat_key][2]
-        s.close()
-        return val
 
     def leader_checkpoint(self, ts):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts) +
@@ -108,27 +102,27 @@ class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
 
         # Phase 1.5: before reopen, internal pages lack a valid disagg page_id; delta must be
         # rejected. Update one row and checkpoint to trigger reconciliation.
-        rej_before        = self.get_stat(self.conn, stat.dsrc.rec_page_delta_rejected_invalid_page_id, self.uri)
-        delta_pre_reopen  = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+        rej_before        = self.get_stat(stat.dsrc.rec_page_delta_rejected_invalid_page_id, uri=self.uri)
+        delta_pre_reopen  = self.get_stat(stat.dsrc.rec_page_delta_internal, uri=self.uri)
         cur = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cur[1] = self.value + 'y'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(12))
         cur.close()
         self.leader_checkpoint(12)
-        rej_after = self.get_stat(self.conn, stat.dsrc.rec_page_delta_rejected_invalid_page_id, self.uri)
+        rej_after = self.get_stat(stat.dsrc.rec_page_delta_rejected_invalid_page_id, uri=self.uri)
         self.assertGreater(rej_after, rej_before,
             "expected delta rejection due to invalid page_id before reopen")
-        self.assertEqual(self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri),
+        self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_internal, uri=self.uri),
             delta_pre_reopen,
             "no internal page delta should be written before reopen (page_id not yet assigned)")
 
         # Reopen so internal pages load from disk with valid disagg page_ids for delta writes.
         self.reopen_disagg_conn(self.conn_config())
 
-        delta_int_before = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
-        rd_fast_before   = self.get_stat(self.conn, stat.conn.rec_page_delete_fast)
-        read_del_before  = self.get_stat(self.conn, stat.conn.cache_read_deleted)
+        delta_int_before = self.get_stat(stat.dsrc.rec_page_delta_internal, uri=self.uri)
+        rd_fast_before   = self.get_stat(stat.conn.rec_page_delete_fast)
+        read_del_before  = self.get_stat(stat.conn.cache_read_deleted)
 
         # Phase 2: update rows outside the truncation range -- internal page delta must fire.
         cur = self.session.open_cursor(self.uri)
@@ -139,7 +133,7 @@ class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
         cur.close()
         self.leader_checkpoint(15)
 
-        delta_int_after_update = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+        delta_int_after_update = self.get_stat(stat.dsrc.rec_page_delta_internal, uri=self.uri)
         self.assertGreater(delta_int_after_update, delta_int_before,
             "internal page delta not written for normal update -- "
             "WT_INTERNAL_PAGE_DELTA may be disabled")
@@ -154,9 +148,9 @@ class test_layered_fast_truncate19(wttest.WiredTigerTestCase):
         self.assertEqual(verify_cur.search(), wiredtiger.WT_NOTFOUND)
         verify_cur.close()
 
-        rd_fast_after   = self.get_stat(self.conn, stat.conn.rec_page_delete_fast)
-        read_del_after  = self.get_stat(self.conn, stat.conn.cache_read_deleted)
-        delta_int_after = self.get_stat(self.conn, stat.dsrc.rec_page_delta_internal, self.uri)
+        rd_fast_after   = self.get_stat(stat.conn.rec_page_delete_fast)
+        read_del_after  = self.get_stat(stat.conn.cache_read_deleted)
+        delta_int_after = self.get_stat(stat.dsrc.rec_page_delta_internal, uri=self.uri)
 
         # (1) Fast delete actually fired.
         self.assertGreater(rd_fast_after, rd_fast_before,

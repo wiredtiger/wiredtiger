@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_sweep03.py
 # Test to confirm if setting close_idle_time to 0 does not sweep old handles
 #
 
@@ -37,7 +36,8 @@ from wtscenario import make_scenarios
 import wttest
 
 class test_sweep03(sweep_util, suite_subprocess):
-    tablebase = 'test_sweep03'
+    test_name = __qualname__
+    tablebase = test_name
     uri = 'table:' + tablebase
     numfiles = 40 # Make this more than the default close_handle_minimum
     numkv = 100
@@ -83,9 +83,7 @@ class test_sweep03(sweep_util, suite_subprocess):
         #
         self.wait_for_sweep(baseline=0, increment=2, timeout=5)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
-        stat_cursor.close()
+        close1 = self.get_stat(stat.conn.dh_sweep_dead_close)
         # We expect nothing to have been closed.
         self.assertEqual(close1, 0)
 

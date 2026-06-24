@@ -30,8 +30,7 @@ import wiredtiger, wttest
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
-# test_alter05.py
-#    Check the alter command succeeds even if the file is modified.
+# Check the alter command succeeds even if the file is modified.
 class test_alter05(TieredConfigMixin, wttest.WiredTigerTestCase):
     name = "alter05"
     tiered_storage_sources = gen_tiered_storage_sources()
@@ -44,12 +43,6 @@ class test_alter05(TieredConfigMixin, wttest.WiredTigerTestCase):
             conf += ','
         conf += 'statistics=(all)'
         return conf
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def verify_metadata(self, metastr):
         c = self.session.open_cursor('metadata:', None, None)

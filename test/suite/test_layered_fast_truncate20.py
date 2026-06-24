@@ -32,20 +32,20 @@ from helper_layered_fast_truncate import LayeredFastTruncateConfigMixin
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_fast_truncate20.py
-#   Exercise the debug_mode.disagg_slow_truncate_follower connection knob:
-#   config-parsing smoke checks plus a follower-side truncate that asserts
-#   the knob actually selects the slow vs fast path.
+# Exercise the debug_mode.disagg_slow_truncate_follower connection knob:
+# config-parsing smoke checks plus a follower-side truncate that asserts
+# the knob actually selects the slow vs fast path.
 
 @disagg_test_class
 class test_layered_fast_truncate20(LayeredFastTruncateConfigMixin, wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader"),statistics=(all)'
-    uri = 'layered:test_layered_fast_truncate20'
+    uri = f'layered:{test_name}'
     nitems = 500
     trunc_lo, trunc_hi = 100, 400
 
-    disagg_storages = gen_disagg_storages('test_layered_fast_truncate20', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     # --- config parsing / reconfigure smoke checks ---
@@ -83,9 +83,9 @@ class test_layered_fast_truncate20(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_leader(keys=range(self.nitems))
         self.setup_follower_with_knob(slow=True)
 
-        before = self.get_stat(self.conn, stat.conn.layered_curs_remove)
+        before = self.get_stat(stat.conn.layered_curs_remove, conn=self.conn)
         self.truncate(self.trunc_lo, self.trunc_hi)
-        after = self.get_stat(self.conn, stat.conn.layered_curs_remove)
+        after = self.get_stat(stat.conn.layered_curs_remove, conn=self.conn)
 
         expected = self.trunc_hi - self.trunc_lo + 1
         self.assertEqual(after - before, expected,
@@ -95,9 +95,9 @@ class test_layered_fast_truncate20(LayeredFastTruncateConfigMixin, wttest.WiredT
         self.setup_leader(keys=range(self.nitems))
         self.setup_follower_with_knob(slow=False)
 
-        before = self.get_stat(self.conn, stat.conn.layered_curs_remove)
+        before = self.get_stat(stat.conn.layered_curs_remove, conn=self.conn)
         self.truncate(self.trunc_lo, self.trunc_hi)
-        after = self.get_stat(self.conn, stat.conn.layered_curs_remove)
+        after = self.get_stat(stat.conn.layered_curs_remove, conn=self.conn)
 
         self.assertEqual(after, before,
             'fast path should not call cursor->remove() (ingest table is empty)')
