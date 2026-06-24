@@ -124,7 +124,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
         # None of the failed drops removed anything, so the database size must not shrink by the
         # collection's size on any of those checkpoints. Before the fix it drops by ~victim_size
-        # on every checkpoint, repeated until the size eventually underflows.
+        # on every checkpoint, repeated until the size eventually overflow.
         for i in range(self.num_failed_ckpts):
             self.assertGreater(sizes[i + 1], sizes[i] - victim_size // 2,
                 f"ckpt {i}: database size {sizes[i]} -> {sizes[i + 1]} dropped by "
