@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_checkpoint09.py
 # Test that reconcile clears the time window of on-disk cell if it is obsolete.
 
 import wttest
@@ -54,12 +53,6 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
             return config + ',page_delta=(leaf_page_delta=false)'
         else:
             return config
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def large_updates(self, uri, value, ds, nrows, skip_count, commit_ts):
         # Update a large number of records.

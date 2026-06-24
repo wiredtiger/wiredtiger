@@ -30,16 +30,9 @@ import wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
-# test_update_obsolete_short_chain.py
 # Regression test for short update chains in __wt_update_serial.
 class test_update_obsolete_short_chain(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-
-    def get_stat(self, stat_id):
-        stat_cursor = self.session.open_cursor('statistics:')
-        value = stat_cursor[stat_id][2]
-        stat_cursor.close()
-        return value
 
     def update_with_ts(self, uri, key, value, ts):
         cursor = self.session.open_cursor(uri)
