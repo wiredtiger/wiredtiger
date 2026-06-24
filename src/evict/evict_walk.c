@@ -131,6 +131,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
 {
     WT_CONNECTION_IMPL *conn;
     WTI_DIRTY_INDEX *idx, *old;
+    wt_timestamp_t watermark;
     u_int drained;
 
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
@@ -158,6 +159,30 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
         return (0);
     case WTI_DIRTY_EVICT_OK:
         break;
+    }
+
+    /*
+     * Under precise checkpoint the dominant candidacy miss is a dirty page written ahead of the
+     * pinned stable timestamp; it cannot be evicted until stable advances past its commit
+     * timestamp. When a prior pass found the drain persistently unproductive it recorded the stable
+     * timestamp then. Re-popping the same refs before stable moves only re-pays the hazard pointer
+     * and candidacy filter on pages that are still un-evictable -- the refs stay in the ring, so
+     * nothing is lost by waiting. Skip until stable advances, the real signal that some refs may
+     * now qualify.
+     *
+     * Honor the watermark only under soft pressure. Under hard pressure the candidacy filter evicts
+     * by snapshot visibility rather than the stable timestamp, so a ref the watermark is holding
+     * back may now qualify -- drain it rather than let the cache stay over target.
+     */
+    watermark = __wt_atomic_load_uint64_relaxed(&btree->drain_stable_watermark);
+    if (watermark != WT_TS_NONE &&
+      !F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)) {
+        if (__wt_txn_pinned_stable_timestamp(session) <= watermark) {
+            WT_STAT_CONN_DSRC_INCR(
+              session, cache_eviction_dirty_index_drain_skipped_stable_unchanged);
+            return (0);
+        }
+        __wt_atomic_store_uint64_relaxed(&btree->drain_stable_watermark, WT_TS_NONE);
     }
 
     /*
@@ -359,11 +384,23 @@ release:
                 __wt_atomic_store_bool(&btree->drain_filter_heavy, true);
                 WT_STAT_CONN_DSRC_INCR(
                   session, cache_eviction_dirty_index_drain_skipped_filter_heavy);
+                /*
+                 * Pin the filter-heavy re-probe to stable-timestamp progress. Under precise
+                 * checkpoint the misses are pages ahead of the pinned stable timestamp, which can
+                 * only clear when stable advances; record it so the entry gate skips the probe
+                 * passes until then. A garbage-collect tree releases on its prune timestamp, not
+                 * stable, so leave its watermark clear and let the plain re-probe handle it.
+                 */
+                if (F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
+                  !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    __wt_atomic_store_uint64_relaxed(
+                      &btree->drain_stable_watermark, __wt_txn_pinned_stable_timestamp(session));
             }
         } else {
             __wt_atomic_store_uint32(&btree->drain_consecutive_high_filter, 0);
             if (__wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
                 __wt_atomic_store_bool(&btree->drain_filter_heavy, false);
+            __wt_atomic_store_uint64_relaxed(&btree->drain_stable_watermark, WT_TS_NONE);
         }
     }
 

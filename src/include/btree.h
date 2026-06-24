@@ -337,6 +337,8 @@ struct __wt_btree {
       drain_filled_skips; /* Consecutive walks skipped because the drain filled the budget */
     wt_shared bool drain_disabled;     /* Adaptive drain: walker-only mode for this btree */
     wt_shared bool drain_filter_heavy; /* Adaptive drain: ring non-productive, walker-only mode */
+    wt_shared wt_timestamp_t
+      drain_stable_watermark;          /* Skip the drain until pinned stable advances past this */
     wt_shared u_int evict_walk_period; /* Skip this many LRU walks */
     u_int evict_walk_saved;            /* Saved walk skips for checkpoints */
     u_int evict_walk_skips;            /* Number of walks skipped */
