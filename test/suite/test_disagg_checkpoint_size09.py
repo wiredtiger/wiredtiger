@@ -49,12 +49,12 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Path exercised:
 #     1. Build a delta chain so the chain's cumulative size > 0 on disk.
 #     2. An uncommitted write on the page forces the save-update-restore path on
-#        eviction.  The page re-instantiation path instantiates the new page with
+#        eviction. The page re-instantiation path instantiates the new page with
 #        the persistent flag set.
 #     3. Rolling back the uncommitted write leaves the page dirty with only
 #        aborted updates; the committed value is a durable update.
 #     4. Checkpoint: newer_updates_than_last_rec_used stays false so skip-write
-#        fires.  The skip-write branch of the reconciliation commit path sets a
+#        fires. The skip-write branch of the reconciliation commit path sets a
 #        single-page replacement result and restores the persistent flag at its
 #        own copy site.
 #     5. Enable failpoint_rec_before_wrapup, dirty the page, and force eviction.
@@ -103,7 +103,7 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #
     # The page re-instantiation path is called from the split-rewrite path when
     # eviction produces a reconciliation's multi-block state with exactly one entry
-    # that has the save-update-restore path flag set.  This happens when the page
+    # that has the save-update-restore path flag set. This happens when the page
     # has uncommitted updates that cannot be written to the history store.
     #
     # Flow:
@@ -112,22 +112,22 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #      chain's cumulative size > 0).
     #   3. In a loop until both signal stats fire:
     #      a. Open session_a and write uncommitted updates to the page.
-    #         Evict the page.  Because uncommitted updates from session_a cannot
+    #         Evict the page. Because uncommitted updates from session_a cannot
     #         go to the history store, eviction falls back to the save-update-restore
-    #         path and calls the page re-instantiation path.  The reconciled pages
+    #         path and calls the page re-instantiation path. The reconciled pages
     #         scrubbed and added back to the cache clean scenario is exercised.
-    #      b. Rollback session_a.  The page retains only aborted updates plus
+    #      b. Rollback session_a. The page retains only aborted updates plus
     #         the previously committed 'B' value as a durable update.
-    #      c. Checkpoint.  The durable 'B' value is unchanged, so
+    #      c. Checkpoint. The durable 'B' value is unchanged, so
     #         newer_updates_than_last_rec_used stays false and skip-write fires.
     #         The skip-write branch of the reconciliation commit path sets a
     #         single-page replacement result and restores the persistent flag =
     #         (cumulative size > 0).
-    #      d. Enable failpoint_rec_before_wrapup + delta_pct=1.  Write new
+    #      d. Enable failpoint_rec_before_wrapup + delta_pct=1. Write new
     #         committed data to dirty the page and force a full-image eviction.
     #         The failpoint fires ~1% of the time, invoking the reconciliation
     #         error path with delta count=0, a single-page replacement result,
-    #         and cumulative size > 0.  With the persistent flag set, the error
+    #         and cumulative size > 0. With the persistent flag set, the error
     #         path completes; rec_free_page_id increments.
     #   4. Run a final checkpoint and verify size is not inflated.
     def test_split_multi_inmem_aggregated_flag(self):
@@ -172,7 +172,7 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             ca.close()
             self.evict_page('key000000')
 
-            # (b) Rollback: uncommitted updates become aborted.  The page now has
+            # (b) Rollback: uncommitted updates become aborted. The page now has
             #     only the committed 'B' value (a durable update) plus aborted updates.
             session_a.rollback_transaction()
             session_a.close()
@@ -218,7 +218,7 @@ class test_disagg_checkpoint_size09(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0 '
             'after running with failpoint_rec_before_wrapup')
 
-        # Checkpoint size is not inflated.  The reconciliation error path must invoke
+        # Checkpoint size is not inflated. The reconciliation error path must invoke
         # the delta chain discard; otherwise the chain's cumulative size would leak
         # into the file's running byte total on every error-path hit.
         self.assertLess(size_after_recovery, size_with_delta + size_baseline,

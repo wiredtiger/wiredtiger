@@ -32,7 +32,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size13.py
 #   Exercises the multi-block error-cleanup loop in the reconciliation error
-#   path on the disagg path by driving failpoint_rec_before_wrapup.  The
+#   path on the disagg path by driving failpoint_rec_before_wrapup. The
 #   failpoint fires AFTER the block write but BEFORE the reconciliation commit
 #   path records state, so reconciliation falls into the error path with each
 #   chunk's address cookie already populated -- the error-cleanup loop then
@@ -78,7 +78,7 @@ class test_disagg_checkpoint_size13(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         band = 200
         # Big fresh batches per cycle: with memory_page_max=200MB the tail
         # page absorbs ~2 MB at 1 KB/row, then reconciles into ~500 chunks at
-        # leaf_page_max=4KB.  If failpoint_rec_before_wrapup fires during one
+        # leaf_page_max=4KB. If failpoint_rec_before_wrapup fires during one
         # of these wide reconciliations, the reconciliation error path cleans
         # up all chunks.
         big_batch = 2000
@@ -122,7 +122,7 @@ class test_disagg_checkpoint_size13(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         rec_free_pageid_final = self.get_conn_stat(
             stat.conn.rec_free_page_id_due_to_failed_replacement_reconciliation)
 
-        # failpoint_rec_before_wrapup fires probabilistically (1%).  If the
+        # failpoint_rec_before_wrapup fires probabilistically (1%). If the
         # workload happens not to roll the failpoint, skip rather than fail.
         if rec_free_pageid_final == rec_free_pageid_warmup:
             self.skipTest('failpoint_rec_before_wrapup did not fire in this run')

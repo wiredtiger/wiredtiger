@@ -34,12 +34,12 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Exercises the disagg delta-chain invalidation path: a hot single page is
 #   re-reconciled many times under failpoint_rec_before_wrapup so each
 #   reconciliation is a delta on the same page_id (delta_pct=90,
-#   max_consecutive_delta=32).  When the failpoint fires, the reconciliation
+#   max_consecutive_delta=32). When the failpoint fires, the reconciliation
 #   error path's single-block branch invalidates the address cookie via the
 #   post-reconciliation chain discard, subtracting the chain's cumulative size
-#   from the running total.  A second phase runs the same failpoint against a
+#   from the running total. A second phase runs the same failpoint against a
 #   wide multi-block table so the multi-block err-cleanup loop also exercises
-#   the post-reconciliation chain discard.  If accounting in any prior write
+#   the post-reconciliation chain discard. If accounting in any prior write
 #   didn't increment the running total by the correct amount, the
 #   running-total decrement assertion aborts the process.
 
@@ -103,9 +103,9 @@ class test_disagg_checkpoint_size16(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.conn.reconfigure(
             'timing_stress_for_test=[failpoint_rec_before_wrapup]')
 
-        # Phase A: rewrite the same nrows repeatedly.  Each cycle re-reconciles
+        # Phase A: rewrite the same nrows repeatedly. Each cycle re-reconciles
         # the single page as a delta (delta_pct=90), with a full image every
-        # max_consecutive_delta=32 cycles.  Some reconciliations fail at the
+        # max_consecutive_delta=32 cycles. Some reconciliations fail at the
         # failpoint, exercising the error-path post-reconciliation chain discard.
         for i in range(cycles):
             char = chr(ord('a') + (i % 20))
@@ -131,7 +131,7 @@ class test_disagg_checkpoint_size16(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         rec_free_pageid_final = self.get_conn_stat(
             stat.conn.rec_free_page_id_due_to_failed_replacement_reconciliation)
 
-        # failpoint_rec_before_wrapup fires probabilistically (1%).  If the
+        # failpoint_rec_before_wrapup fires probabilistically (1%). If the
         # workload happens not to roll the failpoint, skip rather than fail.
         if rec_free_pageid_final == rec_free_pageid_warmup:
             self.skipTest('failpoint_rec_before_wrapup did not fire in this run')

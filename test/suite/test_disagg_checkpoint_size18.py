@@ -32,26 +32,26 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 
 # test_disagg_checkpoint_size18.py
 #   Exercises the pre-page-log write failure path for delta writes by enabling
-#   failpoint_page_log_handle_put.  The failpoint fires inside the disagg write
+#   failpoint_page_log_handle_put. The failpoint fires inside the disagg write
 #   path immediately before the page-log put, so the write fails with EBUSY
 #   before any data reaches the page log.
 #
 #   At error time:
 #     - the persistent flag is false (write never reached plh_put)
-#     - the address cookie is NULL            (addr never packed)
-#     - the running total is unchanged        (running-total increment never called)
-#     - the page's persistent flag is true    (old chain intact)
+#     - the address cookie is NULL (addr never packed)
+#     - the running total is unchanged (running-total increment never called)
+#     - the page's persistent flag is true (old chain intact)
 #
 #   The reconciliation error path's outer persistent check evaluates to false,
 #   so the disagg-specific block is skipped and the page's block metadata is
-#   left unmodified.  The next reconciliation must therefore pass the old block
+#   left unmodified. The next reconciliation must therefore pass the old block
 #   metadata to the disagg write path so the running-total decrement runs
 #   before the running-total increment.
 #
 #   Regression target: if the page's persistent flag were incorrectly set to
 #   false after this pre-page-log failure, the next reconciliation would skip
 #   the running-total decrement and leak the old chain's cumulative size into
-#   the running total.  Catches any accounting drift because verify recomputes
+#   the running total. Catches any accounting drift because verify recomputes
 #   the on-disk size from blocks and cross-checks it against the
 #   metadata-recorded size.
 
@@ -106,13 +106,13 @@ class test_disagg_checkpoint_size18(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # with the persistent flag set to true.
         self.evict_page('key000000')
 
-        # Enable the failpoint.  It fires at 1% of writes (probability=100 in
+        # Enable the failpoint. It fires at 1% of writes (probability=100 in
         # the [0,10000] failpoint range), so the loop below iterates until the
         # stat increments.
         self.conn.reconfigure(
             'timing_stress_for_test=[failpoint_page_log_handle_put]')
 
-        # Dirty + evict until the failpoint fires.  Each failing write enters
+        # Dirty + evict until the failpoint fires. Each failing write enters
         # the reconciliation error path with the persistent flag false;
         # the disagg block is skipped and the page's block metadata is left
         # unmodified.
@@ -149,9 +149,9 @@ class test_disagg_checkpoint_size18(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             'disagg_block_plh_put_failed should be > 0')
 
         # The strong check: verify recomputes the on-disk block layout and
-        # cross-checks it against the metadata-recorded size.  Any drift in
+        # cross-checks it against the metadata-recorded size. Any drift in
         # the running total from a missed running-total decrement would surface
-        # here as a verify failure.  Verify retries past transient EBUSY while
+        # here as a verify failure. Verify retries past transient EBUSY while
         # dirty state is still flushing.
         self.verifyUntilSuccess(uri=self.uri)
 

@@ -34,7 +34,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Adds history-store pressure on top of the reconciliation error path workload
 #   by holding an old read_timestamp pinned across many writer cycles, so
 #   updates at newer commit_timestamps push prior versions to the history store
-#   (WiredTigerSharedHS.wt_stable).  Combined with failpoint_rec_before_wrapup,
+#   (WiredTigerSharedHS.wt_stable). Combined with failpoint_rec_before_wrapup,
 #   this drives the reconciliation error path on a btree with active HS
 #   activity -- the format-stress workload that originally produced the disagg
 #   underflow.
@@ -79,7 +79,7 @@ class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         self.session.create(self.uri, self.table_config)
 
-        # Initial load at ts=10.  After this commit, any update at ts>10 with
+        # Initial load at ts=10. After this commit, any update at ts>10 with
         # the reader pinned at ts=10 routes the old value through HS.
         self.session.begin_transaction()
         c = self.session.open_cursor(self.uri)
@@ -88,9 +88,9 @@ class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
-        # Long-running reader session pinning ts=10.  Holding this open forces
+        # Long-running reader session pinning ts=10. Holding this open forces
         # every newer update of an existing row to keep the old version alive
-        # in HS.  Only the txn is kept open -- a live cursor would pin pages
+        # in HS. Only the txn is kept open -- a live cursor would pin pages
         # and block release_evict.
         reader_sess = self.conn.open_session()
         reader_sess.begin_transaction('read_timestamp=' + self.timestamp_str(10))
@@ -154,7 +154,7 @@ class test_disagg_checkpoint_size15(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.assertGreater(hs_insert_final, hs_insert_warmup,
             'cache_hs_insert did not advance -- HS pressure was not applied')
 
-        # failpoint_rec_before_wrapup fires probabilistically (1%).  If the
+        # failpoint_rec_before_wrapup fires probabilistically (1%). If the
         # workload happens not to roll the failpoint, skip rather than fail.
         if rec_free_pageid_final == rec_free_pageid_warmup:
             self.skipTest('failpoint_rec_before_wrapup did not fire in this run')

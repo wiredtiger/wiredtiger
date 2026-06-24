@@ -105,7 +105,7 @@ class test_disagg_checkpoint_size06(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.assertGreater(baseline, 0)
 
         for cycle in range(ncycles):
-            # Step 12: Partial update  delta checkpoint.
+            # Step 12: Partial update + delta checkpoint.
             c = self.session.open_cursor(self.uri)
             self.insert_rows(c, 0, nrows // 2, 'B')
             c.close()
@@ -128,7 +128,7 @@ class test_disagg_checkpoint_size06(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             size_after_full = self.get_checkpoint_size()
 
             # The full-image checkpoint size should not diverge from the
-            # baseline.  Allow a 2x margin to accommodate root page and internal page
+            # baseline. Allow a 2x margin to accommodate root page and internal page
             # overhead, but the size must not grow by multiples per cycle.
             self.assertLess(size_after_full, baseline * 2,
                 f'cycle {cycle}: checkpoint size {size_after_full} is more than 2x '
@@ -154,7 +154,7 @@ class test_disagg_checkpoint_size06(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #
     # We approximate this via a crash-restart after building a delta chain: the on-disk
     # state reverts to the last clean checkpoint, which gives us a page with a known
-    # baseline size.  We then build a new delta chain on top, force a full-image write,
+    # baseline size. We then build a new delta chain on top, force a full-image write,
     # and verify the checkpoint size matches the expected value (not inflated by the
     # old chain's cumulative size).
     def test_size_after_page_id_invalidation(self):
@@ -219,7 +219,7 @@ class test_disagg_checkpoint_size06(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     # -----------------------------------------------------------------------
     # test_repeated_full_image_over_delta_size_is_stable
     # -----------------------------------------------------------------------
-    # Writes a delta chain, then repeatedly replaces it with a full image.  The
+    # Writes a delta chain, then repeatedly replaces it with a full image. The
     # checkpoint size should stabilize after the first full-image replacement
     # (the chain is terminated and re-created from scratch each time).
     def test_repeated_full_image_over_delta_size_is_stable(self):

@@ -735,7 +735,6 @@ class DisaggCorruptionMixin:
                 f"expected 1 affected row, got {affected} for "
                 f"table_id={table_id}, page_id={page_id}, lsn={lsn}")
 
-
 class DisaggSizeTestMixin:
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True

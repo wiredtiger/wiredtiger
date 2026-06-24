@@ -37,21 +37,21 @@ from helper_disagg import disagg_test_class
 #   At connection open, the disagg block manager initialises its running
 #   byte total for a stable file from the checkpoint size recorded in the
 #   file's metadata, and separately reads the file's root address to remember
-#   the current root page's size.  These two are derived independently from
+#   the current root page's size. These two are derived independently from
 #   the on-disk metadata.
 #
 #   For an empty/initial checkpoint, the recorded checkpoint size can be 0
 #   while the root address still publishes a valid cookie carrying a non-zero
-#   root size.  Before the fix the running total did not account for the
+#   root size. Before the fix the running total did not account for the
 #   root bytes that the cookie advertised, so the next checkpoint's
 #   root-size transition subtracted the previous root size from a running
-#   total that never included it.  The subsequent chain discard then
+#   total that never included it. The subsequent chain discard then
 #   underflowed the running total.
 #
 # Fix:
 #   The checkpoint-load path now seeds the running total from the root cookie's
 #   size so the invariant that the running total is at least the current root size
-#   holds before any root-size transition runs.  The (re-)initialisation
+#   holds before any root-size transition runs. The (re-)initialisation
 #   path also resets the previous/current root-size bookkeeping when the
 #   running total is re-initialised from metadata, clearing stale state that
 #   the block manager's per-file handle cache may have left behind.
@@ -61,14 +61,14 @@ from helper_disagg import disagg_test_class
 #      The shutdown checkpoint on close publishes a non-empty root address
 #      for the shared metadata file.
 #   2. Reopen the connection: the running total and current root size are
-#      re-derived from the file's metadata.  They must agree.
+#      re-derived from the file's metadata. They must agree.
 #   3. Write more rows; the next checkpoint exercises the root-size
-#      transition on the metadata file.  A subsequent chain discard hits
+#      transition on the metadata file. A subsequent chain discard hits
 #      the running-total decrement; an off-by-root-size drift here would
 #      trip the assertion guarding against underflow.
 #
 #   The drift is deterministic: the stale root-size accumulates across restarts
-#   and causes an underflow on the third restart.  Four cycles catches the crash
+#   and causes an underflow on the third restart. Four cycles catches the crash
 #   and verifies the running total stays clean for one cycle beyond it.
 
 @disagg_test_class
@@ -93,7 +93,7 @@ class test_disagg_checkpoint_size20(wttest.WiredTigerTestCase):
         # expected initialisation path, not an error.
         self.session.create(self.uri, self.table_config)
 
-        # Cycle: write, checkpoint, restart.  Each restart exercises the
+        # Cycle: write, checkpoint, restart. Each restart exercises the
         # running-total re-initialisation and checkpoint-load sequence on
         # the shared metadata file.
         for cycle in range(self.cycles):
@@ -107,7 +107,7 @@ class test_disagg_checkpoint_size20(wttest.WiredTigerTestCase):
 
             # Force a checkpoint on the fresh connection so the metadata
             # file's root-size transition runs against the just-initialised
-            # running total and current root size.  Insert a row first so
+            # running total and current root size. Insert a row first so
             # the checkpoint has work to do and the chain is non-empty.
             self.insert_rows(start + self.nrows // 2, 1, char)
             self.session.checkpoint()

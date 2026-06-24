@@ -34,7 +34,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Exercises the running total accounting on the multi-block eviction path:
 #   leaf pages split under update pressure via the multi-block split, and
 #   failpoint_eviction_split routes some splits through the error-cleanup loop
-#   in the reconciliation error path.  A leak there would underflow the
+#   in the reconciliation error path. A leak there would underflow the
 #   running-total decrement assertion or inflate the recorded checkpoint size
 #   unbounded.
 
@@ -107,7 +107,7 @@ class test_disagg_checkpoint_size12(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         # Stress: existing-band updates plus appended fresh ranges so the
         # keys keep growing and producing leaf-page splits even after
-        # existing pages settle.  Any running-total accounting drift surfaces
+        # existing pages settle. Any running-total accounting drift surfaces
         # as a decrement underflow that aborts the process.
         for i in range(cycles):
             start = ((i + cycles) * band) % nrows

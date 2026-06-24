@@ -40,8 +40,8 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   before the reconciliation commit path is called.
 #
 #   For a delta write whose page-log put succeeds:
-#     - the persistent flag is set   (write reached the page log)
-#     - the delta count is > 0   (delta write)
+#     - the persistent flag is set (write reached the page log)
+#     - the delta count is > 0 (delta write)
 #     - the address cookie is populated
 #     - the running total was incremented by delta_size
 #
@@ -51,7 +51,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #       size == (previous chain's cumulative size + delta_size), removing both
 #       the old chain and the new delta from the running total.
 #     - the page's persistent flag is cleared so the next reconciliation does
-#       not pass the page's block metadata to the disagg write path.  If the
+#       not pass the page's block metadata to the disagg write path. If the
 #       persistent flag were left set, the next reconciliation would decrement
 #       the running total for the old chain's cumulative size on a chain already
 #       removed by the post-reconciliation chain discard, underflowing the
@@ -98,9 +98,9 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     # test_rec_write_err_delta_post_plh_put
     # -----------------------------------------------------------------------
     # Exercises the delta branch of the reconciliation error path:
-    #   - the delta count is > 0     (delta write reached the page log)
+    #   - the delta count is > 0 (delta write reached the page log)
     #   - a prior single-page replacement result is set
-    #   - the page's persistent flag is set  (old chain is live)
+    #   - the page's persistent flag is set (old chain is live)
     #
     # This is the counterpart to test_disagg_checkpoint_size07, which exercises
     # the full-image branch (delta count == 0) of the same reconciliation
@@ -113,12 +113,12 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #      access with the persistent flag set.
     #   4. Enable failpoint_rec_before_wrapup (fires 1% of the time during
     #      eviction reconciliation after the block write, before the commit
-    #      path).  Keep delta_pct=90 so writes remain deltas.  Only nrows//2
+    #      path). Keep delta_pct=90 so writes remain deltas. Only nrows//2
     #      rows are updated each iteration so the delta is ~50% of the
     #      full-image size, well below the delta_pct=90 threshold.
     #   5. Loop dirty+evict until rec_free_page_id_due_to_failed_replacement_
-    #      reconciliation > 0.  Early iterations succeed, establishing a prior
-    #      single-page replacement result and a growing delta chain.  When the
+    #      reconciliation > 0. Early iterations succeed, establishing a prior
+    #      single-page replacement result and a growing delta chain. When the
     #      failpoint fires after a delta page-log put, the reconciliation error
     #      path enters the delta branch: the post-reconciliation chain discard
     #      subtracts the cookie's recorded size (old chain's cumulative size +
@@ -159,17 +159,17 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.evict_page('key000000')
 
 
-        # Step 4: Enable the failpoint.  Keep delta_pct=90 (inherited from
-        # conn_config) so evictions produce delta writes.  max_consecutive_delta=32
+        # Step 4: Enable the failpoint. Keep delta_pct=90 (inherited from
+        # conn_config) so evictions produce delta writes. max_consecutive_delta=32
         # is the engine maximum; a full-image rollover occurs every 33 iterations,
         # but the 1% failpoint is expected to fire well within that window.
         self.conn.reconfigure(
             'timing_stress_for_test=[failpoint_rec_before_wrapup]'
         )
 
-        # Step 5: Dirty the page and force eviction in a loop.  Early iterations
+        # Step 5: Dirty the page and force eviction in a loop. Early iterations
         # succeed and build a longer delta chain while establishing a prior
-        # single-page replacement result.  When the 1% failpoint eventually fires
+        # single-page replacement result. When the 1% failpoint eventually fires
         # after a delta write reaches the page log, the reconciliation error path
         # enters the delta branch (delta count > 0, prior single-page
         # replacement result, persistent flag set): the post-reconciliation chain
@@ -193,14 +193,14 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
                 f'reconciliation error path after {max_iters} evictions'
             )
 
-        # Switch to full-image writes BEFORE disabling the failpoint.  This
+        # Switch to full-image writes BEFORE disabling the failpoint. This
         # prevents background eviction from writing a delta between the failpoint
         # disable and the recovery checkpoint, which could inflate the running total
         # and produce a false assertion failure on the correct path.
         self.conn.reconfigure('page_delta=(delta_pct=1)')
         self.conn.reconfigure('timing_stress_for_test=[]')
 
-        # Step 6: Recovery checkpoint.  The page (page_id invalidated by the
+        # Step 6: Recovery checkpoint. The page (page_id invalidated by the
         # reconciliation error path) gets a fresh page_id and is written as a
         # full image, so size_after_recovery should be close to size_initial.
         self.session.checkpoint()
@@ -215,13 +215,13 @@ class test_disagg_checkpoint_size11(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.assertGreater(self.get_stat(stat_key), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 
-        # Step 8: Guard against double-decrement corruption.  The reconciliation
+        # Step 8: Guard against double-decrement corruption. The reconciliation
         # error path must clear the persistent flag after a delta error; otherwise
         # the recovery checkpoint would pass the page's block metadata with the
         # persistent flag still set to the disagg write path, which decrements the
         # running total for the old chain's cumulative size on a chain already
         # removed by the post-reconciliation chain discard -- asserting or, with
-        # assertions disabled, wrapping the running total to a huge value.  Use
+        # assertions disabled, wrapping the running total to a huge value. Use
         # size_with_delta + size_initial as the upper bound: the correct path
         # gives approximately size_initial.
         self.assertLess(size_after_recovery, size_with_delta + size_initial,

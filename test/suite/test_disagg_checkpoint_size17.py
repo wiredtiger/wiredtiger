@@ -33,7 +33,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   A checkpoint-cursor open of a disagg btree used to unconditionally
 #   initialise the running total from the btree open path, storing the
 #   historical ckpt.size into the block state shared with the live writer
-#   handle and clobbering the live running total.  The next
+#   handle and clobbering the live running total. The next
 #   running-total decrement then underflowed and aborted.
 
 @disagg_test_class
@@ -69,7 +69,7 @@ class test_disagg_checkpoint_size17(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         self.session.create(self.uri, self.table_config)
 
-        # Checkpoint while empty so ckpt.size for the stable file is ~0.  This
+        # Checkpoint while empty so ckpt.size for the stable file is ~0. This
         # is the historical checkpoint the cursor will open against.
         self.session.checkpoint()
 
@@ -83,14 +83,14 @@ class test_disagg_checkpoint_size17(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         c.close()
 
         # Opening a checkpoint cursor on the stable file routes through the
-        # btree open path.  That path must NOT store the historical ckpt.size
+        # btree open path. That path must NOT store the historical ckpt.size
         # into the block state shared with the live writer.
         ckpt_c = self.session.open_cursor(self.stable_uri, None,
                                           'checkpoint=WiredTigerCheckpoint')
         ckpt_c.close()
 
         # Force evictions that subtract cookie bytes via the post-reconciliation
-        # chain discard.  If the running total had been clobbered by the
+        # chain discard. If the running total had been clobbered by the
         # checkpoint-cursor open, the running-total decrement assertion would
         # abort here.
         for k in (0, nrows // 2, nrows, nrows + nrows // 2):

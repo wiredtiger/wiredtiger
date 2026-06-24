@@ -37,14 +37,14 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #     When eviction keeps a page in memory with restored updates (because an
 #     active reader transaction prevents those updates from becoming globally
 #     visible), it copies the reconciled block's metadata into the page's block
-#     metadata without restoring the persistent flag.  The copy site reset leaves
+#     metadata without restoring the persistent flag. The copy site reset leaves
 #     the flag false even though the on-disk size is still counted in the
 #     file's running byte total.
 #
 #   Path 2 -- skip-write in the reconciliation commit path (single-block replace path):
 #     When eviction reuses the page's existing on-disk address (content unchanged
 #     since the last write), the address copy path also resets the persistent flag
-#     in the reconciled block's metadata.  The reconciliation commit path then copies
+#     in the reconciled block's metadata. The reconciliation commit path then copies
 #     that false value into the page's block metadata while setting a single-page
 #     replacement result.
 #
@@ -58,10 +58,10 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Tests:
 #     test_supd_restore_wrapup_aggregated_flag
 #       A long-running reader session pins an early read timestamp, preventing
-#       updates written at later timestamps from becoming globally visible.  This
-#       forces the save-update-restore path during eviction of dirty pages.  With
+#       updates written at later timestamps from becoming globally visible. This
+#       forces the save-update-restore path during eviction of dirty pages. With
 #       timing_stress_for_test=[failpoint_rec_before_wrapup] enabled, a later
-#       failed full-image write exercises the assertion path.  Verifies:
+#       failed full-image write exercises the assertion path. Verifies:
 #         - The process does not abort (assertion is not reached).
 #         - The free page ID due to failed page replacement reconciliation scenario, confirmed
 #           via its stat counter, shows the reconciliation error path ran at least once.
@@ -69,9 +69,9 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #
 #     test_skip_write_wrapup_aggregated_flag
 #       Builds a delta chain (chain's cumulative size > 0), then writes to the page
-#       and rolls back, leaving a dirty page with only aborted updates.  A checkpoint
+#       and rolls back, leaving a dirty page with only aborted updates. A checkpoint
 #       fires skip-write (newer_updates_than_last_rec_used is false because the
-#       committed on-page update is a durable update).  The skip-write path in the
+#       committed on-page update is a durable update). The skip-write path in the
 #       reconciliation commit path must restore the persistent flag =
 #       (cumulative size > 0).
 #       With failpoint_rec_before_wrapup, the next eviction enters the reconciliation
@@ -159,7 +159,7 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.assertGreater(size_with_delta, size_baseline,
             'Expected checkpoint size to grow after a delta write')
 
-        # Step 3: blocker session pins read_timestamp=1.  Updates at ts>=2 are
+        # Step 3: blocker session pins read_timestamp=1. Updates at ts>=2 are
         # not globally visible while this transaction is open, so eviction of pages
         # carrying those updates cannot write them to the history store and falls
         # back to the save-update-restore path (restores updates into the in-memory page).
@@ -173,9 +173,9 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # Step 45: enable failpoint and loop until the reconciliation error path is reached.
         # delta_pct=1 forces full-image writes; the blocker transaction forces
         # the save-update-restore path on the first eviction attempt of pages with ts>=2
-        # updates.  After the save-update-restore path the page remains in cache with the
+        # updates. After the save-update-restore path the page remains in cache with the
         # reconciliation's multi-block state; a subsequent skip-write turns it to a
-        # single-page replacement result.  The failpoint then fires during the next
+        # single-page replacement result. The failpoint then fires during the next
         # full-image write -- the reconciliation error path would trip the persistent flag
         # assertion if the reconciliation commit path did not restore the flag.
         self.conn.reconfigure(
@@ -209,7 +209,7 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         if self.get_stat(stat_key) == 0:
             self.skipTest('failpoint_rec_before_wrapup did not fire in this run')
 
-        # Verify size is not inflated.  Without the fix, the save-update-restore path
+        # Verify size is not inflated. Without the fix, the save-update-restore path
         # left the persistent flag false; the skip-write path then set a single-page
         # replacement result with the wrong flag; the reconciliation error path skipped
         # the delta chain discard, leaking the chain's cumulative size into the file's
@@ -227,7 +227,7 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #
     # The skip-write path (the skip-write flag) copies the reconciled block's metadata
     # (where the address copy path has reset the persistent flag to false) into the
-    # page's block metadata and sets a single-page replacement result.  It must then
+    # page's block metadata and sets a single-page replacement result. It must then
     # restore the persistent flag = (cumulative size > 0) so the flag reflects that
     # the size IS counted in the file's running byte total (skip-write reuses the
     # existing on-disk address without subtracting or re-adding to the running total).
@@ -243,12 +243,12 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     # To reliably trigger skip-write during CHECKPOINT (so the page stays in cache
     # with the wrong flag set by the reconciliation commit path):
     #   1. Write data and checkpoint: page has REPLACE result, chain's cumulative
-    #      size > 0.  The on-page committed updates become durable updates.
-    #   2. Write to the page and ROLLBACK.  The rolled-back update is aborted and
-    #      invisible to reconciliation.  The page is dirty (has a modify struct)
+    #      size > 0. The on-page committed updates become durable updates.
+    #   2. Write to the page and ROLLBACK. The rolled-back update is aborted and
+    #      invisible to reconciliation. The page is dirty (has a modify struct)
     #      but all visible committed updates were already written as durable updates.
-    #   3. Checkpoint.  Reconciliation selects the committed durable update as the
-    #      on-page update.  Because it is already durable, newer_updates_than_last_rec_used
+    #   3. Checkpoint. Reconciliation selects the committed durable update as the
+    #      on-page update. Because it is already durable, newer_updates_than_last_rec_used
     #      stays false and skip-write fires.
     #      The reconciliation commit path copies the reconciled block's metadata (where
     #      the address copy path reset the persistent flag to false) into the page's
@@ -257,7 +257,7 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #   4. Enable failpoint_rec_before_wrapup and evict with delta_pct=1.
     #      The eviction writes a full-image (delta count=0); the failpoint fires and
     #      the reconciliation error path finds a single-page replacement result +
-    #      cumulative size > 0.  If the persistent flag had been left false the
+    #      cumulative size > 0. If the persistent flag had been left false the
     #      assertion would trip here.
     def test_skip_write_wrapup_aggregated_flag(self):
         nrows = 20
@@ -284,10 +284,10 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         # Steps 34: loop until the error path fires.
         # Each iteration:
-        #   a. Write to the page and rollback.  The page becomes dirty with only
+        #   a. Write to the page and rollback. The page becomes dirty with only
         #      aborted updates; the committed 'B' data is still a durable update.
-        #   b. Checkpoint.  Skip-write fires: newer_updates_than_last_rec_used stays
-        #      false because the already-durable 'B' update is unchanged.  The
+        #   b. Checkpoint. Skip-write fires: newer_updates_than_last_rec_used stays
+        #      false because the already-durable 'B' update is unchanged. The
         #      skip-write path in the reconciliation commit path restores the persistent
         #      flag = (cumulative size > 0), reflecting that the chain is still counted
         #      in the file's running byte total.
@@ -304,7 +304,7 @@ class test_disagg_checkpoint_size08(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             c.close()
             self.session.rollback_transaction()
 
-            # (b) Checkpoint with skip-write.  Before the fix, this set the persistent
+            # (b) Checkpoint with skip-write. Before the fix, this set the persistent
             # flag to false on the page, which stayed in cache with a single-page
             # replacement result.
             self.session.checkpoint()

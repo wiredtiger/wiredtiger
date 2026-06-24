@@ -33,10 +33,10 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 # test_disagg_checkpoint_size14.py
 #   Targets the failed-installation retry path: a reconciliation produces a
 #   multi-block result, the multi-block split path returns EBUSY (the failpoint
-#   or real contention), and the page stays in multi block.  The next dirty
+#   or real contention), and the page stays in multi block. The next dirty
 #   cycle then re-reconciles with fresh reconciliation multi-block state -- and
 #   the OLD state's contribution to the running total must be subtracted before
-#   the new state is installed.  If it isn't, the running total drifts and
+#   the new state is installed. If it isn't, the running total drifts and
 #   either trips the running-total decrement assertion or inflates the recorded
 #   ckpt.size unbounded.
 
@@ -111,10 +111,10 @@ class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             'timing_stress_for_test=[failpoint_eviction_split]')
 
         # Walk through bands and append fresh ranges so pages keep growing past
-        # leaf_page_max (keeps the multi-block split path running).  Double-evict
+        # leaf_page_max (keeps the multi-block split path running). Double-evict
         # each band: first try may EBUSY under the failpoint and strand the
         # reconciliation multi-block state; the next dirty cycle must discard it
-        # cleanly.  Periodic checkpoints flush the post-reconciliation chain
+        # cleanly. Periodic checkpoints flush the post-reconciliation chain
         # discard -- the spot where any accounting drift would trip the
         # running-total decrement assertion.
         for cycle in range(cycles):
@@ -146,7 +146,7 @@ class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             f'(warmup={split_failed_lock_warmup}, final={split_failed_lock_final})')
 
         # Legitimate growth is ~(nrows + cycles*band)/nrows; allow 3x that to
-        # accommodate B-tree overhead and delta accumulation.  A real leak
+        # accommodate B-tree overhead and delta accumulation. A real leak
         # would push the ratio orders of magnitude higher.
         legitimate_growth = (nrows + cycles * band) / nrows
         max_allowed_ratio = legitimate_growth * 3
@@ -162,7 +162,7 @@ class test_disagg_checkpoint_size14(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.assertEqual(count, expected_total,
             f'Row count mismatch: expected {expected_total}, got {count}')
 
-        # Verify the layered table.  WT's verify recomputes the on-disk block
+        # Verify the layered table. WT's verify recomputes the on-disk block
         # layout and cross-checks against the metadata-recorded size; drift
         # accumulated in the running total would surface as a verify failure
         # even if the running-total decrement assertion never tripped.

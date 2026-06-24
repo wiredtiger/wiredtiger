@@ -37,7 +37,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #
 # Bug: when a full-image write fails in the reconciliation error path for a page that
 # had a live delta chain, the old chain's cumulative size was not subtracted from the
-# file's running byte total.  The next successful checkpoint then saw an invalid page_id
+# file's running byte total. The next successful checkpoint then saw an invalid page_id
 # and skipped the delta chain discard, permanently leaking the chain's cumulative size.
 #
 # This test enables timing_stress_for_test=[failpoint_rec_before_wrapup], which fires
@@ -73,17 +73,17 @@ class test_disagg_checkpoint_size07(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     # test_rec_write_err_full_image_over_delta
     # -----------------------------------------------------------------------
     # Directly exercises the reconciliation error path with the conditions:
-    #   - delta count == 0   (full-image write, from delta_pct=1)
-    #   - a single-page replacement result  (page has a prior successful reconciliation)
-    #   - the chain's cumulative size > 0  (live delta chain on disk)
+    #   - delta count == 0 (full-image write, from delta_pct=1)
+    #   - a single-page replacement result (page has a prior successful reconciliation)
+    #   - the chain's cumulative size > 0 (live delta chain on disk)
     #
     # Flow:
     #   1. Write initial data + checkpoint: a single-page replacement result with a full image.
     #   2. Write partial update + checkpoint: delta appended; the chain's cumulative size grows.
     #   3. Evict the leaf page (returns it to the page service).
     #   4. Enable failpoint_rec_before_wrapup + delta_pct=1.
-    #   5. Dirty the page and force eviction in a loop.  Initial evictions succeed,
-    #      re-establishing a single-page replacement result in cache.  Eventually
+    #   5. Dirty the page and force eviction in a loop. Initial evictions succeed,
+    #      re-establishing a single-page replacement result in cache. Eventually
     #      the 1% failpoint fires after the full-image write, entering the reconciliation
     #      error path with all three conditions true and exercising the cleanup path.
     #   6. Disable failpoint and run a final checkpoint.
@@ -112,7 +112,7 @@ class test_disagg_checkpoint_size07(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             'Size should grow after appending a delta to the chain')
 
         # Step 3: Evict the leaf page so it is re-read from the page service on next
-        # access.  The disk-load path sets the persistent flag.
+        # access. The disk-load path sets the persistent flag.
         self.evict_page('key000000')
 
         # Step 4: Enable the failpoint and switch to full-image mode.
@@ -127,7 +127,7 @@ class test_disagg_checkpoint_size07(DisaggSizeTestMixin, wttest.WiredTigerTestCa
 
         # Step 5: Dirty the page and force eviction until the failpoint fires.
         # The first several evictions succeed and re-establish a single-page replacement
-        # result in cache.  Once that is set, a subsequent eviction that hits the 1%
+        # result in cache. Once that is set, a subsequent eviction that hits the 1%
         # failpoint enters the reconciliation error path with all three conditions true
         # and exercises the free page ID due to failed page replacement reconciliation scenario.
         stat_key = stat.dsrc.rec_free_page_id_due_to_failed_replacement_reconciliation
@@ -152,7 +152,7 @@ class test_disagg_checkpoint_size07(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         self.session.checkpoint()
         size_after_recovery = self.get_checkpoint_size()
 
-        # Step 7: Stat check  the error path was reached at least once.
+        # Step 7: Stat check: the error path was reached at least once.
         self.assertGreater(self.get_stat(stat_key), 0,
             'rec_free_page_id_due_to_failed_replacement_reconciliation should be > 0')
 

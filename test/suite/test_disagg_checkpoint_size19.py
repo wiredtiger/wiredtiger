@@ -35,10 +35,10 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #
 #   Internal disagg paths (notably checkpoint pick-up and role-switch step-up)
 #   open stable files via a suffix URI of the form
-#   file:X.wt_stable/WiredTigerCheckpoint.N.  The btree open path strips the
+#   file:X.wt_stable/WiredTigerCheckpoint.N. The btree open path strips the
 #   checkpoint suffix and recognizes the open as a checkpoint-cursor open, but
 #   the block manager may reuse a cached block handle already held by a live
-#   writer for the same base file.  Without the guard, the open would
+#   writer for the same base file. Without the guard, the open would
 #   unconditionally reset the shared running size total to the checkpoint's
 #   recorded size, clobbering bytes accumulated since the last checkpoint by
 #   the live writer -- a subsequent eviction would then underflow the running
@@ -46,10 +46,10 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 #
 #   The full underflow reproducer requires a single-process scenario where a
 #   live writer and a checkpoint pick-up share a block handle (the format-stress
-#   disagg-switch workload).  This Python test exercises the role-swap and
+#   disagg-switch workload). This Python test exercises the role-swap and
 #   pick-up code paths across multiple rounds with two connections in the same
 #   process and live writes between transitions, guarding the open-path code
-#   from regressing.  The deterministic underflow catcher for this bug lives in
+#   from regressing. The deterministic underflow catcher for this bug lives in
 #   test/format under disagg.mode=switch.
 
 @disagg_test_class
@@ -122,7 +122,7 @@ class test_disagg_checkpoint_size19(DisaggConfigMixin, wttest.WiredTigerTestCase
                 self.insert_rows(leader_sess, self.nrows * (round_idx + 1),
                                  self.nrows, chr(ord(char) + 1))
 
-                # Swap roles.  The new leader's step-up opens stable files via
+                # Swap roles. The new leader's step-up opens stable files via
                 # the disagg-shared suffix URI -- the path the fix protects.
                 # The outgoing leader retains cached block handles for the base
                 # URI; if it later picks up newer checkpoints, those opens must
@@ -146,7 +146,7 @@ class test_disagg_checkpoint_size19(DisaggConfigMixin, wttest.WiredTigerTestCase
                 leader_sess.checkpoint()
 
                 # Have the outgoing leader (current follower) pick up the new
-                # checkpoint.  This re-exercises the suffix-URI open on a
+                # checkpoint. This re-exercises the suffix-URI open on a
                 # connection whose cached block handles still belong to its
                 # previous leader era -- exactly the handle-sharing scenario
                 # the guard protects.

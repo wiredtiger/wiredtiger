@@ -37,7 +37,7 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Bug: when a disagg page carries a prior single-page replacement result (set
 #   by a prior save-update-restore eviction that produced exactly one block) and
 #   the split-rewrite path subsequently fails, the page stays in the multiblock
-#   state.  If the next reconciliation writes a full-image reusing the same
+#   state. If the next reconciliation writes a full-image reusing the same
 #   page_id (without freeing the old page via the post-reconciliation chain
 #   discard), the delta chain discard was never invoked for the old chain's
 #   cumulative size, permanently inflating the running total on every such cycle.
@@ -51,9 +51,9 @@ from helper_disagg import DisaggSizeTestMixin, disagg_test_class
 #   Exact triggering path:
 #     1. Eviction falls back to the save-update-restore path for a disagg page
 #        with uncommitted updates: the reconciliation commit path records a
-#        multiblock result with one entry.  The entry's chain's cumulative size
+#        multiblock result with one entry. The entry's chain's cumulative size
 #        S1 is counted in the running total.
-#     2. The split-rewrite path fails (e.g., allocation error).  The page stays
+#     2. The split-rewrite path fails (e.g., allocation error). The page stays
 #        in the multiblock state; S1 remains counted.
 #     3. Uncommitted updates are rolled back.
 #     4. A subsequent checkpoint or eviction reconciles the page cleanly (no
@@ -105,12 +105,12 @@ class test_disagg_checkpoint_size10(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     #   3. Loop until the reconciled pages scrubbed and added back to the cache clean scenario
     #      fires (per its stat counter):
     #      a. Open session_a and write uncommitted updates to the page.
-    #         Evict the page.  Uncommitted updates cannot go to the history
+    #         Evict the page. Uncommitted updates cannot go to the history
     #         store, so eviction falls back to the save-update-restore path,
     #         exercising the reconciled pages scrubbed and added back to the cache clean path.
     #      b. Rollback session_a.
     #      c. Switch to delta_pct=1 to force a full-image write, then
-    #         run a checkpoint.  The reconciliation commit path enters the
+    #         run a checkpoint. The reconciliation commit path enters the
     #         split-rewrite case and invokes the delta chain discard for
     #         the old chain's cumulative size S1.
     #   4. After enough cycles, verify checkpoint size is stable (not growing
