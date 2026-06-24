@@ -208,8 +208,8 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     WT_DECL_RET;
     WT_REF *ref;
     uint64_t head, tail;
-    uint32_t already_queued, drained, filtered_total, hazard_total, queued_total, scanned;
-    uint32_t seen_clean, seen_dirty, seen_updates, slot, stale_total;
+    uint32_t already_queued, drained, filtered_total, hazard_total, high_filter, queued_total;
+    uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
     bool busy, queued, urgent_queued;
 
     if (*slotp >= max_entries)
@@ -347,13 +347,14 @@ release:
         WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_filtered, filtered_total);
 
     /*
-     * Update the filter-heavy flag. When >90% of candidacy checks fail for
-     * WTI_DRAIN_FILTER_THRESHOLD consecutive passes the ring is not producing useful candidates for
-     * the active eviction mode; mark the btree so the walker skips the drain and runs the normal
-     * tree walk instead. Re-probe every WTI_DRAIN_PROBE_INTERVAL passes.
+     * Update the filter-heavy flag. When re-inserts outnumber queued candidates by
+     * WTI_DRAIN_FILTER_RATIO (queue yield below ~5%) for a net WTI_DRAIN_FILTER_THRESHOLD passes
+     * the ring is not producing useful candidates for the active eviction mode; mark the btree so
+     * the walker skips the drain and runs the normal tree walk instead. Re-probe every
+     * WTI_DRAIN_PROBE_INTERVAL passes.
      */
     if (filtered_total + queued_total > 0) {
-        if (filtered_total > queued_total * 9) {
+        if (filtered_total > queued_total * WTI_DRAIN_FILTER_RATIO) {
             if (__wt_atomic_add_uint32(&btree->drain_consecutive_high_filter, 1) >=
               WTI_DRAIN_FILTER_THRESHOLD) {
                 __wt_atomic_store_bool(&btree->drain_filter_heavy, true);
@@ -361,8 +362,18 @@ release:
                   session, cache_eviction_dirty_index_drain_skipped_filter_heavy);
             }
         } else {
-            __wt_atomic_store_uint32(&btree->drain_consecutive_high_filter, 0);
-            if (__wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
+            /*
+             * Decay the streak by one rather than zeroing it. The drain runs single-writer under
+             * the eviction walk lock, so this read-modify-write is race-free. A lone productive
+             * pass on an otherwise unproductive ring -- a read-heavy tree whose dirty pages turn
+             * briefly evictable when the stable timestamp advances -- must not erase a long
+             * high-filter streak and restart a drain that is mostly re-inserting; the park lifts
+             * only once the tree is productive long enough to decay the streak to zero.
+             */
+            high_filter = __wt_atomic_load_uint32_relaxed(&btree->drain_consecutive_high_filter);
+            if (high_filter > 0)
+                __wt_atomic_store_uint32(&btree->drain_consecutive_high_filter, high_filter - 1);
+            else if (__wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
                 __wt_atomic_store_bool(&btree->drain_filter_heavy, false);
         }
     }

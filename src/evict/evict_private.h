@@ -76,11 +76,19 @@ struct __wti_evict_entry {
 /*
  * Adaptive drain scheduling thresholds. The drain is attempted on odd passes; after EMPTY_THRESHOLD
  * consecutive empty drains the per-btree drain parks and re-probes once every PROBE_INTERVAL
- * passes. FILTER_THRESHOLD is the same hysteresis depth applied to the filter-heavy condition:
- * after that many consecutive passes where >90% of candidacy checks fail the drain is also parked.
+ * passes. FILTER_THRESHOLD is the same hysteresis depth applied to the filter-heavy condition: a
+ * pass is "high-filter" when re-inserted candidates exceed queued ones by FILTER_RATIO (queue yield
+ * below ~5%); after FILTER_THRESHOLD net high-filter passes the drain parks. A productive pass
+ * decays the streak by one rather than zeroing it, so a lone queued burst on an otherwise
+ * unproductive ring cannot keep restarting the drain. The ~5% boundary keeps a productive
+ * update-heavy tree (~10% yield) draining while parking a read-heavy tree whose ring fills with
+ * pages held un-evictable by the stable timestamp -- there the drain only re-pays the candidacy
+ * filter on refs it cannot queue, stealing passes the walker needs and pushing eviction onto
+ * application threads.
  */
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
 #define WTI_DRAIN_FILTER_THRESHOLD 8u
+#define WTI_DRAIN_FILTER_RATIO 19u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
 
 /*
