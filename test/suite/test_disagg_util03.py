@@ -72,7 +72,15 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
 
         stdout, _ = self._run_wt_turtle()
         self.assertIn('=== turtle ===', stdout)
-        self.assertRegex(stdout, r'(?m)^=== metadata page \(table_id=2, page_id=1, lsn=\d+\) ===$')
+        self.assertRegex(stdout, r'(?m)^lsn=\d+$')
+        self.assertRegex(stdout, r'(?m)^metadata_lsn=\d+$')
+        self.assertRegex(stdout, r'(?m)^metadata_checksum=0x[0-9a-f]+$')
+        self.assertRegex(stdout, r'(?m)^database_size=\d+$')
+        self.assertRegex(stdout, r'(?m)^version=\d+$')
+        self.assertRegex(stdout, r'(?m)^compatible_version=\d+$')
+
+        self.assertRegex(
+            stdout, r'(?m)^=== metadata page \(table_id=2, page_id=1, requested_lsn=\d+\) ===$')
         self.assertIn('checksum=OK', stdout)
         self.assertIn('checkpoint=', stdout)
 
@@ -106,7 +114,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         stdout_old, _ = self._run_wt_turtle('-l', str(first_metadata_lsn))
         self.assertNotIn('=== turtle ===', stdout_old)
         self.assertIn(
-            f'=== metadata page (table_id=2, page_id=1, lsn={first_metadata_lsn}) ===',
+            f'=== metadata page (table_id=2, page_id=1, requested_lsn={first_metadata_lsn}) ===',
             stdout_old)
         self.assertIn('checkpoint=', stdout_old)
         self.assertNotIn('checksum=OK', stdout_old)
@@ -161,5 +169,5 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
 
         # LSN 1 is below any real LSN palite assigns.
         stdout, _ = self._run_wt_turtle('-l', '1', failure=True)
-        self.assertIn('metadata page not found at lsn=1', stdout)
+        self.assertIn('metadata page not found at requested_lsn=1', stdout)
         self.assertNotIn('=== metadata page (', stdout)

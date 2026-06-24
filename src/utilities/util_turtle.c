@@ -198,7 +198,7 @@ print_metadata_page(
     bool mismatch;
 
     mismatch = false;
-    printf("\n=== metadata page (table_id=2, page_id=1, lsn=%" PRIu64 ") ===\n", lsn);
+    printf("\n=== metadata page (table_id=2, page_id=1, requested_lsn=%" PRIu64 ") ===\n", lsn);
     if (have_expected_cksum) {
         actual = __wt_checksum(page->data, page->size);
         if (actual == expected_cksum)
@@ -231,7 +231,7 @@ fetch_and_print_metadata_page(
 
     ret = fetch_metadata_page(session, lsn, &page_item);
     if (ret == WT_NOTFOUND) {
-        printf("metadata page not found at lsn=%" PRIu64 "\n", lsn);
+        printf("metadata page not found at requested_lsn=%" PRIu64 "\n", lsn);
         ret = 1;
     } else if (ret == 0) {
         if (print_metadata_page(lsn, &page_item, have_expected_cksum, expected_cksum))

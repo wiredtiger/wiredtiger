@@ -1007,6 +1007,7 @@ __disagg_check_meta_version(
             WT_ERR_MSG(
               session, EINVAL, "Invalid checkpoint_meta version: %" PRIu64, (uint64_t)cval.val);
         ckpt_meta->version = (uint32_t)cval.val;
+        ckpt_meta->has_version = true;
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "compatible_version", &cval), true);
@@ -1015,6 +1016,7 @@ __disagg_check_meta_version(
             WT_ERR_MSG(session, EINVAL, "Invalid checkpoint_meta compatible_version: %" PRIu64,
               (uint64_t)cval.val);
         ckpt_meta->compatible_version = (uint32_t)cval.val;
+        ckpt_meta->has_compatible_version = true;
     }
 
     /* Clear error status (WT_NOTFOUND is ok for optional fields, means use default). */
@@ -1061,6 +1063,7 @@ __wti_disagg_pick_up_checkpoint_meta(
     /* Extract the LSN of the metadata page. */
     WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
     ckpt_meta.metadata_lsn = (uint64_t)cval.val;
+    ckpt_meta.has_metadata_lsn = true;
 
     /*
      * Extract the checksum of the metadata page, if it exists. We added the checksum later, so
@@ -1082,6 +1085,7 @@ __wti_disagg_pick_up_checkpoint_meta(
     /* Extract the database size. */
     WT_ERR(__wt_config_getones(session, meta_str, "database_size", &cval));
     ckpt_meta.database_size = (uint64_t)cval.val;
+    ckpt_meta.has_database_size = true;
     /* Parse and validate version and compatible_version fields. */
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
