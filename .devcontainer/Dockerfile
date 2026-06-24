@@ -18,4 +18,12 @@ ENV PATH="/home/wiredtiger/venv/bin:$PATH"
 RUN pip install --no-cache-dir \
     find_libpython==0.4.0 gcovr==5.0 psutil==5.9.4 ruff==0.4.5 uv==0.11.18
 
+ENV PATH="/home/wiredtiger/bin:$PATH"
+
+RUN mkdir -p /home/wiredtiger/bin && \
+    arch=$(dpkg --print-architecture) && \
+    curl -fsSL "https://evg-bucket-evergreen.s3.amazonaws.com/evergreen/clients/latest/linux_${arch}/evergreen" \
+    -o /home/wiredtiger/bin/evergreen && \
+    chmod +x /home/wiredtiger/bin/evergreen
+
 WORKDIR /workdir
