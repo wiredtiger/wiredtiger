@@ -114,7 +114,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
             # The caller always retries the drop while the collection still exists.
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.drop(self.victim_uri, None),
-                exceptionString='/resource busy/')
+                exceptionString='Resource busy')
             self.assertTrue(self.exists(self.victim_uri),
                 "a failed drop must leave the collection in place")
 
@@ -145,6 +145,6 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         after_real_drop = self.get_database_size()
         self.assertLess(after_real_drop, before_real_drop - victim_size // 2,
             f"a successful drop should reduce the database size: "
-            f"{before_real_drop} -> {after_real_drop}")
+            f"{before_real_drop} (before drop) -> {after_real_drop} (after drop)")
 
 

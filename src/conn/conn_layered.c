@@ -705,7 +705,7 @@ __wt_disagg_shared_metadata_queue_process(
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         /*
-         * A successful schema drop op should contributes to the database size reduction.
+         * A successful schema drop op should contribute to the database size reduction.
          */
         if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
             /*
@@ -768,8 +768,7 @@ err:
         TAILQ_REMOVE(&skipped_creates, skipped, q);
         __disagg_shared_metadata_queue_free(session, &skipped);
     }
-    if (stable_config != NULL)
-        __wt_free(session, stable_config);
+    __wt_free(session, stable_config);
     return (ret);
 }
 
