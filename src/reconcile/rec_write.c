@@ -726,26 +726,35 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     if (LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING)) {
             /*
-             * Read the eviction snapshot under the WT_GEN_CKPT_SNAP generation to prevent
-             * checkpoint from swapping the buffer while we read it. snap_min is WT_TXN_NONE until
-             * the first checkpoint completes; fall back to pinned_id then last_running.
+             * Use snap_min from the ping-pong eviction snapshot as the on-page visibility boundary.
+             * snap_min is the minimum running txnid at the time the checkpoint snapshot was taken,
+             * which may be more permissive than checkpoint_txn_shared.pinned_id. Only use the
+             * buffered snap_min when a checkpoint is actively running (pinned_id != WT_TXN_NONE);
+             * the buffer retains the last checkpoint's value between checkpoints, and using a stale
+             * snap_min when no checkpoint is running would incorrectly mark committed updates as
+             * invisible, breaking the disaggregated skip-write invariant.
              */
-            __wt_session_gen_enter(session, WT_GEN_CKPT_SNAP);
-            uint32_t idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
-            uint64_t snap_min = conn->ckpt_eviction_snap[idx].snap_min;
-            __wt_session_gen_leave(session, WT_GEN_CKPT_SNAP);
-
-            if (snap_min != WT_TXN_NONE)
-                r->rec_start_pinned_id = snap_min;
-            else {
+            r->rec_start_pinned_id =
+              __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
+            if (r->rec_start_pinned_id != WT_TXN_NONE) {
+                uint64_t snap_min;
+                WT_ENTER_GENERATION(session, WT_GEN_CKPT_SNAP);
+                uint32_t snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+                snap_min = conn->ckpt_eviction_snap[snap_idx].snap_min;
+                WT_LEAVE_GENERATION(session, WT_GEN_CKPT_SNAP);
+                if (snap_min != WT_TXN_NONE)
+                    r->rec_start_pinned_id = snap_min;
+            } else
                 r->rec_start_pinned_id =
-                  __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
-                if (r->rec_start_pinned_id == WT_TXN_NONE)
-                    r->rec_start_pinned_id =
-                      __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
-            }
+                  __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
+        } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            r->rec_start_pinned_id =
+              __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
+            if (r->rec_start_pinned_id == WT_TXN_NONE)
+                r->rec_start_pinned_id =
+                  __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
         } else
             r->rec_start_pinned_id = __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
 
