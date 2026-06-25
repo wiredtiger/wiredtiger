@@ -28,6 +28,7 @@
 
 import re, wiredtiger, wttest
 from wiredtiger import stat
+from helper import WiredTigerCursor
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # Tests for database size on schema drop.
@@ -59,17 +60,6 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return value
 
-    # Read the latest checkpoint size of a stable constituent from its metadata.
-    def stable_checkpoint_size(self, base):
-        meta_cursor = self.session.open_cursor('metadata:')
-        meta_cursor.set_key(f'file:{base}.wt_stable')
-        self.assertEqual(meta_cursor.search(), 0)
-        value = meta_cursor.get_value()
-        meta_cursor.close()
-        sizes = re.findall(r',size=(\d+),', value)
-        self.assertGreater(len(sizes), 0)
-        return int(sizes[-1])
-
     def exists(self, uri):
         meta_cursor = self.session.open_cursor('metadata:')
         meta_cursor.set_key(uri)
@@ -85,15 +75,22 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
     def database_size_check(self, context_message=""):
         self.session.checkpoint()
+
+        # Calculate reference value from sum of all the collections
+        accumulated_database_size = 0
+        with WiredTigerCursor(self.session, 'metadata:') as cursor:
+            while cursor.next() == 0:
+                value = cursor.get_value()
+                checkpoints = re.findall(r',checkpoint=([^)]+),', value)
+                if checkpoints:
+                    sizes = re.findall(r',size=(\d+),', checkpoints[0])
+                    if sizes:
+                        accumulated_database_size += int(sizes[-1])
+
         database_size = self.get_database_size()
-        keep_size = self.stable_checkpoint_size(self.keep_base)
-        if self.exists(self.victim_uri):
-            victim_size = self.stable_checkpoint_size(self.victim_base)
-        else:
-            victim_size = 0
-        self.assertGreaterEqual(database_size, keep_size + victim_size,
-            f"database size {database_size} should be at least "
-            f"keep {keep_size} + victim {victim_size} : {context_message}")
+        self.assertGreaterEqual(database_size, accumulated_database_size,
+            f"database size {database_size} should be equal to "
+            f"accumulated {accumulated_database_size} : {context_message}")
 
     def test_failed_drop_does_not_shrink_database_size(self):
         # Filler table for headroom.
@@ -143,3 +140,4 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
             self.conn.reconfigure("verbose=[disaggregated_storage:0]")
 
         self.assertFalse(self.exists(self.victim_uri))
+        self.database_size_check("after successful drop")
