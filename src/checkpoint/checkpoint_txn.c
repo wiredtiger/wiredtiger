@@ -1123,8 +1123,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_UNUSED(original_snap_min);
 
     /*
-     * For parallel checkpoints, create a private read-only copy of the checkpoint snapshot for
-     * the reconciliation workers. Workers read from this instead of live txn->snapshot_data.
+     * For parallel checkpoints, create a private read-only copy of the checkpoint snapshot for the
+     * reconciliation workers. Workers read from this instead of live txn->snapshot_data.
      */
     if (WT_PARALLEL_CHECKPOINTS_ENABLED(session)) {
         WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -1162,9 +1162,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     }
 
     /*
-     * For precise checkpoints, publish a snapshot into the connection's ping-pong eviction
-     * snapshot buffers so that eviction can use snap_min as a tighter on-page visibility bound.
-     * Drain any in-flight readers of the retiring buffer before swapping to the new one.
+     * For precise checkpoints, publish a snapshot into the connection's ping-pong eviction snapshot
+     * buffers so that eviction can use snap_min as a tighter on-page visibility bound. Drain any
+     * in-flight readers of the retiring buffer before swapping to the new one.
      */
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         WT_TXN_SNAPSHOT *src, *dst;
@@ -1177,8 +1177,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         cur_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
         new_idx = 1 - cur_idx;
 
-        WT_ERR(__wt_realloc_def(
-          session, &conn->ckpt_eviction_snap_capacity[new_idx], capacity,
+        WT_ERR(__wt_realloc_def(session, &conn->ckpt_eviction_snap_capacity[new_idx], capacity,
           &conn->ckpt_eviction_snap_array[new_idx]));
 
         dst = &conn->ckpt_eviction_snap[new_idx];

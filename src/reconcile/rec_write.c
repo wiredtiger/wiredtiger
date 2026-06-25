@@ -729,8 +729,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             /*
              * Read the eviction snapshot under the WT_GEN_CKPT_SNAP generation to prevent
-             * checkpoint from swapping the buffer while we read it. snap_min is WT_TXN_NONE
-             * until the first checkpoint completes; fall back to pinned_id then last_running.
+             * checkpoint from swapping the buffer while we read it. snap_min is WT_TXN_NONE until
+             * the first checkpoint completes; fall back to pinned_id then last_running.
              */
             __wt_session_gen_enter(session, WT_GEN_CKPT_SNAP);
             uint32_t idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
