@@ -921,8 +921,8 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
     if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
         goto return_false;
 
-    WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-    if (cval.len != 0)
+    WT_RET(__wt_config_gets(session, cfg, "dump", &cval));
+    if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
         goto return_false;
 
     WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
