@@ -37,13 +37,13 @@ block_free_fail(
 static void
 setup_failing_bm(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_BTREE *btree, WT_BM *bm)
 {
-    memset(static_cast<void *>(bm), 0, sizeof(*bm));
+    memset((void *)bm, 0, sizeof(*bm));
     bm->free = block_free_fail;
 
-    memset(static_cast<void *>(btree), 0, sizeof(*btree));
+    memset((void *)btree, 0, sizeof(*btree));
     btree->bm = bm;
 
-    memset(static_cast<void *>(dhandle), 0, sizeof(*dhandle));
+    memset((void *)dhandle, 0, sizeof(*dhandle));
     dhandle->handle = btree;
 
     session->dhandle = dhandle;

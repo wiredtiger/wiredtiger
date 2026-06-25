@@ -25,6 +25,21 @@ typedef enum {
 } WT_CLAYERED_PUT_OP;
 
 /*
+ * Increment the ingest or stable variant of a read statistic according to which constituent cursor
+ * holds the result. Call only on the success path of a read, once the operation has positioned the
+ * cursor; the assert enforces that.
+ */
+#define WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, fld)                   \
+    do {                                                                                 \
+        if ((clayered)->current_cursor == (clayered)->ingest_cursor)                     \
+            WT_STAT_CONN_DSRC_INCR(session, fld##_ingest);                               \
+        else {                                                                           \
+            WT_ASSERT(session, (clayered)->current_cursor == (clayered)->stable_cursor); \
+            WT_STAT_CONN_DSRC_INCR(session, fld##_stable);                               \
+        }                                                                                \
+    } while (0)
+
+/*
  * __clayered_is_deleted_encoded --
  *     Check if the value starts with the tombstone.
  */
@@ -366,19 +381,6 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bo
         return (false);
 
     /*
-     * Layered cursor is positioned on the stable cursor. Changing it may lose the layered cursor
-     * position.
-     *
-     * FIXME-WT-16467: If we are reading with a timestamp and can ensure that we never select a
-     * checkpoint with an oldest timestamp greater than the pinned timestamp, we should safely
-     * advance to a newer checkpoint. This is because the version we intend to read would still be
-     * present in the newer checkpoint.
-     */
-    if (clayered->stable_cursor != NULL && clayered->current_cursor == clayered->stable_cursor &&
-      F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
-        return (false);
-
-    /*
      * First, layered cursors are sometimes paired with read timestamps. When using read
      timestamps,
      * it's always safe to update cursors, even during iterations. That's because the view at a
@@ -388,6 +390,14 @@ __clayered_can_advance_stable(WT_CURSOR_LAYERED *clayered, uint64_t conn_lsn, bo
     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
         return (true);
     else {
+        /*
+         * Layered cursor is positioned on the stable cursor. Changing it may lose the layered
+         * cursor position.
+         */
+        if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+          clayered->current_cursor == clayered->stable_cursor)
+            return (false);
+
         /* if this is an iteration, we won't reopen the cursor, we're done. */
         if (iteration)
             return (false);
@@ -1297,13 +1307,7 @@ __clayered_next(WT_CURSOR *cursor)
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT));
-
-    if (clayered->current_cursor == clayered->ingest_cursor)
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
-    else {
-        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_stable);
-    }
+    WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_next);
 
 err:
     API_END_RET(session, ret);
@@ -1331,13 +1335,7 @@ __clayered_prev(WT_CURSOR *cursor)
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
     WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
-
-    if (clayered->current_cursor == clayered->ingest_cursor)
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
-    else {
-        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_stable);
-    }
+    WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_prev);
 
 err:
     API_END_RET(session, ret);
@@ -1747,12 +1745,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
     WT_ERR(__clayered_lookup(session, clayered, &cursor->value));
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
-    if (clayered->current_cursor == clayered->ingest_cursor)
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_ingest);
-    else {
-        WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor);
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_stable);
-    }
+    WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_search);
 
 err:
     __clayered_leave(clayered);
@@ -2033,17 +2026,12 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
     WT_ERR(__clayered_search_near_int(session, cursor, exactp));
+    WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_search_near);
 
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
-
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
-    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
-    if (clayered->current_cursor == clayered->ingest_cursor)
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_ingest);
-    else
-        WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_stable);
 
 err:
     __clayered_leave(clayered);

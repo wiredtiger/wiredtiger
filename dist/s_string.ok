@@ -864,6 +864,7 @@ cust
 customizable
 customp
 cutlim
+cutover
 cv
 cval
 cx
@@ -894,6 +895,7 @@ dec
 decile
 deciles
 decl
+decodable
 decompressor
 decr
 decrementing
@@ -1410,6 +1412,7 @@ nonconflicting
 nonliteral
 nonoverlapping
 nonstandalone
+nontxn
 noop
 nop
 nopos
