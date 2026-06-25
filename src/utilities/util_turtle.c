@@ -267,13 +267,11 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
       conn->disaggregated_storage.page_log_meta == NULL)
         WT_RET_MSG(session_impl, EINVAL, "wt turtle requires a disaggregated-storage connection");
 
+    /* If no LSN argument is provided, fetch the latest turtle and use its metadata LSN. */
     if (!have_lsn_arg) {
         WT_ERR(fetch_latest_turtle(session_impl, &lsn, &meta_blob));
         WT_ERR(parse_turtle(session_impl, meta_blob.data, meta_blob.size, &turtle_meta));
         print_turtle(lsn, &turtle_meta);
-    }
-
-    if (turtle_meta.has_metadata_lsn) {
         lsn_arg = turtle_meta.metadata_lsn;
         have_expected_cksum = turtle_meta.has_metadata_checksum;
         expected_cksum = turtle_meta.metadata_checksum;
