@@ -117,16 +117,20 @@ class test_eviction06(wttest.WiredTigerTestCase):
     # insert/drain test and verified by code review.
 
     def test_dirty_index_disabled(self):
-        # With the feature turned off no ring is allocated, so neither the
-        # producer nor the drain ever advances its counters even under the
-        # same write + eviction pressure that drives the enabled cases.
-        self.conn.reconfigure('eviction_dirty_index=false')
+        # Reopen configured off from the start, rather than reconfiguring a live
+        # connection to false. A runtime reconfigure only stands the drain down:
+        # it does not free rings already allocated for trees opened while the
+        # feature was on, and the producer fast path keys off ring existence, not
+        # the live flag. On a disaggregated leader those background trees keep
+        # taking writes, so their producers would go on filling the surviving
+        # rings and the insert counter would climb. Opening with the feature off
+        # means no ring is ever allocated, so neither the producer nor the drain
+        # can advance a counter under the same write + eviction pressure.
+        self.reopen_conn(config='cache_size=200MB,statistics=(all),'
+                                'eviction_dirty_index=false')
         uri = 'table:test_eviction06_off'
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
 
-        # Snapshot baseline after disabling: stats are cumulative so any
-        # inserts that fired during connection open (before reconfigure) must
-        # not be counted against the disabled assertion.
         baseline_insert = self.get_stat(stat.conn.cache_eviction_dirty_index_insert)
         baseline_drain  = self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned)
 
