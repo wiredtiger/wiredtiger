@@ -391,6 +391,14 @@ define_c_test(
     LABEL "disagg"
 )
 
+define_c_test(
+    TARGET test_wt17911_prepared_deep_chain
+    SOURCES wt17911_prepared_deep_chain/main.c
+    DIR_NAME wt17911_prepared_deep_chain
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt17911_prepared_deep_chain>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.
