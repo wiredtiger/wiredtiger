@@ -31,18 +31,11 @@ from helper import simulate_crash_restart
 from wiredtiger import stat
 from wtbackup import backup_base
 
-# test_backup18.py
 # Test backup:query_id API.
 class test_backup18(backup_base):
     conn_config= 'cache_size=1G,log=(enabled,file_max=100K)'
     pfx = 'test_backup'
     uri="table:test"
-
-    def get_stat(self, stat_name):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat_name][2]
-        stat_cursor.close()
-        return value
 
     def id_check(self, expect):
         got = []

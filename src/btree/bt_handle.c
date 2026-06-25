@@ -787,7 +787,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
-    /* If this is the first time opening the tree this run. */
+    /*
+     *  If this is the first time opening the tree this run.
+     *  FIXME-WT-17763: The runtime write generation should not always be updated in disagg mode,
+     *  the proper conditional is more narrow and needs to be implemented here.
+     */
     if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         btree->run_write_gen = btree->write_gen;
@@ -818,6 +822,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         btree->next_page_id = WT_BLOCK_MIN_PAGE_ID; /* Should this be in create? */
     else
         btree->next_page_id = ckpt->next_page_id;
+
+    __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, ckpt->leaf_entry_ewma);
+    __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, ckpt->approx_leaf_pages);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
@@ -923,7 +930,7 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
      * the disk image on return, the in-memory object steals it.
      */
     WT_ERR(__wti_page_inmem(session, NULL, dsk.data,
-      WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page, NULL));
+      WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, NULL, &page, NULL));
     dsk.mem = NULL;
     if (page->disagg_info != NULL)
         page->disagg_info->block_meta = block_meta;

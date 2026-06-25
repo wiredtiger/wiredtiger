@@ -125,6 +125,12 @@ connection_page_delta_config_common = [
         When enabled, reconciliation may write deltas for leaf pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
+    Config('delete_pct', '20', r'''
+        when the number of keys removed from the disk image on a leaf page exceeds this
+        percentage of the total page entries, reconciliation writes a full page instead of
+        a delta to reclaim disk space. A removed key still occupies space as a tombstone in
+        the delta; the same key is simply absent from a full page.''',
+        min='1', max='100', type='int', undoc=True),
     Config('max_consecutive_delta', '32', r'''
         the max consecutive deltas allowed for a single page. The maximum value is set
         at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
@@ -187,11 +193,7 @@ connection_reconfigure_disaggregated_configuration = [
         type='category', subconfig=connection_disaggregated_config_common),
 ]
 wiredtiger_open_page_delta_configuration = connection_page_delta_config
-connection_reconfigure_page_delta_configuration = [
-    Config('page_delta', '', r'''
-        configure page delta settings for this connection''',
-        type='category', subconfig=connection_page_delta_config_common),
-]
+connection_reconfigure_page_delta_configuration = connection_page_delta_config
 
 format_meta = common_meta + [
     Config('key_format', 'u', r'''
@@ -689,8 +691,7 @@ connection_runtime_config = [
             if true, for operations with snapshot isolation the cursor temporarily releases any page
             that requires force eviction, then repositions back to the page for further operations.
             A page release encourages eviction of hot or large pages, which is more likely to
-            succeed without a cursor keeping the page pinned. Note: This setting is not compatible
-            with disaggregated storage.''',
+            succeed without a cursor keeping the page pinned.''',
             type='boolean'),
         Config('disagg_address_cookie_upgrade', 'none', r'''
             modify the disaggregated block manager to pretend that it is a newer version to test
@@ -699,6 +700,11 @@ connection_runtime_config = [
         Config('disagg_address_cookie_optional_field', 'false', r'''
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
+            type='boolean', undoc=True),
+        Config('disagg_slow_truncate_follower', 'false', r'''
+            if true, follower-side layered-table truncate uses the slow per-record delete path
+            instead of the optimized range delete. Intended for debugging the disaggregated
+            slow/fast truncate split; leader always uses fast truncate.''',
             type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
@@ -731,6 +737,11 @@ connection_runtime_config = [
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
             type='boolean'),
+        Config('slow_truncate', 'false', r'''
+            if true, disable the fast-truncate page-skip optimization during range truncate.
+            Intended for debugging the fast-truncate page-skip path on leader and
+            non-disaggregated truncates.''',
+            type='boolean', undoc=True),
         Config('stress_skiplist', 'false', r'''
             Configure various internal parameters to encourage race conditions and other issues
             with internal skip lists, e.g. using a more dense representation.''',
@@ -946,9 +957,11 @@ connection_runtime_config = [
             Load control will actively reject the work, based on other settings, to keep the
             system healthy.''',
             type='boolean'),
-        Config('control_threshold', '100', r'''
-            Threshold at which load control will actively start rejecting the work.''',
-            min=10, max=200),
+        Config('control_threshold', '200', r'''
+            Load level, expressed as a percentage of the cache eviction trigger (100 means at
+            the eviction trigger, 200 means twice the trigger), at or above which load control
+            sheds incoming operations. Set to 0 to disable shedding.''',
+            min=0, max=1000),
         ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
@@ -1022,7 +1035,7 @@ connection_runtime_config = [
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
-        'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
+        'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
         'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
@@ -1048,6 +1061,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            'cross_checkpoint_cache',
             'disaggregated_storage',
             'error_returns',
             'eviction',
@@ -1533,6 +1547,12 @@ wiredtiger_open = wiredtiger_open_common + [
         type='boolean'),
     Config('exclusive', 'false', r'''
         fail if the database already exists, generally used with the \c create option''',
+        type='boolean'),
+    Config('extensions_strict', 'false', r'''
+        if true, fail ::wiredtiger_open with \c EINVAL when an early-loaded extension
+        recorded in \c WiredTiger.basecfg is not passed in the open configuration. The
+        default is to log a warning and continue with the extension absent. See @ref
+        extensions_loadable''',
         type='boolean'),
     Config('in_memory', 'false', r'''
         keep data in memory only. See @ref in_memory for more information''',
@@ -2238,7 +2258,13 @@ methods = {
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
 
-'WT_CONNECTION.set_key_provider' : Method([]),
+'WT_CONNECTION.set_key_provider' : Method([
+    Config('version', '0', r'''
+        the key provider API version. Version 0 uses the pull model
+        (WiredTiger calls WT_KEY_PROVIDER::get_key). Version 1 uses
+        the push model''',
+        min=0, max=1),
+]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''
@@ -2305,6 +2331,10 @@ methods = {
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
+    Config('step_down_ts', '', r'''
+        the cutover timestamp for a planned step-down of disaggregated storage: committed writes
+        after this timestamp are directed to the ingest constituent and writes at or before it to
+        the stable constituent. Only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([

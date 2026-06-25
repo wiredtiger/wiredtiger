@@ -2605,7 +2605,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     /* Find the first inactive session slot. */
     for (session_ret = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.size;
-         ++session_ret, ++i)
+      ++session_ret, ++i)
         if (!session_ret->active)
             break;
     if (i == conn->session_array.size) {
@@ -2631,7 +2631,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         session_ret->iface = F_ISSET(conn, WT_CONN_READONLY) ? stds_readonly : stds;
     session_ret->iface.connection = &conn->iface;
 
-    session_ret->name = NULL;
+    __wt_atomic_store_ptr_relaxed(&session_ret->name, NULL);
     session_ret->id = i;
 
 #ifdef HAVE_UNITTEST_ASSERTS

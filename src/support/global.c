@@ -40,6 +40,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
+  {"failpoint_page_log_handle_put", WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT},
   {"failpoint_rec_before_wrapup", WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP},
   {"failpoint_rec_split_write", WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE},
   {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
@@ -354,10 +355,6 @@ __global_once(void)
     /* Run-time configuration. */
 #ifdef WT_STANDALONE_BUILD
     __wt_process.tiered_shared_2023 = true;
-#endif
-
-#if defined(WT_DISAGG_SLOW_TRUNCATE_BUILD) && (WT_DISAGG_SLOW_TRUNCATE_BUILD == 1)
-    __wt_process.disagg_slow_truncate_2026 = true;
 #endif
 }
 

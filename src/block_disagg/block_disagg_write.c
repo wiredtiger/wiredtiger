@@ -19,11 +19,11 @@ __block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
 }
 
 /*
- * __wti_block_disagg_header_byteswap_copy --
+ * __wt_block_disagg_header_byteswap_copy --
  *     Place holder - might be necessary to handle network order.
  */
 void
-__wti_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
+__wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
 {
     *to = *from;
 }
@@ -183,6 +183,10 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         F_SET(&put_args, WT_PAGE_LOG_COLD);
 
     /* Write the block. */
+    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT, 100)) {
+        WT_STAT_CONN_DSRC_INCR(session, disagg_block_plh_put_failed);
+        return (EBUSY);
+    }
     WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);

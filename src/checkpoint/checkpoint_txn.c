@@ -1224,11 +1224,14 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * If the checkpoint is using timestamps, and the stable timestamp hasn't been updated since the
      * last checkpoint there is nothing more that could be written. Except when a non timestamped
      * file has been modified, as such if the connection has been modified it is currently unsafe to
-     * skip checkpoints.
+     * skip checkpoints. Also, don't skip if the stable disaggregated schema epoch changed, as the
+     * metadata operation queue may have entries to flush even without new committed data.
      */
     if (!conn->modified && ckpt_cfg->use_timestamp &&
       txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session)) {
+      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session) &&
+      txn_global->last_ckpt_disaggregated_schema_epoch ==
+        __wt_get_stable_disaggregated_schema_epoch(session)) {
         ckpt_cfg->can_skip = true;
         return (0);
     }
@@ -1384,6 +1387,7 @@ __wt_checkpoint_reset_stats(WT_CONNECTION_IMPL *conn)
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
     __wt_atomic_store_uint16_relaxed(&evict->evict_max_eviction_queue_attempts, 0);
     __wt_atomic_store_uint16_relaxed(&evict->evict_max_evict_page_attempts, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_victim_cache_put_us, 0);
     __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
 
     /* Heuristic controls. */

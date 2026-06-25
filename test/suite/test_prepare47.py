@@ -26,20 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_prepare47.py
-#   Prepared insert on top of an existing tombstone, rolled back with the rollback
-#   timestamp ahead of stable. The chain ends up with an unresolved aborted prepared
-#   update at the head and the committed tombstone behind it. Reconcile must keep the
-#   tombstone in the chain so a later reconcile that writes the prepared update has a
-#   rollback fallback.
+# Prepared insert on top of an existing tombstone, rolled back with the rollback
+# timestamp ahead of stable. The chain ends up with an unresolved aborted prepared
+# update at the head and the committed tombstone behind it. Reconcile must keep the
+# tombstone in the chain so a later reconcile that writes the prepared update has a
+# rollback fallback.
 
 import wttest
 from wtscenario import make_scenarios
 
 class test_prepare47(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 
-    uri = 'table:test_prepare47'
+    uri = f'table:{test_name}'
 
     format_values = [
         ('row', dict(key_format='i')),
@@ -160,13 +160,13 @@ class test_prepare47(wttest.WiredTigerTestCase):
         evict_session.close()
 
     def test_aborted_prepared_with_lost_disk_fallback(self):
-        # Theory: at rollback time, first_committed_upd is NULL (no committed update behind
-        # the prepared insert) but tw_found is true (on-disk cell with stop is the fallback),
-        # so __txn_prepare_rollback_delete_key is not called and no rollback tombstone is
-        # prepended. Later, a reconcile drops the on-disk cell (its stop is globally visible
-        # and nothing is selected for the key), erasing the only fallback. A subsequent
-        # reconcile that walks the surviving aborted prepared update has neither a rollback
-        # tombstone nor an on-disk fallback, tripping the leaked-prepared-update assertion.
+        # Theory: at rollback time there is no committed update behind the prepared insert,
+        # but there is an on-disk cell with a stop that serves as the fallback, so no rollback
+        # tombstone is appended to the chain. Later, a reconcile drops the on-disk cell (its
+        # stop is globally visible and nothing is selected for the key), erasing the only
+        # fallback. A subsequent reconcile that walks the surviving aborted prepared update has
+        # neither a rollback tombstone nor an on-disk fallback, tripping the
+        # leaked-prepared-update assertion.
         insert_ts = 20
         delete_ts = 30
         oldest_after_delete = 31
@@ -224,8 +224,9 @@ class test_prepare47(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(stable_unstable))
 
-        # Roll back with rollback_ts ahead of stable; first_committed_upd is NULL but
-        # tw_found is true so no rollback tombstone is prepended.
+        # Roll back with rollback_ts ahead of stable; there is no committed update behind the
+        # prepared insert but the on-disk cell exists, so no rollback tombstone is appended to
+        # the chain.
         self.session.rollback_transaction(
             'rollback_timestamp=' + self.timestamp_str(rollback_ts))
 

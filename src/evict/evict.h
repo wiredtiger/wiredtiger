@@ -25,7 +25,9 @@ struct __wt_evict {
                                                                       eviction per checkpoint */
     wt_shared uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
     wt_shared uint64_t
-      evict_max_ms_per_checkpoint;   /* Longest milliseconds spent at a single eviction */
+      evict_max_ms_per_checkpoint; /* Longest milliseconds spent at a single eviction */
+    wt_shared uint64_t evict_max_victim_cache_put_us; /* Longest microseconds spent on a single
+                                                         disaggregated victim cache put */
     uint64_t reentry_hs_eviction_ms; /* Total milliseconds spent inside a nested eviction */
     struct timespec stuck_time;      /* Stuck time */
 
@@ -216,6 +218,8 @@ static WT_INLINE void __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session,
 static WT_INLINE void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
+static WT_INLINE void __wt_evict_shared_dsk_cache_bytes_decr(
+  WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size);
 static WT_INLINE void __wt_evict_touch_page(
   WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
 

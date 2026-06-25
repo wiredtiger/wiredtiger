@@ -252,6 +252,20 @@ struct __wt_btree {
     wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
+    /*
+     * Approximate average number of K/V pairs per row-store leaf page. Maintained as an EWMA
+     * updated at page fault-in (for cold pages) and at reconciliation (for modified pages). Not
+     * authoritative: use WT_STAT_TYPE_TREE_WALK for exact counts.
+     */
+    wt_shared uint64_t leaf_entry_ewma;
+
+    /*
+     * Approximate count of row-store leaf pages. Incremented at each leaf split (in-memory or
+     * eviction); decrements for page deletions are not tracked, so the count may overestimate when
+     * many pages are deleted. Persisted through checkpoint metadata.
+     */
+    wt_shared uint64_t approx_leaf_pages;
+
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
     /*
@@ -428,6 +442,6 @@ struct __wti_disk_leaf_merge_state {
     bool key_pfx_compress;
     bool all_empty_value;
     bool any_empty_value;
-    uint8_t *p_ptr;
+    uint8_t *cell_ptr;
     uint32_t entries;
 };

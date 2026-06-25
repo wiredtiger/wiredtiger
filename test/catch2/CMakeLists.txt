@@ -13,6 +13,7 @@ else()
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
@@ -45,6 +46,9 @@ else()
         block/unit/test_extent_list_insert_wo_block.cpp
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_put.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
@@ -91,6 +95,7 @@ if(NOT WT_WIN)
         live_restore/unit/test_live_restore_fill_hole.cpp
         sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
         truncate/test_insert_truncate_entry.cpp
+        truncate/test_truncate_write_conflict.cpp
     )
 endif()
 
@@ -99,6 +104,7 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    cross_checkpoint_caching/cross_checkpoint_caching_test_env.cpp
     sub_level_error/utils_sub_level_error.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp

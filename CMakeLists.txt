@@ -16,6 +16,11 @@ include(cmake/gdb_autoloader_setup.cmake)
 # Define installation directory variables
 include(GNUInstallDirs)
 
+# Detect the endianness of the target platform.
+if(CMAKE_C_BYTE_ORDER STREQUAL "BIG_ENDIAN")
+    set(WORDS_BIGENDIAN TRUE)
+endif()
+
 # If the user doesn't manually specify the target ARCH and OS, infer them from
 # CMAKE_SYSTEM_PROCESSOR / CMAKE_SYSTEM_NAME. This is checked prior to the
 # config option being defined (in base.cmake) since it will prevent it having
@@ -67,20 +72,22 @@ if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_ARCH_FILE}")
     include(${WT_ARCH_FILE})
 endif()
 
-# Load auto-configure variables (e.g. environment-related configs).
-include(cmake/configs/auto.cmake)
+# Detect third-party libraries and expose imported targets.
+# Must run before base.cmake, which derives ENABLE_<lib> defaults from HAVE_LIB<lib>.
+include(cmake/third_party/pthread.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/sodium.cmake)
+include(cmake/third_party/iaa.cmake)
+include(cmake/third_party/memkind.cmake)
+
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
 
-# Import our third party library definitions.
+# Build-time integrations that depend on base.cmake toggles.
 include(cmake/third_party/lazyfs.cmake)
-include(cmake/third_party/lz4.cmake)
-include(cmake/third_party/memkind.cmake)
-include(cmake/third_party/snappy.cmake)
-include(cmake/third_party/sodium.cmake)
-include(cmake/third_party/zlib.cmake)
-include(cmake/third_party/zstd.cmake)
-include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
 include(cmake/third_party/sqlite3.cmake)
 
@@ -95,13 +102,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(ENABLE_COLORIZE_OUTPUT)
-    # Colorize the build error output
+    # Colorize the build error output.
     if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
-        add_cmake_flag(CMAKE_C_FLAGS "-fdiagnostics-color=always")
-        add_cmake_flag(CMAKE_CXX_FLAGS "-fdiagnostics-color=always")
+        add_compile_options(-fdiagnostics-color=always)
     elseif(CLANG_C_COMPILER OR CLANG_CXX_COMPILER)
-        add_cmake_flag(CMAKE_C_FLAGS "-fcolor-diagnostics")
-        add_cmake_flag(CMAKE_CXX_FLAGS "-fcolor-diagnostics")
+        add_compile_options(-fcolor-diagnostics)
     endif()
 endif()
 
@@ -144,7 +149,6 @@ add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
-
 
 if(WT_WIN)
     list(APPEND wt_source ${CMAKE_SOURCE_DIR}/cmake/configs/wiredtiger.def)

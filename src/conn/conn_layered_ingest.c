@@ -132,26 +132,19 @@ err:
 static int
 __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
+    WT_DECL_RET;
+
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
     /*
-     * Truncate needs a running txn. We should probably do something more like the history store and
-     * make this non-transactional -- this happens during step-up, so we know there are no other
-     * transactions running, so it's safe.
+     * Clearing the ingest table is final and owned by no transaction. The session flag makes the
+     * truncate write globally visible tombstones that are immediately visible to every reader.
      */
-    WT_RET(__wt_txn_begin(session, NULL));
+    F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
+    ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
+    F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
 
-    /*
-     * No other transactions are running, we're only doing this truncate, and it should become
-     * immediately visible. So this transaction doesn't have to care about timestamps.
-     */
-    F_SET(session->txn, WT_TXN_TS_NOT_SET);
-
-    WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
-
-    WT_RET(__wt_txn_commit(session, NULL));
-
-    return (0);
+    return (ret);
 }
 
 /*
@@ -169,12 +162,11 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
     WT_DECL_RET;
     wt_timestamp_t btree_prune_timestamp;
 
-    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, ingest_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "Handle not found for ingest table uri: %s", ingest_uri);
-        ret = 0;
-        goto err;
+        return (0);
     }
 
     btree = (WT_BTREE *)session->dhandle->handle;
@@ -186,9 +178,8 @@ __layered_reset_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const cha
 
     __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, WT_TS_NONE);
 
-    WT_ERR(__wt_session_release_dhandle(session));
+    WT_RET(__wt_session_release_dhandle(session));
 
-err:
     return (ret);
 }
 
@@ -561,19 +552,40 @@ __layered_copy_ingest_table(
                          * timestamp is stored in durable timestamp.
                          */
                         WT_TXN_TIME_POINT txn_time_point;
+                        WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
+                        WT_ASSERT(session, start_prepare_ts != WT_TS_NONE);
+                        WT_ASSERT(session, durable_start_ts != WT_TS_NONE);
+                        WT_CLEAR(txn_time_point);
                         txn_time_point.id = start_ts;
                         txn_time_point.prepared_id = start_prepared_id;
                         txn_time_point.prepare_timestamp = start_prepare_ts;
                         txn_time_point.rollback_timestamp = durable_start_ts;
+                        F_SET(&txn_time_point,
+                          WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE |
+                            WT_TXN_TIME_POINT_HAS_TS_ROLLBACK);
+                        /* Sessions that claimed by prepared id alone carry no transaction id. */
+                        if (start_ts != WT_TXN_NONE)
+                            F_SET(&txn_time_point, WT_TXN_TIME_POINT_HAS_ID);
                         WT_ERR(__wt_txn_resolve_prepared_op(session, stable_btree, &txn_time_point,
                           key, WT_RECNO_OOB, false, &prepare_cursor));
                     } else {
                         WT_TXN_TIME_POINT txn_time_point;
+                        WT_ASSERT(session, start_prepared_id != WT_PREPARED_ID_NONE);
+                        WT_ASSERT(session, start_prepare_ts != WT_TS_NONE);
+                        WT_ASSERT(session, start_ts != WT_TS_NONE);
+                        WT_ASSERT(session, durable_start_ts != WT_TS_NONE);
+                        WT_CLEAR(txn_time_point);
                         txn_time_point.id = start_txn;
                         txn_time_point.prepared_id = start_prepared_id;
                         txn_time_point.prepare_timestamp = start_prepare_ts;
                         txn_time_point.commit_timestamp = start_ts;
                         txn_time_point.durable_timestamp = durable_start_ts;
+                        F_SET(&txn_time_point,
+                          WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE |
+                            WT_TXN_TIME_POINT_HAS_TS_COMMIT | WT_TXN_TIME_POINT_HAS_TS_DURABLE);
+                        /* Sessions that claimed by prepared id alone carry no transaction id. */
+                        if (start_txn != WT_TXN_NONE)
+                            F_SET(&txn_time_point, WT_TXN_TIME_POINT_HAS_ID);
                         WT_ERR(__wt_txn_resolve_prepared_op(session, stable_btree, &txn_time_point,
                           key, WT_RECNO_OOB, true, &prepare_cursor));
                     }
@@ -746,9 +758,9 @@ __layered_drain_ingest_table_and_truncate_list(WT_SESSION_IMPL *session, const c
     WT_RET(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__layered_derive_layered_uri(session, ingest_uri, layered_uri_buf));
 
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_uri_buf->data, NULL, NULL, 0), ENOENT, true);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "No layered handle found for ingest table \"%s\", only performing ingest drain",
           ingest_uri);
@@ -1017,13 +1029,12 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
-
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
      */
-    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_RET_ERROR_OK(ret = __wt_session_get_dhandle(session, layered_uri, NULL, NULL, 0), ENOENT);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Layered table was not found.", layered_uri);
         return (0);
@@ -1106,9 +1117,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
      * that it hasn't been opened yet. In that case, we need to skip updating its timestamp for
      * pruning, and we'll get another chance to update the prune timestamp at the next checkpoint.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), true);
-    if (ret == WT_NOTFOUND) {
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0), ENOENT, true);
+    if (ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
           layered_table->ingest_uri);

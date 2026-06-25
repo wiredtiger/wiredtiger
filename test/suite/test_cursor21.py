@@ -26,15 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor21.py
-#   Test cursor reposition
+# Test cursor reposition
 
 import wttest
 from wtscenario import make_scenarios
-from wiredtiger import stat, WiredTigerError
+from wiredtiger import stat
 
 class test_cursor21(wttest.WiredTigerTestCase):
-    uri = "table:test_cursor21"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
 
     format_values = [
         ('column', dict(key_format='r', value_format='i')),
@@ -52,17 +52,8 @@ class test_cursor21(wttest.WiredTigerTestCase):
             config += ',debug_mode=[cursor_reposition=true],timing_stress_for_test=(evict_reposition)'
         return config
 
-    def get_stat(self, stat, local_session = None):
-        if (local_session != None):
-            stat_cursor = local_session.open_cursor('statistics:')
-        else:
-            stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def check_reposition(self, count):
-        reposition_count = self.get_stat(stat.conn.cursor_reposition, self.session)
+        reposition_count = self.get_stat(stat.conn.cursor_reposition, session=self.session)
         if self.reposition:
             count = reposition_count - count
             # Ensure that the reposition stat is greater than 0, indicating that reposition happened.
@@ -71,7 +62,6 @@ class test_cursor21(wttest.WiredTigerTestCase):
             self.assertEqual(reposition_count, 0)
         return reposition_count
 
-    @wttest.skip_for_hook("disagg", "layered tables don't support cursor reposition")
     def test_cursor21(self):
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         reposition_count = 0
@@ -126,15 +116,3 @@ class test_cursor21(wttest.WiredTigerTestCase):
         reposition_count += self.check_reposition(reposition_count)
         cursor.close()
         self.session.close()
-
-    @wttest.only_for_hook("disagg", "check reposition is disabled for disaggregated storage")
-    def test_cursor21_dsc(self):
-        # Skip the test if reposition is disabled or it's column store (unsupported in disagg).
-        if not self.reposition or self.scenario_name == 'column.reposition':
-            return
-
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
-        self.session.create(self.uri, format)
-        msg = '/Operation not supported/'
-        self.assertRaisesWithMessage(WiredTigerError,
-            lambda: self.session.open_cursor(self.uri), msg)

@@ -27,6 +27,7 @@ Alakuijala
 Alexandrescu's
 Alloc
 Alves
+AssertionError
 Async
 Athlon
 Auth
@@ -73,6 +74,7 @@ CGs
 CHUNKCACHE
 CKPT
 CLAYERED
+CLI
 CLOEXEC
 CMAKE
 CMP
@@ -80,6 +82,7 @@ CMake
 CMakeFiles
 CMakeLists
 CMakePresets
+CONCAT
 CONF
 CONFIG
 CPP
@@ -124,11 +127,14 @@ DENABLE
 DESC
 DEST
 DHANDLE
+DHAVE
 DISAGG
 DISAGGREGATED
 DNE
 DONTNEED
 DS
+DSK
+DSPINLOCK
 DUPLICATEV
 DataSet
 Decrementing
@@ -137,6 +143,7 @@ DeleteFileW
 Deterministically
 DisAgg
 Disagg
+DisaggCorruptionMixin
 Disaggregated
 Dk
 DmpeRkvXx
@@ -163,6 +170,7 @@ EQ
 ERANGE
 ETIME
 ETIMEDOUT
+EWMA
 EXTLIST
 EXTLIST's
 EXTSUBPATH
@@ -326,6 +334,7 @@ Munge
 Mutex
 Mutexes
 MySecret
+NN
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -375,6 +384,7 @@ PSD
 PSE
 PTR
 PYTHONMALLOC
+Palite
 Palites
 Pe
 PlatformSDK
@@ -437,6 +447,8 @@ RuntimeError
 SCons
 SDK
 SIGABRT
+SIGBUS
+SIGSEGV
 SIMD
 SLS
 SLVG
@@ -536,6 +548,7 @@ VPM
 VR
 VRFY
 VX
+ValidationModel
 Vc
 Vigenere
 Vixie
@@ -638,6 +651,7 @@ argc
 args
 argv
 asan
+asc
 ascii
 assertEqual
 assertGreater
@@ -654,6 +668,7 @@ autoconf
 aws
 az
 bInheritHandle
+backends
 backlink
 backoff
 badsize
@@ -791,6 +806,7 @@ comparators
 comparep
 compat
 compilable
+concurrencytest
 cond
 conditionalize
 conf
@@ -818,6 +834,7 @@ createsets
 crypto
 cryptobad
 cryptographic
+cst
 cstring
 csuite
 csv
@@ -845,6 +862,7 @@ cust
 customizable
 customp
 cutlim
+cutover
 cv
 cval
 cx
@@ -875,6 +893,7 @@ dec
 decile
 deciles
 decl
+decodable
 decompressor
 decr
 decrementing
@@ -931,6 +950,7 @@ dryrun
 ds
 dsb
 dsbs
+dsc
 dsk
 dsrc
 dst
@@ -983,6 +1003,7 @@ ev
 evd
 eventv
 evictable
+ewma
 exactp
 exc
 exe
@@ -1014,6 +1035,7 @@ ffs
 fgetln
 fh
 fhandle
+fid
 fifo
 filecmp
 filefrag
@@ -1028,6 +1050,7 @@ fixup
 floatnum
 fmt
 fmterr
+fn
 fnv
 fnvhash
 foc
@@ -1136,6 +1159,7 @@ ikey
 im
 img
 impl
+incompressible
 incr
 incrementals
 incrementing
@@ -1153,6 +1177,7 @@ inlock
 inmem
 inmemory
 inorder
+insertedp
 inserters
 instantiation
 instantiations
@@ -1241,6 +1266,7 @@ lldb
 llll
 llu
 llvm
+loadshed
 loadtext
 loc
 localTime
@@ -1290,6 +1316,7 @@ mb
 mbll
 mbss
 mci
+md
 mdb
 mem
 memadvise
@@ -1382,6 +1409,7 @@ nonconflicting
 nonliteral
 nonoverlapping
 nonstandalone
+nontxn
 noop
 nop
 nopos
@@ -1508,6 +1536,7 @@ proc
 progname
 programmatically
 prout
+providerp
 proxied
 prunable
 ps
@@ -1605,6 +1634,7 @@ salvageUntilSuccess
 sanitizer
 sanitizers
 scalable
+scen
 schemas
 sclose
 scr
@@ -1631,6 +1661,7 @@ sii
 sizeof
 sizep
 sizev
+skipTest
 skipTests
 skiplist
 skiplists
@@ -1668,6 +1699,7 @@ stdin
 stdout
 stepback
 stepp
+stepup
 stlr
 stlrb
 stlrh
@@ -1691,6 +1723,7 @@ strtouq
 struct
 structs
 su
+subcommand
 subconfig
 subconfigs
 subconfiguration

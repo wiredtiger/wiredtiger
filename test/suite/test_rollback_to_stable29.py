@@ -32,10 +32,10 @@ from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 
-# test_rollback_to_stable29.py
 # Test that the rollback to stable to verify the history store order when an update without a
 # timestamp inserted to a tombstone.
 class test_rollback_to_stable29(test_rollback_to_stable_base):
+    test_name = __qualname__
     conn_config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),verbose=(rts:5)'
 
     format_values = [
@@ -48,7 +48,7 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
     scenarios = make_scenarios(format_values)
 
     def test_rollback_to_stable(self):
-        uri = 'table:test_rollback_to_stable29'
+        uri = f'table:{self.test_name}'
         nrows = 1000
 
         value_a = 'a' * 100
@@ -100,8 +100,4 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
 
         self.check(value_d, uri, nrows, 10)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
-        stat_cursor.close()
-
-        self.assertGreaterEqual(hs_removed, 0)
+        self.assertGreaterEqual(self.get_stat(stat.conn.txn_rts_hs_removed), 0)

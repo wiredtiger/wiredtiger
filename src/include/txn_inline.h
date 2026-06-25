@@ -780,7 +780,8 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     txn = session->txn;
 
-    WT_ASSERT(session, __wt_process.disagg_slow_truncate_2026 == false);
+    WT_ASSERT(
+      session, !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER));
 
     if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
@@ -1514,7 +1515,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         *restored_updp = NULL;
     __wt_upd_value_clear(cbt->upd_value);
 
-    for (; upd != NULL; upd = upd->next) {
+    for (; upd != NULL; upd = __wt_atomic_load_ptr_relaxed(&upd->next)) {
         /* Skip reserved place-holders, they're never visible. */
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
@@ -2267,7 +2268,7 @@ __txn_modify_block(
             if (txn->snapshot_data.snapshot_count > 0) {
                 WT_ERR(__wt_buf_catfmt(session, buf, ", snapshots=["));
                 for (snap_count = 0; snap_count < txn->snapshot_data.snapshot_count - 1;
-                     ++snap_count)
+                  ++snap_count)
                     WT_ERR(__wt_buf_catfmt(
                       session, buf, "%" PRIu64 ",", txn->snapshot_data.snapshot[snap_count]));
                 WT_ERR(__wt_buf_catfmt(
