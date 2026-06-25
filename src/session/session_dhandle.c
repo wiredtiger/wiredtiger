@@ -936,7 +936,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         dhandle = session->dhandle;
 
         /* Try to lock the handle. */
-        WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
+        if ((ret = __wt_session_lock_dhandle(session, flags, &is_dead)) != 0) {
+            WT_DHANDLE_CLEAR(session);
+            return (ret);
+        }
         if (is_dead)
             continue;
 
