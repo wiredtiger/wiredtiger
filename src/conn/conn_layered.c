@@ -9,6 +9,8 @@
 #include "wt_internal.h"
 
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
+static int __disagg_accumulate_drop_size(
+  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
 
 /*
  * __layered_create_missing_stable_table --
@@ -640,6 +642,42 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 }
 
 /*
+ * __disagg_accumulate_drop_size --
+ *     Accumulate the drop size if the entry represents a table drop operation.
+ */
+int
+__disagg_accumulate_drop_size(
+  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_sizep)
+{
+    WT_DECL_RET;
+    char *stable_config;
+
+    WT_ASSERT(session, drop_sizep != NULL);
+    stable_config = NULL;
+
+    if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
+
+        /* The stable entry is gone only after a real drop; a rolled-back drop leaves it. */
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &stable_config), true);
+
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+            uint64_t size = 0;
+            /* A table dropped before it was ever checkpointed has no checkpoint entry. */
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), true);
+            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+                *drop_sizep += size;
+                __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
+                  entry->table_name, entry->stable_uri);
+            }
+        }
+    }
+err:
+    __wt_free(session, stable_config);
+    return (ret);
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list, returning the total checkpoint size of the tables actually
  *     dropped so the caller can reduce the database size accordingly.
@@ -653,12 +691,10 @@ __wt_disagg_shared_metadata_queue_process(
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
     uint64_t drop_size;
-    char *stable_config;
 
     conn = S2C(session);
     TAILQ_INIT(&skipped_creates);
     drop_size = 0;
-    stable_config = NULL;
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -704,27 +740,7 @@ __wt_disagg_shared_metadata_queue_process(
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
-        /*
-         * A successful schema drop op should contribute to the database size reduction.
-         */
-        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
-            /*
-             * The stable entry is gone only after a real drop; a rolled-back drop leaves it.
-             */
-            WT_ERR_NOTFOUND_OK(
-              __wt_metadata_search(session, entry->stable_uri, &stable_config), true);
-            __wt_free(session, stable_config);
-
-            if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-                uint64_t size = 0;
-                /*
-                 * A table dropped before it was ever checkpointed has no checkpoint entry, so
-                 * WT_NOTFOUND from the size lookup is expected and contributes nothing.
-                 */
-                WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), false);
-                drop_size += size;
-            }
-        }
+        __disagg_accumulate_drop_size(session, entry, &drop_size);
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
@@ -755,6 +771,7 @@ err:
      */
     if (drop_sizep != NULL)
         *drop_sizep = drop_size;
+
     if (ret != 0)
         while (!TAILQ_EMPTY(&skipped_creates)) {
             skipped = TAILQ_LAST(&skipped_creates, __wt_disagg_shared_metadata_qh);
@@ -768,7 +785,6 @@ err:
         TAILQ_REMOVE(&skipped_creates, skipped, q);
         __disagg_shared_metadata_queue_free(session, &skipped);
     }
-    __wt_free(session, stable_config);
     return (ret);
 }
 

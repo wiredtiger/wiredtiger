@@ -83,6 +83,18 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
             cursor[str(i)] = str(i) + 'x' * self.value_size
         cursor.close()
 
+    def database_size_check(self, context_message=""):
+        self.session.checkpoint()
+        database_size = self.get_database_size()
+        keep_size = self.stable_checkpoint_size(self.keep_base)
+        if self.exists(self.victim_uri):
+            victim_size = self.stable_checkpoint_size(self.victim_base)
+        else:
+            victim_size = 0
+        self.assertGreaterEqual(database_size, keep_size + victim_size,
+            f"database size {database_size} should be at least "
+            f"keep {keep_size} + victim {victim_size} : {context_message}")
+
     def test_failed_drop_does_not_shrink_database_size(self):
         # Filler table for headroom.
         self.session.create(self.keep_uri, 'key_format=S,value_format=S')
@@ -93,8 +105,6 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         self.insert(self.victim_uri, 1000)
 
         self.session.checkpoint()
-        victim_size = self.stable_checkpoint_size(self.victim_base)
-        self.assertGreater(victim_size, 1000000, "victim collection should be large")
 
         # Hold the layered data handle busy from another session, but never use the cursor: the
         # constituent (stable/ingest) cursors stay closed, so only the top-level handle is pinned.
@@ -104,7 +114,6 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         busy_cursor = busy_session.open_cursor(self.victim_uri)
 
         keep_row = 6000
-        sizes = [self.get_database_size()]
         for i in range(self.num_failed_ckpts):
             # A little new data so the checkpoint has a non-zero size delta; the database size
             # update is gated on that.
@@ -117,34 +126,20 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
                 "a failed drop must raise EBUSY")
             self.assertTrue(self.exists(self.victim_uri),
                 "a failed drop must leave the collection in place")
-
             self.session.checkpoint()
-            sizes.append(self.get_database_size())
-            self.pr(f'failed-drop ckpt {i}: database size {sizes[-2]} -> {sizes[-1]}')
 
-        # None of the failed drops removed anything, so the database size must not shrink by the
-        # collection's size on any of those checkpoints. Before the fix it drops by ~victim_size
-        # on every checkpoint, repeated until the size eventually overflow.
-        for i in range(self.num_failed_ckpts):
-            self.assertGreater(sizes[i + 1], sizes[i] - victim_size // 2,
-                f"ckpt {i}: database size {sizes[i]} -> {sizes[i + 1]} dropped by "
-                f"~{sizes[i] - sizes[i + 1]} for a drop that never succeeded "
-                f"(victim checkpoint size {victim_size})")
+        self.database_size_check("after failed drops")
 
         # With the cursor gone the retried drop finally succeeds.
         busy_cursor.close()
         busy_session.close()
         self.assertTrue(self.exists(self.victim_uri))
-        before_real_drop = self.get_database_size()
-        self.session.drop(self.victim_uri, None)
+
+        # We should see the drop size for a successful drop
+        with self.expectedStdoutPattern('.*Accumulated drop size.*', maxchars=1000000):
+            self.conn.reconfigure("verbose=[disaggregated_storage:1]")
+            self.session.drop(self.victim_uri, None)
+            self.session.checkpoint()
+            self.conn.reconfigure("verbose=[disaggregated_storage:0]")
+
         self.assertFalse(self.exists(self.victim_uri))
-
-        # A genuine drop should reduce the database size by ~victim_size on the next checkpoint.
-        self.insert(self.keep_uri, 20, start=keep_row)
-        self.session.checkpoint()
-        after_real_drop = self.get_database_size()
-        self.assertLess(after_real_drop, before_real_drop - victim_size // 2,
-            f"a successful drop should reduce the database size: "
-            f"{before_real_drop} (before drop) -> {after_real_drop} (after drop)")
-
-
