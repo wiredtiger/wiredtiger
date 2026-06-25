@@ -652,7 +652,6 @@ __disagg_accumulate_drop_size(
     WT_DECL_RET;
     char *stable_config;
 
-    WT_ASSERT(session, drop_sizep != NULL);
     stable_config = NULL;
 
     if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
@@ -690,11 +689,10 @@ __wt_disagg_shared_metadata_queue_process(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
-    uint64_t drop_size;
 
+    WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
     TAILQ_INIT(&skipped_creates);
-    drop_size = 0;
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -740,7 +738,7 @@ __wt_disagg_shared_metadata_queue_process(
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
-        __disagg_accumulate_drop_size(session, entry, &drop_size);
+        __disagg_accumulate_drop_size(session, entry, drop_sizep);
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
@@ -769,9 +767,6 @@ err:
      * If we failed, put back the skipped creates, so that we can revisit them if the caller
      * attempts to create a checkpoint again.
      */
-    if (drop_sizep != NULL)
-        *drop_sizep = drop_size;
-
     if (ret != 0)
         while (!TAILQ_EMPTY(&skipped_creates)) {
             skipped = TAILQ_LAST(&skipped_creates, __wt_disagg_shared_metadata_qh);
