@@ -550,7 +550,7 @@ err:
 
 /*
  * __wt_debug_disagg_page_id_raw --
- *     Fetch a pages by (table_id, page_id, lsn) directly off the connection page log, without
+ *     Fetch a page by (table_id, page_id, lsn) directly off the connection page log, without
  *     opening the table, and dump each result as raw bytes. Used when the checkpoint is unreadable
  *     so the table cannot be opened; without a btree the on-disk formats are unknown, so no attempt
  *     is made to decode page contents.
