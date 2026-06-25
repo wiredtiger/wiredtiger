@@ -515,6 +515,20 @@ upgrade_downgrade()
             flags="-1Rq $(bflag $1)"
             ./t $flags -h "$top/$format_dir_branch2/RUNDIR.$am" timer=2
 
+            # $1 (newer binary) doesn't maintain BACKUP.copy, but $2 (older binary) expects it.
+            # Sync BACKUP->BACKUP.copy after $1 runs so $2 finds a consistent BACKUP.copy.
+            # Also remove BACKUP_INFO_FILE: backup tracking state is version-specific metadata
+            # (not a data-format compatibility requirement), so $2 should start a fresh backup
+            # cycle rather than try to resume $1's incremental state.
+            if [ -z "$need_bcopy1" -a "$need_bcopy2" == "1" ] ; then
+                if [ -e "$dir2/BACKUP" ] ; then
+                    echo "Syncing $dir2/BACKUP.copy for older release $2"
+                    rm -rf "$dir2/BACKUP.copy"
+                    cp -rp "$dir2/BACKUP" "$dir2/BACKUP.copy"
+                fi
+                rm -f "$dir2/BACKUP_INFO_FILE"
+            fi
+
             echo "$2 format running on $2 access method $am..."
             cd "$top/$format_dir_branch2"
             flags="-1Rq $(bflag $2)"
