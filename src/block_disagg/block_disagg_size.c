@@ -43,8 +43,8 @@ __wti_block_disagg_decrease_size(
      * from the same value we validated, closing the race between the check and the subtraction. A
      * failed CAS means a concurrent update beat us to it; reload and retry.
      *
-     * FIXME-WT-16864: clamping to zero hides a real accounting bug where we decrement more than was
-     * added. Remove the clamp once that bug is fixed.
+     * Clamping to zero hides a real accounting bug where we decrement more than was added. Remove
+     * the clamp once that bug is fixed and add the assert back in.
      */
     do {
         orig = __wt_atomic_load_uint64(&block_disagg->size);
