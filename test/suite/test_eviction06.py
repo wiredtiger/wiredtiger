@@ -144,5 +144,34 @@ class test_eviction06(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert)       - baseline_insert, 0)
         self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned) - baseline_drain,  0)
 
+    def test_dirty_index_disabled_at_runtime(self):
+        # Reconfiguring the feature off must stand the producer down too, not just
+        # the drain. The ring stays allocated (it is freed only at btree close), so
+        # a producer keyed solely on ring existence would keep filling it. Open
+        # with the feature on, allocate and exercise a ring, then turn it off: no
+        # later write may advance the producer counter.
+        uri = 'table:test_eviction06_runtime'
+        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
+        self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
+        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
+
+        self.conn.reconfigure('eviction_dirty_index=false')
+
+        # Let any in-flight insert settle before the baseline: a checkpoint plus a
+        # short pause lets an insert outstanding when the flag flipped finish and
+        # be counted. Once the disable is visible every producer bails, so the
+        # post-baseline delta isolates activity under the disabled feature -- none.
+        self.session.checkpoint()
+        time.sleep(1)
+        baseline_insert = self.get_stat(stat.conn.cache_eviction_dirty_index_insert)
+
+        self.conn.reconfigure('cache_size=20MB,'
+                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
+        for _ in range(20):
+            self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
+            time.sleep(0.05)
+
+        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert) - baseline_insert, 0)
+
 if __name__ == '__main__':
     wttest.run()

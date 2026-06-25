@@ -175,6 +175,15 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     evict = S2C(session)->evict;
 
     /*
+     * Honor a runtime disable. The ring is allocated at open and is not freed when the feature is
+     * reconfigured off, so a connection that opened with it on keeps its rings; the drain stands
+     * down on the same flag, so without this check producers would go on filling rings nothing
+     * drains. Relaxed: the flag is read-mostly and a stale read only lets a single ref slip in.
+     */
+    if (!__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index))
+        return (false);
+
+    /*
      * No reclamation barrier is needed even under auto-grow: a ring retired by a grow is never
      * freed mid-life (retired rings are kept on the btree's old-ring list and freed only at close),
      * so a producer that loaded the ring just before a swap may still write to it safely -- its
