@@ -16,7 +16,7 @@ static int
 usage(void)
 {
     static const char *options[] = {"-l lsn",
-      "dump the shared metadata page at this LSN instead of the latest turtle", "-?",
+      "dump the shared metadata page at this LSN instead of the latest turtle (lsn > 0)", "-?",
       "show this message", NULL, NULL};
 
     util_usage("turtle [-l lsn]", "options:", options);
@@ -282,7 +282,6 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     ret = fetch_metadata_page(session_impl, lsn_arg, &page_item);
     if (ret == WT_NOTFOUND) {
         printf("metadata page not found at requested_lsn=%" PRIu64 "\n", lsn_arg);
-        ret = 1;
     } else if (ret == 0) {
         if (print_metadata_page(lsn_arg, &page_item, have_expected_cksum, expected_cksum))
             ret = 1;
