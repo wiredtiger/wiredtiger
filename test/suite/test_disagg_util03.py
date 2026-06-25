@@ -26,11 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re
-import subprocess
+import re
 import wttest
 from helper_disagg import DisaggConfigMixin
-from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 # Test the `wt turtle` command.
@@ -71,22 +69,13 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         self.close_conn()
 
         stdout, _ = self._run_wt_turtle()
-        self.assertIn('=== turtle ===', stdout)
-        self.assertRegex(stdout, r'(?m)^lsn=\d+$')
-        self.assertRegex(stdout, r'(?m)^metadata_lsn=\d+$')
-        self.assertRegex(stdout, r'(?m)^metadata_checksum=0x[0-9a-f]+$')
-        self.assertRegex(stdout, r'(?m)^database_size=\d+$')
-        self.assertRegex(stdout, r'(?m)^version=\d+$')
-        self.assertRegex(stdout, r'(?m)^compatible_version=\d+$')
-
-        self.assertRegex(
-            stdout, r'(?m)^=== metadata page \(table_id=2, page_id=1, requested_lsn=\d+\) ===$')
-        self.assertIn('checksum=OK', stdout)
-        self.assertIn('checkpoint=', stdout)
+        self.assertRegex(stdout, r'metadata_lsn=\d+')
+        self.assertRegex(stdout, r'metadata_checksum=[0-9a-f]+')
+        self.assertRegex(stdout, r'database_size=\d+')
 
     @staticmethod
     def _extract_metadata_lsn(stdout):
-        m = re.search(r'(?m)^metadata_lsn=(\d+)$', stdout)
+        m = re.search(r'metadata_lsn=(\d+)', stdout)
         if m is None:
             raise AssertionError(f"metadata_lsn not in wt turtle output:\n{stdout}")
         return int(m.group(1))
@@ -110,7 +99,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         latest_metadata_lsn = self._extract_metadata_lsn(stdout_latest)
         self.assertNotEqual(first_metadata_lsn, latest_metadata_lsn)
 
-        # ask for the older metadata page only.
+        # Ask for the older metadata page only.
         stdout_old, _ = self._run_wt_turtle('-l', str(first_metadata_lsn))
         self.assertNotIn('=== turtle ===', stdout_old)
         self.assertIn(

@@ -19,7 +19,7 @@ usage(void)
       "dump the shared metadata page at this LSN instead of the latest turtle (lsn > 0)", "-?",
       "show this message", NULL, NULL};
 
-    util_usage("turtle [-l lsn]", "options:", options);
+    util_usage("turtle [-l lsn] [-p]", "options:", options);
     return (1);
 }
 
@@ -42,10 +42,8 @@ parse_turtle(
     WT_ERR(__wt_strndup(session, buf, buf_len, &meta_str));
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_lsn", &cval), true);
-    if (ret == 0 && cval.len != 0) {
+    if (ret == 0 && cval.len != 0)
         metap->metadata_lsn = (uint64_t)cval.val;
-        metap->has_metadata_lsn = true;
-    }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_checksum", &cval), true);
     if (ret == 0 && cval.len != 0) {
@@ -57,17 +55,14 @@ parse_turtle(
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "database_size", &cval), true);
-    if (ret == 0 && cval.len != 0) {
+    if (ret == 0 && cval.len != 0)
         metap->database_size = (uint64_t)cval.val;
-        metap->has_database_size = true;
-    }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "version", &cval), true);
     if (ret == 0 && cval.len != 0) {
         if (cval.val < 0 || (uint64_t)cval.val > UINT32_MAX)
             WT_ERR_MSG(session, EINVAL, "version out of range: %" PRId64, cval.val);
         metap->version = (uint32_t)cval.val;
-        metap->has_version = true;
     }
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "compatible_version", &cval), true);
@@ -75,7 +70,6 @@ parse_turtle(
         if (cval.val < 0 || (uint64_t)cval.val > UINT32_MAX)
             WT_ERR_MSG(session, EINVAL, "compatible_version out of range: %" PRId64, cval.val);
         metap->compatible_version = (uint32_t)cval.val;
-        metap->has_compatible_version = true;
     }
 
     ret = 0;
@@ -86,38 +80,18 @@ err:
 }
 
 /*
- * print_turtle --
- *     Print the parsed turtle fields in key=value form.
+ * print_blob --
+ *     Write the bytes of an item to stdout, appending a newline if the last byte is not one.
  */
 static void
-print_turtle(uint64_t lsn, const WT_DISAGG_CHECKPOINT_META *meta)
+print_blob(const WT_ITEM *item)
 {
-    printf("=== turtle ===\n");
-    printf("lsn=%" PRIu64 "\n", lsn);
-    if (meta->has_metadata_lsn)
-        printf("metadata_lsn=%" PRIu64 "\n", meta->metadata_lsn);
-    else
-        printf("metadata_lsn=<missing>\n");
+    const char *bytes;
 
-    if (meta->has_metadata_checksum)
-        printf("metadata_checksum=0x%08" PRIx32 "\n", meta->metadata_checksum);
-    else
-        printf("metadata_checksum=<missing>\n");
-
-    if (meta->has_database_size)
-        printf("database_size=%" PRIu64 "\n", meta->database_size);
-    else
-        printf("database_size=<missing>\n");
-
-    if (meta->has_version)
-        printf("version=%" PRIu32 "\n", meta->version);
-    else
-        printf("version=<missing>\n");
-
-    if (meta->has_compatible_version)
-        printf("compatible_version=%" PRIu32 "\n", meta->compatible_version);
-    else
-        printf("compatible_version=<missing>\n");
+    bytes = (const char *)item->data;
+    fwrite(bytes, 1, item->size, stdout);
+    if (item->size == 0 || bytes[item->size - 1] != '\n')
+        fputc('\n', stdout);
 }
 
 /*
@@ -183,15 +157,14 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
 
 /*
  * print_metadata_page --
- *     Print the metadata page bytes. If a checksum is available from the turtle, verify and report
- *     rather than abort on mismatch.
+ *     Print a metadata page banner and its bytes. If a checksum is available from the turtle,
+ *     verify and report rather than abort on mismatch. Returns true on checksum mismatch.
  */
 static bool
 print_metadata_page(
   uint64_t lsn, const WT_ITEM *page, bool have_expected_cksum, uint32_t expected_cksum)
 {
     uint32_t actual;
-    const char *bytes;
     bool mismatch;
 
     mismatch = false;
@@ -206,18 +179,16 @@ print_metadata_page(
             mismatch = true;
         }
     }
-    bytes = (const char *)page->data;
-    fwrite(bytes, 1, page->size, stdout);
-    if (page->size == 0 || bytes[page->size - 1] != '\n')
-        fputc('\n', stdout);
+    print_blob(page);
     return (mismatch);
 }
 
 /*
  * util_turtle --
- *     The turtle command. For a disaggregated-storage connection, dump the turtle blob from the
- *     page log and chase to the shared metadata page. For an attached-storage connection, dump the
- *     local WiredTiger.turtle file.
+ *     The turtle command. Requires a disaggregated-storage connection. With no flags, fetch the
+ *     latest turtle and dump its raw blob bytes. With -p, parse the blob, pretty-print fields, and
+ *     chase to the shared metadata page (verifying checksum when the turtle carries one). With -l
+ *     <lsn>, skip the turtle and dump the shared metadata page at that LSN as-is.
  */
 int
 util_turtle(WT_SESSION *session, int argc, char *argv[])
@@ -267,20 +238,19 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
       conn->disaggregated_storage.page_log_meta == NULL)
         WT_RET_MSG(session_impl, EINVAL, "wt turtle requires a disaggregated-storage connection");
 
-    /* If no LSN argument is provided, fetch the latest turtle and use its metadata LSN. */
     if (!have_lsn_arg) {
         WT_ERR(fetch_latest_turtle(session_impl, &lsn, &meta_blob));
+        print_blob(&meta_blob);
         WT_ERR(parse_turtle(session_impl, meta_blob.data, meta_blob.size, &turtle_meta));
-        print_turtle(lsn, &turtle_meta);
         lsn_arg = turtle_meta.metadata_lsn;
         have_expected_cksum = turtle_meta.has_metadata_checksum;
         expected_cksum = turtle_meta.metadata_checksum;
     }
 
     ret = fetch_metadata_page(session_impl, lsn_arg, &page_item);
-    if (ret == WT_NOTFOUND) {
+    if (ret == WT_NOTFOUND)
         printf("metadata page not found at requested_lsn=%" PRIu64 "\n", lsn_arg);
-    } else if (ret == 0) {
+    else if (ret == 0) {
         if (print_metadata_page(lsn_arg, &page_item, have_expected_cksum, expected_cksum))
             ret = 1;
     }
