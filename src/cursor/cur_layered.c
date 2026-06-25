@@ -144,7 +144,7 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
  * __clayered_op_init --
  *     Populate the per-operation state that is known before the constituents are synchronized.
  */
-static void
+static WT_INLINE void
 __clayered_op_init(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_OP *op)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -155,7 +155,7 @@ __clayered_op_init(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLA
 
     /*
      * Resolve the role for this operation. The live role is read once here; the role detector
-     * (__clayered_update_state) settles clayered->last_role to the same value.
+     * settles clayered->last_role to the same value.
      */
     op->role =
       conn->layered_table_manager.leader ? WT_CLAYERED_ROLE_LEADER : WT_CLAYERED_ROLE_FOLLOWER;
@@ -171,9 +171,9 @@ __clayered_op_init(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLA
 
 /*
  * __clayered_enter_flags --
- *     Derive the __clayered_enter() control flags from the operation mode and resolved role.
+ *     Derive the enter-time control flags from the operation mode and resolved role.
  */
-static uint32_t
+static WT_INLINE uint32_t
 __clayered_enter_flags(WT_CLAYERED_OP *op)
 {
     uint32_t flags;
@@ -184,7 +184,7 @@ __clayered_enter_flags(WT_CLAYERED_OP *op)
         LF_SET(CLAYERED_ENTER_RESET);
     if (op->mode == WT_CLAYERED_MODE_ITERATE || op->mode == WT_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
-    /* A follower overwrite write updates the ingest table without accessing the stable table. */
+    /* Follower overwrite writes update the ingest table without accessing the stable table. */
     if (!op->need_stable)
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
     if (op->role != op->clayered->last_role)
@@ -194,11 +194,11 @@ __clayered_enter_flags(WT_CLAYERED_OP *op)
 }
 
 /*
- * __clayered_op_finalize --
- *     Capture the resolved constituents and the witnesses they settled under into the op.
+ * __clayered_op_resolve --
+ *     Capture the resolved constituents into the op once the cursors are synchronized.
  */
-static void
-__clayered_op_finalize(WT_CLAYERED_OP *op)
+static WT_INLINE void
+__clayered_op_resolve(WT_CLAYERED_OP *op)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
 
@@ -247,7 +247,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
     __clayered_update_state(clayered);
     __clayered_assert_stable_mode(clayered);
 
-    __clayered_op_finalize(op);
+    __clayered_op_resolve(op);
 
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         /*
@@ -395,7 +395,7 @@ retry:
     WT_ERR(__wt_buf_fmt(session, last_ckpt_uri, "%s/%s", stable_uri, checkpoint_name));
 
     /*
-     * cur_layered.c is #included by a Catch2 unit test compiled as C++, where a void* does not
+     * This file is #included by a Catch2 unit test compiled as C++, where a void* does not
      * implicitly convert to char*; the explicit cast keeps that build working.
      */
     ret = __clayered_open_stable_int(clayered, (const char *)last_ckpt_uri->data);
