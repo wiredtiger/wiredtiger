@@ -104,6 +104,8 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wti_sweep_destroy(session));
     WT_TRET(__wti_prefetch_destroy(session));
     WT_TRET(__wt_checkpoint_parallel_thread_destroy(session));
+    __wt_free(session, conn->ckpt_eviction_snap_array[0]);
+    __wt_free(session, conn->ckpt_eviction_snap_array[1]);
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_threads_destroy(session));

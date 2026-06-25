@@ -728,11 +728,15 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             /*
-             * Prefer the published checkpoint snapshot's snap_min: it may be larger than the
-             * checkpoint's pinned_id. Fall back to pinned_id, then last_running.
+             * Read the eviction snapshot under the WT_GEN_CKPT_SNAP generation to prevent
+             * checkpoint from swapping the buffer while we read it. snap_min is WT_TXN_NONE
+             * until the first checkpoint completes; fall back to pinned_id then last_running.
              */
-            uint64_t snap_min = __wt_atomic_load_uint64_acquire(
-              &conn->ckpt_reconcile_threads->checkpoint_snapshot.snap_min);
+            __wt_session_gen_enter(session, WT_GEN_CKPT_SNAP);
+            uint32_t idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+            uint64_t snap_min = conn->ckpt_eviction_snap[idx].snap_min;
+            __wt_session_gen_leave(session, WT_GEN_CKPT_SNAP);
+
             if (snap_min != WT_TXN_NONE)
                 r->rec_start_pinned_id = snap_min;
             else {

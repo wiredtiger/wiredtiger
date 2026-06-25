@@ -1123,11 +1123,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_UNUSED(original_snap_min);
 
     /*
-     * For parallel checkpoints and precise checkpoints, create a private read-only copy of the
-     * checkpoint snapshot. Parallel workers read from this instead of live txn->snapshot_data.
-     * Eviction reads from this to use snap_min as a more precise on-page visibility bound.
+     * For parallel checkpoints, create a private read-only copy of the checkpoint snapshot for
+     * the reconciliation workers. Workers read from this instead of live txn->snapshot_data.
      */
-    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) || F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session)) {
         WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
         WT_TXN_SNAPSHOT *src, *dst;
         uint32_t capacity, count;
@@ -1160,6 +1159,40 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
         __wt_atomic_store_uint64_release(&dst->snap_min, src->snap_min);
+    }
+
+    /*
+     * For precise checkpoints, publish a snapshot into the connection's ping-pong eviction
+     * snapshot buffers so that eviction can use snap_min as a tighter on-page visibility bound.
+     * Drain any in-flight readers of the retiring buffer before swapping to the new one.
+     */
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        WT_TXN_SNAPSHOT *src, *dst;
+        uint32_t capacity, count, cur_idx, new_idx;
+
+        src = &txn->snapshot_data;
+        count = src->snapshot_count;
+        capacity = (uint32_t)conn->session_array.size;
+
+        cur_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
+        new_idx = 1 - cur_idx;
+
+        WT_ERR(__wt_realloc_def(
+          session, &conn->ckpt_eviction_snap_capacity[new_idx], capacity,
+          &conn->ckpt_eviction_snap_array[new_idx]));
+
+        dst = &conn->ckpt_eviction_snap[new_idx];
+        dst->snap_max = src->snap_max;
+        dst->snapshot_count = count;
+        dst->snapshot = conn->ckpt_eviction_snap_array[new_idx];
+        if (count > 0)
+            memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
+        dst->snap_min = src->snap_min;
+
+        /* Drain in-flight readers of cur_idx, then publish new_idx. */
+        __wt_gen_next(session, WT_GEN_CKPT_SNAP, NULL);
+        __wt_gen_next_drain(session, WT_GEN_CKPT_SNAP);
+        __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
     }
 
     if (ckpt_cfg->use_timestamp)
@@ -1838,13 +1871,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
-     * the checkpoint_pinned flag. Also invalidate the published checkpoint snapshot so that
-     * eviction reverts to the standard pinned-ID bound.
+     * the checkpoint_pinned flag.
      */
     __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
-    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) || F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
-        __wt_atomic_store_uint64_release(
-          &conn->ckpt_reconcile_threads->checkpoint_snapshot.snap_min, WT_TXN_NONE);
 
     __checkpoint_stats(session);
 
