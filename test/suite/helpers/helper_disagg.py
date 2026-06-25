@@ -650,19 +650,16 @@ class DisaggCorruptionMixin:
             input=sql, capture_output=True, text=True, check=True)
         return [line for line in result.stdout.splitlines() if line != '']
 
-    # Table id 2 / page id 1 are WT_SPECIAL_PALI_TURTLE_FILE_ID and
-    # WT_DISAGG_METADATA_MAIN_PAGE_ID: the shared metadata page the follower
-    # reads during checkpoint pickup. Corrupting its newest image makes pickup
-    # fail while leaving every data-table page intact.
-    METADATA_TABLE_ID = 2
-    METADATA_PAGE_ID = 1
-
     def corrupt_checkpoint_metadata_page(self):
         """Overwrite the first byte of the newest shared-metadata page image
         with 0xff so follower checkpoint pickup fails. Returns the
         (table_id, page_id, lsn) of the corrupted image."""
-        table_id = self.METADATA_TABLE_ID
-        page_id = self.METADATA_PAGE_ID
+        # Table id 2 / page id 1 are WT_SPECIAL_PALI_TURTLE_FILE_ID and
+        # WT_DISAGG_METADATA_MAIN_PAGE_ID: the shared metadata page the follower
+        # reads during checkpoint pickup. Corrupting its newest image makes pickup
+        # fail while leaving every data-table page intact.
+        table_id = 2
+        page_id = 1
         # Close before querying so WiredTiger flushes its final checkpoint
         # to palite; the newest lsn we find is then the one pickup will use.
         self.close_conn()
