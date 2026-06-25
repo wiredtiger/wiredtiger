@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 static int __disagg_accumulate_drop_size(
   WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
+static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
  * __layered_create_missing_stable_table --
