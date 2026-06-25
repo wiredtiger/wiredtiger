@@ -53,10 +53,10 @@ __wti_block_disagg_decrease_size(
     if (orig < size) {
         WT_ASSERT(session, false);
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-            "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64
-            ", clamped to 0",
-            size, orig);
-        }
+          "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64
+          ", clamped to 0",
+          size, orig);
+    }
 }
 
 /*
