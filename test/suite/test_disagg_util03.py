@@ -126,7 +126,3 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
             'page', '-t', str(table_id), '-p', '99999999', '-l', '1',
             failure=True)
         self.assertIn("WT_NOTFOUND", err)
-
-
-if __name__ == '__main__':
-    wttest.run()
