@@ -16,9 +16,8 @@ static int
 usage(void)
 {
     static const char *options[] = {"-l lsn",
-      "disaggregated-storage only: dump the shared metadata page at this LSN instead of the "
-      "latest turtle (decimal or 0x-prefixed hex)",
-      "-?", "show this message", NULL, NULL};
+      "dump the shared metadata page at this LSN instead of the latest turtle", "-?",
+      "show this message", NULL, NULL};
 
     util_usage("turtle [-l lsn]", "options:", options);
     return (1);
@@ -171,8 +170,6 @@ fetch_metadata_page(WT_SESSION_IMPL *session, uint64_t lsn, WT_ITEM *item)
 
     conn = S2C(session);
     plh = conn->disaggregated_storage.page_log_meta;
-    if (plh == NULL)
-        WT_RET_MSG(session, EINVAL, "wt turtle requires a disaggregated-storage connection");
 
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
@@ -244,43 +241,6 @@ fetch_and_print_metadata_page(
 }
 
 /*
- * dump_attached_turtle --
- *     Dump the on-disk WiredTiger.turtle file.
- */
-static int
-dump_attached_turtle(WT_SESSION_IMPL *session)
-{
-    WT_DECL_ITEM(buf);
-    WT_DECL_RET;
-    WT_FSTREAM *fs;
-    bool exist;
-
-    fs = NULL;
-
-    WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
-    if (!exist) {
-        printf("no %s in home directory\n", WT_METADATA_TURTLE);
-        return (0);
-    }
-
-    WT_RET(__wt_fopen(session, WT_METADATA_TURTLE, 0, WT_STREAM_READ, &fs));
-    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
-
-    printf("=== %s ===\n", WT_METADATA_TURTLE);
-    for (;;) {
-        WT_ERR(__wt_getline(session, fs, buf));
-        if (buf->size == 0)
-            break;
-        printf("%s\n", (const char *)buf->data);
-    }
-
-err:
-    WT_TRET(__wt_fclose(session, &fs));
-    __wt_scr_free(session, &buf);
-    return (ret);
-}
-
-/*
  * util_turtle --
  *     The turtle command. For a disaggregated-storage connection, dump the turtle blob from the
  *     page log and chase to the shared metadata page. For an attached-storage connection, dump the
@@ -326,18 +286,9 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
-    /* Attached storage has no page log and stores the turtle locally; -l is page-log-only. */
-    if (conn->disaggregated_storage.npage_log == NULL) {
-        if (have_lsn_arg) {
-            fprintf(
-              stderr, "%s: turtle: -l requires a disaggregated-storage connection\n", progname);
-            return (usage());
-        }
-        ret = dump_attached_turtle(session_impl);
-        if (ret != 0)
-            (void)util_err(session, ret, "turtle");
-        return (ret);
-    }
+    if (conn->disaggregated_storage.npage_log == NULL ||
+      conn->disaggregated_storage.page_log_meta == NULL)
+        WT_RET_MSG(session_impl, EINVAL, "wt turtle requires a disaggregated-storage connection");
 
     if (have_lsn_arg) {
         ret = fetch_and_print_metadata_page(session_impl, lsn_arg, false, 0);

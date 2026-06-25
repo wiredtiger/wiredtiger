@@ -139,30 +139,6 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         _, stderr_bad = self._run_wt_turtle('-l', 'abc', failure=True)
         self.assertIn('usage:', stderr_bad)
 
-    def test_attached_turtle(self):
-        self.close_conn()
-        plain_home = os.path.join(self.home, 'plain_home')
-        os.mkdir(plain_home)
-        wt = os.path.join(wt_builddir, 'wt')
-        # `list` opens and closes the connection, which writes the turtle file.
-        subprocess.run([wt, '-h', plain_home, '-C', 'create', 'list'],
-                       check=True, capture_output=True)
-
-        proc = subprocess.run([wt, '-h', plain_home, 'turtle'],
-                              capture_output=True, text=True)
-        self.assertEqual(proc.returncode, 0,
-                         msg=f'stderr: {proc.stderr}')
-        self.assertIn('=== WiredTiger.turtle ===', proc.stdout)
-        self.assertIn('WiredTiger version', proc.stdout)
-        self.assertIn('file:WiredTiger.wt', proc.stdout)
-
-        # -l is page-log-only; rejected on an attached home.
-        proc = subprocess.run([wt, '-h', plain_home, 'turtle', '-l', '42'],
-                              capture_output=True, text=True)
-        self.assertNotEqual(proc.returncode, 0)
-        self.assertIn('-l requires a disaggregated-storage connection',
-                      proc.stderr)
-
     def test_metadata_page_missing(self):
         self._populate_and_checkpoint()
         self.close_conn()
