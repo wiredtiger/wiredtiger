@@ -917,12 +917,19 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
     if (cval.val)
         goto return_false;
 
-    WT_RET(__wt_config_gets(session, cfg, "debug", &cval));
-    if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
+    /*
+     * Scan only the user config (cfg[1]) for these string-valued options. The base defaults are
+     * always cacheable values; using __wt_config_gets would parse the full base config string on
+     * every cache retrieval, adding overhead without benefit.
+     */
+    WT_CLEAR(cval);
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, cfg[1], "debug", &cval));
+    if (cval.len != 0)
         goto return_false;
 
-    WT_RET(__wt_config_gets(session, cfg, "dump", &cval));
-    if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
+    WT_CLEAR(cval);
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, cfg[1], "dump", &cval));
+    if (cval.len != 0)
         goto return_false;
 
     WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
@@ -934,8 +941,9 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
         goto return_false;
 
     /* Checkpoints are readonly, we won't cache them. */
-    WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-    if (cval.len != 0 && !WT_CONFIG_MATCHES_DEFAULT(session, WT_SESSION_open_cursor, cval))
+    WT_CLEAR(cval);
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, cfg[1], "checkpoint", &cval));
+    if (cval.len != 0)
         goto return_false;
 
     *cacheablep = true;
