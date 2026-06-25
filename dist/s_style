@@ -17,7 +17,7 @@ is_main_run && {
         -e '/test\/checksum\/power8/d' \
         -e '/bench\/workgen\/workgen_wrap.cxx/d' \
         -e '/checksum\/zseries/d' | \
-    do_in_parallel -n 32
+    do_in_parallel
     exit $?
 }
 
