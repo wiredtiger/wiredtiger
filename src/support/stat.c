@@ -12,6 +12,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Disaggregated block manager get",
   "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
+  "block-disagg: Disaggregated block manager log handle put failure",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put",
   "block-disagg: Disaggregated block manager put cold page",
@@ -51,7 +52,9 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: overflow pages",
   "btree: row-store empty values",
   "btree: row-store internal pages",
+  "btree: row-store leaf page recent average entries (EWMA)",
   "btree: row-store leaf pages",
+  "btree: row-store leaf pages (approximate, incremental)",
   "btree: time spent walking the tree for checkpoint including dirty page reconciliation time "
   "(usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
@@ -486,6 +489,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->disagg_block_get = 0;
     stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
+    stats->disagg_block_plh_put_failed = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
     stats->disagg_block_put_cold = 0;
@@ -525,7 +529,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_overflow = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
+    stats->btree_row_leaf_avg_entries = 0;
     stats->btree_row_leaf = 0;
+    stats->btree_row_leaf_pages = 0;
     /* not clearing btree_checkpoint_reconcile_duration */
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
@@ -906,6 +912,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->disagg_block_get += from->disagg_block_get;
     to->disagg_block_get_cold += from->disagg_block_get_cold;
     to->disagg_block_hs_get += from->disagg_block_hs_get;
+    to->disagg_block_plh_put_failed += from->disagg_block_plh_put_failed;
     to->disagg_block_page_discard += from->disagg_block_page_discard;
     to->disagg_block_put += from->disagg_block_put;
     to->disagg_block_put_cold += from->disagg_block_put_cold;
@@ -955,7 +962,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_overflow += from->btree_overflow;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
+    to->btree_row_leaf_avg_entries += from->btree_row_leaf_avg_entries;
     to->btree_row_leaf += from->btree_row_leaf;
+    to->btree_row_leaf_pages += from->btree_row_leaf_pages;
     to->btree_checkpoint_reconcile_duration += from->btree_checkpoint_reconcile_duration;
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       from->cache_eviction_app_threads_fill_ratio_lt_25;
@@ -1361,6 +1370,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
     to->disagg_block_get_cold += WT_STAT_DSRC_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
+    to->disagg_block_plh_put_failed += WT_STAT_DSRC_READ(from, disagg_block_plh_put_failed);
     to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
     to->disagg_block_put_cold += WT_STAT_DSRC_READ(from, disagg_block_put_cold);
@@ -1415,7 +1425,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
+    to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
     to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
+    to->btree_row_leaf_pages += WT_STAT_DSRC_READ(from, btree_row_leaf_pages);
     to->btree_checkpoint_reconcile_duration +=
       WT_STAT_DSRC_READ(from, btree_checkpoint_reconcile_duration);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
@@ -1901,6 +1913,8 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: evicted blocks",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
+  "block-cache: maximum time spent adding a single page to the disaggregated victim cache, reset "
+  "per checkpoint (usecs)",
   "block-cache: number of blocks not evicted due to overhead",
   "block-cache: number of bypasses because no-write-allocate setting was on",
   "block-cache: number of bypasses due to overhead on put",
@@ -1928,6 +1942,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager get",
   "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
+  "block-disagg: Disaggregated block manager log handle put failure",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put",
   "block-disagg: Disaggregated block manager put cold page",
@@ -3021,6 +3036,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_blocks_evicted = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
+    /* not clearing block_cache_put_time_max */
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_overhead_put = 0;
@@ -3047,6 +3063,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_get = 0;
     stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
+    stats->disagg_block_plh_put_failed = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
     stats->disagg_block_put_cold = 0;
@@ -4069,6 +4086,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
+    to->block_cache_put_time_max += WT_STAT_CONN_READ(from, block_cache_put_time_max);
     to->block_cache_not_evicted_overhead +=
       WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
@@ -4097,6 +4115,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
     to->disagg_block_get_cold += WT_STAT_CONN_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
+    to->disagg_block_plh_put_failed += WT_STAT_CONN_READ(from, disagg_block_plh_put_failed);
     to->disagg_block_page_discard += WT_STAT_CONN_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
     to->disagg_block_put_cold += WT_STAT_CONN_READ(from, disagg_block_put_cold);

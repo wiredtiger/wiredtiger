@@ -36,8 +36,27 @@ void
 __wti_block_disagg_decrease_size(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, uint64_t size)
 {
-    WT_ASSERT(session, __wt_atomic_load_uint64(&block_disagg->size) >= size);
-    (void)__wt_atomic_sub_uint64(&block_disagg->size, size);
+    uint64_t orig;
+
+    /*
+     * Check for underflow and decrement as a single atomic step. The CAS guarantees we subtract
+     * from the same value we validated, closing the race between the check and the subtraction. A
+     * failed CAS means a concurrent update beat us to it; reload and retry.
+     *
+     * FIXME-WT-16864: clamping to zero hides a real accounting bug where we decrement more than was
+     * added. Remove the clamp once that bug is fixed.
+     */
+    do {
+        orig = __wt_atomic_load_uint64(&block_disagg->size);
+    } while (!__wt_atomic_cas_uint64(&block_disagg->size, orig, orig < size ? 0 : orig - size));
+
+    if (orig < size) {
+        WT_ASSERT(session, false);
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+            "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64
+            ", clamped to 0",
+            size, orig);
+        }
 }
 
 /*
