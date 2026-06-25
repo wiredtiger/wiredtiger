@@ -941,8 +941,7 @@ __wti_cursors_can_be_cached(WT_SESSION_IMPL *session, const char *cfg[], bool *c
         goto return_false;
 
     /* Checkpoints are readonly, we won't cache them. */
-    WT_CLEAR(cval);
-    WT_RET_NOTFOUND_OK(__wt_config_getones(session, cfg[1], "checkpoint", &cval));
+    WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
     if (cval.len != 0)
         goto return_false;
 
