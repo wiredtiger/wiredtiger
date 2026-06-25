@@ -392,7 +392,7 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
  * __wt_block_disagg_debug_read_page_id_raw --
  *     Debug-only entry: fetch a page chain by (table_id, page_id, lsn) directly off the connection
  *     page log, without a btree or block manager. Used to inspect pages when the checkpoint cannot
- *     be picked up. The caller owns validation, decode, and printing. Not for production paths.
+ *     be picked up. Not for production paths.
  */
 int
 __wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t table_id,
@@ -419,15 +419,14 @@ __wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t tabl
       npage_log->page_log, &session->iface, table_id, &plhandle));
 
     tmp_count = (uint32_t)*results_count;
-    ret =
-      plhandle->plh_get(plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count);
-    if (ret == 0) {
-        WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
-        *results_count = tmp_count;
-        if (tmp_count == 0)
-            ret = WT_NOTFOUND;
-    }
+    WT_ERR(
+      plhandle->plh_get(plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+    WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+    *results_count = tmp_count;
+    if (tmp_count == 0)
+        ret = WT_NOTFOUND;
 
+err:
     WT_TRET(plhandle->plh_close(plhandle, &session->iface));
     return (ret);
 }
