@@ -175,7 +175,7 @@ for f in "$@"; do
     # If we don't have matching pack-begin and pack-end calls, we don't get
     # an error, we just get a Windows performance regression.
     grep -E WT_PACKED_STRUCT $f > $t
-    cnt=$(grep -c -E WT_PACKED_STRUCT $f)
+    cnt=$(grep -c -E WT_PACKED_STRUCT $t)
     (( cnt % 2 )) && {
         echo "$f: mismatched WT_PACKED_STRUCT_BEGIN/END lines"
         cat $t
