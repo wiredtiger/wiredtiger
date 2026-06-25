@@ -1236,7 +1236,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty_index_drain_skipped_checkpoint', 'dirty index drain skipped due to active checkpoint'),
     CacheStat('cache_eviction_dirty_index_drain_skipped_clean_pressure', 'dirty index drain skipped due to clean-page eviction pressure'),
     CacheStat('cache_eviction_dirty_index_drain_skipped_disagg_checkpointed', 'dirty index drain skipped because the disaggregated btree was already visited by the running checkpoint'),
-    CacheStat('cache_eviction_dirty_index_drain_skipped_filter_heavy', 'dirty index drain passes skipped because the ring filter rate exceeded the threshold'),
+    CacheStat('cache_eviction_dirty_index_drain_skipped_stable_lag', 'dirty index drain passes skipped because the pinned stable timestamp lags the ring median commit timestamp'),
     CacheStat('cache_eviction_dirty_index_drain_stale', 'dirty index slots dropped by drain because the page was clean or already queued'),
     CacheStat('cache_eviction_dirty_index_grow', 'dirty index rings grown at runtime'),
     CacheStat('cache_eviction_dirty_index_insert', 'dirty index inserts'),

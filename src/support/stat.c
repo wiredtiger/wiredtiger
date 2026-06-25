@@ -69,7 +69,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: data source pages selected for eviction unable to be evicted",
-  "cache: dirty index drain passes skipped because the ring filter rate exceeded the threshold",
+  "cache: dirty index drain passes skipped because the pinned stable timestamp lags the ring "
+  "median commit timestamp",
   "cache: dirty index drain skipped because the disaggregated btree was already visited by the "
   "running checkpoint",
   "cache: dirty index drain skipped due to active checkpoint",
@@ -561,7 +562,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->eviction_fail = 0;
-    stats->cache_eviction_dirty_index_drain_skipped_filter_heavy = 0;
+    stats->cache_eviction_dirty_index_drain_skipped_stable_lag = 0;
     stats->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed = 0;
     stats->cache_eviction_dirty_index_drain_skipped_checkpoint = 0;
     stats->cache_eviction_dirty_index_drain_skipped_clean_pressure = 0;
@@ -1014,8 +1015,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_checkpoint += from->cache_eviction_blocked_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
     to->eviction_fail += from->eviction_fail;
-    to->cache_eviction_dirty_index_drain_skipped_filter_heavy +=
-      from->cache_eviction_dirty_index_drain_skipped_filter_heavy;
+    to->cache_eviction_dirty_index_drain_skipped_stable_lag +=
+      from->cache_eviction_dirty_index_drain_skipped_stable_lag;
     to->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed +=
       from->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed;
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
@@ -1504,8 +1505,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
-    to->cache_eviction_dirty_index_drain_skipped_filter_heavy +=
-      WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_filter_heavy);
+    to->cache_eviction_dirty_index_drain_skipped_stable_lag +=
+      WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_stable_lag);
     to->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_skipped_disagg_checkpointed);
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=
@@ -2111,7 +2112,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: dirty bytes belonging to the history store table in the cache",
-  "cache: dirty index drain passes skipped because the ring filter rate exceeded the threshold",
+  "cache: dirty index drain passes skipped because the pinned stable timestamp lags the ring "
+  "median commit timestamp",
   "cache: dirty index drain skipped because the disaggregated btree was already visited by the "
   "running checkpoint",
   "cache: dirty index drain skipped due to active checkpoint",
@@ -3237,7 +3239,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     /* not clearing cache_bytes_hs_dirty */
-    stats->cache_eviction_dirty_index_drain_skipped_filter_heavy = 0;
+    stats->cache_eviction_dirty_index_drain_skipped_stable_lag = 0;
     stats->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed = 0;
     stats->cache_eviction_dirty_index_drain_skipped_checkpoint = 0;
     stats->cache_eviction_dirty_index_drain_skipped_clean_pressure = 0;
@@ -4329,8 +4331,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
-    to->cache_eviction_dirty_index_drain_skipped_filter_heavy +=
-      WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_filter_heavy);
+    to->cache_eviction_dirty_index_drain_skipped_stable_lag +=
+      WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_stable_lag);
     to->cache_eviction_dirty_index_drain_skipped_disagg_checkpointed +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_skipped_disagg_checkpointed);
     to->cache_eviction_dirty_index_drain_skipped_checkpoint +=

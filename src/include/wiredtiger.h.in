@@ -6668,10 +6668,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: dirty bytes belonging to the history store table in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_HS_DIRTY		1130
 /*!
- * cache: dirty index drain passes skipped because the ring filter rate
- * exceeded the threshold
+ * cache: dirty index drain passes skipped because the pinned stable
+ * timestamp lags the ring median commit timestamp
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_FILTER_HEAVY	1131
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_STABLE_LAG	1131
 /*!
  * cache: dirty index drain skipped because the disaggregated btree was
  * already visited by the running checkpoint
@@ -9314,10 +9314,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: data source pages selected for eviction unable to be evicted */
 #define	WT_STAT_DSRC_EVICTION_FAIL			2064
 /*!
- * cache: dirty index drain passes skipped because the ring filter rate
- * exceeded the threshold
+ * cache: dirty index drain passes skipped because the pinned stable
+ * timestamp lags the ring median commit timestamp
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_FILTER_HEAVY	2065
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_STABLE_LAG	2065
 /*!
  * cache: dirty index drain skipped because the disaggregated btree was
  * already visited by the running checkpoint

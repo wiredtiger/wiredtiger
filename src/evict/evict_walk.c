@@ -44,8 +44,8 @@ static int __evict_clear_walk(WT_SESSION_IMPL *, bool);
 static WTI_DIRTY_EVICT_BLOCK __evict_dirty_tree_block(WT_SESSION_IMPL *, WT_BTREE *, bool);
 static u_int __evict_dirty_index_drain(
   WT_SESSION_IMPL *, WT_BTREE *, WTI_EVICT_QUEUE *, u_int, u_int *);
-static u_int __evict_dirty_index_drain_ring(
-  WT_SESSION_IMPL *, WT_BTREE *, WTI_DIRTY_INDEX *, WTI_EVICT_QUEUE *, u_int, u_int *);
+static u_int __evict_dirty_index_drain_ring(WT_SESSION_IMPL *, WT_BTREE *, WTI_DIRTY_INDEX *,
+  WTI_EVICT_QUEUE *, u_int, u_int *, wt_timestamp_t *, wt_timestamp_t *);
 static void __evict_dirty_index_maybe_grow(WT_SESSION_IMPL *, WT_BTREE *);
 static void __evict_try_queue_page(
   WT_SESSION_IMPL *, WTI_EVICT_QUEUE *, WT_REF *, WT_PAGE *, WTI_EVICT_ENTRY *, bool *, bool *);
@@ -120,6 +120,22 @@ __evict_dirty_index_maybe_grow(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __evict_drain_stable_blocked --
+ *     True while the pinned stable timestamp sits below the median commit timestamp the last drain
+ *     pass found blocking the ring. Under a precise checkpoint those pages cannot be evicted, so
+ *     the drain would only re-examine and re-insert refs it cannot queue; the walker still evicts
+ *     any page that falls below stable in the meantime.
+ */
+static WT_INLINE bool
+__evict_drain_stable_blocked(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    wt_timestamp_t block_ts;
+
+    block_ts = __wt_atomic_load_uint64_relaxed(&btree->drain_stable_block_ts);
+    return (block_ts != WT_TS_NONE && __wt_txn_pinned_stable_timestamp(session) < block_ts);
+}
+
+/*
  * __evict_dirty_index_drain --
  *     Drain the per-btree ring(s) into the eviction queue as a fast path alongside the tree walk.
  *     Drains the active ring and any retired rings still holding entries; grows the ring when it is
@@ -131,6 +147,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
 {
     WT_CONNECTION_IMPL *conn;
     WTI_DIRTY_INDEX *idx, *old;
+    wt_timestamp_t ts_max, ts_min;
     u_int drained;
 
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
@@ -169,13 +186,13 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
      * it holds are not currently evictable -- a disaggregated btree already visited by the
      * checkpoint, whose dirty pages belong to the next checkpoint, fails the candidacy filter and
      * the trim path re-inserts them, so the ring never drains no matter how large it is. Growing
-     * then just builds a bigger container for un-evictable pages. The filter-heavy and disabled
-     * flags already track an unproductive drain; hold the counter while either is set so the grow
+     * then just builds a bigger container for un-evictable pages. The stable-lag and disabled
+     * states already track an unproductive drain; hold the counter while either holds so the grow
      * fires only when the producer genuinely outruns a draining ring.
      */
     if (__wt_atomic_load_bool_relaxed(&conn->evict->eviction_dirty_index_auto_grow)) {
         if (__wt_atomic_load_uint8_relaxed(&idx->saturated) &&
-          !__wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy) &&
+          !__evict_drain_stable_blocked(session, btree) &&
           !__wt_atomic_load_bool_relaxed(&btree->drain_disabled)) {
             if (__wt_atomic_add_uint32(&btree->dirty_index_consecutive_full, 1) >=
               WTI_DIRTY_INDEX_GROW_FULL_THRESHOLD) {
@@ -186,12 +203,29 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
             __wt_atomic_store_uint32_relaxed(&btree->dirty_index_consecutive_full, 0);
     }
 
-    drained = __evict_dirty_index_drain_ring(session, btree, idx, queue, max_entries, slotp);
+    ts_min = WT_TS_MAX;
+    ts_max = WT_TS_NONE;
+    drained = __evict_dirty_index_drain_ring(
+      session, btree, idx, queue, max_entries, slotp, &ts_min, &ts_max);
 
     /* Drain retired rings too so they shed their entries; they are freed only at btree close. */
     for (old = __wt_atomic_load_ptr_acquire(&btree->dirty_index_old); old != NULL;
       old = __wt_atomic_load_ptr_acquire(&old->next_old))
-        drained += __evict_dirty_index_drain_ring(session, btree, old, queue, max_entries, slotp);
+        drained += __evict_dirty_index_drain_ring(
+          session, btree, old, queue, max_entries, slotp, &ts_min, &ts_max);
+
+    /*
+     * Re-arm the stable-lag gate at the median of the commit timestamps that blocked this pass --
+     * approximated by the midpoint of their range, which is O(1) and tracks the median for the
+     * roughly uniform commit-timestamp spread under steady load. The walker then parks the drain
+     * until the pinned stable timestamp crosses it, by which point about half the ring is evictable
+     * again. Clear the gate when nothing was stable-blocked.
+     */
+    if (ts_min <= ts_max)
+        __wt_atomic_store_uint64_relaxed(
+          &btree->drain_stable_block_ts, ts_min + (ts_max - ts_min) / 2);
+    else
+        __wt_atomic_store_uint64_relaxed(&btree->drain_stable_block_ts, WT_TS_NONE);
     return (drained);
 }
 
@@ -203,17 +237,29 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
  */
 static u_int
 __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DIRTY_INDEX *idx,
-  WTI_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp)
+  WTI_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp, wt_timestamp_t *ts_minp,
+  wt_timestamp_t *ts_maxp)
 {
     WT_DECL_RET;
     WT_REF *ref;
+    wt_timestamp_t pinned_stable, ts;
     uint64_t head, tail;
-    uint32_t already_queued, drained, filtered_total, hazard_total, high_filter, queued_total;
+    uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
     uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
-    bool busy, queued, urgent_queued;
+    bool busy, precise_ckpt, queued, urgent_queued;
 
     if (*slotp >= max_entries)
         return (0);
+
+    /*
+     * A precise checkpoint cannot evict a dirty page whose newest commit timestamp is ahead of the
+     * pinned stable timestamp. Fold such pages' commit timestamps into the caller's running range
+     * (the candidacy filter's own predicate) so it can park the drain until stable catches up.
+     * Garbage-collecting trees gate on a different (prune) timestamp; leave those to the filter.
+     */
+    precise_ckpt = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
+      !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT);
+    pinned_stable = precise_ckpt ? __wt_txn_pinned_stable_timestamp(session) : WT_TS_NONE;
 
     /* Acquire head pairs with the producer's release-store of slot data. */
     head = __wt_atomic_load_uint64_acquire(&idx->head);
@@ -303,6 +349,19 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
         else {
             ++filtered_total;
             /*
+             * Track a page held un-evictable by the stable timestamp under a precise checkpoint:
+             * fold its commit timestamp into the running range so the caller can park the drain
+             * until stable crosses the median of these timestamps.
+             */
+            if (precise_ckpt &&
+              (ts = __wt_atomic_load_uint64_relaxed(&ref->page->modify->newest_commit_timestamp)) >
+                pinned_stable) {
+                if (ts < *ts_minp)
+                    *ts_minp = ts;
+                if (ts > *ts_maxp)
+                    *ts_maxp = ts;
+            }
+            /*
              * The page did not qualify under the current pressure mode (e.g. a dirty page with no
              * tracked update bytes under updates-only pressure). Re-insert at the back of the
              * active ring so it gets another look when the pressure mode shifts. dirty_index_slot
@@ -345,35 +404,6 @@ release:
         WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_queued, queued_total);
     if (filtered_total > 0)
         WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_dirty_index_drain_filtered, filtered_total);
-
-    /*
-     * Update the filter-heavy flag. When re-inserts outnumber queued candidates by
-     * WTI_DRAIN_FILTER_RATIO (queue yield below ~5%) for a net WTI_DRAIN_FILTER_THRESHOLD passes
-     * the ring is not producing useful candidates for the active eviction mode; mark the btree so
-     * the walker skips the drain and runs the normal tree walk instead. Re-probe every
-     * WTI_DRAIN_PROBE_INTERVAL passes.
-     */
-    if (filtered_total + queued_total > 0) {
-        if (filtered_total > queued_total * WTI_DRAIN_FILTER_RATIO) {
-            if (__wt_atomic_add_uint32(&btree->drain_consecutive_high_filter, 1) >=
-              WTI_DRAIN_FILTER_THRESHOLD)
-                __wt_atomic_store_bool(&btree->drain_filter_heavy, true);
-        } else {
-            /*
-             * Decay the streak by one rather than zeroing it. The drain runs single-writer under
-             * the eviction walk lock, so this read-modify-write is race-free. A lone productive
-             * pass on an otherwise unproductive ring -- a read-heavy tree whose dirty pages turn
-             * briefly evictable when the stable timestamp advances -- must not erase a long
-             * high-filter streak and restart a drain that is mostly re-inserting; the park lifts
-             * only once the tree is productive long enough to decay the streak to zero.
-             */
-            high_filter = __wt_atomic_load_uint32_relaxed(&btree->drain_consecutive_high_filter);
-            if (high_filter > 0)
-                __wt_atomic_store_uint32(&btree->drain_consecutive_high_filter, high_filter - 1);
-            else if (__wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
-                __wt_atomic_store_bool(&btree->drain_filter_heavy, false);
-        }
-    }
 
     /*
      * Credit the shared eviction-discovery stats. The drain examines, classifies, and queues pages
@@ -1647,18 +1677,20 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * Disabled trees still probe periodically to detect a shift back to write-heavy.
      */
     pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
-    if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled) ||
-      __wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy)) {
-        should_drain = (pass_gen % WTI_DRAIN_PROBE_INTERVAL) == 0;
+    if (__evict_drain_stable_blocked(session, btree)) {
         /*
-         * Count a pass the filter-heavy park actually skipped -- the probe passes still drain. This
-         * is the only direct measure that the stand-down engaged: the per-pass drain volume stats
-         * (examined, filtered, reinserted) are bound by the producer's insert rate and stay flat
-         * whether the drain runs every pass or one pass in WTI_DRAIN_PROBE_INTERVAL.
+         * The precise checkpoint cannot evict most of the ring until the pinned stable timestamp
+         * crosses the median commit timestamp the last drain pass found blocking it. Skip the drain
+         * entirely rather than park its cadence: re-examining the ring would only re-pay the
+         * candidacy filter and re-insert refs it cannot queue, and a probe pass re-drains the whole
+         * backlog so parking does not reduce that volume. The walker still evicts any page that has
+         * since fallen below stable.
          */
-        if (!should_drain && __wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_filter_heavy);
-    } else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+        should_drain = false;
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_stable_lag);
+    } else if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
+        should_drain = (pass_gen % WTI_DRAIN_PROBE_INTERVAL) == 0;
+    else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         /*
          * The ring is leaf-only, so only the walker queues internal pages. When the drain has
          * filled the whole budget for WTI_DRAIN_PROBE_INTERVAL consecutive passes the walker has no

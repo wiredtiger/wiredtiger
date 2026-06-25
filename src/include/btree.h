@@ -332,16 +332,23 @@ struct __wt_btree {
     uint32_t dirty_index_gen; /* Next generation to stamp on an auto-grown ring */
     wt_shared uint32_t dirty_index_consecutive_full; /* Drain passes the ring was found saturated */
     wt_shared uint32_t drain_consecutive_empty; /* Adaptive drain: # of empty drains in a row */
-    wt_shared uint32_t drain_consecutive_high_filter; /* # of consecutive high-filter-rate passes */
     wt_shared uint32_t
       drain_filled_skips; /* Consecutive walks skipped because the drain filled the budget */
-    wt_shared bool drain_disabled;     /* Adaptive drain: walker-only mode for this btree */
-    wt_shared bool drain_filter_heavy; /* Adaptive drain: ring non-productive, walker-only mode */
-    wt_shared u_int evict_walk_period; /* Skip this many LRU walks */
-    u_int evict_walk_saved;            /* Saved walk skips for checkpoints */
-    u_int evict_walk_skips;            /* Number of walks skipped */
-    wt_shared int32_t evict_disabled;  /* Eviction disabled count */
-    bool evict_disabled_open;          /* Eviction disabled on open */
+    wt_shared bool drain_disabled; /* Adaptive drain: walker-only mode for this btree */
+    /*
+     * Median commit timestamp of the ring's stable-blocked pages, captured on the last drained
+     * pass. While the pinned stable timestamp sits below it the precise checkpoint cannot evict
+     * most of the ring, so the walker skips the drain entirely rather than re-examining and
+     * re-inserting pages it cannot queue. WT_TS_NONE disables the gate. Re-armed only on a pass
+     * that actually drains, so a workload committing ahead of stable cannot ratchet it forward
+     * mid-skip.
+     */
+    wt_shared wt_timestamp_t drain_stable_block_ts;
+    wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
+    u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
+    u_int evict_walk_skips;                    /* Number of walks skipped */
+    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
+    bool evict_disabled_open;                  /* Eviction disabled on open */
     wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
     wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;
