@@ -61,6 +61,7 @@ class test_disagg_checkpoint_size18(DisaggSizeTestMixin, wttest.WiredTigerTestCa
     uri_base = 'test_disagg_ckpt_size18'
     conn_config = (
         'disaggregated=(role="leader",lose_all_my_data=true),'
+        'verify_metadata=true,'
         'page_delta=(delta_pct=90),'
         'statistics=(all)'
     )
