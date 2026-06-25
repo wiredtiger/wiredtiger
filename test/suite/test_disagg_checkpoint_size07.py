@@ -88,7 +88,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
         database_size = self.get_database_size()
         self.assertGreaterEqual(database_size, accumulated_database_size,
-            f"database size {database_size} should be greater orequal to "
+            f"database size {database_size} should be greater or equal to "
             f"accumulated {accumulated_database_size} : {context_message}")
 
     def test_failed_drop_does_not_shrink_database_size(self):
