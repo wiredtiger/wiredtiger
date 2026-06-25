@@ -141,11 +141,11 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
- * __clayered_op_init --
+ * __clayered_op_init_begin --
  *     Populate the per-operation state that is known before the constituents are synchronized.
  */
 static WT_INLINE void
-__clayered_op_init(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_OP *op)
+__clayered_op_init_begin(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_OP *op)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -194,11 +194,11 @@ __clayered_enter_flags(WT_CLAYERED_OP *op)
 }
 
 /*
- * __clayered_op_resolve --
+ * __clayered_op_init_finish --
  *     Capture the resolved constituents into the op once the cursors are synchronized.
  */
 static WT_INLINE void
-__clayered_op_resolve(WT_CLAYERED_OP *op)
+__clayered_op_init_finish(WT_CLAYERED_OP *op)
 {
     WT_CURSOR_LAYERED *clayered = op->clayered;
 
@@ -218,7 +218,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     uint32_t flags;
 
-    __clayered_op_init(clayered, mode, op);
+    __clayered_op_init_begin(clayered, mode, op);
     flags = __clayered_enter_flags(op);
 
     if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
@@ -247,7 +247,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
     __clayered_update_state(clayered);
     __clayered_assert_stable_mode(clayered);
 
-    __clayered_op_resolve(op);
+    __clayered_op_init_finish(op);
 
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         /*
