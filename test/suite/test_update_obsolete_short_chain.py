@@ -67,7 +67,7 @@ class test_update_obsolete_short_chain(wttest.WiredTigerTestCase):
         self.assertEqual(removed_after_second, removed_start)
 
         # Grow the chain to length >= 3. Obsolete updates are then eligible
-        # for cleanup during reconciliation. Keep oldest/stable below value-b's
+        # for cleanup during reconciliation. Keep oldest/stable below value-b
         # timestamp until after the chain is fully built so the in-line serial
         # obsolete check cannot prune value-a before the checkpoint does.
         self.update_with_ts(uri, key, 'value-c', 30)
