@@ -356,11 +356,8 @@ release:
     if (filtered_total + queued_total > 0) {
         if (filtered_total > queued_total * WTI_DRAIN_FILTER_RATIO) {
             if (__wt_atomic_add_uint32(&btree->drain_consecutive_high_filter, 1) >=
-              WTI_DRAIN_FILTER_THRESHOLD) {
+              WTI_DRAIN_FILTER_THRESHOLD)
                 __wt_atomic_store_bool(&btree->drain_filter_heavy, true);
-                WT_STAT_CONN_DSRC_INCR(
-                  session, cache_eviction_dirty_index_drain_skipped_filter_heavy);
-            }
         } else {
             /*
              * Decay the streak by one rather than zeroing it. The drain runs single-writer under
@@ -1651,9 +1648,17 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      */
     pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
     if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled) ||
-      __wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
+      __wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy)) {
         should_drain = (pass_gen % WTI_DRAIN_PROBE_INTERVAL) == 0;
-    else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+        /*
+         * Count a pass the filter-heavy park actually skipped -- the probe passes still drain. This
+         * is the only direct measure that the stand-down engaged: the per-pass drain volume stats
+         * (examined, filtered, reinserted) are bound by the producer's insert rate and stay flat
+         * whether the drain runs every pass or one pass in WTI_DRAIN_PROBE_INTERVAL.
+         */
+        if (!should_drain && __wt_atomic_load_bool_relaxed(&btree->drain_filter_heavy))
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_filter_heavy);
+    } else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         /*
          * The ring is leaf-only, so only the walker queues internal pages. When the drain has
          * filled the whole budget for WTI_DRAIN_PROBE_INTERVAL consecutive passes the walker has no
