@@ -35,8 +35,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 @disagg_test_class
 class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(fast),cache_size=256MB,' \
-        'disaggregated=(role="leader"),disaggregated=(lose_all_my_data=true)'
+    conn_config = 'disaggregated=(role="leader")'
 
     # A filler table that is never dropped, giving the database size enough headroom that the
     # (buggy) repeated subtraction does not underflow before we have observed the pattern.
@@ -89,7 +88,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
         database_size = self.get_database_size()
         self.assertGreaterEqual(database_size, accumulated_database_size,
-            f"database size {database_size} should be equal to "
+            f"database size {database_size} should be greater orequal to "
             f"accumulated {accumulated_database_size} : {context_message}")
 
     def test_failed_drop_does_not_shrink_database_size(self):
@@ -134,7 +133,7 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
 
         # We should see the drop size for a successful drop
         with self.expectedStdoutPattern('.*Accumulated drop size.*', maxchars=1000000):
-            self.conn.reconfigure("verbose=[disaggregated_storage:1]")
+            self.conn.reconfigure("verbose=[disaggregated_storage:2]")
             self.session.drop(self.victim_uri, None)
             self.session.checkpoint()
             self.conn.reconfigure("verbose=[disaggregated_storage:0]")

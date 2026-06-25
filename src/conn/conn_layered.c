@@ -654,23 +654,24 @@ __disagg_accumulate_drop_size(
 
     stable_config = NULL;
 
-    if (entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL) {
+    if (!(entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL))
+        return (0);
 
-        /* The stable entry is gone only after a real drop; a rolled-back drop leaves it. */
-        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &stable_config), true);
+    /* The stable entry is gone only after a real drop; a rolled-back drop leaves it. */
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &stable_config), true);
 
-        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-            uint64_t size = 0;
-            /* A table dropped before it was ever checkpointed has no checkpoint entry. */
-            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), true);
-            if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-                *drop_sizep += size;
-                __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
-                  entry->table_name, entry->stable_uri);
-            }
+    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        uint64_t size = 0;
+        /* A table dropped before it was ever checkpointed has no checkpoint entry. */
+        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), true);
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+            *drop_sizep += size;
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
+              entry->table_name, entry->stable_uri);
         }
     }
+
 err:
     __wt_free(session, stable_config);
     return (ret);
@@ -738,7 +739,7 @@ __wt_disagg_shared_metadata_queue_process(
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
-        __disagg_accumulate_drop_size(session, entry, drop_sizep);
+        WT_ERR(__disagg_accumulate_drop_size(session, entry, drop_sizep));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
