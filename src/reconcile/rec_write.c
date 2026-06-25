@@ -3356,7 +3356,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * tracked page ID so the next reconciliation assigns a fresh one; without this, the next wrapup
      * would attempt to free an already-discarded page ID. Skip when nothing reached PALI
      * (block_cookie == NULL, e.g. a pre-write failpoint): the existing page ID is still live and
-     * must not be orphaned. test_disagg_checkpoint_size18 catches a regression here.
+     * must not be orphaned.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->addr.block_cookie != NULL &&
@@ -3370,7 +3370,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * that chain: the next reconciliation writes a fresh page id and never obsoletes it.
          * Subtract the old chain's cumulative size here to avoid leaking it. A failed delta needs
          * no adjustment; its cookie carries the full cumulative size, so the discard above already
-         * removed the chain. test_disagg_checkpoint_size07 catches a regression here.
+         * removed the chain.
          */
         if (r->multi->block_meta->delta_count == 0 &&
           page->disagg_info->block_meta.cumulative_size > 0)
