@@ -109,7 +109,17 @@ util_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, WT_SESSION *session)
     }
     WT_ERR(__wt_snprintf(reconfig, reconfig_len, "disaggregated=(checkpoint_meta=\"%.*s\")",
       (int)args.checkpoint_metadata.size, (const char *)args.checkpoint_metadata.data));
-    WT_ERR(conn->reconfigure(conn, reconfig));
+    /*
+     * A failed pickup is non-fatal in the utility: the checkpoint may be corrupt or unreadable, but
+     * individual pages can still be read directly off the page log (wt page -t). Warn and proceed
+     * with empty metadata.
+     */
+    if ((ret = conn->reconfigure(conn, reconfig)) != 0) {
+        fprintf(stderr,
+          "%s: failed to pick up the latest checkpoint (%s); proceeding with empty metadata\n",
+          progname, wiredtiger_strerror(ret));
+        ret = 0;
+    }
 
 err:
 done:
