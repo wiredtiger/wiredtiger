@@ -310,6 +310,50 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess):
             'stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
 
+    def test_checkpoint_succeeds_with_only_unstable_writes_at_deferred_epoch(self):
+        """
+        A checkpoint must succeed when a table is published at a later schema epoch but all
+        writes are above the stable timestamp: no stable data exists for the unpublished table,
+        so the checkpoint contains nothing to violate the publish-before-checkpoint invariant.
+
+        Reproducer for a bug where an empty stable btree checkpoint was mistakenly treated as
+        stable data for an unpublished table, causing a spurious panic.
+        """
+        self.set_stable_epoch(5)
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        # Publish at epoch 10, ahead of the stable epoch (5).
+        self.publish(self.uri, 10)
+
+        # Write above the stable timestamp so the btree is dirty but has no stable data.
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        cursor[1] = 'value'
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+
+        # The table has no stable data, so the checkpoint succeeds without panicking.
+        self.leader_checkpoint(1)
+        self.assertFalse(self.table_exists_on_follower(self.uri),
+            'table published at a later epoch must not appear in this checkpoint')
+
+        # Advance the stable epoch to 10 (matching the publish epoch) and advance the stable
+        # timestamp past the write, making the data stable and the table visible to followers.
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(2)
+
+        conn_follower = self.open_follower()
+        self.disagg_advance_checkpoint(conn_follower)
+        session_follower = conn_follower.open_session('')
+        c = session_follower.open_cursor(self.uri)
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), 1)
+        self.assertEqual(c.get_value(), 'value')
+        self.assertEqual(c.next(), wiredtiger.WT_NOTFOUND)
+        c.close()
+        session_follower.close()
+        conn_follower.close()
+
     #
     # Statistics tests
     #
