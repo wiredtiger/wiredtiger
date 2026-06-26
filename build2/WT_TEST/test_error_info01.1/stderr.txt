@@ -1,0 +1,2 @@
+[1782463166:530666][1278140:0x7f3bf42502c0], test_error_info01.test_error_info01.test_api_call_doubling, WT_SESSION.compact: [WT_VERB_DEFAULT][ERROR]: __wti_session_compact, 409: Compaction does not work with disaggregated storage.: Operation not supported
+[1782463166:530906][1278140:0x7f3bf42502c0], test_error_info01.test_error_info01.test_api_call_doubling, WT_CONNECTION.dump_error_log: [WT_VERB_ERROR_RETURNS][ERROR]: __wti_session_compact, 409: Error at src/session/session_compact.c:409: "ENOTSUP" failed: Operation not supported

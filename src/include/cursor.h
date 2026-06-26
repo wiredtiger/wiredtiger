@@ -560,7 +560,7 @@ typedef enum {                       /* maps 1:1 onto the API methods */
     WT_CLAYERED_MODE_SEARCH,         /* search, search_near */
     WT_CLAYERED_MODE_ITERATE,        /* next, prev */
     WT_CLAYERED_MODE_RANDOM,         /* next_random */
-    WT_CLAYERED_MODE_SCAN,           /* largest_key */
+    WT_CLAYERED_MODE_LARGEST_KEY,    /* largest_key */
     WT_CLAYERED_MODE_WRITE,          /* remove, reserve, modify; non-overwrite insert/update */
     WT_CLAYERED_MODE_WRITE_OVERWRITE /* overwrite insert/update */
 } WT_CLAYERED_OP_MODE;
