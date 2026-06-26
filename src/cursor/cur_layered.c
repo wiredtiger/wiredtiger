@@ -15,7 +15,7 @@ static int __clayered_lookup(WT_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static void __clayered_update_state(WT_CURSOR_LAYERED *);
+static void __clayered_update_state(WT_CURSOR_LAYERED *, WT_CLAYERED_ROLE);
 
 /* Operations passed to __clayered_put. */
 typedef enum {
@@ -141,71 +141,49 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
- * __clayered_op_init_begin --
- *     Populate the per-operation state that is known before the constituents are synchronized.
+ * __clayered_enter_flags --
+ *     Derive the enter-time control flags from the operation mode and resolved role.
  */
-static WT_INLINE void
-__clayered_op_init_begin(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_OP *op)
+static WT_INLINE uint32_t
+__clayered_enter_flags(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_ROLE role)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CONNECTION_IMPL *conn = S2C(session);
+    uint32_t flags = 0;
 
-    op->clayered = clayered;
-    op->mode = mode;
-
-    /*
-     * Resolve the role for this operation. The live role is read once here; the role detector
-     * settles clayered->last_role to the same value.
-     */
-    op->role =
-      conn->layered_table_manager.leader ? WT_CLAYERED_ROLE_LEADER : WT_CLAYERED_ROLE_FOLLOWER;
+    if (mode == WT_CLAYERED_MODE_SEARCH)
+        LF_SET(CLAYERED_ENTER_RESET);
+    if (mode == WT_CLAYERED_MODE_ITERATE || mode == WT_CLAYERED_MODE_RANDOM)
+        LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
      * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
      * stable cursor; an overwrite write needs it on the leader, or on a follower with a read
      * timestamp where the write-conflict check must consult the stable table.
      */
-    op->need_stable = (mode != WT_CLAYERED_MODE_WRITE_OVERWRITE) ||
-      (op->role == WT_CLAYERED_ROLE_LEADER) || F_ISSET(session->txn, WT_TXN_SHARED_TS_READ);
-}
-
-/*
- * __clayered_enter_flags --
- *     Derive the enter-time control flags from the operation mode and resolved role.
- */
-static WT_INLINE uint32_t
-__clayered_enter_flags(WT_CLAYERED_OP *op)
-{
-    uint32_t flags;
-
-    flags = 0;
-
-    if (op->mode == WT_CLAYERED_MODE_SEARCH)
-        LF_SET(CLAYERED_ENTER_RESET);
-    if (op->mode == WT_CLAYERED_MODE_ITERATE || op->mode == WT_CLAYERED_MODE_RANDOM)
-        LF_SET(CLAYERED_ENTER_ITERATION);
-    /* Follower overwrite writes update the ingest table without accessing the stable table. */
-    if (!op->need_stable)
+    if ((mode == WT_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WT_CLAYERED_ROLE_FOLLOWER) &&
+      !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
-    if (op->role != op->clayered->last_role)
+
+    if (role != clayered->last_role)
         LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
 
     return (flags);
 }
 
 /*
- * __clayered_op_init_finish --
- *     Capture the resolved constituents into the op once the cursors are synchronized.
+ * __clayered_op_init --
+ *     Populate the per-operation state.
  */
 static WT_INLINE void
-__clayered_op_init_finish(WT_CLAYERED_OP *op)
+__clayered_op_init(
+  WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP *op, WT_CLAYERED_ROLE role, uint32_t flags)
 {
-    WT_CURSOR_LAYERED *clayered = op->clayered;
-
-    op->ingest = (op->role == WT_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
+    op->clayered = clayered;
+    op->ingest = (role == WT_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
     op->stable = clayered->stable_cursor;
     op->table = (WT_LAYERED_TABLE *)clayered->dhandle;
     op->collator = op->table->collator;
+    op->need_stable = !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -216,10 +194,10 @@ static WT_INLINE int
 __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_OP *op)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
-    uint32_t flags;
-
-    __clayered_op_init_begin(clayered, mode, op);
-    flags = __clayered_enter_flags(op);
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_CLAYERED_ROLE role =
+      conn->layered_table_manager.leader ? WT_CLAYERED_ROLE_LEADER : WT_CLAYERED_ROLE_FOLLOWER;
+    uint32_t flags = __clayered_enter_flags(clayered, mode, role);
 
     if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
@@ -242,12 +220,12 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
     WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    WT_RET(__clayered_update_stable(clayered, flags, op->role));
+    WT_RET(__clayered_update_stable(clayered, flags, role));
 
-    __clayered_update_state(clayered);
+    __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
 
-    __clayered_op_init_finish(op);
+    __clayered_op_init(clayered, op, role, flags);
 
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         /*
@@ -569,10 +547,9 @@ err:
  *     Validate and update cursor state and refresh the transaction context.
  */
 static void
-__clayered_update_state(WT_CURSOR_LAYERED *clayered)
+__clayered_update_state(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_ROLE role)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
-    const WT_CONNECTION_IMPL *const conn = S2C(session);
     const WT_TXN_SHARED *const txn_shared = WT_SESSION_TXN_SHARED(session);
 
     const uint64_t snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
@@ -588,8 +565,7 @@ __clayered_update_state(WT_CURSOR_LAYERED *clayered)
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
-    clayered->last_role =
-      conn->layered_table_manager.leader ? WT_CLAYERED_ROLE_LEADER : WT_CLAYERED_ROLE_FOLLOWER;
+    clayered->last_role = role;
 }
 
 /*
@@ -2446,7 +2422,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
     ret = __clayered_put(&op, &cursor->key, &value, WT_CLAYERED_PUT_INSERT);
     if (ret == WT_DUPLICATE_KEY) {
-        WT_ASSERT(session, op.role == WT_CLAYERED_ROLE_LEADER);
+        WT_ASSERT(session, op.ingest == NULL);
         /*
          * The btree cursor already holds a local copy of the existing value from duplicate
          * detection. Copy it directly without a second search.
@@ -2636,10 +2612,10 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     /*
-     * WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. The
-     * leader's stable cursor reserves without overwrite and runs the check itself.
+     * WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. With
+     * no ingest cursor the stable cursor reserves without overwrite and runs the check itself.
      */
-    if (op.role == WT_CLAYERED_ROLE_FOLLOWER)
+    if (op.ingest != NULL)
         WT_ERR(__clayered_lookup(&op, &value));
 
     WT_ERR(__clayered_put(&op, &cursor->key, NULL, WT_CLAYERED_PUT_RESERVE));

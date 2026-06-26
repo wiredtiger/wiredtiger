@@ -172,7 +172,6 @@ TEST_CASE(
     make_op(op, clayered, session_impl);
     op.ingest = ingest;
     op.stable = stable;
-    op.role = WT_CLAYERED_ROLE_FOLLOWER; /* follower so ingest is considered */
 
     SECTION("smallest picks the lower key (ingest 'i' < stable 's')")
     {
@@ -197,11 +196,10 @@ TEST_CASE(
         REQUIRE(clayered.current_cursor == stable);
     }
 
-    SECTION("leader role ignores the ingest cursor")
+    SECTION("no ingest cursor -> stable only")
     {
         position_at(ingest, "i");
         position_at(stable, "s");
-        op.role = WT_CLAYERED_ROLE_LEADER;
         op.ingest = nullptr;
         REQUIRE(__clayered_get_current(&op, true) == 0);
         /* With no ingest cursor, stable is the only candidate even though 'i' < 's'. */
