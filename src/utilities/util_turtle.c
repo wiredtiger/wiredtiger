@@ -19,7 +19,7 @@ usage(void)
       "dump the shared metadata page at this LSN instead of the latest turtle (lsn > 0)", "-?",
       "show this message", NULL, NULL};
 
-    util_usage("turtle [-l lsn] [-p]", "options:", options);
+    util_usage("turtle [-l lsn]", "options:", options);
     return (1);
 }
 
@@ -186,9 +186,8 @@ print_metadata_page(
 /*
  * util_turtle --
  *     The turtle command. Requires a disaggregated-storage connection. With no flags, fetch the
- *     latest turtle and dump its raw blob bytes. With -p, parse the blob, pretty-print fields, and
- *     chase to the shared metadata page (verifying checksum when the turtle carries one). With -l
- *     <lsn>, skip the turtle and dump the shared metadata page at that LSN as-is.
+ *     latest turtle and dump its raw blob bytes. With -l <lsn>, skip the turtle and dump the
+ *     shared metadata page at that LSN as-is.
  */
 int
 util_turtle(WT_SESSION *session, int argc, char *argv[])
