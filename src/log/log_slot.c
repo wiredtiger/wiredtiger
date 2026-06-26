@@ -502,6 +502,7 @@ int
 __wti_log_slot_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WTI_LOG *log;
     WTI_LOGSLOT *slot;
     int64_t rel;
@@ -521,13 +522,13 @@ __wti_log_slot_destroy(WT_SESSION_IMPL *session)
               WTI_LOG_SLOT_RELEASED_BUFFERED(__wt_atomic_load_int64_v_relaxed(&slot->slot_state));
             if (rel != 0)
                 /* Writes are not throttled. */
-                WT_RET(__wt_write(session, slot->slot_fh,
+                WT_TRET(__wt_write(session, slot->slot_fh,
                   __wt_atomic_load_int64_relaxed(&slot->slot_start_offset), (size_t)rel,
                   slot->slot_buf.mem));
         }
         __wt_buf_free(session, &log->slot_pool[i].slot_buf);
     }
-    return (0);
+    return (ret);
 }
 
 /*
