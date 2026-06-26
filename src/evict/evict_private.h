@@ -74,18 +74,17 @@ struct __wti_evict_entry {
 #define WTI_DIRTY_BP_SLOT(bp) (((bp) & WTI_DIRTY_BP_SLOT_MASK) - 1u)
 
 /*
- * Adaptive drain scheduling. After EMPTY_THRESHOLD consecutive empty drains the drain parks
- * (walker-only) and re-probes every PROBE_INTERVAL passes. Under a precise checkpoint a page whose
- * commit timestamp is ahead of pinned stable cannot be evicted; the ring is roughly
- * commit-timestamp ordered, so the drain stops once such pages exceed STABLE_BLOCK_TOLERANCE_PCT of
- * those examined (past a STABLE_BLOCK_MIN_SCAN floor that absorbs order inversions), leaving the
- * rest in the ring, and re-arms at the largest blocked timestamp seen
- * (WT_BTREE.drain_stable_block_ts).
+ * Adaptive drain scheduling. After EMPTY_THRESHOLD consecutive empty drains the per-btree drain
+ * parks (walker-only) and re-probes once every PROBE_INTERVAL passes. Separately, a precise
+ * checkpoint cannot evict a dirty page whose commit timestamp is ahead of the pinned stable
+ * timestamp; when a ring fills with such pages the drain captures the median blocked commit
+ * timestamp and the walker skips the drain until the stable timestamp crosses it (see
+ * WT_BTREE.drain_stable_block_ts). The drain then stops re-examining and re-inserting pages it
+ * cannot queue while their working set sits ahead of stable; the walker still evicts any page that
+ * does fall below stable in the meantime.
  */
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
-#define WTI_DRAIN_STABLE_BLOCK_TOLERANCE_PCT 10u
-#define WTI_DRAIN_STABLE_BLOCK_MIN_SCAN 64u
 
 /*
  * Clear the saturation hint once the ring drains to this fraction of capacity (capacity >> SHIFT).
