@@ -2779,6 +2779,8 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         /* Initialize the buffer: disk header and overflow record. */
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
+        /* Clear the memory owned by the block manager. */
+        memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
         dsk->type = WT_PAGE_OVFL;
         __rec_set_page_write_gen(btree, dsk);
         dsk->u.datalen = (uint32_t)kv->buf.size;
