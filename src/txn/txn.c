@@ -1067,77 +1067,66 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
 
 /*
  * __txn_resolve_prepared_update_chain --
- *     Helper for resolving updates. Visit the update chain and resolve the updates oldest first, so
- *     older updates are resolved before newer ones. This ensures that a reconciliation racing with
- *     us will always see the newest update from the prepared transaction if any updates are still
- *     unresolved. The implementation collects the updates in a temporary buffer to avoid stack
- *     overflow.
+ *     Helper for resolving updates. Walk the update chain and resolve prepared updates oldest-first
+ *     so that a reconciliation racing with us always sees the newest unresolved update from this
+ *     transaction.
  */
-static int
+static void
 __txn_resolve_prepared_update_chain(
   WT_SESSION_IMPL *session, WT_TXN_TIME_POINT *txn_time_point, WT_UPDATE *upd, bool commit)
 {
-    WT_ITEM *upd_buf = NULL;
-    WT_UPDATE *curr;
-    WT_UPDATE **upd_array = NULL;
-    size_t count = 0, i;
-    int ret = 0;
+    WT_UPDATE *curr, *next, *prev;
 
     /*
-     * Aborted updates can exist in the update chain of our transaction. Generally this will occur
-     * due to a reserved update. As such we should skip over these updates entirely.
+     * Aborted updates can exist at the head of the chain due to reserved updates, skip past them to
+     * the first update that belongs to this transaction.
      */
     while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
         upd = upd->next;
 
-    /*
-     * The previous loop exits on null, check that here. Additionally if the transaction id is then
-     * different or update's state is not in progress, we know we've reached the end of our update
-     * chain and don't need to look deeper.
-     */
     if (upd == NULL || (upd->txnid != WT_TXN_NONE && upd->txnid != txn_time_point->id))
-        return (0);
+        return;
 
     if (upd->prepare_state != WT_PREPARE_INPROGRESS)
-        return (0);
+        return;
 
-    /* Collect the updates in this transaction's prepared update chain. */
-    for (curr = upd; curr != NULL; curr = curr->next) {
-        if (curr->txnid == WT_TXN_ABORTED)
-            continue;
-
-        if ((curr->txnid != WT_TXN_NONE && curr->txnid != txn_time_point->id) ||
-          curr->prepare_state != WT_PREPARE_INPROGRESS)
+    /*
+     * Walk newest-to-oldest reversing each next pointer in-place. Aborted interleaved nodes are
+     * reversed alongside active ones, skipping them would corrupt the chain topology when the
+     * pointers are restored on the backward pass.
+     */
+    prev = NULL;
+    curr = upd;
+    while (curr != NULL) {
+        if (curr->txnid != WT_TXN_ABORTED &&
+          ((curr->txnid != WT_TXN_NONE && curr->txnid != txn_time_point->id) ||
+            curr->prepare_state != WT_PREPARE_INPROGRESS))
             break;
 
-        WT_ASSERT(session,
-          !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
-            curr->prepared_id == txn_time_point->prepared_id);
+        if (curr->txnid != WT_TXN_ABORTED)
+            WT_ASSERT(session,
+              !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
+                curr->prepared_id == txn_time_point->prepared_id);
 
-        count++;
+        next = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = next;
     }
 
-    if (count == 0)
-        return (0);
+    /*
+     * Walk oldest-to-newest resolving each active update and restoring every next pointer to its
+     * original direction. Aborted interleaved nodes have their pointer restored but are not
+     * resolved.
+     */
+    while (prev != NULL) {
+        next = prev->next;
+        prev->next = curr;
+        curr = prev;
+        prev = next;
 
-    WT_ERR(__wt_scr_alloc(session, count * sizeof(WT_UPDATE *), &upd_buf));
-    upd_array = (WT_UPDATE **)upd_buf->data;
-
-    i = 0;
-    for (curr = upd; curr != NULL; curr = curr->next) {
         if (curr->txnid == WT_TXN_ABORTED)
             continue;
-
-        if ((curr->txnid != WT_TXN_NONE && curr->txnid != txn_time_point->id) ||
-          curr->prepare_state != WT_PREPARE_INPROGRESS)
-            break;
-
-        upd_array[i++] = curr;
-    }
-    WT_ASSERT(session, i == count);
-
-    for (i = count; i > 0; i--) {
-        curr = upd_array[i - 1];
 
         if (!commit) {
             /* As updating timestamp might not be an atomic operation, we will manage using state.
@@ -1180,10 +1169,6 @@ __txn_resolve_prepared_update_chain(
             __wt_sleep(0, 1000 * WT_THOUSAND);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
     }
-
-err:
-    __wt_scr_free(session, &upd_buf);
-    return (ret);
 }
 
 /*
@@ -1387,7 +1372,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
      * In the above example, we will resolve "u2" and "u1" as part of resolving "txn_op1" and will
      * not do any significant thing as part of "txn_op2".
      */
-    WT_ERR(__txn_resolve_prepared_update_chain(session, txn_time_point, upd, commit));
+    __txn_resolve_prepared_update_chain(session, txn_time_point, upd, commit);
 
     /* Mark the page dirty once the prepared updates are resolved. */
     __wt_page_modify_set(session, page);
