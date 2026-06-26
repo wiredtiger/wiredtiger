@@ -862,6 +862,7 @@ cust
 customizable
 customp
 cutlim
+cutover
 cv
 cval
 cx
@@ -892,6 +893,7 @@ dec
 decile
 deciles
 decl
+decodable
 decompressor
 decr
 decrementing
@@ -1166,6 +1168,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initn
 initsize
 initval
@@ -1580,6 +1586,7 @@ rebalancing
 recency
 recno
 recnos
+recognizes
 reconfig
 reconfigurations
 reconfigures
@@ -1851,6 +1858,8 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
+underflows
 unencoded
 unencrypted
 unesc

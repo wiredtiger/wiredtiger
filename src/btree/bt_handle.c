@@ -266,8 +266,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
-    /* Initialize the block manager's size from the checkpoint metadata. */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+    /*
+     * Initialize the block manager's size from the checkpoint metadata, but only for the live
+     * handle. A checkpoint cursor open must not clobber the live running total with a stale
+     * checkpoint size, which would later underflow the total in the eviction path.
+     */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_DHANDLE_IS_CHECKPOINT(dhandle) &&
+      checkpoint == NULL)
         __wt_block_disagg_set_size(session, ckpt.size);
 
     /*
