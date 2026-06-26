@@ -212,9 +212,9 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     } else if (WT_PREFIX_MATCH(uri, "layered:")) {
         WT_RET(__wt_calloc_one(session, &layered));
         dhandle = (WT_DATA_HANDLE *)layered;
-        WT_TRUNCATE_LIST *tl = &layered->truncate_list;
-        TAILQ_INIT(&tl->truncateqh);
-        WT_RET(__wt_rwlock_init(session, &tl->truncate_lock));
+        WT_TRUNCATE_LIST *truncate_list = &layered->truncate_list;
+        TAILQ_INIT(&truncate_list->qh);
+        WT_RET(__wt_rwlock_init(session, &truncate_list->lock));
         __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_LAYERED);
     } else if (WT_PREFIX_MATCH(uri, "table:")) {
         WT_RET(__wt_calloc_one(session, &table));

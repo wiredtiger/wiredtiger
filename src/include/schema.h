@@ -99,13 +99,13 @@ struct __wt_truncate_list {
      *
      * FIXME-WT-17330: Evaluate data structure for performance optimization.
      */
-    TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
+    TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) qh;
 
     /*
      * Protects truncate list membership (insert/remove/clear). Per-entry visibility is synchronized
      * lock-free via WT_TRUNCATE.committed.
      */
-    WT_RWLOCK truncate_lock;
+    WT_RWLOCK lock;
 };
 
 /*
