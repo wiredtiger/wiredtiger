@@ -409,7 +409,7 @@ err:
  */
 int
 __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session, WT_TRUNCATE_LIST *tl,
-  WT_COLLATOR *collator, WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
+  WT_COLLATOR *collator, const WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
 {
     /* We either want the full range or no range at all. */
     WT_ASSERT(session, ((start_keyp != NULL) == (stop_keyp != NULL)));

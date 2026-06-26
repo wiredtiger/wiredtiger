@@ -558,7 +558,8 @@ struct __wt_cursor_layered {
  */
 typedef enum {                       /* maps 1:1 onto the API methods */
     WT_CLAYERED_MODE_SEARCH,         /* search, search_near */
-    WT_CLAYERED_MODE_ITERATE,        /* next, prev */
+    WT_CLAYERED_MODE_ITERATE_NEXT,   /* next */
+    WT_CLAYERED_MODE_ITERATE_PREV,   /* prev */
     WT_CLAYERED_MODE_RANDOM,         /* next_random */
     WT_CLAYERED_MODE_SCAN,           /* largest_key */
     WT_CLAYERED_MODE_WRITE,          /* remove, reserve, modify; non-overwrite insert/update */
@@ -566,19 +567,39 @@ typedef enum {                       /* maps 1:1 onto the API methods */
 } WT_CLAYERED_OP_MODE;
 
 /*
+ * WT_CLAYERED_RESULT --
+ *	The disposition an operation leaves the layered cursor in -- the exit states of the position
+ *	state machine. The op body sets it; __clayered_op_to_cursor applies it to the public cursor.
+ */
+typedef enum {
+    WT_CLAYERED_RESULT_NONE, /* unpositioned, iface key cleared: insert success, NOTFOUND, error */
+    WT_CLAYERED_RESULT_RETAIN_KEY, /* unpositioned, iface input key kept: search/search_near miss */
+    WT_CLAYERED_RESULT_POSITIONED, /* KEY_INT + value: search/search_near/next/prev/update/modify */
+    WT_CLAYERED_RESULT_DUPLICATE,  /* like POSITIONED but detached: duplicate-key insert exposes the
+                                      existing record while its txn unwinds */
+    WT_CLAYERED_RESULT_KEY_ONLY,   /* KEY_INT, no value: remove on a positioned cursor */
+    WT_CLAYERED_RESULT_EXTERNAL_KEY /* KEY_EXT, no value: largest_key (body left the key on iface)
+                                     */
+} WT_CLAYERED_RESULT;
+
+/*
  * WT_CLAYERED_OP --
  *	State gathered once for a single layered table cursor operation.
  */
 struct __wt_clayered_op {
-    WT_CURSOR_LAYERED *clayered; /* back-pointer; being retired as the op decouples from it */
     WT_CLAYERED_OP_MODE mode;
     WT_CLAYERED_ROLE role;
-    WT_CURSOR *iface;                /* the public layered cursor; source of inputs and session */
-    WT_CURSOR *ingest;               /* resolved slot == clayered->ingest_cursor (may be NULL) */
-    WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
+    const WT_CURSOR *iface; /* the public layered cursor; read-only source of inputs and session */
+    WT_CURSOR *ingest;      /* resolved slot == clayered->ingest_cursor (may be NULL) */
+    WT_CURSOR *stable;      /* resolved slot == clayered->stable_cursor (may be NULL) */
+    WT_CURSOR
+      *current_cursor; /* snapshot of clayered->current_cursor; propagated back by wrapper */
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
     bool need_stable; /* derived from mode+role; whether the stable cursor must be opened */
+    bool
+      alternate_positioned; /* the alternate constituent is seated for this op's walk direction */
+    WT_CLAYERED_RESULT result; /* the body's verdict; applied to the cursor by op_to_cursor */
 };
 
 #define WT_CURSOR_PRIMARY(cursor) (((WT_CURSOR_TABLE *)(cursor))->cg_cursors[0])
