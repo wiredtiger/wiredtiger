@@ -6183,7 +6183,6 @@ tasks:
     ##################################################
 
   - name: perf-disagg-many-tables-follower-startup
-    tags: ["startup-perf"]
     depends_on:
       - name: compile
     commands:
