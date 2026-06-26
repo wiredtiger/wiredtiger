@@ -398,6 +398,47 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_disagg_clear_awaiting_publish --
+ *     If a disaggregated btree is in memory because it is awaiting publication, check whether the
+ *     checkpoint's stable schema epoch covers the table's CREATE entry. If so, clear
+ *     WT_BTREE_IN_MEMORY under the dhandle close lock so the btree is included in this checkpoint.
+ */
+static void
+__checkpoint_disagg_clear_awaiting_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DISAGG_METADATA_OP *entry;
+    wt_timestamp_t ckpt_epoch;
+    bool found_create;
+
+    conn = S2C(session);
+    dhandle = session->dhandle;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    ckpt_epoch = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_disagg_schema_epoch);
+    if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
+        return;
+
+    found_create = false;
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+          strcmp(entry->stable_uri, dhandle->name) == 0 && entry->schema_epoch <= ckpt_epoch) {
+            found_create = true;
+            break;
+        }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    if (found_create) {
+        __wt_spin_lock(session, &dhandle->close_lock);
+        F_CLR(btree, WT_BTREE_IN_MEMORY);
+        __wt_spin_unlock(session, &dhandle->close_lock);
+    }
+}
+
+/*
  * __wt_checkpoint_get_handles --
  *     Get a list of handles to flush.
  */
@@ -426,6 +467,15 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, WT_DHANDLE_BTREE(session->dhandle) && !WT_READING_CHECKPOINT(session));
 
     btree = S2BT(session);
+
+    /*
+     * A disaggregated btree may carry WT_BTREE_IN_MEMORY because it was created while a stable
+     * schema epoch was set and is waiting to be published. If the checkpoint's schema epoch now
+     * covers the table's CREATE entry, drop the in-memory flag so the btree participates in this
+     * checkpoint.
+     */
+    if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        __checkpoint_disagg_clear_awaiting_publish(session, btree);
 
     /* Skip the history store file as it is checkpointed manually later. */
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY | WT_BTREE_READONLY) ||
