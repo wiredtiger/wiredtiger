@@ -1067,37 +1067,37 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
 
 /*
  * __txn_resolve_prepared_update_chain --
- *     Helper for resolving updates. Walk the update chain and resolve prepared updates oldest-first
- *     so that a reconciliation racing with us always sees the newest unresolved update from this
- *     transaction.
+ *     Resolve all prepared updates for this transaction on a single key, oldest-first, so a
+ *     reconciliation racing the commit always sees the newest unresolved update first. The chain is
+ *     walked read-only into a session scratch buffer; no ->next pointer is ever written, keeping
+ *     the list structurally intact for concurrent readers throughout.
  */
-static void
+static int
 __txn_resolve_prepared_update_chain(
   WT_SESSION_IMPL *session, WT_TXN_TIME_POINT *txn_time_point, WT_UPDATE *upd, bool commit)
 {
-    WT_UPDATE *curr, *next, *prev;
+    WT_DECL_ITEM(scratch);
+    WT_DECL_RET;
+    WT_UPDATE **stack, *curr;
+    uint32_t count, i;
 
     /*
-     * Aborted updates can exist at the head of the chain due to reserved updates, skip past them to
-     * the first update that belongs to this transaction.
+     * Aborted updates can exist in the update chain of our transaction. Generally this will occur
+     * due to a reserved update. As such we should skip over these updates entirely.
      */
     while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
         upd = upd->next;
 
     if (upd == NULL || (upd->txnid != WT_TXN_NONE && upd->txnid != txn_time_point->id))
-        return;
+        return (0);
 
     if (upd->prepare_state != WT_PREPARE_INPROGRESS)
-        return;
+        return (0);
 
-    /*
-     * Walk newest-to-oldest reversing each next pointer in-place. Aborted interleaved nodes are
-     * reversed alongside active ones, skipping them would corrupt the chain topology when the
-     * pointers are restored on the backward pass.
-     */
-    prev = NULL;
-    curr = upd;
-    while (curr != NULL) {
+    WT_RET(__wt_scr_alloc(session, 0, &scratch));
+    count = 0;
+
+    for (curr = upd; curr != NULL; curr = curr->next) {
         if (curr->txnid != WT_TXN_ABORTED &&
           ((curr->txnid != WT_TXN_NONE && curr->txnid != txn_time_point->id) ||
             curr->prepare_state != WT_PREPARE_INPROGRESS))
@@ -1108,22 +1108,13 @@ __txn_resolve_prepared_update_chain(
               !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
                 curr->prepared_id == txn_time_point->prepared_id);
 
-        next = curr->next;
-        curr->next = prev;
-        prev = curr;
-        curr = next;
+        WT_ERR(__wt_buf_extend(session, scratch, (size_t)(count + 1) * sizeof(WT_UPDATE *)));
+        ((WT_UPDATE **)scratch->mem)[count++] = curr;
     }
 
-    /*
-     * Walk oldest-to-newest resolving each active update and restoring every next pointer to its
-     * original direction. Aborted interleaved nodes have their pointer restored but are not
-     * resolved.
-     */
-    while (prev != NULL) {
-        next = prev->next;
-        prev->next = curr;
-        curr = prev;
-        prev = next;
+    stack = (WT_UPDATE **)scratch->mem;
+    for (i = count; i > 0; --i) {
+        curr = stack[i - 1];
 
         if (curr->txnid == WT_TXN_ABORTED)
             continue;
@@ -1169,6 +1160,10 @@ __txn_resolve_prepared_update_chain(
             __wt_sleep(0, 1000 * WT_THOUSAND);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
     }
+
+err:
+    __wt_scr_free(session, &scratch);
+    return (ret);
 }
 
 /*
@@ -1372,7 +1367,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
      * In the above example, we will resolve "u2" and "u1" as part of resolving "txn_op1" and will
      * not do any significant thing as part of "txn_op2".
      */
-    __txn_resolve_prepared_update_chain(session, txn_time_point, upd, commit);
+    WT_ERR(__txn_resolve_prepared_update_chain(session, txn_time_point, upd, commit));
 
     /* Mark the page dirty once the prepared updates are resolved. */
     __wt_page_modify_set(session, page);
