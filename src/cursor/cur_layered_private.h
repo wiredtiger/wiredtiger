@@ -50,7 +50,8 @@ struct __wti_cursor_layered {
  */
 typedef enum {
     WTI_CLAYERED_MODE_SEARCH,         /* search, search_near */
-    WTI_CLAYERED_MODE_ITERATE,        /* next, prev */
+    WTI_CLAYERED_MODE_ITERATE_NEXT,   /* next */
+    WTI_CLAYERED_MODE_ITERATE_PREV,   /* prev */
     WTI_CLAYERED_MODE_RANDOM,         /* next_random */
     WTI_CLAYERED_MODE_SCAN,           /* largest_key */
     WTI_CLAYERED_MODE_WRITE,          /* remove, reserve, modify; non-overwrite insert/update */
@@ -67,4 +68,12 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;            /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_LAYERED_TABLE *table;
     WT_COLLATOR *collator;
+
+    /*
+     * Whether the parked alternate constituent cursor is positioned for this operation's iteration
+     * direction. Derived at enter() from the iteration flags, which are set only by a successful
+     * next()/prev() and cleared on every enter(). When set, the alternate can be reused without
+     * re-seeking.
+     */
+    bool alternate_positioned;
 };
