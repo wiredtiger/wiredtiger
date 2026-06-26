@@ -2359,7 +2359,7 @@ __clayered_copy_duplicate_kv(WT_CLAYERED_OP *op)
  * __clayered_needs_pre_lookup --
  *     Return whether a write must look up the key before modifying the ingest table.
  */
-static bool
+static WT_INLINE bool
 __clayered_needs_pre_lookup(WT_CLAYERED_OP *op)
 {
     /*
@@ -2829,10 +2829,8 @@ __clayered_next_random(WT_CURSOR *cursor)
 
     if (c == NULL || ret == WT_NOTFOUND) {
         c = op.ingest;
-        /* No ingest cursor to fall back to: there is no random row available. */
         if (c == NULL)
             WT_ERR(WT_NOTFOUND);
-
         WT_ERR(__wti_curfile_next_random(c));
     }
 
