@@ -103,7 +103,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
         stdout_old, _ = self._run_wt_turtle('-l', str(first_metadata_lsn))
         self.assertNotIn('=== turtle ===', stdout_old)
         self.assertIn(
-            f'=== metadata page (table_id=2, page_id=1, requested_lsn={first_metadata_lsn}) ===',
+            f'=== turtle page (table_id=2, page_id=1, requested_lsn={first_metadata_lsn}) ===',
             stdout_old)
         self.assertIn('checkpoint=', stdout_old)
         self.assertNotIn('checksum=OK', stdout_old)
@@ -134,5 +134,5 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConf
 
         # LSN 1 is below any real LSN palite assigns.
         stdout, _ = self._run_wt_turtle('-l', '1', failure=True)
-        self.assertIn('metadata page not found at requested_lsn=1', stdout)
-        self.assertNotIn('=== metadata page (', stdout)
+        self.assertIn('turtle page not found at requested_lsn=1', stdout)
+        self.assertNotIn('=== turtle page (', stdout)
