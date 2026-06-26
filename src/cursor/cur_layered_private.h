@@ -68,12 +68,5 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;            /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_LAYERED_TABLE *table;
     WT_COLLATOR *collator;
-
-    /*
-     * Whether the parked alternate constituent cursor is positioned for this operation's iteration
-     * direction. Derived at enter() from the iteration flags, which are set only by a successful
-     * next()/prev() and cleared on every enter(). When set, the alternate can be reused without
-     * re-seeking.
-     */
     bool alternate_positioned;
 };

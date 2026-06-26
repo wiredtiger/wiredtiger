@@ -1169,9 +1169,8 @@ err:
  *     the next available key if the same key does not exist.
  *
  * Subsequent calls to __clayered_prev() or __clayered_next() may skip the positioning step
- *     entirely, since they guarantee that both constituents are properly positioned on exit. The
- *     op's alternate_positioned state, derived at enter() from the iteration flags, detects these
- *     cases.
+ *     entirely, since they guarantee that both constituents are properly positioned on exit.
+ *     See `alternate_positioned` for more details.
  *
  * If both `current_cursor` and `alternate_cursor` are positioned on the same key, both should be
  *     advanced to the next position. Otherwise, only `current_cursor` should be advanced.
@@ -1339,10 +1338,6 @@ __clayered_iterate(WTI_CURSOR_LAYERED *clayered, bool forward)
       clayered, forward ? WTI_CLAYERED_MODE_ITERATE_NEXT : WTI_CLAYERED_MODE_ITERATE_PREV, &op));
     WT_ERR(__clayered_iterate_int(&op, forward));
 
-    /* Scan logic keeps alternate position to avoid unnecessary re-searches. */
-    if (op.alternate_positioned)
-        F_SET(clayered, forward ? WTI_CLAYERED_ITERATE_NEXT : WTI_CLAYERED_ITERATE_PREV);
-
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
     WT_ITEM_SET(iface->value, clayered->current_cursor->value);
     __clayered_deleted_decode(&iface->value);
@@ -1352,6 +1347,10 @@ __clayered_iterate(WTI_CURSOR_LAYERED *clayered, bool forward)
 err:
     if (ret != 0)
         F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+
+    if ((ret == 0 || ret == WT_PREPARE_CONFLICT) && op.alternate_positioned)
+        F_SET(clayered, forward ? WTI_CLAYERED_ITERATE_NEXT : WTI_CLAYERED_ITERATE_PREV);
+
     __clayered_leave(clayered);
     return (ret);
 }
