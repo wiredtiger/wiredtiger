@@ -175,40 +175,13 @@ else:
 
     table_cfg = "key_format=S,value_format=S,type=layered,block_manager=disagg"
 
-    # Create + populate in a single linear pass. Avoids workgen Op-chain blowup
-    # at large NUM_TABLES, and creating + writing each table back-to-back keeps
-    # the dhandle hot in cache for its inserts. We close and reopen the session
-    # every 100 tables to release cached dhandles and avoid EMFILE (too many
-    # open files) when NUM_TABLES is large.
     t0 = time.time()
-    ts = 2
     for i in range(NUM_TABLES):
         uri = f"table:{TABLE_PREFIX}{i}"
         leader_session.create(uri, table_cfg)
-        # c = leader_session.open_cursor(uri)
-        # leader_session.begin_transaction("isolation=snapshot")
-        # for k in range(KEYS_PER_TABLE):
-        #     c[f"k{k:08d}"] = f"v{k:08d}"
-        # leader_session.commit_transaction(f"commit_timestamp={ts:x}")
-        # c.close()
-        ts += 1
-        if (i + 1) % 100 == 0:
-            leader_conn.set_timestamp(f"stable_timestamp={ts -1:x}")
-            leader_session.checkpoint()
-            leader_session.close()
-            leader_session = leader_conn.open_session()
         if (i + 1) % 1000 == 0:
-            print(f"  created+populated {i+1}/{NUM_TABLES}  ({time.time()-t0:.1f}s)")
-            # Release cached dhandles to avoid running out of file descriptors.
-            # Yield so the sweep server can grab the dhandle/handle-list locks
-            # the create loop has been hammering, and actually expire idle
-            # dhandles. Without this, sweep can stall for tens of seconds at a
-            # time under heavy schema activity.
-            time.sleep(1)
-    print(f"  all {NUM_TABLES} tables created+populated in {time.time()-t0:.1f}s")
-
-    # Push stable to the latest commit so the checkpoint captures every write.
-    leader_conn.set_timestamp(f"stable_timestamp={ts - 1:x}")
+            print(f"  created {i+1}/{NUM_TABLES}  ({time.time()-t0:.1f}s)")
+    print(f"  all {NUM_TABLES} tables created in {time.time()-t0:.1f}s")
 
     print("  taking checkpoint")
     t0 = time.time()
@@ -259,39 +232,6 @@ if SKIP_SETUP:
     table_uri_prefix = f"table:{TABLE_PREFIX}"
     NUM_TABLES = count_tables_uri_prefix(follower_conn, table_uri_prefix)
     print(f"  derived num_tables from metadata: {NUM_TABLES} ({table_uri_prefix}*)")
-
-# ----------------------------------------------------------------------
-# Phase 3: uncomment below to time a brief workload, if we switch to
-# first-cursor-open lazy ingest creation.
-# Linearly walk every table on the follower: open cursor, check that the keys
-# we wrote on the leader read back, close. We time the whole loop that's the
-# materialize-all-ingest-tables cost, complementing the pickup-only number above.
-# ----------------------------------------------------------------------
-#
-# print(f"  reading every table on the follower (linear, timed)")
-# follower_session = follower_conn.open_session()
-# read_t0 = time.time()
-# mismatches = 0
-# for i in range(NUM_TABLES):
-#     uri = f"table:{TABLE_PREFIX}{i}"
-#     c = follower_session.open_cursor(uri)
-#     for k in range(KEYS_PER_TABLE):
-#         key = f"k{k:08d}"
-#         expected = f"v{k:08d}"
-#         actual = c[key]
-#         if actual != expected:
-#             mismatches += 1
-#     c.close()
-#     if (i + 1) % 1000 == 0:
-#         print(f"  read {i+1}/{NUM_TABLES}  ({time.time()-read_t0:.1f}s)")
-#         # Release cached dhandles to avoid running out of file descriptors.
-#         follower_session.close()
-#         follower_session = follower_conn.open_session()
-# read_elapsed = time.time() - read_t0
-# print(f"  read all tables in {read_elapsed:.2f}s ({mismatches} mismatches)")
-# print(f"PERF read_all_tables_secs: {read_elapsed:.4f}")
-# assert mismatches == 0, f"{mismatches} key/value mismatches on follower"
-# follower_session.close()
 
 follower_conn.close()
 print("  follower closed")
