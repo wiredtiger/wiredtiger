@@ -206,7 +206,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
         FLD_SET(stats_flags, WT_EVICT_STATS_URGENT);
         WT_STAT_CONN_INCR(session, eviction_force);
-
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
@@ -215,20 +214,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
             WT_STAT_CONN_INCR(session, eviction_force_hs);
         }
     }
-
-#define APP_NO_EVICT_URGENT_MOD 1
-#if APP_NO_EVICT_URGENT_MOD
-    /* Don't let application threads evict dirty or modified pages via forced eviction */
-    if (!F_ISSET(session, WT_SESSION_INTERNAL) && LF_ISSET(WT_EVICT_CALL_URGENT) &&
-        (__wt_page_is_modified(page) || page->modify != NULL)) {
-        if (__wt_page_is_modified(page))
-            WT_STAT_CONN_INCR(session, eviction_force_app_refuse_dirty);
-        else if (page->modify != NULL)
-            WT_STAT_CONN_INCR(session, eviction_force_app_refuse_modify);
-        ret = EBUSY;
-        goto err;
-    }
-#endif
 
     WT_IGNORE_RET(__evict_get_target_destination(session, page, &bucketset, NULL));
     bucketset_level = bucketset->level;
@@ -304,7 +289,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * statistic.
      */
     page_size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-
     if (!is_dirty)
         /* Clean page */
         __wt_atomic_stats_max_uint64(

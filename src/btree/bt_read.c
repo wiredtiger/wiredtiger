@@ -568,7 +568,6 @@ read:
              if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
                  WT_RET(__wt_evict_app_assist_worker_check(
                             session, true, txn->mod_count == 0, false, NULL));
-//                 WT_RET(__wt_evict_check_if_blocking(session));
              WT_RET(__page_read(session, ref, flags, &wont_need));
             read_from_disk = true;
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -655,7 +654,7 @@ read:
                 goto skip_evict;
 
             /*
-             * Forcibly evict pages that are too big.
+             * Forcibly evict pages that qualify the check.
              */
             if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
