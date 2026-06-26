@@ -11,8 +11,9 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-BLmpRrSVv] [-C config] [-E secretkey] [-h home]";
-bool verbose = false; /* Verbose flag */
+const char *usage_prefix = "[-BLmpqRrSVv] [-C config] [-E secretkey] [-h home]";
+bool verbose = false;      /* Verbose flag */
+bool read_corrupt = false; /* -q: continue past corrupt pages for read-oriented wt commands */
 
 static const char *command; /* Command name */
 
@@ -132,6 +133,18 @@ done:
 }
 
 /*
+ * util_func_supports_read_corrupt --
+ *     Whether a wt subcommand accepts the -q (read-corrupt) flag. Only supported for read-oriented
+ *     commands. Verify has it's own read_corrupt flag. List, printlog, and page do not benefit from
+ *     read_corrupt.
+ */
+static bool
+util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
+{
+    return (func == util_dump || func == util_read || func == util_stat);
+}
+
+/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -144,6 +157,10 @@ usage(void)
       "run live restore using the source path specified.", "-m", "run verify on metadata", "-p",
       "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
       "data)",
+      "-q",
+      "continue past corrupt pages where possible: asks WiredTiger to skip corrupt pages instead "
+      "of panicking, for read-oriented commands (dump, read, stat). Output "
+      "is best-effort and the command exits non-zero when corruption was encountered.",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
@@ -212,7 +229,7 @@ main(int argc, char *argv[])
       false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpRrSVv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -245,6 +262,9 @@ main(int argc, char *argv[])
             break;
         case 'p':
             disable_prefetch = true;
+            break;
+        case 'q':
+            read_corrupt = true;
             break;
         case 'R': /* recovery */
             rec_config = REC_RECOVER;
@@ -378,6 +398,18 @@ main(int argc, char *argv[])
         goto err;
     }
 
+    /*
+     * -q is only meaningful for read-oriented commands. Reject it on anything else so users get
+     * an immediate, clear error rather than a silently ignored flag.
+     */
+    if (read_corrupt && !util_func_supports_read_corrupt(func)) {
+        fprintf(stderr,
+          "%s: -q is only valid for read-oriented commands: dump, read, stat (verify has its own "
+          "-c flag)\n",
+          progname);
+        goto err;
+    }
+
 open:
     /* Build the configuration string. */
     len = 10; /* some slop */
@@ -448,6 +480,9 @@ open:
         goto err;
     }
 
+    if (read_corrupt)
+        F_SET((WT_SESSION_IMPL *)session, WT_SESSION_READ_SKIP_CORRUPT);
+
     if ((ret = util_disagg_pick_up_latest_checkpoint(conn, session)) != 0) {
         (void)util_err(session, ret, "failed to pick up latest disaggregated checkpoint");
         goto err;
@@ -455,6 +490,13 @@ open:
 
     /* Call the function after opening the database and session. */
     ret = func(session, argc, argv);
+
+    /*
+     * The block manager sets WT_CONN_DATA_CORRUPTION at every corruption-detection site.
+     */
+    if (read_corrupt &&
+      F_ISSET_ATOMIC_32(S2C((WT_SESSION_IMPL *)session), WT_CONN_DATA_CORRUPTION) && ret == 0)
+        ret = WT_ERROR;
 
     if (0) {
 err:

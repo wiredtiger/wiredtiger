@@ -679,6 +679,19 @@ class DisaggCorruptionMixin:
         self._require_one_change(rows, table_id, page_id, lsn)
         return table_id, page_id, lsn
 
+    def corrupt_page_image_at(self, table_id, page_id, lsn):
+        """Overwrite the stored data of a specific (table_id, page_id, lsn)
+        row in the palite pages table with random bytes."""
+        self.close_conn()
+        sql = (
+            f"UPDATE pages SET page_data = randomblob(length(page_data)) "
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
+            f"SELECT changes();\n"
+        )
+        rows = self._palite_mutate(table_id, sql)
+        self._require_one_change(rows, table_id, page_id, lsn)
+        return table_id, page_id, lsn
+
     def corrupt_random_page_image(self):
         """Pick one page image (one (page_id, lsn) row in the palite
         pages table) and overwrite the first byte of its stored data
