@@ -1123,8 +1123,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     WT_UNUSED(original_snap_min);
 
     /*
-     * For parallel checkpoints, create a private read-only copy of the checkpoint snapshot for the
-     * reconciliation workers. Workers read from this instead of live txn->snapshot_data.
+     * For parallel checkpoints, create a private read-only copy of the snapshot for the checkpoint
+     * workers to use. Workers will read from this instead of live txn->snapshot_data.
      */
     if (WT_PARALLEL_CHECKPOINTS_ENABLED(session)) {
         WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -1146,19 +1146,14 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         WT_ERR(__wt_realloc_def(session, &ckpt_threads->checkpoint_snapshot_capacity, capacity,
           &ckpt_threads->checkpoint_snapshot_array));
 
-        /*
-         * Copy the checkpoint snapshot. Write snap_min last so that any parallel worker that
-         * observes a valid snap_min is guaranteed to see the fully written snap_max and snapshot
-         * array.
-         */
+        /* Copy the checkpoint snapshot data */
+        dst->snap_min = src->snap_min;
         dst->snap_max = src->snap_max;
         dst->snapshot_count = count;
         dst->snapshot = ckpt_threads->checkpoint_snapshot_array;
 
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
-
-        __wt_atomic_store_uint64_release(&dst->snap_min, src->snap_min);
     }
 
     /*
