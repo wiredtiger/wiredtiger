@@ -9,39 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __layered_create_missing_ingest_table --
- *     Create a missing ingest table from an existing layered table configuration.
- */
-static int
-__layered_create_missing_ingest_table(
-  WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
-{
-    WT_CONFIG_ITEM key_format, value_format;
-    WT_DECL_ITEM(ingest_config);
-    WT_DECL_RET;
-
-    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
-
-    /* FIXME-WT-14728: Refactor this with __create_layered? */
-    WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
-    WT_ERR(__wt_buf_fmt(session, ingest_config,
-      "key_format=\"%.*s\",value_format=\"%.*s\","
-      "in_memory=true,log=(enabled=false),"
-      "disaggregated=(page_log=none,storage_source=none)",
-      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
-
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
-
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Created missing ingest table \"%s\" from \"%s\"", uri, layered_cfg);
-
-err:
-    __wt_scr_free(session, &ingest_config);
-    return (ret);
-}
-
-/*
  * __disagg_discard_old_checkpoint_check --
  *     Compare the checkpoint name in the old and new metadata config strings. Check if they are the
  *     same checkpoint. If the checkpoint has advanced, the old one can be discarded.
@@ -666,8 +633,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR_NOTFOUND_OK(md_write_cursor->search(md_write_cursor), true);
                 if (ret == WT_NOTFOUND) {
                     WT_ERR_MSG_CHK(session,
-                      __layered_create_missing_ingest_table(
-                        session, layered_ingest_uri, metadata_value),
+                      __wt_layered_create_ingest_file(
+                        session, md_write_cursor, layered_ingest_uri, metadata_value),
                       "Failed to create missing ingest table \"%s\" from \"%s\"",
                       layered_ingest_uri, metadata_value);
                     ++new_ingest;
