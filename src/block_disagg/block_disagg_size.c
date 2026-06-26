@@ -43,20 +43,15 @@ __wti_block_disagg_decrease_size(
      * from the same value we validated, closing the race between the check and the subtraction. A
      * failed CAS means a concurrent update beat us to it; reload and retry.
      *
-     * FIXME-WT-16864: clamping to zero hides a real accounting bug where we decrement more than was
-     * added. Remove the clamp once that bug is fixed.
+     * Clamping to zero hides a real accounting bug where we decrement more than was added. Remove
+     * the clamp once that bug is fixed and add the assert back in.
      */
     do {
         orig = __wt_atomic_load_uint64(&block_disagg->size);
     } while (!__wt_atomic_cas_uint64(&block_disagg->size, orig, orig < size ? 0 : orig - size));
 
-    if (orig < size) {
-        WT_ASSERT(session, false);
-        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64
-          ", clamped to 0",
-          size, orig);
-    }
+    WT_ASSERT_ALWAYS(session, orig >= size,
+      "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64, size, orig);
 }
 
 /*
