@@ -925,7 +925,7 @@ generate_compat_pairs()
             local next_major=$(( major + 1 ))
             local next_major_b="mongodb-${next_major}.0"
             if branch_in_array "$next_major_b" "${branches[@]}"; then
-                add_pair "$branch" "$next_major_b"
+                add_pair "$next_major_b" "$branch"
             elif branch_in_array "develop" "${branches[@]}"; then
                 add_pair "develop" "$branch"
             fi
