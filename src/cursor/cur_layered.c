@@ -587,7 +587,7 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT
     /*
      * We always open ingest in overwrite mode to be able to rewrite tombstones with insert().
      *
-     * FIXME-WT-XXXX: It might be possible that it'll be technically simpler to inherit OVERWRITE
+     * FIXME-WT-17917: It might be possible that it'll be technically simpler to inherit OVERWRITE
      * only if it's set for the top cursor and always call update() to put something on top of an
      * ingest tombstone.
      */
