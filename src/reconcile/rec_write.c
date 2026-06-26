@@ -2160,10 +2160,19 @@ static void
 __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
+    wt_timestamp_t pinned_stable_ts;
     uint32_t i;
 
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return;
+
+    /*
+     * A committed stop ahead of the stable timestamp can be rolled back by a later rollback to
+     * stable, which resurrects the on-page value below it. Capture stable so we don't leave such a
+     * value durable: otherwise the next reconciliation would skip rewriting the leaf and keep the
+     * now-stale stop (this mirrors the prepared-tombstone handling below).
+     */
+    pinned_stable_ts = __wt_txn_pinned_stable_timestamp(session);
 
     /*
      * FIXME-WT-14882: we should rethink where we should call this. Is this safe to call this right
@@ -2198,7 +2207,15 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
                      */
                 } else {
                     F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
-                    F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+                    /*
+                     * If the stop is not yet stable, leave the value non-durable so that a rollback
+                     * to stable aborting the stop forces the next reconciliation to rewrite the
+                     * leaf instead of retaining the stale stop.
+                     */
+                    if (supd->tw.durable_stop_ts > pinned_stable_ts)
+                        F_CLR(supd->onpage_upd, WT_UPDATE_DURABLE);
+                    else
+                        F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
                 }
             } else {
                 if (WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
