@@ -45,7 +45,7 @@ static WTI_DIRTY_EVICT_BLOCK __evict_dirty_tree_block(WT_SESSION_IMPL *, WT_BTRE
 static u_int __evict_dirty_index_drain(
   WT_SESSION_IMPL *, WT_BTREE *, WTI_EVICT_QUEUE *, u_int, u_int *);
 static u_int __evict_dirty_index_drain_ring(WT_SESSION_IMPL *, WT_BTREE *, WTI_DIRTY_INDEX *,
-  WTI_EVICT_QUEUE *, u_int, u_int *, wt_timestamp_t *, wt_timestamp_t *);
+  WTI_EVICT_QUEUE *, u_int, u_int *, wt_timestamp_t *);
 static void __evict_dirty_index_maybe_grow(WT_SESSION_IMPL *, WT_BTREE *);
 static void __evict_try_queue_page(
   WT_SESSION_IMPL *, WTI_EVICT_QUEUE *, WT_REF *, WT_PAGE *, WTI_EVICT_ENTRY *, bool *, bool *);
@@ -121,7 +121,7 @@ __evict_dirty_index_maybe_grow(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __evict_drain_stable_blocked --
- *     True while the pinned stable timestamp sits below the median commit timestamp the last drain
+ *     True while the pinned stable timestamp sits below the largest commit timestamp the last drain
  *     pass found blocking the ring. Under a precise checkpoint those pages cannot be evicted, so
  *     the drain would only re-examine and re-insert refs it cannot queue; the walker still evicts
  *     any page that falls below stable in the meantime.
@@ -147,7 +147,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
 {
     WT_CONNECTION_IMPL *conn;
     WTI_DIRTY_INDEX *idx, *old;
-    wt_timestamp_t ts_max, ts_min;
+    wt_timestamp_t ts_max;
     u_int drained;
 
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
@@ -203,29 +203,25 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
             __wt_atomic_store_uint32_relaxed(&btree->dirty_index_consecutive_full, 0);
     }
 
-    ts_min = WT_TS_MAX;
     ts_max = WT_TS_NONE;
-    drained = __evict_dirty_index_drain_ring(
-      session, btree, idx, queue, max_entries, slotp, &ts_min, &ts_max);
+    drained =
+      __evict_dirty_index_drain_ring(session, btree, idx, queue, max_entries, slotp, &ts_max);
 
     /* Drain retired rings too so they shed their entries; they are freed only at btree close. */
     for (old = __wt_atomic_load_ptr_acquire(&btree->dirty_index_old); old != NULL;
       old = __wt_atomic_load_ptr_acquire(&old->next_old))
-        drained += __evict_dirty_index_drain_ring(
-          session, btree, old, queue, max_entries, slotp, &ts_min, &ts_max);
+        drained +=
+          __evict_dirty_index_drain_ring(session, btree, old, queue, max_entries, slotp, &ts_max);
 
     /*
-     * Re-arm the stable-lag gate at the median of the commit timestamps that blocked this pass --
-     * approximated by the midpoint of their range, which is O(1) and tracks the median for the
-     * roughly uniform commit-timestamp spread under steady load. The walker then parks the drain
-     * until the pinned stable timestamp crosses it, by which point about half the ring is evictable
-     * again. Clear the gate when nothing was stable-blocked.
+     * Re-arm the stable-lag gate at the largest commit timestamp the drain saw blocked this pass.
+     * Because the drain stops shortly past the evictable prefix (see the tolerance break below),
+     * this is the largest timestamp in the small region it examined -- not the ring's global
+     * maximum -- so parking until the pinned stable timestamp reaches it resumes the next pass with
+     * the whole examined region evictable, without re-hitting pages still above stable. Clear the
+     * gate when nothing was stable-blocked.
      */
-    if (ts_min <= ts_max)
-        __wt_atomic_store_uint64_relaxed(
-          &btree->drain_stable_block_ts, ts_min + (ts_max - ts_min) / 2);
-    else
-        __wt_atomic_store_uint64_relaxed(&btree->drain_stable_block_ts, WT_TS_NONE);
+    __wt_atomic_store_uint64_relaxed(&btree->drain_stable_block_ts, ts_max);
     return (drained);
 }
 
@@ -237,16 +233,15 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
  */
 static u_int
 __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DIRTY_INDEX *idx,
-  WTI_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp, wt_timestamp_t *ts_minp,
-  wt_timestamp_t *ts_maxp)
+  WTI_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp, wt_timestamp_t *ts_maxp)
 {
     WT_DECL_RET;
     WT_REF *ref;
     wt_timestamp_t pinned_stable, ts;
     uint64_t head, tail;
-    uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
+    uint32_t already_queued, drained, filtered_total, hazard_total, queued_total, ts_blocked;
     uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
-    bool busy, precise_ckpt, queued, urgent_queued;
+    bool busy, precise_ckpt, queued, stop_blocked, urgent_queued;
 
     if (*slotp >= max_entries)
         return (0);
@@ -264,8 +259,9 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     /* Acquire head pairs with the producer's release-store of slot data. */
     head = __wt_atomic_load_uint64_acquire(&idx->head);
     tail = __wt_atomic_load_uint64_relaxed(&idx->tail);
-    drained = filtered_total = hazard_total = queued_total = scanned = stale_total = 0;
+    drained = filtered_total = hazard_total = queued_total = scanned = stale_total = ts_blocked = 0;
     already_queued = seen_clean = seen_dirty = seen_updates = 0;
+    stop_blocked = false;
 
     /*
      * Hold the split generation across the loop. A concurrent split that frees a ref still in the
@@ -349,17 +345,22 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
         else {
             ++filtered_total;
             /*
-             * Track a page held un-evictable by the stable timestamp under a precise checkpoint:
-             * fold its commit timestamp into the running range so the caller can park the drain
-             * until stable crosses the median of these timestamps.
+             * A page un-evictable under a precise checkpoint (commit timestamp ahead of pinned
+             * stable). Fold its timestamp into the caller's running maximum, and once such pages
+             * exceed the tolerance of those examined this pass, stop: the ring is roughly
+             * commit-timestamp ordered, so the rest is newer and also blocked. The min-scan floor
+             * absorbs a few order inversions. The pages stay in the ring; the caller re-arms at the
+             * recorded maximum and the walker skips the drain until stable crosses it.
              */
             if (precise_ckpt &&
               (ts = __wt_atomic_load_uint64_relaxed(&ref->page->modify->newest_commit_timestamp)) >
                 pinned_stable) {
-                if (ts < *ts_minp)
-                    *ts_minp = ts;
                 if (ts > *ts_maxp)
                     *ts_maxp = ts;
+                ++ts_blocked;
+                if (scanned >= WTI_DRAIN_STABLE_BLOCK_MIN_SCAN &&
+                  ts_blocked * 100 > scanned * WTI_DRAIN_STABLE_BLOCK_TOLERANCE_PCT)
+                    stop_blocked = true;
             }
             /*
              * The page did not qualify under the current pressure mode (e.g. a dirty page with no
@@ -375,6 +376,13 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
 
 release:
         WT_IGNORE_RET(__wt_hazard_clear(session, ref));
+
+        /*
+         * Stop once stable-blocked pages dominate: the tail (kept in the ring) is newer still, and
+         * the caller re-arms the drain at the largest blocked timestamp seen above.
+         */
+        if (stop_blocked)
+            break;
     }
 
     WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
