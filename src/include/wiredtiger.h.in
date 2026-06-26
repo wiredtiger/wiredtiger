@@ -4265,6 +4265,24 @@ int wiredtiger_calc_modify(WT_SESSION *session,
 const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
+/*!
+ * Development/test repair entry point for disaggregated storage. Decodes the repair config string
+ * and
+ * carries out the requested work. Config keys: \c url, the shared target URI such as
+ * \c "file:...wt_stable", where absent or empty means all URLs; \c fetch_metadata, a read-only
+ * metadata fetch taking sub-keys \c local and \c key and issuing no checkpoint;
+ * \c fetch_database_size, which reports the in-memory database size; and \c fix, the mutating
+ * fixes taking \c id with sub-keys \c old_id and \c new_id and \c size with sub-keys \c old_size
+ * and \c debug_scale, each followed by a forced checkpoint. A fix requires a disaggregated leader;
+ * a fetch requires only a disaggregated connection, or nothing for a local fetch.
+ *
+ * @param connection the connection on which to perform the repair work
+ * @param config the repair configuration string (may be NULL or empty for no action)
+ * @returns a static, library-owned diagnostic string (never NULL; do not free)
+ */
+const char *wiredtiger_repair(WT_CONNECTION *connection, const char *config)
+    WT_ATTRIBUTE_LIBRARY_VISIBLE;
+
 /*! @} */
 
 /*******************************************

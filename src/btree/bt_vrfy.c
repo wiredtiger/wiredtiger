@@ -291,32 +291,22 @@ err:
 }
 
 /*
- * __wt_verify_disagg_database_size --
- *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
- *     checkpoint size for every file, then compare the total against the stored database size.
+ * __wt_disagg_get_database_size --
+ *     Walk the metadata and sum the most recent checkpoint size for every stable file. Returns the
+ *     raw sum: the fixed overhead that the stored database size always includes
+ *     (WT_DISAGG_CHECKPOINT_SIZE_BUFFER) is the caller's concern.
  */
 int
-__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+__wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t database_size, ckpt_size, total_size;
+    uint64_t ckpt_size, total_size;
     const char *uri, *value;
 
-    /*
-     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
-     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
-     * would otherwise see database size as 0 against a non-empty local metadata.
-     */
-    if (!__wt_disagg_has_picked_up_checkpoint(session))
-        return (0);
-
-    conn = S2C(session);
     cursor = NULL;
     total_size = 0;
-
-    database_size = conn->disaggregated_storage.database_size;
+    *sizep = 0;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
@@ -336,13 +326,44 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         total_size += ckpt_size;
 
         __wt_verbose_debug3(session, WT_VERB_VERIFY,
-          "disagg database size verify: %s checkpoint size %" PRIu64, uri, ckpt_size);
+          "disagg database size: %s checkpoint size %" PRIu64, uri, ckpt_size);
     }
     /*
      * A not found error is okay. cursor->next() returns it once it goes through all the metadata
      * entries.
      */
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    *sizep = total_size;
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __wt_verify_disagg_database_size --
+ *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
+ *     checkpoint size for every file, then compare the total against the stored database size.
+ */
+int
+__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t database_size, total_size;
+
+    /*
+     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
+     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
+     * would otherwise see database size as 0 against a non-empty local metadata.
+     */
+    if (!__wt_disagg_has_picked_up_checkpoint(session))
+        return (0);
+
+    conn = S2C(session);
+    database_size = conn->disaggregated_storage.database_size;
+
+    WT_RET(__wt_disagg_get_database_size(session, &total_size));
 
     /*
      * Three cases to consider after the metadata walk:
@@ -366,15 +387,13 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
         if (total_size != database_size)
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_ERROR,
               "database size mismatch: sum of btree checkpoint sizes %" PRIu64
               " does not match stored database size %" PRIu64,
               total_size, database_size);
     }
 
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
+    return (0);
 }
 
 /*
@@ -783,7 +802,7 @@ __tree_stack(WT_VSTUFF *vs)
     int force_unused;
 
     for (strsz = 0, i = 0, len = WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1); i < len;
-      ++i)
+         ++i)
         force_unused = /* using plain WT_UNUSED(snprintf) is screwed on GCC */
           __wt_snprintf_len_incr(&data[strsz], 10, &strsz, "%" PRIu64 ".", vs->tree_stack[i]);
     WT_UNUSED(force_unused);
@@ -1606,7 +1625,7 @@ __verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, si
     WT_DECL_RET;
 
     for (uint32_t index_in_pali = 0, index_in_btree = 0;
-      index_in_pali <= num_pali && index_in_btree <= num_btree;) {
+         index_in_pali <= num_pali && index_in_btree <= num_btree;) {
         if (index_in_pali == num_pali && index_in_btree == num_btree)
             break;
         uint64_t id_in_pali =
