@@ -171,13 +171,9 @@ print_metadata_page(
     printf("\n=== metadata page (table_id=2, page_id=1, requested_lsn=%" PRIu64 ") ===\n", lsn);
     if (have_expected_cksum) {
         actual = __wt_checksum(page->data, page->size);
-        if (actual == expected_cksum)
-            printf("checksum=OK\n");
-        else {
-            printf("checksum=MISMATCH (expected=0x%08" PRIx32 ", got=0x%08" PRIx32 ")\n",
-              expected_cksum, actual);
+        if (actual != expected_cksum)
             mismatch = true;
-        }
+        printf("checksum=0x%08" PRIx32 " (expected=0x%08" PRIx32 ")\n", actual, expected_cksum);
     }
     print_blob(page);
     return (mismatch);
