@@ -280,6 +280,10 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
     if (!need_sync || session->meta_cursor == NULL || F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         goto err;
 
+    /* No need to sync local metadata when lose_all_my_data is set. */
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_SYNC))
+        goto err;
+
     /* If we're logging, make sure the metadata update was flushed. */
     if (F_ISSET(&S2C(session)->log_mgr, WT_LOG_ENABLED))
         WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
