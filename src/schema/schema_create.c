@@ -1721,8 +1721,7 @@ err:
     if (clear_import_flag)
         F_CLR(session, WT_SESSION_IMPORT);
 
-    /* Ingest tables do not need checkpointing. */
-    WT_TRET(__wt_meta_track_off(session, !WT_URI_IS_INGEST(uri), ret != 0));
+    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
     if (import_list.entries_allocated > 0)
         session->import_list = NULL;
