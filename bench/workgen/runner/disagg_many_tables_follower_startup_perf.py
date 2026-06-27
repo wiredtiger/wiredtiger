@@ -179,9 +179,9 @@ else:
     for i in range(NUM_TABLES):
         uri = f"table:{TABLE_PREFIX}{i}"
         leader_session.create(uri, table_cfg)
-        if (i + 1) % 1000 == 0:
+        if (i + 1) % 10000 == 0:
             print(f"  created {i+1}/{NUM_TABLES}  ({time.time()-t0:.1f}s)")
-            # Checkpoint frees up dhandle memory.
+            # Checkpoint allows dhandle memory to be released.
             leader_session.checkpoint()
     print(f"  all {NUM_TABLES} tables created in {time.time()-t0:.1f}s")
 
