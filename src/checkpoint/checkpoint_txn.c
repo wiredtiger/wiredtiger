@@ -1157,9 +1157,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     }
 
     /*
-     * For precise checkpoints, publish a snapshot into eviction snapshot buffers so that eviction
-     * can use snap_min as a tighter on-page visibility bound. Drain any in-flight readers of the
-     * retiring buffer before swapping to the new one.
+     * For precise checkpoints, publish the full snapshot into the buffer so eviction can use it for
+     * accurate visibility. Write to the inactive buffer, then swap the index and drain readers of
+     * the retiring buffer once.
      */
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         WT_TXN_SNAPSHOT *src, *dst;
@@ -1176,17 +1176,16 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
           &conn->ckpt_eviction_snap_array[new_idx]));
 
         dst = &conn->ckpt_eviction_snap[new_idx];
+        dst->snap_min = src->snap_min;
         dst->snap_max = src->snap_max;
         dst->snapshot_count = count;
         dst->snapshot = conn->ckpt_eviction_snap_array[new_idx];
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
-        dst->snap_min = src->snap_min;
 
-        /* Drain in-flight readers of cur_idx, then publish new_idx. */
-        __wt_gen_next(session, WT_GEN_CKPT_SNAP, NULL);
-        __wt_gen_next_drain(session, WT_GEN_CKPT_SNAP);
+        /* Publish new buffer, then drain readers of the retiring buffer. */
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
+        __wt_gen_next_drain(session, WT_GEN_CKPT_SNAP);
     }
 
     if (ckpt_cfg->use_timestamp)

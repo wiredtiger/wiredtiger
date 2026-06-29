@@ -726,20 +726,35 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     if (LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING)) {
-            /*
-             * Use snap_min from the precise checkpoint snapshot as the on-page visibility boundary.
-             */
+        r->rec_has_ckpt_snapshot = false;
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            uint32_t snap_idx;
+            WT_TXN_SNAPSHOT *snap;
+
             r->rec_start_pinned_id =
               __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
             if (r->rec_start_pinned_id != WT_TXN_NONE) {
-                uint64_t snap_min;
+                /*
+                 * Copy the full checkpoint snapshot from the buffer so visibility checks can use
+                 * it. Pre-allocate the backing array before entering the generation.
+                 */
+                WT_ERR(__wt_realloc_def(session, &r->rec_ckpt_snapshot_capacity,
+                  conn->session_array.size, &r->rec_ckpt_snapshot_arr));
+
                 WT_ENTER_GENERATION(session, WT_GEN_CKPT_SNAP);
-                uint32_t snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
-                snap_min = conn->ckpt_eviction_snap[snap_idx].snap_min;
+                snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+                snap = &conn->ckpt_eviction_snap[snap_idx];
+                if (snap->snap_min != WT_TXN_NONE) {
+                    r->rec_ckpt_snap_min = snap->snap_min;
+                    r->rec_ckpt_snap_max = snap->snap_max;
+                    r->rec_ckpt_snapshot_count = snap->snapshot_count;
+                    if (snap->snapshot_count > 0)
+                        memcpy(r->rec_ckpt_snapshot_arr, snap->snapshot,
+                          snap->snapshot_count * sizeof(snap->snapshot[0]));
+                    r->rec_has_ckpt_snapshot = true;
+                    r->rec_start_pinned_id = snap->snap_min;
+                }
                 WT_LEAVE_GENERATION(session, WT_GEN_CKPT_SNAP);
-                if (snap_min != WT_TXN_NONE)
-                    r->rec_start_pinned_id = snap_min;
             } else
                 r->rec_start_pinned_id =
                   __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
@@ -962,6 +977,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 
     __wt_free(session, r->supd);
     __wt_free(session, r->delete_hs_upd);
+    __wt_free(session, r->rec_ckpt_snapshot_arr);
 
     __wti_rec_dictionary_free(session, r);
 

@@ -58,7 +58,11 @@ __rec_child_deleted(
      */
     if (__wt_page_del_committed_set(page_del)) {
         if (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT)) {
-            visible = page_del->txnid < r->rec_start_pinned_id;
+            if (r->rec_has_ckpt_snapshot)
+                visible = __wt_txn_visible_id_snapshot(page_del->txnid, r->rec_ckpt_snap_min,
+                  r->rec_ckpt_snap_max, r->rec_ckpt_snapshot_arr, r->rec_ckpt_snapshot_count);
+            else
+                visible = page_del->txnid < r->rec_start_pinned_id;
 
             if (visible) {
                 prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
