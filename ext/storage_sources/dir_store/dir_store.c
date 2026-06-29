@@ -173,6 +173,7 @@ static int dir_store_directory_list_single(
   WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, char ***, uint32_t *);
 static int dir_store_directory_list_free(WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static int dir_store_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
+static void dir_store_fs_free(DIR_STORE_FILE_SYSTEM *);
 static int dir_store_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 static int dir_store_open(WT_FILE_SYSTEM *, WT_SESSION *, const char *,
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t, WT_FILE_HANDLE **);
@@ -1031,6 +1032,19 @@ err:
 }
 
 /*
+ * dir_store_fs_free --
+ *     Free the memory owned by a file system handle.
+ */
+static void
+dir_store_fs_free(DIR_STORE_FILE_SYSTEM *dir_store_fs)
+{
+    free(dir_store_fs->auth_token);
+    free(dir_store_fs->bucket_dir);
+    free(dir_store_fs->cache_dir);
+    free(dir_store_fs);
+}
+
+/*
  * dir_store_fs_terminate --
  *     Discard any resources on termination of the file system
  */
@@ -1053,10 +1067,7 @@ dir_store_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     if ((ret = pthread_rwlock_unlock(&dir_store->file_handle_lock)) != 0)
         ret = dir_store_err(dir_store, session, ret, "fs_terminate: rwlock_unlock");
 
-    free(dir_store_fs->auth_token);
-    free(dir_store_fs->bucket_dir);
-    free(dir_store_fs->cache_dir);
-    free(file_system);
+    dir_store_fs_free(dir_store_fs);
 
     return (ret);
 }
@@ -1355,12 +1366,7 @@ dir_store_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
     dir_store_file_close_internal(dir_store, session, dir_store_fh);
 
     TAILQ_FOREACH_SAFE(dir_store_fs, &dir_store->fsq, q, safe_fs)
-    {
-        free(dir_store_fs->auth_token);
-        free(dir_store_fs->bucket_dir);
-        free(dir_store_fs->cache_dir);
-        free(dir_store_fs);
-    }
+    dir_store_fs_free(dir_store_fs);
 
     free(dir_store);
     return (ret);
