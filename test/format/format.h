@@ -262,6 +262,12 @@ typedef struct {
     bool background_compaction_running; /* Background compaction running */
 
     RWLOCK backup_lock; /* Backup running */
+
+    /*
+     * Serializes fast truncate against other writers in disagg switch mode. Truncate takes the
+     * write lock, other writers take the read lock, readers bypass.
+     */
+    RWLOCK fast_truncate_lock;
     uint64_t backup_id; /* Block incremental id */
     bool backup_incr;   /* Incremental backup */
     bool backup_verify; /* Verifying backup */
