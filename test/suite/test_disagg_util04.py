@@ -33,7 +33,7 @@ from suite_subprocess import suite_subprocess
 
 # Test the `wt turtle` command.
 @wttest.skip_for_hook("tiered", "wt turtle does not run under tiered hook")
-class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
+class test_disagg_util04(wttest.WiredTigerTestCase, suite_subprocess, DisaggConfigMixin):
     uri = "layered:wt_turtle_test"
     nrows = 100
 
