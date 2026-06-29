@@ -38,10 +38,7 @@
 void
 disagg_key_history_clear(void)
 {
-    size_t i;
-
-    for (i = 0; i < g.key_push_count; ++i)
-        g.key_push_history[i] = 0;
+    memset(g.key_push_history, 0, sizeof(g.key_push_history));
     g.key_push_count = 0;
 }
 
@@ -52,14 +49,10 @@ disagg_key_history_clear(void)
 static void
 key_push_history_append(wt_timestamp_t ts)
 {
-    size_t count;
-
-    count = g.key_push_count;
-    testutil_assertfmt(count < KEY_PUSH_HISTORY_MAX,
+    testutil_assertfmt(g.key_push_count < KEY_PUSH_HISTORY_MAX,
       "key rotation history full at %d entries, cannot push %" PRIu64, KEY_PUSH_HISTORY_MAX,
       (uint64_t)ts);
-    g.key_push_history[count] = ts;
-    g.key_push_count = count + 1;
+    g.key_push_history[g.key_push_count++] = ts;
 }
 
 /*
