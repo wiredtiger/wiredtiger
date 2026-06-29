@@ -543,12 +543,15 @@ struct __wt_cursor_layered {
     uint64_t stable_checkpoint_meta_lsn; /* Checkpoint LSN stable cursor is on */
     WT_CLAYERED_ROLE last_role; /* Last-observed leader/follower role (change-detection sentinel) */
 
+    WT_ITEM last_key; /* Last returned key, used to reposition stable after a prepare stall */
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CLAYERED_ACTIVE 0x1u       /* Incremented the session count */
-#define WT_CLAYERED_ITERATE_NEXT 0x2u /* Forward iteration */
-#define WT_CLAYERED_ITERATE_PREV 0x4u /* Backward iteration */
-#define WT_CLAYERED_RANDOM 0x8u       /* Random cursor operations only */
-                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_CLAYERED_ACTIVE 0x01u       /* Incremented the session count */
+#define WT_CLAYERED_ITERATE_NEXT 0x02u /* Forward iteration */
+#define WT_CLAYERED_ITERATE_PREV 0x04u /* Backward iteration */
+#define WT_CLAYERED_LAST_KEY_SET 0x08u /* last_key holds a valid key */
+#define WT_CLAYERED_RANDOM 0x10u       /* Random cursor operations only */
+                                       /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
