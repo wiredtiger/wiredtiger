@@ -93,6 +93,59 @@ __clayered_deleted_decode(WT_ITEM *value)
 }
 
 /*
+ * __clayered_stable_value_stat --
+ *     Count and warn about a stable-table value that shares the tombstone's encoded namespace. Such
+ *     values begin with the two tombstone bytes and, for historic reasons, are persisted to the
+ *     stable table verbatim; they are expected to be extremely rare. Encoding appends a single
+ *     tombstone byte (see __clayered_deleted_encode), so the stored form is classified by its
+ *     length and trailing byte. The value bytes are not logged as they may carry application data.
+ */
+static WT_INLINE void
+__clayered_stable_value_stat(WT_SESSION_IMPL *session, const WT_ITEM *value)
+{
+    uint8_t tombstone_byte;
+    const uint8_t *data;
+    const char *what;
+
+    /* The value must begin with the whole tombstone to share its namespace. */
+    if (value->size < __wt_tombstone.size ||
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) != 0)
+        return;
+
+    data = (const uint8_t *)value->data;
+    tombstone_byte = ((const uint8_t *)__wt_tombstone.data)[0];
+
+    if (value->size == __wt_tombstone.size) {
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone);
+        what = "equal to the tombstone";
+    } else if (value->size == __wt_tombstone.size + 1 && data[value->size - 1] == tombstone_byte) {
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone_x3);
+        what = "three tombstone bytes";
+    } else if (data[value->size - 1] == tombstone_byte) {
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone_suffix);
+        what = "ending with a tombstone byte";
+    } else {
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone_prefix);
+        what = "ending with a non-tombstone byte";
+    }
+
+    __wt_verbose_warning(session, WT_VERB_LAYERED,
+      "stable table value in the tombstone namespace (%s), size %" WT_SIZET_FMT, what, value->size);
+}
+
+/*
+ * __clayered_stable_read_value_stat --
+ *     Account a value just read from the stable constituent; a no-op when the layered cursor is
+ *     positioned on the ingest table.
+ */
+static WT_INLINE void
+__clayered_stable_read_value_stat(WT_CURSOR_LAYERED *clayered, const WT_ITEM *value)
+{
+    if (clayered->current_cursor == clayered->stable_cursor)
+        __clayered_stable_value_stat(CUR2S(clayered), value);
+}
+
+/*
  * __clayered_get_collator --
  *     Retrieve the collator for a layered cursor. Wrapped in a function, since in the future the
  *     collator might live in a constituent cursor instead of the handle.
@@ -1310,6 +1363,7 @@ __clayered_iterate(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
     WT_ITEM_SET(iface->value, clayered->current_cursor->value);
+    __clayered_stable_read_value_stat(clayered, &iface->value);
     __clayered_deleted_decode(&iface->value);
     F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     F_SET(iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -1783,6 +1837,7 @@ __clayered_search(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     if (ret == 0) {
+        __clayered_stable_read_value_stat(clayered, &cursor->value);
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -2061,6 +2116,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 err:
     __clayered_leave(clayered);
     if (ret == 0) {
+        __clayered_stable_read_value_stat(clayered, &cursor->value);
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -2127,6 +2183,10 @@ __clayered_put(
     /* Reserve does not require a value. */
     if (put_op != WTI_CLAYERED_PUT_RESERVE)
         c->set_value(c, value);
+
+    /* On the leader the destination is the stable table; account tombstone-namespace values. */
+    if (leader && put_op != WT_CLAYERED_PUT_RESERVE)
+        __clayered_stable_value_stat(session, value);
 
     switch (put_op) {
     case WTI_CLAYERED_PUT_INSERT:
@@ -2857,6 +2917,7 @@ __clayered_next_random(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     if (ret == 0) {
+        __clayered_stable_read_value_stat(clayered, &cursor->value);
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -2894,6 +2955,7 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         __clayered_deleted_decode(&c_stable->value);
         WT_ERR(__wt_modify_apply_api(c_stable, entries, nentries));
         WT_ERR(__clayered_deleted_encode(session, &c_stable->value, &c_stable->value, &buf));
+        __clayered_stable_value_stat(session, &c_stable->value);
         F_SET(c_stable, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_stable->update(c_stable));
     } else
