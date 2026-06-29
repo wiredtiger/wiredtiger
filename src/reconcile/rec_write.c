@@ -758,12 +758,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
             } else
                 r->rec_start_pinned_id =
                   __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
-        } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-            r->rec_start_pinned_id =
-              __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
-            if (r->rec_start_pinned_id == WT_TXN_NONE)
-                r->rec_start_pinned_id =
-                  __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
         } else
             r->rec_start_pinned_id = __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
 

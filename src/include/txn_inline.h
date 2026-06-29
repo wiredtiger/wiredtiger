@@ -1065,7 +1065,6 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
         return (
           __wt_txn_visible_id_snapshot(id, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
             txn->snapshot_data.snapshot, txn->snapshot_data.snapshot_count));
-
     oldest_id = __wt_txn_oldest_id(session);
 
     return (id < oldest_id);
