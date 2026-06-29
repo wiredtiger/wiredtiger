@@ -571,10 +571,8 @@ typedef enum {                       /* maps 1:1 onto the API methods */
  */
 struct __wt_clayered_op {
     WT_CURSOR_LAYERED *clayered; /* back-pointer; session via CUR2S(clayered) */
-    WT_CLAYERED_OP_MODE mode;
-    WT_CLAYERED_ROLE role;
-    WT_CURSOR *ingest; /* resolved slot == clayered->ingest_cursor (may be NULL) */
-    WT_CURSOR *stable; /* resolved slot == clayered->stable_cursor (may be NULL) */
+    WT_CURSOR *ingest;           /* resolved slot == clayered->ingest_cursor (may be NULL) */
+    WT_CURSOR *stable;           /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_LAYERED_TABLE *table;
     WT_COLLATOR *collator;
     bool need_stable; /* derived from mode+role; whether the stable cursor must be opened */
