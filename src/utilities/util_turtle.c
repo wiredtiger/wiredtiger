@@ -236,7 +236,7 @@ util_turtle(WT_SESSION *session, int argc, char *argv[])
 
     if (conn->disaggregated_storage.npage_log == NULL ||
       conn->disaggregated_storage.page_log_meta == NULL)
-        WT_RET_MSG(session_impl, EINVAL, "wt turtle requires a disaggregated-storage connection");
+        WT_RET_MSG(session_impl, ENOTSUP, "wt turtle requires a disaggregated-storage connection");
 
     if (!have_lsn_arg) {
         WT_ERR(fetch_latest_checkpoint_meta(session_impl, &lsn, &ckpt_meta_blob));
