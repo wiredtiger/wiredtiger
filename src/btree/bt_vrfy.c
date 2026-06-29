@@ -1426,6 +1426,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
          * for the next round of verification.
          */
         newer_start_ts = older_start_ts;
+        newer_stop_ts = tw->stop_ts;
     }
 err:
     WT_TRET(hs_cursor->close(hs_cursor));
