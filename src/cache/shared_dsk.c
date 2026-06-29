@@ -280,6 +280,7 @@ err:
 void
 __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
 {
+    WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
@@ -291,7 +292,8 @@ __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
     bool check_leaks;
 
     conn = S2C(session);
-    shared_dsk_cache = &conn->cache->shared_dsk_cache;
+    cache = conn->cache;
+    shared_dsk_cache = &cache->shared_dsk_cache;
     leaked_bytes = leaked_entries = 0;
     first_fid = 0;
     first_addr = NULL;
@@ -304,8 +306,13 @@ __wti_shared_dsk_cache_destroy(WT_SESSION_IMPL *session)
      * be empty, otherwise we should check as surviving entries are leaked references.
      */
     check_leaks = !F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC | WT_CONN_LEAK_MEMORY);
-    if (check_leaks)
+    if (check_leaks) {
         WT_IGNORE_RET(__wt_scr_alloc(session, 0, &tmp));
+        if (__wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate) != 0)
+            __wt_errx(session,
+              "cache server: exiting with %" PRIu64 " duplicate shared disk bytes in memory",
+              __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate));
+    }
 
     for (i = 0; i < shared_dsk_cache->hash_size; i++) {
         while (!TAILQ_EMPTY(&shared_dsk_cache->hash[i])) {
