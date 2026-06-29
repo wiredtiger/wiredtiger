@@ -223,36 +223,38 @@ create_configs()
     fi
 
     echo "##################################################" > $file_name
-    echo "runs.type=row" >> $file_name                # WT-7379 - Temporarily disable column store tests
-    echo "block_cache=0" >> $file_name                # Not supported by newer releases, it is forcibly disabled internally.
-    echo "btree.huffman_value=0" >> $file_name        # WT-12456 - Never used, removed from newer releases
-    echo "btree.prefix=0" >> $file_name               # WT-7579 - Prefix testing isn't portable between releases
-    echo "btree.prefix_len=0" >> $file_name           # WT-15548 - Not supported by older releases
-    echo "cache=80" >> $file_name                     # Medium cache so there's eviction
-    echo "checksum=on" >> $file_name                  # WT-7851 Fix illegal checksum configuration
-    echo "checkpoints=1"  >> $file_name               # Force periodic writes
-    echo "compression=snappy"  >> $file_name          # We only build with snappy, force the choice
+    echo "runs.type=row" >> $file_name                          # WT-7379 - Temporarily disable column store tests
+    echo "block_cache=0" >> $file_name                          # Not supported by newer releases, it is forcibly disabled internally.
+    echo "btree.huffman_value=0" >> $file_name                  # WT-12456 - Never used, removed from newer releases
+    echo "btree.prefix=0" >> $file_name                         # WT-7579 - Prefix testing isn't portable between releases
+    echo "btree.prefix_len=0" >> $file_name                     # WT-15548 - Not supported by older releases
+    echo "cache=80" >> $file_name                               # Medium cache so there's eviction
+    echo "checksum=on" >> $file_name                            # WT-7851 Fix illegal checksum configuration
+    echo "checkpoints=1"  >> $file_name                         # Force periodic writes
+    echo "compression=snappy"  >> $file_name                    # We only build with snappy, force the choice
     echo "data_source=table" >> $file_name
-    echo "debug.background_compact=0" >> $file_name   # WT-13276 - Not supported by older releases
-    echo "debug.cursor_reposition=0" >> $file_name    # WT-10594 - Not supported by older releases
-    echo "debug.log_retention=0" >> $file_name        # WT-10434 - Not supported by older releases
-    echo "debug.realloc_malloc=0" >> $file_name       # WT-10111 - Not supported by older releases
-    echo "eviction.evict_use_softptr=0" >> $file_name # WT-14013 - Not supported by older releases
-    echo "in_memory=0" >> $file_name                  # Interested in the on-disk format
-    echo "leak_memory=1" >> $file_name                # Faster runs
-    echo "logging=1" >> $file_name                    # Test log compatibility
-    echo "logging_compression=snappy" >> $file_name   # We only built with snappy, force the choice
-    echo "obsolete_cleanup.method=off" >> $file_name  # WT-14142 - Not supported by older releases
-    echo "obsolete_cleanup.wait=0" >> $file_name      # WT-14142 - Not supported by older releases
-    echo "prefetch=0" >> $file_name                   # WT-12978 - Not supported by older releases
-    echo "prefetch.default=0" >> $file_name           # WT-16671 - Not supported by older releases
+    echo "debug.background_compact=0" >> $file_name             # WT-13276 - Not supported by older releases
+    echo "debug.cursor_reposition=0" >> $file_name              # WT-10594 - Not supported by older releases
+    echo "debug.disagg_slow_truncate_follower=0" >> $file_name  # WT-17686 - Not supported by older releases
+    echo "debug.log_retention=0" >> $file_name                  # WT-10434 - Not supported by older releases
+    echo "debug.realloc_malloc=0" >> $file_name                 # WT-10111 - Not supported by older releases
+    echo "debug.slow_truncate=0" >> $file_name                  # WT-17686 - Not supported by older releases
+    echo "eviction.evict_use_softptr=0" >> $file_name           # WT-14013 - Not supported by older releases
+    echo "in_memory=0" >> $file_name                            # Interested in the on-disk format
+    echo "leak_memory=1" >> $file_name                          # Faster runs
+    echo "logging=1" >> $file_name                              # Test log compatibility
+    echo "logging_compression=snappy" >> $file_name             # We only built with snappy, force the choice
+    echo "obsolete_cleanup.method=off" >> $file_name            # WT-14142 - Not supported by older releases
+    echo "obsolete_cleanup.wait=0" >> $file_name                # WT-14142 - Not supported by older releases
+    echo "prefetch=0" >> $file_name                             # WT-12978 - Not supported by older releases
+    echo "prefetch.default=0" >> $file_name                     # WT-16671 - Not supported by older releases
     echo "rows=1000000" >> $file_name
-    echo "salvage=0" >> $file_name                    # Faster runs
-    echo "statistics_log.sources=off" >> $file_name   # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
-    echo "stress.checkpoint=0" >> $file_name          # Faster runs
+    echo "salvage=0" >> $file_name                              # Faster runs
+    echo "statistics_log.sources=off" >> $file_name             # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
+    echo "stress.checkpoint=0" >> $file_name                    # Faster runs
     echo "timer=4" >> $file_name
     echo "verify=1" >> $file_name
-    echo "transaction.timestamps=0" >> $file_name     # WT-8601 - Timestamps do not work with logged tables
+    echo "transaction.timestamps=0" >> $file_name               # WT-8601 - Timestamps do not work with logged tables
     echo "##################################################" >> $file_name
 }
 
@@ -492,22 +494,22 @@ upgrade_downgrade()
     for am in $3; do
         config=$top/$format_dir_branch2/RUNDIR.$am/CONFIG
         for _ in {1..2}; do
-	    # Older releases (8.0 and older) expect to find a BACKUP.copy
-	    # directory if BACKUP exists. After 8.0 the directory structure
-	    # changed. So copy it for older releases if testing against a
-	    # develop run that is doing backups.
+            # Older releases (8.0 and older) expect to find a BACKUP.copy
+            # directory if BACKUP exists. After 8.0 the directory structure
+            # changed. So copy it for older releases if testing against a
+            # develop run that is doing backups.
             need_bcopy1=$(bcopy $1)
             need_bcopy2=$(bcopy $2)
-	    dir2=$top/$format_dir_branch2/RUNDIR.$am
-	    # If there is a BACKUP and the older release needs a BACKUP.copy directory and
-	    # the source version does not create one, remove any from an earlier run and
-	    # copy the BACKUP contents for this run.
-	    if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
+            dir2=$top/$format_dir_branch2/RUNDIR.$am
+            # If there is a BACKUP and the older release needs a BACKUP.copy directory and
+            # the source version does not create one, remove any from an earlier run and
+            # copy the BACKUP contents for this run.
+            if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
                 echo "Remove any earlier $dir2/BACKUP.copy for older releases"
-		rm -rf $dir2/BACKUP.copy
+                rm -rf $dir2/BACKUP.copy
                 echo "Copying backup directory for older releases"
-		cp -rp $dir2/BACKUP $dir2/BACKUP.copy
-	    fi
+                cp -rp $dir2/BACKUP $dir2/BACKUP.copy
+            fi
             echo "$1 format running on $2 access method $am..."
             cd "$top/$format_dir_branch1"
             flags="-1Rq $(bflag $1)"
@@ -904,9 +906,9 @@ generate_compat_pairs()
             local next_major=$(( major + 1 ))
             local next_major_b="mongodb-${next_major}.0"
             if branch_in_array "$next_major_b" "${branches[@]}"; then
-                add_pair "$branch" "$next_major_b"
+                add_pair "$next_major_b" "$branch"
             elif branch_in_array "develop" "${branches[@]}"; then
-                add_pair "$branch" "develop"
+                add_pair "develop" "$branch"
             fi
 
         elif is_major_release "$branch"; then
@@ -923,9 +925,9 @@ generate_compat_pairs()
             local next_major=$(( major + 1 ))
             local next_major_b="mongodb-${next_major}.0"
             if branch_in_array "$next_major_b" "${branches[@]}"; then
-                add_pair "$branch" "$next_major_b"
+                add_pair "$next_major_b" "$branch"
             elif branch_in_array "develop" "${branches[@]}"; then
-                add_pair "$branch" "develop"
+                add_pair "develop" "$branch"
             fi
 
             # All configured minors of the same major X.Y (Y > 0)
@@ -1257,8 +1259,8 @@ fi
 #
 # Pairs are generated by generate_compat_pairs() using version-aware rules so that
 # minor releases are tested against all required partners per the Server Release Policy:
-#   - minor X.Y  <->  X.(Y±1) if configured, X.0, and (X+1).0 / develop
-#   - major X.0  <->  (X±1).0 / develop, all X.Y minors, highest (X-1).Y minor
+#   - minor X.Y  <->  X.(Y+/-1) if configured, X.0, and (X+1).0 / develop
+#   - major X.0  <->  (X+/-1).0 / develop, all X.Y minors, highest (X-1).Y minor
 #
 # Each pair is tested in both the backward direction (newer binary reads older data)
 # and the forward direction (older binary reads newer data), plus upgrade/downgrade.

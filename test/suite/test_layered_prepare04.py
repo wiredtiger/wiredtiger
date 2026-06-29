@@ -26,17 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, threading, time, wiredtiger, wttest
+import os, os.path, shutil, threading, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered_prepare04.py
-#    Test garbage collection ensures that prepared updates and aborted
-#    prepared updates are not removed if the rollback timestamps are newer than
-#    the checkpoint timestamp of the stable table.
+# Test garbage collection ensures that prepared updates and aborted
+# prepared updates are not removed if the rollback timestamps are newer than
+# the checkpoint timestamp of the stable table.
 @disagg_test_class
 class test_layered_prepare04(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     base_config = 'statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
     conn_config = base_config + 'disaggregated=(role="leader")'
     conn_config_follower = base_config + 'disaggregated=(role="follower")'
@@ -45,9 +45,9 @@ class test_layered_prepare04(wttest.WiredTigerTestCase):
         ('layered', dict(prefix='layered:', create_session_config='key_format=i,value_format=S')),
         ('table', dict(prefix='table:', create_session_config='key_format=i,value_format=S,block_manager=disagg,type=layered')),
     ]
-    table_name = "test_layered_prepare04"
+    table_name = test_name
 
-    disagg_storages = gen_disagg_storages('test_layered_prepare04', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages, table_type)
 
     session_follow = None
@@ -164,11 +164,8 @@ class test_layered_prepare04(wttest.WiredTigerTestCase):
         evict_cursor.search()
         evict_cursor.close()
 
-        stat_cursor = self.session_follow.open_cursor('statistics:' + uri)
-        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
         # Only the committed update can be garbage collected.
-        self.assertEqual(garbage_collected, 1)
-        stat_cursor.close()
+        self.assertEqual(self.get_stat(stat.dsrc.rec_ingest_garbage_collection_keys_update_chain, uri, session=self.session_follow), 1)
 
         # Insert another committed update.
         self.session.begin_transaction()
@@ -199,11 +196,8 @@ class test_layered_prepare04(wttest.WiredTigerTestCase):
         evict_cursor.search()
         evict_cursor.close()
 
-        stat_cursor = self.session_follow.open_cursor('statistics:' + uri)
-        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
         # The aborted prepared update is garbage collected.
-        self.assertEqual(garbage_collected, 2)
-        stat_cursor.close()
+        self.assertEqual(self.get_stat(stat.dsrc.rec_ingest_garbage_collection_keys_update_chain, uri, session=self.session_follow), 2)
 
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(40)}")
 

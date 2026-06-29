@@ -29,11 +29,11 @@
 import wiredtiger, wttest, threading, wtthread, time
 from wiredtiger import stat
 
-# test_bug033.py
 # Test for WT-12096.
 # Test inserting obsolete updates on the update chain after rolling back to a stable timestamp.
 class test_bug033(wttest.WiredTigerTestCase):
-    uri = 'table:test_bug033'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     conn_config = 'cache_size=100MB,statistics=(all),timing_stress_for_test=[checkpoint_slow]'
 
     def evict(self, k):
@@ -115,9 +115,7 @@ class test_bug033(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start before evicting.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             self.evict(0)

@@ -12,6 +12,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Disaggregated block manager get",
   "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
+  "block-disagg: Disaggregated block manager log handle put failure",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put",
   "block-disagg: Disaggregated block manager put cold page",
@@ -51,7 +52,9 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: overflow pages",
   "btree: row-store empty values",
   "btree: row-store internal pages",
+  "btree: row-store leaf page recent average entries (EWMA)",
   "btree: row-store leaf pages",
+  "btree: row-store leaf pages (approximate, incremental)",
   "btree: time spent walking the tree for checkpoint including dirty page reconciliation time "
   "(usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
@@ -303,17 +306,17 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
-  "layered: Layered table cursor advances to a newer checkpoint for the stable btree",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
   "layered: Layered table cursor next operations from the ingest btrees",
   "layered: Layered table cursor next operations from the stable btrees",
+  "layered: Layered table cursor opens the stable btree for the first time",
   "layered: Layered table cursor prev operations",
   "layered: Layered table cursor prev operations from the ingest btrees",
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
-  "layered: Layered table cursor reopens ingest btree",
+  "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -486,6 +489,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->disagg_block_get = 0;
     stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
+    stats->disagg_block_plh_put_failed = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
     stats->disagg_block_put_cold = 0;
@@ -525,7 +529,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_overflow = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
+    stats->btree_row_leaf_avg_entries = 0;
     stats->btree_row_leaf = 0;
+    stats->btree_row_leaf_pages = 0;
     /* not clearing btree_checkpoint_reconcile_duration */
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
@@ -758,17 +764,17 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
-    stats->layered_curs_advance_stable = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
     stats->layered_curs_next_ingest = 0;
     stats->layered_curs_next_stable = 0;
+    stats->layered_curs_open_stable = 0;
     stats->layered_curs_prev = 0;
     stats->layered_curs_prev_ingest = 0;
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
-    stats->layered_curs_reopen_ingest = 0;
+    stats->layered_curs_reopen_stable = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -906,6 +912,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->disagg_block_get += from->disagg_block_get;
     to->disagg_block_get_cold += from->disagg_block_get_cold;
     to->disagg_block_hs_get += from->disagg_block_hs_get;
+    to->disagg_block_plh_put_failed += from->disagg_block_plh_put_failed;
     to->disagg_block_page_discard += from->disagg_block_page_discard;
     to->disagg_block_put += from->disagg_block_put;
     to->disagg_block_put_cold += from->disagg_block_put_cold;
@@ -955,7 +962,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_overflow += from->btree_overflow;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
+    to->btree_row_leaf_avg_entries += from->btree_row_leaf_avg_entries;
     to->btree_row_leaf += from->btree_row_leaf;
+    to->btree_row_leaf_pages += from->btree_row_leaf_pages;
     to->btree_checkpoint_reconcile_duration += from->btree_checkpoint_reconcile_duration;
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       from->cache_eviction_app_threads_fill_ratio_lt_25;
@@ -1212,17 +1221,17 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
-    to->layered_curs_advance_stable += from->layered_curs_advance_stable;
     to->layered_curs_insert += from->layered_curs_insert;
     to->layered_curs_modify += from->layered_curs_modify;
     to->layered_curs_next += from->layered_curs_next;
     to->layered_curs_next_ingest += from->layered_curs_next_ingest;
     to->layered_curs_next_stable += from->layered_curs_next_stable;
+    to->layered_curs_open_stable += from->layered_curs_open_stable;
     to->layered_curs_prev += from->layered_curs_prev;
     to->layered_curs_prev_ingest += from->layered_curs_prev_ingest;
     to->layered_curs_prev_stable += from->layered_curs_prev_stable;
     to->layered_curs_remove += from->layered_curs_remove;
-    to->layered_curs_reopen_ingest += from->layered_curs_reopen_ingest;
+    to->layered_curs_reopen_stable += from->layered_curs_reopen_stable;
     to->layered_curs_search_near += from->layered_curs_search_near;
     to->layered_curs_search_near_ingest += from->layered_curs_search_near_ingest;
     to->layered_curs_search_near_stable += from->layered_curs_search_near_stable;
@@ -1361,6 +1370,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
     to->disagg_block_get_cold += WT_STAT_DSRC_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
+    to->disagg_block_plh_put_failed += WT_STAT_DSRC_READ(from, disagg_block_plh_put_failed);
     to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
     to->disagg_block_put_cold += WT_STAT_DSRC_READ(from, disagg_block_put_cold);
@@ -1415,7 +1425,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
+    to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
     to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
+    to->btree_row_leaf_pages += WT_STAT_DSRC_READ(from, btree_row_leaf_pages);
     to->btree_checkpoint_reconcile_duration +=
       WT_STAT_DSRC_READ(from, btree_checkpoint_reconcile_duration);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
@@ -1708,17 +1720,17 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
-    to->layered_curs_advance_stable += WT_STAT_DSRC_READ(from, layered_curs_advance_stable);
     to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_DSRC_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
     to->layered_curs_next_ingest += WT_STAT_DSRC_READ(from, layered_curs_next_ingest);
     to->layered_curs_next_stable += WT_STAT_DSRC_READ(from, layered_curs_next_stable);
+    to->layered_curs_open_stable += WT_STAT_DSRC_READ(from, layered_curs_open_stable);
     to->layered_curs_prev += WT_STAT_DSRC_READ(from, layered_curs_prev);
     to->layered_curs_prev_ingest += WT_STAT_DSRC_READ(from, layered_curs_prev_ingest);
     to->layered_curs_prev_stable += WT_STAT_DSRC_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_DSRC_READ(from, layered_curs_remove);
-    to->layered_curs_reopen_ingest += WT_STAT_DSRC_READ(from, layered_curs_reopen_ingest);
+    to->layered_curs_reopen_stable += WT_STAT_DSRC_READ(from, layered_curs_reopen_stable);
     to->layered_curs_search_near += WT_STAT_DSRC_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_DSRC_READ(from, layered_curs_search_near_stable);
@@ -1897,9 +1909,12 @@ static const char *const __stats_connection_desc[] = {
   "backup: total modified incremental blocks without compressed data",
   "block-cache: cached blocks updated",
   "block-cache: cached bytes updated",
+  "block-cache: cold collection pages not added to the disaggregated victim cache during eviction",
   "block-cache: evicted blocks",
   "block-cache: file size causing bypass",
   "block-cache: lookups",
+  "block-cache: maximum time spent adding a single page to the disaggregated victim cache, reset "
+  "per checkpoint (usecs)",
   "block-cache: number of blocks not evicted due to overhead",
   "block-cache: number of bypasses because no-write-allocate setting was on",
   "block-cache: number of bypasses due to overhead on put",
@@ -1909,8 +1924,13 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: number of hits",
   "block-cache: number of misses",
   "block-cache: number of put bypasses on checkpoint I/O",
+  "block-cache: pages added to the disaggregated victim cache",
+  "block-cache: pages added to the disaggregated victim cache by application threads",
   "block-cache: removed blocks",
+  "block-cache: time application threads spent adding pages to the disaggregated victim cache "
+  "(usecs)",
   "block-cache: time sleeping to remove block (usecs)",
+  "block-cache: time spent adding pages to the disaggregated victim cache (usecs)",
   "block-cache: total blocks",
   "block-cache: total blocks inserted on read path",
   "block-cache: total blocks inserted on write path",
@@ -1922,6 +1942,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager get",
   "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
+  "block-disagg: Disaggregated block manager log handle put failure",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put",
   "block-disagg: Disaggregated block manager put cold page",
@@ -2478,21 +2499,23 @@ static const char *const __stats_connection_desc[] = {
   "disagg: apply checkpoint metadata most recent time (msecs)",
   "disagg: connection reconfiguration",
   "disagg: database size",
+  "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
-  "layered: Layered table cursor advances to a newer checkpoint for the stable btree",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
   "layered: Layered table cursor next operations from the ingest btrees",
   "layered: Layered table cursor next operations from the stable btrees",
+  "layered: Layered table cursor opens the stable btree for the first time",
   "layered: Layered table cursor prev operations",
   "layered: Layered table cursor prev operations from the ingest btrees",
   "layered: Layered table cursor prev operations from the stable btrees",
   "layered: Layered table cursor remove operations",
-  "layered: Layered table cursor reopens ingest btree",
+  "layered: Layered table cursor reopens the stable btree (role change or checkpoint advance)",
   "layered: Layered table cursor search near operations",
   "layered: Layered table cursor search near operations from the ingest btrees",
   "layered: Layered table cursor search near operations from the stable btrees",
@@ -2917,6 +2940,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable disaggregated schema epoch calls",
   "transaction: set timestamp stable disaggregated schema epoch updates",
   "transaction: set timestamp stable updates",
+  "transaction: set timestamp step down updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction global checkpoint timestamp",
@@ -3009,9 +3033,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->backup_blocks_uncompressed = 0;
     stats->block_cache_blocks_update = 0;
     stats->block_cache_bytes_update = 0;
+    stats->block_cache_cold_not_cached = 0;
     stats->block_cache_blocks_evicted = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_lookups = 0;
+    /* not clearing block_cache_put_time_max */
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_overhead_put = 0;
@@ -3021,8 +3047,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_hits = 0;
     stats->block_cache_misses = 0;
     stats->block_cache_bypass_chkpt = 0;
+    stats->block_cache_puts = 0;
+    stats->block_cache_app_thread_puts = 0;
     stats->block_cache_blocks_removed = 0;
+    stats->block_cache_app_thread_put_time = 0;
     stats->block_cache_blocks_removed_blocked = 0;
+    stats->block_cache_put_time = 0;
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
@@ -3034,6 +3064,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_get = 0;
     stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
+    stats->disagg_block_plh_put_failed = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
     stats->disagg_block_put_cold = 0;
@@ -3546,21 +3577,23 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_apply_checkpoint_meta_time = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
+    stats->disagg_pick_up_file_meta_updated = 0;
+    stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
-    stats->layered_curs_advance_stable = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
     stats->layered_curs_next_ingest = 0;
     stats->layered_curs_next_stable = 0;
+    stats->layered_curs_open_stable = 0;
     stats->layered_curs_prev = 0;
     stats->layered_curs_prev_ingest = 0;
     stats->layered_curs_prev_stable = 0;
     stats->layered_curs_remove = 0;
-    stats->layered_curs_reopen_ingest = 0;
+    stats->layered_curs_reopen_stable = 0;
     stats->layered_curs_search_near = 0;
     stats->layered_curs_search_near_ingest = 0;
     stats->layered_curs_search_near_stable = 0;
@@ -3973,6 +4006,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_disagg_epoch = 0;
     stats->txn_set_ts_stable_disagg_epoch_upd = 0;
     stats->txn_set_ts_stable_upd = 0;
+    stats->txn_set_ts_step_down_upd = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_global_checkpoint_timestamp */
@@ -4050,9 +4084,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_blocks_uncompressed += WT_STAT_CONN_READ(from, backup_blocks_uncompressed);
     to->block_cache_blocks_update += WT_STAT_CONN_READ(from, block_cache_blocks_update);
     to->block_cache_bytes_update += WT_STAT_CONN_READ(from, block_cache_bytes_update);
+    to->block_cache_cold_not_cached += WT_STAT_CONN_READ(from, block_cache_cold_not_cached);
     to->block_cache_blocks_evicted += WT_STAT_CONN_READ(from, block_cache_blocks_evicted);
     to->block_cache_bypass_filesize += WT_STAT_CONN_READ(from, block_cache_bypass_filesize);
     to->block_cache_lookups += WT_STAT_CONN_READ(from, block_cache_lookups);
+    to->block_cache_put_time_max += WT_STAT_CONN_READ(from, block_cache_put_time_max);
     to->block_cache_not_evicted_overhead +=
       WT_STAT_CONN_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_CONN_READ(from, block_cache_bypass_writealloc);
@@ -4063,9 +4099,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_hits += WT_STAT_CONN_READ(from, block_cache_hits);
     to->block_cache_misses += WT_STAT_CONN_READ(from, block_cache_misses);
     to->block_cache_bypass_chkpt += WT_STAT_CONN_READ(from, block_cache_bypass_chkpt);
+    to->block_cache_puts += WT_STAT_CONN_READ(from, block_cache_puts);
+    to->block_cache_app_thread_puts += WT_STAT_CONN_READ(from, block_cache_app_thread_puts);
     to->block_cache_blocks_removed += WT_STAT_CONN_READ(from, block_cache_blocks_removed);
+    to->block_cache_app_thread_put_time += WT_STAT_CONN_READ(from, block_cache_app_thread_put_time);
     to->block_cache_blocks_removed_blocked +=
       WT_STAT_CONN_READ(from, block_cache_blocks_removed_blocked);
+    to->block_cache_put_time += WT_STAT_CONN_READ(from, block_cache_put_time);
     to->block_cache_blocks += WT_STAT_CONN_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_CONN_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_CONN_READ(from, block_cache_blocks_insert_write);
@@ -4077,6 +4117,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
     to->disagg_block_get_cold += WT_STAT_CONN_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
+    to->disagg_block_plh_put_failed += WT_STAT_CONN_READ(from, disagg_block_plh_put_failed);
     to->disagg_block_page_discard += WT_STAT_CONN_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
     to->disagg_block_put_cold += WT_STAT_CONN_READ(from, disagg_block_put_cold);
@@ -4729,21 +4770,25 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_apply_checkpoint_meta_time);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
+    to->disagg_pick_up_file_meta_updated +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_pick_up_file_meta_inserted +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
-    to->layered_curs_advance_stable += WT_STAT_CONN_READ(from, layered_curs_advance_stable);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
     to->layered_curs_next_ingest += WT_STAT_CONN_READ(from, layered_curs_next_ingest);
     to->layered_curs_next_stable += WT_STAT_CONN_READ(from, layered_curs_next_stable);
+    to->layered_curs_open_stable += WT_STAT_CONN_READ(from, layered_curs_open_stable);
     to->layered_curs_prev += WT_STAT_CONN_READ(from, layered_curs_prev);
     to->layered_curs_prev_ingest += WT_STAT_CONN_READ(from, layered_curs_prev_ingest);
     to->layered_curs_prev_stable += WT_STAT_CONN_READ(from, layered_curs_prev_stable);
     to->layered_curs_remove += WT_STAT_CONN_READ(from, layered_curs_remove);
-    to->layered_curs_reopen_ingest += WT_STAT_CONN_READ(from, layered_curs_reopen_ingest);
+    to->layered_curs_reopen_stable += WT_STAT_CONN_READ(from, layered_curs_reopen_stable);
     to->layered_curs_search_near += WT_STAT_CONN_READ(from, layered_curs_search_near);
     to->layered_curs_search_near_ingest += WT_STAT_CONN_READ(from, layered_curs_search_near_ingest);
     to->layered_curs_search_near_stable += WT_STAT_CONN_READ(from, layered_curs_search_near_stable);
@@ -5278,6 +5323,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_disagg_epoch_upd +=
       WT_STAT_CONN_READ(from, txn_set_ts_stable_disagg_epoch_upd);
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
+    to->txn_set_ts_step_down_upd += WT_STAT_CONN_READ(from, txn_set_ts_step_down_upd);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);
     to->txn_global_checkpoint_timestamp += WT_STAT_CONN_READ(from, txn_global_checkpoint_timestamp);

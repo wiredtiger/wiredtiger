@@ -43,21 +43,31 @@ cross_checkpoint_caching_test_env::cross_checkpoint_caching_test_env(u_int hash_
     conn->disaggregated_storage.page_log_meta =
       reinterpret_cast<WT_PAGE_LOG_HANDLE *>(&_disagg_sentinel);
 
-    /*
-     * The real wiredtiger_open path leaves shared_dsk_cache disabled (it's gated behind a real
-     * disaggregated configuration). Initialize it by hand.
-     */
-    REQUIRE(__wti_shared_dsk_cache_init(_session, hash_size) == 0);
-    conn->cache->shared_dsk_cache.enabled = true;
+    REQUIRE(__wt_shared_dsk_cache_init(_session, hash_size) == 0);
+    __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_ACTIVE);
 }
 
 cross_checkpoint_caching_test_env::~cross_checkpoint_caching_test_env()
 {
     WT_CONNECTION_IMPL *conn = S2C(_session);
 
+    /*
+     * Tests leave references outstanding, drain them through the real release path so cache byte
+     * accounting unwinds symmetrically rather than relying on destroy to free the entries.
+     */
+    WT_SHARED_DSK_CACHE *shared_dsk_cache = &conn->cache->shared_dsk_cache;
+    if (shared_dsk_cache->hash != nullptr)
+        for (u_int i = 0; i < shared_dsk_cache->hash_size; i++) {
+            WT_SHARED_DSK_ITEM *item;
+            while ((item = TAILQ_FIRST(&shared_dsk_cache->hash[i])) != nullptr) {
+                int32_t refs = item->ref_count;
+                for (int32_t r = 0; r < refs; r++)
+                    __wt_shared_dsk_cache_release(_session, item);
+            }
+        }
+
     __wti_shared_dsk_cache_destroy(_session);
-    /* Prevent the connection-close cache destroy from running again. */
-    conn->cache->shared_dsk_cache.enabled = false;
+    __wt_atomic_store_uint8_relaxed(&conn->cache->shared_dsk_cache.state, WT_DSK_CACHE_OFF);
 
     /* Detach the dummy so the disagg teardown path doesn't dereference it as a real handle. */
     conn->disaggregated_storage.page_log_meta = nullptr;
