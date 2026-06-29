@@ -170,7 +170,6 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     /* Mark the session as an eviction thread session. */
     F_SET(session, WT_SESSION_EVICTION);
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "eviction thread starting");
 
     /*
      * Cache a history store cursor to avoid deadlock: if an eviction thread marks a file busy and
