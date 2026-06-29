@@ -728,13 +728,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING)) {
             /*
-             * Use snap_min from the ping-pong eviction snapshot as the on-page visibility boundary.
-             * snap_min is the minimum running txnid at the time the checkpoint snapshot was taken,
-             * which may be more permissive than checkpoint_txn_shared.pinned_id. Only use the
-             * buffered snap_min when a checkpoint is actively running (pinned_id != WT_TXN_NONE);
-             * the buffer retains the last checkpoint's value between checkpoints, and using a stale
-             * snap_min when no checkpoint is running would incorrectly mark committed updates as
-             * invisible, breaking the disaggregated skip-write invariant.
+             * Use snap_min from the precise checkpoint snapshot as the on-page visibility boundary.
              */
             r->rec_start_pinned_id =
               __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);

@@ -1157,9 +1157,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
     }
 
     /*
-     * For precise checkpoints, publish a snapshot into the connection's ping-pong eviction snapshot
-     * buffers so that eviction can use snap_min as a tighter on-page visibility bound. Drain any
-     * in-flight readers of the retiring buffer before swapping to the new one.
+     * For precise checkpoints, publish a snapshot into eviction snapshot buffers so that eviction
+     * can use snap_min as a tighter on-page visibility bound. Drain any in-flight readers of the
+     * retiring buffer before swapping to the new one.
      */
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         WT_TXN_SNAPSHOT *src, *dst;

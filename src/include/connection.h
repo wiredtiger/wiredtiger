@@ -1009,9 +1009,9 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
     /*
-     * Ping-pong snapshot buffers for eviction to read the current checkpoint's snapshot safely.
-     * Protected by the WT_GEN_CKPT_SNAP generation: checkpoint drains in-flight readers before
-     * swapping the active index. Two buffers alternate so eviction always has a valid snapshot.
+     * Precise checkpoint snapshot buffers for eviction to read. Checkpoint drains in-flight readers
+     * before swapping the active index. Two buffers alternate so eviction always has a valid
+     * snapshot.
      */
     WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
     uint64_t *ckpt_eviction_snap_array[2];
