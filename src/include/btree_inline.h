@@ -2288,30 +2288,13 @@ __wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
     if (durable_ts == WT_TS_NONE)
         return;
 
-#if WT_TIMESTAMP_ASSUME_MONGODB_SECONDS
     /*
-     * Make the timestamp more conservative to reduce CAS calls, and thus reduce contention on the
-     * shared maximum timestamp field. MongoDB packs timestamps as <seconds : increment>, with the
-     * high 32 bits as wall-clock seconds. Round up to the start of the next second. Every commit
-     * within this second will round up to the same value, so only the first commit of each second
-     * will raise the bound. This is safe, a conservative overestimate of the bound, preserving the
-     * requirement that needed data is never lost.
-     *
-     * Checkpoints generally happen at a fast pace, and continually raise the timestamp that sweep
-     * is using for comparison, so idle trees that aren't increasing their maximum bound will be
-     * swept, often in the next checkpoint.
-     */
-    target = ((durable_ts >> 32) + 1) << 32;
-#else
-    /*
-     * For the general case, we cannot make presumptions about how checkpoint timestamps are
-     * advancing, so we track the exact maximum durable timestamp. Correct for any timestamp scheme
-     * and sweeps as promptly as possible, but every advancing commit does a compare-and-swap, so it
-     * is not suited to highly concurrent workloads, especially those that stress a small number of
+     * We track the exact maximum durable timestamp. Correct for any timestamp scheme and sweeps as
+     * promptly as possible, but every advancing commit does a compare-and-swap, so it may show
+     * contention on highly concurrent workloads, especially those that stress a small number of
      * btrees.
      */
     target = durable_ts;
-#endif
 
     cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
     while (cur < target) {

@@ -20,18 +20,6 @@
 #define WT_BTREE_VERSION_MAX ((WT_BTREE_VERSION){1, 1, 0}) /* Newest version supported */
 #endif
 
-/*
- * Whether to assume MongoDB's packed <seconds:increment> commit-timestamp layout, where the high 32
- * bits are wall-clock seconds that advance roughly once per second. If we know this to be true, we
- * can increase our maximum commit timestamp at a slower pace, which gives us much better
- * concurrency when many threads are pounding a single tree.
- */
-#ifdef WT_STANDALONE_BUILD
-#define WT_TIMESTAMP_ASSUME_MONGODB_SECONDS 0
-#else
-#define WT_TIMESTAMP_ASSUME_MONGODB_SECONDS 1
-#endif
-
 #define WT_BTREE_MIN_ALLOC_SIZE 512
 
 /*
