@@ -170,7 +170,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     lock_writeunlock(session, &g.prepare_commit_lock);
 
     g.oldest_timestamp = oldest_timestamp;
-    g.stable_timestamp = stable_timestamp;
+    WT_RELEASE_WRITE_WITH_BARRIER(g.stable_timestamp, stable_timestamp);
 
     if (FLD_ISSET(g.trace_flags, TRACE_TIMESTAMP))
         trace_msg(session, "set ts oldest=%" PRIu64 ", stable=%" PRIu64, g.oldest_timestamp,
