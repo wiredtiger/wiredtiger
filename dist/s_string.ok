@@ -123,7 +123,6 @@ Crt
 Crummey
 CustomersPhone
 Cygwin
-DBSIZE
 DENABLE
 DESC
 DEST
@@ -529,6 +528,7 @@ URI's
 URIs
 USECS
 UTF
+UTIL
 UltraSparc
 Unbuffered
 Uncomment
@@ -1900,7 +1900,6 @@ upd
 uri
 uri's
 uris
-url
 usec
 usecs
 usedp

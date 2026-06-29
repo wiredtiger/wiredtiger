@@ -258,19 +258,23 @@ typedef struct __wt_disagg_checkpoint_meta {
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
- * The database size repair cycle (wiredtiger_repair size fix). The repair never writes the database
- * size itself: it claims the cycle and the next checkpoint recomputes the database size from the
- * per-file checkpoint sizes and switches the state back to IDLE. The repair first moves IDLE ->
- * PROCESSING (a holding state, so a concurrent checkpoint will not consume a half-staged cycle),
- * stages its parameters, then publishes PROCESSING -> TIER1 once everything is in place. Every
- * transition is a CAS, so a second repair cannot interleave and exactly one checkpoint consumes the
- * cycle.
+ * WT_UTIL_MAINTAIN_STATE --
+ *   This state machine guaranteed each time only one action of maintain is in progress.
  */
 typedef enum {
-    WT_DISAGG_DBSIZE_FIX_IDLE = 0,   /* No repair in progress. */
-    WT_DISAGG_DBSIZE_FIX_PROCESSING, /* A repair is staging; not yet consumable. */
-    WT_DISAGG_DBSIZE_FIX_TIER1       /* Ready: trust the recorded checkpoint sizes and sum them. */
-} WT_DISAGG_DBSIZE_FIX_STATE;
+    WT_UTIL_MAINTAIN_IDLE = 0,   /* No repair in progress. */
+    WT_UTIL_MAINTAIN_DB_SIZE_FIX /* A db size fix is ready: sum up latest checkpoint sizes. */
+} WT_UTIL_MAINTAIN_STATE;
+
+struct __wt_util_maintain {
+    wt_shared uint8_t state;
+
+    /*
+     * Memory space for the last report string. Only hold one report string at a time as it's used
+     * interactively.
+     */
+    WT_ITEM *last_report;
+};
 
 /*
  * WT_DISAGGREGATED_STORAGE --
@@ -328,16 +332,6 @@ struct __wt_disaggregated_storage {
      * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
      */
     wt_shared uint64_t database_size;
-
-    /*
-     * Database size repair cycle (see WT_DISAGG_DBSIZE_FIX_STATE). db_size_fix_state is a plain
-     * integer because it is driven by CAS and there is no atomic-CAS for enum types. The scale
-     * (debug knob) is staged while PROCESSING, before the state is published to TIER1, so the
-     * consuming checkpoint always sees it set.
-     */
-    wt_shared uint8_t db_size_fix_state;
-    uint64_t
-      db_size_fix_scale; /* Debug knob: scales the aggregate only; per-file sizes stay honest. */
 
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
@@ -1279,6 +1273,9 @@ struct __wt_connection_impl {
 #define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+
+    /* Utility maintain configuration and arguments */
+    WT_UTIL_MAINTAIN util_maintain;
 };
 
 /*
