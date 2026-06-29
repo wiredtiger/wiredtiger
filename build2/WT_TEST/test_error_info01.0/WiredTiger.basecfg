@@ -1,0 +1,12 @@
+# Do not modify this file.
+#
+# WiredTiger created this file when the database was created,
+# to store persistent database settings.  Instead of changing
+# these settings, set a WIREDTIGER_CONFIG environment variable
+# or create a WiredTiger.config file to override them.
+
+disaggregated=(page_log=palite,role="leader")
+extensions=("/data/work/git/wiredtiger2/build2/ext/page_log/palite/libwiredtiger_palite.so"=(config=""))
+statistics=(all)
+statistics_log=(json=true,on_close=true,wait=1)
+version=(major=12,minor=0)

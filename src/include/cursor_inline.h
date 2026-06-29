@@ -135,6 +135,22 @@ __cursor_checkvalue(WT_CURSOR *cursor)
 }
 
 /*
+ * __cursor_check_modify_txn_mode --
+ *     Modify does not support any mode except snapshot isolation with an explicit transaction.
+ */
+static WT_INLINE int
+__cursor_check_modify_txn_mode(WT_SESSION_IMPL *session)
+{
+    if (session->txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
+    if (F_ISSET(session->txn, WT_TXN_AUTOCOMMIT))
+        WT_RET_MSG(session, ENOTSUP, "not supported in implicit transactions");
+
+    return (0);
+}
+
+/*
  * __wt_cursor_localkey --
  *     If the key points into the tree, get a local copy.
  */
@@ -275,8 +291,9 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * When the count of active cursors in the session goes to zero, there are no active cursors,
      * and we can release any snapshot we're holding for read committed isolation.
      */
-    if (session->ncursors == 0 && !WT_READING_CHECKPOINT(session))
-        __wt_txn_read_last(session);
+    if (session->ncursors == 0 && !WT_READING_CHECKPOINT(session) &&
+      __wt_txn_read_committed_snapshot_mode(session))
+        __wt_txn_release_snapshot(session);
 
     /* If we're not holding a cursor reference, we're done. */
     if (cbt->ref == NULL)

@@ -1,0 +1,12 @@
+Performing C SOURCE FILE Test HAVE_BUILD_ASan_C_FLAGS failed with the following output:
+Change Dir: /data/work/git/wiredtiger2/build2/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/opt/mongodbtoolchain/v5/bin/ninja cmTC_77619 && [1/2] Building C object CMakeFiles/cmTC_77619.dir/src.c.o
+FAILED: CMakeFiles/cmTC_77619.dir/src.c.o 
+/usr/bin/cc -DHAVE_BUILD_ASan_C_FLAGS  -fsanitize=address   -fsanitize=address -shared-libasan -fno-omit-frame-pointer -o CMakeFiles/cmTC_77619.dir/src.c.o -c /data/work/git/wiredtiger2/build2/CMakeFiles/CMakeTmp/src.c
+cc: error: unrecognized command-line option '-shared-libasan'; did you mean '-shared-libgcc'?
+ninja: build stopped: subcommand failed.
+
+
+Source file was:
+int main(void) { return 0; }

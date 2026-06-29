@@ -2094,7 +2094,7 @@ static WT_INLINE bool __wt_txn_has_newest_and_visible_all(WT_SESSION_IMPL *sessi
   wt_timestamp_t timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_log_op_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_txn_read_committed_should_release_snapshot(WT_SESSION_IMPL *session)
+static WT_INLINE bool __wt_txn_read_committed_snapshot_mode(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_txn_snap_min_visible(
   WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp, wt_timestamp_t durable_timestamp)
@@ -2651,7 +2651,6 @@ static WT_INLINE void __wt_txn_op_delete_apply_prepare_state(
 static WT_INLINE void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);
 static WT_INLINE void __wt_txn_pinned_timestamp(
   WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
-static WT_INLINE void __wt_txn_read_last(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
 static WT_INLINE void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);

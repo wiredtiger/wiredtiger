@@ -1624,11 +1624,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      * time and the failure is unlikely to be detected. Require explicit transactions for modify
      * operations.
      */
-    if (session->txn->isolation != WT_ISO_SNAPSHOT)
-        WT_ERR_MSG(
-          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
-    if (F_ISSET(session->txn, WT_TXN_AUTOCOMMIT))
-        WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
+    WT_ERR(__cursor_check_modify_txn_mode(session));
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
         WT_ERR(__wt_btcur_search(cbt));

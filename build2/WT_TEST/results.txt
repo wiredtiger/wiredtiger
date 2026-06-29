@@ -1,0 +1,106 @@
+    test_error_info01.test_error_info01.test_api_call_alternating: wiredtiger_open: config=create,error_prefix="test_error_info01.test_error_info01.test_api_call_alternating",,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)
+
+Traceback (most recent call last):
+  File "/data/work/git/wiredtiger2/test/suite/helpers/wttest.py", line 310, in _callTestMethod
+    method()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 118, in test_api_call_alternating
+    self.test_einval_wt_background_compaction_already_running()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 94, in test_einval_wt_background_compaction_already_running
+    self.api_call_with_einval_wt_background_compaction_already_running()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 58, in api_call_with_einval_wt_background_compaction_already_running
+    self.turn_on_bg_compact()
+  File "/data/work/git/wiredtiger2/test/suite/helpers/compact_util.py", line 101, in turn_on_bg_compact
+    self.session.compact(None, f'background=true,{config}')
+  File "/data/work/git/wiredtiger2/test/suite/hooks/wthooks.py", line 204, in <lambda>
+    f = lambda self, *args: hooked_function(self, orig_func, hook_info_name, *args)
+  File "/data/work/git/wiredtiger2/test/suite/hooks/wthooks.py", line 127, in hooked_function
+    ret = call_func(self, *args)
+  File "/data/work/git/wiredtiger2/test/suite/hooks/hook_disagg.py", line 422, in <lambda>
+    session_compact_replace(orig_session_compact, s, uri, config))
+  File "/data/work/git/wiredtiger2/test/suite/hooks/hook_disagg.py", line 263, in session_compact_replace
+    return orig_session_compact(session_self, uri, config)
+_wiredtiger.WiredTigerError: Operation not supported
+
+    test_error_info01.test_error_info01.test_api_call_alternating: >>>>layered tables: {'table:test_error_info01'}<<<<<
+    test_error_info01.test_error_info01.test_api_call_alternating: finishing
+    test_error_info01.test_error_info01.test_api_call_alternating: passed=False
+    test_error_info01.test_error_info01.test_api_call_alternating: skipped=False
+    test_error_info01.test_error_info01.test_api_call_alternating: preserving directory /data/work/git/wiredtiger2/build2/WT_TEST/test_error_info01.0
+    test_error_info01.test_error_info01.test_api_call_alternating: FAIL
+    test_error_info01.test_error_info01.test_api_call_alternating: preserving directory /data/work/git/wiredtiger2/build2/WT_TEST/test_error_info01.0
+    test_error_info01.test_error_info01.test_api_call_doubling: wiredtiger_open: config=create,error_prefix="test_error_info01.test_error_info01.test_api_call_doubling",,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)
+
+Traceback (most recent call last):
+  File "/data/work/git/wiredtiger2/test/suite/helpers/wttest.py", line 310, in _callTestMethod
+    method()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 135, in test_api_call_doubling
+    self.test_einval_wt_background_compaction_already_running()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 94, in test_einval_wt_background_compaction_already_running
+    self.api_call_with_einval_wt_background_compaction_already_running()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 58, in api_call_with_einval_wt_background_compaction_already_running
+    self.turn_on_bg_compact()
+  File "/data/work/git/wiredtiger2/test/suite/helpers/compact_util.py", line 101, in turn_on_bg_compact
+    self.session.compact(None, f'background=true,{config}')
+  File "/data/work/git/wiredtiger2/test/suite/hooks/wthooks.py", line 204, in <lambda>
+    f = lambda self, *args: hooked_function(self, orig_func, hook_info_name, *args)
+  File "/data/work/git/wiredtiger2/test/suite/hooks/wthooks.py", line 127, in hooked_function
+    ret = call_func(self, *args)
+  File "/data/work/git/wiredtiger2/test/suite/hooks/hook_disagg.py", line 422, in <lambda>
+    session_compact_replace(orig_session_compact, s, uri, config))
+  File "/data/work/git/wiredtiger2/test/suite/hooks/hook_disagg.py", line 263, in session_compact_replace
+    return orig_session_compact(session_self, uri, config)
+_wiredtiger.WiredTigerError: Operation not supported
+
+    test_error_info01.test_error_info01.test_api_call_doubling: >>>>layered tables: {'table:test_error_info01'}<<<<<
+    test_error_info01.test_error_info01.test_api_call_doubling: finishing
+    test_error_info01.test_error_info01.test_api_call_doubling: passed=False
+    test_error_info01.test_error_info01.test_api_call_doubling: skipped=False
+    test_error_info01.test_error_info01.test_api_call_doubling: preserving directory /data/work/git/wiredtiger2/build2/WT_TEST/test_error_info01.1
+    test_error_info01.test_error_info01.test_api_call_doubling: FAIL
+    test_error_info01.test_error_info01.test_api_call_doubling: preserving directory /data/work/git/wiredtiger2/build2/WT_TEST/test_error_info01.1
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: wiredtiger_open: config=create,error_prefix="test_error_info01.test_error_info01.test_ebusy_wt_dirty_data",,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: Exception raised shown as string: "Device or resource busy"
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: Expecting string msg: Device or resource busy
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: >>>>layered tables: {'table:test_error_info01'}<<<<<
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: finishing
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: passed=True
+    test_error_info01.test_error_info01.test_ebusy_wt_dirty_data: skipped=False
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: wiredtiger_open: config=create,error_prefix="test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data",,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: Exception raised shown as string: "Device or resource busy"
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: Expecting string msg: Device or resource busy
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: >>>>layered tables: {'table:test_error_info01'}<<<<<
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: finishing
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: passed=True
+    test_error_info01.test_error_info01.test_ebusy_wt_uncommitted_data: skipped=False
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: wiredtiger_open: config=create,error_prefix="test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running",,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)
+
+Traceback (most recent call last):
+  File "/data/work/git/wiredtiger2/test/suite/helpers/wttest.py", line 310, in _callTestMethod
+    method()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 94, in test_einval_wt_background_compaction_already_running
+    self.api_call_with_einval_wt_background_compaction_already_running()
+  File "/data/work/git/wiredtiger2/test/suite/test_error_info01.py", line 58, in api_call_with_einval_wt_background_compaction_already_running
+    self.turn_on_bg_compact()
+  File "/data/work/git/wiredtiger2/test/suite/helpers/compact_util.py", line 101, in turn_on_bg_compact
+    self.session.compact(None, f'background=true,{config}')
+  File "/data/work/git/wiredtiger2/test/suite/hooks/wthooks.py", line 204, in <lambda>
+    f = lambda self, *args: hooked_function(self, orig_func, hook_info_name, *args)
+  File "/data/work/git/wiredtiger2/test/suite/hooks/wthooks.py", line 127, in hooked_function
+    ret = call_func(self, *args)
+  File "/data/work/git/wiredtiger2/test/suite/hooks/hook_disagg.py", line 422, in <lambda>
+    session_compact_replace(orig_session_compact, s, uri, config))
+  File "/data/work/git/wiredtiger2/test/suite/hooks/hook_disagg.py", line 263, in session_compact_replace
+    return orig_session_compact(session_self, uri, config)
+_wiredtiger.WiredTigerError: Operation not supported
+
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: finishing
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: passed=False
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: skipped=False
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: preserving directory /data/work/git/wiredtiger2/build2/WT_TEST/test_error_info01.4
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: FAIL
+    test_error_info01.test_error_info01.test_einval_wt_background_compaction_already_running: preserving directory /data/work/git/wiredtiger2/build2/WT_TEST/test_error_info01.4
+    test_error_info01.test_error_info01.test_success: wiredtiger_open: config=create,error_prefix="test_error_info01.test_error_info01.test_success",,statistics=(all),statistics_log=(wait=1,json=true,on_close=true)
+    test_error_info01.test_error_info01.test_success: >>>>layered tables: {'table:test_error_info01'}<<<<<
+    test_error_info01.test_error_info01.test_success: finishing
+    test_error_info01.test_error_info01.test_success: passed=True
+    test_error_info01.test_error_info01.test_success: skipped=False
