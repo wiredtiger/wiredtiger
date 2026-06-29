@@ -98,7 +98,8 @@ __clayered_deleted_decode(WT_ITEM *value)
  *     values begin with the two tombstone bytes and, for historic reasons, are persisted to the
  *     stable table verbatim; they are expected to be extremely rare. Encoding appends a single
  *     tombstone byte (see __clayered_deleted_encode), so the stored form is classified by its
- *     length and trailing byte. The value bytes are not logged as they may carry application data.
+ *     length and trailing byte. The raw bytes may carry application data, so the log records only
+ *     the size and a content hash to fingerprint recurring values.
  */
 static WT_INLINE void
 __clayered_stable_value_stat(WT_SESSION_IMPL *session, const WT_ITEM *value)
@@ -130,7 +131,9 @@ __clayered_stable_value_stat(WT_SESSION_IMPL *session, const WT_ITEM *value)
     }
 
     __wt_verbose_warning(session, WT_VERB_LAYERED,
-      "stable table value in the tombstone namespace (%s), size %" WT_SIZET_FMT, what, value->size);
+      "stable table value in the tombstone namespace (%s), size 0x%" PRIx64
+      ", content hash 0x%016" PRIx64,
+      what, (uint64_t)value->size, __wt_hash_city64(value->data, value->size));
 }
 
 /*
