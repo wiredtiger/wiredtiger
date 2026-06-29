@@ -7,16 +7,15 @@
  */
 
 /*
- * When attempting to lock a dhandle returns EBUSY because the btree has
- * special flags set (bulk/salvage/verify), the session's dhandle ref must be
- * cleared to NULL.  Leaving it set exposes callers to a handle they never
- * locked, which can corrupt the dhandle's lock state if they attempt to
- * release it.
+ * When attempting to lock a dhandle returns EBUSY because the btree has special flags set
+ * (bulk/salvage/verify), the session's dhandle ref must be cleared to NULL. Leaving it set exposes
+ * callers to a handle they never locked, which can corrupt the dhandle's lock state if they attempt
+ * to release it.
  *
- * The public API wraps every call in a push/pop macro, which saves and
- * restores the session's dhandle ref, so the stale pointer never escapes to
- * application code.  The bug only affects internal callers that attempt to
- * get dhandles directly, such as the checkpoint and checkpoint-cleanup paths.
+ * The public API wraps every call in a push/pop macro, which saves and restores the session's
+ * dhandle ref, so the stale pointer never escapes to application code. The bug only affects
+ * internal callers that attempt to get dhandles directly, such as the checkpoint and
+ * checkpoint-cleanup paths.
  */
 
 #include <catch2/catch.hpp>
