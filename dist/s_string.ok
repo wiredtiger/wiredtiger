@@ -43,7 +43,7 @@ BCcLlsvz
 BFGs
 BIGENDIAN
 BLKCACHE
-BLmpRrSVv
+BLmpqRrSVv
 BOOL
 BSR
 BTREE
@@ -170,6 +170,7 @@ EQ
 ERANGE
 ETIME
 ETIMEDOUT
+EWMA
 EXTLIST
 EXTLIST's
 EXTSUBPATH
@@ -650,6 +651,7 @@ argc
 args
 argv
 asan
+asc
 ascii
 assertEqual
 assertGreater
@@ -860,6 +862,7 @@ cust
 customizable
 customp
 cutlim
+cutover
 cv
 cval
 cx
@@ -890,6 +893,7 @@ dec
 decile
 deciles
 decl
+decodable
 decompressor
 decr
 decrementing
@@ -946,6 +950,7 @@ dryrun
 ds
 dsb
 dsbs
+dsc
 dsk
 dsrc
 dst
@@ -998,6 +1003,7 @@ ev
 evd
 eventv
 evictable
+ewma
 exactp
 exc
 exe
@@ -1044,6 +1050,7 @@ fixup
 floatnum
 fmt
 fmterr
+fn
 fnv
 fnvhash
 foc
@@ -1161,6 +1168,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initn
 initsize
 initval
@@ -1260,6 +1271,7 @@ lldb
 llll
 llu
 llvm
+loadshed
 loadtext
 loc
 localTime
@@ -1402,6 +1414,7 @@ nonconflicting
 nonliteral
 nonoverlapping
 nonstandalone
+nontxn
 noop
 nop
 nopos
@@ -1574,6 +1587,7 @@ rebalancing
 recency
 recno
 recnos
+recognizes
 reconfig
 reconfigurations
 reconfigures
@@ -1626,6 +1640,7 @@ salvageUntilSuccess
 sanitizer
 sanitizers
 scalable
+scen
 schemas
 sclose
 scr
@@ -1844,6 +1859,8 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
+underflows
 unencoded
 unencrypted
 unesc

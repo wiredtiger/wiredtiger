@@ -2651,6 +2651,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         return (WT_NOTFOUND);
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
         return (WT_RESTART);
+    /*
+     * Skip-on-corrupt: treat corrupt pages as expected and return without releasing the page to
+     * advance to the next sibling.
+     */
+    if (ret == WT_ERROR && WT_READ_SKIP_CORRUPT_HIT(session, flags))
+        return (ret);
 
     /* Discard the original held page on either success or error. */
     acquired = ret == 0;
@@ -2796,13 +2802,17 @@ __wt_btcur_skip_page(
             walk_skip_stats->total_del_pages_skipped++;
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate
          * information pointer because as part of the checkpoint operation, this pointer can be
          * released in parallel.
+         *
+         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
+         * use the range visibility check; it skips more pages than the snap_min bound used on the
+         * disk-address path, which only has the newest stop transaction.
          */
         *skipp = true;
         walk_skip_stats->total_inmem_del_pages_skipped++;
@@ -2950,19 +2960,6 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
 }
 
 /*
- * __wt_cache_page_footprint_incr --
- *     Increment a page's memory footprint without touching cache or btree totals.
- */
-static WT_INLINE void
-__wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
-{
-    WT_ASSERT(session, size < WT_EXABYTE);
-    if (size == 0)
-        return;
-    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
-}
-
-/*
  * __wt_cache_shared_dsk_inmem_incr --
  *     Increment the shared disk in memory cache statistics.
  */
@@ -3039,4 +3036,20 @@ __wt_cache_shared_dsk_inmem_decr(WT_SESSION_IMPL *session, uint8_t image_type, s
                   session, &cache->bytes_internal_stable, size, "WT_CACHE.bytes_internal_stable");
         }
     }
+}
+
+/*
+ * __wt_btree_row_leaf_entries_update --
+ *     Update the per-btree EWMA of row-store leaf page K/V pair count with a new sample. Uses
+ *     alpha=1/16: new_ewma = (15 * old + sample) / 16. Races between threads are tolerated since
+ *     the result is approximate.
+ */
+static WT_INLINE void
+__wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample)
+{
+    uint64_t old;
+
+    old = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
+    __wt_atomic_store_uint64_relaxed(
+      &btree->leaf_entry_ewma, old == 0 ? sample : (15 * old + sample) / 16);
 }
