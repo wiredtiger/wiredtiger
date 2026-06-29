@@ -43,7 +43,7 @@ BCcLlsvz
 BFGs
 BIGENDIAN
 BLKCACHE
-BLmpRrSVv
+BLmpqRrSVv
 BOOL
 BSR
 BTREE
@@ -1171,6 +1171,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initn
 initsize
 initval
@@ -1585,6 +1589,7 @@ rebalancing
 recency
 recno
 recnos
+recognizes
 reconfig
 reconfigurations
 reconfigures
@@ -1856,6 +1861,8 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
+underflows
 unencoded
 unencrypted
 unesc
