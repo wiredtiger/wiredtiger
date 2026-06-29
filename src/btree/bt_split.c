@@ -2000,8 +2000,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
-    /* Visible as soon as the split completes. */
-    __wt_ref_make_visible(session, child, false);
+
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
         __wt_ref_key(ref->home, ref, &key, &key_size);
@@ -2010,6 +2009,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     } else
         child->ref_recno = ref->ref_recno;
 
+    /* Visible as soon as the split completes, but after we set the key on the child. */
+    __wt_ref_make_visible(session, child, false);
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
      * ref is discarded.
@@ -2045,14 +2046,15 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
         __wt_atomic_store_uint8_v_relaxed(&child->rec_state, WT_REF_REC_DIRTY);
 
-    /* Visible as soon as the split completes. */
-    __wt_ref_make_visible(session, child, false);
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wti_row_ikey(
           session, 0, WT_INSERT_KEY(moved_ins), WT_INSERT_KEY_SIZE(moved_ins), child));
         parent_incr += sizeof(WT_IKEY) + WT_INSERT_KEY_SIZE(moved_ins);
     } else
         child->ref_recno = WT_INSERT_RECNO(moved_ins);
+
+    /* Visible as soon as the split completes, but after we assign key on the child. */
+    __wt_ref_make_visible(session, child, false);
 
     /*
      * Calculate how much memory we're moving: figure out how deep the skip list stack is for the
