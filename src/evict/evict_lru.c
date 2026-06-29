@@ -1208,12 +1208,14 @@ __evict_get_ref(
         printf("URGENT EVICTION!!!!!!!!!!!!\n"); /* XXX Add a stat */
     }
 
+#if 0
     /* Application threads evict only clean pages, unless we are struggling */
     if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)
         && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD) &&
         !F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD)) {
         min_level = max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
     }
+#endif
 
     /* Keep track of the starting bucket where we look for pages to evict */
     switch (min_level) {
