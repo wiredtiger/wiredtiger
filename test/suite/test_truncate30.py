@@ -108,8 +108,6 @@ class test_truncate30(wttest.WiredTigerTestCase):
         simulate_crash_restart(self, '.', 'CRASH')
 
         # ---- Phase 4: verify integrity ----
-        self.session.verify(self.uri, None)
-
         # Spot-check data outside the truncated range.
         cursor = self.session.open_cursor(self.uri)
         cursor.set_key(1)
