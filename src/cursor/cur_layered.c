@@ -182,10 +182,10 @@ __clayered_op_init(
 {
     op->clayered = clayered;
     op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
-    op->stable = clayered->stable_cursor;
+    /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
+    op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->table = (WT_LAYERED_TABLE *)clayered->dhandle;
     op->collator = op->table->collator;
-    op->need_stable = !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -1732,13 +1732,13 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
         }
     } else
         /* Be sure we'll make a search attempt further down.  */
-        WT_ASSERT(session, op->need_stable && op->stable != NULL);
+        WT_ASSERT(session, op->stable != NULL);
 
     /*
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
      * the stable constituent.
      */
-    if (!found && op->need_stable && op->stable != NULL)
+    if (!found && op->stable != NULL)
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value), true);
 
 err:
