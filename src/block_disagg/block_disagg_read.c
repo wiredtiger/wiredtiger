@@ -182,6 +182,18 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         is_delta = (result != 0);
         block_size_sum += size;
 
+        /*
+         * Simulate a corrupt page returned by the page service to exercise read-error handling
+         * during verify. Skip the quiet root-page probe so the failpoint hits an ordinary traversal
+         * read, which is the path that previously panicked.
+         */
+        if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) &&
+          __wt_failpoint(
+            session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_READ, 10 * WT_THOUSAND)) {
+            WT_STAT_CONN_DSRC_INCR(session, disagg_block_plh_read_failed);
+            goto corrupt;
+        }
+
         if (is_delta)
             __wt_verbose(session, WT_VERB_READ,
               "Reading delta page at position #%" PRId32 " for page_id %" PRIu64
@@ -283,12 +295,15 @@ corrupt:
               "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
               (uintmax_t)page_id, size, checksum);
 
-        /* Panic if a checksum fails during an ordinary read. */
+        /*
+         * A checksum failure on an ordinary read is fatal, but verify and read-corrupt callers
+         * tolerate it: return the error so they can report it and continue past the bad page.
+         */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (WT_SESSION_READ_CORRUPT_OK(session))
-            WT_ERR(WT_ERROR);
-        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
-          block_disagg->name, block_disagg->tableid);
+        if (!F_ISSET(S2BT(session), WT_BTREE_VERIFY) && !WT_SESSION_READ_CORRUPT_OK(session))
+            WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
+              block_disagg->name, block_disagg->tableid);
+        WT_ERR(WT_ERROR);
     }
 
     /*
