@@ -1836,7 +1836,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 __wt_atomic_store_bool_release(&txn_global->has_durable_timestamp, true);
                 break;
             }
-            prev_durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
+            prev_durable_timestamp =
+              __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
         }
 
     /*
@@ -2896,7 +2897,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "oldest ID: %" PRIu64, __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id)));
 
     WT_RET(__wt_msg(session, "durable timestamp: %s",
-      __wt_timestamp_to_string(__wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp), ts_string)));
+      __wt_timestamp_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp), ts_string)));
     WT_RET(__wt_msg(session, "oldest timestamp: %s",
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string)));
     WT_RET(__wt_msg(session, "pinned timestamp: %s",
@@ -2908,8 +2910,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       __wt_timestamp_to_string(
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch),
         ts_string)));
-    WT_RET(__wt_msg(
-      session, "has_durable_timestamp: %s",
+    WT_RET(__wt_msg(session, "has_durable_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_durable_timestamp) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) ? "yes" : "no"));
