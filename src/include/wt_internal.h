@@ -475,6 +475,8 @@ struct __wt_update_value;
 typedef struct __wt_update_value WT_UPDATE_VALUE;
 struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
+struct __wt_util_maintain;
+typedef struct __wt_util_maintain WT_UTIL_MAINTAIN;
 struct __wt_verbose_dump_cookie;
 typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
 struct __wt_verbose_message_info;
