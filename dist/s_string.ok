@@ -782,7 +782,6 @@ ckpt
 ckptfrag
 ckptlist
 cksum
-claimedp
 clayered
 clazz
 cloexec
@@ -1494,7 +1493,6 @@ pathname
 pathnames
 perf
 pfx
-phasep
 pid
 pindexp
 plh
@@ -1514,7 +1512,6 @@ pread
 prealloc
 preallocated
 preallocation
-precheck
 precomp
 precompilation
 precompiled
