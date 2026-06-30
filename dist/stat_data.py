@@ -350,6 +350,7 @@ conn_stats = [
     CacheStat('cache_shared_dsk_bytes_duplicate', 'shared disk bytes saved by sharing duplicate disk images', 'no_clear,no_scale,size'),
     CacheStat('cache_shared_dsk_hash_size', 'shared disk hash table size', 'no_clear,no_scale'),
     CacheStat('cache_shared_dsk_hit', 'shared disk hit'),
+    CacheStat('cache_shared_dsk_lock_contention', 'shared disk bucket lock contention count'),
     CacheStat('cache_shared_dsk_miss', 'shared disk miss'),
     CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
