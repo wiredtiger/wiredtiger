@@ -48,12 +48,6 @@ static int __util_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, con
 static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __util_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
 
-/*
- * WT_ERR_REPORT / WT_RET_REPORT --
- *     Like WT_ERR_MSG / WT_RET_MSG, but append the diagnostic to the caller-owned report buffer
- *     (which wiredtiger_util hands back) instead of logging it. The buffer write's return is
- *     ignored so it cannot clobber the requested error v -- v is what must propagate.
- */
 #define WT_ERR_REPORT(session, v, ...)                                \
     do {                                                              \
         ret = (v);                                                    \
