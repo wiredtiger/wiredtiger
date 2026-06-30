@@ -10,6 +10,7 @@ stepback: true
 pre:
   - func: "cleanup"
   - func: "setup environment"
+  - func: "pin mongo toolchain"
 post:
   - func: "dump stacktraces"
   - func: "upload stacktraces"
@@ -108,6 +109,28 @@ functions:
 
             echo "Dump Environment"
             printenv | sort
+
+  "pin mongo toolchain":
+    - command: shell.exec
+      type: setup
+      params:
+        shell: bash
+        script: |
+          set -o errexit
+
+          if [ "${REQUIRE_MDB_TOOLCHAIN|}" != "1" ]; then
+              exit 0
+          fi
+
+          MDB_TOOLCHAIN_REV="93d85cc1a00ca1d53fcc7d4ca790f19a4e5dd542"
+          if readlink /opt/mongodbtoolchain/v5/bin/clang 2>/dev/null | grep -q "$MDB_TOOLCHAIN_REV"; then
+              echo "mongodbtoolchain $MDB_TOOLCHAIN_REV already installed, skipping download."
+              exit 0
+          fi
+
+          echo "mongodbtoolchain $MDB_TOOLCHAIN_REV not installed, downloading..."
+          curl -fsSL https://s3.amazonaws.com/mongodbtoolchain.build.10gen.cc/installer.sh \
+              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV"
 
   # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
   # additional credentials need to be setup to maintain efficient compilation speed.
@@ -6589,6 +6612,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
@@ -6669,6 +6693,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
@@ -6720,6 +6745,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
@@ -6744,6 +6770,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     # Compile with clang so we test that path for the catch2 unittests.
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
@@ -6767,6 +6794,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
     # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
@@ -6798,6 +6826,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
@@ -6822,6 +6851,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -6843,6 +6873,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -6861,6 +6892,8 @@ buildvariants:
   batchtime: 1440 # 1 day
   run_on:
   - ubuntu2004-test
+  expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
   tasks:
     - name: package
 
@@ -6927,6 +6960,7 @@ buildvariants:
   - ubuntu2204-large
   batchtime: 4320 # 3 days
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
     posix_configure_flags: -DENABLE_ZSTD=0
@@ -6997,6 +7031,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
@@ -7039,6 +7074,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
@@ -7054,6 +7090,7 @@ buildvariants:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7091,6 +7128,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7117,6 +7155,7 @@ buildvariants:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7133,6 +7172,7 @@ buildvariants:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7147,6 +7187,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7184,6 +7225,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7203,6 +7245,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7224,6 +7267,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7249,6 +7293,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7272,6 +7317,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7295,6 +7341,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7321,6 +7368,7 @@ buildvariants:
   - amazon2023.3-arm64-small
   batchtime: 720 # 12 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7345,6 +7393,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7391,6 +7440,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -7411,6 +7461,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
@@ -7461,6 +7512,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
@@ -7493,6 +7545,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
     # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
@@ -7527,6 +7580,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
@@ -7550,6 +7604,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
