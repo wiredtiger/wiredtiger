@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "gcc.h"
 #include "wt_internal.h"
 
 /*
@@ -1831,8 +1832,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (update_durable_ts)
         while (candidate_durable_timestamp > prev_durable_timestamp) {
-            if (__wt_atomic_cas_uint64(&txn_global->durable_timestamp, prev_durable_timestamp,
-                  candidate_durable_timestamp)) {
+            if (__wt_atomic_cas_uint64_relaxed(&txn_global->durable_timestamp,
+                  prev_durable_timestamp, candidate_durable_timestamp)) {
                 __wt_atomic_store_bool_release(&txn_global->has_durable_timestamp, true);
                 break;
             }
