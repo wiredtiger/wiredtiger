@@ -105,3 +105,25 @@ class test_layered_tombstone_value(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         self.assertEqual(self.category_counts(), (2, 0, 4, 0))
+
+    def test_verify_counts_stable_values(self):
+        # verify() walks the stable table's pages directly, bypassing the layered cursor, so the
+        # check is pushed down to the page walk. Seed the values, persist them with a checkpoint,
+        # then confirm verify accounts for each stored value.
+        items = {1: self.normal, 2: self.tomb, 3: self.triple, 4: self.mixed}
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for key, value in items.items():
+            cursor[key] = value
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        cursor.close()
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.session.checkpoint()
+
+        # Measure only what verify adds. The stored forms are one bare tombstone and two
+        # suffix-form (trailing 0x14) encodings; the normal value is not counted.
+        before = self.category_counts()
+        self.session.verify(self.uri)
+        after = self.category_counts()
+        self.assertEqual(tuple(a - b for a, b in zip(after, before)), (1, 0, 2, 0))

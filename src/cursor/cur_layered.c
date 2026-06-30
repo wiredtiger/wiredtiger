@@ -93,36 +93,36 @@ __clayered_deleted_decode(WT_ITEM *value)
 }
 
 /*
- * __clayered_stable_value_stat --
+ * __wt_clayered_stable_value_stat --
  *     Count and warn about a stable-table value that shares the tombstone's encoded namespace. Such
  *     values begin with the two tombstone bytes and, for historic reasons, are persisted to the
  *     stable table verbatim; they are expected to be extremely rare. Encoding appends a single
  *     tombstone byte (see __clayered_deleted_encode), so the stored form is classified by its
  *     length and trailing byte. The raw bytes may carry application data, so the log records only
- *     the size and a content hash to fingerprint recurring values.
+ *     the size and a content hash to fingerprint recurring values. This takes raw bytes so both the
+ *     layered cursor and the verify page walk can share it.
  */
-static WT_INLINE void
-__clayered_stable_value_stat(WT_SESSION_IMPL *session, const WT_ITEM *value)
+void
+__wt_clayered_stable_value_stat(WT_SESSION_IMPL *session, const void *data, size_t size)
 {
     uint8_t tombstone_byte;
-    const uint8_t *data;
+    const uint8_t *bytes;
     const char *what;
 
     /* The value must begin with the whole tombstone to share its namespace. */
-    if (value->size < __wt_tombstone.size ||
-      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) != 0)
+    if (size < __wt_tombstone.size || memcmp(data, __wt_tombstone.data, __wt_tombstone.size) != 0)
         return;
 
-    data = (const uint8_t *)value->data;
+    bytes = (const uint8_t *)data;
     tombstone_byte = ((const uint8_t *)__wt_tombstone.data)[0];
 
-    if (value->size == __wt_tombstone.size) {
+    if (size == __wt_tombstone.size) {
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone);
         what = "equal to the tombstone";
-    } else if (value->size == __wt_tombstone.size + 1 && data[value->size - 1] == tombstone_byte) {
+    } else if (size == __wt_tombstone.size + 1 && bytes[size - 1] == tombstone_byte) {
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone_x3);
         what = "three tombstone bytes";
-    } else if (data[value->size - 1] == tombstone_byte) {
+    } else if (bytes[size - 1] == tombstone_byte) {
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_stable_value_tombstone_suffix);
         what = "ending with a tombstone byte";
     } else {
@@ -133,7 +133,7 @@ __clayered_stable_value_stat(WT_SESSION_IMPL *session, const WT_ITEM *value)
     __wt_verbose_warning(session, WT_VERB_LAYERED,
       "stable table value in the tombstone namespace (%s), size 0x%" PRIx64
       ", content hash 0x%016" PRIx64,
-      what, (uint64_t)value->size, __wt_hash_city64(value->data, value->size));
+      what, (uint64_t)size, __wt_hash_city64(data, size));
 }
 
 /*
@@ -145,7 +145,7 @@ static WT_INLINE void
 __clayered_stable_read_value_stat(WT_CURSOR_LAYERED *clayered, const WT_ITEM *value)
 {
     if (clayered->current_cursor == clayered->stable_cursor)
-        __clayered_stable_value_stat(CUR2S(clayered), value);
+        __wt_clayered_stable_value_stat(CUR2S(clayered), value->data, value->size);
 }
 
 /*
@@ -2189,7 +2189,7 @@ __clayered_put(
 
     /* On the leader the destination is the stable table; account tombstone-namespace values. */
     if (leader && put_op != WT_CLAYERED_PUT_RESERVE)
-        __clayered_stable_value_stat(session, value);
+        __wt_clayered_stable_value_stat(session, value->data, value->size);
 
     switch (put_op) {
     case WTI_CLAYERED_PUT_INSERT:
@@ -2958,7 +2958,7 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         __clayered_deleted_decode(&c_stable->value);
         WT_ERR(__wt_modify_apply_api(c_stable, entries, nentries));
         WT_ERR(__clayered_deleted_encode(session, &c_stable->value, &c_stable->value, &buf));
-        __clayered_stable_value_stat(session, &c_stable->value);
+        __wt_clayered_stable_value_stat(session, c_stable->value.data, c_stable->value.size);
         F_SET(c_stable, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_stable->update(c_stable));
     } else
