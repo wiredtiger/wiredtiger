@@ -6,7 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "gcc.h"
 #include "wt_internal.h"
 
 /*
