@@ -182,6 +182,18 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         is_delta = (result != 0);
         block_size_sum += size;
 
+        /*
+         * Simulate a corrupt page returned by the page service to exercise verify's read-error
+         * handling. Skip the quiet root-page probe so the failpoint hits an ordinary traversal
+         * read, which is the path that previously panicked.
+         */
+        if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) &&
+          __wt_failpoint(
+            session, WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_READ, 10 * WT_THOUSAND)) {
+            WT_STAT_CONN_DSRC_INCR(session, disagg_block_plh_read_failed);
+            goto corrupt;
+        }
+
         if (is_delta)
             __wt_verbose(session, WT_VERB_READ,
               "Reading delta page at position #%" PRId32 " for page_id %" PRIu64
