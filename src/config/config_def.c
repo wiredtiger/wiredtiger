@@ -631,6 +631,7 @@ const char __WT_CONFIG_CHOICE_failpoint_eviction_split[] = "failpoint_eviction_s
 const char __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts[] =
   "failpoint_history_store_delete_key_from_ts";
 const char __WT_CONFIG_CHOICE_failpoint_page_log_handle_put[] = "failpoint_page_log_handle_put";
+const char __WT_CONFIG_CHOICE_failpoint_page_log_handle_read[] = "failpoint_page_log_handle_read";
 const char __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup[] = "failpoint_rec_before_wrapup";
 const char __WT_CONFIG_CHOICE_failpoint_rec_split_write[] = "failpoint_rec_split_write";
 const char __WT_CONFIG_CHOICE_history_store_checkpoint_delay[] = "history_store_checkpoint_delay";
@@ -667,7 +668,8 @@ static const char *confchk_timing_stress_for_test_choices[] = {
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
-  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_read, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
   __WT_CONFIG_CHOICE_live_restore_clean_up, __WT_CONFIG_CHOICE_open_index_slow,
@@ -864,6 +866,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"failpoint_page_log_handle_put\","
+    "\"failpoint_page_log_handle_read\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"live_restore_clean_up\","
@@ -3023,7 +3026,8 @@ static const char *confchk_timing_stress_for_test2_choices[] = {
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
-  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_read, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
   __WT_CONFIG_CHOICE_live_restore_clean_up, __WT_CONFIG_CHOICE_open_index_slow,
@@ -3259,6 +3263,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"failpoint_page_log_handle_put\","
+    "\"failpoint_page_log_handle_read\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"live_restore_clean_up\","
@@ -3331,7 +3336,8 @@ static const char *confchk_timing_stress_for_test3_choices[] = {
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
-  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_read, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
   __WT_CONFIG_CHOICE_live_restore_clean_up, __WT_CONFIG_CHOICE_open_index_slow,
@@ -3548,6 +3554,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"failpoint_page_log_handle_put\","
+    "\"failpoint_page_log_handle_read\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"live_restore_clean_up\","
@@ -3623,7 +3630,8 @@ static const char *confchk_timing_stress_for_test4_choices[] = {
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
-  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_read, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
   __WT_CONFIG_CHOICE_live_restore_clean_up, __WT_CONFIG_CHOICE_open_index_slow,
@@ -3830,6 +3838,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"failpoint_page_log_handle_put\","
+    "\"failpoint_page_log_handle_read\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"live_restore_clean_up\","
@@ -3901,7 +3910,8 @@ static const char *confchk_timing_stress_for_test5_choices[] = {
   __WT_CONFIG_CHOICE_evict_reposition, __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain,
   __WT_CONFIG_CHOICE_failpoint_eviction_split,
   __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts,
-  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_put,
+  __WT_CONFIG_CHOICE_failpoint_page_log_handle_read, __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup,
   __WT_CONFIG_CHOICE_failpoint_rec_split_write, __WT_CONFIG_CHOICE_history_store_checkpoint_delay,
   __WT_CONFIG_CHOICE_history_store_search, __WT_CONFIG_CHOICE_history_store_sweep_race,
   __WT_CONFIG_CHOICE_live_restore_clean_up, __WT_CONFIG_CHOICE_open_index_slow,
@@ -4108,6 +4118,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"failpoint_eviction_split\","
     "\"failpoint_history_store_delete_key_from_ts\","
     "\"failpoint_page_log_handle_put\","
+    "\"failpoint_page_log_handle_read\","
     "\"failpoint_rec_before_wrapup\",\"failpoint_rec_split_write\","
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"live_restore_clean_up\","
