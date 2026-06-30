@@ -147,7 +147,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     /* Free allocated recovered checkpoint snapshot memory */
     __wt_free(session, conn->recovery_ckpt_snapshot);
 
-    /* Free checkpoint eviction snapshot ping-pong buffer backing arrays. */
+    /* Free checkpoint eviction snapshot buffer backing arrays. */
     __wt_free(session, conn->ckpt_eviction_snap_array[0]);
     __wt_free(session, conn->ckpt_eviction_snap_array[1]);
 

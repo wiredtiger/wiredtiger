@@ -766,6 +766,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
             WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
             if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_pinned_id)
                 r->rec_start_pinned_id = ckpt_txn;
+            r->rec_has_ckpt_snapshot = false;
         }
     } else
         r->rec_start_pinned_id = WT_TXN_NONE;
