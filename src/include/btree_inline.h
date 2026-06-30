@@ -1244,7 +1244,7 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
 #define WT_IK_DECODE_KEY_LEN(v) ((v) >> 32)
 #define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
-#define WT_IK_DECODE_KEY_OFFSET(v) (((v)&0xFFFFFFFF) >> 1)
+#define WT_IK_DECODE_KEY_OFFSET(v) (((v) & 0xFFFFFFFF) >> 1)
     v = (uintptr_t)ref->ref_ikey;
     if (v & WT_IK_FLAG) {
         *(void **)keyp = WT_PAGE_REF_OFFSET(page, WT_IK_DECODE_KEY_OFFSET(v));
@@ -1397,36 +1397,36 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
 
 #define WT_K_FLAG 0x02
 #define WT_K_MAX_KEY_LEN (0x80000 - 1)
-#define WT_K_DECODE_KEY_LEN(v) (((v)&0xffffe00000000000) >> 45)
+#define WT_K_DECODE_KEY_LEN(v) (((v) & 0xffffe00000000000) >> 45)
 #define WT_K_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 45)
 #define WT_K_MAX_KEY_OFFSET (0x40 - 1)
-#define WT_K_DECODE_KEY_OFFSET(v) (((v)&0x001f8000000000) >> 39)
+#define WT_K_DECODE_KEY_OFFSET(v) (((v) & 0x001f8000000000) >> 39)
 #define WT_K_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 39)
 /* Key prefix field size can hold maximum value, WT_K_MAX_KEY_PREFIX not needed. */
-#define WT_K_DECODE_KEY_PREFIX(v) (((v)&0x00007f80000000) >> 31)
+#define WT_K_DECODE_KEY_PREFIX(v) (((v) & 0x00007f80000000) >> 31)
 #define WT_K_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 31)
 /* Key cell offset field size can hold maximum value, WT_K_MAX_KEY_CELL_OFFSET not needed. */
-#define WT_K_DECODE_KEY_CELL_OFFSET(v) (((v)&0x0000007ffffffc) >> 2)
+#define WT_K_DECODE_KEY_CELL_OFFSET(v) (((v) & 0x0000007ffffffc) >> 2)
 #define WT_K_ENCODE_KEY_CELL_OFFSET(v) ((uintptr_t)(v) << 2)
 
 #define WT_KV_FLAG 0x03
 #define WT_KV_MAX_VALUE_LEN (0x2000 - 1)
-#define WT_KV_DECODE_VALUE_LEN(v) (((v)&0xfff8000000000000) >> 51)
+#define WT_KV_DECODE_VALUE_LEN(v) (((v) & 0xfff8000000000000) >> 51)
 #define WT_KV_ENCODE_VALUE_LEN(v) ((uintptr_t)(v) << 51)
 #define WT_KV_MAX_VALUE_OFFSET (0x40 - 1)
-#define WT_KV_DECODE_VALUE_OFFSET(v) (((v)&0x07e00000000000) >> 45)
+#define WT_KV_DECODE_VALUE_OFFSET(v) (((v) & 0x07e00000000000) >> 45)
 #define WT_KV_ENCODE_VALUE_OFFSET(v) ((uintptr_t)(v) << 45)
 #define WT_KV_MAX_KEY_LEN (0x1000 - 1)
-#define WT_KV_DECODE_KEY_LEN(v) (((v)&0x001ffe00000000) >> 33)
+#define WT_KV_DECODE_KEY_LEN(v) (((v) & 0x001ffe00000000) >> 33)
 #define WT_KV_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 33)
 /* Key offset encoding is the same for key and key/value forms, WT_KV_MAX_KEY_OFFSET not needed. */
-#define WT_KV_DECODE_KEY_OFFSET(v) (((v)&0x000001f8000000) >> 27)
+#define WT_KV_DECODE_KEY_OFFSET(v) (((v) & 0x000001f8000000) >> 27)
 #define WT_KV_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 27)
 /* Key prefix encoding is the same for key and key/value forms, WT_KV_MAX_KEY_PREFIX not needed. */
-#define WT_KV_DECODE_KEY_PREFIX(v) (((v)&0x00000007f80000) >> 19)
+#define WT_KV_DECODE_KEY_PREFIX(v) (((v) & 0x00000007f80000) >> 19)
 #define WT_KV_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 19)
 #define WT_KV_MAX_KEY_CELL_OFFSET (0x20000 - 1)
-#define WT_KV_DECODE_KEY_CELL_OFFSET(v) (((v)&0x0000000007fffc) >> 2)
+#define WT_KV_DECODE_KEY_CELL_OFFSET(v) (((v) & 0x0000000007fffc) >> 2)
 #define WT_KV_ENCODE_KEY_CELL_OFFSET(v) ((uintptr_t)(v) << 2)
 
     switch (v & WT_KEY_FLAG_BITS) {
@@ -2136,7 +2136,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 #define WT_MIN_SPLIT_MULTIPLIER 16 /* At level 2, we see 1/16th entries */
 
     for (count = 0, size = 0, ins = ins_head->head[WT_MIN_SPLIT_DEPTH]; ins != NULL;
-         ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
+      ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
 
@@ -2552,7 +2552,7 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 #endif
 
     for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd_skiplist) < probability;
-         depth++)
+      depth++)
         ;
     return (depth);
 }
@@ -2681,6 +2681,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         return (WT_NOTFOUND);
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
         return (WT_RESTART);
+    /*
+     * Skip-on-corrupt: treat corrupt pages as expected and return without releasing the page to
+     * advance to the next sibling.
+     */
+    if (ret == WT_ERROR && WT_READ_SKIP_CORRUPT_HIT(session, flags))
+        return (ret);
 
     /* Discard the original held page on either success or error. */
     acquired = ret == 0;
@@ -2774,9 +2780,12 @@ __wt_btcur_skip_page(
 
     /*
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
-     * make changes to the data structures (i.e., aggregate timestamps) we are reading.
+     * make changes to the data structures (i.e., aggregate timestamps) we are reading. Skipping is
+     * only an optimization, so try the lock once and read the page rather than spin under
+     * contention.
      */
-    WT_REF_LOCK(session, ref, &previous_state);
+    if (WT_REF_TRYLOCK(session, ref, &previous_state) != 0)
+        return (0);
 
     /*
      * Check the fast-truncate information; there are 3 cases:
@@ -2823,13 +2832,17 @@ __wt_btcur_skip_page(
             walk_skip_stats->total_del_pages_skipped++;
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate
          * information pointer because as part of the checkpoint operation, this pointer can be
          * released in parallel.
+         *
+         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
+         * use the range visibility check; it skips more pages than the snap_min bound used on the
+         * disk-address path, which only has the newest stop transaction.
          */
         *skipp = true;
         walk_skip_stats->total_inmem_del_pages_skipped++;
@@ -2880,7 +2893,7 @@ __wt_ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pinde
             goto found;
         for (start = &pindex->index[0], stop = &pindex->index[entries - 1],
             p = t = &pindex->index[slot];
-             p > start || t < stop;) {
+          p > start || t < stop;) {
             if (p > start && *--p == ref) {
                 slot = (uint32_t)(p - start);
                 goto found;
@@ -2977,19 +2990,6 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
 }
 
 /*
- * __wt_cache_page_footprint_incr --
- *     Increment a page's memory footprint without touching cache or btree totals.
- */
-static WT_INLINE void
-__wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
-{
-    WT_ASSERT(session, size < WT_EXABYTE);
-    if (size == 0)
-        return;
-    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
-}
-
-/*
  * __wt_cache_shared_dsk_inmem_incr --
  *     Increment the shared disk in memory cache statistics.
  */
@@ -3066,4 +3066,20 @@ __wt_cache_shared_dsk_inmem_decr(WT_SESSION_IMPL *session, uint8_t image_type, s
                   session, &cache->bytes_internal_stable, size, "WT_CACHE.bytes_internal_stable");
         }
     }
+}
+
+/*
+ * __wt_btree_row_leaf_entries_update --
+ *     Update the per-btree EWMA of row-store leaf page K/V pair count with a new sample. Uses
+ *     alpha=1/16: new_ewma = (15 * old + sample) / 16. Races between threads are tolerated since
+ *     the result is approximate.
+ */
+static WT_INLINE void
+__wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample)
+{
+    uint64_t old;
+
+    old = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
+    __wt_atomic_store_uint64_relaxed(
+      &btree->leaf_entry_ewma, old == 0 ? sample : (15 * old + sample) / 16);
 }

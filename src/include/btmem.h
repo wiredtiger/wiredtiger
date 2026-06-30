@@ -21,11 +21,12 @@
 #define WT_READ_PREV 0x0080u
 #define WT_READ_RESTART_OK 0x0100u
 #define WT_READ_SEE_DELETED 0x0200u
-#define WT_READ_SKIP_DELETED 0x0400u
-#define WT_READ_SKIP_INTL 0x0800u
-#define WT_READ_TRUNCATE 0x1000u
-#define WT_READ_VISIBLE_ALL 0x2000u
-#define WT_READ_WONT_NEED 0x4000u
+#define WT_READ_SKIP_CORRUPT 0x0400u
+#define WT_READ_SKIP_DELETED 0x0800u
+#define WT_READ_SKIP_INTL 0x1000u
+#define WT_READ_TRUNCATE 0x2000u
+#define WT_READ_VISIBLE_ALL 0x4000u
+#define WT_READ_WONT_NEED 0x8000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_READ_EVICT_WALK_FLAGS \
@@ -38,6 +39,14 @@
  * disable splits.
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
+
+/*
+ * The WT_READ_SKIP_CORRUPT flag means that caller will handle a corrupt page read, while the
+ * WT_CONN_DATA_CORRUPTION flag means that a block manager actually detected one.
+ */
+#define WT_READ_SKIP_CORRUPT_HIT(session, flags) \
+    (FLD_ISSET((flags), WT_READ_SKIP_CORRUPT) && \
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
 
 /*
  * WT_PAGE_HEADER --
@@ -503,7 +512,6 @@ struct __wt_page_modify {
      * that deleted the page is resolved. These transitions are independent; that is, the first
      * reconciliation can happen either before or after the delete transaction resolves.
      */
-    bool instantiated;        /* True if this is a newly instantiated page. */
     WT_UPDATE **inst_updates; /* Update list for instantiated page with unresolved truncate. */
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock_track((s), &(p)->modify->page_lock)
@@ -526,6 +534,9 @@ struct __wt_page_modify {
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
     wt_shared uint32_t page_state;
+
+    /* Kept with the trailing byte fields to avoid alignment padding before inst_updates. */
+    bool instantiated; /* True if this is a newly instantiated page. */
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
 #define WT_PM_REC_MULTIBLOCK 2 /* Reconciliation: multiple blocks */
@@ -691,7 +702,7 @@ struct __wt_page {
         uint32_t __entries;                                                          \
         WT_INTL_INDEX_GET(session, page, __pindex);                                  \
         for (__refp = __pindex->index, __entries = __pindex->entries; __entries > 0; \
-             --__entries) {                                                          \
+          --__entries) {                                                             \
             (ref) = *__refp++;
 #define WT_INTL_FOREACH_REVERSE_BEGIN(session, page, ref)                                 \
     do {                                                                                  \
@@ -700,7 +711,7 @@ struct __wt_page {
         uint32_t __entries;                                                               \
         WT_INTL_INDEX_GET(session, page, __pindex);                                       \
         for (__refp = __pindex->index + __pindex->entries, __entries = __pindex->entries; \
-             __entries > 0; --__entries) {                                                \
+          __entries > 0; --__entries) {                                                   \
             (ref) = *--__refp;
 #define WT_INTL_FOREACH_END \
     }                       \
@@ -1411,7 +1422,7 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
     for ((i) = (page)->entries, (rip) = (page)->pg_row; (i) > 0; ++(rip), --(i))
 #define WT_ROW_FOREACH_REVERSE(page, rip, i)                                             \
     for ((i) = (page)->entries, (rip) = (page)->pg_row + ((page)->entries - 1); (i) > 0; \
-         --(rip), --(i))
+      --(rip), --(i))
 
 /*
  * WT_ROW_SLOT --

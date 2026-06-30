@@ -1581,11 +1581,11 @@ config_transaction(void)
         config_off(NULL, "precise_checkpoint");
         config_off(NULL, "preserve_prepared");
     }
-    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    /* FIXME-WT-17277 Write prepared truncate operation to disk. */
     if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
         if (config_explicit(NULL, "ops.truncate"))
             WARN("%s", "turning off ops.truncate to work with ops.prepare and precise checkpoint");
-        config_off(NULL, "ops.truncate");
+        config_off_all("ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */

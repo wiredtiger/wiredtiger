@@ -97,6 +97,18 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn, uint64
 }
 
 /*
+ * __block_disagg_header_version_compatible --
+ *     Return whether this build can read a header whose oldest-compatible reader version is
+ *     compatible_version. This build can read the header when its own version is at least the
+ *     header's compatible version.
+ */
+static bool
+__block_disagg_header_version_compatible(uint8_t compatible_version)
+{
+    return (compatible_version <= WT_BLOCK_DISAGG_VERSION);
+}
+
+/*
  * __block_disagg_read_multiple --
  *     Read a full page along with its deltas, into multiple buffers. The page is referenced by a
  *     page id, checkpoint id pair.
@@ -206,12 +218,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       expected_magic);
                     goto corrupt;
                 }
-                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
+                if (!__block_disagg_header_version_compatible(swap.compatible_version)) {
                     __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
                       size, page_id, lsn, is_delta, result,
-                      "compatible version error, version %" PRIu8
-                      " is greater than compatible version of %" PRIu8,
-                      swap.compatible_version, WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
+                      "compatible version error, the block's compatible version %" PRIu8
+                      " is greater than the reader version of %" PRIu8,
+                      swap.compatible_version, WT_BLOCK_DISAGG_VERSION);
                     goto corrupt;
                 }
 
@@ -273,7 +285,7 @@ corrupt:
 
         /* Panic if a checksum fails during an ordinary read. */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+        if (WT_SESSION_READ_CORRUPT_OK(session))
             WT_ERR(WT_ERROR);
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
           block_disagg->name, block_disagg->tableid);
@@ -375,3 +387,58 @@ __wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64
 
     return (0);
 }
+
+/*
+ * __wt_block_disagg_debug_read_page_id_raw --
+ *     Debug-only entry: fetch a page chain by (table_id, page_id, lsn) directly off the connection
+ *     page log, without a btree or block manager. Used to inspect pages when the checkpoint cannot
+ *     be picked up. Not for production paths.
+ */
+int
+__wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t table_id,
+  uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
+  u_int *results_count)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npage_log;
+    WT_PAGE_LOG_HANDLE *plhandle;
+    uint32_t tmp_count;
+
+    conn = S2C(session);
+    npage_log = conn->disaggregated_storage.npage_log;
+    plhandle = NULL;
+
+    if (npage_log == NULL)
+        WT_RET_MSG(session, ENOTSUP, "wt page is only supported in disaggregated storage mode");
+
+    WT_CLEAR(*get_args);
+    get_args->lsn = lsn;
+
+    WT_RET(npage_log->page_log->pl_open_handle(
+      npage_log->page_log, &session->iface, table_id, &plhandle));
+
+    tmp_count = (uint32_t)*results_count;
+    WT_ERR(plhandle->plh_get(
+      plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+    WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+    *results_count = tmp_count;
+    if (tmp_count == 0)
+        ret = WT_NOTFOUND;
+
+err:
+    WT_TRET(plhandle->plh_close(plhandle, &session->iface));
+    return (ret);
+}
+
+#ifdef HAVE_UNITTEST
+/*
+ * __ut_block_disagg_header_version_compatible --
+ *     Unit-test wrapper for __block_disagg_header_version_compatible.
+ */
+bool
+__ut_block_disagg_header_version_compatible(uint8_t compatible_version)
+{
+    return (__block_disagg_header_version_compatible(compatible_version));
+}
+#endif

@@ -1136,12 +1136,22 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             upd_select->was_modify = upd->type == WT_UPDATE_MODIFY;
 
             /*
-             * For ingest btrees, skip the global visibility check for non-timestamped tombstones as
-             * they will not be globally visible until they can be pruned.
+             * Non-timestamped tombstones on ingest btrees are written non-transactionally by the
+             * step-up clear truncate, so they are globally visible to everyone immediately; treat
+             * them as the last update to keep without a global visibility check. For other update
+             * types on ingest btrees, skip the global visibility check too: it can return true even
+             * when no checkpoint has been picked up (e.g. because WT_CONN_CLOSING bypasses the
+             * pinned-timestamp cap), making updates appear globally visible before the ingest
+             * btree's prune threshold has advanced. Such updates are instead handled by the pruning
+             * check above.
              */
-            if ((!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || upd->type != WT_UPDATE_TOMBSTONE ||
-                  upd->upd_durable_ts == WT_TS_NONE) &&
-              __wt_txn_upd_visible_all(session, upd)) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (upd->type == WT_UPDATE_TOMBSTONE && upd->upd_durable_ts == WT_TS_NONE) {
+                    WT_ASSERT(session, upd->txnid == WT_TXN_NONE);
+                    found_last_upd_to_keep = true;
+                    break;
+                }
+            } else if (__wt_txn_upd_visible_all(session, upd)) {
                 found_last_upd_to_keep = true;
                 break;
             }

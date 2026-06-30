@@ -172,6 +172,7 @@ struct __wt_layered_table_manager {
  * Identify the shared metadata operations inside the shared metadata queue.
  */
 typedef enum {
+    WT_SHARED_METADATA_NONE,
     WT_SHARED_METADATA_UPDATE,
     WT_SHARED_METADATA_CREATE,
     WT_SHARED_METADATA_REMOVE
@@ -199,6 +200,16 @@ struct __wt_disagg_metadata_op {
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
+/*
+ * WT_DISAGG_PENDING_CRYPT_KEY --
+ *      A pushed key waiting to be persisted at the next checkpoint.
+ */
+struct __wt_disagg_pending_crypt_key {
+    WT_ITEM keys;
+    uint64_t timestamp;
+    TAILQ_ENTRY(__wt_disagg_pending_crypt_key) q;
+};
+
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
 /*
@@ -219,6 +230,7 @@ struct __wt_page_delta_config {
     wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
 
     u_int delta_pct;             /* Delta page percent (of full page size) */
+    u_int delete_pct;            /* Max delete fraction (%) before forcing full page */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_INTERNAL_PAGE_DELTA 0x1u
@@ -283,6 +295,14 @@ struct __wt_disaggregated_storage {
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
+
+    /*
+     * Keys pushed since the last checkpoint, drained at the next checkpoint. The lock serializes
+     * pushes from user threads against the checkpoint drain.
+     */
+    TAILQ_HEAD(__wt_disagg_pending_crypt_key_qh, __wt_disagg_pending_crypt_key)
+    pending_crypt_key_qh;
+    WT_SPINLOCK pending_crypt_key_lock;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
@@ -1130,31 +1150,32 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN 0x0000000800ull
 #define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x0000001000ull
 #define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x0000002000ull
-#define WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP 0x0000004000ull
-#define WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE 0x0000008000ull
-#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x0000010000ull
-#define WT_TIMING_STRESS_HS_SEARCH 0x0000020000ull
-#define WT_TIMING_STRESS_HS_SWEEP 0x0000040000ull
-#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x0000080000ull
-#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x0000100000ull
-#define WT_TIMING_STRESS_PREFETCH_1 0x0000200000ull
-#define WT_TIMING_STRESS_PREFETCH_2 0x0000400000ull
-#define WT_TIMING_STRESS_PREFETCH_3 0x0000800000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x0001000000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x0002000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x0004000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x0008000000ull
-#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x0010000000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x0020000000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x0040000000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x0080000000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x0100000000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x0200000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x0400000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x0800000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x1000000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x2000000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x4000000000ull
+#define WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT 0x0000004000ull
+#define WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP 0x0000008000ull
+#define WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE 0x0000010000ull
+#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x0000020000ull
+#define WT_TIMING_STRESS_HS_SEARCH 0x0000040000ull
+#define WT_TIMING_STRESS_HS_SWEEP 0x0000080000ull
+#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x0000100000ull
+#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x0000200000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x0000400000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x0000800000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x0001000000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x0002000000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x0004000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x0008000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x0010000000ull
+#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x0020000000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x0040000000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x0080000000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x0100000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x0200000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x0400000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x0800000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x1000000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x2000000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x4000000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x8000000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -1228,8 +1249,9 @@ struct __wt_connection_impl {
 #define WT_CONN_PANIC 0x01000u
 #define WT_CONN_READY 0x02000u
 #define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
-#define WT_CONN_RECONFIGURING_STEP_UP 0x08000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x10000u
+#define WT_CONN_RECONFIGURING_STEP_DOWN 0x08000u
+#define WT_CONN_RECONFIGURING_STEP_UP 0x10000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
 };

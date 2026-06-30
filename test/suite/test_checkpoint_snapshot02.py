@@ -35,15 +35,15 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from wtbackup import backup_base
 
-# test_checkpoint_snapshot02.py
-#   This test is to run checkpoint and eviction in parallel with timing
-#   stress for checkpoint and let eviction write more data than checkpoint.
+# This test is to run checkpoint and eviction in parallel with timing
+# stress for checkpoint and let eviction write more data than checkpoint.
 #
 @wttest.skip_for_hook("disagg", "Disagg requires precise checkpoint which does not work well with small cache size.")
 class test_checkpoint_snapshot02(backup_base):
 
     # Create a table.
-    uri = "table:test_checkpoint_snapshot02"
+    test_name = __qualname__
+    uri = f"table:{test_name}"
     backup_dir = "BACKUP"
     backup_dir2 = "BACKUP2"
 
@@ -123,9 +123,7 @@ class test_checkpoint_snapshot02(backup_base):
             ckpt_snapshot = 0
             while not ckpt_snapshot:
                 time.sleep(1)
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
-                stat_cursor.close()
+                ckpt_snapshot = self.get_stat(stat.conn.checkpoint_snapshot_acquired)
 
             sessionX.commit_transaction()
 

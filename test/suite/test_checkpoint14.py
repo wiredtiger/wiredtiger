@@ -34,7 +34,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint14.py
 #
 # Make sure each checkpoint has its own snapshot by creating two successive
 # inconsistent checkpoints and reading both of them.
@@ -130,9 +129,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             session2.commit_transaction()
@@ -157,9 +154,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             session2.commit_transaction()

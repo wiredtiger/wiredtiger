@@ -18,6 +18,7 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     bool now_shared, was_shared;
 
     conn = S2C(session);
@@ -33,7 +34,7 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (reconfig && was_shared && !now_shared) {
         F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_CACHE_POOL);
         /* Remove ourselves from the pool if necessary */
-        WT_RET(__wt_cache_pool_destroy(session));
+        WT_ERR(__wt_cache_pool_destroy(session));
     } else if (reconfig && !was_shared && now_shared)
         /*
          * Cache size will now be managed by the cache pool - the start size always needs to be zero
@@ -46,15 +47,16 @@ __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
      * All other settings are independent of whether we are using a shared cache or not.
      */
     if (!now_shared) {
-        WT_RET(__wt_config_gets(session, cfg, "cache_size", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "cache_size", &cval));
         conn->cache_size = (uint64_t)cval.val;
     }
     /* Set config values as percentages. */
-    WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "cache_overhead", &cval));
     cache->overhead_pct = (u_int)cval.val;
 
+err:
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_CACHE_POOL);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -65,7 +67,7 @@ int
 __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
-    u_int hash_size;
+    bool leader;
 
     WT_ASSERT(session, S2C(session)->cache == NULL);
     WT_RET(__wt_calloc_one(session, &S2C(session)->cache));
@@ -74,20 +76,22 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_cache_config(session, cfg, false));
 
     /*
-     * Initialize the shared disk hash table only on disaggregated nodes. Size the hash table at
-     * 0.2% of cache size divided by ~100B per entry (cache size / 500 / 100), with a minimum of 512
-     * buckets.
-     * FIXME-WT-14721: Replace this config lookup with the standard disaggregated check once the
-     * disaggregated configuration is available here.
+     * Initialize the shared disk hash table only on disagg standby nodes.
+     *
+     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+     * which depends on having run recovery, so the config hack is the simplest way to break that
+     * dependency.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
-    S2C(session)->cache->shared_dsk_cache.enabled = (cval.len != 0);
-    S2C(session)->cache->shared_dsk_cache.enabled = false;
-    if (S2C(session)->cache->shared_dsk_cache.enabled) {
-        /* FIXME-WT-17066: We should pick a hash size wisely. */
-        hash_size = (u_int)WT_MAX(S2C(session)->cache_size / 500 / 100, 512);
-        WT_RET(__wti_shared_dsk_cache_init(session, hash_size));
-        WT_STAT_CONN_SET(session, cache_shared_dsk_hash_size, hash_size);
+    if (cval.len != 0) {
+        WT_RET(__wt_disagg_config_get_role(session, cfg, &leader));
+
+        if (!leader) {
+            WT_RET(
+              __wt_shared_dsk_cache_init(session, WT_SHARED_DSK_CACHE_DEFAULT_HASH_SIZE(session)));
+            __wt_atomic_store_uint8_relaxed(
+              &S2C(session)->cache->shared_dsk_cache.state, WT_DSK_CACHE_ACTIVE);
+        }
     }
 
     /*
@@ -164,6 +168,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, cache_bytes_hs_updates,
       __wt_cache_bytes_plus_overhead(
         cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_hs_updates)));
+    WT_STATP_CONN_SET(session, stats, cache_shared_dsk_bytes_duplicate,
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate));
     WT_STATP_CONN_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
     WT_STATP_CONN_SET(
       session, stats, cache_bytes_image_ingest, __wt_cache_bytes_image_ingest(cache));
@@ -265,7 +271,7 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
     /* Destroy the shared disk cache if it was initialized. */
-    if (conn->cache->shared_dsk_cache.enabled)
+    if (conn->cache->shared_dsk_cache.hash != NULL)
         __wti_shared_dsk_cache_destroy(session);
 
     __wt_free(session, conn->cache);
