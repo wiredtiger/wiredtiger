@@ -877,13 +877,9 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  * __checkpoint_apply_disagg_size_fix --
  *     A wiredtiger_util size fix won the cycle for this checkpoint: recompute the database size
  *     from the per-file checkpoint sizes this checkpoint just wrote (the same per-file accounting
- *     WT_SESSION::verify uses --
- *     __wt_disagg_get_database_size sums every stable file's last checkpoint size, plus the fixed
- *     overhead for the KEK table and shared turtle page). The debug scale (1 for a real repair)
- *     multiplies the aggregate only --
- *     the per-file sizes stay honest --
- *     reproducing the real "wrong database size over correct per-file sizes" drift this repair
- *     heals.
+ *     __wt_disagg_get_database_size sums for WT_SESSION::verify) and add the fixed overhead the
+ *     stored size always carries. Recomputing here rather than trusting a staged value heals a
+ *     database size that has drifted away from its correct per-file sizes.
  */
 static int
 __checkpoint_apply_disagg_size_fix(WT_SESSION_IMPL *session)

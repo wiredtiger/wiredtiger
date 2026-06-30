@@ -78,8 +78,7 @@ __util_fetch_metadata(
     bool found;
 
     cursor = NULL;
-    key = NULL;
-    k = v = NULL;
+    ckpt_name = k = v = NULL;
     found = false;
 
     if (is_local)
@@ -278,7 +277,7 @@ err:
  *     per-file checkpoint sizes. old_size is an optional guards as checkpoints shift quickly.
  *
  */
-int
+static int
 __util_config_decode(
   WT_SESSION_IMPL *session, WT_ITEM *report, const char *config, UTIL_MAINTAIN_CONFIG *util_config)
 {
@@ -347,23 +346,16 @@ wiredtiger_util(WT_CONNECTION *connection, const char *config)
         return ("wiredtiger_util: empty config");
 
     conn = (WT_CONNECTION_IMPL *)connection;
-
-    /*
-     * Clear the error report buffer.
-     */
-    if (conn->util_maintain.last_report != NULL)
-        /*
-         * It's safe as the assumption is this function is called interactively. And the life time
-         * will follow the connection life time.
-         */
-        WT_ERR(__wt_scr_alloc(default_session, 0, &conn->util_maintain.last_report));
-
-    report = conn->util_maintain.last_report;
-    report->size = 0;
-
     default_session = conn->default_session;
 
-    /* Open a public session; reuse it (as a SESSION_IMPL) for parsing and the repair work. */
+    /*
+     * The report buffer is owned by the connection so the returned string stays valid after this
+     * call returns, until the next call reuses it. Reset it and build the new report in place.
+     */
+    report = &conn->util_maintain.last_report;
+    report->size = 0;
+
+    /* Open a public session for the parsing and the work; the default session owns the report. */
     WT_ERR(connection->open_session(connection, NULL, NULL, (WT_SESSION **)&session));
 
     WT_ERR(__util_config_decode(session, report, config, &util_config));
@@ -378,10 +370,14 @@ wiredtiger_util(WT_CONNECTION *connection, const char *config)
 
 err:
     if (ret != 0)
-        WT_IGNORE_RET(__wt_buf_catfmt(session, report, " Failed: %s", wiredtiger_strerror(ret)));
+        WT_IGNORE_RET(
+          __wt_buf_catfmt(default_session, report, " Failed: %s", wiredtiger_strerror(ret)));
 
-    __wt_free(session, util_config.fetch_metadata.key);
-    __wt_free(session, util_config.uri);
+    __wt_free(default_session, util_config.fetch_metadata.key);
+    __wt_free(default_session, util_config.uri);
+
+    if (session != NULL)
+        WT_TRET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
 
     return (report->size > 0 ? report->data : "");
 }

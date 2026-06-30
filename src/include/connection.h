@@ -271,9 +271,9 @@ struct __wt_util_maintain {
 
     /*
      * Memory space for the last report string. Only hold one report string at a time as it's used
-     * interactively.
+     * interactively. Owned by the connection and freed at connection destroy.
      */
-    WT_ITEM *last_report;
+    WT_ITEM last_report;
 };
 
 /*
