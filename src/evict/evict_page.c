@@ -1288,20 +1288,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
-            uint64_t btree_ckpt_gen, ckpt_gen;
-            /*
-             * If precise checkpoint is configured, only evict the updates that visible to the
-             * ongoing checkpoint for trees haven't been visited by the checkpoint.
-             */
-            btree_ckpt_gen = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen);
-            ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-            if (btree_ckpt_gen < ckpt_gen)
-                LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
-            else
-                __wt_txn_bump_snapshot(session);
-        } else
-            __wt_txn_bump_snapshot(session);
+        __wt_txn_bump_snapshot(session);
     } else if (use_snapshot_for_app_thread) {
         /*
          * If we couldn't make progress with the application thread's existing snapshot, save the
