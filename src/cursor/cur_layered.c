@@ -137,7 +137,7 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 /* __clayered_enter() local flags. */
 #define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
 #define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_RC_RESET 0x4u    /* Reset cursor for read-committed isolation. */
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
@@ -180,8 +180,9 @@ __clayered_enter_flags(WT_CLAYERED_OP *op)
 
     flags = 0;
 
-    if (op->mode == WT_CLAYERED_MODE_SEARCH)
-        LF_SET(CLAYERED_ENTER_RESET);
+    if (op->mode == WT_CLAYERED_MODE_SEARCH || op->mode == WT_CLAYERED_MODE_LARGEST_KEY ||
+      op->mode == WT_CLAYERED_MODE_RANDOM)
+        LF_SET(CLAYERED_ENTER_RC_RESET);
     if (op->mode == WT_CLAYERED_MODE_ITERATE || op->mode == WT_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
     /* Follower overwrite writes update the ingest table without accessing the stable table. */
@@ -209,6 +210,65 @@ __clayered_op_init_finish(WT_CLAYERED_OP *op)
 }
 
 /*
+ * __clayered_read_committed_snapshot_reset --
+ *     Reset constituent cursors before a read operation under read-committed isolation.
+ *
+ * Under read-committed, the snapshot is released when the active cursor count drops to zero. File
+ *     cursors achieve this naturally by resetting a cursor where needed (for search, and write on
+ *     the retry path), which drives the count to zero and releases the snapshot before taking a
+ *     fresh one for the new operation.
+ *
+ * Layered cursors hold an extra active-cursor reference that prevents constituent resets from
+ *     driving the count to zero on their own. We therefore reset the constituent cursors here,
+ *     before that extra reference is added, so the count can reach zero and the old snapshot is
+ *     released before the read begins.
+ */
+static WT_INLINE int
+__clayered_read_committed_snapshot_reset(WT_CURSOR_LAYERED *clayered)
+{
+    WT_RET(__wt_cursor_localkey(&clayered->iface));
+    WT_RET(__cursor_localvalue(&clayered->iface));
+    WT_RET(__clayered_reset_cursors(clayered, false));
+    return (0);
+}
+
+/*
+ * __clayered_cursor_enter --
+ *     Every time we enter a layered cursor API, we explicitly increase the number of active cursors
+ *     and then explicitly decrease it at the end to avoid the number of active cursors going to
+ *     zero in the middle of a layered cursor operation in case we close/reset both constituents
+ *     there.
+ *
+ * At the same time, the number of active cursors after exiting a layered cursor API is still
+ *     determined by the active state of its constituent cursors.
+ *
+ * Unlike `__cursor_enter`, this does not trigger the eviction check, which won't be triggered for
+ *     underlying cursors too because of an extra reference. That's fine - eviction at the
+ *     transaction level should be sufficient.
+ */
+static WT_INLINE void
+__clayered_cursor_enter(WT_CURSOR_LAYERED *clayered)
+{
+    if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
+        ++CUR2S(clayered)->ncursors;
+        F_SET(clayered, WT_CLAYERED_ACTIVE);
+    }
+}
+
+/*
+ * __clayered_cursor_leave --
+ *     Deactivate a layered cursor in the session's cursor count.
+ */
+static WT_INLINE void
+__clayered_cursor_leave(WT_CURSOR_LAYERED *clayered)
+{
+    if (F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
+        --CUR2S(clayered)->ncursors;
+        F_CLR(clayered, WT_CLAYERED_ACTIVE);
+    }
+}
+
+/*
  * __clayered_enter --
  *     Start an operation on a layered cursor.
  */
@@ -226,17 +286,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
           "All the cursors should be left unpositioned before changing the role.");
     }
 
-    /*
-     * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
-     * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
-     * to adhere to that behavior. Ideally we should not be changing the active cursors counter
-     * outside of the file cursor code.
-     */
-    if (LF_ISSET(CLAYERED_ENTER_RESET) &&
-      __wt_txn_read_committed_should_release_snapshot(session)) {
-        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
-        WT_RET(__clayered_reset_cursors(clayered, false));
-    }
+    if (LF_ISSET(CLAYERED_ENTER_RC_RESET) && __wt_txn_read_committed_snapshot_mode(session))
+        WT_RET(__clayered_read_committed_snapshot_reset(clayered));
 
     /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
     WT_RET(__clayered_update_ingest(clayered, flags));
@@ -249,35 +300,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
 
     __clayered_op_init_finish(op);
 
-    if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
-        /*
-         * Opening this layered cursor has opened a number of btree cursors, ensure other code
-         * doesn't think this is the first cursor in a session.
-         */
-        ++session->ncursors;
-        WT_RET(__cursor_enter(session));
-        F_SET(clayered, WT_CLAYERED_ACTIVE);
-    }
+    __clayered_cursor_enter(clayered);
 
     return (0);
-}
-
-/*
- * __clayered_leave --
- *     Finish an operation on a layered cursor.
- */
-static void
-__clayered_leave(WT_CURSOR_LAYERED *clayered)
-{
-    WT_SESSION_IMPL *session;
-
-    session = CUR2S(clayered);
-
-    if (F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
-        --session->ncursors;
-        __cursor_leave(session);
-        F_CLR(clayered, WT_CLAYERED_ACTIVE);
-    }
 }
 
 /*
@@ -1186,9 +1211,12 @@ __clayered_iterate_constituents(WT_CLAYERED_OP *op, uint32_t iter_flag)
         c_ingest = NULL;
 
     /*
-     * FIXME-WT-15058: Both cursors are expected to be initialized, but we currently have an issue
-     * where a cursor open operation can return WT_NOTFOUND for the stable table. Until this is
-     * resolved, it is simpler to handle all the different cases here.
+     * One of the constituents may not be open when cursor operations are performed. For the stable
+     * table, we do not open it on a follower until we pick up a checkpoint. For the ingest table,
+     * we currently always open it, but that is more of an implementation detail than a design
+     * decision.
+     *
+     * Given that, it is safer to handle both cases where only one constituent is open.
      */
     WT_ASSERT(session, c_stable != NULL || c_ingest != NULL);
     if (c_ingest == NULL || c_stable == NULL) {
@@ -1345,7 +1373,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 err:
     if (ret != 0)
         F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     return (ret);
 }
 
@@ -1809,7 +1837,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_search);
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -2089,7 +2117,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -2460,7 +2488,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
 err:
     __wt_scr_free(session, &buf);
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -2529,7 +2557,7 @@ __clayered_update(WT_CURSOR *cursor)
 
 err:
     __wt_scr_free(session, &buf);
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -2587,7 +2615,7 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_remove);
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -2636,7 +2664,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_ERR(__clayered_put(&op, &cursor->key, NULL, WT_CLAYERED_PUT_RESERVE));
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
 
     /*
@@ -2672,7 +2700,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_SCAN, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_LARGEST_KEY, &op));
 
     c_ingest = op.ingest;
     c_stable = op.stable;
@@ -2721,7 +2749,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
@@ -2867,7 +2895,7 @@ __clayered_next_random(WT_CURSOR *cursor)
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     if (ret == 0) {
         __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -3025,20 +3053,23 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
+    /* Check for a rational modify vector count. */
+    if (nentries <= 0)
+        WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
+
+    WT_ERR(__cursor_check_modify_txn_mode(session));
+
     /*
      * Modify keeps the cursor positioned. Retain the iteration flags if we are in the middle of a
      * cursor traversal.
      */
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
         F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, &op));
-
-    /* Check for a rational modify vector count. */
-    if (nentries <= 0)
-        WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
     WT_ERR(__clayered_modify_int(&op, entries, nentries));
 
@@ -3069,7 +3100,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_modify);
 
 err:
-    __clayered_leave(clayered);
+    __clayered_cursor_leave(clayered);
     CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
     return (ret);
 }

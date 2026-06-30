@@ -2348,39 +2348,18 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
 }
 
 /*
- * __wt_txn_read_last --
- *     Called when the last page for a session is released.
+ * __wt_txn_read_committed_snapshot_mode --
+ *     Check if we can release the snap_min ID we put in the global table.
  */
-static WT_INLINE void
-__wt_txn_read_last(WT_SESSION_IMPL *session)
+static WT_INLINE bool
+__wt_txn_read_committed_snapshot_mode(WT_SESSION_IMPL *session)
 {
-    WT_TXN *txn;
-
-    txn = session->txn;
+    WT_TXN *txn = session->txn;
 
     /*
-     * Release the snap_min ID we put in the global table.
-     *
      * If the isolation has been temporarily forced, don't touch the snapshot here: it will be
      * restored by WT_WITH_TXN_ISOLATION.
      */
-    if ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
-      txn->forced_iso == 0)
-        __wt_txn_release_snapshot(session);
-}
-
-/*
- * __wt_txn_read_committed_should_release_snapshot --
- *     Called to check whether we want to release our snapshot through calling WT_CURSOR::reset().
- */
-static WT_INLINE bool
-__wt_txn_read_committed_should_release_snapshot(WT_SESSION_IMPL *session)
-{
-    WT_TXN *txn;
-
-    txn = session->txn;
-
-    /* Check if we can release the snap_min ID we put in the global table. */
     return (
       (!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0);
 }
