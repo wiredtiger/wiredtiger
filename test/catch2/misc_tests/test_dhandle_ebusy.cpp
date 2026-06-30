@@ -29,19 +29,23 @@ TEST_CASE("session->dhandle is NULL after EBUSY from get_dhandle", "[dhandle]")
     {
         connection_wrapper conn(home);
 
-        WT_SESSION_IMPL *s1 = conn.create_session();
-        WT_SESSION *pub_s1 = &s1->iface;
-        REQUIRE(pub_s1->create(pub_s1, "file:t.wt", "key_format=i,value_format=i") == 0);
+        WT_SESSION_IMPL *session_impl = conn.create_session();
+        WT_SESSION *session = &session_impl->iface;
+        REQUIRE(session->create(session, "file:t.wt", "key_format=i,value_format=i") == 0);
 
+        /*
+         * Opening a bulk cursor is one way to set the special flag on the dhandle, which prevents
+         * other sessions from locking it.
+         */
         WT_CURSOR *bulk = nullptr;
-        REQUIRE(pub_s1->open_cursor(pub_s1, "file:t.wt", nullptr, "bulk", &bulk) == 0);
+        REQUIRE(session->open_cursor(session, "file:t.wt", nullptr, "bulk", &bulk) == 0);
 
-        WT_SESSION_IMPL *s2 = conn.create_session();
-        REQUIRE(s2->dhandle == nullptr);
+        WT_SESSION_IMPL *session_impl_b = conn.create_session();
+        REQUIRE(session_impl_b->dhandle == nullptr);
 
-        int ret = __wt_session_get_dhandle(s2, "file:t.wt", nullptr, nullptr, 0);
+        int ret = __wt_session_get_dhandle(session_impl_b, "file:t.wt", nullptr, nullptr, 0);
         REQUIRE(ret == EBUSY);
-        CHECK(s2->dhandle == nullptr);
+        CHECK(session_impl_b->dhandle == nullptr);
 
         REQUIRE(bulk->close(bulk) == 0);
     }
