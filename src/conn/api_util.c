@@ -59,7 +59,7 @@ static int __util_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
     do {                                                        \
         int ret = (v);                                          \
         WT_TRET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
-        return ret;                                             \
+        return (ret);                                           \
     } while (0)
 
 /*
@@ -323,7 +323,7 @@ err:
 
 /*
  * wiredtiger_util --
- *     Wiredtiger utility in runtime. ! Each config can only carry one active sub-command. ! Each
+ *     WiredTiger utility in runtime. ! Each config can only carry one active sub-command. ! Each
  *     fix should be validate by a following fetch command.
  */
 const char *
