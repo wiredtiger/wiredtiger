@@ -184,8 +184,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
         /*
          * Simulate a corrupt page returned by the page service to exercise read-error handling
-         * during verify. Skip the quiet root-page probe so the failpoint hits an ordinary
-         * traversal read, which is the path that previously panicked.
+         * during verify. Skip the quiet root-page probe so the failpoint hits an ordinary traversal
+         * read, which is the path that previously panicked.
          */
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) &&
           __wt_failpoint(
