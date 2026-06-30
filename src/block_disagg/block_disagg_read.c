@@ -283,12 +283,15 @@ corrupt:
               "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
               (uintmax_t)page_id, size, checksum);
 
-        /* Panic if a checksum fails during an ordinary read. */
+        /*
+         * A checksum failure on an ordinary read is fatal, but verify and read-corrupt callers
+         * tolerate it: return the error so they can report it and continue past the bad page.
+         */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (WT_SESSION_READ_CORRUPT_OK(session))
-            WT_ERR(WT_ERROR);
-        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
-          block_disagg->name, block_disagg->tableid);
+        if (!F_ISSET(S2BT(session), WT_BTREE_VERIFY) && !WT_SESSION_READ_CORRUPT_OK(session))
+            WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
+              block_disagg->name, block_disagg->tableid);
+        WT_ERR(WT_ERROR);
     }
 
     /*
