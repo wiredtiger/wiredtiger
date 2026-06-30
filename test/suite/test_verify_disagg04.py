@@ -54,14 +54,6 @@ class test_verify_disagg04(wttest.WiredTigerTestCase):
     # The failpoint forces every ordinary page read to be treated as corrupt.
     read_failpoint = 'timing_stress_for_test=[failpoint_page_log_handle_read]'
 
-    def get_stat(self, session, stat_key):
-        stat_cursor = session.open_cursor('statistics:')
-        stat_cursor.set_key(stat_key)
-        stat_cursor.search()
-        val = stat_cursor.get_value()[2]
-        stat_cursor.close()
-        return val
-
     def test_verify_disagg_read_corrupt(self):
         # Populate a layered table on the leader and checkpoint so the stable table is on the
         # page service.
@@ -92,8 +84,8 @@ class test_verify_disagg04(wttest.WiredTigerTestCase):
         self.ignoreStderrPatternIfExists('read checksum error')
 
         # The failpoint actually fired during the traversal.
-        self.assertGreater(
-            self.get_stat(session_follow, wiredtiger.stat.conn.disagg_block_plh_read_failed), 0)
+        self.assertStatGreaterSoon(
+            wiredtiger.stat.conn.disagg_block_plh_read_failed, 0, session=session_follow)
 
         # The connection survived the read errors: with the failpoint cleared, verify succeeds.
         conn_follow.reconfigure('timing_stress_for_test=[]')
