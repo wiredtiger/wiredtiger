@@ -48,18 +48,24 @@ static int __util_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, con
 static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __util_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
 
-#define WT_ERR_REPORT(session, v, ...)                          \
-    do {                                                        \
-        ret = (v);                                              \
-        WT_TRET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
-        goto err;                                               \
+/*
+ * WT_ERR_REPORT / WT_RET_REPORT --
+ *     Like WT_ERR_MSG / WT_RET_MSG, but append the diagnostic to the caller-owned report buffer
+ *     (which wiredtiger_util hands back) instead of logging it. The buffer write's return is
+ *     ignored so it cannot clobber the requested error v -- v is what must propagate.
+ */
+#define WT_ERR_REPORT(session, v, ...)                                \
+    do {                                                              \
+        ret = (v);                                                    \
+        WT_IGNORE_RET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
+        goto err;                                                     \
     } while (0)
 
-#define WT_RET_REPORT(session, v, ...)                          \
-    do {                                                        \
-        int ret = (v);                                          \
-        WT_TRET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
-        return (ret);                                           \
+#define WT_RET_REPORT(session, v, ...)                                \
+    do {                                                              \
+        int __ret = (v);                                              \
+        WT_IGNORE_RET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
+        return (__ret);                                               \
     } while (0)
 
 /*
