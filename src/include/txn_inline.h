@@ -1754,6 +1754,9 @@ retry:
             } else
                 WT_RET(ret);
 
+            /* Record the data page version this on-disk value was materialized from. */
+            cbt->upd_value->source_page_version = cbt->ref->page->dsk->version;
+
             /*
              * If the stop time point is set, that means that there is a tombstone at that time. If
              * it is not prepared and it is visible to our txn it means we've just spotted a
@@ -2560,6 +2563,8 @@ __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value)
     upd_value->buf.size = 0;
     WT_TIME_WINDOW_INIT(&upd_value->tw);
     upd_value->type = WT_UPDATE_INVALID;
+    /* In-memory updates are written by the current code and are never legacy-encoded. */
+    upd_value->source_page_version = WT_PAGE_VERSION_NO_ENC;
 }
 
 #define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(temp_txnid, txnid_prepared, check_prepared, upd) \

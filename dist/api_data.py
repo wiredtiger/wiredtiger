@@ -711,6 +711,12 @@ connection_runtime_config = [
             to happen more aggressively. This includes but is not limited to not skewing newest,
             not favoring leaf pages, and modifying the eviction score mechanism.''',
             type='boolean'),
+        Config('legacy_tombstone_encoding', 'false', r'''
+            if true, simulate a pre-encoding-removal database: always apply the ingest tombstone
+            encoding to values in the layered-table tombstone namespace, and stamp reconciled pages
+            with the legacy page version. This lets the no-encoding read path be exercised against
+            legacy on-disk data. Intended for testing only.''',
+            type='boolean', undoc=True),
         Config('log_retention', '0', r'''
             adjust log removal to retain at least this number of log files.
             (Warning: this option can remove log files required for recovery if no checkpoints

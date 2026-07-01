@@ -648,13 +648,16 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
      * replaced with something more robust.
      */
-    if (WT_URI_IS_INGEST(btree->dhandle->name))
+    if (WT_URI_IS_INGEST(btree->dhandle->name)) {
         /* Flag the ingest btree as participating in automatic garbage collection */
         F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
-    else {
+        btree->layered_constituent = true;
+    } else {
         WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
         if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
             F_SET(btree, WT_BTREE_DISAGGREGATED);
+            if (WT_URI_IS_STABLE(btree->dhandle->name))
+                btree->layered_constituent = true;
 
             WT_RET(__btree_setup_page_log(session, btree));
 

@@ -93,9 +93,10 @@ struct __wt_page_header {
     /* FIXME-WT-16512: A byte of padding, reserved to make the header extensible in the future. */
     uint8_t reserved; /* 26: padding, used for future use (until then, please always set to 0) */
 
-#define WT_PAGE_VERSION_ORIG 0 /* Original version */
-#define WT_PAGE_VERSION_TS 1   /* Timestamps added */
-    uint8_t version;           /* 27: version */
+#define WT_PAGE_VERSION_ORIG 0   /* Original version */
+#define WT_PAGE_VERSION_TS 1     /* Timestamps added */
+#define WT_PAGE_VERSION_NO_ENC 2 /* Layered values stored without tombstone encoding */
+    uint8_t version;             /* 27: version */
 };
 /*
  * WT_PAGE_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler inserts
@@ -1650,6 +1651,13 @@ struct __wt_update_value {
     WT_TIME_WINDOW tw;
     uint8_t type;
     bool skip_buf;
+    /*
+     * The page version the value was materialized from: the data page for an on-disk value, the
+     * history store page for an HS value, and the no-encoding version for an in-memory update. The
+     * layered cursor uses it to decide whether a value still carries the legacy tombstone encoding,
+     * which the data page the cursor sits on cannot answer for an HS-sourced value.
+     */
+    uint8_t source_page_version;
 };
 
 /*

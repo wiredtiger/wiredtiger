@@ -1208,7 +1208,19 @@ __wti_rec_row_leaf(
              *
              * Repack the cell if we clear the transaction ids in the cell.
              */
-            if (vpack->raw == WT_CELL_VALUE_COPY) {
+            if (btree->layered_constituent &&
+              !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_LEGACY_TOMBSTONE_ENC) &&
+              !F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->size > __wt_tombstone.size &&
+              memcmp(vpack->data, __wt_tombstone.data, __wt_tombstone.size) == 0) {
+                /*
+                 * Converting a legacy page to the no-encoding format: decode the encoded value and
+                 * rebuild the cell raw, rather than copying the encoded bytes verbatim onto a page
+                 * that will be stamped as raw.
+                 */
+                WT_ERR(
+                  __wti_rec_cell_build_val(session, r, vpack->data, vpack->size - 1, twp, 0, NULL));
+                dictionary = true;
+            } else if (vpack->raw == WT_CELL_VALUE_COPY) {
                 WT_ERR(__rec_cell_repack(session, r, vpack, twp));
 
                 dictionary = true;

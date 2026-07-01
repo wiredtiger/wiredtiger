@@ -330,11 +330,20 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WTI_DISK_LEAF_MERGE_STATE disk_s;
     /* Min delta index. */
     int32_t j = -1;
+    bool convert;
 
     WT_CLEAR(base_state);
     WT_CLEAR(disk_s);
     btree = S2BT(session);
     dsk = NULL;
+
+    /*
+     * Convert a layered-constituent page to the no-encoding format while reconstructing it: decode
+     * legacy-encoded base value cells to raw so the merged image is homogeneous and can be stamped
+     * with the no-encoding version. The debug knob preserves the legacy behavior for testing.
+     */
+    convert = btree->layered_constituent &&
+      !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_LEGACY_TOMBSTONE_ENC);
 
 #ifdef HAVE_DIAGNOSTIC
     WT_TIME_AGGREGATE_INIT_MERGE(ta);
@@ -373,11 +382,20 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         /* Build disk image */
         if (cmp < 0) {
             __time_window_clear_obsolete(session, &base_state.unpack_value->tw);
+            /*
+             * Decode a legacy-encoded base value when converting the page to the no-encoding
+             * format, so the merged image stores it raw.
+             */
+            size_t base_value_size = base_state.unpack_value->size;
+            if (convert && base_dsk->version < WT_PAGE_VERSION_NO_ENC &&
+              base_value_size > __wt_tombstone.size &&
+              memcmp(base_state.unpack_value->data, __wt_tombstone.data, __wt_tombstone.size) == 0)
+                --base_value_size;
             /* Pack row-leaf base key/value. */
             WT_ERR(__wt_cell_pack_leaf_kv(session, base_state.empty_value_cell,
               base_state.current_key->data, base_state.current_key->size,
-              base_state.unpack_value->data, base_state.unpack_value->size,
-              &base_state.unpack_value->tw, new_image, &disk_s));
+              base_state.unpack_value->data, base_value_size, &base_state.unpack_value->tw,
+              new_image, &disk_s));
 
 #ifdef HAVE_DIAGNOSTIC
             WT_TIME_AGGREGATE_UPDATE(session, ta, &base_state.unpack_value->tw);
@@ -449,7 +467,17 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
 
     dsk->write_gen = ((WT_PAGE_HEADER *)deltas[delta_size - 1].data)->write_gen;
     dsk->reserved = 0;
-    dsk->version = WT_PAGE_VERSION_TS;
+    /*
+     * When converting, the base value cells were decoded above and the delta cells are already raw,
+     * so the merged image is in the no-encoding format. Otherwise the image inherits the base
+     * image's format. A wrong version here would mislabel the page and corrupt the read-side decode
+     * decision.
+     */
+    if (convert)
+        dsk->version = WT_PAGE_VERSION_NO_ENC;
+    else
+        dsk->version =
+          base_dsk->version >= WT_PAGE_VERSION_NO_ENC ? WT_PAGE_VERSION_NO_ENC : WT_PAGE_VERSION_TS;
 
     /* Clear the memory owned by the block manager. */
     memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);

@@ -1935,7 +1935,17 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHU
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->reserved = 0;
-    dsk->version = WT_PAGE_VERSION_TS;
+    /*
+     * A reconciled layered-constituent page is written in the no-encoding format: reconciliation
+     * converts any legacy-encoded value cells to raw, so the page no longer needs the page-version
+     * decode hint. The debug knob forces the legacy version (and skips conversion) to fabricate
+     * pre-encoding data for testing. Other btrees are unaffected.
+     */
+    if (btree->layered_constituent &&
+      !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_LEGACY_TOMBSTONE_ENC))
+        dsk->version = WT_PAGE_VERSION_NO_ENC;
+    else
+        dsk->version = WT_PAGE_VERSION_TS;
 
     /* Clear the memory owned by the block manager. */
     memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);

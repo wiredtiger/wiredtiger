@@ -366,12 +366,13 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
 static int
 __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, WT_REF *ref,
   const WT_ITEM *key, const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw,
-  bool error_on_ts_ordering)
+  bool error_on_ts_ordering, bool disk_sourced)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(existing_val);
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
+    WT_ITEM hs_value_decoded;
     wt_timestamp_t durable_timestamp_diag;
     wt_timestamp_t hs_start_ts;
     wt_timestamp_t hs_stop_durable_ts_diag;
@@ -417,6 +418,22 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
 
     /* Sanity check that the btree is not a history store btree. */
     WT_ASSERT(session, !WT_IS_HS(btree));
+
+    /*
+     * Normalize a legacy-encoded value leaving a legacy page: write it to the history store raw.
+     * The history store entry may land on a current-format page, where the read path could no
+     * longer tell it had been encoded; decoding here keeps the history store free of encoded values
+     * written by current code. Only a disk-sourced full value can be encoded: a raw value from the
+     * update chain may legitimately begin with the tombstone bytes and must be left untouched.
+     */
+    if (type == WT_UPDATE_STANDARD && disk_sourced && btree->layered_constituent && ref != NULL &&
+      ref->page != NULL && ref->page->dsk != NULL &&
+      ref->page->dsk->version < WT_PAGE_VERSION_NO_ENC && hs_value->size > __wt_tombstone.size &&
+      memcmp(hs_value->data, __wt_tombstone.data, __wt_tombstone.size) == 0) {
+        hs_value_decoded = *hs_value;
+        --hs_value_decoded.size;
+        hs_value = &hs_value_decoded;
+    }
 
     /*
      * Only modifies or full updates should be written to the history store. More specifically, we
@@ -1002,14 +1019,14 @@ __rec_hs_write_upd(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btr
           " time_window=%s",
           btree->id, __wt_time_window_to_string(tw, tw_string));
         WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_MODIFY,
-          modify_value, tw, error_on_ts_ordering));
+          modify_value, tw, error_on_ts_ordering, F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS)));
         ++statsp->cache_hs_insert_reverse_modify;
         __wt_scr_free(session, &modify_value);
         ++(*modify_cntp);
     } else {
         *modify_cntp = 0;
         WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_STANDARD,
-          full_value, tw, error_on_ts_ordering));
+          full_value, tw, error_on_ts_ordering, F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS)));
         ++statsp->cache_hs_insert_full_update;
     }
 err:

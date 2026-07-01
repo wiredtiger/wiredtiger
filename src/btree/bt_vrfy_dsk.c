@@ -140,6 +140,7 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     switch (dsk->version) {
     case WT_PAGE_VERSION_ORIG:
     case WT_PAGE_VERSION_TS:
+    case WT_PAGE_VERSION_NO_ENC:
         break;
     default:
         WT_RET_VRFY(session, "page at %s has an invalid version of %" PRIu8, tag, dsk->version);

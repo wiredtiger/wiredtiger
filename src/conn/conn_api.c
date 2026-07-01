@@ -2483,6 +2483,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.legacy_tombstone_encoding", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug.flags, WT_CONN_DEBUG_LEGACY_TOMBSTONE_ENC);
+    else
+        FLD_CLR(conn->debug.flags, WT_CONN_DEBUG_LEGACY_TOMBSTONE_ENC);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
     if (cval.val)
         FLD_SET(conn->debug.flags, WT_CONN_DEBUG_REALLOC_EXACT);

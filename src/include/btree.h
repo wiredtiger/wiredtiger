@@ -219,6 +219,8 @@ struct __wt_btree {
 
     bool hs_entries; /* Has entries in the history store table */
 
+    bool layered_constituent; /* Ingest or stable constituent of a layered table */
+
     WT_BM *bm;          /* Block manager reference */
     u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
 

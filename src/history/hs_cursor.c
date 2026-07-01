@@ -55,6 +55,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
@@ -229,6 +230,16 @@ skip_buf:
     upd_value->tw.durable_start_ts = durable_timestamp;
     upd_value->tw.start_txn = WT_TXN_NONE;
     upd_value->type = upd_type;
+    /*
+     * Record the history store page version the value came from. A layered cursor needs this,
+     * rather than the data page it is positioned on, to decide whether an HS value still carries
+     * the legacy tombstone encoding.
+     */
+    hs_cbt = __wt_curhs_get_cbt(hs_cursor);
+    upd_value->source_page_version =
+      (hs_cbt->ref != NULL && hs_cbt->ref->page != NULL && hs_cbt->ref->page->dsk != NULL) ?
+      hs_cbt->ref->page->dsk->version :
+      WT_PAGE_VERSION_NO_ENC;
 
 done:
 err:
