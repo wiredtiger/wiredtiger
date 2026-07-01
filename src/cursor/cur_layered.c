@@ -262,7 +262,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
 
-    /* Finish the op initialisation - don't move after we update the state. */
+    /* Initialize the op structure - don't move after we update the state. */
     __clayered_op_init(clayered, op, mode, role, flags);
 
     __clayered_update_state(clayered, role);
