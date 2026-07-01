@@ -22,9 +22,6 @@ struct __util_maintain_config {
          */
         bool local;
     } fetch_database_size;
-
-    /* Target URI for the command, or NULL for all URIs */
-    char *uri;
 };
 
 static int __util_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, UTIL_MAINTAIN_CONFIG *);
@@ -34,10 +31,10 @@ static int __util_config_set_command(
 static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *);
 
 /*
- * WT_ERR_REPORT / WT_RET_REPORT --
- *     Like WT_ERR_MSG / WT_RET_MSG, but append the diagnostic to the caller-owned report buffer
- *     (which wiredtiger_util hands back) instead of logging it. The return of buffer write is
- *     ignored so it cannot clobber the requested error v -- v is what must propagate.
+ * WT_ERR_REPORT --
+ *     Like WT_ERR_MSG, but append the diagnostic to the caller-owned report buffer (which
+ *     wiredtiger_util hands back) instead of logging it. The return of buffer write is ignored so
+ *     it cannot clobber the requested error v -- v is what must propagate.
  */
 #define WT_ERR_REPORT(session, v, ...)                                \
     do {                                                              \
@@ -90,9 +87,6 @@ err:
  * __util_config_decode --
  *     The config is parsed with the normal WT config parser:
  *
- * uri="file:collection-...wt_stable" The shared target. Absent or empty means "all URLs". It's used
- *     for all the sub-commands.
- *
  * fetch_database_size=(local=<bool>) Read-only inspection: return the in-memory database size.
  *     local=true (default) reads conn->disaggregated_storage.database_size. FIXME-WT-17945:
  *     local=false to dynamically recalculate the database size is not yet supported.
@@ -107,10 +101,6 @@ __util_config_decode(
     WT_CLEAR(item);
 
     util_config->command = WT_UTIL_MAINTAIN_COMMAND_NONE;
-
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "uri", &item), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-        WT_ERR(__wt_strndup(session, item.str, item.len, &util_config->uri));
 
     /* Check for commands */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fetch_database_size", &item), true);
@@ -139,7 +129,6 @@ wiredtiger_util(WT_CONNECTION *connection, const char *config)
     WT_DECL_RET;
 
     WT_CLEAR(util_config);
-    conn = NULL;
     default_session = NULL;
     session = NULL;
 
@@ -171,8 +160,6 @@ err:
     if (ret != 0)
         WT_IGNORE_RET(
           __wt_buf_catfmt(default_session, report, " Failed: %s", wiredtiger_strerror(ret)));
-
-    __wt_free(default_session, util_config.uri);
 
     if (session != NULL)
         WT_TRET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
