@@ -1185,7 +1185,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
 
         /* Publish new buffer, then drain readers of the retiring buffer. */
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
-        __wt_gen_next_drain(session, WT_GEN_CKPT_SNAP);
+        __wt_gen_next_drain(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     }
 
     if (ckpt_cfg->use_timestamp)

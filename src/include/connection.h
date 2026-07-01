@@ -1011,7 +1011,7 @@ struct __wt_connection_impl {
     /*
      * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
      * visibility without holding any lock. Two buffers alternate so eviction always has a valid
-     * snapshot; readers hold WT_GEN_CKPT_SNAP.
+     * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
      */
     WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
     uint64_t *ckpt_eviction_snap_array[2];

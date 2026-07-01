@@ -38,7 +38,7 @@ __gen_name(int which)
         return ("split");
     case WT_GEN_TXN_COMMIT:
         return ("commit");
-    case WT_GEN_CKPT_SNAP:
+    case WT_GEN_HAS_CKPT_SNAPSHOT:
         return ("checkpoint-snapshot");
     default:
         break;

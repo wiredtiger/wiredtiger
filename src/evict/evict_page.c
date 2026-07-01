@@ -1306,7 +1306,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
                 uint32_t snap_idx;
                 WT_TXN_SNAPSHOT *snap;
 
-                WT_ENTER_GENERATION(session, WT_GEN_CKPT_SNAP);
+                WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
                 snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
                 snap = &conn->ckpt_eviction_snap[snap_idx];
                 if (snap->snap_min != WT_TXN_NONE) {
@@ -1319,7 +1319,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
                     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
                     got_snapshot = true;
                 }
-                WT_LEAVE_GENERATION(session, WT_GEN_CKPT_SNAP);
+                WT_LEAVE_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
 
                 if (!got_snapshot)
                     LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
