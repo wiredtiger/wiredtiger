@@ -46,7 +46,7 @@ typedef enum {
  */
 static WT_INLINE int
 __clayered_deleted_encode(
-  WT_SESSION_IMPL *session, const WT_ITEM *value, WT_ITEM *final_value, WT_ITEM **tmpp)
+  WT_SESSION_IMPL *session, const WT_ITEM *value, WT_ITEM *stored_value, WT_ITEM **tmpp)
 {
     WT_ITEM *tmp;
 
@@ -60,38 +60,38 @@ __clayered_deleted_encode(
 
         memcpy(tmp->mem, value->data, value->size);
         memcpy((uint8_t *)tmp->mem + value->size, __wt_tombstone.data, 1);
-        final_value->data = tmp->mem;
-        final_value->size = value->size + 1;
+        stored_value->data = tmp->mem;
+        stored_value->size = value->size + 1;
     } else {
-        final_value->data = value->data;
-        final_value->size = value->size;
+        stored_value->data = value->data;
+        stored_value->size = value->size;
     }
 
     return (0);
 }
 
 /*
- * __clayered_encode_value --
+ * __clayered_maybe_encode_value --
  *     Prepare a value for a put: the ingest table encodes values in the tombstone namespace, the
  *     stable table stores them raw.
  */
 static WT_INLINE int
-__clayered_encode_value(
-  WTI_CLAYERED_OP *op, const WT_ITEM *value, WT_ITEM *final_value, WT_ITEM **tmpp)
+__clayered_maybe_encode_value(
+  WTI_CLAYERED_OP *op, const WT_ITEM *value, WT_ITEM *stored_value, WT_ITEM **tmpp)
 {
     if (op->ingest != NULL)
-        return (__clayered_deleted_encode(CUR2S(op->clayered), value, final_value, tmpp));
+        return (__clayered_deleted_encode(CUR2S(op->clayered), value, stored_value, tmpp));
 
-    WT_ITEM_SET(*final_value, *value);
+    WT_ITEM_SET(*stored_value, *value);
     return (0);
 }
 
 /*
- * __clayered_decode_value --
+ * __clayered_maybe_decode_value --
  *     Decode a value produced by a read if it came from the ingest table; stable values are raw.
  */
 static WT_INLINE void
-__clayered_decode_value(WTI_CLAYERED_OP *op, WT_ITEM *value)
+__clayered_maybe_decode_value(WTI_CLAYERED_OP *op, WT_ITEM *value)
 {
     if (op->clayered->current_cursor == op->ingest)
         __wt_clayered_deleted_decode(value);
@@ -1315,7 +1315,7 @@ __clayered_iterate(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
     WT_ITEM_SET(iface->value, clayered->current_cursor->value);
-    __clayered_decode_value(&op, &iface->value);
+    __clayered_maybe_decode_value(&op, &iface->value);
     F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     F_SET(iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
@@ -1788,7 +1788,7 @@ __clayered_search(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     if (ret == 0) {
-        __clayered_decode_value(&op, &cursor->value);
+        __clayered_maybe_decode_value(&op, &cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
@@ -2066,7 +2066,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
 err:
     __clayered_leave(clayered);
     if (ret == 0) {
-        __clayered_decode_value(&op, &cursor->value);
+        __clayered_maybe_decode_value(&op, &cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
@@ -2109,6 +2109,8 @@ __clayered_put(
   WTI_CLAYERED_OP *op, const WT_ITEM *key, const WT_ITEM *value, WTI_CLAYERED_PUT_OP put_op)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *c = op->ingest != NULL ? op->ingest : op->stable;
     WT_ASSERT(session, c != NULL);
@@ -2118,30 +2120,33 @@ __clayered_put(
          * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
          * Doing so would remove the cursor write operation dependency on the truncate list.
          */
-        WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, op->table, key));
+        WT_ERR(__wt_layered_table_truncate_detect_write_conflict(session, op->table, key));
 
         /*
          * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
          * anyway. Keep the cursor position if we are in the middle of a cursor traversal.
          */
         if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
-            WT_RET(__clayered_reset_cursors(clayered, true));
+            WT_ERR(__clayered_reset_cursors(clayered, true));
     }
 
     c->set_key(c, key);
     /* Reserve does not require a value. */
-    if (put_op != WTI_CLAYERED_PUT_RESERVE)
-        c->set_value(c, value);
+    if (put_op != WTI_CLAYERED_PUT_RESERVE) {
+        WT_ITEM stored_value;
+        WT_ERR(__clayered_maybe_encode_value(op, value, &stored_value, &buf));
+        c->set_value(c, &stored_value);
+    }
 
     switch (put_op) {
     case WTI_CLAYERED_PUT_INSERT:
-        WT_RET(c->insert(c));
+        WT_ERR(c->insert(c));
         break;
     case WTI_CLAYERED_PUT_UPDATE:
-        WT_RET(c->update(c));
+        WT_ERR(c->update(c));
         break;
     case WTI_CLAYERED_PUT_RESERVE:
-        WT_RET(__clayered_reserve_constituent(op, c));
+        WT_ERR(__clayered_reserve_constituent(op, c));
         break;
     }
 
@@ -2149,7 +2154,9 @@ __clayered_put(
     if (put_op != WTI_CLAYERED_PUT_INSERT)
         clayered->current_cursor = c;
 
-    return (0);
+err:
+    __wt_scr_free(session, &buf);
+    return (ret);
 }
 
 /*
@@ -2388,7 +2395,6 @@ __clayered_insert(WT_CURSOR *cursor)
 {
     WTI_CLAYERED_OP op;
     WTI_CURSOR_LAYERED *clayered;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
@@ -2427,8 +2433,7 @@ __clayered_insert(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
-    WT_ERR(__clayered_encode_value(&op, &cursor->value, &value, &buf));
-    ret = __clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_INSERT);
+    ret = __clayered_put(&op, &cursor->key, &cursor->value, WTI_CLAYERED_PUT_INSERT);
     if (ret == WT_DUPLICATE_KEY) {
         WT_ASSERT(session, op.ingest == NULL);
         /*
@@ -2452,7 +2457,6 @@ __clayered_insert(WT_CURSOR *cursor)
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
 err:
-    __wt_scr_free(session, &buf);
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
@@ -2467,7 +2471,6 @@ __clayered_update(WT_CURSOR *cursor)
 {
     WTI_CLAYERED_OP op;
     WTI_CURSOR_LAYERED *clayered;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
@@ -2504,8 +2507,7 @@ __clayered_update(WT_CURSOR *cursor)
         WT_ERR(__cursor_needkey(cursor));
     }
 
-    WT_ERR(__clayered_encode_value(&op, &cursor->value, &value, &buf));
-    WT_ERR(__clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_UPDATE));
+    WT_ERR(__clayered_put(&op, &cursor->key, &cursor->value, WTI_CLAYERED_PUT_UPDATE));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
@@ -2521,7 +2523,6 @@ __clayered_update(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
 err:
-    __wt_scr_free(session, &buf);
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
@@ -2862,7 +2863,7 @@ __clayered_next_random(WT_CURSOR *cursor)
 err:
     __clayered_leave(clayered);
     if (ret == 0) {
-        __clayered_decode_value(&op, &cursor->value);
+        __clayered_maybe_decode_value(&op, &cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
@@ -3027,7 +3028,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      */
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
-    __clayered_decode_value(&op, &cursor->value);
+    __clayered_maybe_decode_value(&op, &cursor->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT);
 
