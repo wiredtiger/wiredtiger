@@ -4270,8 +4270,9 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * \c conn/api_util.c for more details.
  *
  * @param connection the connection on which to perform the work
- * @param config the configuration string (may be NULL or empty for no action)
- * @returns a static, library-owned diagnostic string (never NULL; do not free)
+ * @param config the configuration string (must be non-NULL and non-empty)
+ * @returns a library-owned diagnostic string (never NULL; do not free); valid until the next
+ *     wiredtiger_util call on the same connection (not thread-safe)
  */
 const char *wiredtiger_util(WT_CONNECTION *connection, const char *config)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
