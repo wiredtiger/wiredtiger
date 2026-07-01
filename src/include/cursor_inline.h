@@ -587,3 +587,26 @@ __wt_clayered_deleted(const WT_ITEM *item)
     return (item->size == __wt_tombstone.size &&
       memcmp(item->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
 }
+
+/*
+ * __wt_clayered_is_deleted_encoded --
+ *     Check if the value is in the encoded namespace, i.e. it starts with the tombstone. Only the
+ *     ingest table encodes values this way; the stable table stores raw values.
+ */
+static WT_INLINE bool
+__wt_clayered_is_deleted_encoded(const WT_ITEM *value)
+{
+    return (value->size > __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
+}
+
+/*
+ * __wt_clayered_deleted_decode --
+ *     Decode a value read from the ingest table that starts with the tombstone.
+ */
+static WT_INLINE void
+__wt_clayered_deleted_decode(WT_ITEM *value)
+{
+    if (__wt_clayered_is_deleted_encoded(value))
+        --value->size;
+}
