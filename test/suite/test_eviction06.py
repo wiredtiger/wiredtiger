@@ -84,6 +84,19 @@ class test_eviction06(wttest.WiredTigerTestCase):
                               value)
         cursor.close()
 
+    def _dsrc_stat(self, uri, stat_key):
+        stat_cursor = self.session.open_cursor('statistics:' + uri)
+        val = stat_cursor[stat_key][2]
+        stat_cursor.close()
+        return val
+
+    # Only the disagg test needs the page_log extension. conn_extensions is
+    # re-evaluated on every reopen_conn(), so gating on the test name here
+    # keeps the other tests in this file on their plain, non-disagg connection.
+    def conn_extensions(self, extlist):
+        if self._testMethodName == 'test_dirty_index_disagg_gated_off':
+            extlist.extension('page_log', wttest.WiredTigerTestCase.vars().page_log)
+
     def test_dirty_index_insert_and_drain(self):
         # Phase 1: the ring is allocated at create/open, so the first wave of
         # writes populates it directly -- the insert counter is non-zero with
@@ -172,6 +185,26 @@ class test_eviction06(wttest.WiredTigerTestCase):
             time.sleep(0.05)
 
         self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert) - baseline_insert, 0)
+
+    def test_dirty_index_disagg_gated_off(self):
+        # Disaggregated btrees default to not feeding the ring
+        # (eviction_dirty_index_disagg defaults to false): the ring's re-queue
+        # churn fights disaggregated storage's checkpoint materialization lag.
+        # Verify the default opt-out on a leader's disaggregated table, then
+        # verify eviction_dirty_index_disagg=true opts it back in. The ring is
+        # allocated at open regardless of the flag, so reconfiguring is enough.
+        self.reopen_conn(config='cache_size=200MB,statistics=(all),'
+                                'disaggregated=(role="leader")')
+        uri = 'table:test_eviction06_disagg'
+        self.session.create(
+            uri, 'key_format=i,value_format=S,block_manager=disagg,leaf_page_max=4KB')
+
+        self._write_rows(uri, 0, 200, 'x' * self.value_size)
+        self.assertEqual(self._dsrc_stat(uri, stat.dsrc.cache_eviction_dirty_index_insert), 0)
+
+        self.conn.reconfigure('eviction_dirty_index_disagg=true')
+        self._write_rows(uri, 200, 200, 'x' * self.value_size)
+        self.assertGreater(self._dsrc_stat(uri, stat.dsrc.cache_eviction_dirty_index_insert), 0)
 
 if __name__ == '__main__':
     wttest.run()
