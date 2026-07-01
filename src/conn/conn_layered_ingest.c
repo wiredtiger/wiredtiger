@@ -603,8 +603,11 @@ __layered_copy_ingest_table(
                  */
                 if (__wt_clayered_deleted(value))
                     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                else
+                else {
+                    /* Ingest values are tombstone-encoded; the stable table stores them raw. */
+                    __wt_clayered_deleted_decode(value);
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+                }
                 /*
                  * If the prepared update is aborted, move the aborted update to the stable table
                  * because we may write a prepared update to the disk in a future reconciliation.
