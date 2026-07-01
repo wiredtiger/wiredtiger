@@ -258,6 +258,25 @@ typedef struct __wt_disagg_checkpoint_meta {
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
+ * WT_UTIL_MAINTAIN_STATE --
+ *   This state machine guaranteed each time only one action of maintain is in progress.
+ */
+typedef enum {
+    WT_UTIL_MAINTAIN_IDLE = 0,   /* No repair in progress. */
+    WT_UTIL_MAINTAIN_DB_SIZE_FIX /* A db size fix is ready: sum up latest checkpoint sizes. */
+} WT_UTIL_MAINTAIN_STATE;
+
+struct __wt_util_maintain {
+    wt_shared uint8_t state;
+
+    /*
+     * Memory space for the last report string. Only hold one report string at a time as it's used
+     * interactively. Owned by the connection and freed at connection destroy.
+     */
+    WT_ITEM last_report;
+};
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -1254,6 +1273,9 @@ struct __wt_connection_impl {
 #define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+
+    /* Utility maintain configuration and arguments */
+    WT_UTIL_MAINTAIN util_maintain;
 };
 
 /*

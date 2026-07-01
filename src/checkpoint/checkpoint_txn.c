@@ -874,10 +874,36 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 }
 
 /*
+ * __checkpoint_apply_disagg_size_fix --
+ *     A wiredtiger_util size fix won the cycle for this checkpoint: recompute the database size
+ *     from the per-file checkpoint sizes this checkpoint just wrote (the same per-file accounting
+ *     __wt_disagg_get_database_size sums for WT_SESSION::verify) and add the fixed overhead the
+ *     stored size always carries. Recomputing here rather than trusting a staged value heals a
+ *     database size that has drifted away from its correct per-file sizes.
+ */
+static int
+__checkpoint_apply_disagg_size_fix(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t fixed;
+
+    conn = S2C(session);
+    WT_RET(__wt_disagg_get_database_size(session, &fixed));
+    if (fixed != 0 || conn->disaggregated_storage.database_size != 0)
+        fixed += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+    __wt_disagg_set_database_size(session, fixed);
+    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "disagg database size fix: recomputed database size -> %" PRIu64, fixed);
+    WT_ASSERT(
+      session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+    return (0);
+}
+
+/*
  * __checkpoint_update_disagg_database_size --
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
-static void
+static int
 __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
 {
     WT_CONNECTION_IMPL *conn;
@@ -885,7 +911,20 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
     conn = S2C(session);
 
     if (!__wt_conn_is_disagg(session))
-        return;
+        return (0);
+
+    /*
+     * A wiredtiger_util size fix may have published its cycle in the state. Win it -- CAS back to
+     * IDLE so exactly one checkpoint consumes it -- and recompute the database size at this update
+     * point from the per-file checkpoint sizes this checkpoint just wrote. Recomputing here (rather
+     * than from a value the repair staged) leaves no window in which a background checkpoint
+     * applies a base the metadata has since moved past. PROCESSING (a repair still staging) does
+     * not match and falls through to the normal delta path. This is the only place a repair's
+     * database size is written.
+     */
+    if (__wt_atomic_cas_uint8(
+          &conn->util_maintain.state, WT_UTIL_MAINTAIN_DB_SIZE_FIX, WT_UTIL_MAINTAIN_IDLE))
+        return (__checkpoint_apply_disagg_size_fix(session));
 
     /*
      * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
@@ -925,6 +964,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
      */
     WT_ASSERT(
       session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+    return (0);
 }
 
 /*
@@ -1863,7 +1903,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session, drop_size);
+    WT_ERR(__checkpoint_update_disagg_database_size(session, drop_size));
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
