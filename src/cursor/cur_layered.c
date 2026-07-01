@@ -16,7 +16,7 @@ static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static void __clayered_update_state(WTI_CURSOR_LAYERED *, WTI_CLAYERED_ROLE);
+static bool __clayered_update_state(WTI_CURSOR_LAYERED *, WTI_CLAYERED_ROLE);
 
 /* Operations passed to __clayered_put. */
 typedef enum {
@@ -186,29 +186,12 @@ __clayered_alternate_positioned_flag_set(WTI_CURSOR_LAYERED *clayered, WTI_CLAYE
 }
 
 /*
- * __clayered_txn_context_changed --
- *     Return true if the transaction's read context (snapshot generation or read timestamp) differs
- *     from the one the layered cursor last recorded.
- */
-static WT_INLINE bool
-__clayered_txn_context_changed(WTI_CURSOR_LAYERED *clayered)
-{
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    uint64_t snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
-    uint64_t read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
-
-    return (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp);
-}
-
-/*
  * __clayered_op_init --
  *     Populate the per-operation state.
  */
 static WT_INLINE void
 __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYERED_OP_MODE mode,
-  WTI_CLAYERED_ROLE role, uint32_t flags)
+  WTI_CLAYERED_ROLE role, uint32_t flags, bool txn_context_changed)
 {
     op->clayered = clayered;
     op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
@@ -218,12 +201,12 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYER
     op->collator = op->table->collator;
 
     /*
-     * The parked alternate constituent is reusable without re-seeking only when this operation walks
-     * the same direction as the last successful next()/prev() and the transaction context is
+     * The parked alternate constituent is reusable without re-seeking only when this operation
+     * walks the same direction as the last successful next()/prev() and the transaction context is
      * unchanged.
      */
     op->alternate_positioned =
-      __clayered_alternate_positioned_flag_set(clayered, mode) && !__clayered_txn_context_changed(clayered);
+      __clayered_alternate_positioned_flag_set(clayered, mode) && !txn_context_changed;
 }
 
 /*
@@ -262,11 +245,10 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
 
-    /* Initialize the op structure - don't move after we update the state. */
-    __clayered_op_init(clayered, op, mode, role, flags);
-
-    __clayered_update_state(clayered, role);
+    bool txn_context_changed = __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
+
+    __clayered_op_init(clayered, op, mode, role, flags, txn_context_changed);
 
     if (!F_ISSET(clayered, WTI_CLAYERED_ACTIVE)) {
         /*
@@ -277,6 +259,13 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
         WT_RET(__cursor_enter(session));
         F_SET(clayered, WTI_CLAYERED_ACTIVE);
     }
+
+    /*
+     * The iteration flags live only between the last and the current operation. Clear them here,
+     * once the alternate-reuse decision has been captured into the op, so that a successful
+     * next()/prev() is the only thing that sets them.
+     */
+    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     return (0);
 }
@@ -586,9 +575,10 @@ err:
 
 /*
  * __clayered_update_state --
- *     Validate and update cursor state and refresh the transaction context.
+ *     Validate and update cursor state and refresh the transaction context. Return whether the
+ *     transaction's read context changed since the last operation.
  */
-static void
+static bool
 __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
@@ -597,15 +587,14 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
     const uint64_t snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
     const uint64_t read_timestamp = txn_shared != NULL ? txn_shared->read_timestamp : WT_TS_NONE;
 
-    /*
-     * The iteration flags live only between the last and the current operation. Always clear them
-     * here so that a successful next()/prev() is the only thing that sets them.
-     */
-    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    const bool txn_context_changed =
+      clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp;
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
     clayered->last_role = role;
+
+    return (txn_context_changed);
 }
 
 /*
@@ -1169,8 +1158,8 @@ err:
  *     the next available key if the same key does not exist.
  *
  * Subsequent calls to __clayered_prev() or __clayered_next() may skip the positioning step
- *     entirely, since they guarantee that both constituents are properly positioned on exit.
- *     See `alternate_positioned` for more details.
+ *     entirely, since they guarantee that both constituents are properly positioned on exit. See
+ *     `alternate_positioned` for more details.
  *
  * If both `current_cursor` and `alternate_cursor` are positioned on the same key, both should be
  *     advanced to the next position. Otherwise, only `current_cursor` should be advanced.
