@@ -28,7 +28,7 @@ static int __util_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, UTIL
 static int __util_config_set_command(
   WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, UTIL_MAINTAIN_CONFIG *, int);
 
-static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *);
+static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 
 /*
  * WT_ERR_REPORT --
@@ -48,8 +48,14 @@ static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *);
  *     Read-only database size inspection: return the in-memory database size.
  */
 static int
-__util_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report)
+__util_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
 {
+    /*
+     * FIXME-WT-17945: support local=false to dynamically recalculate the database size.
+     */
+    if (is_local == false)
+        WT_RET_MSG(session, ENOTSUP, "fetch_database_size(local=false) is not yet supported");
+
     WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
       S2C(session)->disaggregated_storage.database_size));
     return (0);
@@ -154,7 +160,7 @@ wiredtiger_util(WT_CONNECTION *connection, const char *config)
     WT_ERR(__util_config_decode(session, report, config, &util_config));
 
     if (util_config.command == WT_UTIL_MAINTAIN_COMMAND_FETCH_DATABASE_SIZE)
-        WT_ERR(__util_fetch_database_size(session, report));
+        WT_ERR(__util_fetch_database_size(session, report, util_config.fetch_database_size.local));
 
 err:
     if (ret != 0)
