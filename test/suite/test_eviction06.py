@@ -45,6 +45,12 @@ from wiredtiger import stat
 # The connection starts with a roomy cache and high dirty triggers so the
 # produce-side checks see uninterrupted inserts. The drain check tightens
 # the cache to force eviction pressure.
+#
+# Disaggregated btrees default to not feeding the ring (eviction_dirty_index_disagg
+# defaults to false): the ring's re-queue churn fights disaggregated storage's
+# checkpoint materialization lag. Under the "disagg" hook every table in this file
+# becomes a disaggregated btree, so the produce-side checks detect the active hook
+# and flip their expectation instead of needing a dedicated disagg test.
 class test_eviction06(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=200MB,statistics=(all),'
                    'eviction_dirty_index=true,'
@@ -84,34 +90,33 @@ class test_eviction06(wttest.WiredTigerTestCase):
                               value)
         cursor.close()
 
-    def _dsrc_stat(self, uri, stat_key):
-        stat_cursor = self.session.open_cursor('statistics:' + uri)
-        val = stat_cursor[stat_key][2]
-        stat_cursor.close()
-        return val
-
-    # Only the disagg test needs the page_log extension. conn_extensions is
-    # re-evaluated on every reopen_conn(), so gating on the test name here
-    # keeps the other tests in this file on their plain, non-disagg connection.
-    def conn_extensions(self, extlist):
-        if self._testMethodName == 'test_dirty_index_disagg_gated_off':
-            extlist.extension('page_log', wttest.WiredTigerTestCase.vars().page_log)
-
     def test_dirty_index_insert_and_drain(self):
         # Phase 1: the ring is allocated at create/open, so the first wave of
         # writes populates it directly -- the insert counter is non-zero with
-        # no checkpoint needed to trigger allocation.
+        # no checkpoint needed to trigger allocation. Under the disagg hook this
+        # table is disaggregated, and eviction_dirty_index_disagg defaults to
+        # false, so the ring is never fed for it.
         uri = 'table:test_eviction06'
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
+        disagg = self.runningHook('disagg')
 
         self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
+        if disagg:
+            self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
+        else:
+            self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
 
         # Phase 2: drive the drain. Tighten the cache and dirty triggers to
         # force eviction pressure, then keep writing so the ring stays
         # non-empty when the walker next visits this btree.
         self.conn.reconfigure('cache_size=20MB,'
                               'eviction_dirty_target=2,eviction_dirty_trigger=5')
+
+        if disagg:
+            # Nothing was ever queued, so there is nothing for the drain to scan.
+            self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
+            self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned), 0)
+            return
 
         for _ in range(40):
             self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
@@ -166,6 +171,14 @@ class test_eviction06(wttest.WiredTigerTestCase):
         uri = 'table:test_eviction06_runtime'
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
         self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
+
+        if self.runningHook('disagg'):
+            # Disaggregated btrees default to not feeding the ring at all
+            # (eviction_dirty_index_disagg defaults to false), so there is
+            # nothing for a runtime disable to stand down.
+            self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
+            return
+
         self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
 
         self.conn.reconfigure('eviction_dirty_index=false')
@@ -185,26 +198,6 @@ class test_eviction06(wttest.WiredTigerTestCase):
             time.sleep(0.05)
 
         self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert) - baseline_insert, 0)
-
-    def test_dirty_index_disagg_gated_off(self):
-        # Disaggregated btrees default to not feeding the ring
-        # (eviction_dirty_index_disagg defaults to false): the ring's re-queue
-        # churn fights disaggregated storage's checkpoint materialization lag.
-        # Verify the default opt-out on a leader's disaggregated table, then
-        # verify eviction_dirty_index_disagg=true opts it back in. The ring is
-        # allocated at open regardless of the flag, so reconfiguring is enough.
-        self.reopen_conn(config='cache_size=200MB,statistics=(all),'
-                                'disaggregated=(role="leader")')
-        uri = 'table:test_eviction06_disagg'
-        self.session.create(
-            uri, 'key_format=i,value_format=S,block_manager=disagg,leaf_page_max=4KB')
-
-        self._write_rows(uri, 0, 200, 'x' * self.value_size)
-        self.assertEqual(self._dsrc_stat(uri, stat.dsrc.cache_eviction_dirty_index_insert), 0)
-
-        self.conn.reconfigure('eviction_dirty_index_disagg=true')
-        self._write_rows(uri, 200, 200, 'x' * self.value_size)
-        self.assertGreater(self._dsrc_stat(uri, stat.dsrc.cache_eviction_dirty_index_insert), 0)
 
 if __name__ == '__main__':
     wttest.run()
