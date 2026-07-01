@@ -402,8 +402,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
 {
     /*
      * Simulate eviction under a precise checkpoint: the checkpoint snapshot has been copied into
-     * snapshot_data before reconciliation begins. __wt_txn_visible_id reads the session snapshot
-     * normally.
+     * snapshot_data before reconciliation begins.
      *
      * Snapshot: snap_min=100, snap_max=200, one in-flight transaction (txnid=150). txnid=120 is
      * inside [snap_min, snap_max) but not in the in-flight array; it committed before the
