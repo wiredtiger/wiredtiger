@@ -409,13 +409,13 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
 
     /*
      * Checkpoint snapshot: snap_min=100, snap_max=200, one in-flight transaction (txnid=150).
-     * txnid=120 falls inside [snap_min, snap_max) but is NOT in the in-flight array — it
-     * committed before the checkpoint snapshot was taken and is therefore visible to it.
-     * txnid=150 was in-flight and is not visible.
+     * txnid=120 falls inside [snap_min, snap_max) but is NOT in the in-flight array. It committed
+     * before the checkpoint snapshot was taken and is therefore visible to it. txnid=150 was
+     * in-flight and is not visible.
      *
-     * Under the old pinned-id logic (rec_has_ckpt_snapshot=false, pinned_id=snap_min=100),
-     * the test with txnid=120 shows the conservative false-negative: 100 <= 120 is true so
-     * the update is incorrectly treated as not visible. The new snapshot path fixes this.
+     * Under the old pinned-id logic (rec_has_ckpt_snapshot=false, pinned_id=snap_min=100), the test
+     * with txnid=120 shows the conservative false-negative: 100 <= 120 is true so the update is
+     * incorrectly treated as not visible. The new snapshot path fixes this.
      */
     const uint64_t SNAP_MIN = 100, SNAP_MAX = 200;
     uint64_t in_flight_array[] = {150};
@@ -442,7 +442,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
               (wt_timestamp_t)0, (wt_timestamp_t)0, (uint8_t)0),
             std::make_tuple("committed_value", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120,
               (wt_timestamp_t)0, (wt_timestamp_t)0, (uint8_t)0),
-        };
+          };
 
         WT_UPDATE *chain = create_update_chain(session, updates);
         REQUIRE(chain != NULL);
@@ -454,7 +454,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
         REQUIRE(ret == 0);
-        /* txnid=120 is between snap_min and snap_max but not in-flight → visible. */
+        /* txnid=120 is between snap_min and snap_max but not in-flight: visible. */
         REQUIRE(upd_select.upd != NULL);
         REQUIRE(upd_select.upd->txnid == 120);
 
@@ -474,7 +474,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
           updates = {
             std::make_tuple("committed_value", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120,
               (wt_timestamp_t)0, (wt_timestamp_t)0, (uint8_t)0),
-        };
+          };
 
         WT_UPDATE *chain = create_update_chain(session, updates);
         REQUIRE(chain != NULL);
@@ -486,7 +486,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
         REQUIRE(ret == 0);
-        /* pinned_id(100) <= txnid(120) → old logic treats it as not visible. */
+        /* pinned_id(100) <= txnid(120): old logic treats it as not visible. */
         REQUIRE(upd_select.upd == NULL);
 
         cleanup_test_data(session, ins);
@@ -508,7 +508,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
           updates = {
             std::make_tuple("in_flight_value", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)150,
               (wt_timestamp_t)0, (wt_timestamp_t)0, (uint8_t)0),
-        };
+          };
 
         WT_UPDATE *chain = create_update_chain(session, updates);
         REQUIRE(chain != NULL);
@@ -520,7 +520,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
         REQUIRE(ret == 0);
-        /* txnid=150 is in the snapshot in-flight array → not visible to the checkpoint. */
+        /* txnid=150 is in the snapshot in-flight array: not visible to the checkpoint. */
         REQUIRE(upd_select.upd == NULL);
 
         cleanup_test_data(session, ins);
