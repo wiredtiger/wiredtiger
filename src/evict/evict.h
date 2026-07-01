@@ -60,6 +60,7 @@ struct __wt_evict {
      */
     wt_shared bool eviction_dirty_index;           /* Per-btree dirty-index ring + drain enabled */
     wt_shared bool eviction_dirty_index_auto_grow; /* Grow a saturating ring at runtime */
+    wt_shared bool eviction_dirty_index_disagg;    /* Allow the ring for disaggregated btrees */
     wt_shared double eviction_dirty_target;        /* Percent to allow dirty */
     wt_shared double eviction_dirty_trigger;       /* Percent to trigger dirty eviction */
     double eviction_trigger;                       /* Percent to trigger eviction */

@@ -160,6 +160,15 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
         return (0);
 
     /*
+     * Disaggregated btrees default to not using the ring (the producer skips them); the drain
+     * stands down on the same flag so a disagg ring is never serviced when the feature is off for
+     * disaggregated storage. Opt in with eviction_dirty_index_disagg.
+     */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !__wt_atomic_load_bool_relaxed(&conn->evict->eviction_dirty_index_disagg))
+        return (0);
+
+    /*
      * The drain produces only dirty candidates, so skip a btree whose dirty pages cannot be evicted
      * right now: pages queued from it are blocked by the candidacy filter, burn the per-tree budget
      * the walker needs, and the trim path re-inserts the same refs. Same predicate as the walker's

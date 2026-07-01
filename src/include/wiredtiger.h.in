@@ -2358,6 +2358,10 @@ struct __wt_connection {
      * repeatedly saturates is grown at runtime: the eviction drain allocates a larger ring\, swaps
      * it in\, and retires the old ring once the btree is closed.  Requires \c
      * eviction_dirty_index., a boolean flag; default \c true.}
+     * @config{eviction_dirty_index_disagg, if true\, also allocate the per-btree dirty-page index
+     * (see \c eviction_dirty_index) for disaggregated storage btrees.  Disabled by default: the
+     * churn it adds competes with disaggregated storage's checkpoint materialization lag.  Requires
+     * \c eviction_dirty_index., a boolean flag; default \c false.}
      * @config{eviction_dirty_target, perform eviction in worker threads when the cache contains at
      * least this much dirty content.  It is a percentage of the cache size if the value is within
      * the range of 1 to 100 or an absolute size when greater than 100. The value is not allowed to
@@ -3332,6 +3336,10 @@ struct __wt_connection {
  * saturates is grown at runtime: the eviction drain allocates a larger ring\, swaps it in\, and
  * retires the old ring once the btree is closed.  Requires \c eviction_dirty_index., a boolean
  * flag; default \c true.}
+ * @config{eviction_dirty_index_disagg, if true\, also allocate the per-btree dirty-page index (see
+ * \c eviction_dirty_index) for disaggregated storage btrees.  Disabled by default: the churn it
+ * adds competes with disaggregated storage's checkpoint materialization lag.  Requires \c
+ * eviction_dirty_index., a boolean flag; default \c false.}
  * @config{eviction_dirty_target, perform eviction in worker threads when the cache contains at
  * least this much dirty content.  It is a percentage of the cache size if the value is within the
  * range of 1 to 100 or an absolute size when greater than 100. The value is not allowed to exceed

@@ -184,6 +184,14 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
         return (false);
 
     /*
+     * Disaggregated btrees default to not feeding the ring: the churn competes with disaggregated
+     * storage's checkpoint materialization lag. Opt in with eviction_dirty_index_disagg.
+     */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index_disagg))
+        return (false);
+
+    /*
      * No reclamation barrier is needed even under auto-grow: a ring retired by a grow is never
      * freed mid-life (retired rings are kept on the btree's old-ring list and freed only at close),
      * so a producer that loaded the ring just before a swap may still write to it safely -- its

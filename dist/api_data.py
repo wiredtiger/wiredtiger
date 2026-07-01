@@ -855,6 +855,11 @@ connection_runtime_config = [
         eviction drain allocates a larger ring, swaps it in, and retires the old ring once the
         btree is closed. Requires \c eviction_dirty_index''',
         type='boolean'),
+    Config('eviction_dirty_index_disagg', 'false', r'''
+        if true, also allocate the per-btree dirty-page index (see \c eviction_dirty_index) for
+        disaggregated storage btrees. Disabled by default: the churn it adds competes with
+        disaggregated storage's checkpoint materialization lag. Requires \c eviction_dirty_index''',
+        type='boolean'),
     Config('eviction_target', '80', r'''
         perform eviction in worker threads when the cache contains at least this much content. It
         is a percentage of the cache size if the value is within the range of 10 to 100 or
