@@ -142,7 +142,7 @@ __wt_clayered_stable_value_stat(WT_SESSION_IMPL *session, const void *data, size
  *     positioned on the ingest table.
  */
 static WT_INLINE void
-__clayered_stable_read_value_stat(WT_CURSOR_LAYERED *clayered, const WT_ITEM *value)
+__clayered_stable_read_value_stat(WTI_CURSOR_LAYERED *clayered, const WT_ITEM *value)
 {
     if (clayered->current_cursor == clayered->stable_cursor)
         __wt_clayered_stable_value_stat(CUR2S(clayered), value->data, value->size);
@@ -2188,7 +2188,7 @@ __clayered_put(
         c->set_value(c, value);
 
     /* On the leader the destination is the stable table; account tombstone-namespace values. */
-    if (leader && put_op != WT_CLAYERED_PUT_RESERVE)
+    if (c != op->ingest && put_op != WTI_CLAYERED_PUT_RESERVE)
         __wt_clayered_stable_value_stat(session, value->data, value->size);
 
     switch (put_op) {
