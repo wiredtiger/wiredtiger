@@ -1644,6 +1644,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 ++prepare_count;
 #endif
             }
+
+            /*
+             * Advance the ingest btree's durable-timestamp bound (for both prepared and
+             * non-prepared commits) so sweep can promptly reclaim the table once it is durable. The
+             * final transaction timestamp can get earlier, but never later than this. Thus our
+             * published maximum might be pessimistic, that's okay.
+             */
+            if (F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
+                __wt_btree_advance_ingest_max(op->btree, txn->time_point.durable_timestamp);
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_ERR(__wt_txn_op_set_timestamp(session, op, true));

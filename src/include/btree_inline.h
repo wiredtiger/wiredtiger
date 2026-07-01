@@ -2275,6 +2275,36 @@ __wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __wt_btree_advance_ingest_max --
+ *     Advance an ingest btree's upper bound on the durable timestamps it holds. Sweep uses the
+ *     bound we calculate to decide when the whole ingest table is redundant relative to the stable
+ *     table from the last checkpoint. The bound only ever advances.
+ */
+static WT_INLINE void
+__wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    /*
+     * We track the exact maximum durable timestamp. Correct for any timestamp scheme and sweeps as
+     * promptly as possible, but every advancing commit does a compare-and-swap, so it may show
+     * contention on highly concurrent workloads, especially those that stress a small number of
+     * btrees.
+     */
+    target = durable_ts;
+
+    cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    while (cur < target) {
+        if (__wt_atomic_cas_uint64(&btree->max_ingest_write_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    }
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
