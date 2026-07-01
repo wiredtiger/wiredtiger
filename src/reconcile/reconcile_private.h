@@ -166,13 +166,6 @@ struct __wti_reconcile {
     /* Track the pinned id for the reconciliation if without a snapshot. */
     uint64_t rec_start_pinned_id;
 
-    /* Full checkpoint snapshot copied from the buffer for accurate visibility. */
-    bool rec_has_ckpt_snapshot;
-    uint64_t rec_ckpt_snap_min, rec_ckpt_snap_max;
-    uint32_t rec_ckpt_snapshot_count;
-    uint64_t *rec_ckpt_snapshot_arr; /* reused across reconciliations on the same session */
-    size_t rec_ckpt_snapshot_capacity;
-
     /* Track the oldest id that is needed. */
     uint64_t rec_start_oldest_id;
 

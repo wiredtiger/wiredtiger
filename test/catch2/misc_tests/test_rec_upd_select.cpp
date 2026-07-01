@@ -400,40 +400,39 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
   "rec_upd_select: precise checkpoint snapshot improves eviction visibility",
   "[reconcile][rec_upd_select][precise_checkpoint]")
 {
+    /*
+     * Simulate eviction under a precise checkpoint: the checkpoint snapshot has been copied into
+     * snapshot_data before reconciliation begins. __wt_txn_visible_id reads the session snapshot
+     * normally.
+     *
+     * Snapshot: snap_min=100, snap_max=200, one in-flight transaction (txnid=150). txnid=120 is
+     * inside [snap_min, snap_max) but not in the in-flight array; it committed before the
+     * checkpoint snapshot was taken and is visible. txnid=150 was in-flight and is not visible.
+     *
+     * The contrast with the pinned-id fallback: rec_start_pinned_id=100 <= 120 is true, so the
+     * pinned-id path would conservatively treat txnid=120 as not-yet-committed and skip it.
+     */
+    const uint64_t SNAP_MIN = 100, SNAP_MAX = 200;
+    const uint32_t SNAP_COUNT = 1;
+    uint64_t snap_array[1] = {150};
+
+    /* Wire up the session transaction snapshot. */
+    session->txn->snapshot_data.snap_min = SNAP_MIN;
+    session->txn->snapshot_data.snap_max = SNAP_MAX;
+    session->txn->snapshot_data.snapshot_count = SNAP_COUNT;
+    session->txn->snapshot_data.snapshot = snap_array;
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    session->txn->snapshot_data.snap_max = 300;
     session->txn->time_point.id = 50;
     session->txn->isolation = WT_ISO_SNAPSHOT;
     F_CLR(session->dhandle, WT_DHANDLE_HS);
     F_CLR(S2BT(session), WT_BTREE_IN_MEMORY);
 
-    /*
-     * Checkpoint snapshot: snap_min=100, snap_max=200, one in-flight transaction (txnid=150).
-     * txnid=120 falls inside [snap_min, snap_max) but is NOT in the in-flight array. It committed
-     * before the checkpoint snapshot was taken and is therefore visible to it. txnid=150 was
-     * in-flight and is not visible.
-     *
-     * Under the old pinned-id logic (rec_has_ckpt_snapshot=false, pinned_id=snap_min=100), the test
-     * with txnid=120 shows the conservative false-negative: 100 <= 120 is true so the update is
-     * incorrectly treated as not visible. The new snapshot path fixes this.
-     */
-    const uint64_t SNAP_MIN = 100, SNAP_MAX = 200;
-    uint64_t in_flight_array[] = {150};
-    const uint32_t SNAP_COUNT = 1;
-
     WTI_RECONCILE r;
-    setup_reconcile_context(&r, page, SNAP_MIN, 0);
-    F_SET(&r, WT_REC_EVICT | WT_REC_VISIBLE_NO_SNAPSHOT);
+    setup_reconcile_context(&r, page, WT_TXN_NONE, 0);
+    F_SET(&r, WT_REC_EVICT);
 
-    SECTION("with full snapshot, committed update outside the in-flight set is visible")
+    SECTION("committed update outside the in-flight set is visible via session snapshot")
     {
-        REQUIRE(__wt_calloc(session, SNAP_COUNT, sizeof(uint64_t), &r.rec_ckpt_snapshot_arr) == 0);
-        memcpy(r.rec_ckpt_snapshot_arr, in_flight_array, SNAP_COUNT * sizeof(uint64_t));
-        r.rec_ckpt_snap_min = SNAP_MIN;
-        r.rec_ckpt_snap_max = SNAP_MAX;
-        r.rec_ckpt_snapshot_count = SNAP_COUNT;
-        r.rec_has_ckpt_snapshot = true;
-
         /* Updates newest-first: in-flight (not visible) then committed-in-range (visible). */
         std::vector<
           std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
@@ -459,15 +458,20 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
         REQUIRE(upd_select.upd->txnid == 120);
 
         cleanup_test_data(session, ins);
-        __wt_free(session, r.rec_ckpt_snapshot_arr);
         if (r.supd)
             __wt_free(session, r.supd);
     }
 
-    SECTION("without full snapshot, pinned_id alone conservatively excludes the same update")
+    SECTION("pinned_id fallback conservatively excludes a committed update in the same range")
     {
-        r.rec_has_ckpt_snapshot = false;
-        /* rec_start_pinned_id is already SNAP_MIN=100 from setup_reconcile_context. */
+        /*
+         * Without a session snapshot (WT_REC_VISIBLE_NO_SNAPSHOT set), the fallback uses
+         * rec_start_pinned_id. pinned_id(100) <= txnid(120) means the update looks not-yet-visible,
+         * so it is skipped - a conservative false-negative that the snapshot path avoids.
+         */
+        F_CLR(session->txn, WT_TXN_HAS_SNAPSHOT);
+        F_SET(&r, WT_REC_VISIBLE_NO_SNAPSHOT);
+        r.rec_start_pinned_id = SNAP_MIN; /* 100 */
 
         std::vector<
           std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
@@ -486,7 +490,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
         REQUIRE(ret == 0);
-        /* pinned_id(100) <= txnid(120): old logic treats it as not visible. */
+        /* pinned_id(100) <= txnid(120): conservatively treated as not yet visible. */
         REQUIRE(upd_select.upd == NULL);
 
         cleanup_test_data(session, ins);
@@ -494,15 +498,8 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
             __wt_free(session, r.supd);
     }
 
-    SECTION("with full snapshot, in-flight transaction is correctly excluded")
+    SECTION("in-flight transaction is correctly excluded via session snapshot")
     {
-        REQUIRE(__wt_calloc(session, SNAP_COUNT, sizeof(uint64_t), &r.rec_ckpt_snapshot_arr) == 0);
-        memcpy(r.rec_ckpt_snapshot_arr, in_flight_array, SNAP_COUNT * sizeof(uint64_t));
-        r.rec_ckpt_snap_min = SNAP_MIN;
-        r.rec_ckpt_snap_max = SNAP_MAX;
-        r.rec_ckpt_snapshot_count = SNAP_COUNT;
-        r.rec_has_ckpt_snapshot = true;
-
         std::vector<
           std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
           updates = {
@@ -524,7 +521,6 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
         REQUIRE(upd_select.upd == NULL);
 
         cleanup_test_data(session, ins);
-        __wt_free(session, r.rec_ckpt_snapshot_arr);
         if (r.supd)
             __wt_free(session, r.supd);
     }

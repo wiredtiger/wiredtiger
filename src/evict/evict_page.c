@@ -1296,7 +1296,34 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
              */
             btree_ckpt_gen = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen);
             ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-            if (btree_ckpt_gen < ckpt_gen)
+            if (btree_ckpt_gen < ckpt_gen && !WT_IS_METADATA(btree->dhandle) &&
+              !WT_IS_DISAGG_META(btree->dhandle)) {
+                /*
+                 * Copy the checkpoint snapshot directly into the session's transaction snapshot.
+                 * Fall back to the pinned-id path if the snapshot has not yet been published.
+                 */
+                bool got_snapshot = false;
+                uint32_t snap_idx;
+                WT_TXN_SNAPSHOT *snap;
+
+                WT_ENTER_GENERATION(session, WT_GEN_CKPT_SNAP);
+                snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+                snap = &conn->ckpt_eviction_snap[snap_idx];
+                if (snap->snap_min != WT_TXN_NONE) {
+                    session->txn->snapshot_data.snap_min = snap->snap_min;
+                    session->txn->snapshot_data.snap_max = snap->snap_max;
+                    session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
+                    if (snap->snapshot_count > 0)
+                        memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
+                          snap->snapshot_count * sizeof(snap->snapshot[0]));
+                    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+                    got_snapshot = true;
+                }
+                WT_LEAVE_GENERATION(session, WT_GEN_CKPT_SNAP);
+
+                if (!got_snapshot)
+                    LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
+            } else if (btree_ckpt_gen < ckpt_gen)
                 LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
             else
                 __wt_txn_bump_snapshot(session);
