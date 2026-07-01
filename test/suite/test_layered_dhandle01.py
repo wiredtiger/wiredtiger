@@ -48,7 +48,7 @@ class test_layered_dhandle01(wttest.WiredTigerTestCase):
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-    disagg_storages = gen_disagg_storages('test_layered_dhandle01', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def open_follower(self):
