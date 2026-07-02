@@ -449,10 +449,14 @@ typedef struct {
 #define scan_end_check(a) testutil_assert(a)
 
 #ifdef _WIN32
-__declspec(noreturn)
+#define TESTUTIL_NORETURN __declspec(noreturn)
+#else
+#define TESTUTIL_NORETURN
 #endif
-  void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+TESTUTIL_NORETURN
+void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * u64_to_string --
@@ -599,7 +603,7 @@ void testutil_deduce_build_dir(TEST_OPTS *opts);
 void testutil_delete_old_backups(int);
 void testutil_disagg_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
-void testutil_disagg_preserve(WT_CONNECTION *, const char *);
+void testutil_disagg_preserve(WT_CONNECTION *, const char *, uint64_t);
 
 bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(

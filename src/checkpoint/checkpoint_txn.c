@@ -928,19 +928,6 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
 }
 
 /*
- * __checkpoint_process_disagg_metadata --
- *     Compute the drop size from the shared metadata queue, then process the queue.
- */
-static int
-__checkpoint_process_disagg_metadata(
-  WT_SESSION_IMPL *session, wt_timestamp_t schema_epoch, uint64_t *drop_sizep)
-{
-    WT_RET(__wt_disagg_shared_metadata_queue_drop_size(session, schema_epoch, drop_sizep));
-    WT_RET(__wt_disagg_shared_metadata_queue_process(session, schema_epoch));
-    return (0);
-}
-
-/*
  * __checkpoint_fail_reset --
  *     Reset fields when a failure occurs.
  */
@@ -1387,6 +1374,7 @@ __wt_checkpoint_reset_stats(WT_CONNECTION_IMPL *conn)
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
     __wt_atomic_store_uint16_relaxed(&evict->evict_max_eviction_queue_attempts, 0);
     __wt_atomic_store_uint16_relaxed(&evict->evict_max_evict_page_attempts, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_victim_cache_put_us, 0);
     __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
 
     /* Heuristic controls. */
@@ -1748,8 +1736,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
         WT_WITH_SCHEMA_LOCK(session,
-          ret =
-            __checkpoint_process_disagg_metadata(session, ckpt_disagg_schema_epoch, &drop_size));
+          ret = __wt_disagg_shared_metadata_queue_process(
+            session, ckpt_disagg_schema_epoch, &drop_size));
         WT_ERR_MSG_CHK(session, ret,
           "Disaggregated storage checkpoint failed while processing shared metadata queue");
     }

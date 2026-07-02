@@ -34,7 +34,6 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint11.py
 # Test what happens if we create an inconsistent checkpoint and then try to
 # open it for read. This version uses timestamps.
 
@@ -165,9 +164,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             session2.commit_transaction('commit_timestamp=' + self.timestamp_str(30))

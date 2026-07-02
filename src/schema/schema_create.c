@@ -906,7 +906,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
      */
     __wt_config_subinit(session, &pkcols, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&pkcols, &ckey, &cval)) == 0;
-         i++) {
+      i++) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -1554,6 +1554,21 @@ __create_parse_export(
 }
 
 /*
+ * __schema_create_uri_check --
+ *     Validate that a URI passed to session.create() has a non-empty name after the scheme prefix.
+ */
+static int
+__schema_create_uri_check(WT_SESSION_IMPL *session, const char *uri)
+{
+    const char *sep;
+
+    sep = strchr(uri, ':');
+    if (sep != NULL && sep[1] == '\0')
+        WT_RET_MSG(session, EINVAL, "%s: URI requires a non-empty name", uri);
+    return (0);
+}
+
+/*
  * __schema_create_config_check --
  *     Detects any invalid config combinations for schema create.
  */
@@ -1639,6 +1654,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
+    WT_RET(__schema_create_uri_check(session, uri));
     WT_RET(__schema_create_config_check(session, uri, config, import));
 
     /*
@@ -1661,7 +1677,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 
             /* Get suffix of the URI. */
             import_list.uri_suffix = strchr(uri, ':');
-            WT_ASSERT(session, import_list.uri_suffix != NULL && import_list.uri_suffix[1] != '\0');
+            WT_ASSERT(session, import_list.uri_suffix != NULL);
             ++import_list.uri_suffix;
 
             WT_ERR(__create_parse_export(session, export_file, &import_list));

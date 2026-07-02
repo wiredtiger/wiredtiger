@@ -30,7 +30,6 @@ import time
 import wttest
 from wiredtiger import stat
 
-# checkpoint_util.py
 # Base class providing checkpoint-related helpers.
 class checkpoint_util(wttest.WiredTigerTestCase):
 
@@ -41,12 +40,11 @@ class checkpoint_util(wttest.WiredTigerTestCase):
         task-level timeout if a checkpoint never starts. poll_interval controls how often the
         statistic is sampled.
         """
-        if session == None:
+        if session is None:
             session = self.session
         deadline = time.time() + timeout
         while True:
-            with wttest.open_cursor(session, 'statistics:') as stat_cursor:
-                state = stat_cursor[stat.conn.checkpoint_state][2]
+            state = self.get_stat(stat.conn.checkpoint_state, session=session)
             if state != 0:
                 break
             self.assertLess(time.time(), deadline,

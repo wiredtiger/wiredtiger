@@ -183,6 +183,9 @@ struct __wt_btree {
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
 
+    /* For an ingest btree, an upper bound on the durable timestamp of any update it holds. */
+    wt_shared wt_timestamp_t max_ingest_write_ts;
+
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
@@ -251,6 +254,20 @@ struct __wt_btree {
     wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
     wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
+
+    /*
+     * Approximate average number of K/V pairs per row-store leaf page. Maintained as an EWMA
+     * updated at page fault-in (for cold pages) and at reconciliation (for modified pages). Not
+     * authoritative: use WT_STAT_TYPE_TREE_WALK for exact counts.
+     */
+    wt_shared uint64_t leaf_entry_ewma;
+
+    /*
+     * Approximate count of row-store leaf pages. Incremented at each leaf split (in-memory or
+     * eviction); decrements for page deletions are not tracked, so the count may overestimate when
+     * many pages are deleted. Persisted through checkpoint metadata.
+     */
+    wt_shared uint64_t approx_leaf_pages;
 
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 

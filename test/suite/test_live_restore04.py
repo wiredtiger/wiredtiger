@@ -32,7 +32,6 @@ from wtscenario import make_scenarios
 from wtbackup import backup_base
 
 
-# test_live_restore04.py
 # Test using the wt utility with live restore.
 class test_live_restore04(backup_base):
     format_values = [
@@ -43,12 +42,6 @@ class test_live_restore04(backup_base):
     nrows = 10000
     ntables = 3
     conn_config = 'log=(enabled)'
-
-    def get_stat(self, statistic):
-        stat_cursor = self.session.open_cursor("statistics:")
-        val = stat_cursor[statistic][2]
-        stat_cursor.close()
-        return val
 
     def test_live_restore04(self):
         # FIXME-WT-14051: Live restore is not supported on Windows.

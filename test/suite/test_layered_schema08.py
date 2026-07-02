@@ -26,13 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_schema08.py
-#   Test that shared metadata queue operations are deferred until a checkpoint runs.
+# Test that shared metadata queue operations are deferred until a checkpoint runs.
 #
-#   Schema operations (create, drop) on a leader enqueue metadata updates with deferred=true.
-#   The checkpoint prepare step undefers all existing entries, and they are applied at the end
-#   of that same checkpoint. Operations enqueued concurrently with a running checkpoint (after
-#   prepare) remain deferred until the next checkpoint.
+# Schema operations (create, drop) on a leader enqueue metadata updates with deferred=true.
+# The checkpoint prepare step undefers all existing entries, and they are applied at the end
+# of that same checkpoint. Operations enqueued concurrently with a running checkpoint (after
+# prepare) remain deferred until the next checkpoint.
 
 import time, wiredtiger, wttest, wtthread
 from checkpoint_util import checkpoint_util
@@ -41,7 +40,8 @@ from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_schema08(checkpoint_util):
-    uri_base = 'test_layered_schema08'
+    test_name = __qualname__
+    uri_base = test_name
     conn_config = 'statistics=(all),disaggregated=(role="leader",lose_all_my_data=true)'
 
     table_types = [
@@ -49,7 +49,7 @@ class test_layered_schema08(checkpoint_util):
         ('table-prefix', dict(prefix='table:', table_config=',block_manager=disagg,type=layered')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered_schema08', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(table_types, disagg_storages)
 
     def uri(self):
@@ -204,9 +204,7 @@ class test_layered_schema08(checkpoint_util):
 
         # Snapshot the sweep counter before closing the session so that we detect the
         # increment that results specifically from the session2 close, not a stale one.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        sweep_baseline = stat_cursor[wiredtiger.stat.conn.dh_sweep_dead_close][2]
-        stat_cursor.close()
+        sweep_baseline = self.get_stat(wiredtiger.stat.conn.dh_sweep_dead_close)
 
         # Create the table in a separate session so that closing it drops the only
         # non-sweep reference to the dhandle.
@@ -215,13 +213,8 @@ class test_layered_schema08(checkpoint_util):
         session2.close()
 
         # Wait for the sweep to close the idle dhandle.
-        while True:
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            sweep_closes = stat_cursor[wiredtiger.stat.conn.dh_sweep_dead_close][2]
-            stat_cursor.close()
-            if sweep_closes > sweep_baseline:
-                break
-            time.sleep(0.5)
+        self.assertStatGreaterSoon(wiredtiger.stat.conn.dh_sweep_dead_close, sweep_baseline,
+            timeout=60, msg='sweep server did not close the idle dhandle within 60 seconds')
 
         # Checkpoint to get the table into the shared metadata table.
         self.session.checkpoint()
