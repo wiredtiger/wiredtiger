@@ -64,7 +64,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         return int(re.search(r': (\d+)$', result).group(1))
 
     def test_config_errors(self):
-        self.assertTrue(self.repair('').startswith('wiredtiger_repair: empty config'))
+        self.assertIn('wiredtiger_repair: empty config', self.repair(''))
         self.assertIn('No command found', self.repair('uri="table:tbl"'))
 
     def test_fetch_database_size(self):
