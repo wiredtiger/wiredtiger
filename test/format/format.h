@@ -292,6 +292,19 @@ typedef struct {
     RWLOCK prepare_commit_lock;
 
     /*
+     * Lock to freeze the timestamp counter during async step-down arm. Read lock: held briefly in
+     * commit_transaction() while incrementing g.timestamp. Write lock: held exclusively during arm
+     * to capture step_down_ts and advance g.timestamp past it, ensuring all post-arm allocations
+     * land strictly above step_down_ts.
+     */
+    RWLOCK stepdown_ts_lock;
+
+    wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is armed; 0 if not armed. */
+
+    volatile bool checkpoint_quit; /* Signal checkpoint thread to stop before workers finish. */
+    volatile bool timestamp_quit;  /* Signal timestamp thread to stop before workers finish. */
+
+    /*
      * Single-thread failure. Not a WiredTiger library lock because it's set up before configuring
      * anything.
      */
@@ -465,6 +478,7 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+void disagg_async_stepdown(WT_SESSION *, wt_thread_t *, wt_thread_t *);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);

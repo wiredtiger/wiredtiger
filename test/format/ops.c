@@ -290,10 +290,11 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
-    bool lastrun, running;
+    bool lastrun, running, stepdown_done;
 
     conn = g.wts_conn;
     lastrun = (run_current == run_total);
+    stepdown_done = false;
 
     /* Make the modify pad character printable to simplify debugging and logging. */
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
@@ -389,6 +390,21 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {
+        /*
+         * When the timer expires during an async disagg leader phase, arm the step-down while
+         * workers are still live. The arm stops the checkpoint and timestamp threads, pins stable
+         * at step_down_ts, rolls back in-flight write transactions, then takes the step-down
+         * checkpoint and reconfigures to follower. Workers are then granted an additional
+         * DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds to exercise follower-mode operation (reads
+         * continue serving, writes land in ingest) before the quit signal is sent.
+         */
+        if (fourths == 0 && !stepdown_done && disagg_is_mode_switch() && g.disagg_leader &&
+          strcmp(GVS(DISAGG_STEP_DOWN), "async") == 0) {
+            disagg_async_stepdown(session, &checkpoint_tid, &timestamp_tid);
+            stepdown_done = true;
+            fourths = DISAGG_SWITCH_FOLLOWER_OPS_SEC * 4;
+        }
+
         /* Clear out the totals each pass. */
         memset(&total, 0, sizeof(total));
         for (i = 0, running = false; i < GV(RUNS_THREADS); ++i) {
@@ -472,7 +488,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
-    if (g.checkpoint_config == CHECKPOINT_ON)
+    if (g.checkpoint_config == CHECKPOINT_ON && !g.checkpoint_quit)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
@@ -484,7 +500,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &import_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
-    if (g.transaction_timestamps_config)
+    if (g.transaction_timestamps_config && !g.timestamp_quit)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
@@ -612,8 +628,17 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_commit_ts(tinfo);
-        else
+        else {
+            /*
+             * Read lock: allows concurrent commits. The write lock is held exclusively during async
+             * step-down arm to capture step_down_ts and advance g.timestamp past it. Threads
+             * waiting here will unblock with ts values strictly above step_down_ts, landing cleanly
+             * in ingest after the arm.
+             */
+            lock_readlock(session, &g.stepdown_ts_lock);
             ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+            lock_readunlock(session, &g.stepdown_ts_lock);
+        }
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
