@@ -923,23 +923,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       ckpt_meta->metadata_lsn);
 
     /*
-     * Refresh the pinned timestamp before checking it against the checkpoint's oldest timestamp.
-     * The cached value may lag behind the actual minimum held by active transactions; using a stale
-     * (lower) value here would cause a false panic below.
-     */
-    __wt_txn_update_pinned_timestamp(session, false);
-    uint64_t pinned_timestamp;
-    __wt_txn_pinned_timestamp(session, &pinned_timestamp);
-    if (pinned_timestamp != WT_TS_NONE && metadata.oldest_timestamp > pinned_timestamp) {
-        WT_TRET(__wt_verbose_dump_sessions(session, false));
-        WT_IGNORE_RET(__wt_panic(session, EINVAL,
-          "Disaggregated storage checkpoint oldest_timestamp %s is greater than the current pinned "
-          "timestamp %s",
-          __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(pinned_timestamp, ts_string[1])));
-    }
-
-    /*
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
      */
 
@@ -955,6 +938,24 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
       metadata.schema_epoch, __wt_timestamp_to_string(metadata.schema_epoch, ts_string[2]),
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
+
+    /*
+     * Refresh the pinned timestamp before checking it against the checkpoint's oldest timestamp,
+     * now that the checkpoint's real oldest_timestamp has been parsed above. The cached value may
+     * lag behind the actual minimum held by active transactions; using a stale (lower) value here
+     * would cause a false panic below.
+     */
+    __wt_txn_update_pinned_timestamp(session, false);
+    uint64_t pinned_timestamp;
+    __wt_txn_pinned_timestamp(session, &pinned_timestamp);
+    if (pinned_timestamp != WT_TS_NONE && metadata.oldest_timestamp > pinned_timestamp) {
+        WT_TRET(__wt_verbose_dump_sessions(session, false));
+        WT_IGNORE_RET(__wt_panic(session, EINVAL,
+          "Disaggregated storage checkpoint oldest_timestamp %s is greater than the current pinned "
+          "timestamp %s",
+          __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(pinned_timestamp, ts_string[1])));
+    }
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
