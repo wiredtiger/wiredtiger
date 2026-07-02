@@ -137,7 +137,7 @@ __clayered_assert_stable_mode(WT_CURSOR_LAYERED *clayered)
 /* __clayered_enter() local flags. */
 #define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
 #define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RC_RESET 0x4u    /* Reset cursor for read-committed isolation. */
+#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituents at the start of a fresh operation. */
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
@@ -174,15 +174,29 @@ __clayered_op_init_begin(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, 
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
 static WT_INLINE uint32_t
-__clayered_enter_flags(WT_CLAYERED_OP *op)
+__clayered_enter_flags(WT_CLAYERED_OP *op, bool positioned)
 {
     uint32_t flags;
 
     flags = 0;
 
-    if (op->mode == WT_CLAYERED_MODE_SEARCH || op->mode == WT_CLAYERED_MODE_LARGEST_KEY ||
-      op->mode == WT_CLAYERED_MODE_RANDOM)
-        LF_SET(CLAYERED_ENTER_RC_RESET);
+    /*
+     * Reset the constituents on entry for operations that re-search, mirroring a file cursor's
+     * func_init(reenter) path: the reset drives the active-cursor count to zero (releasing the
+     * read-committed snapshot and running the eviction check) and re-derives position from the key.
+     *
+     * Two kinds of operation skip the reset, matching the file cursor:
+     *   - Iteration (next/prev) keeps its position to continue the walk.
+     *   - A positioned write (remove/update/modify on an already-positioned cursor) reuses that
+     *     position directly, the way __wt_btcur_remove takes its page-pinned fast path without a
+     *     func_init reset; resetting here would discard the position those paths require. The
+     * caller captures "positioned" before the API layer localizes the key, so it is authoritative
+     * here where the interface key flag has already been cleared.
+     */
+    if (op->mode != WT_CLAYERED_MODE_ITERATE &&
+      !((op->mode == WT_CLAYERED_MODE_WRITE || op->mode == WT_CLAYERED_MODE_WRITE_OVERWRITE) &&
+        positioned))
+        LF_SET(CLAYERED_ENTER_RESET);
     if (op->mode == WT_CLAYERED_MODE_ITERATE || op->mode == WT_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
     /* Follower overwrite writes update the ingest table without accessing the stable table. */
@@ -210,21 +224,20 @@ __clayered_op_init_finish(WT_CLAYERED_OP *op)
 }
 
 /*
- * __clayered_read_committed_snapshot_reset --
- *     Reset constituent cursors before a read operation under read-committed isolation.
+ * __clayered_enter_reset --
+ *     Reset the constituent cursors at the start of a fresh operation, mirroring a file cursor's
+ *     func_init(reenter) path.
  *
- * Under read-committed, the snapshot is released when the active cursor count drops to zero. File
- *     cursors achieve this naturally by resetting a cursor where needed (for search, and write on
- *     the retry path), which drives the count to zero and releases the snapshot before taking a
- *     fresh one for the new operation.
- *
- * Layered cursors hold an extra active-cursor reference that prevents constituent resets from
- *     driving the count to zero on their own. We therefore reset the constituent cursors here,
- *     before that extra reference is added, so the count can reach zero and the old snapshot is
- *     released before the read begins.
+ * A file cursor resets itself on every non-iteration operation: the reset drives the session's
+ *     active-cursor count to zero, which under read-committed releases the snapshot so the next
+ *     operation takes a fresh one, and it drops the old position, which the operation re-derives
+ *     from the key. A layered cursor holds an extra active-cursor reference across the operation,
+ *     so we reset the constituents here, before that reference is taken, to reproduce the same
+ *     count-to-zero (and snapshot release) behavior. Copy the key and value local first so they
+ *     survive the reset if they point into a page.
  */
 static WT_INLINE int
-__clayered_read_committed_snapshot_reset(WT_CURSOR_LAYERED *clayered)
+__clayered_enter_reset(WT_CURSOR_LAYERED *clayered)
 {
     WT_RET(__wt_cursor_localkey(&clayered->iface));
     WT_RET(__cursor_localvalue(&clayered->iface));
@@ -234,25 +247,34 @@ __clayered_read_committed_snapshot_reset(WT_CURSOR_LAYERED *clayered)
 
 /*
  * __clayered_cursor_enter --
- *     Every time we enter a layered cursor API, we explicitly increase the number of active cursors
- *     and then explicitly decrease it at the end to avoid the number of active cursors going to
- *     zero in the middle of a layered cursor operation in case we close/reset both constituents
- *     there.
- *
- * At the same time, the number of active cursors after exiting a layered cursor API is still
- *     determined by the active state of its constituent cursors.
- *
- * Unlike `__cursor_enter`, this does not trigger the eviction check, which won't be triggered for
- *     underlying cursors too because of an extra reference. That's fine - eviction at the
- *     transaction level should be sufficient.
+ *     Activate a layered cursor in the session's cursor count and apply eviction back-pressure.
  */
-static WT_INLINE void
+static WT_INLINE int
 __clayered_cursor_enter(WT_CURSOR_LAYERED *clayered)
 {
-    if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
-        ++CUR2S(clayered)->ncursors;
-        F_SET(clayered, WT_CLAYERED_ACTIVE);
-    }
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+
+    /* A layered operation always leaves the cursor inactive, so each entry activates it afresh. */
+    WT_ASSERT(session, !F_ISSET(clayered, WT_CLAYERED_ACTIVE));
+
+    /*
+     * Mirror __cursor_enter: when this is the first active cursor in the session, run the
+     * application eviction check so cache-overflow back-pressure (the WT_ROLLBACK that enforces
+     * cache_max_wait_ms) reaches the application. The preceding fresh-operation reset drove the
+     * count to zero, so this fires on every fresh operation the same way it does for a file cursor.
+     *
+     * The eviction worker assumes the current dhandle is a btree (it walks into the history store
+     * via S2BT), but a layered operation's dhandle is the layered table, so run the check with no
+     * dhandle as the transaction-level checks do.
+     */
+    if (session->ncursors == 0)
+        WT_WITH_DHANDLE(session, NULL,
+          ret = __wt_evict_app_assist_worker_check(session, false, false, true, NULL));
+    WT_RET_ONLY(ret, WT_ROLLBACK);
+    ++session->ncursors;
+    F_SET(clayered, WT_CLAYERED_ACTIVE);
+    return (0);
 }
 
 /*
@@ -273,21 +295,22 @@ __clayered_cursor_leave(WT_CURSOR_LAYERED *clayered)
  *     Start an operation on a layered cursor.
  */
 static WT_INLINE int
-__clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYERED_OP *op)
+__clayered_enter(
+  WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, bool positioned, WT_CLAYERED_OP *op)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     uint32_t flags;
 
     __clayered_op_init_begin(clayered, mode, op);
-    flags = __clayered_enter_flags(op);
+    flags = __clayered_enter_flags(op, positioned);
 
     if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
           "All the cursors should be left unpositioned before changing the role.");
     }
 
-    if (LF_ISSET(CLAYERED_ENTER_RC_RESET) && __wt_txn_read_committed_snapshot_mode(session))
-        WT_RET(__clayered_read_committed_snapshot_reset(clayered));
+    if (LF_ISSET(CLAYERED_ENTER_RESET))
+        WT_RET(__clayered_enter_reset(clayered));
 
     /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
     WT_RET(__clayered_update_ingest(clayered, flags));
@@ -300,7 +323,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, WT_CLAYERED_OP_MODE mode, WT_CLAYE
 
     __clayered_op_init_finish(op);
 
-    __clayered_cursor_enter(clayered);
+    WT_RET(__clayered_cursor_enter(clayered));
 
     return (0);
 }
@@ -1361,7 +1384,7 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 
     iface = &clayered->iface;
 
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_ITERATE, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_ITERATE, false, &op));
     WT_ERR(__clayered_iterate_int(&op, iter_flag));
 
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
@@ -1827,7 +1850,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_SEARCH, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_SEARCH, false, &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2105,7 +2128,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_SEARCH, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_SEARCH, false, &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2446,7 +2469,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered,
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) ? WT_CLAYERED_MODE_WRITE_OVERWRITE :
                                              WT_CLAYERED_MODE_WRITE,
-      &op));
+      false, &op));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -2510,6 +2533,9 @@ __clayered_update(WT_CURSOR *cursor)
     WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    /* Capture the position before the API layer localizes the key. */
+    bool positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
+
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
@@ -2526,7 +2552,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered,
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) ? WT_CLAYERED_MODE_WRITE_OVERWRITE :
                                              WT_CLAYERED_MODE_WRITE,
-      &op));
+      positioned, &op));
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
@@ -2591,7 +2617,7 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, positioned, &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2632,9 +2658,13 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
+    bool positioned;
 
     WT_CLEAR(value);
     clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    /* Capture the position before the API layer localizes the key. */
+    positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
 
@@ -2650,7 +2680,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
 
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, positioned, &op));
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
@@ -2700,7 +2730,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_LARGEST_KEY, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_LARGEST_KEY, false, &op));
 
     c_ingest = op.ingest;
     c_stable = op.stable;
@@ -2858,7 +2888,7 @@ __clayered_next_random(WT_CURSOR *cursor)
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_RANDOM, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_RANDOM, false, &op));
 
     /*
      * Pick a random row from stable, and fall back to ingest if stable is empty or not yet opened.
@@ -3049,6 +3079,9 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    /* Capture the position before the API layer localizes the key. */
+    bool positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
+
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
@@ -3069,7 +3102,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, &op));
+    WT_ERR(__clayered_enter(clayered, WT_CLAYERED_MODE_WRITE, positioned, &op));
 
     WT_ERR(__clayered_modify_int(&op, entries, nentries));
 
