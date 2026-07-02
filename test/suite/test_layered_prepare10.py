@@ -36,10 +36,10 @@ from wiredtiger import WiredTigerError
 @disagg_test_class
 class test_layered_prepare10(wttest.WiredTigerTestCase):
     """
-    A reader stalls mid-walk on a prepared update, leaving the ingest cursor with no key but still
-    positioned. While it is stalled, the parked stable key is deleted by a newer checkpoint that
-    the follower picks up. Once the conflict resolves, the walk must still return every other
-    visible key.
+    A reader stalls mid-walk on a prepare transaction, leaving the ingest cursor with no key but
+    still positioned. While it is stalled, the key that the stable cursor is on is deleted by a
+    newer checkpoint that the follower picks up. Once the conflict resolves, the walk must still
+    return every other visible key.
     """
 
     uri = f"layered:{__qualname__}"
@@ -48,34 +48,22 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
 
-    # Stable keys serve all scenarios.
     STABLE_KEYS = (4, 6, 8)
+    INGEST_KEYS = (1, 5, 7, 11)
+
+    # The prepared key needs to be before the stable range (LHS for forward and RHS for backward).
+    # This is to demonstrate the worst case, as no stable keys will have been given to the user yet.
     scenarios = make_scenarios(
         disagg_storages,
         [
-            # Merged walk 1, [3 prepared], 4, 5, 6, 8. Returns 1, then stalls on the prepare,
-            # with the stable block (4, 6, 8) still ahead, so a dropped stable key is observable.
-            (
-                "forward",
-                dict(
-                    forward=True,
-                    ingest=(1, 5),
-                    prepared=3,
-                    all_keys=[1, 4, 5, 6, 8],
-                ),
-            ),
-            # Mirror is 11, [9 prepared], 8, 7, 6, 4. Only ingest and prepared flip per direction.
-            (
-                "backward",
-                dict(
-                    forward=False,
-                    ingest=(7, 11),
-                    prepared=9,
-                    all_keys=[11, 8, 7, 6, 4],
-                ),
-            ),
+            ("forward", dict(forward=True, prepared_key=3)),
+            ("backward", dict(forward=False, prepared_key=9)),
         ],
     )
+
+    @property
+    def walk_order(self):
+        return sorted((*self.INGEST_KEYS, *self.STABLE_KEYS), reverse=not self.forward)
 
     def setUp(self):
         super().setUp()
@@ -91,6 +79,9 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
             self._commit(self.session, key, "stable", stable_ts)
         self._leader_checkpoint(stable_ts)
 
+    def _follower_session(self):
+        return closing(self.follower.open_session())
+
     def _setup_follower(self):
         self.follower = self.wiredtiger_open(
             "follower",
@@ -98,8 +89,8 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
             f'disaggregated=(role="follower")',
         )
         self.disagg_advance_checkpoint(self.follower)
-        with closing(self.follower.open_session()) as session:
-            for key in self.ingest:
+        with self._follower_session() as session:
+            for key in self.INGEST_KEYS:
                 self._commit(session, key, "ingest", 22)
 
     def _commit(self, session, key, value, ts):
@@ -117,75 +108,75 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
             cursor.set_key(key)
             self.assertEqual(cursor.remove(), 0)
 
-    def _leader_checkpoint(self, stable):
-        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(stable)}")
+    def _leader_checkpoint(self, ts):
+        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(ts)}")
         self.session.checkpoint()
 
-    def _prepared_session(self):
-        session = self.follower.open_session()
+    def _start_prepare_txn(self, session):
         session.begin_transaction()
         with wttest.open_cursor(session, self.uri) as cursor:
-            cursor[self.prepared] = "prepared"
+            cursor[self.prepared_key] = "prepared"
         session.prepare_transaction(
             f"prepare_timestamp={self.timestamp_str(25)},"
             f"prepared_id={self.prepared_id_str(1)}"
         )
-        return session
+
+    def _rollback_prepare_txn(self, session):
+        session.rollback_transaction(f"rollback_timestamp={self.timestamp_str(35)}")
 
     @contextmanager
-    def _prepare_stalled_reader(self, seen_keys, ts):
-        """Walk a reader onto the prepared key so the ingest cursor stalls with no key."""
-        with (
-            closing(self._prepared_session()) as prep_session,
-            closing(self.follower.open_session()) as reader,
-            self.transaction(
-                session=reader,
-                read_timestamp=ts,
-                rollback=True,
-            ),
-            closing(reader.open_cursor(self.uri)) as read_cursor,
-        ):
-            step = read_cursor.next if self.forward else read_cursor.prev
+    def _during_prepare_txn_stall(self, read_ts, seen_keys):
+        """
+        Stall a reader on the prepared key for the relevant test. On exit, rollback the prepare txn
+        and record the rest of the cursor walk into seen_keys.
+        """
 
-            # Surface the first key, then stall advancing onto the prepared update.
+        with (
+            self._follower_session() as prepared_session,
+            self._follower_session() as read_session,
+            wttest.open_cursor(read_session, self.uri) as read_cursor,
+        ):
+            self._start_prepare_txn(prepared_session)
+            read_session.begin_transaction(
+                f"read_timestamp={self.timestamp_str(read_ts)}"
+            )
+
+            # Stall the reader on the prepare conflict.
+            step = read_cursor.next if self.forward else read_cursor.prev
             self.assertEqual(step(), 0)
             seen_keys.append(read_cursor.get_key())
             self.assertRaisesException(
-                WiredTigerError,
-                step,
-                "/conflict with a prepared update/",
+                WiredTigerError, step, "/conflict with a prepared update/"
             )
 
-            try:
-                yield
-            finally:
-                prep_session.rollback_transaction(
-                    f"rollback_timestamp={self.timestamp_str(35)}"
-                )
+            yield
+
+            self._rollback_prepare_txn(prepared_session)
             while step() == 0:
                 seen_keys.append(read_cursor.get_key())
+            read_session.rollback_transaction()
 
     def test_reopen_notfound_while_ingest_stalled(self):
-        """The parked stable key is deleted in a newer checkpoint."""
-        # The stable cursor parks on the first stable key the walk reaches in this direction.
-        parked_key = self.STABLE_KEYS[0] if self.forward else self.STABLE_KEYS[-1]
+        """The key that the stable cursor is on is deleted in a newer checkpoint."""
+
+        # The first key (depending on direction) is what the stable cursor will be positioned on.
+        parked_stable_key = self.STABLE_KEYS[0] if self.forward else self.STABLE_KEYS[-1]
+        delete_ts = 28
 
         # Simulate the oplog delete landing in the follower's ingest before the read (a tombstone),
         # so the key stays masked regardless of the stable checkpoint.
-        delete_ts = 28
-        with closing(self.follower.open_session()) as session:
-            self._remove(session, parked_key, delete_ts)
+        with self._follower_session() as session:
+            self._remove(session, parked_stable_key, delete_ts)
 
-        seen_keys = []
         read_ts = 30
-        with self._prepare_stalled_reader(seen_keys, read_ts):
-            # The same delete lands in a newer checkpoint the follower then picks up mid-stall.
-            self._remove(self.session, parked_key, delete_ts)
+        seen_keys = []
+        with self._during_prepare_txn_stall(read_ts, seen_keys):
+            self._remove(self.session, parked_stable_key, delete_ts)
             self._leader_checkpoint(read_ts)
             self.disagg_advance_checkpoint(self.follower)
 
         # The deleted key should not be visible.
-        expected = [k for k in self.all_keys if k != parked_key]
+        expected = [k for k in self.walk_order if k != parked_stable_key]
         self.assertEqual(seen_keys, expected, "the walk lost a visible key")
 
 
