@@ -90,8 +90,7 @@ struct __wt_truncate {
 
 /*
  * WT_TRUNCATE_LIST --
- *	Fast-truncate range list for a layered table: the queue of truncate ranges and the lock
- *	guarding its membership.
+ *	Fast-truncate range list for a layered table.
  */
 struct __wt_truncate_list {
     /*
@@ -101,10 +100,7 @@ struct __wt_truncate_list {
      */
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) qh;
 
-    /*
-     * Protects truncate list membership (insert/remove/clear). Per-entry visibility is synchronized
-     * lock-free via WT_TRUNCATE.committed.
-     */
+    /* Read/write lock. Any modification to the list must be done under a write lock. */
     WT_RWLOCK lock;
 };
 
