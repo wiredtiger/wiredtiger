@@ -172,10 +172,10 @@ err:
           __wt_buf_catfmt(default_session, report, " Failed: %s", wiredtiger_strerror(ret)));
 
     if (session != NULL)
-        WT_TRET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
+        WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
 
     /* Release the repair operation lock. */
-    __wt_atomic_store_uint8(&((WT_CONNECTION_IMPL *)connection)->repair.op_lock, 0);
+    __wt_atomic_store_uint8(&conn->repair.op_lock, 0);
 
     return (report->size > 0 ? report->data : "");
 }
