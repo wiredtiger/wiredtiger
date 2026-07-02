@@ -385,6 +385,8 @@ struct __wt_ref;
 typedef struct __wt_ref WT_REF;
 struct __wt_ref_hist;
 typedef struct __wt_ref_hist WT_REF_HIST;
+struct __wt_repair;
+typedef struct __wt_repair WT_REPAIR;
 struct __wt_rollback_to_stable;
 typedef struct __wt_rollback_to_stable WT_ROLLBACK_TO_STABLE;
 struct __wt_row;
