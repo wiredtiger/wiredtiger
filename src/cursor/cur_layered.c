@@ -648,9 +648,11 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
     /*
      * We always open ingest in overwrite mode to be able to rewrite tombstones with insert().
      *
-     * FIXME-WT-17917: It might be possible that it'll be technically simpler to inherit OVERWRITE
-     * only if it's set for the top cursor and always call update() to put something on top of an
-     * ingest tombstone.
+     * Inheriting the top cursor's OVERWRITE flag instead does not help: duplicate detection needs
+     * both constituents but the ingest cursor sees only one, the ingest write must create-or-replace
+     * (over an absent key or a tombstone) so it needs overwrite regardless, and a delete is a value
+     * rather than a btree tombstone so native non-overwrite semantics give the wrong answer. The
+     * stable-side pre-lookup therefore cannot be removed.
      */
     F_SET(cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
