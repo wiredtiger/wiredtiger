@@ -30,11 +30,11 @@ import re, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_wiredtiger_repair01.py
+# test_repair01.py
 #    Exercise the wiredtiger_repair() API for config-error paths and fetch_database_size. Both run
 #    in non-disaggregated and disaggregated scenarios; the disagg scenario cross-validates the
 #    reported size against the disagg_database_size connection statistic.
-class test_wiredtiger_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=False))
 
