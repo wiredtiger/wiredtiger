@@ -409,6 +409,17 @@ __clayered_open_stable(
 }
 
 /*
+ * __clayered_ingest_prepare_stalled --
+ *     Determine if the ingest cursor is on a prepare conflict.
+ */
+static WT_INLINE bool
+__clayered_ingest_prepare_stalled(const WT_CURSOR *current, const WT_CURSOR *ingest)
+{
+    return (ingest != NULL && current == ingest && !F_ISSET(ingest, WT_CURSTD_KEY_INT) &&
+      ((const WT_CURSOR_BTREE *)ingest)->ref != NULL);
+}
+
+/*
  * __clayered_can_advance_stable --
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
@@ -426,6 +437,13 @@ __clayered_can_advance_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, b
 
     /* No need to advance if there is no newer checkpoint. */
     if (clayered->stable_checkpoint_meta_lsn == conn_lsn)
+        return (false);
+
+    /*
+     * Do not advance while ingest is stalled on a prepare conflict with no key. Stable could lose
+     * its position with no ingest key to recover it, skipping visible keys.
+     */
+    if (__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor))
         return (false);
 
     /*
@@ -562,9 +580,15 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
      * If the transaction context has changed since the last call (different read timestamp or a new
      * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
      * flags to force a re-search under the new context.
+     *
+     * FIXME-WT-17960: a context change while ingest is stalled on a prepare conflict leaves stable
+     * parked under the old context with no anchor to re-search it from.
      */
-    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp)
+    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp) {
+        WT_ASSERT(session,
+          !__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor));
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    }
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
