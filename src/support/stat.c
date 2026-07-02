@@ -324,6 +324,12 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor update operations",
+  "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
+  "a non-tombstone byte",
+  "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
+  "a tombstone byte",
+  "layered: Layered table stable values equal to the tombstone byte sequence",
+  "layered: Layered table stable values equal to three tombstone bytes",
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
@@ -782,6 +788,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_update = 0;
+    stats->layered_curs_stable_value_tombstone_prefix = 0;
+    stats->layered_curs_stable_value_tombstone_suffix = 0;
+    stats->layered_curs_stable_value_tombstone = 0;
+    stats->layered_curs_stable_value_tombstone_x3 = 0;
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
@@ -1239,6 +1249,12 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_search_ingest += from->layered_curs_search_ingest;
     to->layered_curs_search_stable += from->layered_curs_search_stable;
     to->layered_curs_update += from->layered_curs_update;
+    to->layered_curs_stable_value_tombstone_prefix +=
+      from->layered_curs_stable_value_tombstone_prefix;
+    to->layered_curs_stable_value_tombstone_suffix +=
+      from->layered_curs_stable_value_tombstone_suffix;
+    to->layered_curs_stable_value_tombstone += from->layered_curs_stable_value_tombstone;
+    to->layered_curs_stable_value_tombstone_x3 += from->layered_curs_stable_value_tombstone_x3;
     to->layered_table_manager_checkpoints += from->layered_table_manager_checkpoints;
     to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
       from->layered_table_manager_checkpoints_disagg_pick_up_failed;
@@ -1738,6 +1754,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_search_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_ingest);
     to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
+    to->layered_curs_stable_value_tombstone_prefix +=
+      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_prefix);
+    to->layered_curs_stable_value_tombstone_suffix +=
+      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_suffix);
+    to->layered_curs_stable_value_tombstone +=
+      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone);
+    to->layered_curs_stable_value_tombstone_x3 +=
+      WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_x3);
     to->layered_table_manager_checkpoints +=
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
@@ -2268,6 +2292,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: shared disk bucket lock contention count",
   "cache: shared disk bytes saved by sharing duplicate disk images",
   "cache: shared disk hash table size",
   "cache: shared disk hit",
@@ -2524,6 +2549,12 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
   "layered: Layered table cursor update operations",
+  "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
+  "a non-tombstone byte",
+  "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
+  "a tombstone byte",
+  "layered: Layered table stable values equal to the tombstone byte sequence",
+  "layered: Layered table stable values equal to three tombstone bytes",
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: disagg pick up checkpoints failed",
   "layered: disagg pick up checkpoints succeeded",
@@ -3350,6 +3381,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    stats->cache_shared_dsk_lock_contention = 0;
     /* not clearing cache_shared_dsk_bytes_duplicate */
     /* not clearing cache_shared_dsk_hash_size */
     stats->cache_shared_dsk_hit = 0;
@@ -3603,6 +3635,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_update = 0;
+    stats->layered_curs_stable_value_tombstone_prefix = 0;
+    stats->layered_curs_stable_value_tombstone_suffix = 0;
+    stats->layered_curs_stable_value_tombstone = 0;
+    stats->layered_curs_stable_value_tombstone_x3 = 0;
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
     stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
@@ -4513,6 +4549,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->cache_shared_dsk_lock_contention +=
+      WT_STAT_CONN_READ(from, cache_shared_dsk_lock_contention);
     to->cache_shared_dsk_bytes_duplicate +=
       WT_STAT_CONN_READ(from, cache_shared_dsk_bytes_duplicate);
     to->cache_shared_dsk_hash_size += WT_STAT_CONN_READ(from, cache_shared_dsk_hash_size);
@@ -4800,6 +4838,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_search_ingest += WT_STAT_CONN_READ(from, layered_curs_search_ingest);
     to->layered_curs_search_stable += WT_STAT_CONN_READ(from, layered_curs_search_stable);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
+    to->layered_curs_stable_value_tombstone_prefix +=
+      WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone_prefix);
+    to->layered_curs_stable_value_tombstone_suffix +=
+      WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone_suffix);
+    to->layered_curs_stable_value_tombstone +=
+      WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone);
+    to->layered_curs_stable_value_tombstone_x3 +=
+      WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone_x3);
     to->layered_table_manager_checkpoints +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_disagg_pick_up_failed +=

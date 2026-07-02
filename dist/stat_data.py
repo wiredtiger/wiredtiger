@@ -350,6 +350,7 @@ conn_stats = [
     CacheStat('cache_shared_dsk_bytes_duplicate', 'shared disk bytes saved by sharing duplicate disk images', 'no_clear,no_scale,size'),
     CacheStat('cache_shared_dsk_hash_size', 'shared disk hash table size', 'no_clear,no_scale'),
     CacheStat('cache_shared_dsk_hit', 'shared disk hit'),
+    CacheStat('cache_shared_dsk_lock_contention', 'shared disk bucket lock contention count'),
     CacheStat('cache_shared_dsk_miss', 'shared disk miss'),
     CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
@@ -1406,6 +1407,10 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_search_near_ingest', 'Layered table cursor search near operations from the ingest btrees'),
     LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from the stable btrees'),
     LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from the stable btrees'),
+    LayeredStat('layered_curs_stable_value_tombstone', 'Layered table stable values equal to the tombstone byte sequence'),
+    LayeredStat('layered_curs_stable_value_tombstone_prefix', 'Layered table stable values beginning with the tombstone byte sequence and ending with a non-tombstone byte'),
+    LayeredStat('layered_curs_stable_value_tombstone_suffix', 'Layered table stable values beginning with the tombstone byte sequence and ending with a tombstone byte'),
+    LayeredStat('layered_curs_stable_value_tombstone_x3', 'Layered table stable values equal to three tombstone bytes'),
     LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),

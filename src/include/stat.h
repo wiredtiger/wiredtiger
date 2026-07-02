@@ -771,6 +771,7 @@ struct __wt_connection_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_shared_dsk_lock_contention;
     int64_t cache_shared_dsk_bytes_duplicate;
     int64_t cache_shared_dsk_hash_size;
     int64_t cache_shared_dsk_hit;
@@ -1024,6 +1025,10 @@ struct __wt_connection_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_update;
+    int64_t layered_curs_stable_value_tombstone_prefix;
+    int64_t layered_curs_stable_value_tombstone_suffix;
+    int64_t layered_curs_stable_value_tombstone;
+    int64_t layered_curs_stable_value_tombstone_x3;
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
@@ -1762,6 +1767,10 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_update;
+    int64_t layered_curs_stable_value_tombstone_prefix;
+    int64_t layered_curs_stable_value_tombstone_suffix;
+    int64_t layered_curs_stable_value_tombstone;
+    int64_t layered_curs_stable_value_tombstone_x3;
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
