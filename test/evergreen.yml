@@ -2479,6 +2479,16 @@ tasks:
 
             ./smoke_lazyfs.sh
 
+  - name: csuite-schema-disagg-abort-stress-test
+    tags: ["stress-test-disagg"]
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/csuite/schema_disagg_abort
+
   - name: csuite-timestamp-abort-lazyfs
     depends_on: *s-all-dep
     commands:

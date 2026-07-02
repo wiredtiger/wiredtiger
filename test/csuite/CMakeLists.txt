@@ -93,6 +93,19 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_schema_disagg_abort
+    SOURCES
+        schema_disagg_abort/main.c
+        schema_disagg_abort/workload.c
+        schema_disagg_abort/verify.c
+    DIR_NAME schema_disagg_abort
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_schema_disagg_abort>
+    DEPENDS "WT_POSIX"
+)
+
+
+define_c_test(
     TARGET test_scope
     SOURCES scope/main.c
     DIR_NAME scope
