@@ -51,8 +51,9 @@ class test_layered_prepare10(wttest.WiredTigerTestCase):
     STABLE_KEYS = (4, 6, 8)
     INGEST_KEYS = (1, 5, 7, 11)
 
-    # The prepared key needs to be before the stable range (LHS for forward and RHS for backward).
-    # This is to demonstrate the worst case, as no stable keys will have been given to the user yet.
+    # The prepared key sits just before the stable range (either below it for forward or above it
+    # for backward). This is to demonstrate the worst case where no stable keys have been returned
+    # to the user yet.
     scenarios = make_scenarios(
         disagg_storages,
         [
