@@ -280,8 +280,11 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
     if (!need_sync || session->meta_cursor == NULL || F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         goto err;
 
-    /* No need to sync local metadata when lose_all_my_data is set. */
-    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_SYNC))
+    /*
+     * Local metadata is discarded on restart when lose_all_my_data is set. Skip the metadata
+     * checkpoint entirely to improve startup time.
+     */
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_LOCAL_DURABILITY))
         goto err;
 
     /* If we're logging, make sure the metadata update was flushed. */

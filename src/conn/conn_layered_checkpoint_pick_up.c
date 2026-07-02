@@ -966,8 +966,19 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 2: Apply the metadata for other tables from the shared metadata table.
      */
 
+    /*
+     * When the first checkpoint is picked up, skip dhandle caching for ingest tables to improve
+     * startup time. This is safe because ingest tables are in-memory only and skipped by
+     * checkpoints. For steady-state pickups, since a schema lock is already held, cache the dhandle
+     * now.
+     */
+    if (current_meta_lsn == WT_DISAGG_LSN_NONE)
+        F_SET(session, WT_SESSION_NO_DHANDLE_OPEN);
+
     /* Apply the metadata from the checkpoint. */
     WT_WITH_SCHEMA_LOCK(session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta));
+    if (current_meta_lsn == WT_DISAGG_LSN_NONE)
+        F_CLR(session, WT_SESSION_NO_DHANDLE_OPEN);
     WT_ERR(ret);
 
     /*

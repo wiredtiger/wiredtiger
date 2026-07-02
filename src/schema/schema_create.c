@@ -377,11 +377,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         }
     }
 
-    /*
-     * Ingest tables are in-memory only and skipped by checkpoints, so loading the dhandle into the
-     * global list is not necessary and hurts performance at startup.
-     */
-    if (WT_URI_IS_INGEST(uri))
+    if (F_ISSET(session, WT_SESSION_NO_DHANDLE_OPEN))
         goto err;
 
     /*
