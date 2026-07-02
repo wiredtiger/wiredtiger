@@ -487,23 +487,27 @@ __clayered_can_advance_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, b
         return (false);
 
     /*
-     * First, layered cursors are sometimes paired with read timestamps. When using read
-     timestamps,
-     * it's always safe to update cursors, even during iterations. That's because the view at a
-     * timestamp is always consistent, the history store covers that.
+     * Don't advance while the layered cursor is parked on the stable constituent. The parked key
+     * can be pruned from the newer checkpoint (for example the leader advanced oldest past our read
+     * timestamp), and reopening onto a checkpoint that no longer has the key leaves the walk
+     * unpositioned and can skip stable keys. Under a fixed read timestamp, staying on the current
+     * checkpoint is also the consistent view for this reader. This must hold regardless of read
+     * timestamp, so check it before the read-timestamp fast path below.
+     */
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
+      clayered->current_cursor == clayered->stable_cursor)
+        return (false);
+
+    /*
+     * Layered cursors are sometimes paired with read timestamps. Outside the positioned-on-stable
+     * case handled above, it's safe to update cursors even during iterations when using read
+     * timestamps, because the view at a timestamp is always consistent and the history store covers
+     * that.
      */
     txn_shared = WT_SESSION_TXN_SHARED(session);
     if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
         return (true);
     else {
-        /*
-         * Layered cursor is positioned on the stable cursor. Changing it may lose the layered
-         * cursor position.
-         */
-        if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) &&
-          clayered->current_cursor == clayered->stable_cursor)
-            return (false);
-
         /* if this is an iteration, we won't reopen the cursor, we're done. */
         if (iteration)
             return (false);
