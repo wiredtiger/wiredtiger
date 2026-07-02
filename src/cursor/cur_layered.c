@@ -2618,7 +2618,10 @@ __clayered_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
 
-    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_WRITE, &op));
+    WT_ERR(__clayered_enter(clayered,
+      F_ISSET(cursor, WT_CURSTD_OVERWRITE) ? WTI_CLAYERED_MODE_WRITE_OVERWRITE :
+                                             WTI_CLAYERED_MODE_WRITE,
+      &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 

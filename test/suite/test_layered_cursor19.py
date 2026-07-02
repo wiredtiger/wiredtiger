@@ -31,8 +31,8 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# On a follower, insert/update on a layered cursor should only open the
-# stable constituent when overwrite=false: with overwrite=true (the
+# On a follower, insert/update/remove on a layered cursor should only open
+# the stable constituent when overwrite=false: with overwrite=true (the
 # default) the write path skips the layered lookup and should open the
 # ingest cursor only.
 @disagg_test_class
@@ -181,6 +181,61 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
         delta = self.measure_cursor_opens(do_update)
         self.assertGreaterEqual(delta, 2,
             "overwrite=false update on a follower opened {} cursors, "
+            "expected at least 2 (ingest + stable)".format(delta))
+
+        cursor.close()
+
+    # A remove on a follower with overwrite=true (the default) should open
+    # the ingest cursor only, leaving the stable constituent untouched, when
+    # the key being removed lives entirely in the ingest table.
+    def test_follower_remove_overwrite_does_not_open_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        # Prime the ingest table with the key we intend to remove, using a
+        # dedicated cursor that is closed before the measurement.
+        primer = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        primer['k1'] = 'v1'
+        self.session_follow.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(2))
+        primer.close()
+
+        cursor = self.session_follow.open_cursor(self.uri)
+
+        def do_remove():
+            self.session_follow.begin_transaction()
+            cursor.set_key('k1')
+            self.assertEqual(cursor.remove(), 0)
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(3))
+
+        delta = self.measure_cursor_opens(do_remove)
+        self.assertEqual(delta, 1,
+            "overwrite=true remove on a follower opened {} cursors, "
+            "expected 1 (ingest only); delta > 1 means the stable cursor "
+            "was opened unnecessarily".format(delta))
+
+        cursor.close()
+
+    # Sanity check mirror for remove: a remove with overwrite=false runs a
+    # layered lookup and must open the stable cursor. The target key here
+    # lives only in stable (ingested via checkpoint from the leader), so the
+    # lookup has to fall through to stable rather than short-circuit.
+    def test_follower_remove_no_overwrite_opens_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false')
+
+        def do_remove():
+            self.session_follow.begin_transaction()
+            cursor.set_key('seed')
+            self.assertEqual(cursor.remove(), 0)
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(2))
+
+        delta = self.measure_cursor_opens(do_remove)
+        self.assertGreaterEqual(delta, 2,
+            "overwrite=false remove on a follower opened {} cursors, "
             "expected at least 2 (ingest + stable)".format(delta))
 
         cursor.close()
