@@ -2029,19 +2029,13 @@ done:
     if (exactp != NULL)
         *exactp = cmp;
 
-    /*
-     * If the search-near operation did not internally invoke cursor iteration, reset the
-     * constituent cursor that is not the current cursor to prevent unnecessarily pinning the page
-     * in memory.
-     */
+    /* Reset the constituent cursor that is not the current cursor. */
     WT_ASSERT(
       session, clayered->current_cursor == op->ingest || clayered->current_cursor == op->stable);
-    if (!op->alternate_positioned) {
-        if (op->stable != NULL && clayered->current_cursor == op->ingest)
-            WT_ERR(op->stable->reset(op->stable));
-        else if (op->ingest != NULL && clayered->current_cursor == op->stable)
-            WT_ERR(op->ingest->reset(op->ingest));
-    }
+    if (op->stable != NULL && clayered->current_cursor == op->ingest)
+        WT_ERR(op->stable->reset(op->stable));
+    else if (op->ingest != NULL && clayered->current_cursor == op->stable)
+        WT_ERR(op->ingest->reset(op->ingest));
 
 err:
     if (ret != 0)
