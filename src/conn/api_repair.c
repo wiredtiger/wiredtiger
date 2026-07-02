@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-typedef struct __repair_config REPAIR_CONFIG;
+typedef struct __wt_repair_config WT_REPAIR_CONFIG;
 
-struct __repair_config {
+struct __wt_repair_config {
 
 #define WT_REPAIR_COMMAND_NONE 0
 #define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
@@ -24,9 +24,9 @@ struct __repair_config {
     } fetch_database_size;
 };
 
-static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, REPAIR_CONFIG *);
+static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, WT_REPAIR_CONFIG *);
 static int __repair_config_set_command(
-  WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, REPAIR_CONFIG *, int);
+  WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, WT_REPAIR_CONFIG *, int);
 
 static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 
@@ -67,7 +67,7 @@ __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_
  */
 static int
 __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG_ITEM *config_item,
-  REPAIR_CONFIG *repair_config, int command)
+  WT_REPAIR_CONFIG *repair_config, int command)
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
@@ -99,7 +99,7 @@ err:
  */
 static int
 __repair_config_decode(
-  WT_SESSION_IMPL *session, WT_ITEM *report, const char *config, REPAIR_CONFIG *repair_config)
+  WT_SESSION_IMPL *session, WT_ITEM *report, const char *config, WT_REPAIR_CONFIG *repair_config)
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
@@ -128,11 +128,11 @@ err:
 const char *
 wiredtiger_repair(WT_CONNECTION *connection, const char *config)
 {
-    REPAIR_CONFIG repair_config;
     WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *default_session, *session;
     WT_DECL_ITEM(report);
     WT_DECL_RET;
+    WT_REPAIR_CONFIG repair_config;
+    WT_SESSION_IMPL *default_session, *session;
 
     WT_CLEAR(repair_config);
     default_session = NULL;
