@@ -30,11 +30,11 @@ import re, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_wiredtiger_util01.py
-#    Exercise the wiredtiger_util() API for config-error paths and fetch_database_size. Both run
+# test_wiredtiger_repair01.py
+#    Exercise the wiredtiger_repair() API for config-error paths and fetch_database_size. Both run
 #    in non-disaggregated and disaggregated scenarios; the disagg scenario cross-validates the
 #    reported size against the disagg_database_size connection statistic.
-class test_wiredtiger_util01(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_wiredtiger_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=False))
 
@@ -47,8 +47,8 @@ class test_wiredtiger_util01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def util(self, config):
-        return wiredtiger.wiredtiger_util(self.conn, config)
+    def repair(self, config):
+        return wiredtiger.wiredtiger_repair(self.conn, config)
 
     def populate(self):
         uri = 'layered:tbl' if self.is_disagg_scenario() else 'table:tbl'
@@ -60,12 +60,12 @@ class test_wiredtiger_util01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
     def reported_size(self):
-        result = self.util('fetch_database_size=(local=true)')
+        result = self.repair('fetch_database_size=(local=true)')
         return int(re.search(r': (\d+)$', result).group(1))
 
     def test_config_errors(self):
-        self.assertEqual(self.util(''), 'wiredtiger_util: empty config')
-        self.assertIn('No command found', self.util('uri="table:tbl"'))
+        self.assertEqual(self.repair(''), 'wiredtiger_repair: empty config')
+        self.assertIn('No command found', self.repair('uri="table:tbl"'))
 
     def test_fetch_database_size(self):
         self.populate()

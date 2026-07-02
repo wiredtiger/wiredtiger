@@ -257,7 +257,7 @@ typedef struct __wt_disagg_checkpoint_meta {
 
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
-struct __wt_util_maintain {
+struct __wt_repair {
     /*
      * Memory space for the last report string. Only hold one report string at a time as it's used
      * interactively. Owned by the connection and freed at connection destroy.
@@ -1264,7 +1264,7 @@ struct __wt_connection_impl {
     wt_shared uint32_t flags_atomic;
 
     /* Utility maintain configuration and arguments */
-    WT_UTIL_MAINTAIN util_maintain;
+    WT_REPAIR repair;
 };
 
 /*

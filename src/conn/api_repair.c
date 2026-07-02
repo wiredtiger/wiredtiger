@@ -8,12 +8,12 @@
 
 #include "wt_internal.h"
 
-typedef struct __util_maintain_config UTIL_MAINTAIN_CONFIG;
+typedef struct __repair_config REPAIR_CONFIG;
 
-struct __util_maintain_config {
+struct __repair_config {
 
-#define WT_UTIL_MAINTAIN_COMMAND_NONE 0
-#define WT_UTIL_MAINTAIN_COMMAND_FETCH_DATABASE_SIZE 1
+#define WT_REPAIR_COMMAND_NONE 0
+#define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
     int command;
 
     struct {
@@ -24,16 +24,16 @@ struct __util_maintain_config {
     } fetch_database_size;
 };
 
-static int __util_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, UTIL_MAINTAIN_CONFIG *);
-static int __util_config_set_command(
-  WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, UTIL_MAINTAIN_CONFIG *, int);
+static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, REPAIR_CONFIG *);
+static int __repair_config_set_command(
+  WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, REPAIR_CONFIG *, int);
 
-static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
+static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 
 /*
  * WT_ERR_REPORT --
  *     Like WT_ERR_MSG, but append the diagnostic to the caller-owned report buffer (which
- *     wiredtiger_util hands back) instead of logging it. The return of buffer write is ignored so
+ *     wiredtiger_repair hands back) instead of logging it. The return of buffer write is ignored so
  *     it cannot clobber the requested error v -- v is what must propagate.
  */
 #define WT_ERR_REPORT(session, v, ...)                                \
@@ -44,11 +44,11 @@ static int __util_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
     } while (0)
 
 /*
- * __util_fetch_database_size --
+ * __repair_fetch_database_size --
  *     Read-only database size inspection: return the in-memory database size.
  */
 static int
-__util_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
+__repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
 {
     /*
      * FIXME-WT-17945: support local=false to dynamically recalculate the database size.
@@ -62,27 +62,27 @@ __util_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_lo
 }
 
 /*
- * __util_config_set_command --
- *     Set the command in the util_config based on the parsed config item.
+ * __repair_config_set_command --
+ *     Set the command in the repair_config based on the parsed config item.
  */
 static int
-__util_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG_ITEM *config_item,
-  UTIL_MAINTAIN_CONFIG *util_config, int command)
+__repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG_ITEM *config_item,
+  REPAIR_CONFIG *repair_config, int command)
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
 
-    if (util_config->command != WT_UTIL_MAINTAIN_COMMAND_NONE)
+    if (repair_config->command != WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "Only one command is allowed in the config");
 
-    util_config->command = command;
+    repair_config->command = command;
 
-    if (util_config->command == WT_UTIL_MAINTAIN_COMMAND_FETCH_DATABASE_SIZE) {
+    if (repair_config->command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE) {
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "local", &item), true);
         if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-            util_config->fetch_database_size.local = true;
+            repair_config->fetch_database_size.local = true;
         else
-            util_config->fetch_database_size.local = item.val != 0;
+            repair_config->fetch_database_size.local = item.val != 0;
     }
 
 err:
@@ -90,7 +90,7 @@ err:
 }
 
 /*
- * __util_config_decode --
+ * __repair_config_decode --
  *     The config is parsed with the normal WT config parser:
  *
  * fetch_database_size=(local=<bool>) Read-only inspection: return the in-memory database size.
@@ -98,23 +98,23 @@ err:
  *     local=false to dynamically recalculate the database size is not yet supported.
  */
 static int
-__util_config_decode(
-  WT_SESSION_IMPL *session, WT_ITEM *report, const char *config, UTIL_MAINTAIN_CONFIG *util_config)
+__repair_config_decode(
+  WT_SESSION_IMPL *session, WT_ITEM *report, const char *config, REPAIR_CONFIG *repair_config)
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
 
     WT_CLEAR(item);
 
-    util_config->command = WT_UTIL_MAINTAIN_COMMAND_NONE;
+    repair_config->command = WT_REPAIR_COMMAND_NONE;
 
     /* Check for commands */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fetch_database_size", &item), true);
     if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-        WT_ERR(__util_config_set_command(
-          session, report, &item, util_config, WT_UTIL_MAINTAIN_COMMAND_FETCH_DATABASE_SIZE));
+        WT_ERR(__repair_config_set_command(
+          session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE));
 
-    if (util_config->command == WT_UTIL_MAINTAIN_COMMAND_NONE)
+    if (repair_config->command == WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "No command found in the config");
 
 err:
@@ -122,27 +122,27 @@ err:
 }
 
 /*
- * wiredtiger_util --
- *     WiredTiger utility in runtime. Each config can only carry one active sub-command.
+ * wiredtiger_repair --
+ *     WiredTiger repair in runtime. Each config can only carry one active sub-command.
  */
 const char *
-wiredtiger_util(WT_CONNECTION *connection, const char *config)
+wiredtiger_repair(WT_CONNECTION *connection, const char *config)
 {
-    UTIL_MAINTAIN_CONFIG util_config;
+    REPAIR_CONFIG repair_config;
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *default_session, *session;
     WT_DECL_ITEM(report);
     WT_DECL_RET;
 
-    WT_CLEAR(util_config);
+    WT_CLEAR(repair_config);
     default_session = NULL;
     session = NULL;
 
     if (connection == NULL)
-        return ("wiredtiger_util: NULL connection");
+        return ("wiredtiger_repair: NULL connection");
 
     if (config == NULL || strlen(config) == 0)
-        return ("wiredtiger_util: empty config");
+        return ("wiredtiger_repair: empty config");
 
     conn = (WT_CONNECTION_IMPL *)connection;
     default_session = conn->default_session;
@@ -151,16 +151,17 @@ wiredtiger_util(WT_CONNECTION *connection, const char *config)
      * The report buffer is owned by the connection so the returned string stays valid after this
      * call returns, until the next call reuses it. Reset it and build the new report in place.
      */
-    report = &conn->util_maintain.last_report;
+    report = &conn->repair.last_report;
     report->size = 0;
 
     /* Open a public session for the parsing and the work; the default session owns the report. */
     WT_ERR(connection->open_session(connection, NULL, NULL, (WT_SESSION **)&session));
 
-    WT_ERR(__util_config_decode(session, report, config, &util_config));
+    WT_ERR(__repair_config_decode(session, report, config, &repair_config));
 
-    if (util_config.command == WT_UTIL_MAINTAIN_COMMAND_FETCH_DATABASE_SIZE)
-        WT_ERR(__util_fetch_database_size(session, report, util_config.fetch_database_size.local));
+    if (repair_config.command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE)
+        WT_ERR(
+          __repair_fetch_database_size(session, report, repair_config.fetch_database_size.local));
 
 err:
     if (ret != 0)

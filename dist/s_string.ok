@@ -417,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -528,7 +529,6 @@ URI's
 URIs
 USECS
 UTF
-UTIL
 UltraSparc
 Unbuffered
 Uncomment
