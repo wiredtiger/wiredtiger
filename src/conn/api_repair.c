@@ -138,17 +138,14 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     default_session = NULL;
     session = NULL;
 
-    if (!__wt_atomic_cas_uint8(&((WT_CONNECTION_IMPL *)connection)->repair.op_lock, 0, 1))
-        return ("wiredtiger_repair: another repair operation is in progress");
-
     if (connection == NULL)
         return ("wiredtiger_repair: NULL connection");
 
-    if (config == NULL || strlen(config) == 0)
-        return ("wiredtiger_repair: empty config");
-
     conn = (WT_CONNECTION_IMPL *)connection;
     default_session = conn->default_session;
+
+    if (!__wt_atomic_cas_uint8(&conn->repair.op_lock, 0, 1))
+        return ("wiredtiger_repair: another repair operation is in progress");
 
     /*
      * The report buffer is owned by the connection so the returned string stays valid after this
@@ -156,6 +153,9 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
      */
     report = &conn->repair.last_report;
     report->size = 0;
+
+    if (config == NULL || strlen(config) == 0)
+        WT_ERR_REPORT(default_session, EINVAL, "wiredtiger_repair: empty config");
 
     /* Open a public session for the parsing and the work; the default session owns the report. */
     WT_ERR(connection->open_session(connection, NULL, NULL, (WT_SESSION **)&session));
