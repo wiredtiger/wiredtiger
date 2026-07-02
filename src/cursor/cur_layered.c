@@ -416,7 +416,7 @@ static WT_INLINE bool
 __clayered_ingest_prepare_stalled(const WT_CURSOR *current, const WT_CURSOR *ingest)
 {
     return (ingest != NULL && current == ingest && !F_ISSET(ingest, WT_CURSTD_KEY_INT) &&
-      ((const WT_CURSOR_BTREE *)ingest)->ref != NULL);
+      ((WT_CURSOR_BTREE *)ingest)->ref != NULL);
 }
 
 /*
