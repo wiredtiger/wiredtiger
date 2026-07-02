@@ -608,6 +608,7 @@ XP
 XSAN
 XXXX
 XXXXXX
+Xase
 Xcode
 Xcode's
 XxxxHookCreator
@@ -658,6 +659,7 @@ assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -1704,6 +1706,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr

@@ -194,12 +194,12 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
-#define CLAYERED_ENTER_ARMED 0x10u      /* A planned step-down is armed on a leader. */
-#define CLAYERED_ENTER_ARM_CHANGE 0x20u /* Step-down armed state changed since last access. */
+#define CLAYERED_ENTER_ARM_CHANGE 0x1u   /* Step-down armed state changed since last access. */
+#define CLAYERED_ENTER_ARMED 0x2u        /* A planned step-down is armed on a leader. */
+#define CLAYERED_ENTER_ITERATION 0x4u    /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x8u        /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x10u /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x20u /* Follower writing without reading stable. */
 
 /*
  * __clayered_enter_flags --
