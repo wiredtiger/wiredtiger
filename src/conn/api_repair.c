@@ -138,6 +138,10 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     default_session = NULL;
     session = NULL;
 
+    if (!__wt_atomic_cas_uint8(&((WT_CONNECTION_IMPL *)connection)->repair.op_lock, 0, 1)) {
+        return ("wiredtiger_repair: another repair operation is in progress");
+    }
+
     if (connection == NULL)
         return ("wiredtiger_repair: NULL connection");
 
@@ -170,6 +174,9 @@ err:
 
     if (session != NULL)
         WT_TRET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
+
+    /* Release the repair operation lock. */
+    __wt_atomic_store_uint8(&((WT_CONNECTION_IMPL *)connection)->repair.op_lock, 0);
 
     return (report->size > 0 ? report->data : "");
 }
