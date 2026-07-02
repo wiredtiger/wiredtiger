@@ -1309,7 +1309,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
                 WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
                 snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
                 snap = &conn->ckpt_eviction_snap[snap_idx];
-                if (snap->snap_min != WT_TXN_NONE) {
+                if (conn->ckpt_eviction_snap_published) {
                     session->txn->snapshot_data.snap_min = snap->snap_min;
                     session->txn->snapshot_data.snap_max = snap->snap_max;
                     session->txn->snapshot_data.snapshot_count = snap->snapshot_count;

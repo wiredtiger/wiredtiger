@@ -1017,6 +1017,7 @@ struct __wt_connection_impl {
     uint64_t *ckpt_eviction_snap_array[2];
     size_t ckpt_eviction_snap_capacity[2];
     wt_shared uint32_t ckpt_eviction_snap_idx;
+    bool ckpt_eviction_snap_published; /* true once the first snapshot has been published */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
