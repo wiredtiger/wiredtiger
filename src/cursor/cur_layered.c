@@ -102,7 +102,7 @@ __clayered_deleted_decode(WT_ITEM *value)
  *     the size and a content hash to fingerprint recurring values. This takes raw bytes so both the
  *     layered cursor and the verify page walk can share it.
  *
- * TODO(WT-17933): Revert WT-17957 when tombstone encoding is removed from the stable table.
+ * TODO(WT-17958): Revert WT-17957 when tombstone encoding is removed from the stable table.
  */
 void
 __wt_clayered_stable_value_stat(WT_SESSION_IMPL *session, const void *data, size_t size)
