@@ -41,66 +41,30 @@ typedef enum {
     } while (0)
 
 /*
- * __clayered_is_deleted_encoded --
- *     Check if the value starts with the tombstone.
- */
-static WT_INLINE bool
-__clayered_is_deleted_encoded(const WT_ITEM *value)
-{
-    return (value->size > __wt_tombstone.size &&
-      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
-}
-
-/*
- * __clayered_deleted_encode --
- *     Encode values that are in the encoded name space.
+ * __clayered_value_check --
+ *     Reject user values that collide with the reserved tombstone namespace. Layered tables mark
+ *     deletes in the ingest table with a reserved tombstone value; a value beginning with those
+ *     bytes could not be distinguished from a delete.
  */
 static WT_INLINE int
-__clayered_deleted_encode(
-  WT_SESSION_IMPL *session, const WT_ITEM *value, WT_ITEM *final_value, WT_ITEM **tmpp)
+__clayered_value_check(WT_SESSION_IMPL *session, const WT_ITEM *value)
 {
-    WT_ITEM *tmp;
-
-    /*
-     * If value requires encoding, get a scratch buffer of the right size and create a copy of the
-     * data with the first byte of the tombstone appended.
-     */
-    if (__clayered_is_deleted_encoded(value)) {
-        WT_RET(__wt_scr_alloc(session, value->size + 1, tmpp));
-        tmp = *tmpp;
-
-        memcpy(tmp->mem, value->data, value->size);
-        memcpy((uint8_t *)tmp->mem + value->size, __wt_tombstone.data, 1);
-        final_value->data = tmp->mem;
-        final_value->size = value->size + 1;
-    } else {
-        final_value->data = value->data;
-        final_value->size = value->size;
-    }
-
+    if (value->size >= __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0)
+        WT_RET_MSG(session, EINVAL,
+          "value begins with the reserved layered-table tombstone bytes (0x1414) and cannot be "
+          "stored");
     return (0);
-}
-
-/*
- * __clayered_deleted_decode --
- *     Decode values that start with the tombstone.
- */
-static WT_INLINE void
-__clayered_deleted_decode(WT_ITEM *value)
-{
-    if (__clayered_is_deleted_encoded(value))
-        --value->size;
 }
 
 /*
  * __wt_clayered_stable_value_stat --
  *     Count and warn about a stable-table value that shares the tombstone's encoded namespace. Such
  *     values begin with the two tombstone bytes and, for historic reasons, are persisted to the
- *     stable table verbatim; they are expected to be extremely rare. Encoding appends a single
- *     tombstone byte (see __clayered_deleted_encode), so the stored form is classified by its
- *     length and trailing byte. The raw bytes may carry application data, so the log records only
- *     the size and a content hash to fingerprint recurring values. This takes raw bytes so both the
- *     layered cursor and the verify page walk can share it.
+ *     stable table verbatim; they are expected to be extremely rare. The stored form is classified
+ *     by its length and trailing byte. The raw bytes may carry application data, so the log records
+ *     only the size and a content hash to fingerprint recurring values. This takes raw bytes so
+ *     both the layered cursor and the verify page walk can share it.
  *
  * TODO(WT-17958): Revert WT-17957 when tombstone encoding is removed from the stable table.
  */
@@ -1371,7 +1335,6 @@ __clayered_iterate(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
     WT_ITEM_SET(iface->value, clayered->current_cursor->value);
     __clayered_stable_read_value_stat(clayered, &iface->value);
-    __clayered_deleted_decode(&iface->value);
     F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     F_SET(iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
@@ -1845,7 +1808,6 @@ err:
     __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_stable_read_value_stat(clayered, &cursor->value);
-        __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
@@ -2124,7 +2086,6 @@ err:
     __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_stable_read_value_stat(clayered, &cursor->value);
-        __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
@@ -2450,7 +2411,6 @@ __clayered_insert(WT_CURSOR *cursor)
 {
     WTI_CLAYERED_OP op;
     WTI_CURSOR_LAYERED *clayered;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
@@ -2489,8 +2449,8 @@ __clayered_insert(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
-    WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
-    ret = __clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_INSERT);
+    WT_ERR(__clayered_value_check(session, &cursor->value));
+    ret = __clayered_put(&op, &cursor->key, &cursor->value, WTI_CLAYERED_PUT_INSERT);
     if (ret == WT_DUPLICATE_KEY) {
         WT_ASSERT(session, op.ingest == NULL);
         /*
@@ -2514,7 +2474,6 @@ __clayered_insert(WT_CURSOR *cursor)
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
 err:
-    __wt_scr_free(session, &buf);
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
@@ -2529,7 +2488,6 @@ __clayered_update(WT_CURSOR *cursor)
 {
     WTI_CLAYERED_OP op;
     WTI_CURSOR_LAYERED *clayered;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
@@ -2566,8 +2524,8 @@ __clayered_update(WT_CURSOR *cursor)
         WT_ERR(__cursor_needkey(cursor));
     }
 
-    WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
-    WT_ERR(__clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_UPDATE));
+    WT_ERR(__clayered_value_check(session, &cursor->value));
+    WT_ERR(__clayered_put(&op, &cursor->key, &cursor->value, WTI_CLAYERED_PUT_UPDATE));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
@@ -2583,7 +2541,6 @@ __clayered_update(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
 err:
-    __wt_scr_free(session, &buf);
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
@@ -2925,7 +2882,6 @@ err:
     __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_stable_read_value_stat(clayered, &cursor->value);
-        __clayered_deleted_decode(&cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
@@ -2944,35 +2900,16 @@ static int
 __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *cursor = &clayered->iface;
     WT_CURSOR *c_stable = op->stable;
-    WT_DECL_RET;
-    WT_DECL_ITEM(buf);
 
     c_stable->set_key(c_stable, &cursor->key);
-    /* It's valid to build the modify on an empty value. */
-    WT_ERR_NOTFOUND_OK(c_stable->search(c_stable), true);
-
-    /*
-     * Similarly, a delete-encoded value alters the original value and also cannot serve as the base
-     * value for a modify. In these cases, perform a full update instead.
-     */
-    if (ret == 0 && __clayered_is_deleted_encoded(&c_stable->value)) {
-        __clayered_deleted_decode(&c_stable->value);
-        WT_ERR(__wt_modify_apply_api(c_stable, entries, nentries));
-        WT_ERR(__clayered_deleted_encode(session, &c_stable->value, &c_stable->value, &buf));
-        __wt_clayered_stable_value_stat(session, c_stable->value.data, c_stable->value.size);
-        F_SET(c_stable, WT_CURSTD_VALUE_EXT);
-        WT_ERR(c_stable->update(c_stable));
-    } else
-        WT_ERR(c_stable->modify(c_stable, entries, nentries));
+    WT_RET(c_stable->modify(c_stable, entries, nentries));
+    __wt_clayered_stable_value_stat(CUR2S(clayered), c_stable->value.data, c_stable->value.size);
 
     clayered->current_cursor = c_stable;
 
-err:
-    __wt_scr_free(session, &buf);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -2987,7 +2924,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_CURSOR *cursor = &clayered->iface;
     WT_CURSOR *c_ingest = op->ingest;
     WT_DECL_RET;
-    WT_DECL_ITEM(buf);
     WT_ITEM value;
 
     WT_CLEAR(value);
@@ -3010,24 +2946,19 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
          * table.
          */
         c_ingest->set_key(c_ingest, &cursor->key);
-        __clayered_deleted_decode(&value);
         WT_ITEM_SET(c_ingest->value, value);
         WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
-        WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
+        WT_ERR(__clayered_value_check(session, &c_ingest->value));
         F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_ingest->update(c_ingest));
     } else {
         /*
          * A tombstone is a special value in the ingest table, so it cannot be used as a base value
-         * for a modify operation. Similarly, a delete-encoded value alters the original value and
-         * also cannot serve as the base value for a modify. In these cases, perform a full update
-         * instead.
+         * for a modify operation; perform a full update instead.
          */
-        if (__wt_clayered_deleted(&c_ingest->value) ||
-          __clayered_is_deleted_encoded(&c_ingest->value)) {
-            __clayered_deleted_decode(&c_ingest->value);
+        if (__wt_clayered_deleted(&c_ingest->value)) {
             WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
-            WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
+            WT_ERR(__clayered_value_check(session, &c_ingest->value));
             F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
             WT_ERR(c_ingest->update(c_ingest));
         } else
@@ -3043,7 +2974,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     clayered->current_cursor = c_ingest;
 
 err:
-    __wt_scr_free(session, &buf);
     if (ret != 0)
         WT_TRET(__clayered_reset_cursors(clayered, false));
     return (ret);
@@ -3110,7 +3040,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      */
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
-    __clayered_deleted_decode(&cursor->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT);
 
