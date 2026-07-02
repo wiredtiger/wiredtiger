@@ -487,9 +487,11 @@ __clayered_can_advance_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, b
         return (false);
 
     /*
-     * Don't advance while the layered cursor is parked on the stable constituent. The parked key
-     * can be pruned from the newer checkpoint (for example the leader advanced oldest past our read
-     * timestamp), and reopening onto a checkpoint that no longer has the key leaves the walk
+     * Don't advance while the layered cursor is parked on the stable constituent. A newer
+     * checkpoint can be fully valid (its oldest_timestamp need not exceed our own read timestamp at
+     * all) and still no longer contain the parked key: the leader decides when to physically drop a
+     * removed key's row using only its own oldest_timestamp, with no visibility into which key any
+     * follower cursor happens to be parked on. Reopening onto such a checkpoint leaves the walk
      * unpositioned and can skip stable keys. Under a fixed read timestamp, staying on the current
      * checkpoint is also the consistent view for this reader. This must hold regardless of read
      * timestamp, so check it before the read-timestamp fast path below.
