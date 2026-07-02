@@ -34,6 +34,7 @@ struct __wti_cursor_layered {
     uint64_t read_timestamp;             /* Read timestamp on last access */
     uint64_t stable_checkpoint_meta_lsn; /* Checkpoint LSN stable cursor is on */
     WTI_CLAYERED_ROLE last_role;         /* Last-observed leader/follower role (change-detection) */
+    bool last_armed; /* Last-observed step-down armed state (change-detection) */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_CLAYERED_ACTIVE 0x1u       /* Incremented the session count */

@@ -387,7 +387,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         if (!S2C(session)->layered_table_manager.leader)
             WT_RET_MSG(session, EINVAL,
               "set_timestamp: step down timestamp can only be set on a disaggregated leader");
-        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE)
+        if (__wt_atomic_load_uint64_acquire(&txn_global->step_down_timestamp) != WT_TS_NONE)
             WT_RET_MSG(session, EINVAL, "set_timestamp: step down timestamp is already set");
     }
 
@@ -521,7 +521,11 @@ set:
      * cannot be re-armed while one is already set.
      */
     if (has_step_down) {
-        __wt_atomic_store_uint64_relaxed(&txn_global->step_down_timestamp, step_down_ts);
+        /*
+         * Release so that any thread that later observes a write this cutoff routed to ingest also
+         * observes the armed cutoff. Layered cursors load it with acquire; see __clayered_enter.
+         */
+        __wt_atomic_store_uint64_release(&txn_global->step_down_timestamp, step_down_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_step_down_upd);
         __wt_verbose_timestamp(session, step_down_ts, "Updated global step down timestamp");
     }

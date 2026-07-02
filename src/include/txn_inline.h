@@ -2009,6 +2009,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
+    txn->stepdown_ts_at_begin =
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
