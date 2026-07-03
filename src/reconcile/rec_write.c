@@ -21,6 +21,8 @@ static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *
 static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
+static int __rec_wrapup_obsolete_delta_chain(
+  WT_SESSION_IMPL *, WTI_RECONCILE *, const uint8_t *, size_t);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
@@ -2925,6 +2927,44 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
     if (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, sizeof(WT_TIME_AGGREGATE)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during page modify ta free"));
     __wt_gen_next(session, WT_GEN_SPLIT, NULL);
+}
+
+/*
+ * __rec_wrapup_obsolete_delta_chain --
+ *     A newly written full page image terminates the on-disk delta chain, so the prior chain's
+ *     cumulative size must stop counting toward the tree's byte total. Decrease the size when this
+ *     reconciliation wrote a single full image and did not skip the write. Callers gate on their
+ *     own page id conditions before establishing there is a chain to obsolete. When a replacement
+ *     cookie is supplied it records the size being obsoleted; diagnostic builds check they agree.
+ */
+static int
+__rec_wrapup_obsolete_delta_chain(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, const uint8_t *cookie, size_t cookie_size)
+{
+    WT_PAGE *page;
+
+    page = r->page;
+
+    /* Only a full page image (no deltas) that was actually written terminates the chain. */
+    if (F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) || r->multi->block_meta->delta_count != 0)
+        return (0);
+
+#ifdef HAVE_DIAGNOSTIC
+    if (cookie != NULL) {
+        WT_BLOCK_DISAGG_ADDRESS_COOKIE unpacked;
+        const uint8_t *buf;
+
+        buf = cookie;
+        WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &unpacked));
+        WT_ASSERT(session, unpacked.size == page->disagg_info->block_meta.cumulative_size);
+    }
+#else
+    WT_UNUSED(cookie);
+    WT_UNUSED(cookie_size);
+#endif
+
+    __wt_block_disagg_obsolete_delta_chain(session, page->disagg_info->block_meta.cumulative_size);
+    return (0);
 }
 
 /*
