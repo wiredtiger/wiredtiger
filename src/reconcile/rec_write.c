@@ -3058,14 +3058,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         }
 
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
-        /*
-         * Update the tree size accounting if we don't free the page id and we terminate the delta
-         * chain.
-         */
-        if (disagg_page_is_valid && !disagg_page_free_required &&
-          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_block_disagg_obsolete_delta_chain(
-              session, ref->page->disagg_info->block_meta.cumulative_size);
+        /* Update the size accounting if we keep the page id and terminate the delta chain. */
+        if (disagg_page_is_valid && !disagg_page_free_required)
+            WT_RET(__rec_wrapup_obsolete_delta_chain(session, r, NULL, 0));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3110,11 +3105,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                          * Update the tree size accounting if we don't free the page id and we
                          * terminate the delta chain.
                          */
-                        if (disagg_page_is_valid && !disagg_page_free_required &&
-                          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
-                          r->multi->block_meta->delta_count == 0)
-                            __wt_block_disagg_obsolete_delta_chain(
-                              session, ref->page->disagg_info->block_meta.cumulative_size);
+                        if (disagg_page_is_valid && !disagg_page_free_required)
+                            WT_RET(__rec_wrapup_obsolete_delta_chain(session, r, NULL, 0));
                     }
                 }
             } else {
@@ -3139,26 +3131,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                      * the one held on page->disagg_info appears to be from the previous block, and
                      * the one on the multi->block_meta appears to be from the current block.
                      */
-                    if (r->multi_next == 1 && r->multi->block_meta != NULL &&
-                      r->multi->block_meta->delta_count == 0 &&
-                      !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
-
-#ifdef HAVE_DIAGNOSTIC
-                        /*
-                         * The previous cookie has the size we want but it should be also the
-                         * previous cumulative size. Sanity check this is the case in diagnostics
-                         * build.
-                         */
-                        WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-                        const uint8_t *buf = mod->mod_replace.block_cookie;
-                        WT_RET(__wt_block_disagg_addr_unpack(
-                          session, &buf, mod->mod_replace.block_cookie_size, &cookie));
-                        WT_ASSERT(
-                          session, cookie.size == page->disagg_info->block_meta.cumulative_size);
-#endif
-                        __wt_block_disagg_obsolete_delta_chain(
-                          session, page->disagg_info->block_meta.cumulative_size);
-                    }
+                    if (r->multi_next == 1 && r->multi->block_meta != NULL)
+                        WT_RET(__rec_wrapup_obsolete_delta_chain(session, r,
+                          mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 }
             }
         }
