@@ -1464,16 +1464,6 @@ skip_operation:
             /* ENOTSUP: prepare was skipped (no valid timestamp), treat as unprepared. */
         }
 
-/*
- * Emit a replay log line to the per-run log file. Defined here so it can be used in the commit case
- * below.
- */
-#define rlog_emit(fmt, ...)                             \
-    do {                                                \
-        if (g.replay_op_log != NULL)                    \
-            fprintf(g.replay_op_log, fmt, __VA_ARGS__); \
-    } while (0)
-
         /*
          * If we're in a transaction, commit 40% of the time and rollback 10% of the time (we
          * already continued to add operations to the transaction the remaining half of the time).
@@ -1487,8 +1477,9 @@ skip_operation:
             commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, true);
             if (rlog_op_name != NULL) {
-                rlog_emit("%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
-                          " tbl=%u ret=%d\n",
+                fprintf(g.replay_op_log,
+                  "%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
+                  " tbl=%u ret=%d\n",
                   rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id,
                   rlog_ret);
                 rlog_op_name = NULL;
@@ -1513,7 +1504,6 @@ rollback:
             snap_repeat_update(tinfo, false);
             break;
         }
-#undef rlog_emit
 
         /*
          * If this operation was a mirrored truncate, verify the mirrors. This runs after both
