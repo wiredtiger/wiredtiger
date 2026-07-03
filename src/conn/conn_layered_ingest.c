@@ -13,68 +13,48 @@ static int __layered_last_checkpoint_order(
 
 /*
  * __layered_assert_stable_btree_state --
- *     Assert stable btree invariants before applying ingest updates for a key: (1) no unresolved
- *     preserved prepared update exists; and (2) if the ingest chain ends with a tombstone, a
- *     corresponding value exists to delete.
+ *     Assert that no unresolved preserved prepared update exists on the stable btree for a key
+ *     before applying ingest updates to it. A tombstone ending the ingest chain is not otherwise
+ *     checked against a corresponding value: an unpositioned overwrite=true remove on a follower
+ *     skips the stable lookup, so a tombstone can legitimately land here for a key stable never
+ *     had, or already deleted.
  */
 static WT_INLINE void
 __layered_assert_stable_btree_state(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
     WT_UPDATE *upd;
-    bool has_value;
 
-    if (cbt->compare != 0) {
-        if (last_upd->type != WT_UPDATE_TOMBSTONE)
-            return;
-        /* No on-page value to check; rely solely on visibility. */
-        has_value = false;
-    } else {
-        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
-          "The stable btree should not contain inserts prior to draining");
+    WT_UNUSED(last_upd);
 
-        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
-            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-        else
-            upd = NULL;
+    if (cbt->compare != 0)
+        return;
 
-        /*
-         * Walk the chain: assert no unresolved preserved prepared update exists, and advance past
-         * any rolled-back preserved prepared updates to find the first visible update.
-         */
-        for (; upd != NULL; upd = upd->next) {
-            if (upd->txnid == WT_TXN_ABORTED) {
-                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "During ingest drain, aborted updates on the stable btree must be "
-                  "rolled-back preserved prepared transactions");
-                continue;
-            }
+    WT_ASSERT_ALWAYS(
+      session, cbt->ins == NULL, "The stable btree should not contain inserts prior to draining");
 
-            WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
-              "During ingest drain, found an unresolved prepared update on the stable btree; "
-              "prepared transactions must be resolved before step-up");
-            break;
-        }
-
-        if (last_upd->type != WT_UPDATE_TOMBSTONE)
-            return;
-
-        if (upd != NULL)
-            has_value = upd->type != WT_UPDATE_TOMBSTONE;
-        else {
-            WT_TIME_WINDOW tw;
-            bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-            has_value =
-              tw_found && !WT_TIME_WINDOW_HAS_PREPARE(&tw) && !WT_TIME_WINDOW_HAS_STOP(&tw);
-        }
-    }
+    if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+    else
+        upd = NULL;
 
     /*
-     * If a globally visible tombstone is observed at the end, the update it deletes may have been
-     * removed during the obsolete check.
+     * Walk the chain: assert no unresolved preserved prepared update exists, and advance past any
+     * rolled-back preserved prepared updates to find the first visible update.
      */
-    WT_ASSERT_ALWAYS(session, has_value || __wt_txn_upd_visible_all(session, last_upd),
-      "No corresponding value exists on the stable table to delete");
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED) {
+            WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+              "During ingest drain, aborted updates on the stable btree must be "
+              "rolled-back preserved prepared transactions");
+            continue;
+        }
+
+        WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
+          "During ingest drain, found an unresolved prepared update on the stable btree; "
+          "prepared transactions must be resolved before step-up");
+        break;
+    }
 }
 
 /*

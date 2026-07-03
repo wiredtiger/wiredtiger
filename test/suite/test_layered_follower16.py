@@ -168,7 +168,7 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         if self.txn_mode != 'survive':
             session_follow.begin_transaction()
 
-        opens_stable = not (self.overwrite and self.do_op in (_op_insert, _op_update))
+        opens_stable = not (self.overwrite and self.do_op in (_op_insert, _op_update, _op_remove))
 
         # After the checkpoint arrives, repeat the same operation.
         self.do_op(cursor_follow)
