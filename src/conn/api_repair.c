@@ -109,13 +109,12 @@ __repair_fetch_metadata(
         const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
         /*
-         * Find the shared metadata table's most recent checkpoint, the page-server-durable state.
+         * The require_disagg check in __repair_config_set_command already confirmed this connection
+         * has picked up a checkpoint, which guarantees the shared metadata table has a local
+         * checkpoint (the page-server-durable state) to open here.
          */
-        WT_ERR_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, WT_DISAGG_METADATA_URI, &ckpt_name, NULL, NULL),
-          false);
-        if (ckpt_name == NULL)
-            WT_ERR_REPORT(session, WT_NOTFOUND, "The shared metadata table has no checkpoint yet");
+        WT_ERR(
+          __wt_meta_checkpoint_last_name(session, WT_DISAGG_METADATA_URI, &ckpt_name, NULL, NULL));
 
         WT_ERR(__wt_scr_alloc(session, 0, &ckpt_uri));
         WT_ERR(__wt_buf_fmt(session, ckpt_uri, "%s/%s", WT_DISAGG_METADATA_URI, ckpt_name));
