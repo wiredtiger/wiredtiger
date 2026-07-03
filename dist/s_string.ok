@@ -1230,6 +1230,7 @@ keyedness
 keyid
 keyids
 keylen
+keyno
 keynum
 keyp
 keystr
@@ -1778,6 +1779,7 @@ tIf
 tV
 tabconfig
 tablename
+tbl
 tc
 tcmalloc
 td
