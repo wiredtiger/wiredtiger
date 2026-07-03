@@ -2963,7 +2963,7 @@ __rec_wrapup_decrease_disagg_size(
     WT_UNUSED(cookie_size);
 #endif
 
-    __wt_block_disagg_obsolete_delta_chain(session, page->disagg_info->block_meta.cumulative_size);
+    __wt_block_disagg_decrease_ckpt_size(session, page->disagg_info->block_meta.cumulative_size);
     return (0);
 }
 
@@ -3389,7 +3389,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         if (r->multi->block_meta->delta_count == 0 &&
           page->disagg_info->block_meta.cumulative_size > 0)
-            __wt_block_disagg_obsolete_delta_chain(
+            __wt_block_disagg_decrease_ckpt_size(
               session, page->disagg_info->block_meta.cumulative_size);
         /*
          * The page's on-disk chain has now been removed from the running byte total -- by the
