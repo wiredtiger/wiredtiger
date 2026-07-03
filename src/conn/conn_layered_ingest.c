@@ -130,6 +130,10 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      */
     if (!has_value && last_upd->txnid != WT_TXN_ABORTED &&
       F_ISSET(last_upd, WT_UPDATE_UNCONFIRMED_DELETE)) {
+        __wt_verbose_level_id(session, 1725400, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
+          "ingest drain: trimming an unconfirmed blind-delete tombstone with nothing to delete, "
+          "key size 0x%" PRIx64 ", content hash 0x%016" PRIx64,
+          (uint64_t)key->size, __wt_hash_city64(key->data, key->size));
         if (upds == last_upd) {
             __wt_free(session, upds);
             goto err;
@@ -652,9 +656,13 @@ __layered_copy_ingest_table(
                      * it is never coalesced away here.
                      */
                     if (!is_prepare_rollback && prev_upd != NULL &&
-                      prev_upd->type == WT_UPDATE_TOMBSTONE)
+                      prev_upd->type == WT_UPDATE_TOMBSTONE) {
                         upd = NULL;
-                    else {
+                        __wt_verbose_level_id(session, 1725401, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
+                          "ingest drain: dropping a redundant blind-delete tombstone on top of "
+                          "another tombstone, key size 0x%" PRIx64 ", content hash 0x%016" PRIx64,
+                          (uint64_t)key->size, __wt_hash_city64(key->data, key->size));
+                    } else {
                         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
                         if (__wt_clayered_deleted_blind(value))
                             F_SET(upd, WT_UPDATE_UNCONFIRMED_DELETE);
