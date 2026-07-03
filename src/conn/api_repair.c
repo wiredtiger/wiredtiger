@@ -54,11 +54,6 @@ static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, c
         goto err;                                                     \
     } while (0)
 
-/*
- * WT_RET_REPORT --
- *     Like WT_ERR_REPORT, but for a worker that returns directly rather than through the caller's
- *     err: label.
- */
 #define WT_RET_REPORT(session, v, ...)                                \
     do {                                                              \
         int __ret = (v);                                              \
