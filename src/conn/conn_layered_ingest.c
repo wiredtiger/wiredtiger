@@ -68,7 +68,7 @@ __layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool 
  * __layered_assert_stable_btree_state --
  *     Assert stable btree invariants before applying ingest updates for a key: if the ingest chain
  *     ends with a tombstone, either a corresponding value exists to delete, or the tombstone is
- *     marked as coming from a blind remove (WT_UPDATE_BLIND_DELETE) --
+ *     marked as coming from a blind remove (WT_UPDATE_UNCONFIRMED_DELETE) --
  *     an unpositioned overwrite=true remove on a follower skips the stable lookup, so that
  *     tombstone can legitimately have no value behind it. Anything else reaching this state without
  *     the marker is corruption.
@@ -84,7 +84,7 @@ __layered_assert_stable_btree_state(WT_SESSION_IMPL *session, WT_UPDATE *last_up
      * removed during the obsolete check.
      */
     WT_ASSERT_ALWAYS(session,
-      has_value || F_ISSET(last_upd, WT_UPDATE_BLIND_DELETE) ||
+      has_value || F_ISSET(last_upd, WT_UPDATE_UNCONFIRMED_DELETE) ||
         __wt_txn_upd_visible_all(session, last_upd),
       "No corresponding value exists on the stable table to delete");
 }
@@ -129,7 +129,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
      * fallback and is excluded here.
      */
     if (!has_value && last_upd->txnid != WT_TXN_ABORTED &&
-      F_ISSET(last_upd, WT_UPDATE_BLIND_DELETE)) {
+      F_ISSET(last_upd, WT_UPDATE_UNCONFIRMED_DELETE)) {
         if (upds == last_upd) {
             __wt_free(session, upds);
             goto err;
@@ -657,7 +657,7 @@ __layered_copy_ingest_table(
                     else {
                         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
                         if (__wt_clayered_deleted_blind(value))
-                            F_SET(upd, WT_UPDATE_BLIND_DELETE);
+                            F_SET(upd, WT_UPDATE_UNCONFIRMED_DELETE);
                     }
                 } else
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
