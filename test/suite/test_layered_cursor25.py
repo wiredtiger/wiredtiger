@@ -38,9 +38,10 @@
 # into that checkpoint, the row is genuinely gone.
 #
 # The leader and follower advance their oldest/stable timestamps in lockstep
-# throughout, and a second key is replicated into the follower's ingest table
-# like any live write, to show that ordinary replication and checkpoint-only
-# delivery of the leader's obsolescence decision coexist without conflict.
+# throughout, and an ordinary insert and an ordinary delete are each replicated
+# into the follower's ingest table like any live write, to show that ordinary
+# replication and checkpoint-only delivery of the leader's obsolescence
+# decision coexist without conflict.
 #
 # No concurrency is required to hit this: the whole sequence is driven
 # synchronously by one script, one step at a time.
@@ -74,6 +75,14 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         c = session.open_cursor(self.uri)
         session.begin_transaction()
         c[key] = value
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        c.close()
+
+    def remove(self, session, key, ts):
+        c = session.open_cursor(self.uri)
+        session.begin_transaction()
+        c.set_key(key)
+        self.assertEqual(c.remove(), 0)
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         c.close()
 
@@ -115,6 +124,19 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
         c.close()
 
+        # Ordinary replicated deletes work the same way: the leader removes 'z' (part of
+        # checkpoint A) at ts=125 first.
+        self.remove(self.session, 'z', 125)
+
+        # The follower then separately replicates the remove into its own ingest table, at
+        # the same timestamp, again well before any reader opens.
+        c = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        c.set_key('z')
+        self.assertEqual(c.remove(), 0)
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(125))
+        c.close()
+
         # Follower reader: read_timestamp=150. 'n' is visible via ingest replication; 'a'
         # comes from stable, since it predates any ingest activity and was never
         # replicated. Parks on 'a' first.
@@ -139,12 +161,7 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         # 140, so the tombstone is fully obsolete for the leader's own reconciliation --
         # nothing to do with the follower's reader) on both connections together, and
         # checkpoints again at stable=300.
-        c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        c.set_key('a')
-        self.assertEqual(c.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(140))
-        c.close()
+        self.remove(self.session, 'a', 140)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
         self.advance_oldest(145)
         self.session.checkpoint()
