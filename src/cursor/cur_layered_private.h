@@ -62,10 +62,10 @@ typedef enum {
  *	State gathered once for a single layered table cursor operation.
  */
 struct __wti_clayered_op {
-    WTI_CURSOR_LAYERED *clayered; /* back-pointer; session via CUR2S(clayered) */
-    WT_CURSOR *ingest;            /* resolved slot == clayered->ingest_cursor (may be NULL) */
-    WT_CURSOR *stable;            /* resolved slot == clayered->stable_cursor (may be NULL) */
-    WT_LAYERED_TABLE *table;
+    WTI_CURSOR_LAYERED *clayered;    /* back-pointer; session via CUR2S(clayered) */
+    WT_CURSOR *ingest;               /* resolved slot == clayered->ingest_cursor (may be NULL) */
+    WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
+    WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
     /*
      * True when stable is NULL specifically because of the overwrite blind-write optimization

@@ -715,7 +715,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             /* A disaggregated page must have a retained image to re-instantiate from. */
             WT_ASSERT(
               session, ref->page->disagg_info == NULL || mod->mod_multi[0].disk_image != NULL);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
@@ -766,7 +766,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              */
             tmp = mod->mod_disk_image;
             mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi, true);
+            ret = __wt_split_rewrite(session, ref, &multi);
             __wt_free(session, multi.block_meta);
             if (ret != 0) {
                 mod->mod_disk_image = tmp;

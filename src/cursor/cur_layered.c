@@ -238,12 +238,14 @@ static WT_INLINE void
 __clayered_op_init(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYERED_ROLE role, uint32_t flags)
 {
+    WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
+
     op->clayered = clayered;
     op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
     /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
-    op->table = (WT_LAYERED_TABLE *)clayered->dhandle;
-    op->collator = op->table->collator;
+    op->truncate_list = &table->truncate_list;
+    op->collator = table->collator;
     /*
      * Distinguish "stable is NULL because we deliberately skipped it" from "stable is NULL for some
      * other reason" (for example no checkpoint has been picked up yet). Only the former is safe to
@@ -473,6 +475,17 @@ __clayered_open_stable(
 }
 
 /*
+ * __clayered_ingest_prepare_stalled --
+ *     Determine if the ingest cursor is on a prepare conflict.
+ */
+static WT_INLINE bool
+__clayered_ingest_prepare_stalled(const WT_CURSOR *current, const WT_CURSOR *ingest)
+{
+    return (ingest != NULL && current == ingest && !F_ISSET(ingest, WT_CURSTD_KEY_INT) &&
+      ((WT_CURSOR_BTREE *)ingest)->ref != NULL);
+}
+
+/*
  * __clayered_can_advance_stable --
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
@@ -490,6 +503,13 @@ __clayered_can_advance_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, b
 
     /* No need to advance if there is no newer checkpoint. */
     if (clayered->stable_checkpoint_meta_lsn == conn_lsn)
+        return (false);
+
+    /*
+     * Do not advance while ingest is stalled on a prepare conflict with no key. Stable could lose
+     * its position with no ingest key to recover it, skipping visible keys.
+     */
+    if (__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor))
         return (false);
 
     /*
@@ -626,9 +646,15 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
      * If the transaction context has changed since the last call (different read timestamp or a new
      * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
      * flags to force a re-search under the new context.
+     *
+     * FIXME-WT-17960: a context change while ingest is stalled on a prepare conflict leaves stable
+     * parked under the old context with no anchor to re-search it from.
      */
-    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp)
+    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp) {
+        WT_ASSERT(session,
+          !__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor));
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    }
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
@@ -856,8 +882,8 @@ __clayered_reposition_truncate_iterate(WTI_CLAYERED_OP *op, WT_CURSOR *stable, b
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                             session, op->table, &stable->key, &start_key, &stop_key),
+        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
+                             op->collator, &stable->key, &start_key, &stop_key),
           true);
 
         if (ret == WT_NOTFOUND) {
@@ -963,7 +989,8 @@ __clayered_range_truncate_ingest(
         if (!__wt_clayered_deleted(&cursor->value)) {
             WT_ITEM key;
             WT_RET(__wt_cursor_get_raw_key(cursor, &key));
-            WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, layered, &key));
+            WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+              session, &layered->truncate_list, layered->collator, &key));
             cursor->set_value(cursor, &__wt_tombstone);
             WT_RET(cursor->update(cursor));
         }
@@ -1005,8 +1032,8 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
 
     WT_LAYERED_TABLE *layered_table = (WT_LAYERED_TABLE *)clayered_start->dhandle;
 
-    WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(
-      trunc_info->session, layered_table, &start_key, &stop_key));
+    WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(trunc_info->session,
+      &layered_table->truncate_list, layered_table->collator, &start_key, &stop_key));
 
     /*
      * If either positioning returned WT_NOTFOUND, the ingest table has no keys in the range and
@@ -1792,8 +1819,8 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *foundp)
 
         /* Only consult the truncate list when ingest has no entry for this key. */
         if (!found) {
-            WT_ERR_NOTFOUND_OK(
-              __wt_truncate_delete_visible_check(session, op->table, &cursor->key, NULL, NULL),
+            WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
+                                 op->collator, &cursor->key, NULL, NULL),
               true);
             if (ret == 0) {
                 found = true;
@@ -1978,8 +2005,8 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
          * exhausts, step backward instead.
          */
         if (ret == 0 &&
-          __wt_truncate_delete_visible_check(session, op->table, &op->stable->key, NULL, NULL) ==
-            0) {
+          __wt_truncate_delete_visible_check(
+            session, op->truncate_list, op->collator, &op->stable->key, NULL, NULL) == 0) {
             WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
 
             WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, op->stable, true), true);
@@ -2200,7 +2227,8 @@ __clayered_put(
          * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
          * Doing so would remove the cursor write operation dependency on the truncate list.
          */
-        WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, op->table, key));
+        WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+          session, op->truncate_list, op->collator, key));
 
         /*
          * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
@@ -2404,7 +2432,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
      * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer. Doing
      * so would remove the write cursor operations dependency on the truncate list.
      */
-    WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, op->table, key));
+    WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+      session, op->truncate_list, op->collator, key));
     c_ingest->set_value(
       c_ingest, op->stable_skipped_for_overwrite ? &__wt_tombstone_blind : &__wt_tombstone);
     WT_ERR(c_ingest->update(c_ingest));
