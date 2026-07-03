@@ -37,6 +37,11 @@
 # When the still-open reader's cursor tries to carry its position forward
 # into that checkpoint, the row is genuinely gone.
 #
+# The leader and follower advance their oldest/stable timestamps in lockstep
+# throughout, and a second key is replicated into the follower's ingest table
+# like any live write, to show that ordinary replication and checkpoint-only
+# delivery of the leader's obsolescence decision coexist without conflict.
+#
 # No concurrency is required to hit this: the whole sequence is driven
 # synchronously by one script, one step at a time.
 
@@ -83,6 +88,13 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.commit(self.session, key, value, ts)
         self.commit(self.session_follow, key, value, ts)
 
+    # Advance oldest_timestamp on both the leader and the follower together, keeping
+    # their retention in lockstep like a follower whose own tracking keeps pace with
+    # the leader's.
+    def advance_oldest(self, ts):
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts))
+        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts))
+
     # Reproduces the "upgrading a positioned stable cursor" assertion in
     # __clayered_reopen_stable via a legitimate, panic-free sequence: the
     # checkpoint the follower adopts never violates the reader's pin.
@@ -90,8 +102,7 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.session_follow.create(self.uri, 'key_format=S,value_format=S')
 
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        self.advance_oldest(1)
 
         # Checkpoint A: keys a, m, z committed at ts=10, checkpointed at stable=100.
         # 'a' is old enough that on the follower it will only ever live in stable,
@@ -102,80 +113,14 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Follower reader: read_timestamp=150, well above checkpoint A's stable=100 --
-        # an entirely ordinary follower read (ingest covers anything more recent; 'a'
-        # itself comes from stable because it predates the checkpoint). Parks on 'a'.
-        cursor = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(150))
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'a')
-
-        # Leader removes 'a' at commit_ts=140 (< reader's read_timestamp=150), then
-        # advances its own oldest_timestamp to 145 (>= 140, so the tombstone is fully
-        # obsolete for the leader's own reconciliation -- nothing to do with the
-        # follower's reader) and checkpoints again at stable=300.
-        c = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        c.set_key('a')
-        self.assertEqual(c.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(140))
-        c.close()
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(145))
-        self.session.checkpoint()
-
-        # The follower's own pinned timestamp is min(its own oldest_timestamp, every
-        # active reader's read_timestamp). Its own oldest_timestamp is still 1 from
-        # setUp, so without this it would (correctly) trigger the checkpoint-pickup
-        # pinned-timestamp panic -- a follower's own retention has to track along with
-        # its readers to accept new checkpoints at all. Advance it to just below the
-        # reader's read_timestamp, matching a properly-tracking follower.
-        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(145))
-
-        # The follower adopts this checkpoint without incident: its pinned timestamp
-        # (min(145, the reader's 150) = 145) does not exceed the checkpoint's
-        # oldest_timestamp (145), so this does not trip the checkpoint-pickup
-        # pinned-timestamp panic.
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-        # The still-open reader continues its walk. Its cursor is still parked on 'a'
-        # in the old checkpoint; carrying that position into the new checkpoint fails
-        # because the row is genuinely gone there, unrelated to this reader's own pin.
-        try:
-            ret = cursor.next()
-            self.pr('cursor.next() after checkpoint pickup returned ' + str(ret))
-        finally:
-            self.session_follow.rollback_transaction()
-            cursor.close()
-
-    # Same bug, but with ordinary ingest replication also running in the background, to show
-    # the two delivery paths -- live replication into ingest, and leader-local obsolescence
-    # conveyed only via checkpoint pickup -- coexist without conflict. 'n' is replicated to the
-    # follower's ingest table like any live write; 'a' is not, and only ever reaches the
-    # follower through the checkpoint, which is exactly why the assertion this test guards
-    # against can still fire even on a follower whose replication is otherwise fully caught up.
-    def test_reopen_stable_key_pruned_with_ingest_replication(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.session_follow.create(self.uri, 'key_format=S,value_format=S')
-
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-
-        # Checkpoint A: keys a, m, z committed at ts=10, checkpointed at stable=100.
-        for k in ('a', 'm', 'z'):
-            self.commit(self.session, k, 'v-' + k, 10)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100))
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-        # Ordinary replication continues past checkpoint A: 'n' is written by the leader at
-        # ts=120 and replicated into the follower's ingest table at the same timestamp, well
-        # before any reader opens. This is the common case this fix doesn't change.
+        # Ordinary replication continues past checkpoint A: 'n' is written by the leader
+        # at ts=120 and replicated into the follower's ingest table at the same timestamp,
+        # well before any reader opens. This is the common case this fix doesn't change.
         self.replicate('n', 'v-n', 120)
 
-        # Follower reader: read_timestamp=150. 'n' is visible via ingest replication; 'a' comes
-        # from stable, since it predates any ingest activity and was never replicated. Parks on
-        # 'a' first.
+        # Follower reader: read_timestamp=150. 'n' is visible via ingest replication; 'a'
+        # comes from stable, since it predates any ingest activity and was never
+        # replicated. Parks on 'a' first.
         cursor = self.session_follow.open_cursor(self.uri)
         self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(150))
         self.assertEqual(cursor.next(), 0)
@@ -189,12 +134,14 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.prev(), 0)
         self.assertEqual(cursor.get_key(), 'a')
 
-        # Leader removes 'a' at commit_ts=140 (< reader's read_timestamp=150). Unlike 'n' above,
-        # this op is deliberately NOT replicated into the follower's ingest table -- it can't be,
-        # since the reader is already pinned at 150 on that connection, and in any case this is
-        # exactly the kind of materialization lag disaggregated followers are expected to
-        # tolerate. The leader advances its own oldest_timestamp to 145 (>= 140, obsoleting the
-        # tombstone from the leader's own perspective only) and checkpoints again at stable=300.
+        # Leader removes 'a' at commit_ts=140 (< reader's read_timestamp=150). Unlike 'n'
+        # above, this op is deliberately NOT replicated into the follower's ingest table --
+        # it can't be, since the reader is already pinned at 150 on that connection, and in
+        # any case this is exactly the kind of materialization lag disaggregated followers
+        # are expected to tolerate. The leader then advances oldest_timestamp to 145 (>=
+        # 140, so the tombstone is fully obsolete for the leader's own reconciliation --
+        # nothing to do with the follower's reader) on both connections together, and
+        # checkpoints again at stable=300.
         c = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         c.set_key('a')
@@ -202,19 +149,19 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(140))
         c.close()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(145))
+        self.advance_oldest(145)
         self.session.checkpoint()
 
-        # Advance the follower's own oldest_timestamp to just below the reader's read_timestamp,
-        # matching a properly-tracking follower, then pick up the new checkpoint. Its pinned
-        # timestamp (min(145, 150) = 145) does not exceed the checkpoint's oldest_timestamp
-        # (145), so this does not trip the checkpoint-pickup pinned-timestamp panic.
-        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(145))
+        # The follower's own pinned timestamp is min(its own oldest_timestamp, every
+        # active reader's read_timestamp) = min(145, 150) = 145, which does not exceed
+        # the checkpoint's oldest_timestamp (145), so picking it up does not trip the
+        # checkpoint-pickup pinned-timestamp panic.
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # The still-open reader continues its walk, still parked on 'a' in the old checkpoint;
-        # carrying that position into the new checkpoint fails because the row is genuinely gone
-        # there, unrelated to this reader's own pin or to the ordinary replication of 'n'.
+        # The still-open reader continues its walk. Its cursor is still parked on 'a' in
+        # the old checkpoint; carrying that position into the new checkpoint fails because
+        # the row is genuinely gone there, unrelated to this reader's own pin or to the
+        # ordinary replication of 'n'.
         try:
             ret = cursor.next()
             self.pr('cursor.next() after checkpoint pickup returned ' + str(ret))
