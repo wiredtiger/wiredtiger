@@ -455,6 +455,8 @@ struct __wt_truncate;
 typedef struct __wt_truncate WT_TRUNCATE;
 struct __wt_truncate_info;
 typedef struct __wt_truncate_info WT_TRUNCATE_INFO;
+struct __wt_truncate_list;
+typedef struct __wt_truncate_list WT_TRUNCATE_LIST;
 struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
