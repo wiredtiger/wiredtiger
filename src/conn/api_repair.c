@@ -14,6 +14,7 @@ struct __wt_repair_config {
 
 #define WT_REPAIR_COMMAND_NONE 0
 #define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
+#define WT_REPAIR_COMMAND_FETCH_METADATA 2
     int command;
 
     struct {
@@ -22,6 +23,15 @@ struct __wt_repair_config {
          */
         bool local;
     } fetch_database_size;
+
+    struct {
+        /* Fetch metadata from the local cursor, not the shared page-server checkpoint. */
+        bool local;
+        /* Target URI for the command, or NULL for all URIs. */
+        const char *uri;
+        /* Single metadata key to report, or NULL for the whole value. */
+        const char *key;
+    } fetch_metadata;
 };
 
 static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, WT_REPAIR_CONFIG *);
@@ -29,6 +39,7 @@ static int __repair_config_set_command(
   WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, WT_REPAIR_CONFIG *, int);
 
 static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
+static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, bool);
 
 /*
  * WT_ERR_REPORT --
@@ -43,6 +54,13 @@ static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
         goto err;                                                     \
     } while (0)
 
+#define WT_RET_REPORT(session, v, ...)                                \
+    do {                                                              \
+        int __ret = (v);                                              \
+        WT_IGNORE_RET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
+        return (__ret);                                               \
+    } while (0)
+
 /*
  * __repair_fetch_database_size --
  *     Read-only database size inspection: return the in-memory database size.
@@ -54,11 +72,85 @@ __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_
      * FIXME-WT-17945: support local=false to dynamically recalculate the database size.
      */
     if (is_local == false)
-        WT_RET_MSG(session, ENOTSUP, "fetch_database_size(local=false) is not yet supported");
+        WT_RET_REPORT(session, ENOTSUP, "fetch_database_size(local=false) is not yet supported");
 
     WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
       S2C(session)->disaggregated_storage.database_size));
     return (0);
+}
+
+/*
+ * __repair_fetch_metadata --
+ *     Read-only metadata inspection: return metadata without modifying anything.
+ */
+static int
+__repair_fetch_metadata(
+  WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri, const char *key, bool is_local)
+{
+    WT_CONFIG_ITEM item;
+    WT_CURSOR *cursor;
+    WT_DECL_ITEM(ckpt_uri);
+    WT_DECL_RET;
+    const char *ckpt_name, *k, *v;
+    bool found;
+
+    cursor = NULL;
+    ckpt_name = NULL;
+    found = false;
+
+    if (is_local)
+        WT_ERR(__wt_metadata_cursor(session, &cursor));
+    else {
+        const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+        /*
+         * The require_disagg check in __repair_config_set_command already confirmed this connection
+         * has picked up a checkpoint, which guarantees the shared metadata table has a local
+         * checkpoint (the page-server-durable state) to open here.
+         */
+        WT_ERR(
+          __wt_meta_checkpoint_last_name(session, WT_DISAGG_METADATA_URI, &ckpt_name, NULL, NULL));
+
+        WT_ERR(__wt_scr_alloc(session, 0, &ckpt_uri));
+        WT_ERR(__wt_buf_fmt(session, ckpt_uri, "%s/%s", WT_DISAGG_METADATA_URI, ckpt_name));
+        WT_ERR(__wt_open_cursor(session, ckpt_uri->data, NULL, cfg, &cursor));
+    }
+
+    /* Walk the metadata and report the entries matching the target URI. */
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &k));
+        if (uri != NULL && strcmp(k, uri) != 0)
+            continue;
+
+        found = true;
+        WT_ERR(cursor->get_value(cursor, &v));
+        if (key != NULL) {
+            WT_ERR_NOTFOUND_OK(__wt_config_getones(session, v, key, &item), true);
+            if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+                WT_ERR(__wt_buf_catfmt(session, report, "\n  %s: <no \"%s\">", k, key));
+                continue;
+            }
+            WT_ERR(
+              __wt_buf_catfmt(session, report, "\n  %s: %s=%.*s", k, key, (int)item.len, item.str));
+        } else
+            WT_ERR(__wt_buf_catfmt(session, report, "\n  %s: %s", k, v));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (!found)
+        WT_ERR(__wt_buf_catfmt(session, report, " <no matching metadata entry for uri:\"%s\">",
+          uri == NULL ? "<all>" : uri));
+
+err:
+    if (cursor != NULL) {
+        if (is_local)
+            WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+        else
+            WT_TRET(cursor->close(cursor));
+    }
+    __wt_free(session, ckpt_name);
+    __wt_scr_free(session, &ckpt_uri);
+    return (ret);
 }
 
 /*
@@ -71,6 +163,9 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
+    bool require_disagg;
+
+    require_disagg = false;
 
     if (repair_config->command != WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "Only one command is allowed in the config");
@@ -83,7 +178,35 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             repair_config->fetch_database_size.local = true;
         else
             repair_config->fetch_database_size.local = item.val != 0;
+
+        /*
+         * local=true reads conn->disaggregated_storage.database_size, which is only maintained on a
+         * disaggregated connection. local=false (FIXME-WT-17945, not yet implemented) is not gated
+         * here -- whether its eventual recalculation needs disagg is that ticket's call.
+         */
+        require_disagg = repair_config->fetch_database_size.local;
+    } else if (repair_config->command == WT_REPAIR_COMMAND_FETCH_METADATA) {
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "local", &item), true);
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            repair_config->fetch_metadata.local = true;
+        else
+            repair_config->fetch_metadata.local = item.val != 0;
+
+        /* An empty uri/key is treated as absent (NULL): all URIs / the whole value. */
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "uri", &item), true);
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && item.len != 0)
+            WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.uri));
+
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "key", &item), true);
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && item.len != 0)
+            WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.key));
+
+        require_disagg = !repair_config->fetch_metadata.local;
     }
+
+    if (require_disagg && !__wt_disagg_has_picked_up_checkpoint(session))
+        WT_ERR_REPORT(session, EINVAL,
+          "This command requires a disaggregated connection with a valid checkpoint");
 
 err:
     return (ret);
@@ -94,8 +217,15 @@ err:
  *     The config is parsed with the normal WT config parser:
  *
  * fetch_database_size=(local=<bool>) Read-only inspection: return the in-memory database size.
- *     local=true (default) reads conn->disaggregated_storage.database_size. FIXME-WT-17945:
- *     local=false to dynamically recalculate the database size is not yet supported.
+ *     local=true (default, disagg-only) reads conn->disaggregated_storage.database_size.
+ *     FIXME-WT-17945: local=false to dynamically recalculate the database size is not yet
+ *     supported.
+ *
+ * fetch_metadata=(local=<bool>,uri="<uri>",key="<key>") Read-only inspection: return metadata
+ *     values. local=true (default) reads the local metadata cursor; local=false (disagg-only) reads
+ *     the shared, page-server-durable metadata checkpoint. uri="" selects one target; absent or
+ *     empty means all URIs. key="" selects one first-level config value out of the matching
+ *     entries; absent or empty means the whole value.
  */
 static int
 __repair_config_decode(
@@ -113,6 +243,11 @@ __repair_config_decode(
     if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
         WT_ERR(__repair_config_set_command(
           session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE));
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fetch_metadata", &item), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR(__repair_config_set_command(
+          session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_METADATA));
 
     if (repair_config->command == WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "No command found in the config");
@@ -165,11 +300,17 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     if (repair_config.command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE)
         WT_ERR(
           __repair_fetch_database_size(session, report, repair_config.fetch_database_size.local));
+    else if (repair_config.command == WT_REPAIR_COMMAND_FETCH_METADATA)
+        WT_ERR(__repair_fetch_metadata(session, report, repair_config.fetch_metadata.uri,
+          repair_config.fetch_metadata.key, repair_config.fetch_metadata.local));
 
 err:
     if (ret != 0)
         WT_IGNORE_RET(
           __wt_buf_catfmt(default_session, report, " Failed: %s", wiredtiger_strerror(ret)));
+
+    __wt_free(default_session, repair_config.fetch_metadata.uri);
+    __wt_free(default_session, repair_config.fetch_metadata.key);
 
     if (session != NULL)
         WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));

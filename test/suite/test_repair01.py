@@ -31,9 +31,10 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_repair01.py
-#    Exercise the wiredtiger_repair() API for config-error paths and fetch_database_size. Both run
-#    in non-disaggregated and disaggregated scenarios; the disagg scenario cross-validates the
-#    reported size against the disagg_database_size connection statistic.
+#    Exercise the wiredtiger_repair() API for config-error paths, fetch_database_size, and
+#    fetch_metadata. All run in non-disaggregated and disaggregated scenarios; the disagg scenario
+#    additionally cross-validates the reported size against the disagg_database_size connection
+#    statistic and exercises the shared (page-server-durable) metadata read.
 class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=False))
@@ -50,10 +51,13 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def repair(self, config):
         return wiredtiger.wiredtiger_repair(self.conn, config)
 
+    @property
+    def uri(self):
+        return 'layered:tbl' if self.is_disagg_scenario() else 'table:tbl'
+
     def populate(self):
-        uri = 'layered:tbl' if self.is_disagg_scenario() else 'table:tbl'
-        self.session.create(uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(uri)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
         for i in range(1000):
             cursor['key%06d' % i] = 'v' * 100
         cursor.close()
@@ -66,17 +70,64 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_config_errors(self):
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
         self.assertIn('No command found', self.repair('uri="table:tbl"'))
+        # local=false so the collision is what fires, not the (now local=true-only) disagg guard.
+        self.assertIn('Only one command is allowed', self.repair(
+            'fetch_database_size=(local=false),fetch_metadata=(local=true)'))
+
+    def test_fetch_metadata(self):
+        self.populate()
+
+        # A whole-value local fetch equals the metadata cursor's value for the same uri.
+        cursor = self.session.open_cursor('metadata:')
+        cursor.set_key(self.uri)
+        self.assertEqual(cursor.search(), 0)
+        self.assertIn(f'{self.uri}: {cursor.get_value()}',
+            self.repair(f'fetch_metadata=(local=true,uri="{self.uri}")'))
+        cursor.close()
+
+        # A key-scoped fetch returns just that value; absent keys and uris are reported, not
+        # errors.
+        self.assertIn(f'{self.uri}: key_format=S',
+            self.repair(f'fetch_metadata=(local=true,uri="{self.uri}",key="key_format")'))
+        self.assertIn(f'{self.uri}: <no "nope">',
+            self.repair(f'fetch_metadata=(local=true,uri="{self.uri}",key="nope")'))
+        self.assertIn('<no matching metadata entry for uri:"table:missing">',
+            self.repair('fetch_metadata=(local=true,uri="table:missing")'))
+
+        # An empty uri/key is treated as absent, not as a literal target that matches nothing:
+        # empty (or absent) uri means all URIs, empty (or absent) key means the whole value. The
+        # empty and absent spellings must produce byte-identical reports.
+        all_uris = self.repair('fetch_metadata=(local=true)')
+        self.assertIn(f'{self.uri}: ', all_uris)
+        self.assertNotIn('<no matching metadata entry', all_uris)
+        self.assertEqual(all_uris, self.repair('fetch_metadata=(local=true,uri="")'))
+
+        whole_value = self.repair(f'fetch_metadata=(local=true,uri="{self.uri}")')
+        self.assertEqual(whole_value,
+            self.repair(f'fetch_metadata=(local=true,uri="{self.uri}",key="")'))
+
+        # The shared (page-server-durable) metadata read is disaggregated-only.
+        if self.is_disagg_scenario():
+            self.assertIn(self.uri,
+                self.repair(f'fetch_metadata=(local=false,uri="{self.uri}")'))
+        else:
+            self.assertIn('requires a disaggregated connection',
+                self.repair('fetch_metadata=(local=false)'))
 
     def test_fetch_database_size(self):
         self.populate()
 
-        reported = self.reported_size()
+        # local=false is not yet implemented (FIXME-WT-17945); unlike local=true it does not
+        # require a disaggregated connection just to attempt the command.
+        self.assertIn('not yet supported', self.repair('fetch_database_size=(local=false)'))
 
         if not self.is_disagg_scenario():
-            self.assertEqual(reported, 0)
+            self.assertIn('requires a disaggregated connection',
+                self.repair('fetch_database_size=(local=true)'))
             return
 
         # Cross-validate against the disagg_database_size connection statistic.
+        reported = self.reported_size()
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
         self.assertEqual(reported, stat_size)
         self.assertGreater(reported, 0)
