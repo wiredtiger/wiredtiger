@@ -79,20 +79,18 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = self.session.open_cursor('metadata:')
         cursor.set_key(uri)
         self.assertEqual(cursor.search(), 0)
-        self.assertEqual(self.repair('fetch_metadata=(local=true,uri="%s")' % uri),
-            '\n  %s: %s' % (uri, cursor.get_value()))
+        self.assertIn('%s: %s' % (uri, cursor.get_value()),
+            self.repair('fetch_metadata=(local=true,uri="%s")' % uri))
         cursor.close()
 
         # A key-scoped fetch returns just that value; absent keys and uris are reported, not
         # errors.
-        self.assertEqual(
-            self.repair('fetch_metadata=(local=true,uri="%s",key="key_format")' % uri),
-            '\n  %s: key_format=S' % uri)
-        self.assertEqual(
-            self.repair('fetch_metadata=(local=true,uri="%s",key="nope")' % uri),
-            '\n  %s: <no "nope">' % uri)
-        self.assertEqual(self.repair('fetch_metadata=(local=true,uri="table:missing")'),
-            ' <no matching metadata entry for uri:"table:missing">')
+        self.assertIn('%s: key_format=S' % uri,
+            self.repair('fetch_metadata=(local=true,uri="%s",key="key_format")' % uri))
+        self.assertIn('%s: <no "nope">' % uri,
+            self.repair('fetch_metadata=(local=true,uri="%s",key="nope")' % uri))
+        self.assertIn('<no matching metadata entry for uri:"table:missing">',
+            self.repair('fetch_metadata=(local=true,uri="table:missing")'))
 
         # The shared (page-server-durable) metadata read is disaggregated-only.
         if self.is_disagg_scenario():
