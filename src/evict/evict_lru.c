@@ -13,6 +13,7 @@ static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
+static bool __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree);
 static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed);
 
 #define WT_EVICT_HAS_WORKERS(s) \
@@ -376,8 +377,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
-    double dirty_target, dirty_trigger, target, trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, total_dirty, total_inmem, total_updates;
+    double dirty_target, dirty_trigger, target, trigger,  updates_target, updates_trigger;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem, total_updates;
     uint32_t flags, hs_id;
 
     conn = S2C(session);
@@ -388,6 +389,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
+    updates_target = evict->eviction_updates_target;
+    updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
 
     /* Build up the new state. */
     flags = 0;
@@ -462,6 +465,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         LF_SET(WT_EVICT_CACHE_DIRTY);
     }
 
+    bytes_updates = __wt_cache_bytes_updates(cache);
     if (__wti_evict_exceeded_updates_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_UPDATES | WT_EVICT_CACHE_UPDATES_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_updates_reached);
@@ -516,7 +520,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
-        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200) {
+        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
+                   bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
     } else
@@ -1132,16 +1137,18 @@ __evict_get_ref(
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TXN *txn;
-    bool skip_page;
-    int early_skipped_tree, skipped, skip_locked;
+    bool skip_page, checkpoint_running;
+    int skipped, skip_locked;
     uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
     uint64_t cumulative, rand_val, total_items;
 
     *btreep = NULL;
     bucketset = NULL;
     conn = S2C(session);
+    checkpoint_running =
+        __wt_atomic_load_bool_v_relaxed(&(&(S2C(session))->txn_global)->checkpoint_running);
     evict = conn->evict;
-    early_skipped_tree = skipped = skip_locked = 0;
+    skipped = skip_locked = 0;
     i = 0;
     iter = total_iter = 0;
     min_level = max_level = 0;
@@ -1158,9 +1165,10 @@ __evict_get_ref(
     if (!F_ISSET(evict, WT_EVICT_CACHE_ANY))
         goto done;
 
-    if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
-        if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
-            WT_STAT_CONN_INCR(session, eviction_target_strategy_updates_only);
+    /* Application threads don't help when the checkpoint is running */
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && checkpoint_running) {
+        WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
+        goto done;
     }
 
     min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
@@ -1179,18 +1187,36 @@ __evict_get_ref(
     if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
 
+#if 0
+    /* Eviction threads only evict clean pages when checkpoint is running */
+    if (checkpoint_running) {
+        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+            goto done;
+        }
+        if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+            min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+            max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+        }
+        if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
+            if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+                min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
+            max_level = WT_EVICT_LEVEL_UPDATES_LEAF;
+        }
+    }
+#endif
+
     /* Sum items across all eligible bucketsets. */
     total_items = 0;
-    for (i = min_level; i <= max_level; i++)
+    for (i = min_level; i <= max_level; i++) {
         total_items += evict->evict_bucketset[i].bucketset_num_items;
+    }
 
     /* If no items in any eligible bucket, nothing to evict. */
     if (total_items == 0)
-        return (WT_NOTFOUND);
+        goto done;
 
     /* Pick a random point in [0, total_items) and find the corresponding bucket. */
     rand_val = __wt_random(&session->rnd_random) % total_items;
-
     cumulative = 0;
     for (i = min_level; i <= max_level; i++) {
         cumulative += evict->evict_bucketset[i].bucketset_num_items;
@@ -1200,14 +1226,7 @@ __evict_get_ref(
         }
     }
 
-    /* Only evict from all levels, including clean internal pages, if this is urgent */
-    if (F_ISSET(evict, WT_EVICT_CACHE_URGENT)) {
-        min_level = 0;
-        max_level = WT_EVICT_LEVELS - 1;
-        printf("URGENT EVICTION!!!!!!!!!!!!\n"); /* XXX Add a stat */
-    }
-
-#if 0
+#if 1
     /* Application threads evict only clean pages, unless we are struggling */
     if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)
         && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD) &&
@@ -1334,9 +1353,9 @@ __evict_get_ref(
                  * removing it from the bucket and hence from the tree. So we can access its dhandle
                  * attribute.
                  */
-                if (WT_BTREE_SYNCING((WT_BTREE *)page->evict_data.dhandle->handle)) {
+                if (__evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle))
+                {
                     ref = NULL;
-                    early_skipped_tree++;
                     continue;
                 }
 
@@ -1414,9 +1433,6 @@ done:
     }
     if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
-
-    if (!F_ISSET(session, WT_SESSION_INTERNAL) && ret == WT_NOTFOUND)
-        ret = EBUSY;
 
     WT_STAT_CONN_INCRV(session, eviction_get_ref_iterations, total_iter);
     ret = (*refp == NULL ? WT_NOTFOUND : 0);
@@ -2013,9 +2029,6 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int level)
         WT_STAT_CONN_INCR(session, eviction_skip_dirty_pages_during_checkpoint);
         return (true);
     }
-
-    if (__evict_skip_tree(session, btree))
-        return (true);
 
     /*
      * Do not evict a clean metadata page that contains historical data needed to satisfy a reader.

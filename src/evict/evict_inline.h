@@ -14,6 +14,8 @@
 
 #define EVICT_DEBUG_PRINT 0
 
+static WT_INLINE bool __evict_page_updates_candidate(WT_PAGE *page);
+
 /*
  * __wt_ref_assign_page --
  *     Must be called every time we associate a new page with a ref. A page must have a back pointer
@@ -133,7 +135,7 @@ __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_READGEN_WONT_NEED ||
          read_gen == WT_READGEN_EVICT_SOON)) {
         if (!WT_PAGE_IS_INTERNAL(page)) {
-            if (!__wt_page_is_modified(page) && (page->modify == NULL))
+            if (!__wt_page_is_modified(page) && !__evict_page_updates_candidate(page))
                 return WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
             else
                 return WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
@@ -148,7 +150,7 @@ __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
         return WT_EVICT_LEVEL_DIRTY_LEAF;
     else if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
         return WT_EVICT_LEVEL_DIRTY_INTERNAL;
-    else if (page->modify != NULL) {
+    else if (__evict_page_updates_candidate(page)) {
         if (WT_PAGE_IS_INTERNAL(page))
             return WT_EVICT_LEVEL_UPDATES_INTERNAL;
         else
@@ -957,20 +959,6 @@ static WT_INLINE int
 __wt_evict_app_assist_worker_check(
   WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
 {
-
-#define APP_DONT_HELP 0
-#if APP_DONT_HELP
-    (void)session;
-    (void)busy;
-    (void)readonly;
-    (void)interruptible;
-
-    if (didworkp != NULL)
-        *didworkp = true;
-
-    WT_IGNORE_RET(__evict_check_user_ok_with_eviction(session, interruptible));
-    return (0);
-#else
     WT_TXN_GLOBAL *txn_global = &(S2C(session))->txn_global;
 
     WT_STAT_CONN_INCR(session, application_check_evict);
@@ -981,11 +969,6 @@ __wt_evict_app_assist_worker_check(
     WT_CONNECTION_IMPL *conn = S2C(session);
     if (!__wt_atomic_load_bool_relaxed(&conn->evict_server_running)) {
         WT_STAT_CONN_INCR(session, app_evict_refused_server_not_running);
-        return (0);
-    }
-
-    if(__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) {
-        WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
         return (0);
     }
 
@@ -1134,5 +1117,26 @@ __wt_evict_app_assist_worker_check(
 
     WT_STAT_CONN_INCR(session, app_evict_accepted);
     return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible));
-#endif
+}
+
+static WT_INLINE bool
+__evict_page_updates_candidate(WT_PAGE *page)
+{
+    if (page == NULL || page->modify == NULL)
+        return (false);
+
+    /*
+     * Internal pages don't track bytes_updates, but still need to be evicted when updates pressure
+     * is active. Evicting and reconciling an internal page frees the underlying disk blocks of any
+     * fast-truncate children whose deletions have become globally visible.
+     */
+    if (WT_PAGE_IS_INTERNAL(page))
+        return (true);
+
+    /*
+     * For leaf pages, only queue the page if it has non-zero tracked update bytes. Freshly-split
+     * child pages start at zero, and evicting a page with no tracked update bytes does not reduce
+     * updates cache pressure.
+     */
+    return (page->modify->bytes_updates != 0);
 }
