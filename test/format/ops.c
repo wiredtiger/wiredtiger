@@ -1375,7 +1375,7 @@ rollback_retry:
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
             if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                 goto rollback;
-            if (GV(RUNS_PREDICTABLE_REPLAY) && op == REMOVE)
+            if (GV(RUNS_PREDICTABLE_REPLAY))
                 rlog_ret = tinfo->op_ret;
             skip2 = table;
         }
