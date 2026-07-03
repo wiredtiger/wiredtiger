@@ -2275,13 +2275,32 @@ static int
 __clayered_constituent_check(
   WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, WT_CURSOR *c, const WT_ITEM *key)
 {
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    int cmp;
+    bool positioned;
+
     if (c == NULL)
         return (0);
 
-    WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)c;
-    WT_DECL_RET;
+    cbt = (WT_CURSOR_BTREE *)c;
 
+    /*
+     * Only trust an already-positioned cursor when it is positioned on the key being checked. The
+     * conflict check can run before the operation positions the cursor (modify checks for a conflict
+     * before reading its base value), so current_cursor may be left on a different key by a prior
+     * operation. Using that stale position would inspect the wrong key's update chain and miss a
+     * real conflict.
+     */
+    positioned = false;
     if (clayered->current_cursor == c && F_ISSET(c, WT_CURSTD_KEY_INT)) {
+        WT_WITH_DHANDLE(session, cbt->dhandle,
+          ret = __wt_compare(session, CUR2BT(cbt)->collator, &c->key, key, &cmp));
+        WT_RET(ret);
+        positioned = cmp == 0;
+    }
+
+    if (positioned) {
         /* Positioned on the key: check the held cell and keep the position. */
         WT_WITH_DHANDLE(session, cbt->dhandle, ret = __clayered_cell_check(session, cbt));
     } else {
@@ -3017,16 +3036,17 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_CLEAR(value);
 
     /*
-     * Modify requires a visible base value: search before the conflict check so a missing value
-     * returns WT_NOTFOUND.
+     * The write-conflict check precedes the base-value read: an update invisible to this
+     * transaction is reported as a conflict rather than a missing value.
      */
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
+
+    /* Modify requires a visible base value; a missing value returns WT_NOTFOUND. */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
       !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
-
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     if (clayered->current_cursor != c_ingest) {
         /*
