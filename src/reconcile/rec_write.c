@@ -21,7 +21,7 @@ static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *
 static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
-static int __rec_wrapup_obsolete_delta_chain(
+static int __rec_wrapup_decrease_disagg_size(
   WT_SESSION_IMPL *, WTI_RECONCILE *, const uint8_t *, size_t);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
@@ -2930,7 +2930,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 }
 
 /*
- * __rec_wrapup_obsolete_delta_chain --
+ * __rec_wrapup_decrease_disagg_size --
  *     A newly written full page image terminates the on-disk delta chain, so the prior chain's
  *     cumulative size must stop counting toward the tree's byte total. Decrease the size when this
  *     reconciliation wrote a single full image and did not skip the write. Callers gate on their
@@ -2938,7 +2938,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
  *     cookie is supplied it records the size being obsoleted; diagnostic builds check they agree.
  */
 static int
-__rec_wrapup_obsolete_delta_chain(
+__rec_wrapup_decrease_disagg_size(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, const uint8_t *cookie, size_t cookie_size)
 {
     WT_PAGE *page;
@@ -3060,7 +3060,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
         /* Update the size accounting if we keep the page id and terminate the delta chain. */
         if (disagg_page_is_valid && !disagg_page_free_required)
-            WT_RET(__rec_wrapup_obsolete_delta_chain(session, r, NULL, 0));
+            WT_RET(__rec_wrapup_decrease_disagg_size(session, r, NULL, 0));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3106,7 +3106,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                          * terminate the delta chain.
                          */
                         if (disagg_page_is_valid && !disagg_page_free_required)
-                            WT_RET(__rec_wrapup_obsolete_delta_chain(session, r, NULL, 0));
+                            WT_RET(__rec_wrapup_decrease_disagg_size(session, r, NULL, 0));
                     }
                 }
             } else {
@@ -3132,7 +3132,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                      * the one on the multi->block_meta appears to be from the current block.
                      */
                     if (r->multi_next == 1 && r->multi->block_meta != NULL)
-                        WT_RET(__rec_wrapup_obsolete_delta_chain(session, r,
+                        WT_RET(__rec_wrapup_decrease_disagg_size(session, r,
                           mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 }
             }
