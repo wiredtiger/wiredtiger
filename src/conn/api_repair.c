@@ -55,6 +55,18 @@ static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, c
     } while (0)
 
 /*
+ * WT_RET_REPORT --
+ *     Like WT_ERR_REPORT, but for a worker that returns directly rather than through the caller's
+ *     err: label.
+ */
+#define WT_RET_REPORT(session, v, ...)                                \
+    do {                                                              \
+        int __ret = (v);                                              \
+        WT_IGNORE_RET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
+        return (__ret);                                               \
+    } while (0)
+
+/*
  * __repair_fetch_database_size --
  *     Read-only database size inspection: return the in-memory database size.
  */
@@ -65,7 +77,7 @@ __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_
      * FIXME-WT-17945: support local=false to dynamically recalculate the database size.
      */
     if (is_local == false)
-        WT_RET_MSG(session, ENOTSUP, "fetch_database_size(local=false) is not yet supported");
+        WT_RET_REPORT(session, ENOTSUP, "fetch_database_size(local=false) is not yet supported");
 
     WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
       S2C(session)->disaggregated_storage.database_size));
@@ -173,6 +185,13 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             repair_config->fetch_database_size.local = true;
         else
             repair_config->fetch_database_size.local = item.val != 0;
+
+        /*
+         * local=true reads conn->disaggregated_storage.database_size, which is only maintained on a
+         * disaggregated connection. local=false (FIXME-WT-17945, not yet implemented) is not gated
+         * here -- whether its eventual recalculation needs disagg is that ticket's call.
+         */
+        require_disagg = repair_config->fetch_database_size.local;
     } else if (repair_config->command == WT_REPAIR_COMMAND_FETCH_METADATA) {
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "local", &item), true);
         if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
@@ -210,8 +229,9 @@ err:
  *     The config is parsed with the normal WT config parser:
  *
  * fetch_database_size=(local=<bool>) Read-only inspection: return the in-memory database size.
- *     local=true (default) reads conn->disaggregated_storage.database_size. FIXME-WT-17945:
- *     local=false to dynamically recalculate the database size is not yet supported.
+ *     local=true (default, disagg-only) reads conn->disaggregated_storage.database_size.
+ *     FIXME-WT-17945: local=false to dynamically recalculate the database size is not yet
+ *     supported.
  *
  * fetch_metadata=(local=<bool>,uri="<uri>",key="<key>") Read-only inspection: return metadata
  *     values. local=true (default) reads the local metadata cursor; local=false (disagg-only) reads

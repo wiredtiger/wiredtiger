@@ -68,8 +68,9 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_config_errors(self):
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
         self.assertIn('No command found', self.repair('uri="table:tbl"'))
+        # local=false so the collision is what fires, not the (now local=true-only) disagg guard.
         self.assertIn('Only one command is allowed', self.repair(
-            'fetch_database_size=(local=true),fetch_metadata=(local=true)'))
+            'fetch_database_size=(local=false),fetch_metadata=(local=true)'))
 
     def test_fetch_metadata(self):
         uri = self.populate()
@@ -103,13 +104,17 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_fetch_database_size(self):
         self.populate()
 
-        reported = self.reported_size()
+        # local=false is not yet implemented (FIXME-WT-17945); unlike local=true it does not
+        # require a disaggregated connection just to attempt the command.
+        self.assertIn('not yet supported', self.repair('fetch_database_size=(local=false)'))
 
         if not self.is_disagg_scenario():
-            self.assertEqual(reported, 0)
+            self.assertIn('requires a disaggregated connection',
+                self.repair('fetch_database_size=(local=true)'))
             return
 
         # Cross-validate against the disagg_database_size connection statistic.
+        reported = self.reported_size()
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
         self.assertEqual(reported, stat_size)
         self.assertGreater(reported, 0)
