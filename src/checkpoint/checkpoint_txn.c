@@ -1183,7 +1183,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        conn->ckpt_eviction_snap_published = true;
+        WT_RELEASE_WRITE_WITH_BARRIER(conn->ckpt_eviction_snap_published, true);
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         /*
          * Wait for eviction threads still copying from the retiring buffer before it can be reused.

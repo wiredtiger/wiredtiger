@@ -1188,7 +1188,7 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
     snap = &conn->ckpt_eviction_snap[snap_idx];
-    published = conn->ckpt_eviction_snap_published;
+    WT_ACQUIRE_READ_WITH_BARRIER(published, conn->ckpt_eviction_snap_published);
     if (published) {
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
