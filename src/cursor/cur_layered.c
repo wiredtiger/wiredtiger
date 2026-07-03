@@ -244,6 +244,12 @@ __clayered_op_init(
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->table = (WT_LAYERED_TABLE *)clayered->dhandle;
     op->collator = op->table->collator;
+    /*
+     * Distinguish "stable is NULL because we deliberately skipped it" from "stable is NULL for some
+     * other reason" (for example no checkpoint has been picked up yet). Only the former is safe to
+     * treat as "assume the key exists" in __clayered_lookup.
+     */
+    op->stable_skipped_for_overwrite = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -1801,6 +1807,19 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
      */
     if (!found && op->stable != NULL)
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value), true);
+
+    /*
+     * If the stable constituent was deliberately skipped (a blind overwrite write on a follower
+     * with no read timestamp) and the key wasn't found in ingest or the truncate list either, we
+     * genuinely don't know whether it exists: that's exactly the lookup we chose to avoid paying
+     * for. The only caller that can reach this state is a remove (insert/update never call this
+     * function when the stable table is skipped, since their pre-lookup is itself conditioned on
+     * needing the stable table). Assume the key exists rather than report WT_NOTFOUND: a redundant
+     * tombstone is harmless, but wrongly failing a remove for a key that only lives in stable is
+     * not.
+     */
+    if (!found && op->stable == NULL && op->stable_skipped_for_overwrite)
+        ret = 0;
 
 err:
     if (ret != 0) {

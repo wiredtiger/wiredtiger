@@ -351,13 +351,22 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 do_node(n)
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
 
-    def _write_txn(self, nodes, do, label):
+    def _write_txn(self, nodes, do, label, blind_remove=False):
+        # blind_remove: an unpositioned overwrite=true remove on a follower with no read timestamp
+        # skips the stable lookup and so cannot always tell "exists only in stable" from "doesn't
+        # exist at all". It assumes the key exists rather than fail, which is correct for a
+        # secondary blindly replaying a leader-validated delete, but means the layered cursor can
+        # legitimately report success where the reference reports WT_NOTFOUND for a key that was
+        # never written. The reverse (layered NOTFOUND, reference success) is never acceptable.
         notfound = False
         def step(n):
             nonlocal notfound
             ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
-            self.assertEqual(ret_dsc, ret_asc, '%s result differs layered=%r reference=%r (trace %s)'
-                             % (label, ret_dsc, ret_asc, self.trace.path))
+            if blind_remove and ret_dsc == 0 and ret_asc == wiredtiger.WT_NOTFOUND:
+                pass
+            else:
+                self.assertEqual(ret_dsc, ret_asc, '%s result differs layered=%r reference=%r (trace %s)'
+                                 % (label, ret_dsc, ret_asc, self.trace.path))
             if ret_dsc == wiredtiger.WT_NOTFOUND:
                 notfound = True
         self._txn_scope(nodes, step)
@@ -545,10 +554,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
-        # An existing key (a real delete) or a missing one (layered and reference must agree).
+        # An existing key (a real delete) or a missing one. A blind (unpositioned, overwrite=true,
+        # no read timestamp) remove on a follower may report success for a key that was never
+        # written -- see _write_txn's blind_remove note.
         key = self.pick_key(rnd, self.weights.remove_key)
         trace.log('remove %r' % key)
-        self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove')
+        self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove', blind_remove=True)
         self.state.py_table.pop(key, None)
         self.state.cur_pos = None
 

@@ -67,4 +67,12 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;            /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_LAYERED_TABLE *table;
     WT_COLLATOR *collator;
+    /*
+     * True when stable is NULL specifically because of the overwrite blind-write optimization
+     * (CLAYERED_ENTER_SKIP_STABLE), as opposed to stable simply not being open yet for an unrelated
+     * reason (for example no checkpoint has been picked up). Only remove uses this: it lets
+     * __clayered_lookup safely assume a key exists, rather than report WT_NOTFOUND, when the only
+     * reason it can't check stable is that the caller chose to skip that check.
+     */
+    bool stable_skipped_for_overwrite;
 };
