@@ -578,12 +578,34 @@ slow: /*
 static const WT_ITEM __wt_tombstone = {"\x14\x14", 2, NULL, 0, 0};
 
 /*
+ * An unpositioned overwrite=true remove on a follower skips the stable lookup and so cannot confirm
+ * the key exists; it writes this marker instead of __wt_tombstone so ingest drain can tell an
+ * unconfirmed delete apart from one known to correspond to a real value. It extends the tombstone
+ * with a third byte that isn't 0x14, so it can never collide with an escaped application value
+ * (escaping always appends another 0x14, see __clayered_deleted_encode).
+ */
+static const WT_ITEM __wt_tombstone_blind = {"\x14\x14\x00", 3, NULL, 0, 0};
+
+/*
  * __wt_clayered_deleted --
- *     Check whether the current value is a tombstone.
+ *     Check whether the current value is a tombstone, confirmed or blind.
  */
 static WT_INLINE bool
 __wt_clayered_deleted(const WT_ITEM *item)
 {
-    return (item->size == __wt_tombstone.size &&
-      memcmp(item->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
+    return ((item->size == __wt_tombstone.size &&
+              memcmp(item->data, __wt_tombstone.data, __wt_tombstone.size) == 0) ||
+      (item->size == __wt_tombstone_blind.size &&
+        memcmp(item->data, __wt_tombstone_blind.data, __wt_tombstone_blind.size) == 0));
+}
+
+/*
+ * __wt_clayered_deleted_blind --
+ *     Check whether the current value is specifically the blind-delete tombstone.
+ */
+static WT_INLINE bool
+__wt_clayered_deleted_blind(const WT_ITEM *item)
+{
+    return (item->size == __wt_tombstone_blind.size &&
+      memcmp(item->data, __wt_tombstone_blind.data, __wt_tombstone_blind.size) == 0);
 }
