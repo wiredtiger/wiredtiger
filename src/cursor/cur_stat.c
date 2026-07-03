@@ -412,10 +412,9 @@ static int
 __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
 {
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = NULL;
-    const char *checkpoint_name = NULL;
+    uint64_t ckpt_size;
     const char *stable_uri = NULL;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
@@ -434,24 +433,10 @@ retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
-        /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
-        WT_ERR_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
-
-        /* We only need to check the stable table if we have picked up a checkpoint. */
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
-            goto done;
-        }
-
-        WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
-        /*
-         * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
-         * stable checkpoint, but without it being a traditional checkpoint cursor.
-         */
-        WT_ERR(
-          __wt_buf_fmt(session, stable_uri_buf, "%s/%s", layered->stable_uri, checkpoint_name));
-        stable_uri = stable_uri_buf->data;
+        ckpt_size = 0;
+        WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+        cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
+        goto done;
     }
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
@@ -467,8 +452,6 @@ done:
     __wt_curstat_dsrc_final(cst);
 
 err:
-    __wt_free(session, checkpoint_name);
-    __wt_scr_free(session, &stable_uri_buf);
     /* The constituent table dhandles have been released. Release the layered dhandle. */
     if (session->dhandle == NULL)
         session->dhandle = dhandle;
