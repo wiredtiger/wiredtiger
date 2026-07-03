@@ -50,8 +50,18 @@ functions:
           fi
 
           echo "mongodbtoolchain $MDB_TOOLCHAIN_REV not installed, downloading..."
+
+          # Work around installer.sh detecting the wrong platform on non-x86 architectures.
+          ARCH=$(uname -m)
+          EXTRA_ARGS=""
+          if [[ "$ARCH" == "ppc64le" ]]; then
+              EXTRA_ARGS="--os-id rhel81"
+          elif [[ "$ARCH" == "s390x" ]]; then
+              EXTRA_ARGS="--download-url https://mongodbtoolchain.build.10gen.cc/toolchain/rhel80-zseries/x86_64/mongodbtoolchain-${MDB_TOOLCHAIN_REV}.tar.gz"
+          fi
+
           curl -fsSL https://s3.amazonaws.com/mongodbtoolchain.build.10gen.cc/installer.sh \
-              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV"
+              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV" $EXTRA_ARGS
 
   "get project" :
     command: git.get_project
@@ -5618,6 +5628,7 @@ buildvariants:
   run_on:
   - rhel80-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     test_env_vars:
@@ -5743,6 +5754,7 @@ buildvariants:
   - rhel8-zseries-small
   batchtime: 4320 # 3 days
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     python_binary: '/opt/mongodbtoolchain/v4/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -5767,6 +5779,7 @@ buildvariants:
   - rhel81-power8-small
   batchtime: 120 # 2 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     format_test_setting: ulimit -c unlimited
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
@@ -5797,6 +5810,7 @@ buildvariants:
   - rhel8-zseries-small
   batchtime: 120 # 2 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     configure_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     compile_env_vars: PATH=/opt/mongodbtoolchain/v4/bin:$PATH
     test_env_vars:
