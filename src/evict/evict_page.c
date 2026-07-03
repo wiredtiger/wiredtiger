@@ -1180,8 +1180,8 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_SNAPSHOT *snap;
-    bool published;
     uint32_t snap_idx;
+    bool published;
 
     conn = S2C(session);
 
