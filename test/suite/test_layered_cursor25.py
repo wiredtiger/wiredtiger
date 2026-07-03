@@ -77,17 +77,6 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         c.close()
 
-    # Mirror a leader write onto the follower's ingest table at the same commit
-    # timestamp, as ordinary replication would. Must be called before any reader on
-    # conn_follow is active at or above ts: WiredTiger asserts (WT_DIAGNOSTIC_TXN_VISIBILITY)
-    # that a commit timestamp is after every active read timestamp on the same connection,
-    # so a follower can only ever replicate ops that predate its readers' pins -- exactly
-    # matching real replication, where a reader is never permitted to pin a timestamp the
-    # follower hasn't already caught up to.
-    def replicate(self, key, value, ts):
-        self.commit(self.session, key, value, ts)
-        self.commit(self.session_follow, key, value, ts)
-
     # Advance oldest_timestamp on both the leader and the follower together, keeping
     # their retention in lockstep like a follower whose own tracking keeps pace with
     # the leader's.
@@ -113,10 +102,18 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Ordinary replication continues past checkpoint A: 'n' is written by the leader
-        # at ts=120 and replicated into the follower's ingest table at the same timestamp,
-        # well before any reader opens. This is the common case this fix doesn't change.
-        self.replicate('n', 'v-n', 120)
+        # Ordinary replication continues past checkpoint A. The leader commits 'n' at
+        # ts=120 first.
+        self.commit(self.session, 'n', 'v-n', 120)
+
+        # The follower then separately replicates it: apply the same modification to its
+        # own ingest table, and commit it there at the same timestamp. This happens well
+        # before any reader opens, which is the common case this fix doesn't change.
+        c = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        c['n'] = 'v-n'
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
+        c.close()
 
         # Follower reader: read_timestamp=150. 'n' is visible via ingest replication; 'a'
         # comes from stable, since it predates any ingest activity and was never
