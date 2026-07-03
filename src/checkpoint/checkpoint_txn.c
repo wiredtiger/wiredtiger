@@ -1185,6 +1185,12 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
 
         conn->ckpt_eviction_snap_published = true;
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
+        /*
+         * Wait for eviction threads still copying from the retiring buffer before it can be reused.
+         * In practice this returns immediately: readers hold the generation only for a memcpy. This
+         * drain could be deferred to the start of the next checkpoint publish before writing the
+         * inactive buffer if that latency becomes a concern.
+         */
         __wt_gen_next_drain(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     }
 
