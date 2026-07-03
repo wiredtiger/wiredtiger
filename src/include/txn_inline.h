@@ -960,10 +960,13 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_pinned_timestamp --
- *     Get the first timestamp that has to be kept for the current tree.
+ *     Get the first timestamp that has to be kept for the current tree. If ignore_last_ckpt is
+ *     true, skip the disaggregated storage follower cap to the last picked-up checkpoint's
+ *     timestamp, e.g. when comparing against a checkpoint that hasn't been picked up yet.
  */
 static WT_INLINE void
-__wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
+__wt_txn_pinned_timestamp(
+  WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp, bool ignore_last_ckpt)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
@@ -1006,7 +1009,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * On a disaggregated storage follower, cap using the last completed checkpoint timestamp to
      * retain all data on the ingest btree up to that point.
      */
-    if (__wt_conn_is_disagg(session) &&
+    if (!ignore_last_ckpt && __wt_conn_is_disagg(session) &&
       (!conn->layered_table_manager.leader ||
         F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
         checkpoint_ts =
@@ -1080,7 +1083,7 @@ __wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session, wt_timestamp_t timestam
     wt_timestamp_t pinned_ts;
 
     /* Compare the given timestamp to the pinned timestamp, if it exists. */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    __wt_txn_pinned_timestamp(session, &pinned_ts, false);
 
     return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
 }

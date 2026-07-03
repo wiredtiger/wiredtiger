@@ -386,7 +386,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     newer_hs_durable_ts = tw->durable_start_ts;
 
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
+    __wt_txn_pinned_timestamp(session, &pinned_ts, false);
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
