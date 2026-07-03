@@ -31,9 +31,10 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_repair01.py
-#    Exercise the wiredtiger_repair() API for config-error paths and fetch_database_size. Both run
-#    in non-disaggregated and disaggregated scenarios; the disagg scenario cross-validates the
-#    reported size against the disagg_database_size connection statistic.
+#    Exercise the wiredtiger_repair() API for config-error paths, fetch_database_size, and
+#    fetch_metadata. All run in non-disaggregated and disaggregated scenarios; the disagg scenario
+#    additionally cross-validates the reported size against the disagg_database_size connection
+#    statistic and exercises the shared (page-server-durable) metadata read.
 class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=False))
@@ -58,6 +59,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor['key%06d' % i] = 'v' * 100
         cursor.close()
         self.session.checkpoint()
+        return uri
 
     def reported_size(self):
         result = self.repair('fetch_database_size=(local=true)')
@@ -66,6 +68,37 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_config_errors(self):
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
         self.assertIn('No command found', self.repair('uri="table:tbl"'))
+        self.assertIn('Only one command is allowed', self.repair(
+            'fetch_database_size=(local=true),fetch_metadata=(local=true)'))
+
+    def test_fetch_metadata(self):
+        uri = self.populate()
+
+        # A whole-value local fetch equals the metadata cursor's value for the same uri.
+        cursor = self.session.open_cursor('metadata:')
+        cursor.set_key(uri)
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(self.repair('fetch_metadata=(local=true,uri="%s")' % uri),
+            '\n  %s: %s' % (uri, cursor.get_value()))
+        cursor.close()
+
+        # A key-scoped fetch returns just that value; absent keys and uris are reported, not
+        # errors.
+        self.assertEqual(
+            self.repair('fetch_metadata=(local=true,uri="%s",key="key_format")' % uri),
+            '\n  %s: key_format=S' % uri)
+        self.assertEqual(
+            self.repair('fetch_metadata=(local=true,uri="%s",key="nope")' % uri),
+            '\n  %s: <no "nope">' % uri)
+        self.assertEqual(self.repair('fetch_metadata=(local=true,uri="table:missing")'),
+            ' <no matching metadata entry for uri:"table:missing">')
+
+        # The shared (page-server-durable) metadata read is disaggregated-only.
+        if self.is_disagg_scenario():
+            self.assertIn(uri, self.repair('fetch_metadata=(local=false,uri="%s")' % uri))
+        else:
+            self.assertIn('requires a disaggregated connection',
+                self.repair('fetch_metadata=(local=false)'))
 
     def test_fetch_database_size(self):
         self.populate()
