@@ -168,10 +168,9 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
-    bool require_disagg, require_disagg_leader;
+    bool require_disagg;
 
     require_disagg = false;
-    require_disagg_leader = false;
 
     if (repair_config->command != WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "Only one command is allowed in the config");
@@ -209,15 +208,9 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
         require_disagg = !repair_config->fetch_metadata.local;
     }
 
-    if (require_disagg) {
-        if (!__wt_disagg_has_picked_up_checkpoint(session))
-            WT_ERR_REPORT(session, EINVAL,
-              "This command requires a disaggregated connection with a valid checkpoint");
-
-        if (require_disagg_leader && !S2C(session)->layered_table_manager.leader)
-            WT_ERR_REPORT(
-              session, EINVAL, "This command requires a disaggregated leader connection");
-    }
+    if (require_disagg && !__wt_disagg_has_picked_up_checkpoint(session))
+        WT_ERR_REPORT(session, EINVAL,
+          "This command requires a disaggregated connection with a valid checkpoint");
 
 err:
     return (ret);
