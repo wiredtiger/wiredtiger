@@ -104,7 +104,7 @@ __repair_fetch_metadata(
     found = false;
 
     if (is_local)
-        WT_RET(__wt_metadata_cursor(session, &cursor));
+        WT_ERR(__wt_metadata_cursor(session, &cursor));
     else {
         const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
