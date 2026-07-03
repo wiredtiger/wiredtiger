@@ -94,6 +94,18 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertIn('<no matching metadata entry for uri:"table:missing">',
             self.repair('fetch_metadata=(local=true,uri="table:missing")'))
 
+        # An empty uri/key is treated as absent, not as a literal target that matches nothing:
+        # empty (or absent) uri means all URIs, empty (or absent) key means the whole value. The
+        # empty and absent spellings must produce byte-identical reports.
+        all_uris = self.repair('fetch_metadata=(local=true)')
+        self.assertIn(f'{self.uri}: ', all_uris)
+        self.assertNotIn('<no matching metadata entry', all_uris)
+        self.assertEqual(all_uris, self.repair('fetch_metadata=(local=true,uri="")'))
+
+        whole_value = self.repair(f'fetch_metadata=(local=true,uri="{self.uri}")')
+        self.assertEqual(whole_value,
+            self.repair(f'fetch_metadata=(local=true,uri="{self.uri}",key="")'))
+
         # The shared (page-server-durable) metadata read is disaggregated-only.
         if self.is_disagg_scenario():
             self.assertIn(self.uri,

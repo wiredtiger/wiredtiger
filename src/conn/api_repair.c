@@ -138,8 +138,8 @@ __repair_fetch_metadata(
     WT_ERR_NOTFOUND_OK(ret, false);
 
     if (!found)
-        WT_ERR(
-          __wt_buf_catfmt(session, report, " <no matching metadata entry for uri:\"%s\">", uri));
+        WT_ERR(__wt_buf_catfmt(session, report, " <no matching metadata entry for uri:\"%s\">",
+          uri == NULL ? "<all>" : uri));
 
 err:
     if (cursor != NULL) {
@@ -192,12 +192,13 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
         else
             repair_config->fetch_metadata.local = item.val != 0;
 
+        /* An empty uri/key is treated as absent (NULL): all URIs / the whole value. */
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "uri", &item), true);
-        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && item.len != 0)
             WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.uri));
 
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "key", &item), true);
-        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && item.len != 0)
             WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.key));
 
         require_disagg = !repair_config->fetch_metadata.local;
