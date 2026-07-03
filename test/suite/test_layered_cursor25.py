@@ -72,6 +72,17 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         c.close()
 
+    # Mirror a leader write onto the follower's ingest table at the same commit
+    # timestamp, as ordinary replication would. Must be called before any reader on
+    # conn_follow is active at or above ts: WiredTiger asserts (WT_DIAGNOSTIC_TXN_VISIBILITY)
+    # that a commit timestamp is after every active read timestamp on the same connection,
+    # so a follower can only ever replicate ops that predate its readers' pins -- exactly
+    # matching real replication, where a reader is never permitted to pin a timestamp the
+    # follower hasn't already caught up to.
+    def replicate(self, key, value, ts):
+        self.commit(self.session, key, value, ts)
+        self.commit(self.session_follow, key, value, ts)
+
     # Reproduces the "upgrading a positioned stable cursor" assertion in
     # __clayered_reopen_stable via a legitimate, panic-free sequence: the
     # checkpoint the follower adopts never violates the reader's pin.
@@ -130,6 +141,80 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         # The still-open reader continues its walk. Its cursor is still parked on 'a'
         # in the old checkpoint; carrying that position into the new checkpoint fails
         # because the row is genuinely gone there, unrelated to this reader's own pin.
+        try:
+            ret = cursor.next()
+            self.pr('cursor.next() after checkpoint pickup returned ' + str(ret))
+        finally:
+            self.session_follow.rollback_transaction()
+            cursor.close()
+
+    # Same bug, but with ordinary ingest replication also running in the background, to show
+    # the two delivery paths -- live replication into ingest, and leader-local obsolescence
+    # conveyed only via checkpoint pickup -- coexist without conflict. 'n' is replicated to the
+    # follower's ingest table like any live write; 'a' is not, and only ever reaches the
+    # follower through the checkpoint, which is exactly why the assertion this test guards
+    # against can still fire even on a follower whose replication is otherwise fully caught up.
+    def test_reopen_stable_key_pruned_with_ingest_replication(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.session_follow.create(self.uri, 'key_format=S,value_format=S')
+
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
+
+        # Checkpoint A: keys a, m, z committed at ts=10, checkpointed at stable=100.
+        for k in ('a', 'm', 'z'):
+            self.commit(self.session, k, 'v-' + k, 10)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100))
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # Ordinary replication continues past checkpoint A: 'n' is written by the leader at
+        # ts=120 and replicated into the follower's ingest table at the same timestamp, well
+        # before any reader opens. This is the common case this fix doesn't change.
+        self.replicate('n', 'v-n', 120)
+
+        # Follower reader: read_timestamp=150. 'n' is visible via ingest replication; 'a' comes
+        # from stable, since it predates any ingest activity and was never replicated. Parks on
+        # 'a' first.
+        cursor = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(150))
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'a')
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'm')
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'n')
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'm')
+        self.assertEqual(cursor.prev(), 0)
+        self.assertEqual(cursor.get_key(), 'a')
+
+        # Leader removes 'a' at commit_ts=140 (< reader's read_timestamp=150). Unlike 'n' above,
+        # this op is deliberately NOT replicated into the follower's ingest table -- it can't be,
+        # since the reader is already pinned at 150 on that connection, and in any case this is
+        # exactly the kind of materialization lag disaggregated followers are expected to
+        # tolerate. The leader advances its own oldest_timestamp to 145 (>= 140, obsoleting the
+        # tombstone from the leader's own perspective only) and checkpoints again at stable=300.
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        c.set_key('a')
+        self.assertEqual(c.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(140))
+        c.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(145))
+        self.session.checkpoint()
+
+        # Advance the follower's own oldest_timestamp to just below the reader's read_timestamp,
+        # matching a properly-tracking follower, then pick up the new checkpoint. Its pinned
+        # timestamp (min(145, 150) = 145) does not exceed the checkpoint's oldest_timestamp
+        # (145), so this does not trip the checkpoint-pickup pinned-timestamp panic.
+        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(145))
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # The still-open reader continues its walk, still parked on 'a' in the old checkpoint;
+        # carrying that position into the new checkpoint fails because the row is genuinely gone
+        # there, unrelated to this reader's own pin or to the ordinary replication of 'n'.
         try:
             ret = cursor.next()
             self.pr('cursor.next() after checkpoint pickup returned ' + str(ret))
