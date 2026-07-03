@@ -1183,9 +1183,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        /* Publish new buffer, then drain readers of the retiring buffer. */
-        __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         conn->ckpt_eviction_snap_published = true;
+        __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         __wt_gen_next_drain(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     }
 
