@@ -99,6 +99,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
   WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts)
 {
     WT_DECL_RET;
+    bool has_value;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -110,8 +111,7 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    bool has_value =
-      __layered_stable_has_value(session, cbt, last_upd->type == WT_UPDATE_TOMBSTONE);
+    has_value = __layered_stable_has_value(session, cbt, last_upd->type == WT_UPDATE_TOMBSTONE);
 
     /* We only need to check on the first pass. */
     if (from_ts == WT_TS_NONE)
