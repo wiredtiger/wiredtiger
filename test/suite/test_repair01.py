@@ -51,15 +51,17 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def repair(self, config):
         return wiredtiger.wiredtiger_repair(self.conn, config)
 
+    @property
+    def uri(self):
+        return 'layered:tbl' if self.is_disagg_scenario() else 'table:tbl'
+
     def populate(self):
-        uri = 'layered:tbl' if self.is_disagg_scenario() else 'table:tbl'
-        self.session.create(uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(uri)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
         for i in range(1000):
             cursor['key%06d' % i] = 'v' * 100
         cursor.close()
         self.session.checkpoint()
-        return uri
 
     def reported_size(self):
         result = self.repair('fetch_database_size=(local=true)')
@@ -73,7 +75,8 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             'fetch_database_size=(local=false),fetch_metadata=(local=true)'))
 
     def test_fetch_metadata(self):
-        uri = self.populate()
+        self.populate()
+        uri = self.uri
 
         # A whole-value local fetch equals the metadata cursor's value for the same uri.
         cursor = self.session.open_cursor('metadata:')
