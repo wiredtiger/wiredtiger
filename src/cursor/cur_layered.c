@@ -199,8 +199,7 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ROLE_CHANGE 0x4u      /* Leader/follower role changed since last access. */
 #define CLAYERED_ENTER_SKIP_STABLE 0x8u      /* Follower writing without reading stable. */
 #define CLAYERED_ENTER_STEPDOWN_ARMED 0x10u  /* A planned step-down is armed on a leader. */
-#define CLAYERED_ENTER_STEPDOWN_CHANGE 0x20u /* Step-down armed state changed since last access. \
-                                              */
+#define CLAYERED_ENTER_STEPDOWN_CHANGE 0x20u /* Step-down ts state changed since last access. */
 
 /*
  * __clayered_enter_flags --
@@ -716,9 +715,8 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
  *     during normal operation. A leader with a step-down armed also uses ingest (writes route there
  *     and reads consult it first), so it opens the cursor too. An unarmed leader keeps it closed:
  *     the ingest table is empty for reads and unused for writes, so an open ingest cursor only adds
- *     the per-operation cache/reopen and dhandle rwlock overhead. A step-up, or clearing the
- *     cutoff, can leave behind an ingest cursor that is no longer wanted, so close it on the role
- *     or arm change.
+ *     the per-operation cache/reopen and dhandle rwlock overhead. A step-up can leave behind an
+ *     ingest cursor that is no longer wanted, so close it on the role or arm change.
  */
 static int
 __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
@@ -734,8 +732,7 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
             WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
             WT_RET(__clayered_copy_bounds(clayered));
         }
-    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE | CLAYERED_ENTER_STEPDOWN_CHANGE) &&
-      clayered->ingest_cursor != NULL) {
+    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
         WT_CURSOR *ingest = clayered->ingest_cursor;
         if (clayered->current_cursor == ingest)
             clayered->current_cursor = NULL;
