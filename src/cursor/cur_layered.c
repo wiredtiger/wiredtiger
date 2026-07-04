@@ -194,12 +194,11 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_ITERATION 0x1u        /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x2u            /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x4u      /* Leader/follower role changed since last access. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x8u      /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_STEPDOWN_ARMED 0x10u  /* A planned step-down is armed on a leader. */
-#define CLAYERED_ENTER_STEPDOWN_CHANGE 0x20u /* Step-down ts state changed since last access. */
+#define CLAYERED_ENTER_ITERATION 0x1u       /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x2u           /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x4u     /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x8u     /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_STEPDOWN_ARMED 0x10u /* A planned step-down is armed on a leader. */
 
 /*
  * __clayered_enter_flags --
@@ -231,13 +230,10 @@ __clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
 
     /*
      * While a step-down is armed on the leader, the cursor behaves like a follower: it reads and
-     * writes the ingest constituent (over the still-live stable table). Track the arm transition so
-     * the ingest cursor is opened/closed and any in-progress iteration is re-seated.
+     * writes the ingest constituent over the still-live stable table.
      */
     if (stepdown_ts_armed)
         LF_SET(CLAYERED_ENTER_STEPDOWN_ARMED);
-    if (stepdown_ts_armed != clayered->last_stepdown_ts_armed)
-        LF_SET(CLAYERED_ENTER_STEPDOWN_CHANGE);
 
     return (flags);
 }
@@ -285,13 +281,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     }
 
     /*
-     * The set of constituents this cursor reads changes when a step-down is armed or cleared, so a
-     * cached iteration position is no longer valid; force the next next()/prev() to re-search.
-     */
-    if (FLD_ISSET(flags, CLAYERED_ENTER_STEPDOWN_CHANGE))
-        F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-
-    /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
      * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
      * to adhere to that behavior. Ideally we should not be changing the active cursors counter
@@ -310,7 +299,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_RET(__clayered_update_stable(clayered, flags, role));
 
     __clayered_update_state(clayered, role);
-    clayered->last_stepdown_ts_armed = stepdown_ts_armed;
     __clayered_assert_stable_mode(clayered);
 
     __clayered_op_init(clayered, op, role, flags);
