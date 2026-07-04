@@ -1008,6 +1008,18 @@ struct __wt_connection_impl {
     /* Parallel page reconciliation during a checkpoint. */
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
+    /*
+     * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
+     * visibility without holding any lock. Two buffers alternate so eviction always has a valid
+     * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
+     */
+    WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
+    uint64_t *ckpt_eviction_snap_array[2];
+    size_t ckpt_eviction_snap_capacity[2];
+    wt_shared uint32_t ckpt_eviction_snap_idx;
+    wt_shared bool
+      ckpt_eviction_snap_published; /* true once the first snapshot has been published */
+
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
         uint64_t log_replay_ms;
