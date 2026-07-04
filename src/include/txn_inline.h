@@ -1993,6 +1993,30 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 }
 
 /*
+ * __wt_txn_stepdown_straddler_check --
+ *     A "straddler" is a transaction that began before a planned step-down cutoff was armed and is
+ *     still writing or committing afterwards; its writes can land on the wrong layered constituent
+ *     (stable content that belongs in ingest), which cannot be moved. Mark such a transaction for
+ *     rollback and return WT_ROLLBACK, otherwise return 0. The caller passes the armed step-down
+ *     timestamp (WT_TS_NONE when none is armed).
+ */
+static WT_INLINE int
+__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, wt_timestamp_t stepdown_ts)
+{
+    WT_TXN *txn = session->txn;
+
+    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) ||
+      txn->stepdown_ts_at_begin == stepdown_ts)
+        return (0);
+
+    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
+      "step-down straddler rollback: txn began at cutoff %" PRIu64 ", armed cutoff %" PRIu64,
+      txn->stepdown_ts_at_begin, stepdown_ts);
+    __wt_session_set_last_error(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
+    return (WT_ROLLBACK);
+}
+
+/*
  * __wt_txn_begin --
  *     Begin a transaction.
  */

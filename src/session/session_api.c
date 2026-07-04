@@ -1945,7 +1945,6 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
-    wt_timestamp_t step_down_ts;
 
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
@@ -1966,21 +1965,13 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 
     /*
      * Straddler guard: a write transaction that began before a planned step-down was armed must not
-     * commit once the cutoff is in effect. Its writes can sit on the wrong constituent (stable
-     * content that belongs in ingest), and a write that only happened before the arm does no
-     * further cursor operation for the write-time check to catch. Roll it back so the server
-     * retries after the cutoff, where the writes route cleanly to ingest. Read-only transactions
-     * are unaffected.
+     * commit once the cutoff is in effect. A straddler that wrote only before the arm does no
+     * further cursor operation for the write-time check to catch, so catch it here. Read-only
+     * transactions are unaffected.
      */
-    if (txn->mod_count != 0) {
-        step_down_ts =
-          __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
-        if (step_down_ts != WT_TS_NONE && txn->stepdown_ts_at_begin != step_down_ts) {
-            __wt_session_set_last_error(
-              session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
-            WT_ERR(WT_ROLLBACK);
-        }
-    }
+    if (txn->mod_count != 0)
+        WT_ERR(__wt_txn_stepdown_straddler_check(
+          session, __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp)));
 
 err:
     /*

@@ -269,29 +269,15 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_TXN *txn = session->txn;
     WTI_CLAYERED_ROLE role =
       conn->layered_table_manager.leader ? WTI_CLAYERED_ROLE_LEADER : WTI_CLAYERED_ROLE_FOLLOWER;
-    wt_timestamp_t cutoff = __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
-    bool stepdown_ts_armed = role == WTI_CLAYERED_ROLE_LEADER && cutoff != WT_TS_NONE;
+    wt_timestamp_t stepdown_ts =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
+    bool stepdown_ts_armed = role == WTI_CLAYERED_ROLE_LEADER && stepdown_ts != WT_TS_NONE;
     uint32_t flags = __clayered_enter_flags(clayered, mode, role, stepdown_ts_armed);
 
-    /*
-     * Straddler rollback. A write by a transaction that began before this cutoff was armed may have
-     * already landed on the stable constituent, yet will commit after the cutoff and so belongs in
-     * ingest. We cannot move it, so roll the transaction back; the server retries it after the
-     * cutoff and it routes cleanly to ingest.
-     */
-    if (stepdown_ts_armed &&
-      (mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) &&
-      F_ISSET(txn, WT_TXN_RUNNING) && txn->stepdown_ts_at_begin != cutoff) {
-        __wt_verbose_debug1(session, WT_VERB_LAYERED,
-          "step-down straddler rollback: txn began at cutoff %" PRIu64 ", armed cutoff %" PRIu64,
-          txn->stepdown_ts_at_begin, cutoff);
-        __wt_session_set_last_error(
-          session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
-        return (WT_ROLLBACK);
-    }
+    if (mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE)
+        WT_RET(__wt_txn_stepdown_straddler_check(session, stepdown_ts));
 
     if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
