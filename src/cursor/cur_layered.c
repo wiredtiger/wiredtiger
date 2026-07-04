@@ -196,9 +196,10 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 /* __clayered_enter() local flags. */
 #define CLAYERED_ENTER_ITERATION 0x1u       /* Cursor is performing iteration. */
 #define CLAYERED_ENTER_RESET 0x2u           /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x4u     /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_STEP_UP 0x4u         /* Role changed follower -> leader (step-up). */
 #define CLAYERED_ENTER_SKIP_STABLE 0x8u     /* Follower writing without reading stable. */
 #define CLAYERED_ENTER_STEPDOWN_ARMED 0x10u /* A planned step-down is armed on a leader. */
+#define CLAYERED_ENTER_STEP_DOWN 0x20u      /* Role changed leader -> follower (step-down). */
 
 /*
  * __clayered_enter_flags --
@@ -225,8 +226,15 @@ __clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
-    if (role != clayered->last_role)
-        LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
+    /*
+     * Distinguish the two role transitions. Step-up happens only against a quiesced node, so
+     * cursors must be unpositioned. Step-down happens while reads are in flight, so a positioned
+     * cursor is expected and is carried across by reopening the stable cursor.
+     */
+    if (role == WTI_CLAYERED_ROLE_LEADER && clayered->last_role == WTI_CLAYERED_ROLE_FOLLOWER)
+        LF_SET(CLAYERED_ENTER_STEP_UP);
+    else if (role == WTI_CLAYERED_ROLE_FOLLOWER && clayered->last_role == WTI_CLAYERED_ROLE_LEADER)
+        LF_SET(CLAYERED_ENTER_STEP_DOWN);
 
     /*
      * While a step-down is armed on the leader, the cursor behaves like a follower: it reads and
@@ -275,9 +283,9 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     if (mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE)
         WT_RET(__wt_txn_stepdown_straddler_check(session, stepdown_ts));
 
-    if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
+    if (FLD_ISSET(flags, CLAYERED_ENTER_STEP_UP)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
-          "All the cursors should be left unpositioned before changing the role.");
+          "All the cursors should be left unpositioned before stepping up.");
     }
 
     /*
@@ -706,7 +714,7 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
             WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
             WT_RET(__clayered_copy_bounds(clayered));
         }
-    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+    } else if (FLD_ISSET(flags, CLAYERED_ENTER_STEP_UP) && clayered->ingest_cursor != NULL) {
         WT_CURSOR *ingest = clayered->ingest_cursor;
         if (clayered->current_cursor == ingest)
             clayered->current_cursor = NULL;
@@ -743,7 +751,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
             clayered->stable_checkpoint_meta_lsn = conn_lsn;
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
         }
-    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
+    } else if (FLD_ISSET(flags, CLAYERED_ENTER_STEP_UP | CLAYERED_ENTER_STEP_DOWN) ||
       __clayered_can_advance_stable(
         clayered, conn_lsn, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
         /*
