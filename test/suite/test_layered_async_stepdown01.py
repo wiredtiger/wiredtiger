@@ -226,6 +226,10 @@ class test_layered_async_stepdown01(wttest.WiredTigerTestCase):
         self.insert_at(post, 'ingest', 30)
         self.assertEqual(self.keys_at(self.ingest_uri, 40), post)
 
+        # Before completing the step-down the server advances stable to the cutoff (the step-down
+        # checkpoint lands at stable == cutoff); WiredTiger asserts this at step-down.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+
         # Step down to follower. The cutoff is cleared and the node demotes; ingest content stays.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertTrue(post.issubset(self.keys_at(self.uri, 40)),
