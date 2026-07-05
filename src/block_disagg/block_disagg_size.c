@@ -80,13 +80,12 @@ __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size)
 }
 
 /*
- * __wt_block_disagg_decrease_ckpt_size --
- *     Decrease the tree's total checkpoint byte count. The session-level counterpart to
- *     __wti_block_disagg_decrease_size, resolving the block handle from the session. Callers use
- *     this when a full page image obsoletes a delta chain whose cumulative size no longer counts.
+ * __wt_block_disagg_decrease_size --
+ *     Decrease the total byte count. Exposed for callers outside the block manager; reconciliation
+ *     uses it when a full page image obsoletes a delta chain.
  */
 void
-__wt_block_disagg_decrease_ckpt_size(WT_SESSION_IMPL *session, uint64_t size)
+__wt_block_disagg_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
     WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
     __wti_block_disagg_decrease_size(session, (WT_BLOCK_DISAGG *)S2BT(session)->bm->block, size);
