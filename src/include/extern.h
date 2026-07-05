@@ -1971,6 +1971,7 @@ extern void __wti_conn_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_init(WT_SESSION_IMPL *session);
 extern void __wti_conn_ext_destroy(WT_SESSION_IMPL *session);
+extern void __wti_conn_load_control_stats_update(WT_SESSION_IMPL *session);
 extern void __wti_conn_prefetch_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_tiered_destroy(WT_SESSION_IMPL *session);
 extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);

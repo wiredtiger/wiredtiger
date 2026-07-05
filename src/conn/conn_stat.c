@@ -78,8 +78,8 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     __wt_evict_stats_init(session);
     __wt_txn_stats_update(session);
 
-    WT_STATP_CONN_SET(session, stats, read_load, __wt_conn_calc_read_load(session));
-    WT_STATP_CONN_SET(session, stats, write_load, __wt_conn_calc_write_load(session));
+    /* Update the load control statistics after the cache stats are updated. */
+    __wti_conn_load_control_stats_update(session);
     WT_STATP_CONN_SET(
       session, stats, file_open, __wt_atomic_load_uint32_relaxed(&conn->open_file_count));
     WT_STATP_CONN_SET(

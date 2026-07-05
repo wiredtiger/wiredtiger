@@ -110,6 +110,21 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_conn_load_control_stats_update --
+ *     Update the read and write load statistics.
+ */
+void
+__wti_conn_load_control_stats_update(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_STATS **stats;
+
+    stats = S2C(session)->stats;
+
+    WT_STATP_CONN_SET(session, stats, read_load, __wt_conn_calc_read_load(session));
+    WT_STATP_CONN_SET(session, stats, write_load, __wt_conn_calc_write_load(session));
+}
+
+/*
  * __wt_conn_calc_write_load --
  *     Calculate and return the write load at the system level. Computed on demand from the
  *     load-shed check and the statistics path rather than in the cache accounting hot path. The
