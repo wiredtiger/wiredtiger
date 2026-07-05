@@ -1722,6 +1722,10 @@ extern ssize_t __wt_json_strlen(const char *src, size_t srclen) WT_GCC_FUNC_DECL
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern u_int __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint16_t __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint16_t __wt_conn_calc_write_load(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
@@ -1783,8 +1787,6 @@ extern void __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const ch
 extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);
 extern void __wt_config_subinit(WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CONFIG_ITEM *item);
-extern void __wt_conn_calc_read_load(WT_SESSION_IMPL *session);
-extern void __wt_conn_calc_write_load(WT_SESSION_IMPL *session);
 extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
