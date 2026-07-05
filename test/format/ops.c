@@ -1036,7 +1036,9 @@ ops(void *arg)
 
     tinfo = arg;
     mirrored_truncate = false;
-    rlog_keyno = rlog_lane = rlog_read_ts = rlog_replay_ts = rlog_table_id = rlog_ret = 0;
+    rlog_keyno = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
+    rlog_table_id = 0;
+    rlog_ret = 0;
     rlog_op_name = NULL;
 
     /*
