@@ -306,6 +306,14 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 
     __clayered_op_init(clayered, op, role, flags);
 
+    /*
+     * A write with no ingest cursor targets the stable constituent (an unarmed leader). Record it
+     * so commit can roll the transaction back if a step-down makes those writes unrecoverable.
+     */
+    if ((mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) &&
+      op->ingest == NULL)
+        session->txn->layered_wrote_stable = true;
+
     if (!F_ISSET(clayered, WTI_CLAYERED_ACTIVE)) {
         /*
          * Opening this layered cursor has opened a number of btree cursors, ensure other code

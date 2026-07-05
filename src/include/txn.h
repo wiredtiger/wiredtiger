@@ -424,6 +424,17 @@ struct __wt_txn {
     wt_timestamp_t stepdown_ts_at_begin;
 
     /*
+     * Set when this transaction has written to a layered table's stable constituent (an unarmed
+     * leader write). Such content is only safe once committed on a leader whose step-down cutoff
+     * the transaction respects: a straddler commits it on the wrong side of the cutoff, and after a
+     * demote a follower can neither checkpoint it nor move it to ingest, so it would be silently
+     * lost. Commit rolls the transaction back in those cases. Ingest writes never set this, so
+     * follower writes and in-flight ingest writers are unaffected. See
+     * __wt_txn_stepdown_straddler_check.
+     */
+    bool layered_wrote_stable;
+
+    /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and
      * the current oldest/pinned timestamp, respectively.
      */

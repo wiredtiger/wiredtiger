@@ -1994,24 +1994,42 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 
 /*
  * __wt_txn_stepdown_straddler_check --
- *     A "straddler" is a transaction that began before a planned step-down cutoff was armed and is
- *     still writing or committing afterwards; its writes can land on the wrong layered constituent
- *     (stable content that belongs in ingest), which cannot be moved. Mark such a transaction for
- *     rollback and return WT_ROLLBACK, otherwise return 0. The caller passes the armed step-down
- *     timestamp (WT_TS_NONE when none is armed).
+ *     Roll back a transaction whose stable-constituent writes cannot be handed off cleanly across a
+ *     planned step-down; return WT_ROLLBACK, otherwise 0. Only transactions that wrote to a stable
+ *     constituent are at risk; such writes are safe only when committed on a leader whose cutoff
+ *     the transaction respects. Roll back if it is a "straddler" (began before the now-armed
+ *     cutoff, so its writes are on the wrong side of it) or if it has since demoted to a follower
+ *     (where the stable writes can be neither checkpointed nor moved to ingest, so they would be
+ *     silently lost). The caller passes the armed step-down timestamp (WT_TS_NONE when none is
+ *     armed). Transactions that only wrote ingest - genuine follower writes and in-flight ingest
+ *     writers - are unaffected.
  */
 static WT_INLINE int
 __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, wt_timestamp_t stepdown_ts)
 {
     WT_TXN *txn = session->txn;
+    bool armed_straddler, demoted_stable_writer;
 
-    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) ||
-      txn->stepdown_ts_at_begin == stepdown_ts)
+    if (!F_ISSET(txn, WT_TXN_RUNNING))
+        return (0);
+
+    /*
+     * A straddler began before the now-armed cutoff; roll it back regardless of which constituent
+     * it wrote (the "roll back all concurrent writers" rule). A stable-writer that will commit on a
+     * follower after a demote is the separate data-loss case: only stable writes are unrecoverable,
+     * so ingest writers (including those that survive the handover) are left alone.
+     */
+    armed_straddler = stepdown_ts != WT_TS_NONE && txn->stepdown_ts_at_begin != stepdown_ts;
+    demoted_stable_writer =
+      txn->layered_wrote_stable && !S2C(session)->layered_table_manager.leader;
+    if (!armed_straddler && !demoted_stable_writer)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-      "step-down straddler rollback: txn began at cutoff %" PRIu64 ", armed cutoff %" PRIu64,
-      txn->stepdown_ts_at_begin, stepdown_ts);
+      "step-down rollback: began at cutoff %" PRIu64 ", armed cutoff %" PRIu64
+      ", wrote_stable %d, leader %d",
+      txn->stepdown_ts_at_begin, stepdown_ts, (int)txn->layered_wrote_stable,
+      (int)S2C(session)->layered_table_manager.leader);
     WT_STAT_CONN_INCR(session, txn_rollback_step_down);
     __wt_session_set_last_error(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
     return (WT_ROLLBACK);
@@ -2036,6 +2054,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->first_commit_timestamp = WT_TS_NONE;
     txn->stepdown_ts_at_begin =
       __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
+    txn->layered_wrote_stable = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
