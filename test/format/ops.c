@@ -1027,7 +1027,7 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
-    uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_ts;
+    uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd;
     u_int i, rlog_table_id, throttle_delay_max;
     int rlog_ret;
@@ -1036,7 +1036,7 @@ ops(void *arg)
 
     tinfo = arg;
     mirrored_truncate = false;
-    rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = rlog_table_id = rlog_ret = 0;
+    rlog_keyno = rlog_lane = rlog_read_ts = rlog_replay_ts = rlog_table_id = rlog_ret = 0;
     rlog_op_name = NULL;
 
     /*
@@ -1246,7 +1246,7 @@ rollback_retry:
               [TRUNCATE] = "TRUNCATE",
               [UPDATE] = "UPDATE"};
             rlog_lane = tinfo->lane;
-            rlog_ts = tinfo->replay_ts;
+            rlog_replay_ts = tinfo->replay_ts;
             rlog_read_ts = tinfo->read_ts;
             rlog_keyno = tinfo->keyno;
             rlog_table_id = table->id;
@@ -1464,9 +1464,9 @@ skip_operation:
             snap_repeat_update(tinfo, true);
             if (rlog_op_name != NULL) {
                 fprintf(g.replay_op_log,
-                  "%s lane=%" PRIu64 " ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
+                  "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
                   " tbl=%u ret=%d\n",
-                  rlog_op_name, rlog_lane, rlog_ts, rlog_read_ts, rlog_keyno, rlog_table_id,
+                  rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_keyno, rlog_table_id,
                   rlog_ret);
                 rlog_op_name = NULL;
             }
