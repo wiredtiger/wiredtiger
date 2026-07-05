@@ -29,6 +29,7 @@
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
 # test_layered_async_stepdown01.py
 #    Elegant (async) step-down routing for layered tables, the "detect and roll back" plan.
@@ -113,6 +114,12 @@ class test_layered_async_stepdown01(wttest.WiredTigerTestCase):
         # Ground truth: post-arm keys landed in ingest, pre-arm keys did not.
         self.assertEqual(self.keys_at(self.ingest_uri, 40), post)
 
+    def step_down_rollbacks(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        count = stat_cursor[stat.conn.txn_rollback_step_down][2]
+        stat_cursor.close()
+        return count
+
     # A transaction that began before the cutoff was armed is rolled back on its next write, and the
     # retry after the cutoff commits cleanly to ingest.
     def test_straddler_rollback(self):
@@ -126,6 +133,7 @@ class test_layered_async_stepdown01(wttest.WiredTigerTestCase):
 
         # The server arms the step-down while this transaction is still in flight.
         self.conn.set_timestamp('step_down_ts=' + self.timestamp_str(20))
+        self.assertEqual(self.step_down_rollbacks(), 0)
 
         # The next write by the straddling transaction must roll back: its data sits in stable but
         # would commit after the cutoff, where it belongs in ingest. The Python exception carries the
@@ -138,6 +146,8 @@ class test_layered_async_stepdown01(wttest.WiredTigerTestCase):
         self.assertEqual(err, wiredtiger.WT_ROLLBACK)
         self.assertTrue('started before a planned step-down' in err_msg,
             'expected the step-down rollback reason, got: ' + err_msg)
+        # The dedicated statistic counts the straddler rollback.
+        self.assertEqual(self.step_down_rollbacks(), 1)
         self.session.rollback_transaction()
         cursor.close()
 

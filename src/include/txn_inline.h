@@ -2012,6 +2012,7 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, wt_timestamp_t stepd
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
       "step-down straddler rollback: txn began at cutoff %" PRIu64 ", armed cutoff %" PRIu64,
       txn->stepdown_ts_at_begin, stepdown_ts);
+    WT_STAT_CONN_INCR(session, txn_rollback_step_down);
     __wt_session_set_last_error(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
     return (WT_ROLLBACK);
 }

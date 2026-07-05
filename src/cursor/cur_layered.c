@@ -226,11 +226,6 @@ __clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
-    /*
-     * Distinguish the two role transitions. Step-up happens only against a quiesced node, so
-     * cursors must be unpositioned. Step-down happens while reads are in flight, so a positioned
-     * cursor is expected and is carried across by reopening the stable cursor.
-     */
     if (role == WTI_CLAYERED_ROLE_LEADER && clayered->last_role == WTI_CLAYERED_ROLE_FOLLOWER)
         LF_SET(CLAYERED_ENTER_STEP_UP);
     else if (role == WTI_CLAYERED_ROLE_FOLLOWER && clayered->last_role == WTI_CLAYERED_ROLE_LEADER)

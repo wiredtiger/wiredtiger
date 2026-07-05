@@ -9070,8 +9070,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_COMMIT				2031
 /*! transaction: transactions rolled back */
 #define	WT_STAT_CONN_TXN_ROLLBACK			2032
+/*!
+ * transaction: transactions rolled back because they started before a
+ * planned step-down was armed
+ */
+#define	WT_STAT_CONN_TXN_ROLLBACK_STEP_DOWN		2033
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2033
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2034
 
 /*!
  * @}
