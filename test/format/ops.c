@@ -1036,9 +1036,7 @@ ops(void *arg)
 
     tinfo = arg;
     mirrored_truncate = false;
-    rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = 0;
-    rlog_table_id = 0;
-    rlog_ret = 0;
+    rlog_keyno = rlog_lane = rlog_read_ts = rlog_ts = rlog_table_id = rlog_ret = 0;
     rlog_op_name = NULL;
 
     /*
@@ -1239,33 +1237,21 @@ rollback_retry:
         }
         replay_adjust_key(tinfo, max_rows);
 
+        /* Once the operation and key have been finalized, construct a replay log entry. */
         if (GV(RUNS_PREDICTABLE_REPLAY)) {
+            static const char *const op_names[] = {[INSERT] = "INSERT",
+              [MODIFY] = "MODIFY",
+              [READ] = "READ",
+              [REMOVE] = "REMOVE",
+              [TRUNCATE] = "TRUNCATE",
+              [UPDATE] = "UPDATE"};
             rlog_lane = tinfo->lane;
             rlog_ts = tinfo->replay_ts;
             rlog_read_ts = tinfo->read_ts;
             rlog_keyno = tinfo->keyno;
             rlog_table_id = table->id;
             rlog_ret = 0;
-            switch (op) {
-            case REMOVE:
-                rlog_op_name = "REMOVE";
-                break;
-            case INSERT:
-                rlog_op_name = "INSERT";
-                break;
-            case READ:
-                rlog_op_name = "READ";
-                break;
-            case UPDATE:
-                rlog_op_name = "UPDATE";
-                break;
-            case MODIFY:
-                rlog_op_name = "MODIFY";
-                break;
-            case TRUNCATE:
-                rlog_op_name = "TRUNCATE";
-                break;
-            }
+            rlog_op_name = op_names[op];
         }
 
         /*
