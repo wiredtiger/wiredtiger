@@ -2952,10 +2952,8 @@ __rec_wrapup_decrease_disagg_size(
 #ifdef HAVE_DIAGNOSTIC
     if (cookie != NULL) {
         WT_BLOCK_DISAGG_ADDRESS_COOKIE unpacked;
-        const uint8_t *buf;
 
-        buf = cookie;
-        WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &unpacked));
+        WT_RET(__wt_block_disagg_addr_unpack(session, &cookie, cookie_size, &unpacked));
         WT_ASSERT(session, unpacked.size == page->disagg_info->block_meta.cumulative_size);
     }
 #else
