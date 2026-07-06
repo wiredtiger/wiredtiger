@@ -262,10 +262,7 @@ struct __wt_repair {
 #define WT_REPAIR_STATE_OPERATING 1
 #define WT_REPAIR_STATE_DB_SIZE_FIX 2
     /*
-     * Tracks a repair operation, which can outlast a single wiredtiger_repair call: OPERATING
-     * means an interactive call is running; DB_SIZE_FIX means a size_fix call returned but its
-     * recompute is still pending with the checkpoint thread (see
-     * __checkpoint_update_disagg_database_size). Either value blocks a new repair operation.
+     * Tracks the status of a repair operation.
      */
     wt_shared uint8_t state;
 
