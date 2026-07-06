@@ -249,14 +249,16 @@ static WT_INLINE void
 __clayered_op_init(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYERED_ROLE role, uint32_t flags)
 {
+    WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
+
     op->clayered = clayered;
     op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_STEPDOWN_ARMED)) ?
       clayered->ingest_cursor :
       NULL;
     /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
-    op->table = (WT_LAYERED_TABLE *)clayered->dhandle;
-    op->collator = op->table->collator;
+    op->truncate_list = &table->truncate_list;
+    op->collator = table->collator;
 }
 
 /*
@@ -494,6 +496,17 @@ __clayered_open_stable(
 }
 
 /*
+ * __clayered_ingest_prepare_stalled --
+ *     Determine if the ingest cursor is on a prepare conflict.
+ */
+static WT_INLINE bool
+__clayered_ingest_prepare_stalled(const WT_CURSOR *current, const WT_CURSOR *ingest)
+{
+    return (ingest != NULL && current == ingest && !F_ISSET(ingest, WT_CURSTD_KEY_INT) &&
+      ((WT_CURSOR_BTREE *)ingest)->ref != NULL);
+}
+
+/*
  * __clayered_can_advance_stable --
  *     Return true if the stable cursor can be advanced to a newer checkpoint at this time.
  */
@@ -511,6 +524,13 @@ __clayered_can_advance_stable(WTI_CURSOR_LAYERED *clayered, uint64_t conn_lsn, b
 
     /* No need to advance if there is no newer checkpoint. */
     if (clayered->stable_checkpoint_meta_lsn == conn_lsn)
+        return (false);
+
+    /*
+     * Do not advance while ingest is stalled on a prepare conflict with no key. Stable could lose
+     * its position with no ingest key to recover it, skipping visible keys.
+     */
+    if (__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor))
         return (false);
 
     /*
@@ -647,9 +667,15 @@ __clayered_update_state(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
      * If the transaction context has changed since the last call (different read timestamp or a new
      * snapshot), the parked alternate cursor's cached position may be stale. Clear the iteration
      * flags to force a re-search under the new context.
+     *
+     * FIXME-WT-17960: a context change while ingest is stalled on a prepare conflict leaves stable
+     * parked under the old context with no anchor to re-search it from.
      */
-    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp)
+    if (clayered->snapshot_gen != snapshot_gen || clayered->read_timestamp != read_timestamp) {
+        WT_ASSERT(session,
+          !__clayered_ingest_prepare_stalled(clayered->current_cursor, clayered->ingest_cursor));
         F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    }
 
     clayered->snapshot_gen = snapshot_gen;
     clayered->read_timestamp = read_timestamp;
@@ -882,8 +908,8 @@ __clayered_reposition_truncate_iterate(WTI_CLAYERED_OP *op, WT_CURSOR *stable, b
      * until we find a non-truncated key or reach the end of the range.
      */
     for (;;) {
-        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
-                             session, op->table, &stable->key, &start_key, &stop_key),
+        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
+                             op->collator, &stable->key, &start_key, &stop_key),
           true);
 
         if (ret == WT_NOTFOUND) {
@@ -989,7 +1015,8 @@ __clayered_range_truncate_ingest(
         if (!__wt_clayered_deleted(&cursor->value)) {
             WT_ITEM key;
             WT_RET(__wt_cursor_get_raw_key(cursor, &key));
-            WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, layered, &key));
+            WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+              session, &layered->truncate_list, layered->collator, &key));
             cursor->set_value(cursor, &__wt_tombstone);
             WT_RET(cursor->update(cursor));
         }
@@ -1031,8 +1058,8 @@ __clayered_truncate_follower(WT_TRUNCATE_INFO *trunc_info)
 
     WT_LAYERED_TABLE *layered_table = (WT_LAYERED_TABLE *)clayered_start->dhandle;
 
-    WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(
-      trunc_info->session, layered_table, &start_key, &stop_key));
+    WT_RET(__wt_layered_table_truncate_detect_non_ingest_write_conflict(trunc_info->session,
+      &layered_table->truncate_list, layered_table->collator, &start_key, &stop_key));
 
     /*
      * If either positioning returned WT_NOTFOUND, the ingest table has no keys in the range and
@@ -1815,8 +1842,8 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
 
         /* Only consult the truncate list when ingest has no entry for this key. */
         if (!found) {
-            WT_ERR_NOTFOUND_OK(
-              __wt_truncate_delete_visible_check(session, op->table, &cursor->key, NULL, NULL),
+            WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
+                                 op->collator, &cursor->key, NULL, NULL),
               true);
             if (ret == 0) {
                 found = true;
@@ -1937,6 +1964,199 @@ err:
     return (ret);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __clayered_search_near_assert_side --
+ *     Verify a repositioned cursor lies on the expected side of the search key: a forward step must
+ *     land on a larger key, a backward step on a smaller one.
+ */
+static int
+__clayered_search_near_assert_side(WTI_CLAYERED_OP *op, WT_CURSOR *c, int expected)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    int cmp;
+
+    WT_RET(__wt_compare(session, op->collator, &c->key, &clayered->iface.key, &cmp));
+    WT_ASSERT(session, expected > 0 ? cmp > 0 : cmp < 0);
+    return (0);
+}
+#endif
+
+/*
+ * __clayered_search_near_skip_truncated --
+ *     A stable key found by search_near can be logically deleted by a committed fast-truncate
+ *     range. Step the stable cursor forward past any truncated ranges; if forward exhausts, step
+ *     backward instead, updating the exact-match indicator to match.
+ */
+static int
+__clayered_search_near_skip_truncated(WTI_CLAYERED_OP *op, int *stable_cmpp)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_DECL_RET;
+
+    /* Nothing to do unless the stable key falls in a committed fast-truncate range. */
+    WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
+                         session, op->truncate_list, op->collator, &op->stable->key, NULL, NULL),
+      true);
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    /*
+     * The cursor is still resolving a position, so iface holds the external search key and must not
+     * be marked positioned (KEY_INT).
+     */
+    WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+
+    WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, op->stable, true), true);
+    if (ret == 0) {
+#ifdef HAVE_DIAGNOSTIC
+        WT_ERR(__clayered_search_near_assert_side(op, op->stable, 1));
+#endif
+        *stable_cmpp = 1;
+        return (0);
+    }
+
+    WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, op->stable, false), true);
+    if (ret == 0) {
+#ifdef HAVE_DIAGNOSTIC
+        WT_ERR(__clayered_search_near_assert_side(op, op->stable, -1));
+#endif
+        *stable_cmpp = -1;
+    }
+
+err:
+    return (ret);
+}
+
+/*
+ * __clayered_search_near_choose_closest --
+ *     Both constituents are positioned near the search key; pick the one that best matches it.
+ */
+static int
+__clayered_search_near_choose_closest(
+  WTI_CLAYERED_OP *op, int *ingest_cmpp, int stable_cmp, WT_CURSOR **closestp)
+{
+    WT_SESSION_IMPL *session = CUR2S(op->clayered);
+    WT_DECL_RET;
+    int ingest_cmp = *ingest_cmpp;
+
+    /* An exact match on either constituent wins. */
+    if (ingest_cmp == 0) {
+        *closestp = op->ingest;
+        return (0);
+    }
+    if (stable_cmp == 0) {
+        *closestp = op->stable;
+        return (0);
+    }
+
+    /*
+     * The cursors are on opposite sides of the search key. Move the ingest cursor to the stable
+     * cursor's side so the two are comparable; otherwise a closer ingest key on the far side would
+     * be overlooked. If the ingest cursor runs out, the stable cursor is the closest.
+     */
+    if ((ingest_cmp ^ stable_cmp) < 0) {
+        if ((ret = __clayered_search_near_move_ingest_to_opposite_side(
+               op, stable_cmp, &ingest_cmp)) == WT_NOTFOUND) {
+            *closestp = op->stable;
+            return (0);
+        }
+        WT_RET(ret);
+        *ingest_cmpp = ingest_cmp;
+    }
+
+    /* A concurrent insert (read-uncommitted only) can land the ingest cursor on the search key. */
+    if (ingest_cmp == 0) {
+        WT_ASSERT(session, session->txn->isolation == WT_ISO_READ_UNCOMMITTED);
+        *closestp = op->ingest;
+        return (0);
+    }
+
+    /*
+     * Both cursors are now on the same side of the search key: pick the smaller key when both are
+     * larger, the larger key when both are smaller. On a tie, prefer the ingest cursor.
+     */
+    int cmp;
+    WT_RET(__clayered_cursor_compare(op, op->ingest, op->stable, &cmp));
+    if (ingest_cmp > 0) {
+        WT_ASSERT(session, stable_cmp > 0);
+        *closestp = cmp <= 0 ? op->ingest : op->stable;
+    } else {
+        WT_ASSERT(session, stable_cmp < 0);
+        *closestp = cmp >= 0 ? op->ingest : op->stable;
+    }
+    return (0);
+}
+
+/*
+ * __clayered_search_near_resolve_deleted --
+ *     Compute the exact-match indicator for the chosen constituent, stepping past an ingest
+ *     tombstone to a live neighbor when the closest match is a deleted record.
+ */
+static int
+__clayered_search_near_resolve_deleted(
+  WTI_CLAYERED_OP *op, WT_CURSOR *closest, int ingest_cmp, int stable_cmp, int *cmpp)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_DECL_RET;
+
+    /* The stable cursor never holds a tombstone. */
+    if (closest == op->stable) {
+        *cmpp = stable_cmp;
+        return (0);
+    }
+
+    *cmpp = ingest_cmp;
+    if (!__wt_clayered_deleted(&closest->value))
+        return (0);
+
+    /* Advance past the deleted record; if that exhausts the tree, step backward instead. */
+    WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+    if ((ret = __clayered_iterate_int(op, WTI_CLAYERED_ITERATE_NEXT)) == 0) {
+#ifdef HAVE_DIAGNOSTIC
+        WT_RET(__clayered_search_near_assert_side(op, clayered->current_cursor, 1));
+#endif
+        *cmpp = 1;
+        return (0);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    WT_ASSERT(session, clayered->current_cursor == NULL);
+    WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
+    WT_RET(__clayered_iterate_int(op, WTI_CLAYERED_ITERATE_PREV));
+#ifdef HAVE_DIAGNOSTIC
+    WT_RET(__clayered_search_near_assert_side(op, clayered->current_cursor, -1));
+#endif
+    *cmpp = -1;
+    return (0);
+}
+
+/*
+ * __clayered_search_near_reset_other --
+ *     Release the page pinned by the constituent that is not the current cursor. Skip this when
+ *     search-near iterated internally, which leaves both constituents positioned.
+ */
+static int
+__clayered_search_near_reset_other(WTI_CLAYERED_OP *op)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+
+    WT_ASSERT(
+      session, clayered->current_cursor == op->ingest || clayered->current_cursor == op->stable);
+
+    if (F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))
+        return (0);
+    if (op->stable != NULL && clayered->current_cursor == op->ingest)
+        return (op->stable->reset(op->stable));
+    if (op->ingest != NULL && clayered->current_cursor == op->stable)
+        return (op->ingest->reset(op->ingest));
+    return (0);
+}
+
 /*
  * __clayered_search_near_int --
  *     search near method for the layered cursor type.
@@ -1948,8 +2168,8 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *closest, *cursor;
     WT_DECL_RET;
-    int cmp, ingest_cmp, stable_cmp;
-    bool deleted, ingest_found, match_deleted, stable_found;
+    int ingest_cmp, stable_cmp;
+    bool ingest_found, match_deleted, stable_found;
 
     closest = NULL;
     cursor = &clayered->iface;
@@ -1957,14 +2177,17 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
     ingest_found = match_deleted = stable_found = false;
 
     /*
-     * search_near is somewhat fiddly: we can't just use a nearby key from the current constituent
-     * because there could be a closer key in the other table.
+     * search_near is somewhat fiddly: we can't just use a nearby key from one constituent because
+     * there could be a closer key in the other.
      *
      * The semantics are:
      * * An exact match always wins.
-     * * Otherwise a larger key is preferred if one exists.
-     * * Otherwise a smaller key should be returned.
-     * If both constituents have a larger key available, return the one closes to the search term.
+     * * Otherwise, when both constituents are positioned on opposite sides of the search key, the
+     *   ingest cursor is realigned to the stable cursor's side so a closer ingest key on that side
+     *   is not overlooked; the result then follows the stable cursor's side.
+     * * On the same side, the key closest to the search term wins, with ties resolved to ingest.
+     *
+     * FIXME-WT-17967: evaluate simplifying the side-selection above.
      */
     if (op->ingest != NULL) {
         op->ingest->set_key(op->ingest, &cursor->key);
@@ -1979,26 +2202,8 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
     if ((!ingest_found || ingest_cmp != 0 || match_deleted) && op->stable != NULL) {
         op->stable->set_key(op->stable, &cursor->key);
         WT_ERR_NOTFOUND_OK(op->stable->search_near(op->stable, &stable_cmp), true);
-
-        /*
-         * A key that exists in the stable table can be logically deleted by a committed
-         * fast-truncate range. Advance stable forward past any truncated ranges. If forward
-         * exhausts, step backward instead.
-         */
-        if (ret == 0 &&
-          __wt_truncate_delete_visible_check(session, op->table, &op->stable->key, NULL, NULL) ==
-            0) {
-            WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-
-            WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, op->stable, true), true);
-            if (ret == 0)
-                stable_cmp = 1;
-            else {
-                WT_ERR_NOTFOUND_OK(__clayered_constituent_iter_helper(op, op->stable, false), true);
-                if (ret == 0)
-                    stable_cmp = -1;
-            }
-        }
+        if (ret == 0)
+            WT_ERR_NOTFOUND_OK(__clayered_search_near_skip_truncated(op, &stable_cmp), true);
         stable_found = ret != WT_NOTFOUND;
     }
 
@@ -2009,111 +2214,21 @@ __clayered_search_near_int(WTI_CLAYERED_OP *op, int *exactp)
         closest = op->ingest;
     else if (!ingest_found)
         closest = op->stable;
-
-    /* Now that we know there are two positioned cursors - choose the one with the best match */
-    if (closest == NULL) {
-        if (ingest_cmp == 0)
-            closest = op->ingest;
-        else if (stable_cmp == 0)
-            closest = op->stable;
-        else {
-            /*
-             * If the ingest cursor and stable cursor are positioned on opposite sides of the search
-             * key, adjust the ingest cursor to align with the stable cursor on the same side.
-             * Otherwise, there is a risk of overlooking a closer key on the ingest table that lies
-             * on the opposite side of the search key relative to the stable cursor's position.
-             */
-            if ((ingest_cmp ^ stable_cmp) < 0) {
-                /*
-                 * The cursors are on opposite sides of the search key. Move the ingest cursor to
-                 * the other side.
-                 */
-                WT_ERR_NOTFOUND_OK(
-                  __clayered_search_near_move_ingest_to_opposite_side(op, stable_cmp, &ingest_cmp),
-                  true);
-
-                if (ret == WT_NOTFOUND) {
-                    ret = 0;
-                    closest = op->stable;
-                }
-            }
-
-            if (closest == NULL) {
-                if (ingest_cmp == 0) {
-                    WT_ASSERT(session, session->txn->isolation == WT_ISO_READ_UNCOMMITTED);
-                    closest = op->ingest;
-                } else if (ingest_cmp > 0) {
-                    WT_ASSERT(session, stable_cmp > 0);
-                    /* Both cursors were larger than the search key - choose the smaller one */
-                    WT_ERR(__clayered_cursor_compare(op, op->ingest, op->stable, &cmp));
-                    if (cmp <= 0)
-                        /* If the cursors were identical, choose ingest. */
-                        closest = op->ingest;
-                    else
-                        closest = op->stable;
-                } else {
-                    WT_ASSERT(session, stable_cmp < 0);
-                    /* Both cursors were smaller than the search key - choose the bigger one */
-                    WT_ERR(__clayered_cursor_compare(op, op->ingest, op->stable, &cmp));
-                    if (cmp >= 0)
-                        /* If the cursors were identical, choose ingest. */
-                        closest = op->ingest;
-                    else
-                        closest = op->stable;
-                }
-            }
-        }
-    }
+    else
+        /* Both constituents are positioned - choose the one with the best match. */
+        WT_ERR(__clayered_search_near_choose_closest(op, &ingest_cmp, stable_cmp, &closest));
 
     WT_ASSERT_ALWAYS(session, closest != NULL, "Layered search near should have found something");
 
     clayered->current_cursor = closest;
 
-    /* Get prepared for finalizing the result before fixing up for tombstones. */
-    if (closest == op->stable) {
-        /* Short cut for stable cursor as it doesn't have any deleted value. */
-        cmp = stable_cmp;
-        goto done;
-    }
-
-    /* Closest is the ingest cursor. */
-    cmp = ingest_cmp;
-    deleted = __wt_clayered_deleted(&closest->value);
-    if (deleted) {
-        /* Advance past the deleted record using normal cursor traversal interface */
-        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-        if ((ret = __clayered_iterate_int(op, WTI_CLAYERED_ITERATE_NEXT)) == 0) {
-            cmp = 1;
-            deleted = false;
-        }
-
-        WT_ERR_NOTFOUND_OK(ret, false);
-    }
-
-    if (deleted) {
-        WT_ASSERT(session, clayered->current_cursor == NULL);
-        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT));
-        WT_ERR(__clayered_iterate_int(op, WTI_CLAYERED_ITERATE_PREV));
-        cmp = -1;
-    }
-
-done:
+    int cmp;
+    WT_ERR(__clayered_search_near_resolve_deleted(op, closest, ingest_cmp, stable_cmp, &cmp));
     if (exactp != NULL)
         *exactp = cmp;
 
-    /*
-     * If the search-near operation did not internally invoke cursor iteration, reset the
-     * constituent cursor that is not the current cursor to prevent unnecessarily pinning the page
-     * in memory.
-     */
-    WT_ASSERT(
-      session, clayered->current_cursor == op->ingest || clayered->current_cursor == op->stable);
-    if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV)) {
-        if (op->stable != NULL && clayered->current_cursor == op->ingest)
-            WT_ERR(op->stable->reset(op->stable));
-        else if (op->ingest != NULL && clayered->current_cursor == op->stable)
-            WT_ERR(op->ingest->reset(op->ingest));
-    }
+    /* Drop the page pinned by the constituent that is not the current cursor. */
+    WT_ERR(__clayered_search_near_reset_other(op));
 
 err:
     if (ret != 0)
@@ -2208,7 +2323,8 @@ __clayered_put(
          * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer.
          * Doing so would remove the cursor write operation dependency on the truncate list.
          */
-        WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, op->table, key));
+        WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+          session, op->truncate_list, op->collator, key));
 
         /*
          * Clear the stable cursor position. Don't clear the ingest cursor: we're about to use it
@@ -2387,7 +2503,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
      * FIXME-WT-17425: Investigate whether this function can be called below the cursor layer. Doing
      * so would remove the write cursor operations dependency on the truncate list.
      */
-    WT_RET(__wt_layered_table_truncate_detect_write_conflict(session, op->table, key));
+    WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+      session, op->truncate_list, op->collator, key));
     c_ingest->set_value(c_ingest, &__wt_tombstone);
     WT_ERR(c_ingest->update(c_ingest));
     clayered->current_cursor = c_ingest;
