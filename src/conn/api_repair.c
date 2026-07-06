@@ -164,10 +164,9 @@ err:
 
 /*
  * __repair_fix_size --
- *     Claim the next checkpoint's database-size recompute cycle: the checkpoint thread applies the
- *     fix and releases the cycle once it recomputes the size from the metadata (see
- *     __checkpoint_update_disagg_database_size). old_size is an optional guard against a racing
- *     checkpoint having already changed the size.
+ *     Synchronously recompute the database size from the metadata via a checkpoint (see
+ *     __checkpoint_update_disagg_database_size), which appends the outcome directly to report.
+ *     old_size is an optional guard against a racing checkpoint having already changed the size.
  */
 static int
 __repair_fix_size(WT_SESSION_IMPL *session, WT_ITEM *report, uint64_t old_size)
@@ -181,13 +180,14 @@ __repair_fix_size(WT_SESSION_IMPL *session, WT_ITEM *report, uint64_t old_size)
           "size_fix: stored database size %" PRIu64 " does not match requested old_size %" PRIu64,
           conn->disaggregated_storage.database_size, old_size);
 
-    if (!__wt_atomic_cas_uint8(
-          &conn->repair.state, WT_REPAIR_STATE_OPERATING, WT_REPAIR_STATE_DB_SIZE_FIX))
-        WT_RET_REPORT(session, EBUSY,
-          "size_fix: it's in the wrong state, another repair operation is in progress");
-
+    /*
+     * Write this before the call so the report is never empty, even if the checkpoint fails before
+     * reaching the recompute (e.g. a lock conflict unrelated to the size fix).
+     */
     WT_RET(__wt_buf_catfmt(session, report, "size_fix triggered"));
-    return (0);
+
+    return (session->iface.checkpoint(
+      (WT_SESSION *)session, "debug=(checkpoint_database_size_fix=true)"));
 }
 
 /*
@@ -280,13 +280,11 @@ err:
  *     entries; absent or empty means the whole value.
  *
  * fix_size=(old_size=<n>) (disagg leader only) Reset the database size to the sum of every file's
- *     latest checkpoint size, correcting drift in the incrementally-tracked total. The recompute
- *     happens on the next checkpoint, not synchronously; poll with fetch_database_size(local=true)
- *     to observe the result. old_size is an optional guard: absent or 0 skips it, otherwise the
- *     command is rejected unless it matches the currently stored size, so a caller cannot
- *     unknowingly race a concurrent update. If the checkpoint's recompute fails, the size falls
- *     back to the normal incremental delta for that checkpoint, and the next wiredtiger_repair call
- *     of any kind reports the failure ahead of its own result.
+ *     latest checkpoint size, correcting drift in the incrementally-tracked total. Runs a
+ *     checkpoint synchronously to do the recompute, so the result (or failure) is part of this
+ *     call's own report. old_size is an optional guard: absent or 0 skips it, otherwise the command
+ *     is rejected unless it matches the currently stored size, so a caller cannot unknowingly race
+ *     a concurrent update.
  */
 static int
 __repair_config_decode(
@@ -355,13 +353,6 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
      */
     report = &conn->repair.last_report;
     report->size = 0;
-
-    /* Surface a multi-step operation's failure, recorded outside any wiredtiger_repair call. */
-    if (conn->repair.error_report.size > 0) {
-        WT_IGNORE_RET(__wt_buf_catfmt(
-          default_session, report, "%s\n", (const char *)conn->repair.error_report.data));
-        conn->repair.error_report.size = 0;
-    }
 
     if (config == NULL || strlen(config) == 0)
         WT_ERR_REPORT(default_session, EINVAL, "wiredtiger_repair: empty config");

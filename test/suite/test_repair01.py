@@ -138,14 +138,12 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertIn('does not match requested old_size',
             self.repair(f'fix_size=(old_size={stat_size + 1})'))
 
-        # A pending fix blocks any new repair call until the next checkpoint consumes it.
-        self.assertIn('size_fix triggered', self.repair(f'fix_size=(old_size={stat_size})'))
-        self.assertIn('another repair operation is in progress', self.repair('fix_size=(old_size=0)'))
-
-        self.session.checkpoint()
-        reported = self.reported_size()
-        self.assertEqual(reported, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
-        self.assertEqual(reported, stat_size)
+        # fix_size runs a checkpoint synchronously, so the recompute result is in this call's own
+        # report; absent any drift it's unchanged and self-consistent with the statistic.
+        result = self.repair(f'fix_size=(old_size={stat_size})')
+        self.assertIn('size_fix triggered', result)
+        self.assertIn(f'recomputed database size -> {stat_size}', result)
+        self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), stat_size)
 
         # Drop a second, already-checkpointed table and grow the main one before fixing, so the
         # recompute has to reflect real change, not just replay the old total.
@@ -164,8 +162,8 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.session.drop(extra_uri)
 
-        self.assertIn('size_fix triggered', self.repair(f'fix_size=(old_size={pre_change_size})'))
-        self.session.checkpoint()
+        result = self.repair(f'fix_size=(old_size={pre_change_size})')
+        self.assertIn('size_fix triggered', result)
 
         changed = self.reported_size()
         self.assertGreater(changed, pre_change_size)

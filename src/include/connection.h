@@ -260,16 +260,10 @@ typedef struct __wt_disagg_checkpoint_meta {
 struct __wt_repair {
 #define WT_REPAIR_STATE_IDLE 0
 #define WT_REPAIR_STATE_OPERATING 1
-#define WT_REPAIR_STATE_DB_SIZE_FIX 2
     /*
      * Tracks the status of a repair operation.
      */
     wt_shared uint8_t state;
-
-    /*
-     * Multi-step return from last repair operation.
-     */
-    wt_shared WT_ITEM error_report;
 
     /*
      * Memory space for the last report string. Only hold one report string at a time as it's used

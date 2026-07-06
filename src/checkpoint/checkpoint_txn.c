@@ -35,6 +35,7 @@ typedef struct {
 
 typedef struct {
     bool can_skip;
+    bool database_size_fix;
     bool force;
     bool flush_tier_enabled;
     bool flush_tier_force;
@@ -877,8 +878,9 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  * __checkpoint_update_disagg_database_size --
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
-static void
-__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
+static int
+__checkpoint_update_disagg_database_size(
+  WT_SESSION_IMPL *session, uint64_t drop_size, bool database_size_fix)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -888,7 +890,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
     conn = S2C(session);
 
     if (!__wt_conn_is_disagg(session))
-        return;
+        return (0);
 
     /*
      * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
@@ -900,35 +902,33 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * A pending size_fix (see wiredtiger_repair) claims this cycle for a from-scratch recompute
-     * that supersedes the incremental delta below, since the metadata already reflects this
-     * checkpoint's own sizes. state stays DB_SIZE_FIX for the whole recompute, not just the instant
-     * we notice it, because a repair operation can outlast the call that started it.
+     * debug=(checkpoint_database_size_fix=true) asks us to recompute the database size from the
+     * metadata from scratch, superseding the incremental delta below, since the metadata already
+     * reflects this checkpoint's own sizes. The result is appended directly to the connection's
+     * repair report (see wiredtiger_repair/__repair_fix_size) so a synchronous caller sees it
+     * immediately; a recompute error fails the checkpoint instead of falling back, since the caller
+     * explicitly asked for this recompute and needs to know.
      */
     recomputed = false;
-    for (; __wt_atomic_load_uint8_v_acquire(&conn->repair.state) == WT_REPAIR_STATE_DB_SIZE_FIX;
-      __wt_atomic_store_uint8_v_release(&conn->repair.state, WT_REPAIR_STATE_IDLE)) {
-        conn->repair.error_report.size = 0;
+    if (database_size_fix) {
         ret = __wt_disagg_get_database_size(session, &recomputed_size);
         if (ret == 0) {
             recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
             __wt_disagg_set_database_size(session, recomputed_size);
             __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
               "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
+            WT_RET(__wt_buf_catfmt(session, &conn->repair.last_report,
+              "\n"
+              "disagg database size fix: recomputed database size -> %" PRIu64,
+              recomputed_size));
             recomputed = true;
-        } else if (__wt_buf_catfmt(session, &conn->repair.error_report,
-                     "disagg database size fix: failed to recompute database size, falling back "
-                     "to the incremental delta: %s",
-                     __wt_strerror(session, ret, NULL, 0)) == 0)
-            /* error_report now holds a fresh, non-NULL, NUL-terminated message; log that. */
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
-              (const char *)conn->repair.error_report.data);
-        else
-            /* error_report may be stale or unset here; log the original error directly instead. */
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "disagg database size fix: failed to recompute database size (and failed to "
-              "record the failure for the next repair call): %s",
-              __wt_strerror(session, ret, NULL, 0));
+        } else {
+            WT_IGNORE_RET(__wt_buf_catfmt(session, &conn->repair.last_report,
+              "\n"
+              "disagg database size fix: failed to recompute database size: %s",
+              __wt_strerror(session, ret, NULL, 0)));
+            return (ret);
+        }
     }
 
     /*
@@ -960,6 +960,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
      */
     WT_ASSERT(
       session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+    return (0);
 }
 
 /*
@@ -1346,6 +1347,9 @@ __checkpoint_parse_config(
 
     WT_RET(__wt_config_gets(session, cfg, "drop", &cval));
     ckpt_cfg->drop = cval.len != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_database_size_fix", &cval));
+    ckpt_cfg->database_size_fix = cval.val != 0;
 
     return (0);
 }
@@ -1936,7 +1940,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session, drop_size);
+    WT_ERR(
+      __checkpoint_update_disagg_database_size(session, drop_size, ckpt_cfg.database_size_fix));
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
