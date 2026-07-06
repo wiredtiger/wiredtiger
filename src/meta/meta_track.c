@@ -282,7 +282,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 
     /*
      * Local metadata is discarded on restart when lose_all_my_data is set. Skip the metadata
-     * checkpoint entirely to improve startup time.
+     * checkpoint entirely to improve table creation performance.
      */
     if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_LOCAL_DURABILITY))
         goto err;
