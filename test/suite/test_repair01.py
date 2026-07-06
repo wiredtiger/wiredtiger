@@ -142,7 +142,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # report; absent any drift it's unchanged and self-consistent with the statistic.
         result = self.repair(f'fix_size=(old_size={stat_size})')
         self.assertIn('size_fix triggered', result)
-        self.assertIn(f'recomputed database size -> {stat_size}', result)
+        self.assertIn(f'disagg database size fix: recomputed database size -> {stat_size}', result)
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), stat_size)
 
         # Drop a second, already-checkpointed table and grow the main one before fixing, so the
@@ -168,6 +168,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         changed = self.reported_size()
         self.assertGreater(changed, pre_change_size)
         self.assertEqual(changed, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
+        self.assertIn(f'disagg database size fix: recomputed database size -> {changed}', result)
 
         # Cross-check against the independent __wt_verify_disagg_database_size path, only
         # reachable via verify_metadata=true at open.
