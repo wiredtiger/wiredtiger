@@ -2287,10 +2287,10 @@ __clayered_constituent_check(
 
     /*
      * Only trust an already-positioned cursor when it is positioned on the key being checked. The
-     * conflict check can run before the operation positions the cursor (modify checks for a conflict
-     * before reading its base value), so current_cursor may be left on a different key by a prior
-     * operation. Using that stale position would inspect the wrong key's update chain and miss a
-     * real conflict.
+     * conflict check can run before the operation positions the cursor (modify checks for a
+     * conflict before reading its base value), so current_cursor may be left on a different key by
+     * a prior operation. Using that stale position would inspect the wrong key's update chain and
+     * miss a real conflict.
      */
     positioned = false;
     if (clayered->current_cursor == c && F_ISSET(c, WT_CURSTD_KEY_INT)) {
