@@ -1884,7 +1884,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (ckpt_cfg.use_timestamp) {
         conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_schema_epoch;
-        conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -1892,12 +1891,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp. This should never be a problem, as checkpoint timestamp should never be less
          * than recovery timestamp. This could potentially avoid MongoDB making two calls to
          * determine last stable recovery timestamp.
+         *
+         * The store is atomic-relaxed to pair with the relaxed load in sweep.
          */
-        if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
-            conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
+        if (ckpt_tmp_ts == WT_TS_NONE)
+            ckpt_tmp_ts = conn->txn_global.recovery_timestamp;
+        __wt_atomic_store_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp, ckpt_tmp_ts);
     } else {
         conn->txn_global.last_ckpt_disaggregated_schema_epoch = WT_TS_NONE;
-        conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
+        __wt_atomic_store_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp, WT_TS_NONE);
     }
 
     /* Disaggregated storage database size accounting. */
