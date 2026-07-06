@@ -1466,16 +1466,6 @@ config_disagg_storage(void)
     if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
         testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
-    /* Validate and default disagg.step_down. */
-    if (!config_explicit(NULL, "disagg.step_down"))
-        config_single(NULL, "disagg.step_down=sync", false);
-    if (strcmp(GVS(DISAGG_STEP_DOWN), "sync") != 0 && strcmp(GVS(DISAGG_STEP_DOWN), "async") != 0)
-        testutil_die(EINVAL, "illegal disagg.step_down configuration: %s; use 'sync' or 'async'",
-          GVS(DISAGG_STEP_DOWN));
-    /* async step-down only applies in switch mode. */
-    if (strcmp(GVS(DISAGG_STEP_DOWN), "async") == 0 && strcmp(mode, "switch") != 0)
-        testutil_die(EINVAL, "disagg.step_down=async requires disagg.mode=switch");
-
     if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);

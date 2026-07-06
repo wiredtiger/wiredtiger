@@ -286,22 +286,13 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
      * first; threads waiting for the read lock unblock after we release and get ts values strictly
      * above step_down_ts.
      */
-    lock_writelock(session, &g.stepdown_ts_lock);
+    lock_writelock(session, &g.timestamp_lock);
     step_down_ts = g.timestamp;
     g.timestamp += 2; /* Reserve step_down_ts+1 as a gap; all allocs now yield ts > step_down_ts. */
     WT_RELEASE_WRITE_WITH_BARRIER(g.stepdown_ts, step_down_ts);
-    lock_writeunlock(session, &g.stepdown_ts_lock);
+    lock_writeunlock(session, &g.timestamp_lock);
 
-    track("[stepdown] armed at ts=%" PRIu64 "; pinning stable and notifying WT", step_down_ts);
-
-    /*
-     * Pin stable at exactly step_down_ts. Use prepare_commit_lock consistent with timestamp_once().
-     * This is the boundary the step-down checkpoint must capture.
-     */
-    testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, step_down_ts);
-    lock_writelock(session, &g.prepare_commit_lock);
-    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
-    lock_writeunlock(session, &g.prepare_commit_lock);
+    track("[stepdown] armed at ts=%" PRIu64 "; notifying WT", step_down_ts);
 
     /*
      * Arm WT: from this point WT rolls back all in-flight write transactions whose commit_ts is at
@@ -313,9 +304,9 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
     track("[stepdown] draining in-flight transactions", 0ULL);
 
     /*
-     * Drain: wait until every worker thread has committed its post-arm retry above step_down_ts.
-     * Timeout after 60 seconds; a permanently hung worker is caught by the 15-minute abort in the
-     * outer spin loop.
+     * Drain: wait until every in-flight transaction at or below step_down_ts has committed or been
+     * rolled back. Timeout after 60 seconds; a permanently hung worker is caught by the 15-minute
+     * abort in the outer spin loop.
      */
     for (drain_polls = 60 * WT_THOUSAND / 250; drain_polls > 0; --drain_polls) {
         if (stepdown_workers_drained(step_down_ts))
@@ -324,6 +315,16 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
     }
     testutil_assertfmt(
       drain_polls > 0, "step-down drain timed out at step_down_ts=%" PRIu64, step_down_ts);
+
+    /*
+     * Pin stable at exactly step_down_ts now that all transactions at or below it have settled. Use
+     * prepare_commit_lock consistent with timestamp_once(). The subsequent checkpoint captures
+     * exactly this boundary.
+     */
+    testutil_snprintf(config, sizeof(config), "stable_timestamp=%" PRIx64, step_down_ts);
+    lock_writelock(session, &g.prepare_commit_lock);
+    testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
+    lock_writeunlock(session, &g.prepare_commit_lock);
 
     /*
      * Step-down checkpoint: stable is pinned at step_down_ts, so the checkpoint captures exactly
@@ -358,7 +359,7 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
 /*
  * disagg_switch_roles --
  *     Toggle the current disagg role between "leader" and "follower". Dispatches to the async
- *     step-down path (disagg.step_down=async) or the synchronous fallback (disagg.step_down=sync).
+ *     step-down path (g.disagg_stepdown_async) or the synchronous fallback.
  */
 void
 disagg_switch_roles(void)
@@ -370,14 +371,14 @@ disagg_switch_roles(void)
         /*
          * Stepping down: [leader -> follower].
          *
-         * "async": disagg_async_stepdown() already ran inside operations() while workers were live;
+         * async: disagg_async_stepdown() already ran inside operations() while workers were live;
          * the step-down checkpoint, reconfigure, follower handoff and flag reset are all done.
          * Nothing left to do here except verify.
          *
-         * "sync": FIXME-WT-15763 fallback - graceful step-down is not yet fully supported, so
-         * reopen the connection.
+         * sync: FIXME-WT-15763 fallback - graceful step-down is not yet fully supported, so reopen
+         * the connection.
          */
-        if (strcmp(GVS(DISAGG_STEP_DOWN), "async") == 0) {
+        if (g.disagg_stepdown_async) {
             track("[role change] leader -> follower (async, verifying)", 0ULL);
             testutil_assert(!g.disagg_leader);
         } else {

@@ -399,7 +399,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
          * continue serving, writes land in ingest) before the quit signal is sent.
          */
         if (fourths == 0 && !stepdown_done && disagg_is_mode_switch() && g.disagg_leader &&
-          strcmp(GVS(DISAGG_STEP_DOWN), "async") == 0) {
+          g.disagg_stepdown_async) {
             disagg_async_stepdown(session, &checkpoint_tid, &timestamp_tid);
             stepdown_done = true;
             fourths = DISAGG_SWITCH_FOLLOWER_OPS_SEC * 4;
@@ -488,7 +488,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
-    if (g.checkpoint_config == CHECKPOINT_ON && !g.checkpoint_quit)
+    if (g.checkpoint_config == CHECKPOINT_ON)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
@@ -500,7 +500,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &import_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
-    if (g.transaction_timestamps_config && !g.timestamp_quit)
+    if (g.transaction_timestamps_config)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
@@ -607,6 +607,23 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
 }
 
 /*
+ * alloc_timestamp --
+ *     Allocate the next global timestamp under the step-down read lock. The write lock is held
+ *     exclusively during async step-down arm; threads blocked here unblock with values strictly
+ *     above step_down_ts, routing their writes to ingest (TC3).
+ */
+static uint64_t
+alloc_timestamp(WT_SESSION *session)
+{
+    uint64_t ts;
+
+    lock_readlock(session, &g.timestamp_lock);
+    ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+    lock_readunlock(session, &g.timestamp_lock);
+    return (ts);
+}
+
+/*
  * commit_transaction --
  *     Commit a transaction.
  */
@@ -629,15 +646,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_commit_ts(tinfo);
         else {
-            /*
-             * Read lock: allows concurrent commits. The write lock is held exclusively during async
-             * step-down arm to capture step_down_ts and advance g.timestamp past it. Threads
-             * waiting here will unblock with ts values strictly above step_down_ts, landing cleanly
-             * in ingest after the arm.
-             */
-            lock_readlock(session, &g.stepdown_ts_lock);
-            ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
-            lock_readunlock(session, &g.stepdown_ts_lock);
+            ts = alloc_timestamp(session);
         }
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
@@ -682,7 +691,7 @@ rollback_transaction(TINFO *tinfo, bool prepared)
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_rollback_ts(tinfo);
         else
-            ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+            ts = alloc_timestamp(session);
 
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_ROLLBACK, ts));
     }
@@ -724,7 +733,7 @@ prepare_transaction(TINFO *tinfo)
          * the stable timestamp. The subsequent commit will increment it again, ensuring
          * correctness.
          */
-        ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+        ts = alloc_timestamp(session);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);

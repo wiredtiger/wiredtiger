@@ -297,7 +297,7 @@ typedef struct {
      * to capture step_down_ts and advance g.timestamp past it, ensuring all post-arm allocations
      * land strictly above step_down_ts.
      */
-    RWLOCK stepdown_ts_lock;
+    RWLOCK timestamp_lock;
 
     wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is armed; 0 if not armed. */
 
@@ -327,8 +327,9 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
-    bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
-    pid_t follower_pid; /* For multi-node disagg follower process */
+    bool disagg_leader;         /* If disaggregated storage role is configured as a leader. */
+    bool disagg_stepdown_async; /* Use async step-down instead of sync (wts_reopen) fallback. */
+    pid_t follower_pid;         /* For multi-node disagg follower process */
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
     int disagg_multi_sync_socket;               /* Socket for leader-follower sync */

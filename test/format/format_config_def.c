@@ -185,9 +185,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_MODE},
 
-  {"disagg.step_down", "step-down strategy when switching from leader to follower (sync | async)",
-    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_STEP_DOWN},
-
   {"disagg.page_log", "configure page log for disaggregated storage (off | palite)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
 

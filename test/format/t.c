@@ -134,7 +134,7 @@ locks_init(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_init(session, &g.backup_lock);
     lock_init(session, &g.prepare_commit_lock);
-    lock_init(session, &g.stepdown_ts_lock);
+    lock_init(session, &g.timestamp_lock);
     testutil_check(session->close(session, NULL));
 }
 
@@ -150,7 +150,7 @@ locks_destroy(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_destroy(session, &g.backup_lock);
     lock_destroy(session, &g.prepare_commit_lock);
-    lock_destroy(session, &g.stepdown_ts_lock);
+    lock_destroy(session, &g.timestamp_lock);
     testutil_check(session->close(session, NULL));
 }
 
