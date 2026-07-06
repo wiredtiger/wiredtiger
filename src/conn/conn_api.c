@@ -1903,10 +1903,9 @@ err:
     WT_TRET(__wt_close(session, &fh));
 
     /*
-     * An EINVAL from the base configuration file means we could not process it. This could be
-     * genuine parse-level corruption, or a file the filesystem could not read. Rename it if
-     * possible and tell the user how to recover. An earlier error message should have provided
-     * specifics by this point.
+     * An EINVAL from the base configuration file means there is corruption and we could not process
+     * it. Rename it if possible and tell the user how to recover. An earlier error message should
+     * have provided specifics by this point.
      */
     if (!is_user && ret == EINVAL) {
         bool renamed = false;
