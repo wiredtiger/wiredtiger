@@ -163,6 +163,35 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(reported, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
         self.assertEqual(reported, stat_size)
 
+        # Exercise a real change, not just a no-op re-derivation: create a second table to drop
+        # later, then checkpoint so it's stable (a table dropped right after it's written can
+        # spuriously conflict with its own not-yet-settled dirty data). Insert more rows into
+        # the main table and drop the second table, both left uncheckpointed, then claim the fix
+        # cycle before checkpointing. That single checkpoint must take the full-recompute branch
+        # (not the incremental delta branch) for this round, so the result has to reflect the
+        # new metadata rather than replay the old total.
+        extra_uri = 'layered:tbl_fix_size_extra'
+        self.session.create(extra_uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(extra_uri)
+        for i in range(50):
+            cursor['key%06d' % i] = 'v' * 500
+        cursor.close()
+        self.session.checkpoint()
+
+        pre_change_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1000, 4000):
+            cursor['key%06d' % i] = 'v' * 200
+        cursor.close()
+        self.session.drop(extra_uri)
+
+        self.assertIn('size_fix triggered', self.repair(f'fix_size=(old_size={pre_change_size})'))
+        self.session.checkpoint()
+
+        changed = self.reported_size()
+        self.assertGreater(changed, pre_change_size)
+        self.assertEqual(changed, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
+
         # A follower cannot claim a fix.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertIn('requires a disaggregated leader connection',
