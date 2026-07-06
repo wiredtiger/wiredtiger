@@ -193,6 +193,14 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertGreater(changed, pre_change_size)
         self.assertEqual(changed, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
 
+        # Independently validate the post-fix size against the connection's own startup verify
+        # path (__wt_verify_disagg_database_size), a completely separate code path from
+        # fix_size/fetch_database_size that does the identical walk-and-sum-and-compare and would
+        # raise on a mismatch. Only reachable via verify_metadata=true at connection open, so
+        # reopen (picking the checkpoint back up) to force it to run for real.
+        self.reopen_conn(config=self.conn_config() + 'verify_metadata=true,')
+        self.ignoreStdoutPatternIfExists('Removing local file due to disagg mode')
+
         # A follower cannot claim a fix.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertIn('requires a disaggregated leader connection',
