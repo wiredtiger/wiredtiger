@@ -156,6 +156,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_free(session, conn->debug.ckpt);
     __wt_free(session, conn->error_prefix);
     __wt_free(session, conn->home);
+    __wt_buf_free(session, &conn->repair.error_report);
     __wt_buf_free(session, &conn->repair.last_report);
     __wt_free(session, WT_CONN_SESSIONS_GET(conn));
     __wt_stat_connection_discard(session, conn);

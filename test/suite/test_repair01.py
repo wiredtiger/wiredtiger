@@ -151,10 +151,11 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertIn('does not match requested old_size',
             self.repair(f'fix_size=(old_size={stat_size + 1})'))
 
-        # The correct (or absent/0) old_size claims the cycle; a second call before the next
-        # checkpoint consumes it finds the cycle already claimed.
+        # The correct (or absent/0) old_size claims the cycle; a size_fix call is multi-step
+        # (spanning through the next checkpoint's consumption of it), so a second repair call
+        # before that happens is rejected at entry, not just a second fix_size-specific check.
         self.assertIn('size_fix triggered', self.repair(f'fix_size=(old_size={stat_size})'))
-        self.assertIn('already in progress', self.repair('fix_size=(old_size=0)'))
+        self.assertIn('another repair operation is in progress', self.repair('fix_size=(old_size=0)'))
 
         # The next checkpoint consumes the cycle and recomputes the size from the metadata;
         # absent any drift the result is unchanged and self-consistent with the statistic.

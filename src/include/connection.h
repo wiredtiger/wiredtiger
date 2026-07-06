@@ -258,20 +258,24 @@ typedef struct __wt_disagg_checkpoint_meta {
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 struct __wt_repair {
-    /*
-     * Lock status to avoid concurrent repair operations.
-     */
-    uint8_t op_lock;
-
 #define WT_REPAIR_STATE_IDLE 0
-#define WT_REPAIR_STATE_DB_SIZE_FIX 1
+#define WT_REPAIR_STATE_OPERATING 1
+#define WT_REPAIR_STATE_DB_SIZE_FIX 2
     /*
-     * Synchronizes a size_fix request with the checkpoint thread that consumes it: a size_fix call
-     * moves the state from IDLE to DB_SIZE_FIX (via CAS) to claim the next checkpoint's recompute
-     * cycle, and the checkpoint thread moves it back to IDLE (via CAS) once it applies the
-     * recomputed size.
+     * Tracks a repair operation across its full lifetime, which can be multi-step and span a
+     * larger timing window than a single wiredtiger_repair call: OPERATING marks an interactive
+     * call in progress; DB_SIZE_FIX marks a size_fix call that has returned but whose recompute is
+     * still pending, claimed by the checkpoint thread until it applies the result (see
+     * __checkpoint_update_disagg_database_size). Either value blocks a new repair operation from
+     * starting, so at most one repair operation -- interactive or still-pending -- exists at a
+     * time.
      */
     wt_shared uint8_t state;
+
+    /*
+     * Multi-step return from last repair operation.
+     */
+    wt_shared WT_ITEM error_report;
 
     /*
      * Memory space for the last report string. Only hold one report string at a time as it's used

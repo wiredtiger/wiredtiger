@@ -183,8 +183,9 @@ __repair_fix_size(WT_SESSION_IMPL *session, WT_ITEM *report, uint64_t old_size)
           conn->disaggregated_storage.database_size, old_size);
 
     if (!__wt_atomic_cas_uint8(
-          &conn->repair.state, WT_REPAIR_STATE_IDLE, WT_REPAIR_STATE_DB_SIZE_FIX))
-        WT_RET_REPORT(session, EBUSY, "size_fix: a size fix is already in progress");
+          &conn->repair.state, WT_REPAIR_STATE_OPERATING, WT_REPAIR_STATE_DB_SIZE_FIX))
+        WT_RET_REPORT(session, EBUSY,
+          "size_fix: it's in the wrong state, another repair operation is in progress");
 
     WT_RET(__wt_buf_catfmt(session, report, "size_fix triggered"));
     return (0);
@@ -284,7 +285,9 @@ err:
  *     happens on the next checkpoint, not synchronously; poll with fetch_database_size(local=true)
  *     to observe the result. old_size is an optional guard: absent or 0 skips it, otherwise the
  *     command is rejected unless it matches the currently stored size, so a caller cannot
- *     unknowingly race a concurrent update.
+ *     unknowingly race a concurrent update. If the checkpoint's recompute fails, the size falls
+ *     back to the normal incremental delta for that checkpoint, and the next wiredtiger_repair call
+ *     of any kind reports the failure ahead of its own result.
  */
 static int
 __repair_config_decode(
@@ -343,7 +346,8 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     conn = (WT_CONNECTION_IMPL *)connection;
     default_session = conn->default_session;
 
-    if (!__wt_atomic_cas_uint8(&conn->repair.op_lock, 0, 1))
+    if (!__wt_atomic_cas_uint8(
+          &conn->repair.state, WT_REPAIR_STATE_IDLE, WT_REPAIR_STATE_OPERATING))
         return ("wiredtiger_repair: another repair operation is in progress");
 
     /*
@@ -352,6 +356,17 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
      */
     report = &conn->repair.last_report;
     report->size = 0;
+
+    /*
+     * Surface a size_fix failure from the checkpoint thread (see
+     * __checkpoint_update_disagg_database_size), if one is pending, ahead of this call's own
+     * result -- otherwise it would never reach any caller.
+     */
+    if (conn->repair.error_report.size > 0) {
+        WT_IGNORE_RET(__wt_buf_catfmt(
+          default_session, report, "%s\n", (const char *)conn->repair.error_report.data));
+        conn->repair.error_report.size = 0;
+    }
 
     if (config == NULL || strlen(config) == 0)
         WT_ERR_REPORT(default_session, EINVAL, "wiredtiger_repair: empty config");
@@ -388,8 +403,12 @@ err:
     if (session != NULL)
         WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
 
-    /* Release the repair operation lock. */
-    __wt_atomic_store_uint8(&conn->repair.op_lock, 0);
+    /*
+     * Release the repair operation lock. If the state is updated for some multi step task, simply
+     * ignore.
+     */
+    WT_IGNORE_RET(
+      __wt_atomic_cas_uint8(&conn->repair.state, WT_REPAIR_STATE_OPERATING, WT_REPAIR_STATE_IDLE));
 
     return (report->size > 0 ? report->data : "");
 }

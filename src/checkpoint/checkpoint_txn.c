@@ -883,6 +883,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t recomputed_size;
+    bool recomputed;
 
     conn = S2C(session);
 
@@ -901,29 +902,50 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
     /*
      * A size_fix command (see wiredtiger_repair) claims this cycle to have us recompute the
      * database size from the metadata from scratch, correcting any drift the incremental delta
-     * below may have accumulated. The CAS both consumes the request and releases the cycle for the
-     * next size_fix call; the metadata already reflects this checkpoint's own sizes at this point,
-     * so the recompute supersedes the delta below rather than needing to combine with it.
+     * below may have accumulated. A repair operation can be multi-step, spanning from the
+     * wiredtiger_repair call that requested the fix through this checkpoint's completion of it;
+     * state stays DB_SIZE_FIX (blocking new repair operations) for the whole recompute below, not
+     * just the instant we notice it, and only returns to IDLE once this step actually finishes. The
+     * metadata already reflects this checkpoint's own sizes at this point, so the recompute
+     * supersedes the delta below rather than needing to combine with it.
      */
-    if (__wt_atomic_cas_uint8(
-          &conn->repair.state, WT_REPAIR_STATE_DB_SIZE_FIX, WT_REPAIR_STATE_IDLE)) {
+    recomputed = false;
+    for (; __wt_atomic_load_uint8_v_acquire(&conn->repair.state) == WT_REPAIR_STATE_DB_SIZE_FIX;
+      __wt_atomic_store_uint8_v_release(&conn->repair.state, WT_REPAIR_STATE_IDLE)) {
+        conn->repair.error_report.size = 0;
         ret = __wt_disagg_get_database_size(session, &recomputed_size);
         if (ret == 0) {
             recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
             __wt_disagg_set_database_size(session, recomputed_size);
             __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
               "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
-        } else
+            recomputed = true;
+        } else if (__wt_buf_catfmt(session, &conn->repair.error_report,
+                     "disagg database size fix: failed to recompute database size, falling back "
+                     "to the incremental delta: %s",
+                     __wt_strerror(session, ret, NULL, 0)) == 0)
+            /* error_report now holds a fresh, non-NULL, NUL-terminated message; log that. */
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+              (const char *)conn->repair.error_report.data);
+        else
+            /*
+             * Recording the failure itself failed (e.g. allocation failure): error_report may be
+             *     empty, NULL, or hold a stale message from an earlier failure, so don't read it --
+             *     log the original error directly instead.
+             */
             __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "disagg database size fix: failed to recompute database size: %s",
+              "disagg database size fix: failed to recompute database size (and failed to "
+              "record the failure for the next repair call): %s",
               __wt_strerror(session, ret, NULL, 0));
-    } else if (session->ckpt.ckpt_size_delta != 0) {
-        /*
-         * Apply the accumulated size delta to the in-memory database_size now that the checkpoint
-         * has succeeded. Positive deltas occur when data is added during the checkpoint. Negative
-         * deltas occur when data is removed reducing the total storage footprint. Guard against
-         * overflow/underflow in both cases.
-         */
+    }
+
+    /*
+     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
+     * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
+     * added during the checkpoint. Negative deltas occur when data is removed reducing the total
+     * storage footprint. Guard against overflow/underflow in both cases.
+     */
+    if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
         uint64_t db;
         int64_t delta;
 
