@@ -1791,6 +1791,47 @@ __clayered_lookup_constituent(WTI_CLAYERED_OP *op, WT_CURSOR *c, WT_ITEM *value)
 }
 
 /*
+ * __clayered_lookup_ingest_and_truncate --
+ *     Check the ingest constituent and the truncate list for a key, without touching stable.
+ *     Returns 0 with the value populated for a live ingest entry, or WT_NOTFOUND if the key is
+ *     confirmed deleted there (a tombstone in ingest, or covered by the truncate list). The out
+ *     parameter is set to whether an entry was found at all, tombstone or not; if it comes back
+ *     false alongside WT_NOTFOUND, neither ingest nor the truncate list said anything about this
+ *     key.
+ */
+static int
+__clayered_lookup_ingest_and_truncate(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *foundp)
+{
+    WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_CURSOR *cursor = &clayered->iface;
+    WT_DECL_RET;
+    bool found = false;
+
+    WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->ingest, value), true);
+    if (ret == 0) {
+        found = true;
+        if (__wt_clayered_deleted(value))
+            ret = WT_NOTFOUND;
+    }
+
+    /* Only consult the truncate list when ingest has no entry for this key. */
+    if (!found) {
+        WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(
+                             session, op->truncate_list, op->collator, &cursor->key, NULL, NULL),
+          true);
+        if (ret == 0) {
+            found = true;
+            ret = WT_NOTFOUND;
+        }
+    }
+
+err:
+    *foundp = found;
+    return (ret);
+}
+
+/*
  * __clayered_lookup --
  *     Position a layered cursor. The optional out parameter, if non-NULL, is set to whether the key
  *     was found in ingest or the truncate list, even if that entry turned out to be a tombstone
@@ -1802,32 +1843,12 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *foundp)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CURSOR *cursor;
     WT_DECL_RET;
-    bool found;
+    bool found = false;
 
-    cursor = &clayered->iface;
-    found = false;
-
-    if (op->ingest != NULL) {
-        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->ingest, value), true);
-        if (ret == 0) {
-            found = true;
-            if (__wt_clayered_deleted(value))
-                ret = WT_NOTFOUND;
-        }
-
-        /* Only consult the truncate list when ingest has no entry for this key. */
-        if (!found) {
-            WT_ERR_NOTFOUND_OK(__wt_truncate_delete_visible_check(session, op->truncate_list,
-                                 op->collator, &cursor->key, NULL, NULL),
-              true);
-            if (ret == 0) {
-                found = true;
-                ret = WT_NOTFOUND;
-            }
-        }
-    } else
+    if (op->ingest != NULL)
+        WT_ERR_NOTFOUND_OK(__clayered_lookup_ingest_and_truncate(op, value, &found), true);
+    else
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(session, op->stable != NULL);
 
@@ -1837,19 +1858,6 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *foundp)
      */
     if (!found && op->stable != NULL)
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value), true);
-
-    /*
-     * If the stable constituent was deliberately skipped (a blind overwrite write on a follower
-     * with no read timestamp) and the key wasn't found in ingest or the truncate list either, we
-     * genuinely don't know whether it exists: that's exactly the lookup we chose to avoid paying
-     * for. The only caller that can reach this state is a remove (insert/update never call this
-     * function when the stable table is skipped, since their pre-lookup is itself conditioned on
-     * needing the stable table). Assume the key exists rather than report WT_NOTFOUND: a redundant
-     * tombstone is harmless, but wrongly failing a remove for a key that only lives in stable is
-     * not.
-     */
-    if (!found && op->stable == NULL && op->stable_skipped_for_overwrite)
-        ret = 0;
 
 err:
     if (foundp != NULL)
@@ -2385,18 +2393,41 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        ret = __clayered_lookup(op, &value, &found);
-        /*
-         * With overwrite=true, an unpositioned remove of a key that's already gone (a tombstone in
-         * ingest, or covered by the truncate list) is a no-op: skip it instead of writing another
-         * tombstone or failing. A positioned remove that lands here only because its cached value
-         * went stale is not this case: the position came from a real earlier traversal, and
-         * overwrite=true does not excuse a stale position from reporting not-found. Without
-         * overwrite, a missing key is always an error.
-         */
-        if (ret == WT_NOTFOUND && found && !positioned &&
-          F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
-            return (0);
+        if (op->stable == NULL && op->stable_skipped_for_overwrite) {
+            /*
+             * The stable constituent was deliberately skipped for this overwrite=true remove on a
+             * follower: we can't tell an already-deleted key apart from one that only lives in
+             * stable without paying for the lookup we chose to avoid. With overwrite=true, an
+             * unpositioned remove of a confirmed already-deleted key is a genuine no-op. A
+             * positioned remove that lands here only because its cached value went stale is not
+             * this case: the position came from a real earlier traversal, and overwrite=true does
+             * not excuse a stale position from reporting not-found. Finding nothing at all in
+             * ingest or the truncate list means the key's existence is unknown either way, so
+             * assume it exists in stable and fall through to delete it -- a redundant tombstone is
+             * harmless, but wrongly failing a remove for a key that only lives in stable is not.
+             */
+            ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
+            if (ret == WT_NOTFOUND && found && !positioned) {
+                ret = 0;
+                WT_TRET(__clayered_reset_cursors(clayered, false));
+                return (ret);
+            }
+            if (ret == WT_NOTFOUND && !found)
+                ret = 0;
+        } else {
+            ret = __clayered_lookup(op, &value, &found);
+            /*
+             * With overwrite=true, an unpositioned remove of a key that's already gone (a tombstone
+             * in ingest, or covered by the truncate list) is a no-op: skip it instead of writing
+             * another tombstone or failing. A positioned remove that lands here only because its
+             * cached value went stale is not this case: the position came from a real earlier
+             * traversal, and overwrite=true does not excuse a stale position from reporting
+             * not-found. Without overwrite, a missing key is always an error.
+             */
+            if (ret == WT_NOTFOUND && found && !positioned &&
+              F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
+                return (0);
+        }
         WT_RET(ret);
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
@@ -2413,10 +2444,10 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 
     /*
      * If ingest wasn't confirmed positioned on this key by a real lookup above (found is false only
-     * for the blind, skip-stable case, where __clayered_lookup never touched ingest for this key),
-     * current_cursor can still be whatever an unrelated earlier operation on this cursor left it as
-     * -- WT_CURSOR::set_key doesn't clear it. Never trust it in that case: always set the key
-     * explicitly rather than risk writing under a stale one.
+     * for the blind, skip-stable case, where neither ingest nor the truncate list had an entry for
+     * this key), current_cursor can still be whatever an unrelated earlier operation on this cursor
+     * left it as -- WT_CURSOR::set_key doesn't clear it. Never trust it in that case: always set
+     * the key explicitly rather than risk writing under a stale one.
      */
     if (!found || clayered->current_cursor != c_ingest)
         c_ingest->set_key(c_ingest, key);
