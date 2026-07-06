@@ -288,7 +288,8 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
      */
     lock_writelock(session, &g.timestamp_lock);
     step_down_ts = g.timestamp;
-    g.timestamp += 2; /* Reserve step_down_ts+1 as a gap; all allocs now yield ts > step_down_ts. */
+    /* Reserve step_down_ts+1 as a gap; all allocations now yield ts > step_down_ts. */
+    g.timestamp += 2;
     WT_RELEASE_WRITE_WITH_BARRIER(g.stepdown_ts, step_down_ts);
     lock_writeunlock(session, &g.timestamp_lock);
 
