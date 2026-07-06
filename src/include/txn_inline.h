@@ -959,28 +959,22 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_pinned_timestamp --
- *     Get the first timestamp that has to be kept for the current tree. If ignore_last_ckpt is
- *     true, skip the disaggregated storage follower cap to the last picked-up checkpoint's
- *     timestamp, e.g. when comparing against a checkpoint that hasn't been picked up yet.
+ * __wt_txn_pinned_timestamp_uncapped --
+ *     Get the first timestamp that has to be kept for the current tree, without capping it by a
+ *     running or last completed checkpoint timestamp. This reflects the true minimum held by active
+ *     transactions rather than the more conservative value __wt_txn_pinned_timestamp() returns.
  */
 static WT_INLINE void
-__wt_txn_pinned_timestamp(
-  WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp, bool ignore_last_ckpt)
+__wt_txn_pinned_timestamp_uncapped(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_ts, pinned_ts;
-    bool has_pinned_timestamp;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
 
-    /*
-     * There is no need to go further if no pinned timestamp has been set yet.
-     */
-    has_pinned_timestamp = __wt_atomic_load_bool_acquire(&txn_global->has_pinned_timestamp);
-    if (!has_pinned_timestamp) {
+    /* There is no need to go further if no pinned timestamp has been set yet. */
+    if (!__wt_atomic_load_bool_acquire(&txn_global->has_pinned_timestamp)) {
         *pinned_tsp = WT_TS_NONE;
         return;
     }
@@ -998,32 +992,45 @@ __wt_txn_pinned_timestamp(
      * pinned_ts. If the checkpoint timestamp is 110 and the second time we read the global pinned
      * timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
      */
-    pinned_ts = __wt_atomic_load_uint64_acquire(&txn_global->pinned_timestamp);
+    *pinned_tsp = __wt_atomic_load_uint64_acquire(&txn_global->pinned_timestamp);
+}
+
+/*
+ * __wt_txn_pinned_timestamp --
+ *     Get the first timestamp that has to be kept for the current tree.
+ */
+static WT_INLINE void
+__wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
+{
+    WT_CONNECTION_IMPL *conn;
+    wt_timestamp_t checkpoint_ts, pinned_ts;
+
+    __wt_txn_pinned_timestamp_uncapped(session, &pinned_ts);
+    *pinned_tsp = pinned_ts;
+    conn = S2C(session);
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
      * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
      * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
-     * we take the minimum of it with the oldest timestamp, which is what we want.
+     * we take the minimum of it with the oldest timestamp, which is what we want. Capping only ever
+     * lowers the pinned timestamp, so it retains strictly more data and is safe to apply regardless
+     * of whether the resolved value came from a version cursor.
      *
      * On a disaggregated storage follower, cap using the last completed checkpoint timestamp to
      * retain all data on the ingest btree up to that point.
      */
-    if (!ignore_last_ckpt && __wt_conn_is_disagg(session) &&
+    if (__wt_conn_is_disagg(session) &&
       (!conn->layered_table_manager.leader ||
         F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
         checkpoint_ts =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
         if (checkpoint_ts < pinned_ts)
             *pinned_tsp = checkpoint_ts;
-        else
-            *pinned_tsp = pinned_ts;
     } else {
-        checkpoint_ts = txn_global->checkpoint_timestamp;
+        checkpoint_ts = conn->txn_global.checkpoint_timestamp;
         if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
             *pinned_tsp = checkpoint_ts;
-        else
-            *pinned_tsp = pinned_ts;
     }
 }
 
@@ -1083,7 +1090,7 @@ __wt_txn_timestamp_visible_all(WT_SESSION_IMPL *session, wt_timestamp_t timestam
     wt_timestamp_t pinned_ts;
 
     /* Compare the given timestamp to the pinned timestamp, if it exists. */
-    __wt_txn_pinned_timestamp(session, &pinned_ts, false);
+    __wt_txn_pinned_timestamp(session, &pinned_ts);
 
     return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
 }
