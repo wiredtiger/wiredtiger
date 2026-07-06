@@ -923,6 +923,9 @@ __checkpoint_update_disagg_database_size(
               recomputed_size));
             recomputed = true;
         } else {
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "disagg database size fix: failed to recompute database size: %s",
+              __wt_strerror(session, ret, NULL, 0));
             WT_IGNORE_RET(__wt_buf_catfmt(session, &conn->repair.last_report,
               "\n"
               "disagg database size fix: failed to recompute database size: %s",
