@@ -1478,6 +1478,12 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
      */
     mod->rec_pinned_stable_timestamp = orig_modify->rec_pinned_stable_timestamp;
     mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
+
+    /*
+     * Don't inherit the checkpoint snapshot skip stamp: the split product is a new on-disk image
+     * that checkpoint must reconcile itself.
+     */
+    mod->rec_ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 }
 
 /*

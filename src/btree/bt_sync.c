@@ -9,6 +9,83 @@
 #include "wt_internal.h"
 
 /*
+ * __sync_evict_reconciled_under_ckpt_snapshot --
+ *     Return true if eviction already reconciled the page using this checkpoint's snapshot, so the
+ *     on-disk image checkpoint would produce is identical and re-reconciliation can be skipped.
+ */
+static WT_INLINE bool
+__sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_PAGE_MODIFY *mod;
+    uint32_t snap_idx;
+
+    conn = S2C(session);
+    mod = ref->page->modify;
+
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        return (false);
+
+    /* The page must have been reconciled under the snapshot this checkpoint published. */
+    snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
+    if (mod->rec_ckpt_snap_gen == WT_CKPT_SNAP_GEN_NONE ||
+      mod->rec_ckpt_snap_gen != conn->ckpt_eviction_snap_gen[snap_idx])
+        return (false);
+
+    if (mod->rec_pinned_stable_timestamp !=
+      __wt_tsan_suppress_load_uint64(&conn->txn_global.checkpoint_timestamp))
+        return (false);
+
+    return (true);
+}
+
+/*
+ * __sync_page_image_durable --
+ *     Return true if every reconciliation product of the page is backed by a written block address,
+ *     so checkpoint can leave the existing on-disk image in place instead of rewriting it.
+ */
+static WT_INLINE bool
+__sync_page_image_durable(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod;
+    u_int i;
+
+    mod = ref->page->modify;
+
+    /* A re-instantiated page keeps its written address on the ref. */
+    if (mod->rec_result == 0)
+        return (__wt_atomic_load_ptr_relaxed(&ref->addr) != NULL);
+
+    /*
+     * Disaggregated storage reconciliation never leaves a page's content in memory without an
+     * on-disk image. The current image is always durable.
+     */
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        return (true);
+
+    switch (mod->rec_result) {
+    case WT_PM_REC_EMPTY:
+        /* The page is deleted, there is nothing to write. */
+        return (true);
+    case WT_PM_REC_REPLACE:
+        /* The block is written. */
+        return (mod->mod_replace.block_cookie != NULL);
+    case WT_PM_REC_MULTIBLOCK:
+        /*
+         * A page evicted with unresolved updates can have blocks without a disk address; checkpoint
+         * must write it with valid addresses.
+         */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+            if (multi->addr.block_cookie == NULL)
+                return (false);
+        return (true);
+    default:
+        return (false);
+    }
+}
+
+/*
  * __sync_scrub_checkpoint_enabled --
  *     Return true if checkpoint reconciliation should retain clean disk images for scrub eviction.
  */
@@ -68,6 +145,9 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_MODIFY *mod;
     WT_TXN *txn;
     u_int i;
+    bool skipped_evict_reconciled;
+
+    skipped_evict_reconciled = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
@@ -88,11 +168,19 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     if (WT_IS_DISAGG_META(session->dhandle))
         return (false);
 
-    /* The checkpoint's snapshot includes the first dirty update on the page. */
+    /*
+     * The checkpoint's snapshot includes the first dirty update on the page, so there is content to
+     * write, unless eviction already reconciled the page under this same checkpoint snapshot and
+     * pinned stable timestamp; in that case the on-disk image is already what this checkpoint would
+     * produce.
+     */
     txn = session->txn;
     mod = ref->page->modify;
-    if (txn->snapshot_data.snap_max >= __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn))
-        return (false);
+    if (txn->snapshot_data.snap_max >= __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn)) {
+        if (!__sync_evict_reconciled_under_ckpt_snapshot(session, mod))
+            return (false);
+        skipped_evict_reconciled = true;
+    }
 
     /*
      * The problematic case is when a page was evicted but when there were unresolved updates and
@@ -123,6 +211,9 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
+
+    if (skipped_evict_reconciled)
+        WT_STAT_CONN_INCR(session, checkpoint_pages_reconciliation_skipped_evict_snapshot);
 
     return (true);
 }

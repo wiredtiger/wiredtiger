@@ -542,6 +542,7 @@ conn_stats = [
     CheckpointStat('checkpoint_hs_pages_reconciled', 'number of history store pages reconciled'),
     CheckpointStat('checkpoint_pages_reconciled', 'number of pages reconciled'),
     CheckpointStat('checkpoint_pages_reconciled_bytes', 'number of bytes reconciled'),
+    CheckpointStat('checkpoint_pages_reconciliation_skipped_evict_snapshot', 'number of pages whose reconciliation was skipped because eviction already reconciled them under the checkpoint snapshot'),
     CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited'),
     CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited'),
     CheckpointStat('checkpoint_parallel_pages_reconciled', 'number of pages reconciled by checkpoint parallel worker threads'),

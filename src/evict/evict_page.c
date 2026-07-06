@@ -1240,6 +1240,7 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
         if (snap->snapshot_count > 0)
             memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
               snap->snapshot_count * sizeof(snap->snapshot[0]));
+        session->txn->ckpt_snap_gen = conn->ckpt_eviction_snap_gen[snap_idx];
         F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
         copied = true;
     } else
@@ -1268,6 +1269,12 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     conn = S2C(session);
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
+
+    /*
+     * Clear any stale checkpoint snapshot identity from a prior eviction; only set again if this
+     * reconciliation copies the published checkpoint snapshot below.
+     */
+    session->txn->ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 
     evict = conn->evict;
     is_application_thread_snapshot_refreshed = false;
