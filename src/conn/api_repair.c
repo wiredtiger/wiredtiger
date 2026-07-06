@@ -15,11 +15,11 @@ struct __wt_repair_config {
 #define WT_REPAIR_COMMAND_NONE 0
 #define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
 #define WT_REPAIR_COMMAND_FETCH_METADATA 2
+#define WT_REPAIR_COMMAND_FIX_SIZE 3
     int command;
 
     struct {
-        /*
-         * FIXME-WT-17945: support local=false to dynamically recalculate the database size.
+        /* local=false recomputes the size from the metadata instead of reading the running total.
          */
         bool local;
     } fetch_database_size;
@@ -32,6 +32,11 @@ struct __wt_repair_config {
         /* Single metadata key to report, or NULL for the whole value. */
         const char *key;
     } fetch_metadata;
+
+    struct {
+        /* Guard against a racing checkpoint having already changed the size. 0 means no guard. */
+        uint64_t old_size;
+    } fix_size;
 };
 
 static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, WT_REPAIR_CONFIG *);
@@ -40,6 +45,7 @@ static int __repair_config_set_command(
 
 static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, bool);
+static int __repair_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
 
 /*
  * WT_ERR_REPORT --
@@ -63,19 +69,23 @@ static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, c
 
 /*
  * __repair_fetch_database_size --
- *     Read-only database size inspection: return the in-memory database size.
+ *     Read-only database size inspection: local=true returns the maintained running total;
+ *     local=false recomputes the same total from scratch by walking the metadata, the same
+ *     computation size_fix uses to correct drift.
  */
 static int
 __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
 {
-    /*
-     * FIXME-WT-17945: support local=false to dynamically recalculate the database size.
-     */
-    if (is_local == false)
-        WT_RET_REPORT(session, ENOTSUP, "fetch_database_size(local=false) is not yet supported");
+    uint64_t database_size;
 
-    WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
-      S2C(session)->disaggregated_storage.database_size));
+    if (is_local)
+        WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
+          S2C(session)->disaggregated_storage.database_size));
+    else {
+        WT_RET(__wt_disagg_get_database_size(session, &database_size));
+        WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(recompute): %" PRIu64,
+          database_size + WT_DISAGG_CHECKPOINT_SIZE_BUFFER));
+    }
     return (0);
 }
 
@@ -154,6 +164,33 @@ err:
 }
 
 /*
+ * __repair_fix_size --
+ *     Claim the next checkpoint's database-size recompute cycle: the checkpoint thread applies the
+ *     fix and releases the cycle once it recomputes the size from the metadata (see
+ *     __checkpoint_update_disagg_database_size). old_size is an optional guard against a racing
+ *     checkpoint having already changed the size.
+ */
+static int
+__repair_fix_size(WT_SESSION_IMPL *session, WT_ITEM *report, uint64_t old_size)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    if (old_size != 0 && conn->disaggregated_storage.database_size != old_size)
+        WT_RET_REPORT(session, EINVAL,
+          "size_fix: stored database size %" PRIu64 " does not match requested old_size %" PRIu64,
+          conn->disaggregated_storage.database_size, old_size);
+
+    if (!__wt_atomic_cas_uint8(
+          &conn->repair.state, WT_REPAIR_STATE_IDLE, WT_REPAIR_STATE_DB_SIZE_FIX))
+        WT_RET_REPORT(session, EBUSY, "size_fix: a size fix is already in progress");
+
+    WT_RET(__wt_buf_catfmt(session, report, "size_fix triggered"));
+    return (0);
+}
+
+/*
  * __repair_config_set_command --
  *     Set the command in the repair_config based on the parsed config item.
  */
@@ -163,9 +200,10 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
-    bool require_disagg;
+    bool require_disagg, require_disagg_leader;
 
     require_disagg = false;
+    require_disagg_leader = false;
 
     if (repair_config->command != WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "Only one command is allowed in the config");
@@ -180,11 +218,10 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             repair_config->fetch_database_size.local = item.val != 0;
 
         /*
-         * local=true reads conn->disaggregated_storage.database_size, which is only maintained on a
-         * disaggregated connection. local=false (FIXME-WT-17945, not yet implemented) is not gated
-         * here -- whether its eventual recalculation needs disagg is that ticket's call.
+         * Both variants read or derive conn->disaggregated_storage.database_size, a concept that
+         * only exists on a disaggregated connection.
          */
-        require_disagg = repair_config->fetch_database_size.local;
+        require_disagg = true;
     } else if (repair_config->command == WT_REPAIR_COMMAND_FETCH_METADATA) {
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "local", &item), true);
         if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
@@ -202,11 +239,26 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.key));
 
         require_disagg = !repair_config->fetch_metadata.local;
+    } else if (repair_config->command == WT_REPAIR_COMMAND_FIX_SIZE) {
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "old_size", &item), true);
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            repair_config->fix_size.old_size = 0;
+        else
+            repair_config->fix_size.old_size = (uint64_t)item.val;
+
+        require_disagg = true;
+        require_disagg_leader = true;
     }
 
-    if (require_disagg && !__wt_disagg_has_picked_up_checkpoint(session))
-        WT_ERR_REPORT(session, EINVAL,
-          "This command requires a disaggregated connection with a valid checkpoint");
+    if (require_disagg) {
+        if (!__wt_disagg_has_picked_up_checkpoint(session))
+            WT_ERR_REPORT(session, EINVAL,
+              "This command requires a disaggregated connection with a valid checkpoint");
+
+        if (require_disagg_leader && !S2C(session)->layered_table_manager.leader)
+            WT_ERR_REPORT(
+              session, EINVAL, "This command requires a disaggregated leader connection");
+    }
 
 err:
     return (ret);
@@ -216,16 +268,23 @@ err:
  * __repair_config_decode --
  *     The config is parsed with the normal WT config parser:
  *
- * fetch_database_size=(local=<bool>) Read-only inspection: return the in-memory database size.
- *     local=true (default, disagg-only) reads conn->disaggregated_storage.database_size.
- *     FIXME-WT-17945: local=false to dynamically recalculate the database size is not yet
- *     supported.
+ * fetch_database_size=(local=<bool>) Read-only inspection: return the database size (disagg-only).
+ *     local=true (default) reads conn->disaggregated_storage.database_size, the maintained running
+ *     total. local=false recomputes the same total from scratch by walking the metadata, the same
+ *     computation size_fix uses to correct drift.
  *
  * fetch_metadata=(local=<bool>,uri="<uri>",key="<key>") Read-only inspection: return metadata
  *     values. local=true (default) reads the local metadata cursor; local=false (disagg-only) reads
  *     the shared, page-server-durable metadata checkpoint. uri="" selects one target; absent or
  *     empty means all URIs. key="" selects one first-level config value out of the matching
  *     entries; absent or empty means the whole value.
+ *
+ * fix_size=(old_size=<n>) (disagg leader only) Reset the database size to the sum of every file's
+ *     latest checkpoint size, correcting drift in the incrementally-tracked total. The recompute
+ *     happens on the next checkpoint, not synchronously; poll with fetch_database_size(local=true)
+ *     to observe the result. old_size is an optional guard: absent or 0 skips it, otherwise the
+ *     command is rejected unless it matches the currently stored size, so a caller cannot
+ *     unknowingly race a concurrent update.
  */
 static int
 __repair_config_decode(
@@ -248,6 +307,11 @@ __repair_config_decode(
     if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
         WT_ERR(__repair_config_set_command(
           session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_METADATA));
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fix_size", &item), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR(__repair_config_set_command(
+          session, report, &item, repair_config, WT_REPAIR_COMMAND_FIX_SIZE));
 
     if (repair_config->command == WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "No command found in the config");
@@ -297,12 +361,21 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
 
     WT_ERR(__repair_config_decode(session, report, config, &repair_config));
 
-    if (repair_config.command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE)
+    switch (repair_config.command) {
+    case WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE:
         WT_ERR(
           __repair_fetch_database_size(session, report, repair_config.fetch_database_size.local));
-    else if (repair_config.command == WT_REPAIR_COMMAND_FETCH_METADATA)
+        break;
+    case WT_REPAIR_COMMAND_FETCH_METADATA:
         WT_ERR(__repair_fetch_metadata(session, report, repair_config.fetch_metadata.uri,
           repair_config.fetch_metadata.key, repair_config.fetch_metadata.local));
+        break;
+    case WT_REPAIR_COMMAND_FIX_SIZE:
+        WT_ERR(__repair_fix_size(session, report, repair_config.fix_size.old_size));
+        break;
+    default:
+        WT_ERR(__wt_illegal_value(session, repair_config.command));
+    }
 
 err:
     if (ret != 0)

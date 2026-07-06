@@ -263,6 +263,16 @@ struct __wt_repair {
      */
     uint8_t op_lock;
 
+#define WT_REPAIR_STATE_IDLE 0
+#define WT_REPAIR_STATE_DB_SIZE_FIX 1
+    /*
+     * Synchronizes a size_fix request with the checkpoint thread that consumes it: a size_fix call
+     * moves the state from IDLE to DB_SIZE_FIX (via CAS) to claim the next checkpoint's recompute
+     * cycle, and the checkpoint thread moves it back to IDLE (via CAS) once it applies the
+     * recomputed size.
+     */
+    wt_shared uint8_t state;
+
     /*
      * Memory space for the last report string. Only hold one report string at a time as it's used
      * interactively. Owned by the connection and freed at connection destroy.

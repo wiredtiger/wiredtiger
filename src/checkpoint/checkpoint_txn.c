@@ -881,6 +881,8 @@ static void
 __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t recomputed_size;
 
     conn = S2C(session);
 
@@ -897,12 +899,31 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
-     * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
-     * occur when data is removed reducing the total storage footprint. Guard against
-     * overflow/underflow in both cases.
+     * A size_fix command (see wiredtiger_repair) claims this cycle to have us recompute the
+     * database size from the metadata from scratch, correcting any drift the incremental delta
+     * below may have accumulated. The CAS both consumes the request and releases the cycle for the
+     * next size_fix call; the metadata already reflects this checkpoint's own sizes at this point,
+     * so the recompute supersedes the delta below rather than needing to combine with it.
      */
-    if (session->ckpt.ckpt_size_delta != 0) {
+    if (__wt_atomic_cas_uint8(
+          &conn->repair.state, WT_REPAIR_STATE_DB_SIZE_FIX, WT_REPAIR_STATE_IDLE)) {
+        ret = __wt_disagg_get_database_size(session, &recomputed_size);
+        if (ret == 0) {
+            recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+            __wt_disagg_set_database_size(session, recomputed_size);
+            __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
+        } else
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "disagg database size fix: failed to recompute database size: %s",
+              __wt_strerror(session, ret, NULL, 0));
+    } else if (session->ckpt.ckpt_size_delta != 0) {
+        /*
+         * Apply the accumulated size delta to the in-memory database_size now that the checkpoint
+         * has succeeded. Positive deltas occur when data is added during the checkpoint. Negative
+         * deltas occur when data is removed reducing the total storage footprint. Guard against
+         * overflow/underflow in both cases.
+         */
         uint64_t db;
         int64_t delta;
 
