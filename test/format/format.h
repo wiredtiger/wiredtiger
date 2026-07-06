@@ -149,6 +149,13 @@ typedef struct {
     enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
 
+/* Arguments passed to the async step-down background thread. */
+typedef struct {
+    wt_thread_t *checkpoint_tid;
+    wt_thread_t *timestamp_tid;
+    volatile bool done; /* Set to true by the thread when step-down completes. */
+} STEPDOWN_ARGS;
+
 /* Session application private information referenced in the event handlers. */
 typedef struct {
     WT_SESSION *trace; /* Tracing session for logging operations */
@@ -292,14 +299,14 @@ typedef struct {
     RWLOCK prepare_commit_lock;
 
     /*
-     * Lock to freeze the timestamp counter during async step-down arm. Read lock: held briefly in
-     * commit_transaction() while incrementing g.timestamp. Write lock: held exclusively during arm
-     * to capture step_down_ts and advance g.timestamp past it, ensuring all post-arm allocations
-     * land strictly above step_down_ts.
+     * Lock to freeze the timestamp counter during asynchronous step-down notification. Read lock:
+     * held briefly in commit_transaction() while incrementing g.timestamp. Write lock: held
+     * exclusively during notification to capture step_down_ts and advance g.timestamp past it,
+     * ensuring all post-notify allocations land strictly above step_down_ts.
      */
     RWLOCK timestamp_lock;
 
-    wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is armed; 0 if not armed. */
+    wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is active; 0 if not active. */
 
     volatile bool checkpoint_quit; /* Signal checkpoint thread to stop before workers finish. */
     volatile bool timestamp_quit;  /* Signal timestamp thread to stop before workers finish. */
@@ -327,9 +334,8 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
-    bool disagg_leader;         /* If disaggregated storage role is configured as a leader. */
-    bool disagg_stepdown_async; /* Use async step-down instead of sync (wts_reopen) fallback. */
-    pid_t follower_pid;         /* For multi-node disagg follower process */
+    bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid; /* For multi-node disagg follower process */
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
     int disagg_multi_sync_socket;               /* Socket for leader-follower sync */
@@ -479,7 +485,8 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
-void disagg_async_stepdown(WT_SESSION *, wt_thread_t *, wt_thread_t *);
+void disagg_async_stepdown(wt_thread_t *, wt_thread_t *);
+WT_THREAD_RET disagg_stepdown_thread(void *);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);
@@ -512,6 +519,7 @@ void table_dump_page(WT_SESSION *, const char *, TABLE *, uint64_t, const char *
 void table_verify(TABLE *, void *);
 void timestamp_init(void);
 wt_timestamp_t timestamp_minimum_committed(void);
+uint64_t next_timestamp(WT_SESSION *);
 void timestamp_once(WT_SESSION *, bool, bool);
 void timestamp_sync_threads_commit_ts(void);
 void replay_adjust_key(TINFO *, uint64_t);

@@ -285,16 +285,19 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
+    STEPDOWN_ARGS stepdown_args;
     wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid,
       follower_tid, hs_tid, import_tid, random_tid;
-    wt_thread_t timestamp_tid;
+    wt_thread_t stepdown_tid, timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
-    bool lastrun, running, stepdown_done;
+    bool lastrun, running, stepdown_done, stepdown_running;
 
     conn = g.wts_conn;
     lastrun = (run_current == run_total);
     stepdown_done = false;
+    stepdown_running = false;
+    memset(&stepdown_args, 0, sizeof(stepdown_args));
 
     /* Make the modify pad character printable to simplify debugging and logging. */
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
@@ -309,6 +312,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     memset(&hs_tid, 0, sizeof(hs_tid));
     memset(&import_tid, 0, sizeof(import_tid));
     memset(&random_tid, 0, sizeof(random_tid));
+    memset(&stepdown_tid, 0, sizeof(stepdown_tid));
     memset(&timestamp_tid, 0, sizeof(timestamp_tid));
 
     modify_repl_init();
@@ -391,18 +395,34 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     /* Spin on the threads, calculating the totals. */
     for (;;) {
         /*
-         * When the timer expires during an async disagg leader phase, arm the step-down while
-         * workers are still live. The arm stops the checkpoint and timestamp threads, pins stable
-         * at step_down_ts, rolls back in-flight write transactions, then takes the step-down
-         * checkpoint and reconfigures to follower. Workers are then granted an additional
-         * DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds to exercise follower-mode operation (reads
-         * continue serving, writes land in ingest) before the quit signal is sent.
+         * When the timer expires during an async disagg leader phase, spawn the step-down in a
+         * background thread. The step-down joins the checkpoint/timestamp threads, drains in-flight
+         * transactions, takes the step-down checkpoint, and reconfigures to follower. Running it in
+         * a separate thread keeps the spin loop ticking (track_ops) so terminal output stays live
+         * during the drain (up to 60 s). fourths is paused at -1 while the thread runs; once it
+         * signals done, fourths is reset to grant workers an additional
+         * DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds of follower-mode operation.
          */
         if (fourths == 0 && !stepdown_done && disagg_is_mode_switch() && g.disagg_leader &&
-          g.disagg_stepdown_async) {
-            disagg_async_stepdown(session, &checkpoint_tid, &timestamp_tid);
-            stepdown_done = true;
-            fourths = DISAGG_SWITCH_FOLLOWER_OPS_SEC * 4;
+          GV(DISAGG_STEPDOWN_ASYNC)) {
+            stepdown_args.checkpoint_tid = &checkpoint_tid;
+            stepdown_args.timestamp_tid = &timestamp_tid;
+            stepdown_args.done = false;
+            testutil_check(
+              __wt_thread_create(NULL, &stepdown_tid, disagg_stepdown_thread, &stepdown_args));
+            stepdown_done = true;    /* Prevent re-trigger; the thread owns the step-down now. */
+            stepdown_running = true; /* Track that we need to poll and later join. */
+            fourths = -1;            /* Pause quit timer until step-down thread signals done. */
+        }
+
+        /* Once the step-down thread completes, grant workers follower-mode ops time. */
+        if (stepdown_running) {
+            bool stepdown_complete;
+            WT_ACQUIRE_READ_WITH_BARRIER(stepdown_complete, stepdown_args.done);
+            if (stepdown_complete) {
+                stepdown_running = false;
+                fourths = DISAGG_SWITCH_FOLLOWER_OPS_SEC * 4;
+            }
         }
 
         /* Clear out the totals each pass. */
@@ -492,6 +512,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
+    if (GV(DISAGG_STEPDOWN_ASYNC))
+        testutil_check(__wt_thread_join(NULL, &stepdown_tid));
     if (disagg_is_multi_node() && !g.disagg_leader)
         testutil_check(__wt_thread_join(NULL, &follower_tid));
     if (GV(OPS_HS_CURSOR))
@@ -607,13 +629,13 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
 }
 
 /*
- * alloc_timestamp --
+ * next_timestamp --
  *     Allocate the next global timestamp under the step-down read lock. The write lock is held
- *     exclusively during async step-down arm; threads blocked here unblock with values strictly
+ *     exclusively during step-down notification; threads blocked here unblock with values strictly
  *     above step_down_ts, routing their writes to ingest (TC3).
  */
-static uint64_t
-alloc_timestamp(WT_SESSION *session)
+uint64_t
+next_timestamp(WT_SESSION *session)
 {
     uint64_t ts;
 
@@ -646,7 +668,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_commit_ts(tinfo);
         else {
-            ts = alloc_timestamp(session);
+            ts = next_timestamp(session);
         }
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
@@ -691,7 +713,7 @@ rollback_transaction(TINFO *tinfo, bool prepared)
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_rollback_ts(tinfo);
         else
-            ts = alloc_timestamp(session);
+            ts = next_timestamp(session);
 
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_ROLLBACK, ts));
     }
@@ -733,7 +755,7 @@ prepare_transaction(TINFO *tinfo)
          * the stable timestamp. The subsequent commit will increment it again, ensuring
          * correctness.
          */
-        ts = alloc_timestamp(session);
+        ts = next_timestamp(session);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);

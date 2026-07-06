@@ -243,28 +243,33 @@ stepdown_workers_drained(wt_timestamp_t step_down_ts)
 /*
  * disagg_async_stepdown --
  *     Perform an async step-down while worker threads are still live: 1. Stop the checkpoint and
- *     timestamp threads so they cannot interfere. 2. Freeze the timestamp counter (write lock),
- *     capture step_down_ts, advance g.timestamp past it so all post-arm allocations land above
- *     step_down_ts. 3. Pin stable at step_down_ts and arm WT via
- *     set_timestamp(step_down_timestamp). WT rolls back all in-flight write transactions with ts <=
- *     step_down_ts (TC4). Threads unblocked from the write lock get ts values > step_down_ts ->
- *     ingest (TC3). 4. Drain: wait until every worker has committed above step_down_ts. 5. Take the
- *     step-down checkpoint; assert stable == step_down_ts (TC6). 6. Reconfigure to follower.
- *     Workers continue for DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds, exercising reads (TC1/TC7) and
- *     ingest writes (TC3) in follower mode.
+ *     timestamp threads so they cannot interfere. 2. Write lock: capture step_down_ts, advance
+ *     g.timestamp past it, and notify WT via set_timestamp(step_down_timestamp) - all under the
+ *     lock so WT begins enforcing the boundary before any new timestamps are handed out. WT rolls
+ *     back in-flight write transactions with ts <= step_down_ts (TC4); threads unblocked from the
+ *     write lock get ts values > step_down_ts -> ingest (TC3). 3. Drain: wait until every worker
+ *     has committed or rolled back at or below step_down_ts. 4. Take the step-down checkpoint;
+ *     assert stable == step_down_ts (TC6). 5. Reconfigure to follower. Workers continue for
+ *     DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds, exercising reads (TC1/TC7) and ingest writes (TC3) in
+ *     follower mode.
  */
 void
-disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
+disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
 {
+    SAP sap;
+    WT_SESSION *session;
     wt_timestamp_t step_down_ts, stable_after;
     uint64_t drain_polls;
     char config[128];
 
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+
     track("[stepdown] stopping checkpoint and timestamp threads", 0ULL);
 
     /*
-     * Stop the checkpoint thread before arming. An uncontrolled checkpoint taken after the arm
-     * could land stable at the wrong boundary, breaking the TC6 invariant.
+     * Stop the checkpoint thread before notifying WT. An uncontrolled checkpoint taken after
+     * notification could land stable at the wrong boundary, breaking the TC6 invariant.
      */
     if (g.checkpoint_config == CHECKPOINT_ON) {
         g.checkpoint_quit = true;
@@ -272,8 +277,8 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
     }
 
     /*
-     * Stop the timestamp thread before arming. It must not advance stable past step_down_ts after
-     * we pin it below.
+     * Stop the timestamp thread before notifying WT. It must not advance stable past step_down_ts
+     * after we pin it below.
      */
     if (g.transaction_timestamps_config) {
         g.timestamp_quit = true;
@@ -281,28 +286,23 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
     }
 
     /*
-     * Write lock: prevents any new timestamp from being allocated while we capture step_down_ts and
-     * bump g.timestamp past it. Threads currently holding the read lock (mid-allocation) finish
-     * first; threads waiting for the read lock unblock after we release and get ts values strictly
-     * above step_down_ts.
+     * Write lock: prevents any new timestamp from being allocated while we capture step_down_ts,
+     * bump g.timestamp past it, and notify WT. Holding the lock through the set_timestamp call
+     * ensures WT begins enforcing the boundary before any new allocations are handed out. Threads
+     * currently holding the read lock (mid-allocation) finish first; threads waiting for the read
+     * lock unblock after we release and get ts values strictly above step_down_ts.
      */
     lock_writelock(session, &g.timestamp_lock);
     step_down_ts = g.timestamp;
     /* Reserve step_down_ts+1 as a gap; all allocations now yield ts > step_down_ts. */
     g.timestamp += 2;
     WT_RELEASE_WRITE_WITH_BARRIER(g.stepdown_ts, step_down_ts);
-    lock_writeunlock(session, &g.timestamp_lock);
-
-    track("[stepdown] armed at ts=%" PRIu64 "; notifying WT", step_down_ts);
-
-    /*
-     * Arm WT: from this point WT rolls back all in-flight write transactions whose commit_ts is at
-     * or below step_down_ts (TC4). Newly committed transactions land in ingest (TC3).
-     */
     testutil_snprintf(config, sizeof(config), "step_down_timestamp=%" PRIx64, step_down_ts);
     testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
+    lock_writeunlock(session, &g.timestamp_lock);
 
-    track("[stepdown] draining in-flight transactions", 0ULL);
+    track(
+      "[stepdown] notified WT at ts=%" PRIu64 "; draining in-flight transactions", step_down_ts);
 
     /*
      * Drain: wait until every in-flight transaction at or below step_down_ts has committed or been
@@ -316,6 +316,8 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
     }
     testutil_assertfmt(
       drain_polls > 0, "step-down drain timed out at step_down_ts=%" PRIu64, step_down_ts);
+    /* Sleep for 5 seconds so that leader writes to ingest for some time. */
+    __wt_sleep(5, 0);
 
     /*
      * Pin stable at exactly step_down_ts now that all transactions at or below it have settled. Use
@@ -348,23 +350,49 @@ disagg_async_stepdown(WT_SESSION *session, wt_thread_t *checkpoint_tid, wt_threa
     testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
     g.disagg_leader = false;
 
-    /* Complete the follower-side handoff and clean up state set during the arm. */
-    track("[stepdown] completing follower-side handoff", 0ULL);
+    /* Complete the follower-side switch and clean up state set during notification. */
+    track("[stepdown] completing follower-side switch", 0ULL);
     follower_read_latest_checkpoint();
     wts_prepare_discover(g.wts_conn);
     g.stepdown_ts = WT_TS_NONE;
     g.checkpoint_quit = false;
     g.timestamp_quit = false;
+
+    wt_wrap_close_session(session);
+}
+
+/*
+ * disagg_stepdown_thread --
+ *     Thread wrapper for disagg_async_stepdown(). Runs the step-down in the background so the
+ *     operations() spin loop continues ticking (track_ops) while drain and checkpoint proceed. Sets
+ *     args->done under a release barrier when the step-down is complete.
+ */
+WT_THREAD_RET
+disagg_stepdown_thread(void *arg)
+{
+    STEPDOWN_ARGS *args;
+
+    args = (STEPDOWN_ARGS *)arg;
+    disagg_async_stepdown(args->checkpoint_tid, args->timestamp_tid);
+    WT_RELEASE_WRITE_WITH_BARRIER(args->done, true);
+    return (WT_THREAD_RET_VALUE);
 }
 
 /*
  * disagg_switch_roles --
  *     Toggle the current disagg role between "leader" and "follower". Dispatches to the async
- *     step-down path (g.disagg_stepdown_async) or the synchronous fallback.
+ *     step-down path (disagg.stepdown_async) or the synchronous fallback.
  */
 void
 disagg_switch_roles(void)
 {
+    /*
+     * For async step-down, verify mirrors before the role switch to validate data consistency at
+     * the step-down boundary, while the connection is still in follower mode.
+     */
+    if (GV(DISAGG_STEPDOWN_ASYNC))
+        wts_verify_mirrors(g.wts_conn, NULL, NULL);
+
     /* Perform step-up or step-down. */
     g.disagg_leader = !g.disagg_leader;
 
@@ -372,22 +400,16 @@ disagg_switch_roles(void)
         /*
          * Stepping down: [leader -> follower].
          *
-         * async: disagg_async_stepdown() already ran inside operations() while workers were live;
-         * the step-down checkpoint, reconfigure, follower handoff and flag reset are all done.
-         * Nothing left to do here except verify.
+         * For async step-down, disagg_async_stepdown() already ran inside operations() and set
+         * g.disagg_leader = false, so the flip above sends us to the step-up branch instead. This
+         * block is only reached on the sync path.
          *
-         * sync: FIXME-WT-15763 fallback - graceful step-down is not yet fully supported, so reopen
-         * the connection.
+         * FIXME-WT-15763: graceful sync step-down is not yet fully supported, so reopen.
          */
-        if (g.disagg_stepdown_async) {
-            track("[role change] leader -> follower (async, verifying)", 0ULL);
-            testutil_assert(!g.disagg_leader);
-        } else {
-            track("[role change] leader -> follower (sync)", 0ULL);
-            wts_reopen();
-            follower_read_latest_checkpoint();
-            wts_prepare_discover(g.wts_conn);
-        }
+        track("[role change] leader -> follower (sync)", 0ULL);
+        wts_reopen();
+        follower_read_latest_checkpoint();
+        wts_prepare_discover(g.wts_conn);
     } else {
         /* Stepping up: [follower -> leader] */
         SAP sap;
