@@ -20,24 +20,24 @@ cache for an existing entry. On a miss, it reads the block from remote storage
 and adds the disk image to the shared disk cache. When the last page
 referencing an entry is discarded, the entry is removed and the buffer freed.
 
-The shared disk cache explicitly counts disk image bytes once in
-connection-level cache totals when the image is first inserted. Each page's
-\c memory_footprint includes the full disk size for per-page eviction
-decisions, but global cache accounting explicitly excludes the disk size by
-subtracting it during page instantiation and eviction. The bytes are drained
-from connection-level totals only when the last reference to the shared disk
-cache entry is released.
+Pages sharing a disk image do not count those bytes toward connection-level
+cache totals (\c bytes_inmem). The shared disk cache counts them once when
+the entry is first inserted and drains them when the last reference is
+released. Each page's \c memory_footprint still includes the disk image size
+for per-page eviction decisions.
 
 @section ccc_key_files Key files
 
 | File | Role |
 |------|------|
 | \c src/include/cache.h | \c WT_SHARED_DSK_CACHE struct and state definitions |
-| \c src/include/btmem.h | \c WT_PAGE shared_dsk_item pointer |
-| \c src/cache/shared_dsk.c | get, put, release, init, and destroy |
-| \c src/cache/cache.c | cache creation and destruction wiring |
+| \c src/include/btmem.h | \c shared_dsk_item pointer in the page's \c WT_PAGE_DISAGG_INFO |
 | \c src/btree/bt_read.c | call site: get on page fault-in, put after storage read |
 | \c src/btree/bt_discard.c | call site: release when a page is discarded |
+| \c src/cache/shared_dsk.c | get, put, release, init, and destroy |
+| \c src/cache/cache.c | cache creation and destruction wiring |
+| \c src/conn/conn_layered.c | step-up transition (ACTIVE to READONLY) and step-down transition (back to ACTIVE) |
+| \c src/conn/conn_sweep.c | sweep server flipping READONLY to DEAD after the grace period |
 
 @section ccc_lifecycle Lifecycle of the cache
 
@@ -75,8 +75,8 @@ Two structs in \c src/include/cache.h implement the cache.
   cache transitioned to \c READONLY on step-up (see @ref ccc_lifecycle).
 - \c hash / \c hash_size: bucket array sized at roughly 0.2% of configured
   cache, with a floor of 1000 buckets.
-- \c hash_locks / \c hash_lock_size: per-bucket spinlocks, striped across
-  buckets to reduce multi-thread lock contention.
+- \c hash_locks / \c hash_lock_size: spinlock array, striped across buckets
+  so that each lock guards a group of buckets.
 
 \c WT_SHARED_DSK_ITEM is a single cache entry:
 
@@ -113,5 +113,9 @@ already in the cache continue to be served. A grace period
 \c DEAD. The sweep server preserves outdated stable-checkpoint dhandles for
 that grace period instead of discarding them immediately, allowing the next
 checkpoint generation to reuse the shared disk image.
+
+On step-down, the cache transitions back to \c ACTIVE. If the hash table was
+never initialized (i.e. the node started as a leader and was not previously a standby),
+it is created at this point, otherwise the existing table is reused.
 
 */
