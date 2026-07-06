@@ -1581,7 +1581,6 @@ struct __wt_update {
 #define WT_UPDATE_RESTORED_FROM_HS 0x100u         /* Update restored from history store. */
 #define WT_UPDATE_RESTORED_FROM_INGEST 0x200u     /* Update restored from ingest btree. */
 #define WT_UPDATE_RTS_DRYRUN_ABORT 0x400u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_UNCONFIRMED_DELETE 0x800u       /* Ingest-drain tombstone from a blind remove. */
                                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 

@@ -12,80 +12,68 @@ static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
- * __layered_stable_has_value --
- *     Determine whether the stable btree, at the position left by the last search, has a value for
- *     the key that a trailing tombstone in the ingest chain would be deleting. Also asserts that no
- *     unresolved preserved prepared update exists there. last_upd_tombstone is whether the oldest
- *     update being moved for this key is itself a tombstone; when it isn't, there's nothing to
- *     check and the has_value result is unused by the caller.
- */
-static WT_INLINE bool
-__layered_stable_has_value(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool last_upd_tombstone)
-{
-    WT_UPDATE *upd;
-
-    if (cbt->compare != 0)
-        return (false);
-
-    WT_ASSERT_ALWAYS(
-      session, cbt->ins == NULL, "The stable btree should not contain inserts prior to draining");
-
-    if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
-        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-    else
-        upd = NULL;
-
-    /*
-     * Walk the chain: assert no unresolved preserved prepared update exists, and advance past any
-     * rolled-back preserved prepared updates to find the first visible update.
-     */
-    for (; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED) {
-            WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-              "During ingest drain, aborted updates on the stable btree must be "
-              "rolled-back preserved prepared transactions");
-            continue;
-        }
-
-        WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
-          "During ingest drain, found an unresolved prepared update on the stable btree; "
-          "prepared transactions must be resolved before step-up");
-        break;
-    }
-
-    if (!last_upd_tombstone)
-        return (false);
-
-    if (upd != NULL)
-        return (upd->type != WT_UPDATE_TOMBSTONE);
-
-    WT_TIME_WINDOW tw;
-    bool tw_found = __wt_read_cell_time_window(cbt, &tw);
-    return (tw_found && !WT_TIME_WINDOW_HAS_PREPARE(&tw) && !WT_TIME_WINDOW_HAS_STOP(&tw));
-}
-
-/*
  * __layered_assert_stable_btree_state --
- *     Assert stable btree invariants before applying ingest updates for a key: if the ingest chain
- *     ends with a tombstone, either a corresponding value exists to delete, or the tombstone is
- *     marked as coming from a blind remove (WT_UPDATE_UNCONFIRMED_DELETE) --
- *     an unpositioned overwrite=true remove on a follower skips the stable lookup, so that
- *     tombstone can legitimately have no value behind it. Anything else reaching this state without
- *     the marker is corruption.
+ *     Assert stable btree invariants before applying ingest updates for a key: (1) no unresolved
+ *     preserved prepared update exists; and (2) if the ingest chain ends with a tombstone, a
+ *     corresponding value exists to delete.
  */
 static WT_INLINE void
-__layered_assert_stable_btree_state(WT_SESSION_IMPL *session, WT_UPDATE *last_upd, bool has_value)
+__layered_assert_stable_btree_state(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *last_upd)
 {
-    if (last_upd->type != WT_UPDATE_TOMBSTONE)
-        return;
+    WT_UPDATE *upd;
+    bool has_value;
+
+    if (cbt->compare != 0) {
+        if (last_upd->type != WT_UPDATE_TOMBSTONE)
+            return;
+        /* No on-page value to check; rely solely on visibility. */
+        has_value = false;
+    } else {
+        WT_ASSERT_ALWAYS(session, cbt->ins == NULL,
+          "The stable btree should not contain inserts prior to draining");
+
+        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        else
+            upd = NULL;
+
+        /*
+         * Walk the chain: assert no unresolved preserved prepared update exists, and advance past
+         * any rolled-back preserved prepared updates to find the first visible update.
+         */
+        for (; upd != NULL; upd = upd->next) {
+            if (upd->txnid == WT_TXN_ABORTED) {
+                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                  "During ingest drain, aborted updates on the stable btree must be "
+                  "rolled-back preserved prepared transactions");
+                continue;
+            }
+
+            WT_ASSERT_ALWAYS(session, upd->prepare_state != WT_PREPARE_INPROGRESS,
+              "During ingest drain, found an unresolved prepared update on the stable btree; "
+              "prepared transactions must be resolved before step-up");
+            break;
+        }
+
+        if (last_upd->type != WT_UPDATE_TOMBSTONE)
+            return;
+
+        if (upd != NULL)
+            has_value = upd->type != WT_UPDATE_TOMBSTONE;
+        else {
+            WT_TIME_WINDOW tw;
+            bool tw_found = __wt_read_cell_time_window(cbt, &tw);
+            has_value =
+              tw_found && !WT_TIME_WINDOW_HAS_PREPARE(&tw) && !WT_TIME_WINDOW_HAS_STOP(&tw);
+        }
+    }
 
     /*
      * If a globally visible tombstone is observed at the end, the update it deletes may have been
      * removed during the obsolete check.
      */
-    WT_ASSERT_ALWAYS(session,
-      has_value || F_ISSET(last_upd, WT_UPDATE_UNCONFIRMED_DELETE) ||
-        __wt_txn_upd_visible_all(session, last_upd),
+    WT_ASSERT_ALWAYS(session, has_value || __wt_txn_upd_visible_all(session, last_upd),
       "No corresponding value exists on the stable table to delete");
 }
 
@@ -99,7 +87,6 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
   WT_UPDATE *upds, WT_UPDATE *last_upd, wt_timestamp_t from_ts)
 {
     WT_DECL_RET;
-    bool has_value;
 
     /*
      * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
@@ -111,40 +98,9 @@ __layered_move_updates(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
 
-    has_value = __layered_stable_has_value(session, cbt, last_upd->type == WT_UPDATE_TOMBSTONE);
-
     /* We only need to check on the first pass. */
     if (from_ts == WT_TS_NONE)
-        __layered_assert_stable_btree_state(session, last_upd, has_value);
-
-    /*
-     * A blind overwrite=true remove on a follower can produce a trailing tombstone with nothing to
-     * delete where it lands: stable never had a value for this key, or already has none there.
-     * Connecting it directly to existing content that's already gone, whether that's nothing or
-     * another tombstone, leaves reconciliation unable to compute a validity window, or creates two
-     * tombstones in a row. Trim it off, since deleting a key with nothing to delete is a no-op,
-     * whether or not there is newer, real content earlier in this same chain that still needs to
-     * move. The coalescing done while building the chain guarantees whatever is left after the trim
-     * isn't itself another tombstone. The aborted-prepared-transaction case below has its own
-     * fallback and is excluded here.
-     */
-    if (!has_value && last_upd->txnid != WT_TXN_ABORTED &&
-      F_ISSET(last_upd, WT_UPDATE_UNCONFIRMED_DELETE)) {
-        __wt_verbose_level_id(session, 1725400, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
-          "ingest drain: trimming an unconfirmed blind-delete tombstone with nothing to delete, "
-          "key size 0x%" PRIx64 ", content hash 0x%016" PRIx64,
-          (uint64_t)key->size, __wt_hash_city64(key->data, key->size));
-        if (upds == last_upd) {
-            __wt_free(session, upds);
-            goto err;
-        }
-        WT_UPDATE *second_last;
-        for (second_last = upds; second_last->next != last_upd; second_last = second_last->next)
-            ;
-        second_last->next = NULL;
-        __wt_free(session, last_upd);
-        last_upd = second_last;
-    }
+        __layered_assert_stable_btree_state(session, cbt, last_upd);
 
     /*
      * If the oldest update being moved is an aborted prepared update and the stable btree has no
@@ -645,67 +601,43 @@ __layered_copy_ingest_table(
                  * FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better
                  * way now.
                  */
-                if (__wt_clayered_deleted(value)) {
-                    /*
-                     * Repeated blind removes of an already-deleted key can each land in ingest as
-                     * their own tombstone-marked entry. Chaining two tombstones in a row would
-                     * violate reconciliation's rule against consecutive tombstones on an update
-                     * chain, so skip generating this one -- the newer delete doesn't change
-                     * anything the older one didn't already express. An aborted prepared
-                     * transaction's tombstone carries rollback state reconciliation depends on, so
-                     * it is never coalesced away here.
-                     */
-                    if (!is_prepare_rollback && prev_upd != NULL &&
-                      prev_upd->type == WT_UPDATE_TOMBSTONE) {
-                        upd = NULL;
-                        __wt_verbose_level_id(session, 1725401, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
-                          "ingest drain: dropping a redundant blind-delete tombstone on top of "
-                          "another tombstone, key size 0x%" PRIx64 ", content hash 0x%016" PRIx64,
-                          (uint64_t)key->size, __wt_hash_city64(key->data, key->size));
-                    } else {
-                        WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                        if (__wt_clayered_deleted_blind(value))
-                            F_SET(upd, WT_UPDATE_UNCONFIRMED_DELETE);
-                    }
-                } else
+                if (__wt_clayered_deleted(value))
+                    WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+                else
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-
-                if (upd != NULL) {
+                /*
+                 * If the prepared update is aborted, move the aborted update to the stable table
+                 * because we may write a prepared update to the disk in a future reconciliation.
+                 */
+                if (is_prepare_rollback) {
+                    /* Prepared transactions must have a prepared id in disagg. */
+                    WT_ASSERT(session,
+                      !prepare && preserve_prepared && start_prepared_id != WT_PREPARED_ID_NONE);
                     /*
-                     * If the prepared update is aborted, move the aborted update to the stable
-                     * table because we may write a prepared update to the disk in a future
-                     * reconciliation.
+                     * The original transaction id is stored in start timestamp and the rollback
+                     * timestamp is stored in durable timestamp.
                      */
-                    if (is_prepare_rollback) {
-                        /* Prepared transactions must have a prepared id in disagg. */
-                        WT_ASSERT(session,
-                          !prepare && preserve_prepared &&
-                            start_prepared_id != WT_PREPARED_ID_NONE);
-                        /*
-                         * The original transaction id is stored in start timestamp and the rollback
-                         * timestamp is stored in durable timestamp.
-                         */
-                        upd->txnid = WT_TXN_ABORTED;
+                    upd->txnid = WT_TXN_ABORTED;
+                    upd->prepare_state = WT_PREPARE_INPROGRESS;
+                    upd->prepare_ts = start_prepare_ts;
+                    upd->prepared_id = start_prepared_id;
+                    upd->upd_saved_txnid = start_ts;
+                    upd->upd_rollback_ts = durable_start_ts;
+                } else {
+                    WT_ASSERT(session, !prepare || durable_start_ts == WT_TS_NONE);
+                    upd->txnid = start_txn;
+                    if (prepare)
                         upd->prepare_state = WT_PREPARE_INPROGRESS;
-                        upd->prepare_ts = start_prepare_ts;
-                        upd->prepared_id = start_prepared_id;
-                        upd->upd_saved_txnid = start_ts;
-                        upd->upd_rollback_ts = durable_start_ts;
-                    } else {
-                        WT_ASSERT(session, !prepare || durable_start_ts == WT_TS_NONE);
-                        upd->txnid = start_txn;
-                        if (prepare)
-                            upd->prepare_state = WT_PREPARE_INPROGRESS;
-                        else if (start_prepared_id != WT_PREPARED_ID_NONE)
-                            upd->prepare_state = WT_PREPARE_RESOLVED;
-                        upd->prepare_ts = start_prepare_ts;
-                        upd->prepared_id = start_prepared_id;
-                        upd->upd_start_ts = start_ts;
-                        upd->upd_durable_ts = durable_start_ts;
-                    }
-                    /* This is for debugging purpose and it is not checked in the code. */
-                    F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
+                    else if (start_prepared_id != WT_PREPARED_ID_NONE)
+                        upd->prepare_state = WT_PREPARE_RESOLVED;
+                    upd->prepare_ts = start_prepare_ts;
+                    upd->prepared_id = start_prepared_id;
+                    upd->upd_start_ts = start_ts;
+                    upd->upd_durable_ts = durable_start_ts;
                 }
+                /* This is for debugging purpose and it is not checked in the code. */
+                F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
+                last_upd = upd;
 
                 if (prepare && !prepare_txn_fixed) {
                     WT_ASSERT(session, upds == NULL);
@@ -725,7 +657,6 @@ __layered_copy_ingest_table(
                 upds = upd;
 
             prev_upd = upd;
-            last_upd = upd;
         }
     }
 
