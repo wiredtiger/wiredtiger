@@ -69,9 +69,8 @@ static int __repair_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
 
 /*
  * __repair_fetch_database_size --
- *     Read-only database size inspection: local=true returns the maintained running total;
- *     local=false recomputes the same total from scratch by walking the metadata, the same
- *     computation size_fix uses to correct drift.
+ *     Read-only database size inspection: local=true returns the maintained total; local=false
+ *     recomputes it from the metadata (the same computation size_fix uses).
  */
 static int
 __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
@@ -357,11 +356,7 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     report = &conn->repair.last_report;
     report->size = 0;
 
-    /*
-     * Surface a size_fix failure from the checkpoint thread (see
-     * __checkpoint_update_disagg_database_size), if one is pending, ahead of this call's own
-     * result -- otherwise it would never reach any caller.
-     */
+    /* Surface a multi-step operation's failure, recorded outside any wiredtiger_repair call. */
     if (conn->repair.error_report.size > 0) {
         WT_IGNORE_RET(__wt_buf_catfmt(
           default_session, report, "%s\n", (const char *)conn->repair.error_report.data));
@@ -403,10 +398,7 @@ err:
     if (session != NULL)
         WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
 
-    /*
-     * Release the repair operation lock. If the state is updated for some multi step task, simply
-     * ignore.
-     */
+    /* No-op if a multi-step operation has already moved state elsewhere. */
     WT_IGNORE_RET(
       __wt_atomic_cas_uint8(&conn->repair.state, WT_REPAIR_STATE_OPERATING, WT_REPAIR_STATE_IDLE));
 

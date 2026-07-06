@@ -900,14 +900,10 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * A size_fix command (see wiredtiger_repair) claims this cycle to have us recompute the
-     * database size from the metadata from scratch, correcting any drift the incremental delta
-     * below may have accumulated. A repair operation can be multi-step, spanning from the
-     * wiredtiger_repair call that requested the fix through this checkpoint's completion of it;
-     * state stays DB_SIZE_FIX (blocking new repair operations) for the whole recompute below, not
-     * just the instant we notice it, and only returns to IDLE once this step actually finishes. The
-     * metadata already reflects this checkpoint's own sizes at this point, so the recompute
-     * supersedes the delta below rather than needing to combine with it.
+     * A pending size_fix (see wiredtiger_repair) claims this cycle for a from-scratch recompute
+     * that supersedes the incremental delta below, since the metadata already reflects this
+     * checkpoint's own sizes. state stays DB_SIZE_FIX for the whole recompute, not just the instant
+     * we notice it, because a repair operation can outlast the call that started it.
      */
     recomputed = false;
     for (; __wt_atomic_load_uint8_v_acquire(&conn->repair.state) == WT_REPAIR_STATE_DB_SIZE_FIX;
@@ -928,11 +924,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
             __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
               (const char *)conn->repair.error_report.data);
         else
-            /*
-             * Recording the failure itself failed (e.g. allocation failure): error_report may be
-             *     empty, NULL, or hold a stale message from an earlier failure, so don't read it --
-             *     log the original error directly instead.
-             */
+            /* error_report may be stale or unset here; log the original error directly instead. */
             __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
               "disagg database size fix: failed to recompute database size (and failed to "
               "record the failure for the next repair call): %s",

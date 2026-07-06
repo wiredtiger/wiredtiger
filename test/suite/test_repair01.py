@@ -31,11 +31,8 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_repair01.py
-#    Exercise the wiredtiger_repair() API for config-error paths, fetch_database_size,
-#    fetch_metadata, and fix_size. All run in non-disaggregated and disaggregated scenarios; the
-#    disagg scenario additionally cross-validates the reported size against the
-#    disagg_database_size connection statistic and exercises the shared (page-server-durable)
-#    metadata read.
+#    Exercise the wiredtiger_repair() API: config errors, fetch_database_size, fetch_metadata,
+#    and fix_size, in both non-disaggregated and disaggregated scenarios.
 class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=False))
@@ -71,15 +68,14 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_config_errors(self):
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
         self.assertIn('No command found', self.repair('uri="table:tbl"'))
-        # fetch_metadata(local=true) doesn't require disagg, so the collision is what fires
-        # regardless of checkpoint state.
+        # fetch_metadata(local=true) needs no disagg checkpoint, so the collision check is what
+        # fires, regardless of scenario.
         self.assertIn('Only one command is allowed', self.repair(
             'fetch_metadata=(local=true),fix_size=(old_size=0)'))
 
     def test_fetch_metadata(self):
         self.populate()
 
-        # A whole-value local fetch equals the metadata cursor's value for the same uri.
         cursor = self.session.open_cursor('metadata:')
         cursor.set_key(self.uri)
         self.assertEqual(cursor.search(), 0)
@@ -87,8 +83,6 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.repair(f'fetch_metadata=(local=true,uri="{self.uri}")'))
         cursor.close()
 
-        # A key-scoped fetch returns just that value; absent keys and uris are reported, not
-        # errors.
         self.assertIn(f'{self.uri}: key_format=S',
             self.repair(f'fetch_metadata=(local=true,uri="{self.uri}",key="key_format")'))
         self.assertIn(f'{self.uri}: <no "nope">',
@@ -96,9 +90,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertIn('<no matching metadata entry for uri:"table:missing">',
             self.repair('fetch_metadata=(local=true,uri="table:missing")'))
 
-        # An empty uri/key is treated as absent, not as a literal target that matches nothing:
-        # empty (or absent) uri means all URIs, empty (or absent) key means the whole value. The
-        # empty and absent spellings must produce byte-identical reports.
+        # Absent and empty uri/key must be equivalent, not "matches nothing".
         all_uris = self.repair('fetch_metadata=(local=true)')
         self.assertIn(f'{self.uri}: ', all_uris)
         self.assertNotIn('<no matching metadata entry', all_uris)
@@ -108,7 +100,6 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(whole_value,
             self.repair(f'fetch_metadata=(local=true,uri="{self.uri}",key="")'))
 
-        # The shared (page-server-durable) metadata read is disaggregated-only.
         if self.is_disagg_scenario():
             self.assertIn(self.uri,
                 self.repair(f'fetch_metadata=(local=false,uri="{self.uri}")'))
@@ -126,14 +117,12 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.repair('fetch_database_size=(local=false)'))
             return
 
-        # Cross-validate against the disagg_database_size connection statistic.
         reported = self.reported_size()
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
         self.assertEqual(reported, stat_size)
         self.assertGreater(reported, 0)
 
-        # local=false recomputes the same total from the metadata; absent any drift it matches
-        # the maintained running total exactly.
+        # local=false recomputes from the metadata; absent drift it matches local=true exactly.
         self.assertIn(f'fetch_database_size(recompute): {stat_size}',
             self.repair('fetch_database_size=(local=false)'))
 
@@ -146,38 +135,27 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             return
 
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
-
-        # A stale old_size guard rejects the request instead of claiming a fix.
         self.assertIn('does not match requested old_size',
             self.repair(f'fix_size=(old_size={stat_size + 1})'))
 
-        # The correct (or absent/0) old_size claims the cycle; a size_fix call is multi-step
-        # (spanning through the next checkpoint's consumption of it), so a second repair call
-        # before that happens is rejected at entry, not just a second fix_size-specific check.
+        # A pending fix blocks any new repair call until the next checkpoint consumes it.
         self.assertIn('size_fix triggered', self.repair(f'fix_size=(old_size={stat_size})'))
         self.assertIn('another repair operation is in progress', self.repair('fix_size=(old_size=0)'))
 
-        # The next checkpoint consumes the cycle and recomputes the size from the metadata;
-        # absent any drift the result is unchanged and self-consistent with the statistic.
         self.session.checkpoint()
         reported = self.reported_size()
         self.assertEqual(reported, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
         self.assertEqual(reported, stat_size)
 
-        # Exercise a real change, not just a no-op re-derivation: create a second table to drop
-        # later, then checkpoint so it's stable (a table dropped right after it's written can
-        # spuriously conflict with its own not-yet-settled dirty data). Insert more rows into
-        # the main table and drop the second table, both left uncheckpointed, then claim the fix
-        # cycle before checkpointing. That single checkpoint must take the full-recompute branch
-        # (not the incremental delta branch) for this round, so the result has to reflect the
-        # new metadata rather than replay the old total.
+        # Drop a second, already-checkpointed table and grow the main one before fixing, so the
+        # recompute has to reflect real change, not just replay the old total.
         extra_uri = 'layered:tbl_fix_size_extra'
         self.session.create(extra_uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(extra_uri)
         for i in range(50):
             cursor['key%06d' % i] = 'v' * 500
         cursor.close()
-        self.session.checkpoint()
+        self.session.checkpoint()  # settle first, or dropping it can hit its own dirty data
 
         pre_change_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
         cursor = self.session.open_cursor(self.uri)
@@ -193,15 +171,11 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertGreater(changed, pre_change_size)
         self.assertEqual(changed, self.get_stat(wiredtiger.stat.conn.disagg_database_size))
 
-        # Independently validate the post-fix size against the connection's own startup verify
-        # path (__wt_verify_disagg_database_size), a completely separate code path from
-        # fix_size/fetch_database_size that does the identical walk-and-sum-and-compare and would
-        # raise on a mismatch. Only reachable via verify_metadata=true at connection open, so
-        # reopen (picking the checkpoint back up) to force it to run for real.
+        # Cross-check against the independent __wt_verify_disagg_database_size path, only
+        # reachable via verify_metadata=true at open.
         self.reopen_conn(config=self.conn_config() + 'verify_metadata=true,')
         self.ignoreStdoutPatternIfExists('Removing local file due to disagg mode')
 
-        # A follower cannot claim a fix.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertIn('requires a disaggregated leader connection',
             self.repair('fix_size=(old_size=0)'))
