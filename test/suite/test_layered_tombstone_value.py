@@ -27,17 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_tombstone_value.py
-#   A layered tombstone is two 0x14 bytes. Application values that begin with that sequence share the
-#   encoded namespace and are escaped -- a tombstone byte is appended -- before they are written to
-#   the stable table. This test confirms that such values are counted by category as they cross the
-#   stable read and write paths on a disaggregated leader.
+#   A layered tombstone is two 0x14 bytes. Application values that begin with that sequence share
+#   the encoded namespace and are escaped before being written to the stable table. This
+#   test confirms that such values are counted by category as they cross the stable read and write
+#   paths on a disaggregated leader.
 #
 #   The statistics count the stored (encoded) form. Encoding appends a single tombstone byte to any
-#   value in the namespace, so the public write path can only produce two of the four shapes: three
-#   tombstone bytes (from a value equal to the bare tombstone) and a value ending with the appended
-#   tombstone byte. The other two buckets (the bare two-byte tombstone and a value ending in a
-#   non-tombstone byte) can only arise from legacy unescaped data on disk, so this test cannot
-#   produce them.
+#   value in the namespace, so the public write path can only produce two of the four shapes: 'three
+#   tombstone bytes', and a value that ends with the appended tombstone byte. The other two buckets
+#   (the bare tombstone and a value ending in a non-tombstone byte) can only arise from legacy
+#   unescaped data on disk, so this test cannot produce them.
 
 import wttest
 from wiredtiger import stat
@@ -53,10 +52,10 @@ class test_layered_tombstone_value(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     # Application value -> stored (encoded) form -> category it is counted under.
-    normal = b'hello'         # unchanged        -> not in the namespace
-    tomb = b'\x14\x14'        # \x14\x14\x14      -> three tombstone bytes
-    triple = b'\x14\x14\x14'  # \x14\x14\x14\x14  -> suffix (trailing tombstone byte)
-    mixed = b'\x14\x14ab'     # \x14\x14ab\x14    -> suffix (trailing appended byte)
+    normal = b'hello'       # unchanged                  -> not in the namespace
+    tomb = b'\x14\x14'      # \x14\x14\x14                -> three tombstone bytes
+    triple = b'\x14\x14\x14'  # \x14\x14\x14\x14          -> suffix (trailing tombstone byte)
+    mixed = b'\x14\x14ab'   # \x14\x14ab\x14              -> suffix (trailing appended byte)
 
     def conn_config(self):
         return self.extensionsConfig() + \
@@ -86,8 +85,8 @@ class test_layered_tombstone_value(wttest.WiredTigerTestCase):
     def test_stable_value_categories(self):
         items = {1: self.normal, 2: self.tomb, 3: self.triple, 4: self.mixed}
 
-        # Write on the leader: the values are written to the stable table (write path). Each value in
-        # the namespace gains a trailing tombstone byte; the bare tombstone becomes three such bytes.
+        # Write on the leader (write path). Each namespace value gains a trailing tombstone byte;
+        # the bare tombstone becomes three such bytes.
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for key, value in items.items():
@@ -122,9 +121,8 @@ class test_layered_tombstone_value(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
-        # Measure only what verify adds. The stored forms are one three-tombstone-byte encoding (the
-        # escaped bare tombstone) and two suffix-form (trailing 0x14) encodings; the normal value is
-        # not counted.
+        # Measure only what verify adds. The stored forms are one three-tombstone-byte encoding and
+        # two suffix-form (trailing 0x14) encodings; the normal value is not counted.
         before = self.category_counts()
         self.session.verify(self.uri)
         after = self.category_counts()

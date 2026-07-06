@@ -27,10 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_tombstone_collision.py
-#   Follower writes land in the ingest table, where the two-byte tombstone (0x14 0x14) is also the
-#   delete marker. A user value byte-identical to the tombstone must be escaped on the way in, or it
-#   is read back as WT_NOTFOUND. This test writes such a value on a follower and confirms it round
-#   trips, across the insert, update, and modify paths.
+#   A user value byte-identical to the internal tombstone marker (0x14 0x14) must behave like any
+#   other value across every cursor operation on a follower, never read back as a deletion. Each
+#   value below is exercised by every test case.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -42,61 +41,142 @@ class test_layered_tombstone_collision(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),'
     uri = f'layered:{test_name}'
 
-    # The tombstone itself, a longer value sharing its prefix, and an unrelated value.
-    collide = b'\x14\x14'
-    control = b'\x14\x14\xff'
-    normal = b'hello'
-
+    values = [
+        ('collide', dict(value=b'\x14\x14')),      # exactly the tombstone
+        ('control', dict(value=b'\x14\x14\xff')),  # tombstone prefix + a byte
+        ('other', dict(value=b'\x14\x14\x14')),    # tombstone prefix + a tombstone byte
+    ]
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, values)
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def open_follower(self):
-        # The framework tracks and closes connections opened through wiredtiger_open.
-        conn = self.wiredtiger_open('follower',
+    def setUp(self):
+        super().setUp()
+        # Reading an escaped value off the stable table logs a warning; that is expected here.
+        self.ignoreStdoutPattern('stable table value in the tombstone namespace')
+        self.session.create(self.uri, 'key_format=S,value_format=u')
+        self.follow_conn = self.wiredtiger_open('follower',
             self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        return conn.open_session('')
+        self.follow = self.follow_conn.open_session('')
+        self.follow.create(self.uri, 'key_format=S,value_format=u')
 
-    def check(self, session, key, expected):
-        c = session.open_cursor(self.uri)
+    def put(self, key, value):
+        c = self.follow.open_cursor(self.uri)
+        c[key] = value
+        c.close()
+
+    def cursor(self):
+        return self.follow.open_cursor(self.uri)
+
+    def check(self, key, expected):
+        c = self.cursor()
         c.set_key(key)
-        self.assertEqual(c.search(), 0,
-            f'{key}: value in the tombstone namespace read back as a delete')
+        self.assertEqual(c.search(), 0)
         self.assertEqual(c.get_value(), expected)
         c.close()
 
-    def test_tombstone_collision(self):
-        self.session.create(self.uri, 'key_format=S,value_format=u')
-        session = self.open_follower()
-        session.create(self.uri, 'key_format=S,value_format=u')
+    def test_search(self):
+        self.put('k', self.value)
+        self.check('k', self.value)
 
-        # Insert: the exact-tombstone value must survive alongside its longer sibling.
-        c = session.open_cursor(self.uri)
-        c['collide'] = self.collide
-        c['control'] = self.control
-        c['normal'] = self.normal
-        c.close()
+    def test_next(self):
+        self.put('a', self.value)
+        self.put('b', self.value)
+        c = self.cursor()
+        self.assertEqual(c.next(), 0)
+        self.assertEqual((c.get_key(), c.get_value()), ('a', self.value))
+        self.assertEqual(c.next(), 0)
+        self.assertEqual((c.get_key(), c.get_value()), ('b', self.value))
 
-        self.check(session, 'collide', self.collide)
-        self.check(session, 'control', self.control)
-        self.check(session, 'normal', self.normal)
+    def test_prev(self):
+        self.put('a', self.value)
+        self.put('b', self.value)
+        c = self.cursor()
+        self.assertEqual(c.prev(), 0)
+        self.assertEqual((c.get_key(), c.get_value()), ('b', self.value))
+        self.assertEqual(c.prev(), 0)
+        self.assertEqual((c.get_key(), c.get_value()), ('a', self.value))
 
-        # Update an existing key to the exact-tombstone value.
-        c = session.open_cursor(self.uri)
-        c['normal'] = self.collide
-        c.close()
-        self.check(session, 'normal', self.collide)
+    def test_search_near(self):
+        self.put('k', self.value)
+        c = self.cursor()
+        c.set_key('k')
+        self.assertEqual(c.search_near(), 0)
+        self.assertEqual(c.get_value(), self.value)
 
-        # Modify a value into the exact-tombstone bytes.
-        c = session.open_cursor(self.uri)
-        c['control'] = b'\x14\x14\x14'
-        c.close()
-        c = session.open_cursor(self.uri)
-        c.set_key('control')
+    def test_search_near_nonexact(self):
+        self.put('a', self.value)
+        self.put('c', self.value)
+        c = self.cursor()
+        c.set_key('b')
+        self.assertNotEqual(c.search_near(), 0)
+        self.assertEqual(c.get_value(), self.value)
+
+    def test_update(self):
+        self.put('k', b'plain')
+        self.put('k', self.value)
+        self.check('k', self.value)
+
+    def test_modify_from_value(self):
+        # The value is the modify base; append a byte.
+        self.put('k', self.value)
+        c = self.cursor()
+        c.set_key('k')
         self.assertEqual(c.search(), 0)
-        # Drop the trailing byte, leaving the two tombstone bytes.
-        c.modify([wiredtiger.Modify(b'', 2, 1)])
+        c.modify([wiredtiger.Modify(b'\xaa', len(self.value), 0)])
         c.close()
-        self.check(session, 'control', self.collide)
+        self.check('k', self.value + b'\xaa')
+
+    def test_modify_into_value(self):
+        # Build the value with a modify by dropping a trailing byte.
+        self.put('k', self.value + b'\xaa')
+        c = self.cursor()
+        c.set_key('k')
+        self.assertEqual(c.search(), 0)
+        c.modify([wiredtiger.Modify(b'', len(self.value), 1)])
+        c.close()
+        self.check('k', self.value)
+
+    def test_modify_out_of_namespace(self):
+        # The value is the modify base; replace it with a value outside the namespace.
+        self.put('k', self.value)
+        c = self.cursor()
+        c.set_key('k')
+        self.assertEqual(c.search(), 0)
+        c.modify([wiredtiger.Modify(b'ab', 0, len(self.value))])
+        c.close()
+        self.check('k', b'ab')
+
+    def test_remove(self):
+        self.put('k', self.value)
+        c = self.cursor()
+        c.set_key('k')
+        self.assertEqual(c.remove(), 0)
+        c.close()
+        c = self.cursor()
+        c.set_key('k')
+        self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
+
+    def test_reinsert_after_remove(self):
+        # A delete marker followed by an escaped value on the same update chain.
+        self.put('k', self.value)
+        c = self.cursor()
+        c.set_key('k')
+        self.assertEqual(c.remove(), 0)
+        c.close()
+        self.put('k', self.value)
+        self.check('k', self.value)
+
+    def test_leader_write_follower_read(self):
+        # Written on the leader, read on the follower after it picks up the checkpoint.
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        c['k'] = self.value
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        c.close()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(self.follow_conn, self.conn)
+        self.check('k', self.value)
