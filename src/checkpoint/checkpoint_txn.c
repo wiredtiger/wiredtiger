@@ -904,34 +904,23 @@ __checkpoint_update_disagg_database_size(
     /*
      * debug=(checkpoint_database_size_fix=true) asks us to recompute the database size from the
      * metadata from scratch, superseding the incremental delta below, since the metadata already
-     * reflects this checkpoint's own sizes. The result is appended directly to the connection's
-     * repair report (see wiredtiger_repair/__repair_fix_size) so a synchronous caller sees it
-     * immediately; a recompute error fails the checkpoint instead of falling back, since the caller
-     * explicitly asked for this recompute and needs to know.
+     * reflects this checkpoint's own sizes. A recompute error fails the checkpoint instead of
+     * falling back, since the caller explicitly asked for this recompute and needs to know.
      */
     recomputed = false;
     if (database_size_fix) {
-        ret = __wt_disagg_get_database_size(session, &recomputed_size);
-        if (ret == 0) {
-            recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
-            __wt_disagg_set_database_size(session, recomputed_size);
-            __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
-            WT_RET(__wt_buf_catfmt(session, &conn->repair.last_report,
-              "\n"
-              "disagg database size fix: recomputed database size -> %" PRIu64,
-              recomputed_size));
-            recomputed = true;
-        } else {
+        if ((ret = __wt_disagg_get_database_size(session, &recomputed_size)) != 0) {
             __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
               "disagg database size fix: failed to recompute database size: %s",
               __wt_strerror(session, ret, NULL, 0));
-            WT_IGNORE_RET(__wt_buf_catfmt(session, &conn->repair.last_report,
-              "\n"
-              "disagg database size fix: failed to recompute database size: %s",
-              __wt_strerror(session, ret, NULL, 0)));
             return (ret);
         }
+
+        recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+        __wt_disagg_set_database_size(session, recomputed_size);
+        __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
+        recomputed = true;
     }
 
     /*

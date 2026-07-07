@@ -15,7 +15,6 @@ struct __wt_repair_config {
 #define WT_REPAIR_COMMAND_NONE 0
 #define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
 #define WT_REPAIR_COMMAND_FETCH_METADATA 2
-#define WT_REPAIR_COMMAND_FIX_SIZE 3
     int command;
 
     struct {
@@ -32,11 +31,6 @@ struct __wt_repair_config {
         /* Single metadata key to report, or NULL for the whole value. */
         const char *key;
     } fetch_metadata;
-
-    struct {
-        /* Guard against a racing checkpoint having already changed the size. 0 means no guard. */
-        uint64_t old_size;
-    } fix_size;
 };
 
 static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, WT_REPAIR_CONFIG *);
@@ -45,7 +39,6 @@ static int __repair_config_set_command(
 
 static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, bool);
-static int __repair_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
 
 /*
  * WT_ERR_REPORT --
@@ -60,17 +53,11 @@ static int __repair_fix_size(WT_SESSION_IMPL *, WT_ITEM *, uint64_t);
         goto err;                                                     \
     } while (0)
 
-#define WT_RET_REPORT(session, v, ...)                                \
-    do {                                                              \
-        int __ret = (v);                                              \
-        WT_IGNORE_RET(__wt_buf_catfmt(session, report, __VA_ARGS__)); \
-        return (__ret);                                               \
-    } while (0)
-
 /*
  * __repair_fetch_database_size --
  *     Read-only database size inspection: local=true returns the maintained total; local=false
- *     recomputes it from the metadata (the same computation size_fix uses).
+ *     recomputes it from the metadata (the same computation
+ *     debug=(checkpoint_database_size_fix=true) uses).
  */
 static int
 __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
@@ -163,34 +150,6 @@ err:
 }
 
 /*
- * __repair_fix_size --
- *     Synchronously recompute the database size from the metadata via a checkpoint (see
- *     __checkpoint_update_disagg_database_size), which appends the outcome directly to report.
- *     old_size is an optional guard against a racing checkpoint having already changed the size.
- */
-static int
-__repair_fix_size(WT_SESSION_IMPL *session, WT_ITEM *report, uint64_t old_size)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    if (old_size != 0 && conn->disaggregated_storage.database_size != old_size)
-        WT_RET_REPORT(session, EINVAL,
-          "size_fix: stored database size %" PRIu64 " does not match requested old_size %" PRIu64,
-          conn->disaggregated_storage.database_size, old_size);
-
-    /*
-     * Write this before the call so the report is never empty, even if the checkpoint fails before
-     * reaching the recompute (e.g. a lock conflict unrelated to the size fix).
-     */
-    WT_RET(__wt_buf_catfmt(session, report, "size_fix triggered"));
-
-    return (session->iface.checkpoint(
-      (WT_SESSION *)session, "debug=(checkpoint_database_size_fix=true)"));
-}
-
-/*
  * __repair_config_set_command --
  *     Set the command in the repair_config based on the parsed config item.
  */
@@ -200,10 +159,9 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
-    bool require_disagg, require_disagg_leader;
+    bool require_disagg;
 
     require_disagg = false;
-    require_disagg_leader = false;
 
     if (repair_config->command != WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "Only one command is allowed in the config");
@@ -239,26 +197,11 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.key));
 
         require_disagg = !repair_config->fetch_metadata.local;
-    } else if (repair_config->command == WT_REPAIR_COMMAND_FIX_SIZE) {
-        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "old_size", &item), true);
-        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-            repair_config->fix_size.old_size = 0;
-        else
-            repair_config->fix_size.old_size = (uint64_t)item.val;
-
-        require_disagg = true;
-        require_disagg_leader = true;
     }
 
-    if (require_disagg) {
-        if (!__wt_disagg_has_picked_up_checkpoint(session))
-            WT_ERR_REPORT(session, EINVAL,
-              "This command requires a disaggregated connection with a valid checkpoint");
-
-        if (require_disagg_leader && !S2C(session)->layered_table_manager.leader)
-            WT_ERR_REPORT(
-              session, EINVAL, "This command requires a disaggregated leader connection");
-    }
+    if (require_disagg && !__wt_disagg_has_picked_up_checkpoint(session))
+        WT_ERR_REPORT(session, EINVAL,
+          "This command requires a disaggregated connection with a valid checkpoint");
 
 err:
     return (ret);
@@ -270,21 +213,15 @@ err:
  *
  * fetch_database_size=(local=<bool>) Read-only inspection: return the database size (disagg-only).
  *     local=true (default) reads conn->disaggregated_storage.database_size, the maintained running
- *     total. local=false recomputes the same total from scratch by walking the metadata, the same
- *     computation size_fix uses to correct drift.
+ *     total. local=false recomputes the same total from scratch by walking the metadata (the same
+ *     computation session->checkpoint(debug=(checkpoint_database_size_fix=true)) uses to correct
+ *     drift).
  *
  * fetch_metadata=(local=<bool>,uri="<uri>",key="<key>") Read-only inspection: return metadata
  *     values. local=true (default) reads the local metadata cursor; local=false (disagg-only) reads
  *     the shared, page-server-durable metadata checkpoint. uri="" selects one target; absent or
  *     empty means all URIs. key="" selects one first-level config value out of the matching
  *     entries; absent or empty means the whole value.
- *
- * fix_size=(old_size=<n>) (disagg leader only) Reset the database size to the sum of every file's
- *     latest checkpoint size, correcting drift in the incrementally-tracked total. Runs a
- *     checkpoint synchronously to do the recompute, so the result (or failure) is part of this
- *     call's own report. old_size is an optional guard: absent or 0 skips it, otherwise the command
- *     is rejected unless it matches the currently stored size, so a caller cannot unknowingly race
- *     a concurrent update.
  */
 static int
 __repair_config_decode(
@@ -307,11 +244,6 @@ __repair_config_decode(
     if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
         WT_ERR(__repair_config_set_command(
           session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_METADATA));
-
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fix_size", &item), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
-        WT_ERR(__repair_config_set_command(
-          session, report, &item, repair_config, WT_REPAIR_COMMAND_FIX_SIZE));
 
     if (repair_config->command == WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "No command found in the config");
@@ -371,9 +303,6 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
         WT_ERR(__repair_fetch_metadata(session, report, repair_config.fetch_metadata.uri,
           repair_config.fetch_metadata.key, repair_config.fetch_metadata.local));
         break;
-    case WT_REPAIR_COMMAND_FIX_SIZE:
-        WT_ERR(__repair_fix_size(session, report, repair_config.fix_size.old_size));
-        break;
     default:
         WT_ERR(__wt_illegal_value(session, repair_config.command));
     }
@@ -389,7 +318,6 @@ err:
     if (session != NULL)
         WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
 
-    /* No-op if a multi-step operation has already moved state elsewhere. */
     WT_IGNORE_RET(
       __wt_atomic_cas_uint8(&conn->repair.state, WT_REPAIR_STATE_OPERATING, WT_REPAIR_STATE_IDLE));
 
