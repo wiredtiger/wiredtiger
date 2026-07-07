@@ -649,9 +649,10 @@ next_timestamp(WT_SESSION *session)
  * commit_transaction --
  *     Commit a transaction.
  */
-static void
+static bool
 commit_transaction(TINFO *tinfo, bool prepared)
 {
+    WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
 
@@ -676,13 +677,15 @@ commit_transaction(TINFO *tinfo, bool prepared)
             testutil_check(
               session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
 
-        testutil_check(session->commit_transaction(session, NULL));
+        ret = session->commit_transaction(session, NULL);
         if (prepared)
             lock_readunlock(session, &g.prepare_commit_lock);
         replay_committed(tinfo);
     } else
-        testutil_check(session->commit_transaction(session, NULL));
+        ret = session->commit_transaction(session, NULL);
 
+    if (ret == WT_ROLLBACK)
+        return false;
     /*
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
@@ -691,6 +694,8 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
+
+    return (true);
 }
 
 /*
@@ -1472,8 +1477,7 @@ skip_operation:
         case 3:
         case 4:           /* 40% */
             __wt_yield(); /* Encourage races */
-            commit_transaction(tinfo, prepared);
-            snap_repeat_update(tinfo, true);
+            snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
             break;
         case 5: /* 10% */
 rollback:
