@@ -749,10 +749,10 @@ extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((war
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_truncate_detect_non_ingest_write_conflict(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, const WT_ITEM *start_key, const WT_ITEM *stop_key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_layered_table_truncate_detect_write_conflict(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key)
+  WT_TRUNCATE_LIST *truncate_list, WT_COLLATOR *collator, const WT_ITEM *start_key,
+  const WT_ITEM *stop_key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_table_truncate_detect_write_conflict(WT_SESSION_IMPL *session,
+  WT_TRUNCATE_LIST *truncate_list, WT_COLLATOR *collator, const WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1083,8 +1083,8 @@ extern int __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi,
-  bool change_ref_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stash_add(WT_SESSION_IMPL *session, int which, uint64_t generation, void *p,
   size_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_stat_connection_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
@@ -1168,8 +1168,8 @@ extern int __wt_tree_walk_custom_skip(WT_SESSION_IMPL *session, WT_REF **refp,
   int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool, bool *), void *func_cookie,
   uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_truncate_delete_visible_check(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_ITEM *start_keyp, WT_ITEM *stop_keyp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_TRUNCATE_LIST *truncate_list, WT_COLLATOR *collator, WT_ITEM *key, WT_ITEM *start_keyp,
+  WT_ITEM *stop_keyp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
@@ -1724,6 +1724,10 @@ extern ssize_t __wt_json_strlen(const char *src, size_t srclen) WT_GCC_FUNC_DECL
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern u_int __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint16_t __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint16_t __wt_conn_calc_write_load(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_with_seed_sw(uint32_t seed, const void *chunk, size_t len)
@@ -1785,8 +1789,6 @@ extern void __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const ch
 extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);
 extern void __wt_config_subinit(WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CONFIG_ITEM *item);
-extern void __wt_conn_calc_read_load(WT_SESSION_IMPL *session);
-extern void __wt_conn_calc_write_load(WT_SESSION_IMPL *session);
 extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
@@ -1971,6 +1973,7 @@ extern void __wti_conn_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_capacity_init(WT_SESSION_IMPL *session);
 extern void __wti_conn_ext_destroy(WT_SESSION_IMPL *session);
+extern void __wti_conn_load_control_stats_update(WT_SESSION_IMPL *session);
 extern void __wti_conn_prefetch_destroy(WT_SESSION_IMPL *session);
 extern void __wti_conn_tiered_destroy(WT_SESSION_IMPL *session);
 extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);
