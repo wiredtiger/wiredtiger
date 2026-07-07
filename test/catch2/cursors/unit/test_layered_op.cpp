@@ -7,16 +7,15 @@
  */
 
 /*
- * These tests exercise the migrated layered-cursor helpers that read their state from a
- * WT_CLAYERED_OP. The refactor lets us drive those helpers without any leader/follower role
- * machinery or a disaggregated checkpoint: we build a WT_CLAYERED_OP on the stack over plain file:
- * cursors and call the helper directly.
+ * These tests exercise the layered-cursor helpers that read their per-operation state from a
+ * WTI_CLAYERED_OP. They drive those helpers over plain file: cursors, without any leader/follower
+ * role machinery or a disaggregated checkpoint.
  *
  * The helpers under test are file-static, so we #include cur_layered.c and call them by name
  * instead of going through exported wrappers. A real layered: cursor cannot be opened in this
  * configuration (it would require the disaggregated storage / page-log path), but the helpers
  * themselves only need a session, a couple of positioned cursors, an op->collator, and an op back
- * pointer to a WT_CURSOR_LAYERED for CUR2S(). All of that we can stand up by hand.
+ * pointer to a WTI_CURSOR_LAYERED for CUR2S(). All of that we can stand up by hand.
  */
 
 #include <catch2/catch.hpp>
@@ -37,12 +36,12 @@ namespace {
 
 /*
  * make_op --
- *     Build a WT_CLAYERED_OP (and its backing WT_CURSOR_LAYERED) on the stack. The helpers under
+ *     Build a WTI_CLAYERED_OP (and its backing WTI_CURSOR_LAYERED) on the stack. The helpers under
  *     test reach the session via CUR2S(op->clayered), so the only field the layered cursor needs is
  *     iface.session. Everything else is zeroed; collator NULL means default lexicographic ordering.
  */
 void
-make_op(WT_CLAYERED_OP &op, WT_CURSOR_LAYERED &clayered, WT_SESSION_IMPL *session)
+make_op(WTI_CLAYERED_OP &op, WTI_CURSOR_LAYERED &clayered, WT_SESSION_IMPL *session)
 {
     memset(&clayered, 0, sizeof(clayered));
     memset(&op, 0, sizeof(op));
@@ -92,8 +91,8 @@ TEST_CASE("Layered op: cursor compare orders constituent keys", "[layered][layer
     WT_CURSOR *c1 = open_file_cursor(session, uri1);
     WT_CURSOR *c2 = open_file_cursor(session, uri2);
 
-    WT_CLAYERED_OP op;
-    WT_CURSOR_LAYERED clayered;
+    WTI_CLAYERED_OP op;
+    WTI_CURSOR_LAYERED clayered;
     make_op(op, clayered, session_impl);
 
     int cmp = 0;
@@ -129,6 +128,23 @@ TEST_CASE("Layered op: cursor compare orders constituent keys", "[layered][layer
         c2->set_key(c2, "aaa");
         REQUIRE(__clayered_cursor_compare(&op, c1, c2, &cmp) == 0);
         REQUIRE(cmp > 0);
+    }
+
+    SECTION("comparison leaves its inputs unchanged")
+    {
+        c1->set_key(c1, "a");
+        c2->set_key(c2, "b");
+
+        const WTI_CLAYERED_OP op_before = op;
+        const WT_ITEM key1_before = c1->key;
+        const WT_ITEM key2_before = c2->key;
+
+        REQUIRE(__clayered_cursor_compare(&op, c1, c2, &cmp) == 0);
+
+        /* The compare only reads its inputs; the op and both cursor keys must be untouched. */
+        REQUIRE(memcmp(&op, &op_before, sizeof(op)) == 0);
+        REQUIRE(memcmp(&c1->key, &key1_before, sizeof(c1->key)) == 0);
+        REQUIRE(memcmp(&c2->key, &key2_before, sizeof(c2->key)) == 0);
     }
 
     close_and_drop(session, c1, uri1);
@@ -167,8 +183,8 @@ TEST_CASE(
     insert_one(ingest, "i", "ingest-value");
     insert_one(stable, "s", "stable-value");
 
-    WT_CLAYERED_OP op;
-    WT_CURSOR_LAYERED clayered;
+    WTI_CLAYERED_OP op;
+    WTI_CURSOR_LAYERED clayered;
     make_op(op, clayered, session_impl);
     op.ingest = ingest;
     op.stable = stable;
