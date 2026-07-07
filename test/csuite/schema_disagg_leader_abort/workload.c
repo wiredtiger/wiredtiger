@@ -28,111 +28,165 @@
 
 #include "schema_disagg_leader_abort.h"
 
+/* Per-thread schema worker state. */
+typedef struct {
+    WT_SESSION *session;
+    FILE *schema_fp;
+    FILE *data_fp;
+    char tableconf[128];
+    char uris[SCHEMA_POOL_SIZE][64];
+    bool table_exists[SCHEMA_POOL_SIZE];
+} SCHEMA_WORKER_CTX;
+
+/*
+ * schema_worker_open --
+ *     Initialize worker context: open session, record files, and build URI table.
+ */
+static void
+schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
+{
+    char fname[128];
+    uint64_t i;
+
+    testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, td->info);
+    (void)unlink(fname);
+    testutil_assert_errno((ctx->schema_fp = fopen(fname, "w")) != NULL);
+    __wt_stream_set_line_buffer(ctx->schema_fp);
+
+    testutil_snprintf(fname, sizeof(fname), SCHEMA_DATA_FILE, td->info);
+    (void)unlink(fname);
+    testutil_assert_errno((ctx->data_fp = fopen(fname, "w")) != NULL);
+    __wt_stream_set_line_buffer(ctx->data_fp);
+
+    for (i = 0; i < SCHEMA_POOL_SIZE; i++) {
+        testutil_snprintf(
+          ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, (uint32_t)i);
+        ctx->table_exists[i] = false;
+    }
+
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &ctx->session));
+    testutil_snprintf(ctx->tableconf, sizeof(ctx->tableconf),
+      "key_format=S,value_format=S,type=layered,block_manager=disagg");
+}
+
+/*
+ * schema_op_try --
+ *     Attempt the next schema operation on the given slot. Returns EBUSY or ENOENT when the
+ *     caller should yield and retry, 0 on success. Updates ctx->table_exists[slot].
+ */
+static int
+schema_op_try(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
+{
+    WT_DECL_RET;
+
+    if (!ctx->table_exists[slot]) {
+        ret = ctx->session->create(ctx->session, ctx->uris[slot], ctx->tableconf);
+        if (ret == EBUSY || ret == EEXIST)
+            return (ret);
+        testutil_check(ret);
+        ctx->table_exists[slot] = true;
+    } else {
+        ret = ctx->session->drop(ctx->session, ctx->uris[slot], "force=false");
+        if (ret == EBUSY || ret == ENOENT)
+            return (ret);
+        testutil_check(ret);
+        ctx->table_exists[slot] = false;
+    }
+    return (0);
+}
+
+/*
+ * schema_op_publish --
+ *     Assign an epoch, publish the schema operation, and advance
+ *     stable_disaggregated_schema_epoch. Serialized under schema_publish_lock so epochs are
+ *     published in strictly increasing order, matching the guarantee the verifier relies on when
+ *     replaying record files.
+ */
+static uint64_t
+schema_op_publish(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
+{
+    WT_DECL_RET;
+    char pub_cfg[64], ts_cfg[64];
+    uint64_t epoch;
+
+    testutil_check(pthread_mutex_lock(&schema_publish_lock));
+    epoch = __wt_atomic_add_uint64(&schema_op_epoch, 1);
+    testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
+    ret = ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg);
+    if (ret == 0) {
+        testutil_snprintf(
+          ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
+        (void)td->conn->set_timestamp(td->conn, ts_cfg);
+    }
+    testutil_check(pthread_mutex_unlock(&schema_publish_lock));
+    return (epoch);
+}
+
+/*
+ * schema_op_insert_data --
+ *     Insert a data row into a newly created table, keyed by DATA_KEY with the epoch as value.
+ *     This lets the verifier confirm data durability for surviving tables.
+ */
+static void
+schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
+{
+    WT_CURSOR *cursor;
+    char val_buf[32];
+
+    testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
+    testutil_check(ctx->session->begin_transaction(ctx->session, NULL));
+    testutil_check(
+      ctx->session->open_cursor(ctx->session, ctx->uris[slot], NULL, NULL, &cursor));
+    cursor->set_key(cursor, DATA_KEY);
+    cursor->set_value(cursor, val_buf);
+    testutil_check(cursor->insert(cursor));
+    testutil_check(cursor->close(cursor));
+    testutil_check(ctx->session->commit_transaction(ctx->session, NULL));
+}
+
+/*
+ * schema_op_record --
+ *     Persist the schema event and, on CREATE, the data row written to it. The records are
+ *     consumed by the verifier after recovery.
+ */
+static void
+schema_op_record(SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create, uint64_t epoch)
+{
+    if (fprintf(ctx->schema_fp, "%s %" PRIu64 " %s\n",
+          is_create ? "CREATE" : "DROP", epoch, ctx->uris[slot]) < 0)
+        testutil_die(EIO, "fprintf schema record");
+
+    if (is_create) {
+        schema_op_insert_data(ctx, slot, epoch);
+        if (fprintf(ctx->data_fp, "%" PRIu64 " %" PRIu64 "\n", slot, epoch) < 0)
+            testutil_die(EIO, "fprintf data record");
+    }
+}
+
 /*
  * thread_schema_run --
  *     Creates and drops disaggregated tables from a per-thread pool. Each successful operation is
- *     assigned a monotonically increasing schema epoch under schema_publish_lock so the checkpoint
- *     thread can advance the stable epoch and the verifier can reconstruct which operations landed
- *     in a given checkpoint. On CREATE, inserts a data row keyed by epoch so the verifier can
- *     confirm data durability as well.
+ *     assigned a monotonically increasing schema epoch and durably recorded so the verifier can
+ *     reconstruct the expected post-recovery state.
  */
 static WT_THREAD_RET
 thread_schema_run(void *arg)
 {
+    SCHEMA_WORKER_CTX ctx;
     THREAD_DATA *td;
-    WT_DECL_RET;
-    WT_SESSION *session;
-    FILE *schema_fp, *data_fp;
-    bool table_exists[SCHEMA_POOL_SIZE];
-    char schema_fname[128], data_fname[128], tableconf[128], uris[SCHEMA_POOL_SIZE][64];
     uint64_t epoch, slot;
 
     td = (THREAD_DATA *)arg;
-
-    testutil_snprintf(schema_fname, sizeof(schema_fname), SCHEMA_RECORDS_FILE, td->info);
-    (void)unlink(schema_fname);
-    testutil_assert_errno((schema_fp = fopen(schema_fname, "w")) != NULL);
-    __wt_stream_set_line_buffer(schema_fp);
-
-    testutil_snprintf(data_fname, sizeof(data_fname), SCHEMA_DATA_FILE, td->info);
-    (void)unlink(data_fname);
-    testutil_assert_errno((data_fp = fopen(data_fname, "w")) != NULL);
-    __wt_stream_set_line_buffer(data_fp);
-
-    for (slot = 0; slot < SCHEMA_POOL_SIZE; slot++) {
-        testutil_snprintf(
-          uris[slot], sizeof(uris[slot]), SCHEMA_TABLE_FMT, td->info, (uint32_t)slot);
-        table_exists[slot] = false;
-    }
-
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    testutil_snprintf(
-      tableconf, sizeof(tableconf), "key_format=S,value_format=S,type=layered,block_manager=disagg");
+    schema_worker_open(td, &ctx);
 
     for (;;) {
         slot = __wt_random(&td->rnd) % SCHEMA_POOL_SIZE;
-
-        if (!table_exists[slot]) {
-            ret = session->create(session, uris[slot], tableconf);
-            if (ret == EBUSY || ret == EEXIST) {
-                __wt_yield();
-                continue;
-            }
-            testutil_check(ret);
-            table_exists[slot] = true;
-        } else {
-            ret = session->drop(session, uris[slot], "force=false");
-            if (ret == EBUSY || ret == ENOENT) {
-                __wt_yield();
-                continue;
-            }
-            testutil_check(ret);
-            table_exists[slot] = false;
+        if (schema_op_try(&ctx, slot) != 0) {
+            __wt_yield();
+            continue;
         }
-
-        /*
-         * Epoch assignment, publish, and stable-epoch advancement are serialized under
-         * schema_publish_lock so epochs are published in strictly increasing order, matching the
-         * guarantee the verifier relies on when replaying record files.
-         */
-        {
-            char pub_cfg[64], ts_cfg[64];
-            bool is_create = table_exists[slot];
-
-            testutil_check(pthread_mutex_lock(&schema_publish_lock));
-            epoch = __wt_atomic_add_uint64(&schema_op_epoch, 1);
-            testutil_snprintf(
-              pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
-            ret = session->publish(session, uris[slot], pub_cfg);
-            if (ret == 0) {
-                testutil_snprintf(ts_cfg, sizeof(ts_cfg),
-                  "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
-                (void)td->conn->set_timestamp(td->conn, ts_cfg);
-            }
-            testutil_check(pthread_mutex_unlock(&schema_publish_lock));
-
-            if (fprintf(schema_fp, "%s %" PRIu64 " %s\n",
-                  is_create ? "CREATE" : "DROP", epoch, uris[slot]) < 0)
-                testutil_die(EIO, "fprintf schema record");
-
-            if (is_create) {
-                char val_buf[32];
-                WT_CURSOR *dcursor;
-
-                testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
-                testutil_check(session->begin_transaction(session, NULL));
-                testutil_check(
-                  session->open_cursor(session, uris[slot], NULL, NULL, &dcursor));
-                dcursor->set_key(dcursor, DATA_KEY);
-                dcursor->set_value(dcursor, val_buf);
-                testutil_check(dcursor->insert(dcursor));
-                testutil_check(dcursor->close(dcursor));
-                testutil_check(session->commit_transaction(session, NULL));
-
-                if (fprintf(data_fp, "%" PRIu64 " %" PRIu64 "\n", slot, epoch) < 0)
-                    testutil_die(EIO, "fprintf data record");
-            }
-        }
+        epoch = schema_op_publish(td, &ctx, slot);
+        schema_op_record(&ctx, slot, ctx.table_exists[slot], epoch);
     }
     /* NOTREACHED */
 }
@@ -212,6 +266,49 @@ thread_ckpt_run(void *arg)
 }
 
 /*
+ * workload_threads_start --
+ *     Allocate and start all worker threads: nth schema threads plus one checkpoint thread and one
+ *     timestamp thread.
+ */
+static void
+workload_threads_start(WT_CONNECTION *conn, wt_thread_t **thr_out, THREAD_DATA **td_out)
+{
+    THREAD_DATA *td;
+    wt_thread_t *thr;
+    uint32_t i;
+
+    thr = dcalloc(nth + 2, sizeof(*thr));
+    td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+
+    for (i = 0; i < nth + 2; i++) {
+        td[i].conn = conn;
+        td[i].info = i;
+        testutil_random_from_random(&td[i].rnd, i < nth ? &opts->data_rnd : &opts->extra_rnd);
+    }
+
+    testutil_check(__wt_thread_create(NULL, &thr[nth], thread_ckpt_run, &td[nth]));
+    testutil_check(__wt_thread_create(NULL, &thr[nth + 1], thread_ts_run, &td[nth + 1]));
+    for (i = 0; i < nth; ++i)
+        testutil_check(__wt_thread_create(NULL, &thr[i], thread_schema_run, &td[i]));
+
+    *thr_out = thr;
+    *td_out = td;
+}
+
+/*
+ * workload_threads_join --
+ *     Join all worker threads.
+ */
+static void
+workload_threads_join(wt_thread_t *thr)
+{
+    uint32_t i;
+
+    for (i = 0; i < nth + 2; ++i)
+        testutil_check(__wt_thread_join(NULL, &thr[i]));
+}
+
+/*
  * run_workload --
  *     Leader child: opens the database as a disaggregated leader and runs schema worker threads,
  *     a checkpoint thread, and a timestamp thread until the parent sends SIGKILL.
@@ -222,7 +319,6 @@ run_workload(void)
     WT_CONNECTION *conn;
     THREAD_DATA *td;
     wt_thread_t *thr;
-    uint32_t i;
     char envconf[1024];
 
     if (chdir(home) != 0)
@@ -233,7 +329,6 @@ run_workload(void)
         strcat(envconf, ENV_CONFIG_SWEEP);
 
     testutil_check(pthread_mutex_init(&schema_publish_lock, NULL));
-
     stable_set = false;
 
     opts->disagg.is_enabled = true;
@@ -244,27 +339,9 @@ run_workload(void)
 
     testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, NULL, &conn, false, false);
 
-    /* nth schema threads + 1 checkpoint thread + 1 timestamp thread. */
-    thr = dcalloc(nth + 2, sizeof(*thr));
-    td = dcalloc(nth + 2, sizeof(THREAD_DATA));
-
-    for (i = 0; i < nth + 2; i++) {
-        td[i].conn = conn;
-        td[i].info = i;
-        testutil_random_from_random(&td[i].rnd,
-          i < nth ? &opts->data_rnd : &opts->extra_rnd);
-    }
-
-    testutil_check(__wt_thread_create(NULL, &thr[nth], thread_ckpt_run, &td[nth]));
-    testutil_check(__wt_thread_create(NULL, &thr[nth + 1], thread_ts_run, &td[nth + 1]));
-
-    for (i = 0; i < nth; ++i)
-        testutil_check(__wt_thread_create(NULL, &thr[i], thread_schema_run, &td[i]));
-
+    workload_threads_start(conn, &thr, &td);
     fflush(stdout);
-    /* Blocks until SIGKILL from parent. */
-    for (i = 0; i < nth + 2; ++i)
-        testutil_check(__wt_thread_join(NULL, &thr[i]));
+    workload_threads_join(thr); /* Blocks until SIGKILL from parent. */
 
     free(thr);
     free(td);

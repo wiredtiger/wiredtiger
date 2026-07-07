@@ -28,6 +28,179 @@
 
 #include "schema_disagg_leader_abort.h"
 
+/* Tracks the last schema operation on one URI slot within the epoch cutoff. */
+typedef struct {
+    uint64_t epoch;
+    bool is_create;
+    bool valid;
+} SLOT_STATE;
+
+/*
+ * query_epoch_cutoff --
+ *     Read last_disaggregated_schema_epoch from the connection. Returns false when the epoch is
+ *     zero, meaning no schema checkpoint landed and verification should be skipped.
+ */
+static bool
+query_epoch_cutoff(WT_CONNECTION *conn, uint64_t *cutoffp)
+{
+    char ts_buf[64];
+
+    testutil_check(conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
+    (void)sscanf(ts_buf, "%" SCNx64, cutoffp);
+    printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", *cutoffp);
+    return (*cutoffp != 0);
+}
+
+/*
+ * parse_schema_records --
+ *     Scan one thread's schema record file up to cutoff, filling states[] with the last operation
+ *     seen per URI slot.
+ */
+static void
+parse_schema_records(const char *fname, uint64_t cutoff, SLOT_STATE states[SCHEMA_POOL_SIZE])
+{
+    FILE *fp;
+    char op[16], rec_uri[128];
+    uint64_t entry_epoch;
+    uint32_t s, t2;
+
+    for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
+        states[s].epoch = 0;
+        states[s].is_create = false;
+        states[s].valid = false;
+    }
+
+    if ((fp = fopen(fname, "r")) == NULL)
+        return;
+
+    while (fscanf(fp, "%15s %" SCNu64 " %127s", op, &entry_epoch, rec_uri) == 3) {
+        if (entry_epoch > cutoff)
+            continue;
+        if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || s >= SCHEMA_POOL_SIZE)
+            continue;
+        if (entry_epoch > states[s].epoch) {
+            states[s].epoch = entry_epoch;
+            states[s].is_create = (strcmp(op, "CREATE") == 0);
+            states[s].valid = true;
+        }
+    }
+    (void)fclose(fp);
+}
+
+/*
+ * check_schema_presence --
+ *     For each slot with a valid record, assert that tables created before the cutoff exist and
+ *     tables dropped before the cutoff are absent.
+ */
+static void
+check_schema_presence(
+  WT_SESSION *session, uint32_t t, const SLOT_STATE states[SCHEMA_POOL_SIZE], bool *fatal)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    char uri[64];
+    uint32_t s;
+
+    for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
+        if (!states[s].valid)
+            continue;
+
+        testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
+        ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
+
+        if (states[s].is_create) {
+            if (ret == WT_NOTFOUND || ret == ENOENT) {
+                printf("SCHEMA FAIL: %s missing after recovery (CREATE at epoch %" PRIu64 ")\n",
+                  uri, states[s].epoch);
+                *fatal = true;
+            } else if (ret != 0) {
+                printf(
+                  "SCHEMA FAIL: error opening %s: %s\n", uri, wiredtiger_strerror(ret));
+                *fatal = true;
+            } else
+                testutil_check(cursor->close(cursor));
+        } else {
+            if (ret == 0)
+                testutil_check(cursor->close(cursor));
+            else if (ret != WT_NOTFOUND && ret != ENOENT) {
+                printf(
+                  "SCHEMA FAIL: error checking %s: %s\n", uri, wiredtiger_strerror(ret));
+                *fatal = true;
+            }
+        }
+    }
+}
+
+/*
+ * parse_data_records --
+ *     Scan one thread's data record file up to cutoff, filling last_epochs[] with the latest write
+ *     epoch per slot.
+ */
+static void
+parse_data_records(const char *fname, uint64_t cutoff, uint64_t last_epochs[SCHEMA_POOL_SIZE])
+{
+    FILE *fp;
+    uint64_t d_slot, d_epoch;
+    uint32_t s;
+
+    for (s = 0; s < SCHEMA_POOL_SIZE; s++)
+        last_epochs[s] = 0;
+
+    if ((fp = fopen(fname, "r")) == NULL)
+        return;
+
+    while (fscanf(fp, "%" SCNu64 " %" SCNu64, &d_slot, &d_epoch) == 2)
+        if (d_slot < SCHEMA_POOL_SIZE && d_epoch <= cutoff && d_epoch > last_epochs[d_slot])
+            last_epochs[d_slot] = d_epoch;
+    (void)fclose(fp);
+}
+
+/*
+ * check_data_rows --
+ *     For each slot with a recorded write epoch, open the table and confirm the data row written
+ *     at that epoch is present with the correct value.
+ */
+static void
+check_data_rows(
+  WT_SESSION *session, uint32_t t, const uint64_t last_epochs[SCHEMA_POOL_SIZE], bool *fatal)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *actual_val;
+    char expected_val[32], uri[64];
+    uint32_t s;
+
+    for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
+        if (last_epochs[s] == 0)
+            continue;
+
+        testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
+        ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
+        if (ret != 0)
+            continue; /* Table was dropped before the cutoff — OK. */
+
+        cursor->set_key(cursor, DATA_KEY);
+        ret = cursor->search(cursor);
+        if (ret == 0) {
+            testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, last_epochs[s]);
+            testutil_check(cursor->get_value(cursor, &actual_val));
+            if (strcmp(actual_val, expected_val) != 0) {
+                printf("DATA FAIL: %s key %s: got %s want %s\n", uri, DATA_KEY, actual_val,
+                  expected_val);
+                *fatal = true;
+            }
+        } else if (ret != WT_NOTFOUND) {
+            printf("DATA FAIL: error reading %s: %s\n", uri, wiredtiger_strerror(ret));
+            *fatal = true;
+        } else {
+            printf(
+              "DATA FAIL: %s missing key %s (epoch %" PRIu64 ")\n", uri, DATA_KEY, last_epochs[s]);
+            *fatal = true;
+        }
+        testutil_check(cursor->close(cursor));
+    }
+}
+
 /*
  * verify_schema_state --
  *     Verify schema and data state after recovery.
@@ -39,142 +212,29 @@
 bool
 verify_schema_state(WT_CONNECTION *conn)
 {
-    FILE *fp;
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
+    SLOT_STATE states[SCHEMA_POOL_SIZE];
     WT_SESSION *session;
-    uint64_t ckpt_epoch, entry_epoch, last_epoch[SCHEMA_POOL_SIZE];
-    bool is_create[SCHEMA_POOL_SIZE], slot_valid[SCHEMA_POOL_SIZE], fatal;
-    char fname[128], op[16], rec_uri[128];
-    char ts_buf[64];
-    uint32_t s, t, t2;
+    uint64_t cutoff, last_data_epochs[SCHEMA_POOL_SIZE];
+    bool fatal;
+    char fname[128];
+    uint32_t t;
 
     fatal = false;
-    ckpt_epoch = 0;
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    testutil_check(
-      conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
-    (void)sscanf(ts_buf, "%" SCNx64, &ckpt_epoch);
-    printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", ckpt_epoch);
-
-    if (ckpt_epoch == 0) {
+    if (!query_epoch_cutoff(conn, &cutoff)) {
         printf("Schema verify: no schema epoch checkpointed, skipping.\n");
-        testutil_check(session->close(session, NULL));
         return (false);
     }
 
-    /* Schema verification: assert CREATE'd tables exist, DROP'd ones are absent. */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
     for (t = 0; t < nth; t++) {
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
-        if ((fp = fopen(fname, "r")) == NULL)
-            continue;
+        parse_schema_records(fname, cutoff, states);
+        check_schema_presence(session, t, states, &fatal);
 
-        for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
-            slot_valid[s] = false;
-            last_epoch[s] = 0;
-            is_create[s] = false;
-        }
-
-        while (fscanf(fp, "%15s %" SCNu64 " %127s", op, &entry_epoch, rec_uri) == 3) {
-            if (entry_epoch > ckpt_epoch)
-                continue;
-            if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t ||
-              s >= SCHEMA_POOL_SIZE)
-                continue;
-            if (entry_epoch > last_epoch[s]) {
-                last_epoch[s] = entry_epoch;
-                is_create[s] = (strcmp(op, "CREATE") == 0);
-                slot_valid[s] = true;
-            }
-        }
-        (void)fclose(fp);
-
-        for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
-            char expected_uri[64];
-
-            if (!slot_valid[s])
-                continue;
-            testutil_snprintf(expected_uri, sizeof(expected_uri), SCHEMA_TABLE_FMT, t, s);
-            ret = session->open_cursor(session, expected_uri, NULL, NULL, &cursor);
-            if (is_create[s]) {
-                if (ret == WT_NOTFOUND || ret == ENOENT) {
-                    printf("SCHEMA FAIL: %s missing after recovery (CREATE at epoch %" PRIu64
-                           ")\n",
-                      expected_uri, last_epoch[s]);
-                    fatal = true;
-                } else if (ret != 0) {
-                    printf("SCHEMA FAIL: error opening %s: %s\n", expected_uri,
-                      wiredtiger_strerror(ret));
-                    fatal = true;
-                } else
-                    testutil_check(cursor->close(cursor));
-            } else {
-                if (ret == 0)
-                    testutil_check(cursor->close(cursor));
-                else if (ret != WT_NOTFOUND && ret != ENOENT) {
-                    printf("SCHEMA FAIL: error checking %s: %s\n", expected_uri,
-                      wiredtiger_strerror(ret));
-                    fatal = true;
-                }
-            }
-        }
-    }
-
-    /* Data verification: confirm each row written to a surviving table is present. */
-    for (t = 0; t < nth; t++) {
-        uint64_t d_slot, d_epoch;
-        uint64_t last_data_epoch[SCHEMA_POOL_SIZE];
-        char data_fname[128];
-
-        testutil_snprintf(data_fname, sizeof(data_fname), SCHEMA_DATA_FILE, t);
-        if ((fp = fopen(data_fname, "r")) == NULL)
-            continue;
-
-        for (s = 0; s < SCHEMA_POOL_SIZE; s++)
-            last_data_epoch[s] = 0;
-
-        while (fscanf(fp, "%" SCNu64 " %" SCNu64, &d_slot, &d_epoch) == 2)
-            if (d_slot < SCHEMA_POOL_SIZE && d_epoch <= ckpt_epoch &&
-              d_epoch > last_data_epoch[d_slot])
-                last_data_epoch[d_slot] = d_epoch;
-        (void)fclose(fp);
-
-        for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
-            char data_uri[64], expected_val[32];
-            const char *actual_val;
-
-            if (last_data_epoch[s] == 0)
-                continue;
-
-            testutil_snprintf(data_uri, sizeof(data_uri), SCHEMA_TABLE_FMT, t, s);
-            ret = session->open_cursor(session, data_uri, NULL, NULL, &cursor);
-            if (ret != 0)
-                continue; /* Table may have been dropped — OK. */
-
-            cursor->set_key(cursor, DATA_KEY);
-            ret = cursor->search(cursor);
-            if (ret == 0) {
-                testutil_snprintf(
-                  expected_val, sizeof(expected_val), "%" PRIu64, last_data_epoch[s]);
-                testutil_check(cursor->get_value(cursor, &actual_val));
-                if (strcmp(actual_val, expected_val) != 0) {
-                    printf("DATA FAIL: %s key %s: got %s want %s\n", data_uri, DATA_KEY,
-                      actual_val, expected_val);
-                    fatal = true;
-                }
-            } else if (ret != WT_NOTFOUND) {
-                printf("DATA FAIL: error reading %s: %s\n", data_uri,
-                  wiredtiger_strerror(ret));
-                fatal = true;
-            } else {
-                printf("DATA FAIL: %s missing key %s (epoch %" PRIu64 ")\n", data_uri,
-                  DATA_KEY, last_data_epoch[s]);
-                fatal = true;
-            }
-            testutil_check(cursor->close(cursor));
-        }
+        testutil_snprintf(fname, sizeof(fname), SCHEMA_DATA_FILE, t);
+        parse_data_records(fname, cutoff, last_data_epochs);
+        check_data_rows(session, t, last_data_epochs, &fatal);
     }
 
     testutil_check(session->close(session, NULL));
