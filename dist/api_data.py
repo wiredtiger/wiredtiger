@@ -1596,10 +1596,10 @@ cursor_runtime_config = [
         type='boolean'),
     Config('blind_remove', 'false', r'''
         for a cursor on a layered table, allow WT_CURSOR::remove to skip confirming the record
-        exists before removing it. The caller must guarantee the key is already known to exist,
-        for example because it is replaying a delete already confirmed elsewhere; an incorrect
-        guarantee does not raise an error, it simply leaves a redundant tombstone behind. Ignored
-        for cursors on any other data source''',
+        exists before removing it, writing the tombstone directly to the ingest table. The caller
+        must guarantee the key is already known to exist, for example because it is replaying a
+        delete already confirmed elsewhere; an incorrect guarantee is not guaranteed to raise an
+        error and can corrupt the table. Ignored for cursors on any other data source''',
         type='boolean', undoc=True),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',

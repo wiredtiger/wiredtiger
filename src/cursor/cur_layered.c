@@ -2606,19 +2606,26 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         if (op->stable == NULL && op->stable_skipped_for_blind_remove) {
             /*
              * The stable constituent was deliberately skipped for this blind remove on a follower:
-             * we can't tell an already-deleted key apart from one that only lives in stable without
-             * the lookup we chose to avoid.
+             *     we can't tell an already-deleted key apart from one that only lives in stable
+             *     without the lookup we chose to avoid.
              *
              * A tombstone found in ingest or the truncate list confirms the key is already deleted;
-             * that's a genuine no-op only when the remove is unpositioned (!positioned). A
-             * positioned remove got here with a position from a real earlier traversal, and a blind
-             * remove doesn't excuse that traversal's result being stale, so it still reports
-             * not-found rather than silently succeeding.
+             *     that's a genuine no-op only when the remove is unpositioned (!positioned). A
+             *     positioned remove got here with a position from a real earlier traversal, and a
+             *     blind remove doesn't excuse that traversal's result being stale, so it still
+             *     reports not-found rather than silently succeeding.
              *
              * Finding nothing at all in ingest or the truncate list leaves the key's existence
-             * genuinely unknown, so assume it exists in stable and fall through to delete it: a
-             * redundant tombstone is harmless, but wrongly failing a remove for a key that only
-             * lives in stable is not.
+             *     genuinely unknown, so assume it exists in stable and fall through to delete it.
+             *     This relies entirely on the blind_remove contract holding: the caller has already
+             *     confirmed the key exists, so it must be sitting in stable, making the resulting
+             *     tombstone a harmless redundant delete. That reliance is real, not just
+             *     theoretical --
+             *     if the contract is ever violated (a blind remove for a key that never existed
+             *     anywhere), the tombstone this writes has nothing on stable to correspond to.
+             *     __layered_assert_stable_btree_state catches that case at drain time only while
+             *     the tombstone is not yet globally visible; once it is, drain accepts it silently,
+             *     so a violation here is not guaranteed to surface loudly.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
