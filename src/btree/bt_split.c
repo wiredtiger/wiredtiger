@@ -1480,10 +1480,12 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
     mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
 
     /*
-     * Don't inherit the checkpoint snapshot skip stamp: the split product is a new on-disk image
-     * that checkpoint must reconcile itself.
+     * Inherit the checkpoint snapshot skip stamp onto the split product instead of clearing it, so
+     * checkpoint can skip re-reconciling update/restore pages eviction already reconciled under the
+     * checkpoint snapshot. Testing to see whether the block manager correctly accounts the
+     * eviction-written image for a skipped split product.
      */
-    mod->rec_ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
+    mod->rec_ckpt_snap_gen = orig_modify->rec_ckpt_snap_gen;
 }
 
 /*
