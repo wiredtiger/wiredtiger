@@ -134,7 +134,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->tiered.flush_most_recent = session->ckpt.current_sec;
     /* Storing the last flush timestamp here for the future and for debugging. */
-    conn->tiered.flush_ts = conn->txn_global.last_ckpt_timestamp;
+    conn->tiered.flush_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp);
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op
@@ -198,7 +198,8 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
             WT_STAT_CONN_INCR(session, flush_tier_switched);
             __wt_tree_modify_set(session);
             btree->flush_most_recent_secs = session->ckpt.current_sec;
-            btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
+            btree->flush_most_recent_ts =
+              __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp);
             WT_ERR(__wt_session_release_dhandle(session));
             release = false;
         }
@@ -1237,6 +1238,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t last_ckpt_ts;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -1252,9 +1254,9 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * skip checkpoints. Also, don't skip if the stable disaggregated schema epoch changed, as the
      * metadata operation queue may have entries to flush even without new committed data.
      */
-    if (!conn->modified && ckpt_cfg->use_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session) &&
+    last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
+    if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
+      last_ckpt_ts == __wt_get_stable_timestamp(session) &&
       txn_global->last_ckpt_disaggregated_schema_epoch ==
         __wt_get_stable_disaggregated_schema_epoch(session)) {
         ckpt_cfg->can_skip = true;
@@ -1892,14 +1894,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
          * than recovery timestamp. This could potentially avoid MongoDB making two calls to
          * determine last stable recovery timestamp.
          *
-         * The store is atomic-relaxed to pair with the relaxed load in sweep.
+         * The store is release to pair with the acquire load in sweep.
          */
         if (ckpt_tmp_ts == WT_TS_NONE)
             ckpt_tmp_ts = conn->txn_global.recovery_timestamp;
-        __wt_atomic_store_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp, ckpt_tmp_ts);
+        __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, ckpt_tmp_ts);
     } else {
         conn->txn_global.last_ckpt_disaggregated_schema_epoch = WT_TS_NONE;
-        __wt_atomic_store_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp, WT_TS_NONE);
+        __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, WT_TS_NONE);
     }
 
     /* Disaggregated storage database size accounting. */
