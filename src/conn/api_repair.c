@@ -56,7 +56,7 @@ static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, c
 /*
  * __repair_fetch_database_size --
  *     Read-only database size inspection: local=true returns the maintained total; local=false
- *     recomputes it from the metadata (the same computation debug=(database_size_fix=true) uses).
+ *     recomputes it from the metadata.
  */
 static int
 __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)

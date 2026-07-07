@@ -32,8 +32,7 @@ from wtscenario import make_scenarios
 
 # test_repair01.py
 #    Exercise the wiredtiger_repair() API (config errors, fetch_database_size, fetch_metadata) and
-#    the related checkpoint(debug=(database_size_fix=true)) config, in both
-#    non-disaggregated and disaggregated scenarios.
+#    the related operations, in both non-disaggregated and disaggregated scenarios.
 class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
     scenarios = make_scenarios(gen_disagg_storages(disagg_only=False))
@@ -65,6 +64,9 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def reported_size(self):
         result = self.repair('fetch_database_size=(local=true)')
         return int(re.search(r': (\d+)$', result).group(1))
+
+    def checkpoint_size_fix(self):
+        self.session.checkpoint('debug=(database_size_fix=true)')
 
     def test_config_errors(self):
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
@@ -138,14 +140,14 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         if not self.is_disagg_scenario():
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.session.checkpoint('debug=(database_size_fix=true)'),
+                lambda: self.checkpoint_size_fix(),
                 '/requires a disaggregated leader connection/')
             return
 
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
 
         # Absent any drift, the recompute matches the incrementally-tracked total.
-        self.session.checkpoint('debug=(database_size_fix=true)')
+        self.checkpoint_size_fix()
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), stat_size)
 
         # Drop a second, already-checkpointed table and grow the main one before fixing, so the
@@ -165,7 +167,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.session.drop(extra_uri)
 
-        self.session.checkpoint('debug=(database_size_fix=true)')
+        self.checkpoint_size_fix()
 
         changed = self.reported_size()
         self.assertGreater(changed, pre_change_size)
@@ -180,5 +182,5 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # (standby has nothing to checkpoint), so it never reaches the leader-only guard in
         # __checkpoint_parse_config; it just needs to not raise or change the size.
         self.conn.reconfigure('disaggregated=(role="follower")')
-        self.session.checkpoint('debug=(database_size_fix=true)')
+        self.checkpoint_size_fix()
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), changed)
