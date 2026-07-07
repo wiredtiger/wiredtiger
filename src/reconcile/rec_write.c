@@ -41,6 +41,18 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
+    /*
+     * For precise checkpoints, request that reconciliation retain a disk image for row-store leaf
+     * pages so that eviction can re-instantiate them without I/O. Column-store leaf pages are
+     * excluded: their reconciliation format does not produce a reusable single-block image.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
+      LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
+      F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) &&
+      !F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING_CHECKPOINT))
+        LF_SET(WT_REC_SCRUB);
+
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
