@@ -902,7 +902,7 @@ __checkpoint_update_disagg_database_size(
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * debug=(database_size_fix=true) asks us to recompute the database size from the metadata from
+     * The repair database flow asks us to recompute the database size from the metadata from
      * scratch, superseding the incremental delta below, since the metadata already reflects this
      * checkpoint's own sizes. A recompute error fails the checkpoint instead of falling back, since
      * the caller explicitly asked for this recompute and needs to know.
