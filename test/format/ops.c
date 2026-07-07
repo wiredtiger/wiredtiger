@@ -365,7 +365,6 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
           replay_log_path, sizeof(replay_log_path), "%s/replay_ops_%u.log", g.home, run_current);
         g.replay_op_log = fopen(replay_log_path, "w");
         testutil_assertfmt(g.replay_op_log != NULL, "failed to open %s", replay_log_path);
-        /* Line-buffer so the log survives the mismatch abort in disagg_sync_multi_node. */
         __wt_stream_set_line_buffer(g.replay_op_log);
     }
 
@@ -1027,7 +1026,7 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
-    uint64_t rlog_keyno, rlog_lane, rlog_read_ts, rlog_replay_ts;
+    uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd;
     u_int i, rlog_table_id, throttle_delay_max;
     int rlog_ret;
@@ -1036,7 +1035,7 @@ ops(void *arg)
 
     tinfo = arg;
     mirrored_truncate = false;
-    rlog_keyno = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
+    rlog_key = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
     rlog_table_id = 0;
     rlog_ret = 0;
     rlog_op_name = NULL;
@@ -1250,7 +1249,7 @@ rollback_retry:
             rlog_lane = tinfo->lane;
             rlog_replay_ts = tinfo->replay_ts;
             rlog_read_ts = tinfo->read_ts;
-            rlog_keyno = tinfo->keyno;
+            rlog_key = tinfo->keyno;
             rlog_table_id = table->id;
             rlog_ret = 0;
             rlog_op_name = op_names[op];
@@ -1466,9 +1465,9 @@ skip_operation:
             snap_repeat_update(tinfo, true);
             if (rlog_op_name != NULL) {
                 fprintf(g.replay_op_log,
-                  "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " keyno=%" PRIu64
-                  " tbl=%u ret=%d\n",
-                  rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_keyno, rlog_table_id,
+                  "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
+                  " table=%u ret=%d\n",
+                  rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
                   rlog_ret);
                 rlog_op_name = NULL;
             }
