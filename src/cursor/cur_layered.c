@@ -2392,14 +2392,18 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             /*
              * The stable constituent was deliberately skipped for this overwrite=true remove on a
              * follower: we can't tell an already-deleted key apart from one that only lives in
-             * stable without paying for the lookup we chose to avoid. With overwrite=true, an
-             * unpositioned remove of a confirmed already-deleted key is a genuine no-op. A
-             * positioned remove that lands here only because its cached value went stale is not
-             * this case: the position came from a real earlier traversal, and overwrite=true does
-             * not excuse a stale position from reporting not-found. Finding nothing at all in
-             * ingest or the truncate list means the key's existence is unknown either way, so
-             * assume it exists in stable and fall through to delete it -- a redundant tombstone is
-             * harmless, but wrongly failing a remove for a key that only lives in stable is not.
+             * stable without the lookup we chose to avoid.
+             *
+             * A tombstone found in ingest or the truncate list confirms the key is already deleted;
+             * that's a genuine no-op only when the remove is unpositioned (!positioned). A
+             * positioned remove got here with a position from a real earlier traversal, and
+             * overwrite=true doesn't excuse that traversal's result being stale, so it still
+             * reports not-found rather than silently succeeding.
+             *
+             * Finding nothing at all in ingest or the truncate list leaves the key's existence
+             * genuinely unknown, so assume it exists in stable and fall through to delete it: a
+             * redundant tombstone is harmless, but wrongly failing a remove for a key that only
+             * lives in stable is not.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND && found && !positioned) {
