@@ -635,6 +635,16 @@ variables:
         vars:
           times: 50
 
+  - &schema-disagg-leader-abort-stress-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/csuite/schema_disagg_leader_abort
+
   # Configure flags for builtins.
   - &configure_flags_with_builtins
     HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
@@ -698,6 +708,13 @@ tasks:
     tags: ["stress-test-disagg-fail"]
   - <<: *timestamp-abort-test-disagg
     name: timestamp-abort-test-disagg-2
+    tags: ["stress-test-disagg-fail"]
+
+  - <<: *schema-disagg-leader-abort-stress-test
+    name: schema-disagg-leader-abort-stress-test-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *schema-disagg-leader-abort-stress-test
+    name: schema-disagg-leader-abort-stress-test-2
     tags: ["stress-test-disagg-fail"]
 
 #######################################
