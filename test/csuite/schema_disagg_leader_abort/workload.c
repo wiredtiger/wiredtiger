@@ -123,22 +123,26 @@ schema_op_publish(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 
 /*
  * schema_op_insert_data --
- *     Insert a data row into a newly created table, keyed by a fixed sentinel key with the epoch
+ *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
  *     as value. This lets the verifier confirm data durability for surviving tables.
  */
 static void
 schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
     WT_CURSOR *cursor;
-    char val_buf[32];
+    char key_buf[16], val_buf[32];
+    uint32_t r;
 
     testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
     testutil_check(ctx->session->begin_transaction(ctx->session, NULL));
     testutil_check(
       ctx->session->open_cursor(ctx->session, ctx->uris[slot], NULL, NULL, &cursor));
-    cursor->set_key(cursor, DATA_KEY);
-    cursor->set_value(cursor, val_buf);
-    testutil_check(cursor->insert(cursor));
+    for (r = 0; r < DATA_NROWS; r++) {
+        testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
+        cursor->set_key(cursor, key_buf);
+        cursor->set_value(cursor, val_buf);
+        testutil_check(cursor->insert(cursor));
+    }
     testutil_check(cursor->close(cursor));
     testutil_check(ctx->session->commit_transaction(ctx->session, NULL));
 }

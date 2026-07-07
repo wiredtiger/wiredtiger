@@ -167,8 +167,8 @@ check_data_rows(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *actual_val;
-    char expected_val[32], uri[64];
-    uint32_t s;
+    char expected_val[32], key_buf[16], uri[64];
+    uint32_t r, s;
 
     for (s = 0; s < pool_size; s++) {
         if (last_epochs[s] == 0)
@@ -179,23 +179,27 @@ check_data_rows(
         if (ret != 0)
             continue; /* Table was dropped before the cutoff - OK. */
 
-        cursor->set_key(cursor, DATA_KEY);
-        ret = cursor->search(cursor);
-        if (ret == 0) {
-            testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, last_epochs[s]);
-            testutil_check(cursor->get_value(cursor, &actual_val));
-            if (strcmp(actual_val, expected_val) != 0) {
-                printf("DATA FAIL: %s key %s: got %s want %s\n", uri, DATA_KEY, actual_val,
-                  expected_val);
+        testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, last_epochs[s]);
+        for (r = 0; r < DATA_NROWS; r++) {
+            testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
+            cursor->set_key(cursor, key_buf);
+            ret = cursor->search(cursor);
+            if (ret == 0) {
+                testutil_check(cursor->get_value(cursor, &actual_val));
+                if (strcmp(actual_val, expected_val) != 0) {
+                    printf("DATA FAIL: %s key %s: got %s want %s\n", uri, key_buf,
+                      actual_val, expected_val);
+                    *fatal = true;
+                }
+            } else if (ret != WT_NOTFOUND) {
+                printf("DATA FAIL: error reading %s key %s: %s\n", uri, key_buf,
+                  wiredtiger_strerror(ret));
+                *fatal = true;
+            } else {
+                printf("DATA FAIL: %s missing key %s (epoch %" PRIu64 ")\n", uri, key_buf,
+                  last_epochs[s]);
                 *fatal = true;
             }
-        } else if (ret != WT_NOTFOUND) {
-            printf("DATA FAIL: error reading %s: %s\n", uri, wiredtiger_strerror(ret));
-            *fatal = true;
-        } else {
-            printf(
-              "DATA FAIL: %s missing key %s (epoch %" PRIu64 ")\n", uri, DATA_KEY, last_epochs[s]);
-            *fatal = true;
         }
         testutil_check(cursor->close(cursor));
     }

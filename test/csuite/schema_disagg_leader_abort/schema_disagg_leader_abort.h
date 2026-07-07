@@ -45,10 +45,10 @@
 #define MIN_TIME 10
 
 /* URI / file name patterns. */
+#define DATA_NROWS 10
 #define SCHEMA_TABLE_FMT "table:schema_%u_%u"
 #define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "schema-%" PRIu32
 #define SCHEMA_DATA_FILE RECORDS_DIR DIR_DELIM_STR "data-%" PRIu32
-#define DATA_KEY "k"
 
 /* Connection config. */
 #define ENV_CONFIG_DEF                                                                             \
