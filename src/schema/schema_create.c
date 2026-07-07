@@ -1741,16 +1741,16 @@ err:
 int
 __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
-    return (__wt_schema_create_ext(session, uri, config, true));
+    return (__wt_schema_create_internal(session, uri, config, true));
 }
 
 /*
- * __wt_schema_create_ext --
+ * __wt_schema_create_internal --
  *     Process a WT_SESSION::create operation for all supported types, with control over whether the
  *     dhandle for a newly created 'file:' object is opened immediately.
  */
 int
-__wt_schema_create_ext(
+__wt_schema_create_internal(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool open_dhandle)
 {
     WT_DECL_RET;

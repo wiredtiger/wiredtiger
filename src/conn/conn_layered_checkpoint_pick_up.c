@@ -39,7 +39,7 @@ __layered_create_missing_ingest_table(
      * to avoid acquiring the schema lock again on first access.
      */
     WT_WITH_SCHEMA_LOCK(
-      session, ret = __wt_schema_create_ext(session, uri, ingest_config->data, !is_startup));
+      session, ret = __wt_schema_create_internal(session, uri, ingest_config->data, !is_startup));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Created missing ingest table \"%s\" from \"%s\"", uri, layered_cfg);
