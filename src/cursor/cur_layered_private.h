@@ -69,7 +69,7 @@ struct __wti_clayered_op {
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
     /*
-     * True when stable is NULL specifically because of the blind_remove skip-stable optimization
+     * True when stable is NULL specifically because of the blind-remove skip-stable optimization
      * (CLAYERED_ENTER_SKIP_STABLE), as opposed to stable simply not being open yet for an unrelated
      * reason (for example no checkpoint has been picked up). Only remove uses this: it lets
      * __clayered_lookup safely assume a key exists, rather than report WT_NOTFOUND, when the only

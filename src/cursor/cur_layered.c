@@ -200,6 +200,19 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
+ * __clayered_op_mode_skips_stable --
+ *     Return whether this operation mode is a candidate to skip the stable cursor on a follower. An
+ *     overwrite insert/update and a remove with blind_remove configured are the two candidates; see
+ *     __clayered_enter_flags for the additional role and read-timestamp conditions that also have
+ *     to hold.
+ */
+static WT_INLINE bool
+__clayered_op_mode_skips_stable(WTI_CLAYERED_OP_MODE mode)
+{
+    return (mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE || mode == WTI_CLAYERED_MODE_REMOVE_BLIND);
+}
+
+/*
  * __clayered_enter_flags --
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
@@ -216,14 +229,14 @@ __clayered_enter_flags(
         LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
-     * Reads (search, search_near, iterate, random, scan), non-overwrite writes, and plain remove
-     * always need the stable cursor. An overwrite insert/update needs it on the leader, or on a
-     * follower with a read timestamp where the write-conflict check must consult the stable table.
-     * A blind_remove needs it under the same conditions -- it is the caller's guarantee that the
-     * key exists, not the read timestamp, that lets a follower remove skip the stable cursor.
+     * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
+     * stable cursor. A skip-eligible write (an overwrite insert/update, or a remove with
+     * blind_remove configured) can skip it, but only on a follower with no read timestamp: with a
+     * read timestamp set, the write-conflict check must still consult the stable table regardless
+     * of mode.
      */
-    if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE || mode == WTI_CLAYERED_MODE_REMOVE_BLIND) &&
-      (role == WTI_CLAYERED_ROLE_FOLLOWER) && !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+    if (__clayered_op_mode_skips_stable(mode) && role == WTI_CLAYERED_ROLE_FOLLOWER &&
+      !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
     if (role != clayered->last_role)
@@ -2561,14 +2574,14 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
         if (op->stable == NULL && op->stable_skipped_for_blind_remove) {
             /*
-             * The stable constituent was deliberately skipped for this blind_remove on a follower:
+             * The stable constituent was deliberately skipped for this blind remove on a follower:
              * we can't tell an already-deleted key apart from one that only lives in stable without
              * the lookup we chose to avoid.
              *
              * A tombstone found in ingest or the truncate list confirms the key is already deleted;
              * that's a genuine no-op only when the remove is unpositioned (!positioned). A
-             * positioned remove got here with a position from a real earlier traversal, and
-             * blind_remove doesn't excuse that traversal's result being stale, so it still reports
+             * positioned remove got here with a position from a real earlier traversal, and a blind
+             * remove doesn't excuse that traversal's result being stale, so it still reports
              * not-found rather than silently succeeding.
              *
              * Finding nothing at all in ingest or the truncate list leaves the key's existence
@@ -2600,7 +2613,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         /*
          * Skip an existing tombstone: no consecutive tombstones on an update chain. This is a
          * positioned remove, so unlike the unpositioned/blind case above, the position came from a
-         * real earlier traversal and blind_remove does not excuse a stale position from reporting
+         * real earlier traversal and a blind remove does not excuse a stale position from reporting
          * not-found.
          */
         WT_ITEM_SET(value, c_ingest->value);
