@@ -2147,20 +2147,8 @@ row_remove(TINFO *tinfo, bool positioned)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    bool blind_remove;
 
     cursor = tinfo->cursor;
-
-    /*
-     * An unpositioned overwrite=true remove on a disagg follower is a blind delete: it assumes the
-     * key exists rather than looking it up, which is only correct when the leader already confirmed
-     * the key before replicating the delete. This thread issues fresh, random removes of its own
-     * instead of replaying leader-confirmed ones, so drop overwrite for the call. FIXME-WT-17254:
-     * replay leader-confirmed deletes on the follower instead.
-     */
-    blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
 
     if (!positioned) {
         key_gen(tinfo->table, tinfo->key, tinfo->keyno);
@@ -2180,9 +2168,6 @@ row_remove(TINFO *tinfo, bool positioned)
      */
     ret = cursor->remove(cursor);
 
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=true"));
-
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
@@ -2201,23 +2186,14 @@ col_remove(TINFO *tinfo, bool positioned)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    bool blind_remove;
 
     cursor = tinfo->cursor;
-
-    /* See row_remove for the rationale behind temporarily dropping overwrite here. */
-    blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
 
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
     /* See row_remove for the rationale behind calling cursor->remove() directly. */
     ret = cursor->remove(cursor);
-
-    if (blind_remove)
-        testutil_check(cursor->reconfigure(cursor, "overwrite=true"));
 
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);

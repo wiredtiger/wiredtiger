@@ -176,12 +176,14 @@ class Node:
     # One connection's view: a layered table (dsc) and a plain reference table (asc), one cursor each
     # in one session, used for both reads and writes. Sharing the cursor keeps layered and reference
     # in lockstep and leaves the cursor positioned after a write (toward long-lived positioned chains).
-    def __init__(self, conn, session, dsc_uri, asc_uri):
+    # blind_remove is set on the follower's dsc cursor to exercise the blind-remove skip-stable path.
+    def __init__(self, conn, session, dsc_uri, asc_uri, blind_remove=False):
         self.conn = conn
         self.session = session
         self.dsc_uri = dsc_uri
         self.asc_uri = asc_uri
-        self.dsc_c = session.open_cursor(dsc_uri)
+        dsc_config = 'blind_remove=true' if blind_remove else None
+        self.dsc_c = session.open_cursor(dsc_uri, None, dsc_config)
         self.asc_c = session.open_cursor(asc_uri)
 
     def reset_all(self):
@@ -329,7 +331,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             session.create(asc, cfg)
         self.state.new_sequence()
         return [Node(self.conn, self.session, dsc, asc),
-                Node(self.conn_follow, self.session_follow, dsc, asc)]
+                Node(self.conn_follow, self.session_follow, dsc, asc, blind_remove=True)]
 
     # --- write protocol --------------------------------------------------
 
@@ -352,9 +354,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
 
     def _write_txn(self, nodes, do, label, blind_remove=False):
-        # blind_remove: an unpositioned overwrite=true remove on a follower with no read timestamp
-        # skips the stable lookup and so cannot always tell "exists only in stable" from "doesn't
-        # exist at all". It assumes the key exists rather than fail, which is correct for a
+        # blind_remove: an unpositioned remove on the follower's blind_remove cursor, with no read
+        # timestamp, skips the stable lookup and so cannot always tell "exists only in stable" from
+        # "doesn't exist at all". It assumes the key exists rather than fail, which is correct for a
         # secondary blindly replaying a leader-validated delete, but means the layered cursor can
         # legitimately report success where the reference reports WT_NOTFOUND for a key that was
         # never written. The reverse (layered NOTFOUND, reference success) is never acceptable.
@@ -554,9 +556,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
-        # An existing key (a real delete) or a missing one. A blind (unpositioned, overwrite=true,
-        # no read timestamp) remove on a follower may report success for a key that was never
-        # written -- see _write_txn's blind_remove note.
+        # An existing key (a real delete) or a missing one. A blind (unpositioned, blind_remove
+        # cursor, no read timestamp) remove on a follower may report success for a key that was
+        # never written -- see _write_txn's blind_remove note.
         key = self.pick_key(rnd, self.weights.remove_key)
         trace.log('remove %r' % key)
         self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove', blind_remove=True)

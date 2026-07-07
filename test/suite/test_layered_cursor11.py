@@ -53,13 +53,12 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    # An unpositioned overwrite=true remove on a follower skips the stable lookup and so cannot
-    # tell "exists only in stable" from "doesn't exist at all"; it assumes the key exists rather
-    # than fail.
-    def test_delete_non_existent_key_overwrite(self):
+    # An unpositioned blind_remove on a follower skips the stable lookup and so cannot tell "exists
+    # only in stable" from "doesn't exist at all"; it assumes the key exists rather than fail.
+    def test_delete_non_existent_key_blind(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
 
-        cursor = self.session.open_cursor(self.uri)
+        cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
         self.session.begin_transaction()
         cursor.set_key(1)
         self.assertEqual(cursor.remove(), 0)
