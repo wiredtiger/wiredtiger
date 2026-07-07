@@ -127,7 +127,7 @@ __wt_page_evict_clean(WT_PAGE *page)
 /*
  * __wt_page_evict_swap --
  *     Check whether a page is clean with a retained reconciliation image that eviction can swap
- *     into place without I/O.
+ *     into place as a clean in-memory image.
  */
 static WT_INLINE bool
 __wt_page_evict_swap(WT_PAGE *page)
