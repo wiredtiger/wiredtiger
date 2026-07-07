@@ -64,3 +64,51 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), 0)
         self.session.rollback_transaction()
         cursor.close()
+
+    # A plain cursor that removes a positioned key, then removes the same (now stale) position
+    # again without re-searching, loses its position on the resulting not-found: WiredTiger's
+    # __cursor_state_restore only restores a saved *external* key copy, and this cursor was
+    # positioned internally (on-page), so nothing gets restored.
+    def test_positioned_double_remove_plain_loses_position(self):
+        uri = 'table:' + self.test_name + '_plain'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
+
+        self.session.begin_transaction()
+        cursor['k1'] = 'v1'
+        self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.remove(), 0)
+        self.assertEqual(cursor.get_key(), 'k1')
+
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError, lambda: cursor.get_key(), "/requires key be set/")
+        self.session.rollback_transaction()
+        cursor.close()
+
+    # A layered cursor with blind_remove configured does *not* lose position the same way: a
+    # positioned remove landing on an already-removed key falls straight through to WT_RET in
+    # __clayered_remove_from_ingest, bypassing both that function's own reset-on-error cleanup and
+    # the caller's err: label -- so the cursor's position is left exactly as it was.
+    def test_positioned_double_remove_blind_keeps_position(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
+
+        self.session.begin_transaction()
+        cursor['k2'] = 'v2'
+        self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        cursor.set_key('k2')
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.remove(), 0)
+        self.assertEqual(cursor.get_key(), 'k2')
+
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.get_key(), 'k2')
+        self.session.rollback_transaction()
+        cursor.close()
