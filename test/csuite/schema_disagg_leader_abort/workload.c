@@ -40,13 +40,13 @@ typedef struct {
 
 /*
  * schema_worker_open --
- *     Initialize worker context: open session, record files, and build URI table.
+ *     Open the session, record files, and URI table for a schema worker thread.
  */
 static void
 schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 {
     char fname[128];
-    uint64_t i;
+    uint32_t i;
 
     testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, td->info);
     (void)unlink(fname);
@@ -60,7 +60,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 
     for (i = 0; i < SCHEMA_POOL_SIZE; i++) {
         testutil_snprintf(
-          ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, (uint32_t)i);
+          ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, i);
         ctx->table_exists[i] = false;
     }
 
@@ -72,7 +72,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 /*
  * schema_op_try --
  *     Attempt the next schema operation on the given slot. Returns EBUSY or ENOENT when the
- *     caller should yield and retry, 0 on success. Updates ctx->table_exists[slot].
+ *     caller should yield and retry, 0 on success. Updates the caller's table-exists state.
  */
 static int
 schema_op_try(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -98,12 +98,11 @@ schema_op_try(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 /*
  * schema_op_publish --
  *     Assign an epoch, publish the schema operation, and advance
- *     stable_disaggregated_schema_epoch. Serialized under schema_publish_lock so epochs are
- *     published in strictly increasing order, matching the guarantee the verifier relies on when
- *     replaying record files.
+ *     stable_disaggregated_schema_epoch. Serialized under the publish lock so epochs are strictly
+ *     increasing; the verifier relies on this ordering when replaying record files.
  */
 static uint64_t
-schema_op_publish(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
+schema_op_publish(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 {
     WT_DECL_RET;
     char pub_cfg[64], ts_cfg[64];
@@ -116,7 +115,7 @@ schema_op_publish(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
     if (ret == 0) {
         testutil_snprintf(
           ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
-        (void)td->conn->set_timestamp(td->conn, ts_cfg);
+        (void)conn->set_timestamp(conn, ts_cfg);
     }
     testutil_check(pthread_mutex_unlock(&schema_publish_lock));
     return (epoch);
@@ -124,8 +123,8 @@ schema_op_publish(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 
 /*
  * schema_op_insert_data --
- *     Insert a data row into a newly created table, keyed by DATA_KEY with the epoch as value.
- *     This lets the verifier confirm data durability for surviving tables.
+ *     Insert a data row into a newly created table, keyed by a fixed sentinel key with the epoch
+ *     as value. This lets the verifier confirm data durability for surviving tables.
  */
 static void
 schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
@@ -185,7 +184,7 @@ thread_schema_run(void *arg)
             __wt_yield();
             continue;
         }
-        epoch = schema_op_publish(td, &ctx, slot);
+        epoch = schema_op_publish(td->conn, &ctx, slot);
         schema_op_record(&ctx, slot, ctx.table_exists[slot], epoch);
     }
     /* NOTREACHED */
@@ -217,9 +216,9 @@ thread_ts_run(void *arg)
 
 /*
  * thread_ckpt_run --
- *     Checkpoints periodically. Waits for the timestamp thread to set a valid stable timestamp
- *     before the first checkpoint, then writes the ready sentinel so the parent knows at least one
- *     checkpoint has completed.
+ *     Checkpoints periodically. Waits until a valid stable timestamp has been set before the first
+ *     checkpoint, then writes the ready sentinel so the parent knows at least one checkpoint has
+ *     completed.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
@@ -267,7 +266,7 @@ thread_ckpt_run(void *arg)
 
 /*
  * workload_threads_start --
- *     Allocate and start all worker threads: nth schema threads plus one checkpoint thread and one
+ *     Allocate and start all worker threads: N schema threads plus one checkpoint thread and one
  *     timestamp thread.
  */
 static void

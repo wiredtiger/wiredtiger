@@ -41,7 +41,7 @@
 extern int __wt_optind;
 extern char *__wt_optarg;
 
-/* Global definitions (declared extern in schema_disagg_leader_abort.h). */
+/* Global definitions. */
 char home[1024];
 char page_log_home[PATH_MAX];
 

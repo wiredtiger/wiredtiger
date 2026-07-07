@@ -28,7 +28,7 @@
 
 #include "schema_disagg_leader_abort.h"
 
-/* Tracks the last schema operation on one URI slot within the epoch cutoff. */
+/* Last schema operation on one URI slot within the epoch cutoff. */
 typedef struct {
     uint64_t epoch;
     bool is_create;
@@ -53,11 +53,12 @@ query_epoch_cutoff(WT_CONNECTION *conn, uint64_t *cutoffp)
 
 /*
  * parse_schema_records --
- *     Scan one thread's schema record file up to cutoff, filling states[] with the last operation
- *     seen per URI slot.
+ *     Scan one thread's schema record file up to cutoff, filling the per-slot state array with
+ *     the last operation seen per URI slot. Only records whose URI belongs to thread t are kept.
  */
 static void
-parse_schema_records(const char *fname, uint64_t cutoff, SLOT_STATE states[SCHEMA_POOL_SIZE])
+parse_schema_records(
+  const char *fname, uint32_t t, uint64_t cutoff, SLOT_STATE states[SCHEMA_POOL_SIZE])
 {
     FILE *fp;
     char op[16], rec_uri[128];
@@ -76,7 +77,8 @@ parse_schema_records(const char *fname, uint64_t cutoff, SLOT_STATE states[SCHEM
     while (fscanf(fp, "%15s %" SCNu64 " %127s", op, &entry_epoch, rec_uri) == 3) {
         if (entry_epoch > cutoff)
             continue;
-        if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || s >= SCHEMA_POOL_SIZE)
+        if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t ||
+          s >= SCHEMA_POOL_SIZE)
             continue;
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
@@ -114,8 +116,7 @@ check_schema_presence(
                   uri, states[s].epoch);
                 *fatal = true;
             } else if (ret != 0) {
-                printf(
-                  "SCHEMA FAIL: error opening %s: %s\n", uri, wiredtiger_strerror(ret));
+                printf("SCHEMA FAIL: error opening %s: %s\n", uri, wiredtiger_strerror(ret));
                 *fatal = true;
             } else
                 testutil_check(cursor->close(cursor));
@@ -123,8 +124,7 @@ check_schema_presence(
             if (ret == 0)
                 testutil_check(cursor->close(cursor));
             else if (ret != WT_NOTFOUND && ret != ENOENT) {
-                printf(
-                  "SCHEMA FAIL: error checking %s: %s\n", uri, wiredtiger_strerror(ret));
+                printf("SCHEMA FAIL: error checking %s: %s\n", uri, wiredtiger_strerror(ret));
                 *fatal = true;
             }
         }
@@ -133,8 +133,8 @@ check_schema_presence(
 
 /*
  * parse_data_records --
- *     Scan one thread's data record file up to cutoff, filling last_epochs[] with the latest write
- *     epoch per slot.
+ *     Scan one thread's data record file up to cutoff, filling the latest-write-epoch array with
+ *     the most recent write epoch seen per slot.
  */
 static void
 parse_data_records(const char *fname, uint64_t cutoff, uint64_t last_epochs[SCHEMA_POOL_SIZE])
@@ -177,7 +177,7 @@ check_data_rows(
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
         ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
         if (ret != 0)
-            continue; /* Table was dropped before the cutoff — OK. */
+            continue; /* Table was dropped before the cutoff - OK. */
 
         cursor->set_key(cursor, DATA_KEY);
         ret = cursor->search(cursor);
@@ -229,7 +229,7 @@ verify_schema_state(WT_CONNECTION *conn)
 
     for (t = 0; t < nth; t++) {
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
-        parse_schema_records(fname, cutoff, states);
+        parse_schema_records(fname, t, cutoff, states);
         check_schema_presence(session, t, states, &fatal);
 
         testutil_snprintf(fname, sizeof(fname), SCHEMA_DATA_FILE, t);
