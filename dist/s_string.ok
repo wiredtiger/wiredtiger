@@ -419,6 +419,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -972,6 +973,7 @@ durabletime
 dv
 dylib
 eb
+ebusy
 eee
 eg
 ejnprx
