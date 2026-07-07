@@ -58,14 +58,14 @@ query_epoch_cutoff(WT_CONNECTION *conn, uint64_t *cutoffp)
  */
 static void
 parse_schema_records(
-  const char *fname, uint32_t t, uint64_t cutoff, SLOT_STATE states[SCHEMA_POOL_SIZE])
+  const char *fname, uint32_t t, uint64_t cutoff, SLOT_STATE states[MAX_POOL_SIZE])
 {
     FILE *fp;
     char op[16], rec_uri[128];
     uint64_t entry_epoch;
     uint32_t s, t2;
 
-    for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
+    for (s = 0; s < pool_size; s++) {
         states[s].epoch = 0;
         states[s].is_create = false;
         states[s].valid = false;
@@ -78,7 +78,7 @@ parse_schema_records(
         if (entry_epoch > cutoff)
             continue;
         if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t ||
-          s >= SCHEMA_POOL_SIZE)
+          s >= pool_size)
             continue;
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
@@ -96,14 +96,14 @@ parse_schema_records(
  */
 static void
 check_schema_presence(
-  WT_SESSION *session, uint32_t t, const SLOT_STATE states[SCHEMA_POOL_SIZE], bool *fatal)
+  WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE], bool *fatal)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     char uri[64];
     uint32_t s;
 
-    for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
+    for (s = 0; s < pool_size; s++) {
         if (!states[s].valid)
             continue;
 
@@ -137,20 +137,20 @@ check_schema_presence(
  *     the most recent write epoch seen per slot.
  */
 static void
-parse_data_records(const char *fname, uint64_t cutoff, uint64_t last_epochs[SCHEMA_POOL_SIZE])
+parse_data_records(const char *fname, uint64_t cutoff, uint64_t last_epochs[MAX_POOL_SIZE])
 {
     FILE *fp;
     uint64_t d_slot, d_epoch;
     uint32_t s;
 
-    for (s = 0; s < SCHEMA_POOL_SIZE; s++)
+    for (s = 0; s < pool_size; s++)
         last_epochs[s] = 0;
 
     if ((fp = fopen(fname, "r")) == NULL)
         return;
 
     while (fscanf(fp, "%" SCNu64 " %" SCNu64, &d_slot, &d_epoch) == 2)
-        if (d_slot < SCHEMA_POOL_SIZE && d_epoch <= cutoff && d_epoch > last_epochs[d_slot])
+        if (d_slot < pool_size && d_epoch <= cutoff && d_epoch > last_epochs[d_slot])
             last_epochs[d_slot] = d_epoch;
     (void)fclose(fp);
 }
@@ -162,7 +162,7 @@ parse_data_records(const char *fname, uint64_t cutoff, uint64_t last_epochs[SCHE
  */
 static void
 check_data_rows(
-  WT_SESSION *session, uint32_t t, const uint64_t last_epochs[SCHEMA_POOL_SIZE], bool *fatal)
+  WT_SESSION *session, uint32_t t, const uint64_t last_epochs[MAX_POOL_SIZE], bool *fatal)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -170,7 +170,7 @@ check_data_rows(
     char expected_val[32], uri[64];
     uint32_t s;
 
-    for (s = 0; s < SCHEMA_POOL_SIZE; s++) {
+    for (s = 0; s < pool_size; s++) {
         if (last_epochs[s] == 0)
             continue;
 
@@ -212,9 +212,9 @@ check_data_rows(
 bool
 verify_schema_state(WT_CONNECTION *conn)
 {
-    SLOT_STATE states[SCHEMA_POOL_SIZE];
+    SLOT_STATE states[MAX_POOL_SIZE];
     WT_SESSION *session;
-    uint64_t cutoff, last_data_epochs[SCHEMA_POOL_SIZE];
+    uint64_t cutoff, last_data_epochs[MAX_POOL_SIZE];
     bool fatal;
     char fname[128];
     uint32_t t;

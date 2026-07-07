@@ -34,8 +34,8 @@ typedef struct {
     FILE *schema_fp;
     FILE *data_fp;
     char tableconf[128];
-    char uris[SCHEMA_POOL_SIZE][64];
-    bool table_exists[SCHEMA_POOL_SIZE];
+    char uris[MAX_POOL_SIZE][64];
+    bool table_exists[MAX_POOL_SIZE];
 } SCHEMA_WORKER_CTX;
 
 /*
@@ -58,7 +58,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
     testutil_assert_errno((ctx->data_fp = fopen(fname, "w")) != NULL);
     __wt_stream_set_line_buffer(ctx->data_fp);
 
-    for (i = 0; i < SCHEMA_POOL_SIZE; i++) {
+    for (i = 0; i < pool_size; i++) {
         testutil_snprintf(
           ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, i);
         ctx->table_exists[i] = false;
@@ -179,7 +179,7 @@ thread_schema_run(void *arg)
     schema_worker_open(td, &ctx);
 
     for (;;) {
-        slot = __wt_random(&td->rnd) % SCHEMA_POOL_SIZE;
+        slot = __wt_random(&td->rnd) % pool_size;
         if (schema_op_try(&ctx, slot) != 0) {
             __wt_yield();
             continue;

@@ -14,3 +14,5 @@ fi
 
 $TEST_WRAPPER "$test_bin" -t 10 -T 2 -h WT_TEST.schema_disagg_leader_abort.t2
 $TEST_WRAPPER "$test_bin" -t 10 -T 4 -h WT_TEST.schema_disagg_leader_abort.t4
+$TEST_WRAPPER "$test_bin" -t 10 -T 2 -s 4 -h WT_TEST.schema_disagg_leader_abort.s4
+$TEST_WRAPPER "$test_bin" -t 10 -T 2 -s 16 -h WT_TEST.schema_disagg_leader_abort.s16

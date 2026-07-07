@@ -48,6 +48,7 @@ char page_log_home[PATH_MAX];
 bool aggressive_sweep;
 volatile bool stable_set;
 uint32_t nth;
+uint32_t pool_size;
 uint64_t schema_op_epoch;
 
 pthread_mutex_t schema_publish_lock;
@@ -63,10 +64,12 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-S] [-T threads] [-t time] [-p] [-v]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-s pool] [-S] [-T threads] [-t time] [-p] [-v]\n",
+      progname);
     fprintf(stderr, "%s",
       "\t-h home directory\n"
       "\t-p preserve directory contents\n"
+      "\t-s URI pool size per thread\n"
       "\t-S aggressive sweep\n"
       "\t-T number of schema threads\n"
       "\t-t timeout in seconds\n"
@@ -108,14 +111,23 @@ main(int argc, char *argv[])
 
     aggressive_sweep = false;
     nth = MIN_TH;
+    pool_size = MAX_POOL_SIZE / 8; /* Default: 8 slots per thread. */
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
 
     testutil_parse_begin_opt(argc, argv, "h:pT:v", opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:pST:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:ps:ST:t:v")) != EOF)
         switch (ch) {
+        case 's':
+            pool_size = (uint32_t)atoi(__wt_optarg);
+            if (pool_size < MIN_POOL_SIZE || pool_size > MAX_POOL_SIZE) {
+                fprintf(stderr, "Pool size must be between %d and %d\n",
+                  MIN_POOL_SIZE, MAX_POOL_SIZE);
+                usage();
+            }
+            break;
         case 'S':
             aggressive_sweep = true;
             break;
@@ -167,10 +179,12 @@ main(int argc, char *argv[])
                 nth = MIN_TH;
         }
 
-        printf("Parent: Create %" PRIu32 " schema threads; sleep %" PRIu32 " seconds\n",
-          nth, timeout);
-        printf("CONFIG: %s%s -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
-          progname, aggressive_sweep ? " -S" : "", nth, timeout,
+        printf("Parent: Create %" PRIu32 " schema threads; pool %" PRIu32
+               " slots; sleep %" PRIu32 " seconds\n",
+          nth, pool_size, timeout);
+        printf("CONFIG: %s%s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
+               " " TESTUTIL_SEED_FORMAT "\n",
+          progname, aggressive_sweep ? " -S" : "", pool_size, nth, timeout,
           opts->data_seed, opts->extra_seed);
 
         testutil_snprintf(page_log_home, sizeof(page_log_home), "%s/%s/%s", cwd_start, home,

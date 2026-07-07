@@ -36,14 +36,15 @@
 
 /* Tunables. */
 #define MAX_CKPT_INVL 4
+#define MAX_POOL_SIZE 64
 #define MAX_STARTUP 60
 #define MAX_TH 12
 #define MAX_TIME 40
+#define MIN_POOL_SIZE 2
 #define MIN_TH 2
 #define MIN_TIME 10
 
 /* URI / file name patterns. */
-#define SCHEMA_POOL_SIZE 8
 #define SCHEMA_TABLE_FMT "table:schema_%u_%u"
 #define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "schema-%" PRIu32
 #define SCHEMA_DATA_FILE RECORDS_DIR DIR_DELIM_STR "data-%" PRIu32
@@ -73,6 +74,7 @@ extern char page_log_home[PATH_MAX];
 extern bool aggressive_sweep;
 extern volatile bool stable_set;
 extern uint32_t nth;
+extern uint32_t pool_size;
 extern uint64_t schema_op_epoch;
 
 extern pthread_mutex_t schema_publish_lock;
