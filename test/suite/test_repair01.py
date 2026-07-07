@@ -66,15 +66,12 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         return int(re.search(r': (\d+)$', result).group(1))
 
     def checkpoint_size_fix(self, expect_triggered=False):
-        # Verbose logging confirms the recompute pathway itself ran, not just that the
-        # (possibly unchanged) resulting size happens to look right. An empty pattern is a
-        # trivial match, so expect_triggered=False asserts nothing about the output.
-        pattern = r'disagg database size fix: recomputed database size -> \d+' \
-            if expect_triggered else ''
+        pattern = r'disagg database size fix: recomputed database size -> \d+'
+        assertion = self.assertRegex if expect_triggered else self.assertNotRegex
 
         self.conn.reconfigure('verbose=[disaggregated_storage:1]')
         try:
-            with self.expectedStdoutPattern(pattern, maxchars=100000):
+            with self.customStdoutPattern(lambda output: assertion(output, pattern)):
                 self.session.checkpoint('debug=(database_size_fix=true)')
         finally:
             self.conn.reconfigure('verbose=[disaggregated_storage:0]')
