@@ -30,7 +30,7 @@
 #
 # Tests for WT-18005: with precise_checkpoint=true, checkpoint reconciliation
 # of row-leaf pages sets WT_REC_SCRUB, saving mod_disk_image so the eviction
-# server can priority-evict those pages without I/O.
+# server can replace those pages with clean in-memory images.
 #
 # Observable behaviors tested:
 #   1. cache_write_restore_scrub stat increases after a checkpoint cycle when
