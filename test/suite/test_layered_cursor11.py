@@ -90,10 +90,11 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    # A layered cursor with blind_remove configured does *not* lose position the same way: a
-    # positioned remove landing on an already-removed key falls straight through to WT_RET in
-    # __clayered_remove_from_ingest, bypassing both that function's own reset-on-error cleanup and
-    # the caller's err: label -- so the cursor's position is left exactly as it was.
+    # A layered cursor does *not* lose position the same way (with or without blind_remove -- this
+    # is pre-existing behavior, not something the blind_remove branch adds): the second remove
+    # lands on the "else if (current_cursor == c_ingest)" branch in __clayered_remove_from_ingest,
+    # since the first remove's update() left VALUE_INT set on the ingest cursor. That branch
+    # returns WT_NOTFOUND directly on finding an existing tombstone, with no reset on the way out.
     def test_positioned_double_remove_blind_keeps_position(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
