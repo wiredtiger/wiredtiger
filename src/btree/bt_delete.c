@@ -81,29 +81,6 @@
  */
 
 /*
- * The fraction of the cache-wide dirty budget one truncate may pin before it is rolled back;
- * leaving no headroom risks stalling the cache. The fraction is a heuristic.
- */
-#define WT_TRUNCATE_DIRTY_BUDGET_PCT 75
-
-/*
- * __delete_truncate_dirty_exceeded --
- *     Return whether the running transaction's fast-truncate has pinned enough dirty internal-page
- *     content to approach the cache's dirty eviction threshold.
- */
-static bool
-__delete_truncate_dirty_exceeded(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    double dirty_trigger = __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger);
-    uint64_t bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
-    uint64_t threshold =
-      (uint64_t)(dirty_trigger * (double)bytes_max) / 100 * WT_TRUNCATE_DIRTY_BUDGET_PCT / 100;
-
-    return (session->txn->truncate_dirty_bytes >= threshold);
-}
-
-/*
  * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
@@ -239,23 +216,22 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
     /*
-     * Newly dirtied parent internal pages stay pinned until the truncate is stable; if one truncate
-     * pins too much, roll it back rather than let the cache stall. The delete unwinds normally.
+     * A newly dirtied parent internal page stays pinned until the truncate is stable. Account for
+     * it and let the transaction's cache-pressure check roll the truncate back if it has pinned too
+     * much; the delete just performed unwinds normally on rollback.
      */
     if (parent_was_clean) {
         session->txn->truncate_dirty_bytes +=
           __wt_atomic_load_size_relaxed(&parent->memory_footprint);
-        if (__delete_truncate_dirty_exceeded(session)) {
-            WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
-            __wt_verbose_warning(session, WT_VERB_TRANSACTION,
-              "truncate rolled back: pinned %" PRIu64
-              " bytes of dirty internal pages, exceeding the cache dirty threshold",
-              session->txn->truncate_dirty_bytes);
-            return (WT_ROLLBACK);
-        }
+        /*
+         * A cache-pressure rollback here must not run the error path below: the delete is already a
+         * committed transaction operation that unwinds on rollback, and its page_del is owned by
+         * the transaction. Return the result directly.
+         */
+        ret = __wt_txn_is_blocking(session);
     }
 
-    return (0);
+    return (ret);
 
 err:
     __wt_free(session, ref->page_del);

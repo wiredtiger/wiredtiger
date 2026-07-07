@@ -2898,9 +2898,33 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
+ * The fraction of the cache-wide dirty budget one transaction's fast-truncate may pin before it is
+ * rolled back; leaving no headroom risks stalling the cache. The fraction is a heuristic.
+ */
+#define WT_TRUNCATE_DIRTY_BUDGET_PCT 75
+
+/*
+ * __txn_truncate_dirty_exceeded --
+ *     Return whether the running transaction's fast-truncate has pinned more than its share of the
+ *     cache's dirty eviction budget.
+ */
+static bool
+__txn_truncate_dirty_exceeded(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    double dirty_trigger = __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger);
+    uint64_t bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
+    uint64_t threshold =
+      (uint64_t)(dirty_trigger * (double)bytes_max) / 100 * WT_TRUNCATE_DIRTY_BUDGET_PCT / 100;
+
+    return (session->txn->truncate_dirty_bytes >= threshold);
+}
+
+/*
  * __wt_txn_is_blocking --
- *     Return an error if this transaction is likely blocking eviction from making progress, called
- *     by eviction to determine if a worker thread should be released.
+ *     Return an error if this transaction is likely blocking eviction from making progress. Called
+ *     by eviction to determine if a worker thread should be released, and by fast-truncate to bound
+ *     its own cache footprint.
  */
 int
 __wt_txn_is_blocking(WT_SESSION_IMPL *session)
@@ -2943,6 +2967,16 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session) && !F_ISSET(txn, WT_TXN_RUNNING))
         return (0);
 #endif
+
+    /*
+     * A fast-truncate that has pinned too much dirty cache must roll back on its own, independent
+     * of transaction age: the internal pages it dirties cannot be evicted until the truncate is
+     * stable and can stall the cache by themselves.
+     */
+    if (__txn_truncate_dirty_exceeded(session)) {
+        WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
+        WT_RET_SUB(session, WT_ROLLBACK, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY);
+    }
 
     /*
      * Once eviction is stuck, check if either the transaction's ID or its pinned ID is equal to the
