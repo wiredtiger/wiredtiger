@@ -9320,14 +9320,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * transaction: transactions rolled back because their own dirty content
  * exceeds the eviction updates or dirty trigger
  */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TOO_LARGE_FOR_CACHE	2063
+#define	WT_STAT_CONN_TXN_ROLLBACK_TOO_LARGE_FOR_CACHE	2061
+/*!
+ * transaction: truncate operations rolled back because they pinned too
+ * much dirty cache
+ */
+#define	WT_STAT_CONN_TXN_TRUNCATE_DIRTY_CACHE_ROLLBACK	2062
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2064
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2063
 /*!
  * transaction: write transactions rolled back for straddling the step-
  * down timestamp setting boundary
  */
-#define	WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN		2065
+#define	WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN		2064
 
 /*!
  * @}

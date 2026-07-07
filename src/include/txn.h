@@ -482,6 +482,14 @@ struct __wt_txn {
      */
     uint64_t bytes_dirty;
 
+    /*
+     * Dirty cache pinned by this transaction's fast-truncate. Fast-truncate leaves leaf pages on
+     * disk but pulls in and dirties their parent internal pages, which cannot be reconciled until
+     * the truncate is stable. Tracked so a single truncate that would pin enough dirty content to
+     * stall the cache can be rolled back rather than wedging the system.
+     */
+    uint64_t truncate_dirty_bytes;
+
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;
     uint32_t ckpt_nsnapshot;

@@ -1033,6 +1033,7 @@ conn_stats = [
     TxnStat('txn_stepdown_epoch_set', 'step-down disaggregated schema epoch is currently set', 'no_clear,no_scale'),
     TxnStat('txn_stepdown_ts_set', 'step-down timestamp is currently set', 'no_clear,no_scale'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
+    TxnStat('txn_truncate_dirty_cache_rollback', 'truncate operations rolled back because they pinned too much dirty cache'),
     TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),
 
     ##########################################

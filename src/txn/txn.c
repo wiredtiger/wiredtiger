@@ -1009,6 +1009,9 @@ __txn_release(WT_SESSION_IMPL *session)
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
+
+    /* Clear the fast-truncate dirty cache tracking. */
+    txn->truncate_dirty_bytes = 0;
 }
 
 /*

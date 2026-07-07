@@ -81,6 +81,36 @@
  */
 
 /*
+ * Cap a single truncate at a fraction of the cache-wide dirty eviction budget. A truncate that
+ * alone approaches the whole budget leaves no room for the rest of the workload and risks stalling
+ * the cache with content that cannot be evicted until the truncate is stable. The fraction is a
+ * heuristic: high enough to allow large legitimate truncates, low enough to keep headroom for
+ * concurrent activity.
+ */
+#define WT_TRUNCATE_DIRTY_BUDGET_PCT 75
+
+/*
+ * __delete_truncate_dirty_exceeded --
+ *     Return whether the running transaction's fast-truncate has pinned enough dirty internal-page
+ *     content to approach the cache's dirty eviction threshold.
+ */
+static bool
+__delete_truncate_dirty_exceeded(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    double dirty_trigger;
+    uint64_t bytes_max, threshold;
+
+    conn = S2C(session);
+    dirty_trigger = __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger);
+    bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
+    threshold =
+      (uint64_t)(dirty_trigger * (double)bytes_max) / 100 * WT_TRUNCATE_DIRTY_BUDGET_PCT / 100;
+
+    return (session->txn->truncate_dirty_bytes >= threshold);
+}
+
+/*
  * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
@@ -89,8 +119,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+    WT_PAGE *parent;
+    WT_PAGE_MODIFY *parent_mod;
     WT_REF_STATE previous_state;
     WT_BTREE *btree = S2BT(session);
+    bool parent_was_clean;
 
     *skipp = false;
 
@@ -177,8 +210,14 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /*
      * This action dirties the parent page: mark it dirty now, there's no future reconciliation of
-     * the child leaf page that will dirty it as we write the tree.
+     * the child leaf page that will dirty it as we write the tree. Note whether the parent was
+     * already dirty: if we're the first to dirty it, this truncate has pulled a fresh internal page
+     * into dirty cache and we attribute its footprint to the transaction below.
      */
+    parent = ref->home;
+    parent_mod = __wt_tsan_suppress_load_wt_page_modify_ptr(&parent->modify);
+    parent_was_clean = parent_mod == NULL ||
+      __wt_atomic_load_uint32_relaxed(&parent_mod->page_state) == WT_PAGE_CLEAN;
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
     /*
@@ -205,6 +244,27 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
+
+    /*
+     * Track the dirty cache this fast-truncate has pinned in the transaction. Each freshly dirtied
+     * parent internal page must stay in cache until the truncate is stable. If a single truncate
+     * pins enough dirty internal-page content to approach the cache's dirty eviction threshold, the
+     * system can stall indefinitely with no way to make progress. Force the transaction to roll
+     * back instead: the delete just performed is a transactional operation that unwinds normally.
+     */
+    if (parent_was_clean) {
+        session->txn->truncate_dirty_bytes +=
+          __wt_atomic_load_size_relaxed(&parent->memory_footprint);
+        if (__delete_truncate_dirty_exceeded(session)) {
+            WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
+            __wt_verbose_warning(session, WT_VERB_TRANSACTION,
+              "truncate rolled back: pinned %" PRIu64
+              " bytes of dirty internal pages, exceeding the cache dirty threshold",
+              session->txn->truncate_dirty_bytes);
+            return (WT_ROLLBACK);
+        }
+    }
+
     return (0);
 
 err:
