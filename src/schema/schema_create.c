@@ -201,7 +201,8 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
  *     Create a new 'file:' object.
  */
 static int
-__create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
+__create_file(
+  WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config, bool open_dhandle)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(buf);
@@ -377,7 +378,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         }
     }
 
-    if (F_ISSET(session, WT_SESSION_NO_DHANDLE_OPEN))
+    if (!open_dhandle)
         goto err;
 
     /*
@@ -1639,7 +1640,7 @@ __schema_create_config_check(
  *     Process a WT_SESSION::create operation for all supported types.
  */
 static int
-__schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
+__schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config, bool open_dhandle)
 {
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
@@ -1693,7 +1694,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __create_colgroup(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "file:"))
-        ret = __create_file(session, uri, exclusive, config);
+        ret = __create_file(session, uri, exclusive, config, open_dhandle);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __create_index(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "layered:"))
@@ -1740,6 +1741,18 @@ err:
 int
 __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
+    return (__wt_schema_create_ext(session, uri, config, true));
+}
+
+/*
+ * __wt_schema_create_ext --
+ *     Process a WT_SESSION::create operation for all supported types, with control over whether the
+ *     dhandle for a newly created 'file:' object is opened immediately.
+ */
+int
+__wt_schema_create_ext(
+  WT_SESSION_IMPL *session, const char *uri, const char *config, bool open_dhandle)
+{
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
@@ -1753,7 +1766,7 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
-    ret = __schema_create(int_session, uri, config);
+    ret = __schema_create(int_session, uri, config, open_dhandle);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }
