@@ -1292,9 +1292,6 @@ __wti_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 
-    /*
-     * blind_remove
-     */
     if ((ret = __wt_config_getones(session, config, "blind_remove", &cval)) == 0) {
         if (cval.val)
             F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
@@ -1530,7 +1527,7 @@ __wt_cursor_init(
     else
         F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    /* WT_CURSTD_BLIND_REMOVE: only meaningful on a layered table cursor, ignored elsewhere. */
+    /* WT_CURSTD_BLIND_REMOVE: only meaningful on a layered cursor, ignored elsewhere. */
     WT_ERR(__wt_config_gets_def(session, cfg, "blind_remove", 0, &cval));
     if (cval.val)
         F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
