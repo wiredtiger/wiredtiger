@@ -171,8 +171,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * The checkpoint's snapshot includes the first dirty update on the page, so there is content to
      * write, unless eviction already reconciled the page under this same checkpoint snapshot and
-     * pinned stable timestamp; in that case the on-disk image is already what this checkpoint would
-     * produce.
+     * pinned stable timestamp; in that case the on-disk image is identical to what checkpoint would
+     * produce and we can skip re-reconciliation.
      */
     txn = session->txn;
     mod = ref->page->modify;

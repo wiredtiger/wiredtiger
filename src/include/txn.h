@@ -426,9 +426,9 @@ struct __wt_txn {
     WT_TXN_SNAPSHOT snapshot_data;
 
     /*
-     * When eviction reconciles a page using the published checkpoint snapshot, the identity of that
-     * snapshot (the owning checkpoint generation) so the page can be stamped and checkpoint can
-     * skip re-reconciling it. WT_CKPT_SNAP_GEN_NONE when no such snapshot is in use.
+     * When eviction reconciles a page using the published checkpoint snapshot, the page can be
+     * stamped and checkpoint can skip re-reconciling it. WT_CKPT_SNAP_GEN_NONE when no such
+     * snapshot is in use.
      */
     uint64_t ckpt_snap_gen;
 

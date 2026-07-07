@@ -399,9 +399,8 @@ struct __wt_page_modify {
     wt_timestamp_t rec_pinned_stable_timestamp;
 
     /*
-     * When the most recent reconciliation was performed by eviction under the published checkpoint
-     * snapshot, the identity of that snapshot; otherwise WT_CKPT_SNAP_GEN_NONE. Lets checkpoint
-     * skip re-reconciling pages whose on-disk image it would reproduce identically.
+     * Published checkpoint snapshot generation for precise checkpoints. Lets checkpoint skip
+     * re-reconciling pages already reconciled by eviction.
      */
     uint64_t rec_ckpt_snap_gen;
 

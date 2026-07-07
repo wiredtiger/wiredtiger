@@ -1270,10 +1270,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
-    /*
-     * Clear any stale checkpoint snapshot identity from a prior eviction; only set again if this
-     * reconciliation copies the published checkpoint snapshot below.
-     */
+    /* Clear any stale checkpoint snapshot gen from a prior eviction */
     session->txn->ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 
     evict = conn->evict;
