@@ -89,8 +89,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+    WT_PAGE *parent;
+    WT_PAGE_MODIFY *parent_mod;
     WT_REF_STATE previous_state;
     WT_BTREE *btree = S2BT(session);
+    bool parent_was_clean;
 
     *skipp = false;
 
@@ -179,11 +182,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * This action dirties the parent page: mark it dirty now, there's no future reconciliation of
      * the child leaf page that will dirty it as we write the tree.
      */
-    WT_PAGE *parent = ref->home;
+    parent = ref->home;
 
     /* If we are the first to dirty the parent, this truncate pulled it into dirty cache. */
-    WT_PAGE_MODIFY *parent_mod = __wt_tsan_suppress_load_wt_page_modify_ptr(&parent->modify);
-    bool parent_was_clean = true;
+    parent_mod = __wt_tsan_suppress_load_wt_page_modify_ptr(&parent->modify);
+    parent_was_clean = true;
     if (parent_mod != NULL &&
       __wt_atomic_load_uint32_relaxed(&parent_mod->page_state) != WT_PAGE_CLEAN)
         parent_was_clean = false;
