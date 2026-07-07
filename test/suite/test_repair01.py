@@ -65,8 +65,19 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         result = self.repair('fetch_database_size=(local=true)')
         return int(re.search(r': (\d+)$', result).group(1))
 
-    def checkpoint_size_fix(self):
-        self.session.checkpoint('debug=(database_size_fix=true)')
+    def checkpoint_size_fix(self, expect_triggered=False):
+        # Verbose logging confirms the recompute pathway itself ran, not just that the
+        # (possibly unchanged) resulting size happens to look right. An empty pattern is a
+        # trivial match, so expect_triggered=False asserts nothing about the output.
+        pattern = r'disagg database size fix: recomputed database size -> \d+' \
+            if expect_triggered else ''
+
+        self.conn.reconfigure('verbose=[disaggregated_storage:1]')
+        try:
+            with self.expectedStdoutPattern(pattern, maxchars=100000):
+                self.session.checkpoint('debug=(database_size_fix=true)')
+        finally:
+            self.conn.reconfigure('verbose=[disaggregated_storage:0]')
 
     def test_config_errors(self):
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
@@ -147,7 +158,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
 
         # Absent any drift, the recompute matches the incrementally-tracked total.
-        self.checkpoint_size_fix()
+        self.checkpoint_size_fix(expect_triggered=True)
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), stat_size)
 
         # Drop a second, already-checkpointed table and grow the main one before fixing, so the
@@ -167,7 +178,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.session.drop(extra_uri)
 
-        self.checkpoint_size_fix()
+        self.checkpoint_size_fix(expect_triggered=True)
 
         changed = self.reported_size()
         self.assertGreater(changed, pre_change_size)
