@@ -376,7 +376,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     if (has_stable_disagg_epoch)
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_disagg_epoch);
 
-    WT_RET(__wt_config_gets_def(session, cfg, "step_down_ts", 0, &step_down_cval));
+    WT_RET(__wt_config_gets_def(session, cfg, "step_down_timestamp", 0, &step_down_cval));
     has_step_down = step_down_cval.len != 0;
 
     /* If no timestamp was supplied, there's nothing to do. */
@@ -780,6 +780,18 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
           "durable timestamp %s is less than the commit timestamp %s for this transaction",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[1]));
+
+    /*
+     * With preserve_prepared configured, a prepared but not-yet-durable transaction must have a
+     * durable timestamp strictly after its prepare timestamp, so the two states remain distinct.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      durable_ts <= txn->time_point.prepare_timestamp)
+        WT_RET_MSG(session, EINVAL,
+          "durable timestamp %s must be greater than the prepare timestamp %s for this "
+          "transaction",
+          __wt_timestamp_to_string(durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[1]));
 
     return (0);
 }
