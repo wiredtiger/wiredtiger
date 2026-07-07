@@ -133,7 +133,11 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     __wt_atomic_store_bool_relaxed(&conn->tiered.flush_ckpt_complete, false);
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->tiered.flush_most_recent = session->ckpt.current_sec;
-    /* Storing the last flush timestamp here for the future and for debugging. */
+    /*
+     * The load is relaxed rather than acquire: this runs on the checkpoint thread, under the
+     * checkpoint lock, which is the same thread that publishes the timestamp. The value is only
+     * copied for future and debugging use.
+     */
     conn->tiered.flush_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp);
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
