@@ -2577,13 +2577,21 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              * lives in stable is not.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
-            if (ret == WT_NOTFOUND && found && !positioned) {
-                ret = 0;
-                WT_TRET(__clayered_reset_cursors(clayered, false));
-                return (ret);
+            if (ret == WT_NOTFOUND) {
+                if (found && !positioned) {
+                    /* Confirmed already deleted, and this is the genuine no-op case. */
+                    ret = 0;
+                    WT_TRET(__clayered_reset_cursors(clayered, false));
+                    return (ret);
+                }
+                if (!found)
+                    /* Existence unknown either way: assume it exists in stable. */
+                    ret = 0;
+                /*
+                 * Otherwise (found && positioned): confirmed already deleted, but this is the
+                 * stale-position case, so fall through to WT_RET(ret) and report not-found.
+                 */
             }
-            if (ret == WT_NOTFOUND && !found)
-                ret = 0;
         } else
             ret = __clayered_lookup(op, &value);
         WT_RET(ret);
