@@ -1163,15 +1163,15 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_debug_subconfigs[] = 
     "\"during_key_rotation\",\"after_key_rotation\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 185, INT64_MIN, INT64_MAX,
     confchk_checkpoint_crash_trigger_point_choices},
-  {"checkpoint_database_size_fix", "boolean", NULL, NULL, NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 186, INT64_MIN, INT64_MAX, NULL},
+  {"database_size_fix", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 186,
+    INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
   confchk_WT_SESSION_checkpoint_debug_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_flush_tier_subconfigs[] = {
@@ -4272,8 +4272,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
     "debug=(checkpoint_cleanup=false,checkpoint_crash_point=0,"
-    "checkpoint_crash_trigger_point=,"
-    "checkpoint_database_size_fix=false),drop=,"
+    "checkpoint_crash_trigger_point=,database_size_fix=false),drop=,"
     "flush_tier=(enabled=false,force=false,sync=true,timeout=0),"
     "force=false,name=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 6, confchk_WT_SESSION_checkpoint_jump, 21, WT_CONF_SIZING_NONE,

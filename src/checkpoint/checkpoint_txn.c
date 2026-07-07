@@ -902,10 +902,10 @@ __checkpoint_update_disagg_database_size(
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * debug=(checkpoint_database_size_fix=true) asks us to recompute the database size from the
-     * metadata from scratch, superseding the incremental delta below, since the metadata already
-     * reflects this checkpoint's own sizes. A recompute error fails the checkpoint instead of
-     * falling back, since the caller explicitly asked for this recompute and needs to know.
+     * debug=(database_size_fix=true) asks us to recompute the database size from the metadata from
+     * scratch, superseding the incremental delta below, since the metadata already reflects this
+     * checkpoint's own sizes. A recompute error fails the checkpoint instead of falling back, since
+     * the caller explicitly asked for this recompute and needs to know.
      */
     recomputed = false;
     if (database_size_fix) {
@@ -1340,8 +1340,12 @@ __checkpoint_parse_config(
     WT_RET(__wt_config_gets(session, cfg, "drop", &cval));
     ckpt_cfg->drop = cval.len != 0;
 
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_database_size_fix", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug.database_size_fix", &cval));
     ckpt_cfg->database_size_fix = cval.val != 0;
+    if (ckpt_cfg->database_size_fix &&
+      !(__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader))
+        WT_RET_MSG(
+          session, ENOTSUP, "database_size_fix requires a disaggregated leader connection");
 
     return (0);
 }

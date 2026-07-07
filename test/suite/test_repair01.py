@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 
 # test_repair01.py
 #    Exercise the wiredtiger_repair() API (config errors, fetch_database_size, fetch_metadata) and
-#    the related checkpoint(debug=(checkpoint_database_size_fix=true)) config, in both
+#    the related checkpoint(debug=(database_size_fix=true)) config, in both
 #    non-disaggregated and disaggregated scenarios.
 class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),'
@@ -137,14 +137,15 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.populate()
 
         if not self.is_disagg_scenario():
-            # Not a disagg connection, so the fix is a no-op rather than an error.
-            self.session.checkpoint('debug=(checkpoint_database_size_fix=true)')
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.checkpoint('debug=(database_size_fix=true)'),
+                '/requires a disaggregated leader connection/')
             return
 
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
 
         # Absent any drift, the recompute matches the incrementally-tracked total.
-        self.session.checkpoint('debug=(checkpoint_database_size_fix=true)')
+        self.session.checkpoint('debug=(database_size_fix=true)')
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), stat_size)
 
         # Drop a second, already-checkpointed table and grow the main one before fixing, so the
@@ -164,7 +165,7 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.session.drop(extra_uri)
 
-        self.session.checkpoint('debug=(checkpoint_database_size_fix=true)')
+        self.session.checkpoint('debug=(database_size_fix=true)')
 
         changed = self.reported_size()
         self.assertGreater(changed, pre_change_size)
@@ -174,3 +175,10 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # reachable via verify_metadata=true at open.
         self.reopen_conn(config=self.conn_config() + 'verify_metadata=true,')
         self.ignoreStdoutPatternIfExists('Removing local file due to disagg mode')
+
+        # A follower's session.checkpoint() is already a no-op skip at the session API layer
+        # (standby has nothing to checkpoint), so it never reaches the leader-only guard in
+        # __checkpoint_parse_config; it just needs to not raise or change the size.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.session.checkpoint('debug=(database_size_fix=true)')
+        self.assertEqual(self.get_stat(wiredtiger.stat.conn.disagg_database_size), changed)

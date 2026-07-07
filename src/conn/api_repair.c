@@ -56,8 +56,7 @@ static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, c
 /*
  * __repair_fetch_database_size --
  *     Read-only database size inspection: local=true returns the maintained total; local=false
- *     recomputes it from the metadata (the same computation
- *     debug=(checkpoint_database_size_fix=true) uses).
+ *     recomputes it from the metadata (the same computation debug=(database_size_fix=true) uses).
  */
 static int
 __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
@@ -214,8 +213,7 @@ err:
  * fetch_database_size=(local=<bool>) Read-only inspection: return the database size (disagg-only).
  *     local=true (default) reads conn->disaggregated_storage.database_size, the maintained running
  *     total. local=false recomputes the same total from scratch by walking the metadata (the same
- *     computation session->checkpoint(debug=(checkpoint_database_size_fix=true)) uses to correct
- *     drift).
+ *     computation session->checkpoint(debug=(database_size_fix=true)) uses to correct drift).
  *
  * fetch_metadata=(local=<bool>,uri="<uri>",key="<key>") Read-only inspection: return metadata
  *     values. local=true (default) reads the local metadata cursor; local=false (disagg-only) reads

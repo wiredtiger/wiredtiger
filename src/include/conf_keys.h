@@ -104,7 +104,6 @@
 #define WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty_max 278ULL
 #define WT_CONF_ID_checkpoint_crash_point 184ULL
 #define WT_CONF_ID_checkpoint_crash_trigger_point 185ULL
-#define WT_CONF_ID_checkpoint_database_size_fix 186ULL
 #define WT_CONF_ID_checkpoint_fail_before_turtle_update 321ULL
 #define WT_CONF_ID_checkpoint_lsn 63ULL
 #define WT_CONF_ID_checkpoint_meta 75ULL
@@ -143,6 +142,7 @@
 #define WT_CONF_ID_cursor_copy 234ULL
 #define WT_CONF_ID_cursor_reposition 235ULL
 #define WT_CONF_ID_cursors 195ULL
+#define WT_CONF_ID_database_size_fix 186ULL
 #define WT_CONF_ID_default 363ULL
 #define WT_CONF_ID_delete_pct 302ULL
 #define WT_CONF_ID_delta_pct 299ULL
