@@ -87,7 +87,8 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      */
     if (__wt_evict_page_is_soon_or_wont_need(page) && btree->evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
-      (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
+      (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page) ||
+        __wt_page_evict_swap(page)))
         return (true);
     return (false);
 }
@@ -121,6 +122,25 @@ __wt_page_evict_clean(WT_PAGE *page)
     return (page->modify == NULL ||
       (__wt_atomic_load_uint32_relaxed(&page->modify->page_state) == WT_PAGE_CLEAN &&
         page->modify->rec_result == 0));
+}
+
+/*
+ * __wt_page_evict_swap --
+ *     Check whether a page is clean with a retained reconciliation image that eviction can swap
+ *     into place without I/O.
+ */
+static WT_INLINE bool
+__wt_page_evict_swap(WT_PAGE *page)
+{
+    WT_PAGE_MODIFY *mod;
+
+    /*
+     * Acquire pairs with the seq_cst CAS that transitions page_state to WT_PAGE_CLEAN at
+     * reconciliation end, ensuring rec_result and mod_disk_image are visible after the state check.
+     */
+    return (!WT_PAGE_IS_INTERNAL(page) && (mod = page->modify) != NULL &&
+      __wt_atomic_load_uint32_acquire(&mod->page_state) == WT_PAGE_CLEAN && mod->rec_result != 0 &&
+      mod->mod_disk_image != NULL);
 }
 
 /*
@@ -2443,10 +2463,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     modified = __wt_page_is_modified(page);
 
     /*
-     * Clean pages that are in front of the materialization check should not proceed to eviction.
-     * They would not go through reconciliation, but just be discarded which isn't OK.
+     * Clean pages that are in front of the materialization check should not proceed to eviction:
+     * they would be discarded without reconciliation, which is unsafe. Pages with a retained disk
+     * image are exempt because eviction re-instantiates them in cache rather than discarding.
      */
-    if (!modified && page->disagg_info != NULL &&
+    if (!modified && page->disagg_info != NULL && !__wt_page_evict_swap(page) &&
       !__wt_materialization_check(session, page->disagg_info->rec_lsn_max)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
         return (false);
@@ -2541,6 +2562,10 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);
         }
+    } else if (!LF_ISSET(WT_READ_NO_EVICT) && btree->evict_disabled == 0 &&
+      !F_ISSET(session, WT_SESSION_NO_RECONCILE) && __wt_page_evict_swap(ref->page)) {
+        WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
+        return (0);
     }
 
     return (__wt_hazard_clear(session, ref));
