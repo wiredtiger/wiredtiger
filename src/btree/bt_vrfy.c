@@ -900,11 +900,11 @@ __verify_tree(
      * of the page to be built, and then a subsequent logical verification which happens here.
      *
      * Report progress on a time interval rather than a page count, so a fast verify stays quiet and
-     * a long-running one emits a periodic heartbeat. Only sample the clock every so many pages to
-     * keep the per-page cost negligible; the report itself is still gated on elapsed time.
+     * a long-running one emits a periodic heartbeat. The clock read is negligible next to the
+     * per-page verification work.
      */
-    if (++vs->fcnt % WT_THOUSAND == 0 &&
-      __wt_verify_progress_due(session, &vs->progress_timer, WT_VERIFY_PROGRESS_INTERVAL_MS))
+    ++vs->fcnt;
+    if (__wt_verify_progress_due(session, &vs->progress_timer, WT_VERIFY_PROGRESS_INTERVAL_MS))
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
 #ifdef HAVE_DIAGNOSTIC
