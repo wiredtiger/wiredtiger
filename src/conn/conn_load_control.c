@@ -141,7 +141,7 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
             cache_miss_pct = (uint16_t)WT_MIN((delta_read * 100) / delta_req, 100);
     }
 
-    return ((uint16_t)WT_MIN((uint32_t)read_load * (100 + cache_miss_pct) / 100, 1000));
+    return ((uint16_t)WT_MIN((uint32_t)read_load * (uint32_t)(100 + cache_miss_pct) / 100, 1000));
 }
 
 /*
