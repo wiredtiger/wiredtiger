@@ -442,6 +442,148 @@ err:
 }
 
 /*
+ * WT_DISAGG_CREATE_REMOVE_ENTRY --
+ *     A single table's most recent CREATE or REMOVE operation, as captured in a point-in-time
+ *     snapshot of the shared metadata queue.
+ */
+typedef struct {
+    char *table_name; /* Owned copy of the table name. */
+    WT_SHARED_METADATA_OP metadata_op;
+    uint32_t orig_idx; /* Position in the queue's chronological order; used to break ties between
+                        * same-named entries so that the most recently queued operation wins. */
+} WT_DISAGG_CREATE_REMOVE_ENTRY;
+
+/*
+ * __disagg_create_remove_snapshot_free --
+ *     Free a point-in-time snapshot of the shared metadata queue's CREATE/REMOVE operations.
+ */
+static void
+__disagg_create_remove_snapshot_free(
+  WT_SESSION_IMPL *session, WT_DISAGG_CREATE_REMOVE_ENTRY **entriesp, size_t count)
+{
+    WT_DISAGG_CREATE_REMOVE_ENTRY *entries;
+    size_t i;
+
+    if ((entries = *entriesp) == NULL)
+        return;
+
+    for (i = 0; i < count; i++)
+        __wt_free(session, entries[i].table_name);
+    __wt_free(session, entries);
+    *entriesp = NULL;
+}
+
+/*
+ * __disagg_create_remove_cmp --
+ *     Comparator for sorting a CREATE/REMOVE snapshot by table name, breaking ties by original
+ *     queue order so that the most recently queued operation for a given name sorts last.
+ */
+static int WT_CDECL
+__disagg_create_remove_cmp(const void *a, const void *b)
+{
+    const WT_DISAGG_CREATE_REMOVE_ENTRY *ea, *eb;
+    int cmp;
+
+    ea = a;
+    eb = b;
+    if ((cmp = strcmp(ea->table_name, eb->table_name)) != 0)
+        return (cmp);
+    return (ea->orig_idx < eb->orig_idx ? -1 : (ea->orig_idx > eb->orig_idx ? 1 : 0));
+}
+
+/*
+ * __disagg_create_remove_snapshot_build --
+ *     Take a point-in-time snapshot of the latest CREATE or REMOVE operation queued for each table
+ *     name in the shared metadata queue, sorted by table name. Checkpoint pick-up processes tables
+ *     in ascending name order, so it can look up each table's state with a single forward-moving
+ *     merge pointer into this snapshot (see the use of create_remove_idx below) instead of scanning
+ *     the whole queue again for every table: the queue can hold one entry per table (e.g. from the
+ *     per-checkpoint block manager callback), so scanning it again for each of potentially many
+ *     thousands of tables during pick-up is quadratic in the number of tables.
+ */
+static int
+__disagg_create_remove_snapshot_build(
+  WT_SESSION_IMPL *session, WT_DISAGG_CREATE_REMOVE_ENTRY **entriesp, size_t *countp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_CREATE_REMOVE_ENTRY *entries;
+    WT_DISAGG_METADATA_OP *entry;
+    size_t count, i;
+
+    conn = S2C(session);
+    entries = NULL;
+    count = i = 0;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE)
+            count++;
+
+    if (count == 0)
+        goto done;
+
+    WT_ERR(__wt_calloc_def(session, count, &entries));
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (entry->metadata_op == WT_SHARED_METADATA_UPDATE)
+            continue;
+        WT_ERR(__wt_strdup(session, entry->table_name, &entries[i].table_name));
+        entries[i].metadata_op = entry->metadata_op;
+        entries[i].orig_idx = (uint32_t)i;
+        i++;
+    }
+
+done:
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    if (ret != 0) {
+        __disagg_create_remove_snapshot_free(session, &entries, i);
+        return (ret);
+    }
+
+    if (count > 0)
+        __wt_qsort(entries, count, sizeof(entries[0]), __disagg_create_remove_cmp);
+
+    *entriesp = entries;
+    *countp = count;
+    return (0);
+}
+
+/*
+ * __disagg_create_remove_snapshot_lookup --
+ *     Advance the merge pointer into a CREATE/REMOVE snapshot up to (and possibly past) the given
+ *     table name, and return the latest queued CREATE/REMOVE operation for that name, or
+ *     WT_SHARED_METADATA_NONE if there isn't one. The snapshot is sorted by name with same-named
+ *     duplicates left adjacent in chronological order, so the last matching entry in a run is the
+ *     one to report. Requires that successive calls pass non-decreasing table names, which holds
+ *     because checkpoint pick-up processes tables in ascending order.
+ */
+static WT_SHARED_METADATA_OP
+__disagg_create_remove_snapshot_lookup(WT_DISAGG_CREATE_REMOVE_ENTRY *entries, size_t count,
+  size_t *create_remove_idxp, const char *table_name)
+{
+    WT_SHARED_METADATA_OP op;
+    size_t create_remove_idx;
+    int cmp;
+
+    create_remove_idx = *create_remove_idxp;
+    op = WT_SHARED_METADATA_NONE;
+
+    while (create_remove_idx < count &&
+      (cmp = strcmp(entries[create_remove_idx].table_name, table_name)) <= 0) {
+        if (cmp == 0)
+            op = entries[create_remove_idx].metadata_op;
+        create_remove_idx++;
+    }
+
+    *create_remove_idxp = create_remove_idx;
+    return (op);
+}
+
+/*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
@@ -454,10 +596,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
+    WT_DISAGG_CREATE_REMOVE_ENTRY *create_remove_entries;
     WT_TIMER apply_timer;
     uint64_t apply_elapsed_ms;
     uint32_t existing_tables, new_tables, new_ingest;
-    size_t current_len;
+    size_t create_remove_count, create_remove_idx, current_len;
     int i;
     char *layered_ingest_uri;
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
@@ -472,6 +615,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     layered_ingest_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
+    create_remove_entries = NULL;
+    create_remove_count = create_remove_idx = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
@@ -506,6 +651,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * The merge loop picks the minimum table name across all eight cursor positions in each
      * iteration, then processes all four local/shared pairs for that name before advancing.
      */
+
+    /*
+     * Snapshot the shared metadata queue's CREATE/REMOVE operations once, up front, instead of
+     * scanning the whole queue again for every new-layered-table case encountered below.
+     */
+    WT_ERR(
+      __disagg_create_remove_snapshot_build(session, &create_remove_entries, &create_remove_count));
 
     /* Open the metadata cursors on the local metadata table. */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
@@ -638,8 +790,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * be a new layered table that we should pick up, but it could also mean that we have
              * already dropped the table locally and should not recreate it as a result.
              */
-            if (__wti_disagg_table_latest_create_remove(session, current) ==
-              WT_SHARED_METADATA_REMOVE)
+            if (__disagg_create_remove_snapshot_lookup(create_remove_entries, create_remove_count,
+                  &create_remove_idx, current) == WT_SHARED_METADATA_REMOVE)
                 continue;
 
             /*
@@ -791,6 +943,7 @@ err:
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &current_buf);
     __wt_scr_free(session, &metadata_uri_buf);
+    __disagg_create_remove_snapshot_free(session, &create_remove_entries, create_remove_count);
 
     WT_TRET(__wt_metadata_cursor_release(session, &md_write_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
