@@ -2513,7 +2513,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             return (0);
         }
     } else if (!LF_ISSET(WT_READ_NO_EVICT) &&
-      __wt_atomic_load_uint32_relaxed(&btree->evict_disabled) == 0 &&
+      __wt_atomic_load_int32_relaxed(&btree->evict_disabled) == 0 &&
       !F_ISSET(session, WT_SESSION_NO_RECONCILE) && __wt_page_evict_swap(ref->page)) {
         WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
         return (0);
