@@ -32,10 +32,10 @@
  * Disaggregated schema epoch crash recovery test.
  *
  * A leader child runs schema worker threads that create and drop layered tables. A checkpoint
- * thread advances stable_disaggregated_schema_epoch and checkpoints periodically. The parent
- * kills the child after at least one checkpoint completes. After recovery, the verifier confirms
- * that tables whose creation was captured in the last checkpoint still exist with correct data,
- * and tables whose drop was captured are absent.
+ * thread advances stable_disaggregated_schema_epoch and checkpoints periodically. The parent kills
+ * the child after at least one checkpoint completes. After recovery, the verifier confirms that
+ * tables whose creation was captured in the last checkpoint still exist with correct data, and
+ * tables whose drop was captured are absent.
  */
 
 extern int __wt_optind;
@@ -137,8 +137,8 @@ open_leader_for_recovery(TEST_CONFIG *cfg, WT_CONNECTION **connp)
     cfg->opts->disagg.page_log_home = cfg->page_log_home;
     cfg->opts->disagg.drain_threads = 1;
 
-    testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR,
-      "create,disaggregated=(lose_all_my_data=true)", NULL, connp, true, false);
+    testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, "create,disaggregated=(lose_all_my_data=true)",
+      NULL, connp, true, false);
 }
 
 /*
@@ -175,8 +175,8 @@ main(int argc, char *argv[])
         case 's':
             cfg.pool_size = (uint32_t)atoi(__wt_optarg);
             if (cfg.pool_size < MIN_POOL_SIZE || cfg.pool_size > MAX_POOL_SIZE) {
-                fprintf(stderr, "Pool size must be between %d and %d\n",
-                  MIN_POOL_SIZE, MAX_POOL_SIZE);
+                fprintf(
+                  stderr, "Pool size must be between %d and %d\n", MIN_POOL_SIZE, MAX_POOL_SIZE);
                 usage();
             }
             break;
@@ -227,16 +227,16 @@ main(int argc, char *argv[])
                 cfg.nth = MIN_TH;
         }
 
-        printf("Parent: Create %" PRIu32 " schema threads; pool %" PRIu32
-               " slots; sleep %" PRIu32 " seconds\n",
+        printf("Parent: Create %" PRIu32 " schema threads; pool %" PRIu32 " slots; sleep %" PRIu32
+               " seconds\n",
           cfg.nth, cfg.pool_size, timeout);
-        printf("CONFIG: %s%s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
-               " " TESTUTIL_SEED_FORMAT "\n",
+        printf("CONFIG: %s%s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
+               "\n",
           progname, cfg.aggressive_sweep ? " -S" : "", cfg.pool_size, cfg.nth, timeout,
           cfg.opts->data_seed, cfg.opts->extra_seed);
 
-        testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s",
-          cwd_start, cfg.home, WT_HOME_DIR);
+        testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s", cwd_start,
+          cfg.home, WT_HOME_DIR);
 
         fork_and_kill_child(&cfg, timeout);
     }
@@ -248,8 +248,8 @@ main(int argc, char *argv[])
         testutil_copy_data();
 
     if (cfg.page_log_home[0] == '\0')
-        testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s",
-          cwd_start, cfg.home, WT_HOME_DIR);
+        testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s", cwd_start,
+          cfg.home, WT_HOME_DIR);
 
     printf("Open leader database, run recovery and verify content\n");
 

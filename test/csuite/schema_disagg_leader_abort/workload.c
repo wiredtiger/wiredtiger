@@ -32,6 +32,14 @@
 static volatile bool stable_set;
 static uint64_t schema_op_epoch;
 
+/*
+ * Orders schema epoch publishing against stable schema epoch advancement. Publishers hold the read
+ * lock while assigning and publishing an epoch, the checkpoint thread holds the write lock while
+ * advancing the stable schema epoch. This keeps the stable schema epoch from overtaking an epoch a
+ * publisher has assigned but not yet published, which the engine rejects.
+ */
+static pthread_rwlock_t schema_epoch_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
 /* Per-thread schema worker state. */
 typedef struct {
     WT_SESSION *session;
@@ -48,8 +56,8 @@ typedef struct {
 static void
 schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 {
-    char fname[128];
     uint32_t i;
+    char fname[128];
 
     testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, td->info);
     (void)unlink(fname);
@@ -57,8 +65,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
     __wt_stream_set_line_buffer(ctx->schema_fp);
 
     for (i = 0; i < td->cfg->pool_size; i++) {
-        testutil_snprintf(
-          ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, i);
+        testutil_snprintf(ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, i);
         ctx->table_exists[i] = false;
     }
 
@@ -99,7 +106,7 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
  *     Assign an epoch and publish the schema operation so it is visible to followers and will be
  *     applied by the next checkpoint. Must be called for both CREATE and DROP.
  *
- *     session->publish updates every WT_SCHEMA_EPOCH_UNPUBLISHED entry for this URI in the shared
+ * session->publish updates every WT_SCHEMA_EPOCH_UNPUBLISHED entry for this URI in the shared
  *     metadata queue — CREATE on a live table, REMOVE on a dropped one — to a real epoch. Without
  *     this call for DROP, the REMOVE entry keeps WT_TS_MAX and is never applied by any checkpoint,
  *     leaving the table permanently in shared metadata.
@@ -107,13 +114,14 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 static uint64_t
 schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 {
-    char pub_cfg[64];
     uint64_t epoch;
+    char pub_cfg[64];
 
+    testutil_assert(pthread_rwlock_rdlock(&schema_epoch_rwlock) == 0);
     epoch = __wt_atomic_add_uint64(&schema_op_epoch, 1);
-    testutil_snprintf(
-      pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
+    testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
     testutil_check(ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg));
+    testutil_assert(pthread_rwlock_unlock(&schema_epoch_rwlock) == 0);
     return (epoch);
 }
 
@@ -122,9 +130,9 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
  *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
  *     as value. Returns the commit timestamp so the caller can record it for the verifier.
  *
- *     The commit timestamp is set to stable_timestamp + 2 so the write is not immediately stable.
- *     This satisfies the disagg invariant that stable writes are only permitted to published tables:
- *     the table is published at epoch N before this call, and by the time stable_timestamp advances
+ * The commit timestamp is set to stable_timestamp + 2 so the write is not immediately stable. This
+ *     satisfies the disagg invariant that stable writes are only permitted to published tables: the
+ *     table is published at epoch N before this call, and by the time stable_timestamp advances
  *     past the commit timestamp, any checkpoint that captures this data will also have
  *     stable_disaggregated_schema_epoch >= N.
  */
@@ -132,14 +140,13 @@ static uint64_t
 schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
     WT_CURSOR *cursor;
-    char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
-    uint32_t r;
     uint64_t stable_ts;
+    uint32_t r;
+    char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
 
     testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
     testutil_check(ctx->session->begin_transaction(ctx->session, NULL));
-    testutil_check(
-      ctx->session->open_cursor(ctx->session, ctx->uris[slot], NULL, NULL, &cursor));
+    testutil_check(ctx->session->open_cursor(ctx->session, ctx->uris[slot], NULL, NULL, &cursor));
     for (r = 0; r < DATA_NROWS; r++) {
         testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
         cursor->set_key(cursor, key_buf);
@@ -185,8 +192,8 @@ thread_schema_run(void *arg)
         commit_ts = 0;
         if (is_create)
             commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
-        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %" PRIu64 " %s\n",
-              is_create ? "CREATE" : "DROP", epoch, commit_ts, ctx.uris[slot]) < 0)
+        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP",
+              epoch, commit_ts, ctx.uris[slot]) < 0)
             testutil_die(EIO, "fprintf schema record");
     }
     /* NOTREACHED */
@@ -206,8 +213,8 @@ thread_ts_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     for (ts = 1;; ts++) {
-        testutil_snprintf(tscfg, sizeof(tscfg),
-          "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts);
+        testutil_snprintf(
+          tscfg, sizeof(tscfg), "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts);
         testutil_check(td->conn->set_timestamp(td->conn, tscfg));
         if (!stable_set)
             stable_set = true;
@@ -244,8 +251,7 @@ thread_ckpt_run(void *arg)
             __wt_epoch(NULL, &now);
             diff_sec = WT_TIMEDIFF_SEC(now, start);
             if (diff_sec > MAX_STARTUP)
-                testutil_die(ETIMEDOUT,
-                  "stable timestamp not set after %d seconds", MAX_STARTUP);
+                testutil_die(ETIMEDOUT, "stable timestamp not set after %d seconds", MAX_STARTUP);
             __wt_sleep(0, WT_THOUSAND);
             continue;
         }
@@ -254,9 +260,11 @@ thread_ckpt_run(void *arg)
         __wt_sleep(sleep_time, 0);
 
         if (schema_op_epoch > 0) {
-            testutil_snprintf(ts_cfg, sizeof(ts_cfg),
-              "stable_disaggregated_schema_epoch=%" PRIx64, schema_op_epoch);
+            testutil_assert(pthread_rwlock_wrlock(&schema_epoch_rwlock) == 0);
+            testutil_snprintf(ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64,
+              schema_op_epoch);
             (void)td->conn->set_timestamp(td->conn, ts_cfg);
+            testutil_assert(pthread_rwlock_unlock(&schema_epoch_rwlock) == 0);
         }
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
@@ -277,8 +285,8 @@ thread_ckpt_run(void *arg)
  *     timestamp thread.
  */
 static void
-workload_threads_start(TEST_CONFIG *cfg, WT_CONNECTION *conn,
-  wt_thread_t **thr_out, THREAD_DATA **td_out)
+workload_threads_start(
+  TEST_CONFIG *cfg, WT_CONNECTION *conn, wt_thread_t **thr_out, THREAD_DATA **td_out)
 {
     THREAD_DATA *td;
     wt_thread_t *thr;
@@ -291,13 +299,12 @@ workload_threads_start(TEST_CONFIG *cfg, WT_CONNECTION *conn,
         td[i].cfg = cfg;
         td[i].conn = conn;
         td[i].info = i;
-        testutil_random_from_random(&td[i].rnd,
-          i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
+        testutil_random_from_random(
+          &td[i].rnd, i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
     }
 
     testutil_check(__wt_thread_create(NULL, &thr[cfg->nth], thread_ckpt_run, &td[cfg->nth]));
-    testutil_check(
-      __wt_thread_create(NULL, &thr[cfg->nth + 1], thread_ts_run, &td[cfg->nth + 1]));
+    testutil_check(__wt_thread_create(NULL, &thr[cfg->nth + 1], thread_ts_run, &td[cfg->nth + 1]));
     for (i = 0; i < cfg->nth; ++i)
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_schema_run, &td[i]));
 
@@ -320,8 +327,8 @@ workload_threads_join(TEST_CONFIG *cfg, wt_thread_t *thr)
 
 /*
  * run_workload --
- *     Leader child: opens the database as a disaggregated leader and runs schema worker threads,
- *     a checkpoint thread, and a timestamp thread until the parent sends SIGKILL.
+ *     Leader child: opens the database as a disaggregated leader and runs schema worker threads, a
+ *     checkpoint thread, and a timestamp thread until the parent sends SIGKILL.
  */
 void
 run_workload(TEST_CONFIG *cfg)

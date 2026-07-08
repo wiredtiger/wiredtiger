@@ -38,18 +38,17 @@ typedef struct {
 
 /*
  * parse_schema_records --
- *     Scan one thread's schema record file up to cutoff, filling the per-slot state array with
- *     the last operation seen per URI slot. Only records whose URI belongs to thread t are kept.
+ *     Scan one thread's schema record file up to cutoff, filling the per-slot state array with the
+ *     last operation seen per URI slot. Only records whose URI belongs to thread t are kept.
  */
 static void
-parse_schema_records(
-  const char *fname, uint32_t t, uint64_t cutoff, SLOT_STATE states[MAX_POOL_SIZE],
-  uint32_t pool_size)
+parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
+  SLOT_STATE states[MAX_POOL_SIZE], uint32_t pool_size)
 {
     FILE *fp;
-    char op[16], rec_uri[128];
     uint64_t commit_ts, entry_epoch;
     uint32_t s, t2;
+    char op[16], rec_uri[128];
 
     for (s = 0; s < pool_size; s++) {
         states[s].epoch = 0;
@@ -61,12 +60,11 @@ parse_schema_records(
     if ((fp = fopen(fname, "r")) == NULL)
         return;
 
-    while (fscanf(fp, "%15s %" SCNu64 " %" SCNu64 " %127s",
-             op, &entry_epoch, &commit_ts, rec_uri) == 4) {
+    while (fscanf(fp, "%15s %" SCNu64 " %" SCNu64 " %127s", op, &entry_epoch, &commit_ts,
+             rec_uri) == 4) {
         if (entry_epoch > cutoff)
             continue;
-        if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t ||
-          s >= pool_size)
+        if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t || s >= pool_size)
             continue;
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
@@ -89,8 +87,8 @@ check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[M
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    char uri[64];
     uint32_t s;
+    char uri[64];
 
     for (s = 0; s < pool_size; s++) {
         if (!states[s].valid)
@@ -123,9 +121,9 @@ check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[M
 /*
  * check_data_rows --
  *     For each slot whose last checkpointed operation was a CREATE and whose data commit timestamp
- *     is at or below the last checkpoint timestamp, confirm all DATA_NROWS rows are present.
- *     Slots whose data commit timestamp exceeds last_ckpt_ts are skipped: the data was committed
- *     after the last checkpoint and is not durable.
+ *     is at or below the last checkpoint timestamp, confirm all DATA_NROWS rows are present. Slots
+ *     whose data commit timestamp exceeds last_ckpt_ts are skipped: the data was committed after
+ *     the last checkpoint and is not durable.
  */
 static void
 check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
@@ -133,9 +131,9 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    const char *actual_val;
-    char expected_val[32], key_buf[16], uri[64];
     uint32_t r, s;
+    char expected_val[32], key_buf[16], uri[64];
+    const char *actual_val;
 
     for (s = 0; s < pool_size; s++) {
         if (!states[s].valid || !states[s].is_create)
@@ -156,8 +154,8 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
             if (ret == 0) {
                 testutil_check(cursor->get_value(cursor, &actual_val));
                 if (strcmp(actual_val, expected_val) != 0) {
-                    printf("DATA FAIL: %s key %s: got %s want %s\n", uri, key_buf,
-                      actual_val, expected_val);
+                    printf("DATA FAIL: %s key %s: got %s want %s\n", uri, key_buf, actual_val,
+                      expected_val);
                     *fatal = true;
                 }
             } else if (ret != WT_NOTFOUND) {
@@ -178,9 +176,9 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
  * verify_schema_state --
  *     Verify schema and data state after recovery.
  *
- *     Reads per-thread schema record files, uses last_disaggregated_schema_epoch as the epoch
- *     cutoff, and asserts that every table whose final pre-cutoff operation was a CREATE exists
- *     and contains correct data rows. Returns true if a fatal error is found.
+ * Reads per-thread schema record files, uses last_disaggregated_schema_epoch as the epoch cutoff,
+ *     and asserts that every table whose final pre-cutoff operation was a CREATE exists and
+ *     contains correct data rows. Returns true if a fatal error is found.
  */
 bool
 verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
