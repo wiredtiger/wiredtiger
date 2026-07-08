@@ -58,18 +58,19 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
         ctx->table_exists[i] = false;
     }
 
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &ctx->session));
+    testutil_check(td->conn->open_session(td->conn, NULL, "lock_wait=false", &ctx->session));
     testutil_snprintf(ctx->tableconf, sizeof(ctx->tableconf),
       "key_format=S,value_format=S,type=layered,block_manager=disagg");
 }
 
 /*
- * schema_op_try --
- *     Attempt the next schema operation on the given slot. Returns EBUSY or ENOENT when the
- *     caller should yield and retry, 0 on success. Updates the caller's table-exists state.
+ * schema_op_execute --
+ *     Execute the next schema operation on the given slot and update the caller's table-exists
+ *     state. Sessions open with lock_wait=false so schema lock contention returns EBUSY; the
+ *     caller yields and retries, widening the window for checkpoint to race with schema ops.
  */
 static int
-schema_op_try(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
+schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 {
     WT_DECL_RET;
 
@@ -81,7 +82,7 @@ schema_op_try(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
         ctx->table_exists[slot] = true;
     } else {
         ret = ctx->session->drop(ctx->session, ctx->uris[slot], "force=false");
-        if (ret == EBUSY || ret == ENOENT)
+        if (ret == EBUSY)
             return (ret);
         testutil_check(ret);
         ctx->table_exists[slot] = false;
@@ -160,7 +161,7 @@ thread_schema_run(void *arg)
 
     for (;;) {
         slot = __wt_random(&td->rnd) % pool_size;
-        if (schema_op_try(&ctx, slot) != 0) {
+        if (schema_op_execute(&ctx, slot) == EBUSY) {
             __wt_yield();
             continue;
         }
