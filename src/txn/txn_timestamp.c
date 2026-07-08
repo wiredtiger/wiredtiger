@@ -698,13 +698,16 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
 
         /*
-         * While a planned step-down is armed, committed content is redirected to the ingest
-         * constituent, which lives strictly above the cutoff; content at or before the cutoff
-         * belongs to stable. Reject a commit that would land at or below the cutoff.
+         * A transaction that began under an armed step-down cutoff commits to the ingest
+         * constituent, which lives strictly above the cutoff, so supplying a timestamp at or below
+         * it violates the arm contract. A transaction that began before the arm passes: the
+         * straddler guard rolls it back at commit, and one racing the arm past that guard carries a
+         * pre-arm timestamp at or below the cutoff, on the stable side of the boundary.
          */
         step_down_ts =
           __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
-        if (step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts)
+        if (step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts &&
+          txn->stepdown_ts_at_begin == step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "commit timestamp %s must be after the step down timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
