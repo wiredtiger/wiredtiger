@@ -168,9 +168,9 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:h:pT:v", cfg.opts);
+    testutil_parse_begin_opt(argc, argv, "b:h:pP:T:v", cfg.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:h:ps:ST:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:ST:t:v")) != EOF)
         switch (ch) {
         case 's':
             cfg.pool_size = (uint32_t)atoi(__wt_optarg);
