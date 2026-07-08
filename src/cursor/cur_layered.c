@@ -2609,11 +2609,10 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              *     we can't tell an already-deleted key apart from one that only lives in stable
              *     without the lookup we chose to avoid.
              *
-             * A tombstone found in ingest or the truncate list confirms the key is already deleted;
-             *     that's a genuine no-op only when the remove is unpositioned (!positioned). A
-             *     positioned remove got here with a position from a real earlier traversal, and a
-             *     blind remove doesn't excuse that traversal's result being stale, so it still
-             *     reports not-found rather than silently succeeding.
+             * A tombstone found in ingest or the truncate list confirms the key is already
+             *     deleted, a genuine no-op regardless of whether the remove was positioned: the
+             *     caller's blind-remove contract guarantees the key existed, and it no longer
+             *     does, so there is nothing left to report but success.
              *
              * Finding nothing at all in ingest or the truncate list leaves the key's existence
              *     genuinely unknown, so assume it exists in stable and fall through to delete it.
@@ -2629,19 +2628,14 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
-                if (found && !positioned) {
-                    /* Confirmed already deleted, and this is the genuine no-op case. */
+                if (found) {
+                    /* Confirmed already deleted: a no-op regardless of position. */
                     ret = 0;
                     WT_TRET(__clayered_reset_cursors(clayered, false));
                     return (ret);
                 }
-                if (!found)
-                    /* Existence unknown either way: assume it exists in stable. */
-                    ret = 0;
-                /*
-                 * Otherwise (found && positioned): confirmed already deleted, but this is the
-                 * stale-position case, so fall through to WT_RET(ret) and report not-found.
-                 */
+                /* Existence unknown either way: assume it exists in stable. */
+                ret = 0;
             }
         } else
             ret = __clayered_lookup(op, &value);

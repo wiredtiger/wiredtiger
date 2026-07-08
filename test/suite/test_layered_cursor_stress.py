@@ -374,10 +374,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._txn_scope(nodes, step)
         return notfound
 
-    def _positional(self, nodes, do, label):
+    def _positional(self, nodes, do, label, blind_remove=False):
         # Positional update/remove off the cursor's held position; clear cur_pos if the write missed.
         # Returns True if the write hit (so the caller can update the model only on success).
-        notfound = self._write_txn(nodes, do, label)
+        notfound = self._write_txn(nodes, do, label, blind_remove=blind_remove)
         if notfound:
             self.state.cur_pos = None
         self.state.n_positional += 1
@@ -574,11 +574,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.py_table[key] = value   # only record the key if the update actually hit
 
     def op_pos_remove(self, nodes, rnd, trace):
-        # Removes the current key.
+        # Removes the current key. A positioned remove of an already-removed key on the follower's
+        # blind-remove cursor now reports success (a no-op) rather than WT_NOTFOUND -- see
+        # __clayered_remove_from_ingest in cur_layered.c -- so relax the reference match the same way
+        # an unpositioned blind remove does (_write_txn's blind_remove note).
         key = self.state.cur_pos
         already_removed = key not in self.state.py_table   # a repeat remove of an already-deleted key
         trace.log('pos_remove %r' % key)
-        self._positional(nodes, lambda c: c.remove(), 'pos_remove')
+        self._positional(nodes, lambda c: c.remove(), 'pos_remove', blind_remove=True)
         self.state.py_table.pop(key, None)
         # FIXME-WT-17827: removing an already-removed key returns WT_NOTFOUND but does not clean up the
         # follower layered cursor's position (a plain cursor resets), so a later iterate would diverge.
