@@ -464,9 +464,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Announce the object being verified. Emitted at the info level: suppressed by stock WiredTiger's
-     * default verbosity, but surfaced by embedders that enable the verify category (MongoDB sets it
-     * to info by default).
+     * Announce the object being verified. Emitted at the info level: suppressed by stock
+     * WiredTiger's default verbosity, but shown when the verify category is enabled, as MongoDB
+     * does by default.
      */
     __wt_verbose_info(session, WT_VERB_VERIFY, "verify: starting on %s", name);
 

@@ -13,8 +13,8 @@
 
 /*
  * [verify_progress]:
- * Test the time-based throttle that gates WT_SESSION.verify progress reports, so a fast verify stays
- * quiet and a long-running one emits a periodic heartbeat.
+ * Test the time-based throttle that gates WT_SESSION.verify progress reports, so a fast verify
+ * stays quiet and a long-running one emits a periodic heartbeat.
  */
 
 TEST_CASE("Verify progress reports are gated on elapsed time", "[verify_progress]")
