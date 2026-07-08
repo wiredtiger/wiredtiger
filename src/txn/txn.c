@@ -2911,13 +2911,19 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 static bool
 __txn_truncate_dirty_exceeded(WT_SESSION_IMPL *session)
 {
+    uint64_t truncate_dirty_bytes = session->txn->truncate_dirty_bytes;
+
+    /* A transaction that has not fast-truncated anything can never exceed the budget. */
+    if (truncate_dirty_bytes == 0)
+        return (false);
+
     WT_CONNECTION_IMPL *conn = S2C(session);
     double dirty_trigger = __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger);
     uint64_t bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
     uint64_t threshold =
       (uint64_t)(dirty_trigger * (double)bytes_max) / 100 * WT_TRUNCATE_DIRTY_BUDGET_PCT / 100;
 
-    return (session->txn->truncate_dirty_bytes >= threshold);
+    return (truncate_dirty_bytes >= threshold);
 }
 
 /*
