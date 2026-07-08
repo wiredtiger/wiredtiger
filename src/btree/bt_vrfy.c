@@ -463,8 +463,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
     bm_start = true;
 
-    /* Announce the object being verified; emitted at notice level so it is always logged. */
-    __wt_verbose_notice(session, WT_VERB_VERIFY, "verify: starting on %s", name);
+    /*
+     * Announce the object being verified. Emitted at the info level: suppressed by stock WiredTiger's
+     * default verbosity, but surfaced by embedders that enable the verify category (MongoDB sets it
+     * to info by default).
+     */
+    __wt_verbose_info(session, WT_VERB_VERIFY, "verify: starting on %s", name);
 
     /*
      * Skip the history store explicit call if:
