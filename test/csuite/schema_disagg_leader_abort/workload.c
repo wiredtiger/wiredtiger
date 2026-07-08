@@ -63,7 +63,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
         ctx->table_exists[i] = false;
     }
 
-    testutil_check(td->conn->open_session(td->conn, NULL, "lock_wait=false", &ctx->session));
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &ctx->session));
     testutil_snprintf(ctx->tableconf, sizeof(ctx->tableconf),
       "key_format=S,value_format=S,type=layered,block_manager=disagg");
 }
@@ -71,8 +71,8 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 /*
  * schema_op_execute --
  *     Execute the next schema operation on the given slot and update the caller's table-exists
- *     state. Sessions open with lock_wait=false so schema lock contention returns EBUSY; the
- *     caller yields and retries, widening the window for checkpoint to race with schema ops.
+ *     state. Drop uses lock_wait=false so lock contention returns EBUSY immediately; the caller
+ *     yields and retries, widening the window for checkpoint to race with schema ops.
  */
 static int
 schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -86,7 +86,7 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
         testutil_check(ret);
         ctx->table_exists[slot] = true;
     } else {
-        ret = ctx->session->drop(ctx->session, ctx->uris[slot], "force=false");
+        ret = ctx->session->drop(ctx->session, ctx->uris[slot], "force=false,lock_wait=false");
         if (ret == EBUSY)
             return (ret);
         testutil_check(ret);

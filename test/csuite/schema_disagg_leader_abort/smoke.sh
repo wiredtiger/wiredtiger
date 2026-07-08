@@ -12,7 +12,10 @@ else
     test_bin=$binary_dir/test_schema_disagg_leader_abort
 fi
 
-$TEST_WRAPPER "$test_bin" -t 10 -T 2 -h WT_TEST.schema_disagg_leader_abort.t2
-$TEST_WRAPPER "$test_bin" -t 10 -T 4 -h WT_TEST.schema_disagg_leader_abort.t4
-$TEST_WRAPPER "$test_bin" -t 10 -T 2 -s 4 -h WT_TEST.schema_disagg_leader_abort.s4
-$TEST_WRAPPER "$test_bin" -t 10 -T 2 -s 16 -h WT_TEST.schema_disagg_leader_abort.s16
+# Resolve the build directory (two levels up from the test binary).
+build_dir=$(cd "$(dirname "$test_bin")/../../../" && pwd)
+
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 2 -h WT_TEST.schema_disagg_leader_abort.t2
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 4 -h WT_TEST.schema_disagg_leader_abort.t4
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 2 -s 4 -h WT_TEST.schema_disagg_leader_abort.s4
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 2 -s 16 -h WT_TEST.schema_disagg_leader_abort.s16

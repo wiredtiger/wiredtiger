@@ -104,7 +104,6 @@ define_c_test(
     DEPENDS "WT_POSIX"
     LABEL "disagg"
 )
-
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.

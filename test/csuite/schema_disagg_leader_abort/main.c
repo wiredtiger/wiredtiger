@@ -49,9 +49,11 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-s pool] [-S] [-T threads] [-t time] [-p] [-v]\n",
+    fprintf(stderr,
+      "usage: %s [-b build-dir] [-h dir] [-s pool] [-S] [-T threads] [-t time] [-p] [-v]\n",
       progname);
     fprintf(stderr, "%s",
+      "\t-b build directory (required for PALite extension)\n"
       "\t-h home directory\n"
       "\t-p preserve directory contents\n"
       "\t-s URI pool size per thread\n"
@@ -166,9 +168,9 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "h:pT:v", cfg.opts);
+    testutil_parse_begin_opt(argc, argv, "b:h:pT:v", cfg.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:ps:ST:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:h:ps:ST:t:v")) != EOF)
         switch (ch) {
         case 's':
             cfg.pool_size = (uint32_t)atoi(__wt_optarg);
