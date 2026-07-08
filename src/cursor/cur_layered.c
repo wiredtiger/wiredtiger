@@ -359,6 +359,7 @@ static int
 __clayered_close_cursors(WTI_CURSOR_LAYERED *clayered)
 {
     WT_CURSOR *c;
+    WT_DECL_RET;
 
     /*
      * Note: There is no need to close the constituent cursors if it has been already done during
@@ -369,20 +370,24 @@ __clayered_close_cursors(WTI_CURSOR_LAYERED *clayered)
     if (F_ISSET(&clayered->iface, WT_CURSTD_CONSTITUENT_DEAD))
         return (0);
 
+    /*
+     * Clear each constituent pointer before closing it: close frees the cursor even when it
+     * returns an error, so leaving the pointer set would leave it dangling.
+     */
     clayered->current_cursor = NULL;
     if ((c = clayered->ingest_cursor) != NULL) {
-        WT_RET(c->close(c));
         clayered->ingest_cursor = NULL;
+        WT_TRET(c->close(c));
     }
     if ((c = clayered->stable_cursor) != NULL) {
-        WT_RET(c->close(c));
         clayered->stable_cursor = NULL;
         clayered->stable_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
+        WT_TRET(c->close(c));
     }
 
     /* Some flags persist across closes of constituents. */
     F_CLR(clayered, ~(WTI_CLAYERED_ACTIVE | WTI_CLAYERED_RANDOM));
-    return (0);
+    return (ret);
 }
 
 /*
@@ -3075,16 +3080,18 @@ err:
          * normally closed.
          */
         bool released = false;
-        ret = __wti_cursor_cache_release(session, cursor, &released);
 
-        if (released) {
-            /*
-             * If the cursor has been cached, try to cache the constituent cursors by evoking a
-             * cursor close.
-             */
-            WT_TRET(__clayered_close_cursors(clayered));
-
-            goto done;
+        /*
+         * Close (cache) the constituent cursors before caching the parent. A constituent close can
+         * run the session cursor cache sweep; if the parent were already in the cache, the sweep
+         * could pick it up and close it reentrantly, freeing the constituent this thread is still
+         * releasing and the parent out from under this function.
+         */
+        ret = __clayered_close_cursors(clayered);
+        if (ret == 0) {
+            ret = __wti_cursor_cache_release(session, cursor, &released);
+            if (released)
+                goto done;
         }
     }
     /* For cached cursors, free any extra buffers retained now. */
