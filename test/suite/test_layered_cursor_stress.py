@@ -182,6 +182,7 @@ class Node:
         self.session = session
         self.dsc_uri = dsc_uri
         self.asc_uri = asc_uri
+        self.blind_remove = blind_remove
         dsc_config = 'blind_remove=true' if blind_remove else None
         self.dsc_c = session.open_cursor(dsc_uri, None, dsc_config)
         self.asc_c = session.open_cursor(asc_uri)
@@ -359,12 +360,14 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # "doesn't exist at all". It assumes the key exists rather than fail, which is correct for a
         # secondary blindly replaying a leader-validated delete, but means the layered cursor can
         # legitimately report success where the reference reports WT_NOTFOUND for a key that was
-        # never written. The reverse (layered NOTFOUND, reference success) is never acceptable.
+        # never written. The reverse (layered NOTFOUND, reference success) is never acceptable. This
+        # only applies to a node whose dsc cursor actually has blind_remove configured (the
+        # follower) -- the same divergence on the leader's non-blind cursor is a real bug.
         notfound = False
         def step(n):
             nonlocal notfound
             ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
-            if blind_remove and ret_dsc == 0 and ret_asc == wiredtiger.WT_NOTFOUND:
+            if blind_remove and n.blind_remove and ret_dsc == 0 and ret_asc == wiredtiger.WT_NOTFOUND:
                 pass
             else:
                 self.assertEqual(ret_dsc, ret_asc, '%s result differs layered=%r reference=%r (trace %s)'

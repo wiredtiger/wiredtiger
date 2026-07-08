@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -217,6 +217,37 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
             "was opened unnecessarily".format(delta))
 
         cursor.close()
+
+        verify = self.session_follow.open_cursor(self.uri)
+        verify.set_key('k1')
+        self.assertEqual(verify.search(), wiredtiger.WT_NOTFOUND)
+        verify.close()
+
+    # Exercises the positioned branch of the skip-stable path with a stale cached value: the
+    # cursor is left internally positioned by an earlier search, but that search's cached value
+    # goes stale at the following transaction's boundary, so the remove must re-check via the
+    # skip-stable path rather than trusting the cache. The key lives only in stable, so neither
+    # ingest nor the truncate list know about it; the blind-remove contract says to assume it
+    # exists in stable and delete it anyway.
+    def test_follower_remove_blind_positioned_stale_value_deletes_stable_only_key(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
+
+        self.session_follow.begin_transaction()
+        cursor.set_key('seed')
+        self.assertEqual(cursor.search(), 0)
+        self.session_follow.commit_transaction()
+
+        self.session_follow.begin_transaction()
+        self.assertEqual(cursor.remove(), 0)
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+        cursor.close()
+
+        verify = self.session_follow.open_cursor(self.uri)
+        verify.set_key('seed')
+        self.assertEqual(verify.search(), wiredtiger.WT_NOTFOUND)
+        verify.close()
 
     # Sanity check mirror for remove: without blind remove, a remove always
     # runs a layered lookup and must open the stable cursor, regardless of

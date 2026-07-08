@@ -2631,7 +2631,12 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                     return (0);
                 /* Existence unknown either way: assume it exists in stable. */
                 ret = 0;
-            }
+            } else if (ret != 0)
+                /*
+                 * A real error (e.g. a prepare conflict or rollback): reset, matching the error
+                 * handling __clayered_lookup does for the non-blind path below.
+                 */
+                WT_TRET(__clayered_reset_cursors(clayered, false));
         } else
             ret = __clayered_lookup(op, &value);
         WT_RET(ret);
