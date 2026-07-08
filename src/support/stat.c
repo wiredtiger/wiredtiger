@@ -186,6 +186,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration due to invisible updates",
+  "cache: pages written requiring in-memory restoration due to precise checkpoint scrub",
   "cache: pages written requiring in-memory restoration due to scrub eviction",
   "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
   "remain in cache",
@@ -677,6 +678,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
     stats->cache_write = 0;
     stats->cache_write_restore_invisible = 0;
+    stats->cache_write_restore_scrub_precise_checkpoint = 0;
     stats->cache_write_restore_scrub = 0;
     stats->cache_eviction_blocked_precise_checkpoint = 0;
     stats->cache_evict_split_failed_lock = 0;
@@ -1154,6 +1156,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_multiblock_split_re_reconciled;
     to->cache_write += from->cache_write;
     to->cache_write_restore_invisible += from->cache_write_restore_invisible;
+    to->cache_write_restore_scrub_precise_checkpoint +=
+      from->cache_write_restore_scrub_precise_checkpoint;
     to->cache_write_restore_scrub += from->cache_write_restore_scrub;
     to->cache_eviction_blocked_precise_checkpoint +=
       from->cache_eviction_blocked_precise_checkpoint;
@@ -1669,6 +1673,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_multiblock_split_re_reconciled);
     to->cache_write += WT_STAT_DSRC_READ(from, cache_write);
     to->cache_write_restore_invisible += WT_STAT_DSRC_READ(from, cache_write_restore_invisible);
+    to->cache_write_restore_scrub_precise_checkpoint +=
+      WT_STAT_DSRC_READ(from, cache_write_restore_scrub_precise_checkpoint);
     to->cache_write_restore_scrub += WT_STAT_DSRC_READ(from, cache_write_restore_scrub);
     to->cache_eviction_blocked_precise_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_precise_checkpoint);
@@ -2373,6 +2379,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration due to invisible updates",
+  "cache: pages written requiring in-memory restoration due to precise checkpoint scrub",
   "cache: pages written requiring in-memory restoration due to scrub eviction",
   "cache: percentage overhead",
   "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
@@ -3465,6 +3472,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
     stats->cache_write = 0;
     stats->cache_write_restore_invisible = 0;
+    stats->cache_write_restore_scrub_precise_checkpoint = 0;
     stats->cache_write_restore_scrub = 0;
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_precise_checkpoint = 0;
@@ -4632,6 +4640,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_multiblock_split_re_reconciled);
     to->cache_write += WT_STAT_CONN_READ(from, cache_write);
     to->cache_write_restore_invisible += WT_STAT_CONN_READ(from, cache_write_restore_invisible);
+    to->cache_write_restore_scrub_precise_checkpoint +=
+      WT_STAT_CONN_READ(from, cache_write_restore_scrub_precise_checkpoint);
     to->cache_write_restore_scrub += WT_STAT_CONN_READ(from, cache_write_restore_scrub);
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
     to->cache_eviction_blocked_precise_checkpoint +=

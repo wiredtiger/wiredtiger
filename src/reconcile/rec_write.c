@@ -66,8 +66,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
-    if (__rec_scrub_eligible(session, page, flags))
+    if (__rec_scrub_eligible(session, page, flags)) {
         LF_SET(WT_REC_SCRUB);
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_precise_checkpoint);
+    }
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",

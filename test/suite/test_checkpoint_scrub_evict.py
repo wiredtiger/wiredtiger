@@ -134,15 +134,14 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
                 )
             )
         else:
-            # Fuzzy checkpoint must not trigger scrub reconciliation via our
-            # precise-checkpoint path. General scrub eviction (disagg, in-memory
-            # btrees) can still increment this stat, so only verify it did not
-            # decrease.
-            self.assertGreaterEqual(
-                after, before,
+            # Fuzzy checkpoint must not trigger scrub reconciliation on the
+            # precise-checkpoint path.
+            pc_stat = self.get_stat(stat.conn.cache_write_restore_scrub_precise_checkpoint)
+            self.assertEqual(
+                pc_stat, 0,
                 msg=(
-                    'cache_write_restore_scrub must not decrease after a '
-                    'fuzzy checkpoint: before={}, after={}'.format(before, after)
+                    'cache_write_restore_scrub_precise_checkpoint should be 0 '
+                    'for a fuzzy checkpoint, got {}'.format(pc_stat)
                 )
             )
 
