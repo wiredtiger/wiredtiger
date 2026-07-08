@@ -18,6 +18,11 @@ struct __wt_repair_config {
     int command;
 
     struct {
+        /* Read the in-memory tracker, not the latest complete checkpoint on shared storage. */
+        bool local;
+    } fetch_database_size;
+
+    struct {
         /* Fetch metadata from the local cursor, not the shared page-server checkpoint. */
         bool local;
         /* Target URI for the command, or NULL for all URIs. */
@@ -31,7 +36,7 @@ static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, WT
 static int __repair_config_set_command(
   WT_SESSION_IMPL *, WT_ITEM *, WT_CONFIG_ITEM *, WT_REPAIR_CONFIG *, int);
 
-static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *);
+static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, bool);
 
 /*
@@ -49,15 +54,53 @@ static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, c
 
 /*
  * __repair_fetch_database_size --
- *     Read-only database size inspection: return conn->disaggregated_storage.database_size, kept
- *     accurate by the incremental per-checkpoint delta and self-healed by checkpoint pick-up.
+ *     Read-only database size inspection. local=true returns conn->disaggregated_storage.
+ *     database_size, the in-memory total kept accurate by the incremental per-checkpoint delta and
+ *     self-healed by checkpoint pick-up. local=false fetches the database_size field embedded in
+ *     the latest complete checkpoint directly from shared storage (a single whole-database total
+ *     recorded once per checkpoint, not a per-collection sum), without picking that checkpoint up.
  */
 static int
-__repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report)
+__repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_local)
 {
-    WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size: %" PRIu64,
-      S2C(session)->disaggregated_storage.database_size));
-    return (0);
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_PAGE_LOG *page_log;
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
+    char *meta_str;
+
+    WT_CLEAR(args);
+    meta_str = NULL;
+
+    if (is_local) {
+        WT_ERR(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
+          S2C(session)->disaggregated_storage.database_size));
+        goto err;
+    }
+
+    page_log = S2C(session)->disaggregated_storage.npage_log->page_log;
+    if (page_log->pl_get_complete_checkpoint == NULL)
+        WT_ERR_REPORT(session, ENOTSUP,
+          "fetch_database_size(local=false): page log does not implement "
+          "pl_get_complete_checkpoint");
+
+    WT_ERR_NOTFOUND_OK(
+      page_log->pl_get_complete_checkpoint(page_log, &session->iface, &args), true);
+    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR_REPORT(session, WT_NOTFOUND,
+          "fetch_database_size(local=false): no complete checkpoint found on shared storage");
+
+    WT_ERR(__wt_strndup(
+      session, args.checkpoint_metadata.data, args.checkpoint_metadata.size, &meta_str));
+    WT_ERR(__wt_config_getones(session, meta_str, "database_size", &cval));
+
+    WT_ERR(__wt_buf_catfmt(
+      session, report, "fetch_database_size(local=false): %" PRIu64, (uint64_t)cval.val));
+
+err:
+    __wt_free(session, meta_str);
+    __wt_buf_free(session, &args.checkpoint_metadata);
+    return (ret);
 }
 
 /*
@@ -153,11 +196,20 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
 
     repair_config->command = command;
 
-    if (repair_config->command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE)
-        /* conn->disaggregated_storage.database_size is only maintained on a disaggregated
-         * connection. */
+    if (repair_config->command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE) {
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "local", &item), true);
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            repair_config->fetch_database_size.local = true;
+        else
+            repair_config->fetch_database_size.local = item.val != 0;
+
+        /*
+         * local=true reads conn->disaggregated_storage.database_size, which is only maintained on a
+         * disaggregated connection; local=false reads the latest complete checkpoint directly from
+         * shared storage. Both need the same disagg + valid-checkpoint precondition.
+         */
         require_disagg = true;
-    else if (repair_config->command == WT_REPAIR_COMMAND_FETCH_METADATA) {
+    } else if (repair_config->command == WT_REPAIR_COMMAND_FETCH_METADATA) {
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "local", &item), true);
         if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
             repair_config->fetch_metadata.local = true;
@@ -188,9 +240,11 @@ err:
  * __repair_config_decode --
  *     The config is parsed with the normal WT config parser:
  *
- * fetch_database_size Read-only inspection (disagg-only): return conn->disaggregated_storage.
- *     database_size, tracked incrementally by each checkpoint and self-healed by recalculation
- *     from the shared metadata on every checkpoint pick-up.
+ * fetch_database_size=(local=<bool>) Read-only inspection (disagg-only): return the database size.
+ *     local=true (default) returns conn->disaggregated_storage.database_size, tracked incrementally
+ *     by each checkpoint and self-healed by recalculation from the shared metadata on every
+ *     checkpoint pick-up. local=false fetches the database_size field embedded in the latest
+ *     complete checkpoint directly from shared storage, without picking it up.
  *
  * fetch_metadata=(local=<bool>,uri="<uri>",key="<key>") Read-only inspection: return metadata
  *     values. local=true (default) reads the local metadata cursor; local=false (disagg-only) reads
@@ -269,7 +323,8 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
     WT_ERR(__repair_config_decode(session, report, config, &repair_config));
 
     if (repair_config.command == WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE)
-        WT_ERR(__repair_fetch_database_size(session, report));
+        WT_ERR(
+          __repair_fetch_database_size(session, report, repair_config.fetch_database_size.local));
     else if (repair_config.command == WT_REPAIR_COMMAND_FETCH_METADATA)
         WT_ERR(__repair_fetch_metadata(session, report, repair_config.fetch_metadata.uri,
           repair_config.fetch_metadata.key, repair_config.fetch_metadata.local));

@@ -63,8 +63,10 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.session.checkpoint()
 
-    def reported_size(self):
-        result = self.repair('fetch_database_size')
+    def reported_size(self, local=None):
+        config = 'fetch_database_size' if local is None else \
+            f'fetch_database_size=(local={str(local).lower()})'
+        result = self.repair(config)
         return int(re.search(r': (\d+)$', result).group(1))
 
     def test_config_errors(self):
@@ -137,3 +139,8 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_size = self.get_stat(wiredtiger.stat.conn.disagg_database_size)
         self.assertEqual(reported, stat_size)
         self.assertGreater(reported, 0)
+
+        # local=false reads the database_size field embedded in the latest complete checkpoint
+        # directly from shared storage; right after a checkpoint it must agree with the local,
+        # incrementally tracked total.
+        self.assertEqual(reported, self.reported_size(local=False))
