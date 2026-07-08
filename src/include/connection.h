@@ -341,7 +341,7 @@ struct __wt_disaggregated_storage {
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_NO_SYNC 0x1u
+#define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
