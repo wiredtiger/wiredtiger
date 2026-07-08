@@ -517,11 +517,15 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
-    if (g.checkpoint_config == CHECKPOINT_ON)
+    /*
+     * The async step-down thread joins checkpoint_tid and timestamp_tid internally. Skip the joins
+     * here if the step-down was triggered to avoid joining an already-joined thread.
+     */
+    if (g.checkpoint_config == CHECKPOINT_ON && !stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
-    if (GV(DISAGG_STEPDOWN_ASYNC))
+    if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &stepdown_tid));
     if (disagg_is_multi_node() && !g.disagg_leader)
         testutil_check(__wt_thread_join(NULL, &follower_tid));
@@ -531,7 +535,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &import_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
-    if (g.transaction_timestamps_config)
+    if (g.transaction_timestamps_config && !stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
