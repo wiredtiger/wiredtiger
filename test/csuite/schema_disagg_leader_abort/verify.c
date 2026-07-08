@@ -132,37 +132,13 @@ check_schema_presence(
 }
 
 /*
- * parse_data_records --
- *     Scan one thread's data record file up to cutoff, filling the latest-write-epoch array with
- *     the most recent write epoch seen per slot.
- */
-static void
-parse_data_records(const char *fname, uint64_t cutoff, uint64_t last_epochs[MAX_POOL_SIZE])
-{
-    FILE *fp;
-    uint64_t d_slot, d_epoch;
-    uint32_t s;
-
-    for (s = 0; s < pool_size; s++)
-        last_epochs[s] = 0;
-
-    if ((fp = fopen(fname, "r")) == NULL)
-        return;
-
-    while (fscanf(fp, "%" SCNu64 " %" SCNu64, &d_slot, &d_epoch) == 2)
-        if (d_slot < pool_size && d_epoch <= cutoff && d_epoch > last_epochs[d_slot])
-            last_epochs[d_slot] = d_epoch;
-    (void)fclose(fp);
-}
-
-/*
  * check_data_rows --
- *     For each slot with a recorded write epoch, open the table and confirm the data row written
- *     at that epoch is present with the correct value.
+ *     For each slot whose last checkpointed operation was a CREATE, open the table and confirm all
+ *     DATA_NROWS rows are present with value matching the creation epoch.
  */
 static void
 check_data_rows(
-  WT_SESSION *session, uint32_t t, const uint64_t last_epochs[MAX_POOL_SIZE], bool *fatal)
+  WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE], bool *fatal)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -171,15 +147,15 @@ check_data_rows(
     uint32_t r, s;
 
     for (s = 0; s < pool_size; s++) {
-        if (last_epochs[s] == 0)
+        if (!states[s].valid || !states[s].is_create)
             continue;
 
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
         ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
         if (ret != 0)
-            continue; /* Table was dropped before the cutoff - OK. */
+            continue; /* Cursor open failed — schema check already caught this. */
 
-        testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, last_epochs[s]);
+        testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, states[s].epoch);
         for (r = 0; r < DATA_NROWS; r++) {
             testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
             cursor->set_key(cursor, key_buf);
@@ -197,7 +173,7 @@ check_data_rows(
                 *fatal = true;
             } else {
                 printf("DATA FAIL: %s missing key %s (epoch %" PRIu64 ")\n", uri, key_buf,
-                  last_epochs[s]);
+                  states[s].epoch);
                 *fatal = true;
             }
         }
@@ -209,16 +185,16 @@ check_data_rows(
  * verify_schema_state --
  *     Verify schema and data state after recovery.
  *
- *     Reads per-thread schema and data record files, uses last_disaggregated_schema_epoch as the
- *     epoch cutoff, and asserts that every table whose final pre-cutoff operation was a CREATE
- *     exists and contains the correct data row. Returns true if a fatal error is found.
+ *     Reads per-thread schema record files, uses last_disaggregated_schema_epoch as the epoch
+ *     cutoff, and asserts that every table whose final pre-cutoff operation was a CREATE exists
+ *     and contains correct data rows. Returns true if a fatal error is found.
  */
 bool
 verify_schema_state(WT_CONNECTION *conn)
 {
     SLOT_STATE states[MAX_POOL_SIZE];
     WT_SESSION *session;
-    uint64_t cutoff, last_data_epochs[MAX_POOL_SIZE];
+    uint64_t cutoff;
     bool fatal;
     char fname[128];
     uint32_t t;
@@ -235,10 +211,7 @@ verify_schema_state(WT_CONNECTION *conn)
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
         parse_schema_records(fname, t, cutoff, states);
         check_schema_presence(session, t, states, &fatal);
-
-        testutil_snprintf(fname, sizeof(fname), SCHEMA_DATA_FILE, t);
-        parse_data_records(fname, cutoff, last_data_epochs);
-        check_data_rows(session, t, last_data_epochs, &fatal);
+        check_data_rows(session, t, states, &fatal);
     }
 
     testutil_check(session->close(session, NULL));

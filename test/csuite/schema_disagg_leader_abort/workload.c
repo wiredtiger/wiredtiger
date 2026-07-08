@@ -32,7 +32,6 @@
 typedef struct {
     WT_SESSION *session;
     FILE *schema_fp;
-    FILE *data_fp;
     char tableconf[128];
     char uris[MAX_POOL_SIZE][64];
     bool table_exists[MAX_POOL_SIZE];
@@ -52,11 +51,6 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
     (void)unlink(fname);
     testutil_assert_errno((ctx->schema_fp = fopen(fname, "w")) != NULL);
     __wt_stream_set_line_buffer(ctx->schema_fp);
-
-    testutil_snprintf(fname, sizeof(fname), SCHEMA_DATA_FILE, td->info);
-    (void)unlink(fname);
-    testutil_assert_errno((ctx->data_fp = fopen(fname, "w")) != NULL);
-    __wt_stream_set_line_buffer(ctx->data_fp);
 
     for (i = 0; i < pool_size; i++) {
         testutil_snprintf(
@@ -149,8 +143,8 @@ schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 
 /*
  * schema_op_record --
- *     Persist the schema event and, on CREATE, the data row written to it. The records are
- *     consumed by the verifier after recovery.
+ *     Persist the schema event to the record file and, on CREATE, populate the table with data
+ *     rows. The record file is the verifier's sole source of expected post-recovery state.
  */
 static void
 schema_op_record(SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create, uint64_t epoch)
@@ -159,11 +153,8 @@ schema_op_record(SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create, uint64_t
           is_create ? "CREATE" : "DROP", epoch, ctx->uris[slot]) < 0)
         testutil_die(EIO, "fprintf schema record");
 
-    if (is_create) {
+    if (is_create)
         schema_op_insert_data(ctx, slot, epoch);
-        if (fprintf(ctx->data_fp, "%" PRIu64 " %" PRIu64 "\n", slot, epoch) < 0)
-            testutil_die(EIO, "fprintf data record");
-    }
 }
 
 /*
