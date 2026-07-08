@@ -225,11 +225,11 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_ITERATION 0x02u      /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x04u          /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x08u    /* Leader/follower role changed since last access. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x10u    /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_STEPDOWN_ARMED 0x20u /* A planned step-down is armed on a leader. */
+#define CLAYERED_ENTER_ITERATION 0x01u      /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x02u          /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x04u    /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x08u    /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_STEPDOWN_ARMED 0x10u /* A planned step-down is armed on a leader. */
 /*
  * __clayered_enter_flags --
  *     Derive the enter-time control flags from the operation mode and resolved role.
@@ -303,6 +303,9 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
       conn->layered_table_manager.leader ? WTI_CLAYERED_ROLE_LEADER : WTI_CLAYERED_ROLE_FOLLOWER;
     bool stepdown_ts_armed = role == WTI_CLAYERED_ROLE_LEADER && stepdown_ts != WT_TS_NONE;
     uint32_t flags = __clayered_enter_flags(clayered, mode, role, stepdown_ts_armed);
+
+    if (mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE)
+        WT_RET(__wt_txn_stepdown_straddler_check(session, stepdown_ts));
 
     if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),

@@ -29,6 +29,7 @@
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "Write conflict between concurrent operations"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "Transaction has the oldest pinned transaction ID"
+#define WT_TXN_ROLLBACK_REASON_STEP_DOWN "Transaction started before a planned step-down was armed"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
@@ -417,6 +418,13 @@ struct __wt_txn {
      * on the public list of committed timestamps.
      */
     wt_timestamp_t first_commit_timestamp;
+
+    /*
+     * The step-down cutoff in effect when this transaction began. Used to detect a "straddler": a
+     * transaction that started before a planned step-down was armed and is still writing
+     * afterwards.
+     */
+    wt_timestamp_t stepdown_ts_at_begin;
 
     /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and

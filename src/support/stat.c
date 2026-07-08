@@ -3002,6 +3002,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction range of timestamps pinned by the oldest timestamp",
   "transaction: transaction read timestamp of the oldest active reader",
   "transaction: transaction rollback to stable currently running",
+  "transaction: transaction rolled back because they started before a planned step-down was armed",
   "transaction: transaction walk of concurrent sessions",
   "transaction: transactions committed",
   "transaction: transactions rolled back",
@@ -4076,6 +4077,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_pinned_timestamp_oldest */
     /* not clearing txn_timestamp_oldest_active_read */
     /* not clearing txn_rollback_to_stable_running */
+    stats->txn_rollback_step_down = 0;
     stats->txn_walk_sessions = 0;
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
@@ -5411,6 +5413,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_timestamp_oldest_active_read +=
       WT_STAT_CONN_READ(from, txn_timestamp_oldest_active_read);
     to->txn_rollback_to_stable_running += WT_STAT_CONN_READ(from, txn_rollback_to_stable_running);
+    to->txn_rollback_step_down += WT_STAT_CONN_READ(from, txn_rollback_step_down);
     to->txn_walk_sessions += WT_STAT_CONN_READ(from, txn_walk_sessions);
     to->txn_commit += WT_STAT_CONN_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_CONN_READ(from, txn_rollback);

@@ -1963,6 +1963,16 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
         WT_ERR_MSG(session, EINVAL, "failed %s transaction requires rollback",
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
+    /*
+     * Straddler guard: a write transaction that began before a planned step-down was armed must not
+     * commit once the cutoff is in effect. A straddler that wrote only before the arm does no
+     * further cursor operation for the write-time check to catch, so catch it here. Read-only
+     * transactions are unaffected.
+     */
+    if (txn->mod_count != 0)
+        WT_ERR(__wt_txn_stepdown_straddler_check(
+          session, __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp)));
+
 err:
     /*
      * We might have failed because an illegal configuration was specified or because there wasn't a
