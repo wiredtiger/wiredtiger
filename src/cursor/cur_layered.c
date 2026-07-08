@@ -225,18 +225,18 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
-
+#define CLAYERED_ENTER_ITERATION 0x02u      /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x04u          /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x08u    /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x10u    /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_STEPDOWN_ARMED 0x20u /* A planned step-down is armed on a leader. */
 /*
  * __clayered_enter_flags --
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
 static WT_INLINE uint32_t
-__clayered_enter_flags(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
+__clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
+  WTI_CLAYERED_ROLE role, bool stepdown_ts_armed)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
@@ -258,6 +258,13 @@ __clayered_enter_flags(
     if (role != clayered->last_role)
         LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
 
+    /*
+     * While a step-down is armed on the leader, the cursor behaves like a follower: it reads and
+     * writes the ingest constituent over the still-live stable table.
+     */
+    if (stepdown_ts_armed)
+        LF_SET(CLAYERED_ENTER_STEPDOWN_ARMED);
+
     return (flags);
 }
 
@@ -272,7 +279,9 @@ __clayered_op_init(
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     op->clayered = clayered;
-    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
+    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_STEPDOWN_ARMED)) ?
+      clayered->ingest_cursor :
+      NULL;
     /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
@@ -288,9 +297,12 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
+    wt_timestamp_t stepdown_ts =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
     WTI_CLAYERED_ROLE role =
       conn->layered_table_manager.leader ? WTI_CLAYERED_ROLE_LEADER : WTI_CLAYERED_ROLE_FOLLOWER;
-    uint32_t flags = __clayered_enter_flags(clayered, mode, role);
+    bool stepdown_ts_armed = role == WTI_CLAYERED_ROLE_LEADER && stepdown_ts != WT_TS_NONE;
+    uint32_t flags = __clayered_enter_flags(clayered, mode, role, stepdown_ts_armed);
 
     if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE)) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
@@ -726,28 +738,33 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
 
 /*
  * __clayered_update_ingest --
- *     Manage the ingest cursor lifecycle by node role. A follower opens it on first use and never
- *     reopens it during normal operation. The leader keeps it closed: the ingest table is empty for
- *     reads and unused for writes, so an open ingest cursor only adds the per-operation
- *     cache/reopen and dhandle rwlock overhead. A step-up can leave behind an ingest cursor opened
- *     while a follower, so close it on the role change.
+ *     Manage the ingest cursor lifecycle. A follower opens it on first use and never reopens it
+ *     during normal operation. A leader with a step-down armed also uses ingest (writes route there
+ *     and reads consult it first), so it opens the cursor too. An unarmed leader keeps it closed:
+ *     the ingest table is empty for reads and unused for writes, so an open ingest cursor only adds
+ *     the per-operation cache/reopen and dhandle rwlock overhead. A step-up can leave behind an
+ *     ingest cursor that is no longer wanted, so close it on the role or arm change.
  */
 static int
 __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
+    bool want_ingest;
 
-    if (S2C(session)->layered_table_manager.leader) {
-        if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
-            WT_CURSOR *ingest = clayered->ingest_cursor;
-            if (clayered->current_cursor == ingest)
-                clayered->current_cursor = NULL;
-            WT_RET(ingest->close(ingest));
-            clayered->ingest_cursor = NULL;
+    want_ingest = !S2C(session)->layered_table_manager.leader ||
+      FLD_ISSET(flags, CLAYERED_ENTER_STEPDOWN_ARMED);
+
+    if (want_ingest) {
+        if (clayered->ingest_cursor == NULL) {
+            WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
+            WT_RET(__clayered_copy_bounds(clayered));
         }
-    } else if (clayered->ingest_cursor == NULL) {
-        WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
-        WT_RET(__clayered_copy_bounds(clayered));
+    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+        WT_CURSOR *ingest = clayered->ingest_cursor;
+        if (clayered->current_cursor == ingest)
+            clayered->current_cursor = NULL;
+        WT_RET(ingest->close(ingest));
+        clayered->ingest_cursor = NULL;
     }
 
     return (0);
