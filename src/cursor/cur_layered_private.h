@@ -54,8 +54,7 @@ typedef enum {
     WTI_CLAYERED_MODE_RANDOM,  /* next_random */
     WTI_CLAYERED_MODE_SCAN,    /* largest_key */
     WTI_CLAYERED_MODE_WRITE,   /* reserve, modify; non-overwrite insert/update; plain remove */
-    WTI_CLAYERED_MODE_WRITE_OVERWRITE, /* overwrite insert/update */
-    WTI_CLAYERED_MODE_REMOVE_BLIND     /* remove with blind remove configured */
+    WTI_CLAYERED_MODE_WRITE_SKIP_STABLE /* insert/update/remove with skip_stable configured */
 } WTI_CLAYERED_OP_MODE;
 
 /*

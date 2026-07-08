@@ -971,19 +971,19 @@ static const uint8_t confchk_WT_CURSOR_bound_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_reconfigure[] = {
   {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 87, INT64_MIN,
     INT64_MAX, NULL},
-  {"blind_remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 88,
+  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 88,
     INT64_MIN, INT64_MAX, NULL},
-  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 89,
+  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 89,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 90,
+  {"skip_stable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 90,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_CURSOR_reconfigure_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2,
-  2, 2, 2, 2, 2, 2, 2, 2, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 const char __WT_CONFIG_CHOICE_random[] = "random";
 const char __WT_CONFIG_CHOICE_sequential[] = "sequential";
 
@@ -1659,8 +1659,6 @@ static const char *confchk_statistics2_choices[] = {__WT_CONFIG_CHOICE_all,
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 87, INT64_MIN,
     INT64_MAX, NULL},
-  {"blind_remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 88,
-    INT64_MIN, INT64_MAX, NULL},
   {"bulk", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 130, INT64_MIN,
     INT64_MAX, NULL},
   {"checkpoint", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 61, INT64_MIN,
@@ -1685,9 +1683,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
     151, INT64_MIN, INT64_MAX, NULL},
   {"next_random_seed", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 152,
     INT64_MIN, INT64_MAX, NULL},
-  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 89,
+  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 88,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 90,
+  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 89,
     INT64_MIN, INT64_MAX, NULL},
   {"raw", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 153, INT64_MIN,
     INT64_MAX, NULL},
@@ -1696,6 +1694,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 68, INT64_MIN,
     INT64_MAX, NULL},
   {"skip_sort_check", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 155,
+    INT64_MIN, INT64_MAX, NULL},
+  {"skip_stable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 90,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"clear\","
@@ -1709,8 +1709,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 static const uint8_t confchk_WT_SESSION_open_cursor_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 6, 8, 8,
-  8, 8, 8, 9, 9, 9, 9, 9, 12, 13, 14, 14, 17, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 5, 7, 7,
+  7, 7, 7, 8, 8, 8, 8, 8, 11, 12, 13, 13, 16, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
   {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 181,
@@ -4255,8 +4255,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_WT_CURSOR_bound_jump, 16, WT_CONF_SIZING_INITIALIZE(WT_CURSOR, bound), true},
   {"WT_CURSOR.close", "", NULL, 0, NULL, 17, WT_CONF_SIZING_NONE, false},
   {"WT_CURSOR.reconfigure",
-    "append=false,blind_remove=false,overwrite=true,"
-    "prefix_search=false",
+    "append=false,overwrite=true,prefix_search=false,"
+    "skip_stable=false",
     confchk_WT_CURSOR_reconfigure, 4, confchk_WT_CURSOR_reconfigure_jump, 18, WT_CONF_SIZING_NONE,
     false},
   {"WT_SESSION.alter",
@@ -4326,15 +4326,15 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_WT_SESSION_log_flush_jump, 27, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.log_printf", "", NULL, 0, NULL, 28, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.open_cursor",
-    "append=false,blind_remove=false,bulk=false,checkpoint=,"
-    "checkpoint_use_history=true,checkpoint_wait=true,"
-    "debug=(checkpoint_read_timestamp=,dump_version=false,"
-    "release_evict=false),dump=,incremental=(consolidate=false,"
-    "enabled=false,file=,force_stop=false,granularity=16MB,src_id=,"
-    "this_id=),next_random=false,next_random_sample_size=0,"
-    "next_random_seed=0,overwrite=true,prefix_search=false,raw=false,"
-    "read_once=false,readonly=false,skip_sort_check=false,statistics="
-    ",target=",
+    "append=false,bulk=false,checkpoint=,checkpoint_use_history=true,"
+    "checkpoint_wait=true,debug=(checkpoint_read_timestamp=,"
+    "dump_version=false,release_evict=false),dump=,"
+    "incremental=(consolidate=false,enabled=false,file=,"
+    "force_stop=false,granularity=16MB,src_id=,this_id=),"
+    "next_random=false,next_random_sample_size=0,next_random_seed=0,"
+    "overwrite=true,prefix_search=false,raw=false,read_once=false,"
+    "readonly=false,skip_sort_check=false,skip_stable=false,"
+    "statistics=,target=",
     confchk_WT_SESSION_open_cursor, 20, confchk_WT_SESSION_open_cursor_jump, 29,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.prepare_transaction",

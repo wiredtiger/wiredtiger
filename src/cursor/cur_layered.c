@@ -232,15 +232,14 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 
 /*
  * __clayered_op_mode_skips_stable --
- *     Return whether this operation mode is a candidate to skip the stable cursor on a follower. An
- *     overwrite insert/update and a remove with blind remove configured are the two candidates; see
- *     __clayered_enter_flags for the additional role and read-timestamp conditions that also have
- *     to hold.
+ *     Return whether this operation mode is a candidate to skip the stable cursor on a follower;
+ *     see __clayered_enter_flags for the additional role and read-timestamp conditions that also
+ *     have to hold.
  */
 static WT_INLINE bool
 __clayered_op_mode_skips_stable(WTI_CLAYERED_OP_MODE mode)
 {
-    return (mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE || mode == WTI_CLAYERED_MODE_REMOVE_BLIND);
+    return (mode == WTI_CLAYERED_MODE_WRITE_SKIP_STABLE);
 }
 
 /*
@@ -260,11 +259,10 @@ __clayered_enter_flags(
         LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
-     * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
-     * stable cursor. A skip-eligible write (an overwrite insert/update, or a remove with blind
-     * remove configured) can skip it, but only on a follower with no read timestamp: with a read
-     * timestamp set, the write-conflict check must still consult the stable table regardless of
-     * mode.
+     * Reads (search, search_near, iterate, random, scan) and non-skip-stable writes always need the
+     * stable cursor. A skip-eligible write (insert/update/remove with skip_stable configured) can
+     * skip it, but only on a follower with no read timestamp: with a read timestamp set, the
+     * write-conflict check must still consult the stable table regardless of mode.
      */
     if (__clayered_op_mode_skips_stable(mode) && role == WTI_CLAYERED_ROLE_FOLLOWER &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
@@ -2597,28 +2595,28 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        if (op->stable == NULL && F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE)) {
+        if (op->stable == NULL && F_ISSET(&clayered->iface, WT_CURSTD_SKIP_STABLE)) {
             /*
-             * The stable constituent was deliberately skipped for this blind remove on a follower:
-             *     we can't tell an already-deleted key apart from one that only lives in stable
+             * The stable constituent was deliberately skipped for this remove on a follower: we
+             *     can't tell an already-deleted key apart from one that only lives in stable
              *     without the lookup we chose to avoid.
              *
              * A tombstone found in ingest or the truncate list confirms the key is already
              *     deleted, a genuine no-op regardless of whether the remove was positioned: the
-             *     caller's blind-remove contract guarantees the key existed, and it no longer
-             *     does, so there is nothing left to report but success.
+             *     caller's skip_stable guarantee is that the key existed, and it no longer does,
+             *     so there is nothing left to report but success.
              *
              * Finding nothing at all in ingest or the truncate list leaves the key's existence
              *     genuinely unknown, so assume it exists in stable and fall through to delete it.
-             *     This relies entirely on the blind-remove contract holding: the caller has already
+             *     This relies entirely on the caller's guarantee holding: the caller has already
              *     confirmed the key exists, so it must be sitting in stable, making the resulting
              *     tombstone a harmless redundant delete. That reliance is real, not just
              *     theoretical --
-             *     if the contract is ever violated (a blind remove for a key that never existed
-             *     anywhere), the tombstone this writes has nothing on stable to correspond to.
-             *     __layered_assert_stable_btree_state catches that case at drain time only while
-             *     the tombstone is not yet globally visible; once it is, drain accepts it silently,
-             *     so a violation here is not guaranteed to surface loudly.
+             *     if the guarantee is ever violated (skip_stable configured for a key that never
+             *     existed anywhere), the tombstone this writes has nothing on stable to correspond
+             *     to. __layered_assert_stable_btree_state catches that case at drain time only
+             *     while the tombstone is not yet globally visible; once it is, drain accepts it
+             *     silently, so a violation here is not guaranteed to surface loudly.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
@@ -2634,7 +2632,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             } else if (ret != 0)
                 /*
                  * A real error (e.g. a prepare conflict or rollback): reset, matching the error
-                 * handling __clayered_lookup does for the non-blind path below.
+                 * handling __clayered_lookup does for the non-skip-stable path below.
                  */
                 WT_TRET(__clayered_reset_cursors(clayered, false));
         } else
@@ -2644,13 +2642,13 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
         /*
          * Skip an existing tombstone: no consecutive tombstones on an update chain. With
-         * blind_remove configured, a confirmed-already-deleted key is a no-op regardless of
+         * skip_stable configured, a confirmed-already-deleted key is a no-op regardless of
          * position, same as the skip-stable case above; otherwise the position came from a real
          * earlier traversal and this reports not-found.
          */
         WT_ITEM_SET(value, c_ingest->value);
         if (__wt_clayered_deleted(&value)) {
-            if (F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE))
+            if (F_ISSET(&clayered->iface, WT_CURSTD_SKIP_STABLE))
                 return (0);
             return (WT_NOTFOUND);
         }
@@ -2658,10 +2656,10 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 
     /*
      * If ingest wasn't confirmed positioned on this key by a real lookup above (found is false only
-     * for the blind, skip-stable case, where neither ingest nor the truncate list had an entry for
-     * this key), current_cursor can still be whatever an unrelated earlier operation on this cursor
-     * left it as -- WT_CURSOR::set_key doesn't clear it. Never trust it in that case: always set
-     * the key explicitly rather than risk writing under a stale one.
+     * for the skip-stable case, where neither ingest nor the truncate list had an entry for this
+     * key), current_cursor can still be whatever an unrelated earlier operation on this cursor left
+     * it as -- WT_CURSOR::set_key doesn't clear it. Never trust it in that case: always set the key
+     * explicitly rather than risk writing under a stale one.
      */
     if (!found || clayered->current_cursor != c_ingest)
         c_ingest->set_key(c_ingest, key);
@@ -2765,6 +2763,21 @@ __clayered_needs_pre_lookup(WTI_CLAYERED_OP *op)
 }
 
 /*
+ * __clayered_insert_update_mode --
+ *     Return the operation mode for insert/update. Skipping stable is only safe for these when
+ *     overwrite is also set: without it, the existing-record check overwrite=false requires can
+ *     only be answered by consulting stable.
+ */
+static WT_INLINE WTI_CLAYERED_OP_MODE
+__clayered_insert_update_mode(WT_CURSOR *cursor)
+{
+    return (F_MASK(cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_SKIP_STABLE) ==
+          (WT_CURSTD_OVERWRITE | WT_CURSTD_SKIP_STABLE) ?
+        WTI_CLAYERED_MODE_WRITE_SKIP_STABLE :
+        WTI_CLAYERED_MODE_WRITE);
+}
+
+/*
  * __clayered_insert --
  *     WT_CURSOR->insert method for the layered cursor type.
  */
@@ -2790,10 +2803,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered,
-      F_ISSET(cursor, WT_CURSTD_OVERWRITE) ? WTI_CLAYERED_MODE_WRITE_OVERWRITE :
-                                             WTI_CLAYERED_MODE_WRITE,
-      &op));
+    WT_ERR(__clayered_enter(clayered, __clayered_insert_update_mode(cursor), &op));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -2874,10 +2884,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered,
-      F_ISSET(cursor, WT_CURSTD_OVERWRITE) ? WTI_CLAYERED_MODE_WRITE_OVERWRITE :
-                                             WTI_CLAYERED_MODE_WRITE,
-      &op));
+    WT_ERR(__clayered_enter(clayered, __clayered_insert_update_mode(cursor), &op));
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
@@ -2944,8 +2951,8 @@ __clayered_remove(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
 
     WT_ERR(__clayered_enter(clayered,
-      F_ISSET(cursor, WT_CURSTD_BLIND_REMOVE) ? WTI_CLAYERED_MODE_REMOVE_BLIND :
-                                                WTI_CLAYERED_MODE_WRITE,
+      F_ISSET(cursor, WT_CURSTD_SKIP_STABLE) ? WTI_CLAYERED_MODE_WRITE_SKIP_STABLE :
+                                               WTI_CLAYERED_MODE_WRITE,
       &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);

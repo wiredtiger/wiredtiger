@@ -70,7 +70,6 @@
 #define WT_CONF_ID_before_insert_colgroup 227ULL
 #define WT_CONF_ID_before_insert_file 228ULL
 #define WT_CONF_ID_bitmap 66ULL
-#define WT_CONF_ID_blind_remove 88ULL
 #define WT_CONF_ID_blkcache_eviction_aggression 204ULL
 #define WT_CONF_ID_block_allocation 14ULL
 #define WT_CONF_ID_block_compressor 15ULL
@@ -278,7 +277,7 @@
 #define WT_CONF_ID_os_cache_dirty_max 45ULL
 #define WT_CONF_ID_os_cache_dirty_pct 291ULL
 #define WT_CONF_ID_os_cache_max 46ULL
-#define WT_CONF_ID_overwrite 89ULL
+#define WT_CONF_ID_overwrite 88ULL
 #define WT_CONF_ID_page_history 241ULL
 #define WT_CONF_ID_page_log 21ULL
 #define WT_CONF_ID_panic_corrupt 106ULL
@@ -292,7 +291,7 @@
 #define WT_CONF_ID_prefix 119ULL
 #define WT_CONF_ID_prefix_compression 47ULL
 #define WT_CONF_ID_prefix_compression_min 48ULL
-#define WT_CONF_ID_prefix_search 90ULL
+#define WT_CONF_ID_prefix_search 89ULL
 #define WT_CONF_ID_prepare_timestamp 181ULL
 #define WT_CONF_ID_prepared 179ULL
 #define WT_CONF_ID_prepared_id 182ULL
@@ -336,6 +335,7 @@
 #define WT_CONF_ID_size 206ULL
 #define WT_CONF_ID_skip_checkpoint 190ULL
 #define WT_CONF_ID_skip_sort_check 155ULL
+#define WT_CONF_ID_skip_stable 90ULL
 #define WT_CONF_ID_skip_update_obsolete_check 263ULL
 #define WT_CONF_ID_slow_checkpoint 245ULL
 #define WT_CONF_ID_slow_truncate 246ULL
@@ -657,7 +657,6 @@ static const struct {
     uint64_t background;
     uint64_t backup;
     uint64_t backup_restore_target;
-    uint64_t blind_remove;
     uint64_t block_allocation;
     uint64_t block_compressor;
     uint64_t block_manager;
@@ -802,6 +801,7 @@ static const struct {
     uint64_t session_table_cache;
     uint64_t sessions;
     uint64_t skip_sort_check;
+    uint64_t skip_stable;
     uint64_t source;
     uint64_t split_deepen_min_child;
     uint64_t split_deepen_per_child;
@@ -1089,7 +1089,6 @@ static const struct {
   WT_CONF_ID_background,
   WT_CONF_ID_backup,
   WT_CONF_ID_backup_restore_target,
-  WT_CONF_ID_blind_remove,
   WT_CONF_ID_block_allocation,
   WT_CONF_ID_block_compressor,
   WT_CONF_ID_block_manager,
@@ -1234,6 +1233,7 @@ static const struct {
   WT_CONF_ID_session_table_cache,
   WT_CONF_ID_sessions,
   WT_CONF_ID_skip_sort_check,
+  WT_CONF_ID_skip_stable,
   WT_CONF_ID_source,
   WT_CONF_ID_split_deepen_min_child,
   WT_CONF_ID_split_deepen_per_child,

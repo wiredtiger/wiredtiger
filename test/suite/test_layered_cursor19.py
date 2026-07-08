@@ -31,11 +31,12 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# On a follower, insert/update on a layered cursor should only open the
-# stable constituent when overwrite=false: with overwrite=true (the
-# default) the write path skips the layered lookup and should open the
-# ingest cursor only. Remove works the same way, but is gated on the
-# separate blind remove cursor option instead of overwrite.
+# On a follower, insert/update/remove on a layered cursor only open the stable constituent when
+# skip_stable is not configured. For insert/update, skip_stable additionally requires
+# overwrite=true: without it, the existing-record check overwrite=false requires can only be
+# answered by consulting stable, so overwrite=false always opens it regardless of skip_stable.
+# Remove has no such interaction with overwrite (a plain WT_CURSOR::remove ignores it entirely);
+# skip_stable alone decides whether remove opens stable.
 @disagg_test_class
 class test_layered_cursor19(wttest.WiredTigerTestCase):
 
@@ -86,9 +87,10 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
-    # An insert on a follower with overwrite=true (the default) should open
-    # the ingest cursor only, leaving the stable constituent untouched.
-    def test_follower_insert_overwrite_does_not_open_stable(self):
+    # Sanity check: overwrite=true alone (the default) no longer skips the layered lookup -- that
+    # now requires skip_stable too. Guards against silently reverting to the old overwrite-driven
+    # behavior.
+    def test_follower_insert_overwrite_alone_opens_stable(self):
         self.seed_leader_and_advance_follower()
 
         cursor = self.session_follow.open_cursor(self.uri)
@@ -100,16 +102,35 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(2))
 
         delta = self.measure_cursor_opens(do_insert)
+        self.assertGreaterEqual(delta, 2,
+            "overwrite=true (without skip_stable) insert on a follower opened {} cursors, "
+            "expected at least 2 (ingest + stable)".format(delta))
+
+        cursor.close()
+
+    # An insert on a follower with overwrite=true and skip_stable=true should open the ingest
+    # cursor only, leaving the stable constituent untouched.
+    def test_follower_insert_skip_stable_does_not_open_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'skip_stable=true')
+
+        def do_insert():
+            self.session_follow.begin_transaction()
+            cursor['k1'] = 'v1'
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(2))
+
+        delta = self.measure_cursor_opens(do_insert)
         self.assertEqual(delta, 1,
-            "overwrite=true insert on a follower opened {} cursors, "
+            "skip_stable=true insert on a follower opened {} cursors, "
             "expected 1 (ingest only); delta > 1 means the stable cursor "
             "was opened unnecessarily".format(delta))
 
         cursor.close()
 
-    # An update on a follower with overwrite=true (the default) should open
-    # the ingest cursor only, leaving the stable constituent untouched.
-    def test_follower_update_overwrite_does_not_open_stable(self):
+    # Sanity check mirror for update: overwrite=true alone no longer skips the layered lookup.
+    def test_follower_update_overwrite_alone_opens_stable(self):
         self.seed_leader_and_advance_follower()
 
         # Prime the ingest table with the key we intend to update, using a
@@ -132,8 +153,39 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(3))
 
         delta = self.measure_cursor_opens(do_update)
+        self.assertGreaterEqual(delta, 2,
+            "overwrite=true (without skip_stable) update on a follower opened {} cursors, "
+            "expected at least 2 (ingest + stable)".format(delta))
+
+        cursor.close()
+
+    # An update on a follower with overwrite=true and skip_stable=true should open the ingest
+    # cursor only, leaving the stable constituent untouched.
+    def test_follower_update_skip_stable_does_not_open_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        # Prime the ingest table with the key we intend to update, using a
+        # dedicated cursor that is closed before the measurement.
+        primer = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        primer['k1'] = 'v1'
+        self.session_follow.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(2))
+        primer.close()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'skip_stable=true')
+
+        def do_update():
+            self.session_follow.begin_transaction()
+            cursor.set_key('k1')
+            cursor.set_value('v2')
+            self.assertEqual(cursor.update(), 0)
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(3))
+
+        delta = self.measure_cursor_opens(do_update)
         self.assertEqual(delta, 1,
-            "overwrite=true update on a follower opened {} cursors, "
+            "skip_stable=true update on a follower opened {} cursors, "
             "expected 1 (ingest only); delta > 1 means the stable cursor "
             "was opened unnecessarily".format(delta))
 
@@ -162,6 +214,28 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         cursor.close()
 
+    # skip_stable=true cannot override overwrite=false for insert: the existing-record check still
+    # requires consulting stable, so stable must still open.
+    def test_follower_insert_no_overwrite_with_skip_stable_still_opens_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false,skip_stable=true')
+
+        def do_insert():
+            self.session_follow.begin_transaction()
+            cursor.set_key('k1')
+            cursor.set_value('v1')
+            self.assertEqual(cursor.insert(), 0)
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(2))
+
+        delta = self.measure_cursor_opens(do_insert)
+        self.assertGreaterEqual(delta, 2,
+            "overwrite=false,skip_stable=true insert on a follower opened {} cursors, "
+            "expected at least 2 (ingest + stable)".format(delta))
+
+        cursor.close()
+
     # Sanity check mirror for update: an update with overwrite=false runs a
     # layered lookup and must open the stable cursor. The target key here
     # lives only in stable (ingested via checkpoint from the leader), so
@@ -186,10 +260,32 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # A remove on a follower with blind_remove=true should open the ingest
+    # skip_stable=true cannot override overwrite=false for update: the existing-record check still
+    # requires consulting stable, so stable must still open.
+    def test_follower_update_no_overwrite_with_skip_stable_still_opens_stable(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false,skip_stable=true')
+
+        def do_update():
+            self.session_follow.begin_transaction()
+            cursor.set_key('seed')
+            cursor.set_value('seed-val-2')
+            self.assertEqual(cursor.update(), 0)
+            self.session_follow.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(2))
+
+        delta = self.measure_cursor_opens(do_update)
+        self.assertGreaterEqual(delta, 2,
+            "overwrite=false,skip_stable=true update on a follower opened {} cursors, "
+            "expected at least 2 (ingest + stable)".format(delta))
+
+        cursor.close()
+
+    # A remove on a follower with skip_stable=true should open the ingest
     # cursor only, leaving the stable constituent untouched, when the key
     # being removed lives entirely in the ingest table.
-    def test_follower_remove_blind_does_not_open_stable(self):
+    def test_follower_remove_skip_stable_does_not_open_stable(self):
         self.seed_leader_and_advance_follower()
 
         # Prime the ingest table with the key we intend to remove, using a
@@ -201,7 +297,7 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
             'commit_timestamp=' + self.timestamp_str(2))
         primer.close()
 
-        cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
+        cursor = self.session_follow.open_cursor(self.uri, None, 'skip_stable=true')
 
         def do_remove():
             self.session_follow.begin_transaction()
@@ -212,7 +308,7 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         delta = self.measure_cursor_opens(do_remove)
         self.assertEqual(delta, 1,
-            "blind_remove=true remove on a follower opened {} cursors, "
+            "skip_stable=true remove on a follower opened {} cursors, "
             "expected 1 (ingest only); delta > 1 means the stable cursor "
             "was opened unnecessarily".format(delta))
 
@@ -227,12 +323,12 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
     # cursor is left internally positioned by an earlier search, but that search's cached value
     # goes stale at the following transaction's boundary, so the remove must re-check via the
     # skip-stable path rather than trusting the cache. The key lives only in stable, so neither
-    # ingest nor the truncate list know about it; the blind-remove contract says to assume it
-    # exists in stable and delete it anyway.
-    def test_follower_remove_blind_positioned_stale_value_deletes_stable_only_key(self):
+    # ingest nor the truncate list know about it; the caller's skip_stable guarantee says to
+    # assume it exists in stable and delete it anyway.
+    def test_follower_remove_skip_stable_positioned_stale_value_deletes_stable_only_key(self):
         self.seed_leader_and_advance_follower()
 
-        cursor = self.session_follow.open_cursor(self.uri, None, 'blind_remove=true')
+        cursor = self.session_follow.open_cursor(self.uri, None, 'skip_stable=true')
 
         self.session_follow.begin_transaction()
         cursor.set_key('seed')
@@ -249,13 +345,12 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
         self.assertEqual(verify.search(), wiredtiger.WT_NOTFOUND)
         verify.close()
 
-    # Sanity check mirror for remove: without blind remove, a remove always
-    # runs a layered lookup and must open the stable cursor, regardless of
-    # overwrite -- unlike insert/update, overwrite alone never lets remove
-    # skip the stable cursor. The target key here lives only in stable
-    # (ingested via checkpoint from the leader), so the lookup has to fall
-    # through to stable rather than short-circuit.
-    def test_follower_remove_without_blind_opens_stable(self):
+    # Sanity check mirror for remove: without skip_stable, a remove always runs a layered lookup
+    # and must open the stable cursor, regardless of overwrite -- unlike insert/update, overwrite
+    # has no effect on remove at all. The target key here lives only in stable (ingested via
+    # checkpoint from the leader), so the lookup has to fall through to stable rather than
+    # short-circuit.
+    def test_follower_remove_without_skip_stable_opens_stable(self):
         self.seed_leader_and_advance_follower()
 
         cursor = self.session_follow.open_cursor(self.uri)
@@ -269,7 +364,7 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         delta = self.measure_cursor_opens(do_remove)
         self.assertGreaterEqual(delta, 2,
-            "remove without blind remove on a follower opened {} cursors, "
+            "remove without skip_stable on a follower opened {} cursors, "
             "expected at least 2 (ingest + stable)".format(delta))
 
         cursor.close()

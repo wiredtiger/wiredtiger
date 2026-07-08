@@ -113,7 +113,8 @@ class test_layered_stepup09(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")'
 
     def insert_keys(self, session, nkeys, ts):
-        cursor = session.open_cursor(self.uri)
+        # skip_stable has no effect on the leader; on the follower it keeps stable unopened.
+        cursor = session.open_cursor(self.uri, None, 'skip_stable=true')
         for i in range(nkeys):
             session.begin_transaction()
             cursor[f'key_{i}'] = f'val_{i}'
@@ -143,7 +144,7 @@ class test_layered_stepup09(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(conn_follow)
 
         # Replicate the leader's rows to the follower's ingest.
-        # `insert_keys` opens a default (overwrite) cursor so stable stays unopened.
+        # `insert_keys` uses skip_stable=true, so stable stays unopened.
         self.insert_keys(session_follow, 5, 10)
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.layered_curs_open_stable, session=session_follow), 0)
 
@@ -176,7 +177,7 @@ class test_layered_stepup09(wttest.WiredTigerTestCase):
         conn_follow, session_follow, cursor_follow = self.open_follower()
 
         # Replicate the leader's rows to the follower's ingest.
-        # `insert_keys` opens a default (overwrite) cursor so stable stays unopened.
+        # `insert_keys` uses skip_stable=true, so stable stays unopened.
         self.insert_keys(session_follow, 3, 10)
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.layered_curs_open_stable, session=session_follow), 0)
 

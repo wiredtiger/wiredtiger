@@ -1035,7 +1035,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     WT_CURSOR *cdump, *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    uint64_t blind_remove_flag, bucket, overwrite_flag;
+    uint64_t bucket, overwrite_flag, skip_stable_flag;
     bool cacheable, have_config, readonly;
 
     /* cacheable */
@@ -1062,12 +1062,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     } else
         overwrite_flag = WT_CURSTD_OVERWRITE;
 
-    /* WT_CURSTD_BLIND_REMOVE: not covered by the overwrite fast path above, parse separately. */
+    /* WT_CURSTD_SKIP_STABLE: not covered by the overwrite fast path above, parse separately. */
     if (have_config) {
-        WT_RET(__wt_config_gets_def(session, cfg, "blind_remove", 0, &cval));
-        blind_remove_flag = (cval.val != 0) ? WT_CURSTD_BLIND_REMOVE : 0;
+        WT_RET(__wt_config_gets_def(session, cfg, "skip_stable", 0, &cval));
+        skip_stable_flag = (cval.val != 0) ? WT_CURSTD_SKIP_STABLE : 0;
     } else
-        blind_remove_flag = 0;
+        skip_stable_flag = 0;
 
     if (have_config) {
         WT_RET(__wti_cursors_can_be_cached(session, cfg, &cacheable));
@@ -1099,8 +1099,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * than flag values, so fix them up according to the given configuration.
              */
             F_CLR(cursor,
-              WT_CURSTD_APPEND | WT_CURSTD_BLIND_REMOVE | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
-            F_SET(cursor, overwrite_flag | blind_remove_flag);
+              WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW | WT_CURSTD_SKIP_STABLE);
+            F_SET(cursor, overwrite_flag | skip_stable_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
              */
@@ -1292,11 +1292,11 @@ __wti_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 
-    if ((ret = __wt_config_getones(session, config, "blind_remove", &cval)) == 0) {
+    if ((ret = __wt_config_getones(session, config, "skip_stable", &cval)) == 0) {
         if (cval.val)
-            F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
+            F_SET(cursor, WT_CURSTD_SKIP_STABLE);
         else
-            F_CLR(cursor, WT_CURSTD_BLIND_REMOVE);
+            F_CLR(cursor, WT_CURSTD_SKIP_STABLE);
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -1527,12 +1527,12 @@ __wt_cursor_init(
     else
         F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    /* WT_CURSTD_BLIND_REMOVE: only meaningful on a layered cursor, ignored elsewhere. */
-    WT_ERR(__wt_config_gets_def(session, cfg, "blind_remove", 0, &cval));
+    /* WT_CURSTD_SKIP_STABLE: only meaningful on a layered cursor, ignored elsewhere. */
+    WT_ERR(__wt_config_gets_def(session, cfg, "skip_stable", 0, &cval));
     if (cval.val)
-        F_SET(cursor, WT_CURSTD_BLIND_REMOVE);
+        F_SET(cursor, WT_CURSTD_SKIP_STABLE);
     else
-        F_CLR(cursor, WT_CURSTD_BLIND_REMOVE);
+        F_CLR(cursor, WT_CURSTD_SKIP_STABLE);
 
     WT_ERR(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
 
