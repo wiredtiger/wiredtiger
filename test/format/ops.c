@@ -406,11 +406,11 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         /*
          * When the timer expires during an async disagg leader phase, spawn the step-down in a
          * background thread. The step-down joins the checkpoint/timestamp threads, drains in-flight
-         * transactions, takes the step-down checkpoint, and reconfigures to follower. Running it in
-         * a separate thread keeps the spin loop ticking (track_ops) so terminal output stays live
-         * during the drain (up to 60 s). fourths is paused at -1 while the thread runs; once it
-         * signals done, fourths is reset to grant workers an additional
-         * DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds of follower-mode operation.
+         * transactions, and takes the step-down checkpoint. Running it in a separate thread keeps
+         * the spin loop ticking (track_ops) so terminal output stays live during the drain (up to
+         * 60 s). fourths is paused at -1 while the thread runs; once it signals done, fourths is
+         * reset to grant workers additional time before operations() returns. The role transition
+         * and follower ops happen via disagg_switch_roles() and the next operations() call in t.c.
          */
         if (fourths == 0 && !stepdown_triggered && disagg_is_mode_switch() && g.disagg_leader &&
           GV(DISAGG_STEPDOWN_ASYNC)) {
@@ -419,12 +419,12 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
             stepdown_args.done = false;
             testutil_check(
               __wt_thread_create(NULL, &stepdown_tid, disagg_stepdown_thread, &stepdown_args));
-            stepdown_triggered = true;    /* Prevent re-trigger; the thread owns the step-down now. */
-            stepdown_running = true; /* Track that we need to poll and later join. */
-            fourths = -1;            /* Pause quit timer until step-down thread signals done. */
+            stepdown_triggered = true; /* Prevent re-trigger; the thread owns the step-down now. */
+            stepdown_running = true;   /* Track that we need to poll and later join. */
+            fourths = -1;              /* Pause quit timer until step-down thread signals done. */
         }
 
-        /* Once the step-down thread completes, grant workers follower-mode ops time. */
+        /* Once the step-down thread completes, grant workers additional operation time. */
         if (stepdown_running) {
             bool stepdown_complete;
             WT_ACQUIRE_READ_WITH_BARRIER(stepdown_complete, stepdown_args.done);

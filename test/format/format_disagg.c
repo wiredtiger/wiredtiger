@@ -341,18 +341,9 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
       "step-down checkpoint: stable=%" PRIu64 " != step_down_ts=%" PRIu64, stable_after,
       step_down_ts);
 
-    track("[stepdown] checkpoint verified; becoming follower", 0ULL);
+    track("[stepdown] checkpoint verified", 0ULL);
 
-    /*
-     * Officially transition to follower. Workers that are still running continue to write to ingest
-     * and serve reads - exercising live follower-mode operation (TC1, TC3, TC7).
-     */
-    testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
-    g.disagg_leader = false;
-
-    /* Complete the follower-side switch and clean up state set during notification. */
-    track("[stepdown] completing follower-side switch", 0ULL);
-    follower_read_latest_checkpoint();
+    /* Clean up state set at the start of the async step-down. */
     g.stepdown_ts = WT_TS_NONE;
     g.checkpoint_quit = false;
     g.timestamp_quit = false;
@@ -387,7 +378,7 @@ disagg_switch_roles(void)
 {
     /*
      * For async step-down, verify mirrors before the role switch to validate data consistency at
-     * the step-down boundary, while the connection is still in follower mode.
+     * the step-down boundary.
      */
     if (GV(DISAGG_STEPDOWN_ASYNC))
         wts_verify_mirrors(g.wts_conn, NULL, NULL);
@@ -396,19 +387,25 @@ disagg_switch_roles(void)
     g.disagg_leader = !g.disagg_leader;
 
     if (!g.disagg_leader) {
-        /*
-         * Stepping down: [leader -> follower].
-         *
-         * For async step-down, disagg_async_stepdown() already ran inside operations() and set
-         * g.disagg_leader = false, so the flip above sends us to the step-up branch instead. This
-         * block is only reached on the sync path.
-         *
-         * FIXME-WT-15763: graceful sync step-down is not yet fully supported, so reopen.
-         */
-        track("[role change] leader -> follower (sync)", 0ULL);
-        wts_reopen();
-        follower_read_latest_checkpoint();
-        wts_prepare_discover(g.wts_conn);
+        /* Stepping down: [leader -> follower]. */
+        if (GV(DISAGG_STEPDOWN_ASYNC)) {
+            /*
+             * The async step-down thread already drained in-flight transactions and took the
+             * step-down checkpoint. Complete the role transition here: reconfigure can block, so it
+             * belongs in this synchronous coordination path rather than the background thread.
+             */
+            track("[role change] leader -> follower (async completion)", 0ULL);
+            testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
+            follower_read_latest_checkpoint();
+        } else {
+            /*
+             * FIXME-WT-15763: graceful sync step-down is not yet fully supported, so reopen.
+             */
+            track("[role change] leader -> follower (sync)", 0ULL);
+            wts_reopen();
+            follower_read_latest_checkpoint();
+            wts_prepare_discover(g.wts_conn);
+        }
     } else {
         /* Stepping up: [follower -> leader] */
         SAP sap;
