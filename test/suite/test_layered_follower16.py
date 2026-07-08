@@ -28,7 +28,7 @@
 
 # The stable cursor on a follower must not open until the first read after the
 # follower has picked up a checkpoint. Insert/update with default overwrite, and
-# remove with blind_remove, must never open stable; all other writes and all
+# remove with blind remove, must never open stable; all other writes and all
 # reads must open it.
 
 import wiredtiger, wttest
@@ -151,7 +151,7 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         self.insert_keys(session_follow, 5, 10)
 
         # Open the follower cursor. Remove's skip-stable path is gated on the separate
-        # blind_remove option instead of overwrite, so map the overwrite scenario onto whichever
+        # blind remove option instead of overwrite, so map the overwrite scenario onto whichever
         # option actually matters for the operation under test.
         if self.do_op is _op_remove:
             cursor_config = 'blind_remove=true' if self.overwrite else None

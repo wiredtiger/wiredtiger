@@ -55,7 +55,7 @@ typedef enum {
     WTI_CLAYERED_MODE_SCAN,    /* largest_key */
     WTI_CLAYERED_MODE_WRITE,   /* reserve, modify; non-overwrite insert/update; plain remove */
     WTI_CLAYERED_MODE_WRITE_OVERWRITE, /* overwrite insert/update */
-    WTI_CLAYERED_MODE_REMOVE_BLIND     /* remove with blind_remove configured */
+    WTI_CLAYERED_MODE_REMOVE_BLIND     /* remove with blind remove configured */
 } WTI_CLAYERED_OP_MODE;
 
 /*
@@ -68,12 +68,4 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
-    /*
-     * True when stable is NULL specifically because of the blind-remove skip-stable optimization
-     * (CLAYERED_ENTER_SKIP_STABLE), as opposed to stable simply not being open yet for an unrelated
-     * reason (for example no checkpoint has been picked up). Only remove uses this: it lets
-     * __clayered_lookup safely assume a key exists, rather than report WT_NOTFOUND, when the only
-     * reason it can't check stable is that the caller configured blind_remove.
-     */
-    bool stable_skipped_for_blind_remove;
 };

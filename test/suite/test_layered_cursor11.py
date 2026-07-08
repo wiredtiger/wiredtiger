@@ -90,7 +90,7 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    # A layered cursor does *not* lose position the same way (with or without blind_remove -- this
+    # A layered cursor does *not* lose position the same way (with or without blind remove -- this
     # is pre-existing behavior, not something the blind-remove branch adds): the second remove
     # lands on the "else if (current_cursor == c_ingest)" branch in __clayered_remove_from_ingest,
     # since the first remove's update() left VALUE_INT set on the ingest cursor. That branch

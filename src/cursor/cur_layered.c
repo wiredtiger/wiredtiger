@@ -233,7 +233,7 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 /*
  * __clayered_op_mode_skips_stable --
  *     Return whether this operation mode is a candidate to skip the stable cursor on a follower. An
- *     overwrite insert/update and a remove with blind_remove configured are the two candidates; see
+ *     overwrite insert/update and a remove with blind remove configured are the two candidates; see
  *     __clayered_enter_flags for the additional role and read-timestamp conditions that also have
  *     to hold.
  */
@@ -261,10 +261,10 @@ __clayered_enter_flags(
 
     /*
      * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
-     * stable cursor. A skip-eligible write (an overwrite insert/update, or a remove with
-     * blind_remove configured) can skip it, but only on a follower with no read timestamp: with a
-     * read timestamp set, the write-conflict check must still consult the stable table regardless
-     * of mode.
+     * stable cursor. A skip-eligible write (an overwrite insert/update, or a remove with blind
+     * remove configured) can skip it, but only on a follower with no read timestamp: with a read
+     * timestamp set, the write-conflict check must still consult the stable table regardless of
+     * mode.
      */
     if (__clayered_op_mode_skips_stable(mode) && role == WTI_CLAYERED_ROLE_FOLLOWER &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
@@ -292,12 +292,6 @@ __clayered_op_init(
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-    /*
-     * Distinguish "stable is NULL because we deliberately skipped it" from "stable is NULL for some
-     * other reason" (for example no checkpoint has been picked up yet). Only the former is safe to
-     * treat as "assume the key exists" in __clayered_lookup.
-     */
-    op->stable_skipped_for_blind_remove = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -2603,7 +2597,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        if (op->stable == NULL && op->stable_skipped_for_blind_remove) {
+        if (op->stable == NULL && F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE)) {
             /*
              * The stable constituent was deliberately skipped for this blind remove on a follower:
              *     we can't tell an already-deleted key apart from one that only lives in stable

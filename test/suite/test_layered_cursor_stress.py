@@ -176,7 +176,7 @@ class Node:
     # One connection's view: a layered table (dsc) and a plain reference table (asc), one cursor each
     # in one session, used for both reads and writes. Sharing the cursor keeps layered and reference
     # in lockstep and leaves the cursor positioned after a write (toward long-lived positioned chains).
-    # blind_remove is set on the follower's dsc cursor to exercise the blind-remove skip-stable path.
+    # blind remove is set on the follower's dsc cursor to exercise the blind-remove skip-stable path.
     def __init__(self, conn, session, dsc_uri, asc_uri, blind_remove=False):
         self.conn = conn
         self.session = session

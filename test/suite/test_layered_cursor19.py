@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 # stable constituent when overwrite=false: with overwrite=true (the
 # default) the write path skips the layered lookup and should open the
 # ingest cursor only. Remove works the same way, but is gated on the
-# separate blind_remove cursor option instead of overwrite.
+# separate blind remove cursor option instead of overwrite.
 @disagg_test_class
 class test_layered_cursor19(wttest.WiredTigerTestCase):
 
@@ -218,7 +218,7 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # Sanity check mirror for remove: without blind_remove, a remove always
+    # Sanity check mirror for remove: without blind remove, a remove always
     # runs a layered lookup and must open the stable cursor, regardless of
     # overwrite -- unlike insert/update, overwrite alone never lets remove
     # skip the stable cursor. The target key here lives only in stable
@@ -238,7 +238,7 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         delta = self.measure_cursor_opens(do_remove)
         self.assertGreaterEqual(delta, 2,
-            "remove without blind_remove on a follower opened {} cursors, "
+            "remove without blind remove on a follower opened {} cursors, "
             "expected at least 2 (ingest + stable)".format(delta))
 
         cursor.close()
