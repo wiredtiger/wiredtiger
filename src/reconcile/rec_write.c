@@ -27,6 +27,31 @@ static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
+ * __rec_scrub_eligible --
+ *     Return true if this reconciliation call should retain a disk image for scrub eviction.
+ */
+static WT_INLINE bool
+__rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    /* Skip during recovery or checkpoint shutdown  the scrubbed image would never be consumed. */
+    if (F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
+        return (false);
+
+    /*
+     * Retain a disk image on row-store leaf pages so eviction can replace them with a clean
+     * in-memory image as if just read from disk. Column-store pages are excluded: their format does
+     * not produce a reusable single-block image.
+     */
+    return (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
+      LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
+      F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
+}
+
+/*
  * __wt_reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
@@ -34,27 +59,15 @@ int
 __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
 {
     WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     bool no_reconcile_set, page_locked;
 
-    conn = S2C(session);
     btree = S2BT(session);
     page = ref->page;
 
-    /*
-     * For precise checkpoints, retain a disk image on row-store leaf pages so eviction can replace
-     * them with a clean in-memory image as if just read from disk. Column-store pages are excluded:
-     * their format does not produce a reusable single-block image.
-     *
-     * Skip during recovery or checkpoint shutdown the scrubbed image would never be consumed.
-     */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) && !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
-          LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
-          F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB))
-            LF_SET(WT_REC_SCRUB);
+    if (__rec_scrub_eligible(session, page, flags))
+        LF_SET(WT_REC_SCRUB);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
