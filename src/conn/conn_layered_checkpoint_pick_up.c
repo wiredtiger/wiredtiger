@@ -479,21 +479,22 @@ err:
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  const WT_DISAGG_METADATA *metadata)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
+    WT_DECL_ITEM(metadata_own_ckpt_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_TIMER apply_timer;
-    uint64_t apply_elapsed_ms, database_size;
+    uint64_t apply_elapsed_ms, database_size, metadata_own_size;
     uint32_t existing_tables, new_tables, new_ingest;
     size_t current_len;
     int i;
-    char *layered_ingest_uri, *metadata_own_config;
-    uint64_t metadata_own_size;
+    char *layered_ingest_uri;
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
     const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
@@ -504,7 +505,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     md_write_cursor = NULL;
 
     metadata_checkpoint_name = NULL;
-    metadata_own_config = NULL;
     layered_ingest_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
     database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
@@ -530,10 +530,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     /*
      * The shared metadata table's own on-disk footprint isn't visible to the per-table walk below
-     * (it only visits entries describing other tables' stable files), so account for it here.
+     * (it only visits entries describing other tables' stable files), so account for it here from
+     * the root checkpoint just fetched from shared storage for this same pick-up.
      */
-    WT_ERR(__wt_metadata_search(session, WT_DISAGG_METADATA_URI, &metadata_own_config));
-    WT_ERR(__wt_ckpt_last_size(session, metadata_own_config, &metadata_own_size));
+    WT_ERR(__wt_scr_alloc(session, 0, &metadata_own_ckpt_buf));
+    WT_ERR(__wt_buf_fmt(session, metadata_own_ckpt_buf, "checkpoint=%.*s",
+      (int)metadata->checkpoint_len, metadata->checkpoint));
+    WT_ERR(__wt_ckpt_last_size(session, metadata_own_ckpt_buf->data, &metadata_own_size));
     database_size += metadata_own_size;
 
     /*
@@ -837,9 +840,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 done:
 err:
     __wt_free(session, metadata_checkpoint_name);
-    __wt_free(session, metadata_own_config);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &current_buf);
+    __wt_scr_free(session, &metadata_own_ckpt_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
     WT_TRET(__wt_metadata_cursor_release(session, &md_write_cursor));
@@ -1027,7 +1030,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
 
     /* Apply the metadata from the checkpoint. */
-    WT_WITH_SCHEMA_LOCK(session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta));
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, &metadata));
     WT_ERR(ret);
 
     /*
