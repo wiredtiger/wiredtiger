@@ -75,7 +75,7 @@ schema_op_try(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 
     if (!ctx->table_exists[slot]) {
         ret = ctx->session->create(ctx->session, ctx->uris[slot], ctx->tableconf);
-        if (ret == EBUSY || ret == EEXIST)
+        if (ret == EBUSY)
             return (ret);
         testutil_check(ret);
         ctx->table_exists[slot] = true;
@@ -142,22 +142,6 @@ schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 }
 
 /*
- * schema_op_record --
- *     Persist the schema event to the record file and, on CREATE, populate the table with data
- *     rows. The record file is the verifier's sole source of expected post-recovery state.
- */
-static void
-schema_op_record(SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create, uint64_t epoch)
-{
-    if (fprintf(ctx->schema_fp, "%s %" PRIu64 " %s\n",
-          is_create ? "CREATE" : "DROP", epoch, ctx->uris[slot]) < 0)
-        testutil_die(EIO, "fprintf schema record");
-
-    if (is_create)
-        schema_op_insert_data(ctx, slot, epoch);
-}
-
-/*
  * thread_schema_run --
  *     Creates and drops disaggregated tables from a per-thread pool. Each successful operation is
  *     assigned a monotonically increasing schema epoch and durably recorded so the verifier can
@@ -168,6 +152,7 @@ thread_schema_run(void *arg)
 {
     SCHEMA_WORKER_CTX ctx;
     THREAD_DATA *td;
+    bool is_create;
     uint64_t epoch, slot;
 
     td = (THREAD_DATA *)arg;
@@ -180,7 +165,12 @@ thread_schema_run(void *arg)
             continue;
         }
         epoch = schema_op_publish(td->conn, &ctx, slot);
-        schema_op_record(&ctx, slot, ctx.table_exists[slot], epoch);
+        is_create = ctx.table_exists[slot];
+        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n",
+              is_create ? "CREATE" : "DROP", epoch, ctx.uris[slot]) < 0)
+            testutil_die(EIO, "fprintf schema record");
+        if (is_create)
+            schema_op_insert_data(&ctx, slot, epoch);
     }
     /* NOTREACHED */
 }
@@ -235,10 +225,9 @@ thread_ckpt_run(void *arg)
         if (!stable_set) {
             __wt_epoch(NULL, &now);
             diff_sec = WT_TIMEDIFF_SEC(now, start);
-            if (diff_sec > MAX_STARTUP) {
-                fprintf(stderr, "Stable timestamp not set after %d seconds\n", MAX_STARTUP);
-                abort();
-            }
+            if (diff_sec > MAX_STARTUP)
+                testutil_die(ETIMEDOUT,
+                  "stable timestamp not set after %d seconds", MAX_STARTUP);
             __wt_sleep(0, WT_THOUSAND);
             continue;
         }

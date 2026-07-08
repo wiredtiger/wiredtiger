@@ -36,22 +36,6 @@ typedef struct {
 } SLOT_STATE;
 
 /*
- * query_epoch_cutoff --
- *     Read last_disaggregated_schema_epoch from the connection. Returns false when the epoch is
- *     zero, meaning no schema checkpoint landed and verification should be skipped.
- */
-static bool
-query_epoch_cutoff(WT_CONNECTION *conn, uint64_t *cutoffp)
-{
-    char ts_buf[64];
-
-    testutil_check(conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
-    (void)sscanf(ts_buf, "%" SCNx64, cutoffp);
-    printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", *cutoffp);
-    return (*cutoffp != 0);
-}
-
-/*
  * parse_schema_records --
  *     Scan one thread's schema record file up to cutoff, filling the per-slot state array with
  *     the last operation seen per URI slot. Only records whose URI belongs to thread t are kept.
@@ -196,11 +180,15 @@ verify_schema_state(WT_CONNECTION *conn)
     WT_SESSION *session;
     uint64_t cutoff;
     bool fatal;
-    char fname[128];
+    char fname[128], ts_buf[64];
     uint32_t t;
 
     fatal = false;
-    if (!query_epoch_cutoff(conn, &cutoff)) {
+    cutoff = 0;
+    testutil_check(conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
+    (void)sscanf(ts_buf, "%" SCNx64, &cutoff);
+    printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", cutoff);
+    if (cutoff == 0) {
         printf("Schema verify: no schema epoch checkpointed, skipping.\n");
         return (false);
     }

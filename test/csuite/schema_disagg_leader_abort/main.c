@@ -88,19 +88,82 @@ sig_handler(int sig)
 }
 
 /*
+ * create_test_dirs --
+ *     Create the directory structure needed for a fresh test run.
+ */
+static void
+create_test_dirs(void)
+{
+    char buf[PATH_MAX];
+
+    testutil_recreate_dir(home);
+    testutil_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR);
+    testutil_mkdir(buf);
+    testutil_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR);
+    testutil_mkdir(buf);
+}
+
+/*
+ * fork_and_kill_child --
+ *     Fork the leader child, wait for it to complete its first checkpoint, sleep the timeout, then
+ *     SIGKILL it to simulate a crash.
+ */
+static void
+fork_and_kill_child(uint32_t timeout)
+{
+    struct sigaction sa;
+    pid_t child_pid;
+    int status;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = sig_handler;
+    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
+
+    testutil_assert_errno((child_pid = fork()) >= 0);
+    if (child_pid == 0) {
+        run_workload();
+        /* NOTREACHED */
+    }
+
+    while (!testutil_exists(home, ready_file))
+        testutil_sleep_wait(1, child_pid);
+
+    sleep(timeout);
+
+    sa.sa_handler = SIG_DFL;
+    testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
+
+    testutil_assert_errno(kill(child_pid, SIGKILL) == 0);
+    testutil_assert_errno(waitpid(child_pid, &status, 0) != -1);
+}
+
+/*
+ * open_leader_for_recovery --
+ *     Configure disaggregated leader options and open the database to trigger recovery.
+ */
+static void
+open_leader_for_recovery(WT_CONNECTION **connp)
+{
+    opts->disagg.is_enabled = true;
+    opts->disagg.mode = "leader";
+    opts->disagg.page_log = "palite";
+    opts->disagg.page_log_home = page_log_home;
+    opts->disagg.drain_threads = 1;
+
+    testutil_wiredtiger_open(opts, WT_HOME_DIR,
+      "create,disaggregated=(lose_all_my_data=true)", NULL, connp, true, false);
+}
+
+/*
  * main --
- *     Parse arguments, fork the leader child, kill it after the timeout, then open the database
- *     for recovery and verify schema and data state.
+ *     Parse arguments, run the workload, then verify schema and data state after recovery.
  */
 int
 main(int argc, char *argv[])
 {
-    struct sigaction sa;
     WT_CONNECTION *conn;
-    pid_t child_pid;
     uint32_t rand_value, timeout;
-    int ch, status;
-    char buf[PATH_MAX];
+    int ch;
     char cwd_start[PATH_MAX];
     bool fatal, rand_th, rand_time, verify_only;
 
@@ -160,11 +223,7 @@ main(int argc, char *argv[])
     testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
 
     if (!verify_only) {
-        testutil_recreate_dir(home);
-        testutil_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR);
-        testutil_mkdir(buf);
-        testutil_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR);
-        testutil_mkdir(buf);
+        create_test_dirs();
 
         if (rand_time) {
             timeout = __wt_random(&opts->extra_rnd) % MAX_TIME;
@@ -190,26 +249,7 @@ main(int argc, char *argv[])
         testutil_snprintf(page_log_home, sizeof(page_log_home), "%s/%s/%s", cwd_start, home,
           WT_HOME_DIR);
 
-        memset(&sa, 0, sizeof(sa));
-        sa.sa_handler = sig_handler;
-        testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
-
-        testutil_assert_errno((child_pid = fork()) >= 0);
-        if (child_pid == 0) {
-            run_workload();
-            /* NOTREACHED */
-        }
-
-        while (!testutil_exists(home, ready_file))
-            testutil_sleep_wait(1, child_pid);
-
-        sleep(timeout);
-
-        sa.sa_handler = SIG_DFL;
-        testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
-
-        testutil_assert_errno(kill(child_pid, SIGKILL) == 0);
-        testutil_assert_errno(waitpid(child_pid, &status, 0) != -1);
+        fork_and_kill_child(timeout);
     }
 
     if (chdir(home) != 0)
@@ -224,14 +264,7 @@ main(int argc, char *argv[])
 
     printf("Open leader database, run recovery and verify content\n");
 
-    opts->disagg.is_enabled = true;
-    opts->disagg.mode = "leader";
-    opts->disagg.page_log = "palite";
-    opts->disagg.page_log_home = page_log_home;
-    opts->disagg.drain_threads = 1;
-
-    testutil_wiredtiger_open(opts, WT_HOME_DIR,
-      "create,disaggregated=(lose_all_my_data=true)", NULL, &conn, true, false);
+    open_leader_for_recovery(&conn);
     fatal = verify_schema_state(conn);
     testutil_check(conn->close(conn, "debug=(skip_checkpoint=true)"));
 
