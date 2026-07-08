@@ -354,7 +354,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
 
     def _write_txn(self, nodes, do, label, blind_remove=False):
-        # blind_remove: an unpositioned remove on the follower's blind_remove cursor, with no read
+        # blind_remove: an unpositioned remove on the follower's blind-remove cursor, with no read
         # timestamp, skips the stable lookup and so cannot always tell "exists only in stable" from
         # "doesn't exist at all". It assumes the key exists rather than fail, which is correct for a
         # secondary blindly replaying a leader-validated delete, but means the layered cursor can
@@ -556,7 +556,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
-        # An existing key (a real delete) or a missing one. A blind (unpositioned, blind_remove
+        # An existing key (a real delete) or a missing one. A blind (unpositioned, blind-remove
         # cursor, no read timestamp) remove on a follower may report success for a key that was
         # never written -- see _write_txn's blind_remove note.
         key = self.pick_key(rnd, self.weights.remove_key)

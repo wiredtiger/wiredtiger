@@ -2617,7 +2617,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              *
              * Finding nothing at all in ingest or the truncate list leaves the key's existence
              *     genuinely unknown, so assume it exists in stable and fall through to delete it.
-             *     This relies entirely on the blind_remove contract holding: the caller has already
+             *     This relies entirely on the blind-remove contract holding: the caller has already
              *     confirmed the key exists, so it must be sitting in stable, making the resulting
              *     tombstone a harmless redundant delete. That reliance is real, not just
              *     theoretical --

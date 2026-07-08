@@ -53,7 +53,7 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    # An unpositioned blind_remove on a follower skips the stable lookup and so cannot tell "exists
+    # An unpositioned blind remove on a follower skips the stable lookup and so cannot tell "exists
     # only in stable" from "doesn't exist at all"; it assumes the key exists rather than fail.
     def test_delete_non_existent_key_blind(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
@@ -91,7 +91,7 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         cursor.close()
 
     # A layered cursor does *not* lose position the same way (with or without blind_remove -- this
-    # is pre-existing behavior, not something the blind_remove branch adds): the second remove
+    # is pre-existing behavior, not something the blind-remove branch adds): the second remove
     # lands on the "else if (current_cursor == c_ingest)" branch in __clayered_remove_from_ingest,
     # since the first remove's update() left VALUE_INT set on the ingest cursor. That branch
     # returns WT_NOTFOUND directly on finding an existing tombstone, with no reset on the way out.
