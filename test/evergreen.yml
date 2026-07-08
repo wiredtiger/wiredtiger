@@ -2497,6 +2497,7 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-schema-disagg-leader-abort
+    tags: ["pull_request"]
     depends_on: *s-all-dep
     commands:
       - func: "get project"
@@ -2506,6 +2507,7 @@ tasks:
           directory: test/csuite/schema_disagg_leader_abort
 
   - name: csuite-schema-disagg-leader-abort-stress
+    tags: ["stress-test-disagg"]
     # Set 2 hour timeout (60 * 60 * 2 = 7200)
     exec_timeout_secs: 7200
     depends_on: *s-all-dep
