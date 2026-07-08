@@ -436,12 +436,9 @@ retry:
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
         /*
-         * On a follower, opening the stable checkpoint dhandle reads its root from the disagg page
-         * service and can block for seconds, recurring every checkpoint as the stable name
-         * advances. When no tree walk is requested, take block_size from the checkpoint metadata
-         * instead; the other non-walk stable stats are ~0 on a follower because its pages are not
-         * resident in the local cache. A tree walk (statistics=(all)) still opens the checkpoint to
-         * read it.
+         * When no tree walk is requested, take block_size from the checkpoint metadata instead; the
+         * other non-walk stable stats are ~0 on a follower because its pages are not resident in
+         * the local cache.
          */
         if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
             ckpt_size = 0;
