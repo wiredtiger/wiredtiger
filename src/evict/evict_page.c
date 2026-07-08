@@ -756,8 +756,11 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     case WT_PM_REC_REPLACE:
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
-         * memory, else discard the page.
+         * memory, else discard the page. On close, re-instantiation is pointless: discard the
+         * retained image and take the clean eviction path.
          */
+        if (closing)
+            __wt_free(session, mod->mod_disk_image);
         if (mod->mod_disk_image == NULL) {
             /*
              * 1-for-1 page swap: Update the parent to reference the replacement page.
