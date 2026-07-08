@@ -291,11 +291,11 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     wt_thread_t stepdown_tid, timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
-    bool lastrun, running, stepdown_done, stepdown_running;
+    bool lastrun, running, stepdown_triggered, stepdown_running;
 
     conn = g.wts_conn;
     lastrun = (run_current == run_total);
-    stepdown_done = false;
+    stepdown_triggered = false;
     stepdown_running = false;
     memset(&stepdown_args, 0, sizeof(stepdown_args));
 
@@ -412,14 +412,14 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
          * signals done, fourths is reset to grant workers an additional
          * DISAGG_SWITCH_FOLLOWER_OPS_SEC seconds of follower-mode operation.
          */
-        if (fourths == 0 && !stepdown_done && disagg_is_mode_switch() && g.disagg_leader &&
+        if (fourths == 0 && !stepdown_triggered && disagg_is_mode_switch() && g.disagg_leader &&
           GV(DISAGG_STEPDOWN_ASYNC)) {
             stepdown_args.checkpoint_tid = &checkpoint_tid;
             stepdown_args.timestamp_tid = &timestamp_tid;
             stepdown_args.done = false;
             testutil_check(
               __wt_thread_create(NULL, &stepdown_tid, disagg_stepdown_thread, &stepdown_args));
-            stepdown_done = true;    /* Prevent re-trigger; the thread owns the step-down now. */
+            stepdown_triggered = true;    /* Prevent re-trigger; the thread owns the step-down now. */
             stepdown_running = true; /* Track that we need to poll and later join. */
             fourths = -1;            /* Pause quit timer until step-down thread signals done. */
         }
@@ -672,7 +672,6 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
     session = tinfo->session;
 
-    ++tinfo->commit;
     tinfo->ignore_prepare = false;
 
     ts = 0; /* -Wconditional-uninitialized */
@@ -698,8 +697,11 @@ commit_transaction(TINFO *tinfo, bool prepared)
     } else
         ret = session->commit_transaction(session, NULL);
 
-    if (ret == WT_ROLLBACK)
+    if (ret == WT_ROLLBACK) {
+        ++tinfo->rollback;
         return false;
+    }
+    ++tinfo->commit;
     /*
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.

@@ -317,7 +317,7 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     testutil_assertfmt(
       drain_polls > 0, "step-down drain timed out at step_down_ts=%" PRIu64, step_down_ts);
     /* Sleep for 5 seconds so that leader writes to ingest for some time. */
-    __wt_sleep(5, 0);
+    __wt_sleep(SLEEP_TIME, 0);
 
     /*
      * Pin stable at exactly step_down_ts now that all transactions at or below it have settled. Use
@@ -353,7 +353,6 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     /* Complete the follower-side switch and clean up state set during notification. */
     track("[stepdown] completing follower-side switch", 0ULL);
     follower_read_latest_checkpoint();
-    wts_prepare_discover(g.wts_conn);
     g.stepdown_ts = WT_TS_NONE;
     g.checkpoint_quit = false;
     g.timestamp_quit = false;
