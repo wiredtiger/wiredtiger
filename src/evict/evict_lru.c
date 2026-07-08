@@ -1734,21 +1734,65 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
     } else {
         WT_REF_LOCK(session, ref, &previous_state);
         must_unlock_ref = true;
-        fflush(stdout);
     }
 
-    if (!WT_EVICT_PAGE_CLEARED(page)) {
+    /* Now that we have locked the page, re-check that it's still in data structures */
+    if (WT_EVICT_PAGE_CLEARED(page))
+        return;
+
+    /*
+     * If the page is syncing it will be in a per-dhandle sub-queue.
+     * If the page is not syncing, it will be in a regular bucket queue.
+     */
+    if (page->evict_data.syncing) {
+        WT_EVICT *evict;
+        WT_EVICT_BUCKET *bucket;
+        WT_EVICT_BUCKETSET *bucketset;
+        WT_EVICT_DHANLDE_SUBQUEUE *dhandle_subqueue;
+        WT_EVICT_DHANDLE_HASH_ENTRY *dhandle_hashentry;
+        bool removed;
+        int hash_slot, bucket_id;
+
+        evict = S2C(session)->evict;
+        bucketset = &evict->evict_bucketset[WT_EVICT_DIRTY_SYNCING];
+        hash_slot =
+            page->evict_data.dhandle->name_hash % evict->dhandle_hash_size;
+        bucket_id = page->evict_data.bucket->id;
+        bucket = bucketset->buckets[bucket_id];
+        removed = false;
+
+        WT_ASSERT(bucket->bucketset == bucketset);
+        WT_ASSERT(bucket->pertree_hashtable != NULL);
+
+        /* Lock the bucket to prevent the sub-queue being moved under us */
+        __wt_spin_lock(session, &bucket->evict_queue_lock);
+        dhandle_hashentry = bucket->pertree_hashtable[hash_slot];
+        __wt_spin_lock(session, &dhandle_hashentry->evict_hashchain_lock);
+
+        /* Now it's safe to unlock the bucket */
+        __wt_spin_unlock(session, &bucket->evict_queue_lock);
+        /* Find the subqueue for our dhandle */
+        TAILQ_FOREACH
+            (dhandle_subqueue, dhandle_hashentry->dhandle_hashchain, dhanlde_subq) {
+            if (dhandle_subqueue->dhandle == page->evict_data.dhandle) {
+                TAILQ_REMOVE(dhandle_subqueue->evict_queue, page, evict_data.evict_q);
+                removed = true;
+                break;
+            }
+        }
+        __wt_spin_unlock(session, &bucket->pertree_hashtable[hash_slot].evict_hashchain_lock);
+        WT_ASSERT(session, removed);
+    } else {
         __wt_spin_lock(session, &page->evict_data.bucket->evict_queue_lock);
         TAILQ_REMOVE(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
         __wt_spin_unlock(session, &page->evict_data.bucket->evict_queue_lock);
 
-        __wt_atomic_sub_uint64(&page->evict_data.bucket->bucketset->bucketset_num_items, 1);
-        page->evict_data.bucket = NULL;
-
-        if (destroying)
-            page->evict_data.destroying = true; /* sticky flag, once set can't unset */
+        bucketset = &page->evict_data.bucket->bucketset;
     }
-
+    __wt_atomic_sub_uint64(bucketset->bucketset_num_items, 1);
+    page->evict_data.bucket = NULL;
+    if (destroying)
+        page->evict_data.destroying = true; /* sticky flag, once set can't unset */
     if (must_unlock_ref)
         WT_REF_UNLOCK(ref, previous_state);
 }
