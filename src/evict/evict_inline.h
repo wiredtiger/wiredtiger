@@ -621,12 +621,13 @@ __wt_evict_needed(
 
         /*
          * Temporary solution to not do updates and dirty eviction using application threads on
-         * followers or during step-up. Log an error and log an error if the cache is full of
-         * updates or dirty pages.
+         * followers, during step-up, or on a leader armed for step-down. Log an error if the cache
+         * is full of updates or dirty pages.
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
           (!conn->layered_table_manager.leader ||
-            F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
+            F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
+            __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)) {
             double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
             if (pct_updates > cache_full)
                 __wt_verbose_debug1(
