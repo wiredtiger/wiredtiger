@@ -2758,23 +2758,14 @@ __clayered_needs_pre_lookup(WTI_CLAYERED_OP *op)
      * which means non-overwrite duplicate detection has to happen here instead. This lookup also
      * covers the cases that need both constituents consulted, currently a subset of having an
      * ingest cursor.
+     *
+     * This is independent of skip_stable: skip_stable only controls whether stable is consulted at
+     * all (see __clayered_op_mode_skips_stable), not whether this pre-lookup runs. Combining
+     * overwrite=false with skip_stable=true means the pre-lookup below can't see a stable-only
+     * record, so it is the caller's responsibility to avoid that combination when correctness
+     * depends on it -- the same kind of guarantee skip_stable already requires from remove.
      */
     return (op->ingest != NULL && !F_ISSET(&op->clayered->iface, WT_CURSTD_OVERWRITE));
-}
-
-/*
- * __clayered_insert_update_mode --
- *     Return the operation mode for insert/update. Skipping stable is only safe for these when
- *     overwrite is also set: without it, the existing-record check overwrite=false requires can
- *     only be answered by consulting stable.
- */
-static WT_INLINE WTI_CLAYERED_OP_MODE
-__clayered_insert_update_mode(WT_CURSOR *cursor)
-{
-    return (F_MASK(cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_SKIP_STABLE) ==
-          (WT_CURSTD_OVERWRITE | WT_CURSTD_SKIP_STABLE) ?
-        WTI_CLAYERED_MODE_WRITE_SKIP_STABLE :
-        WTI_CLAYERED_MODE_WRITE);
 }
 
 /*
@@ -2803,7 +2794,10 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, __clayered_insert_update_mode(cursor), &op));
+    WT_ERR(__clayered_enter(clayered,
+      F_ISSET(cursor, WT_CURSTD_SKIP_STABLE) ? WTI_CLAYERED_MODE_WRITE_SKIP_STABLE :
+                                               WTI_CLAYERED_MODE_WRITE,
+      &op));
 
     /*
      * It isn't necessary to copy the key out after the lookup in this case because any non-failed
@@ -2884,7 +2878,10 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
-    WT_ERR(__clayered_enter(clayered, __clayered_insert_update_mode(cursor), &op));
+    WT_ERR(__clayered_enter(clayered,
+      F_ISSET(cursor, WT_CURSTD_SKIP_STABLE) ? WTI_CLAYERED_MODE_WRITE_SKIP_STABLE :
+                                               WTI_CLAYERED_MODE_WRITE,
+      &op));
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 

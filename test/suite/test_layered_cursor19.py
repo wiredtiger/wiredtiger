@@ -32,11 +32,11 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # On a follower, insert/update/remove on a layered cursor only open the stable constituent when
-# skip_stable is not configured. For insert/update, skip_stable additionally requires
-# overwrite=true: without it, the existing-record check overwrite=false requires can only be
-# answered by consulting stable, so overwrite=false always opens it regardless of skip_stable.
-# Remove has no such interaction with overwrite (a plain WT_CURSOR::remove ignores it entirely);
-# skip_stable alone decides whether remove opens stable.
+# skip_stable is not configured; skip_stable alone decides this for all three, independent of
+# overwrite. For insert/update with overwrite=false, this means the existing-record check
+# (WT_DUPLICATE_KEY / WT_NOTFOUND) can no longer see a record that lives only in stable -- the
+# caller is responsible for not combining overwrite=false with skip_stable=true when that
+# correctness matters, the same kind of guarantee skip_stable already requires from remove.
 @disagg_test_class
 class test_layered_cursor19(wttest.WiredTigerTestCase):
 
@@ -214,9 +214,8 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # skip_stable=true cannot override overwrite=false for insert: the existing-record check still
-    # requires consulting stable, so stable must still open.
-    def test_follower_insert_no_overwrite_with_skip_stable_still_opens_stable(self):
+    # skip_stable is independent of overwrite: overwrite=false,skip_stable=true still skips stable.
+    def test_follower_insert_no_overwrite_with_skip_stable_does_not_open_stable(self):
         self.seed_leader_and_advance_follower()
 
         cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false,skip_stable=true')
@@ -230,10 +229,27 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
                 'commit_timestamp=' + self.timestamp_str(2))
 
         delta = self.measure_cursor_opens(do_insert)
-        self.assertGreaterEqual(delta, 2,
+        self.assertEqual(delta, 1,
             "overwrite=false,skip_stable=true insert on a follower opened {} cursors, "
-            "expected at least 2 (ingest + stable)".format(delta))
+            "expected 1 (ingest only); delta > 1 means the stable cursor "
+            "was opened unnecessarily".format(delta))
 
+        cursor.close()
+
+    # Demonstrates the caller-guarantee risk of combining overwrite=false with skip_stable=true:
+    # the existing-record check can no longer see 'seed', which lives only in stable, so insert()
+    # incorrectly reports success instead of WT_DUPLICATE_KEY. This is expected, not a bug -- it is
+    # the caller's responsibility to avoid this combination when the check matters.
+    def test_follower_insert_no_overwrite_with_skip_stable_misses_stable_duplicate(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false,skip_stable=true')
+
+        self.session_follow.begin_transaction()
+        cursor.set_key('seed')
+        cursor.set_value('new-val')
+        self.assertEqual(cursor.insert(), 0)
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
         cursor.close()
 
     # Sanity check mirror for update: an update with overwrite=false runs a
@@ -260,26 +276,51 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # skip_stable=true cannot override overwrite=false for update: the existing-record check still
-    # requires consulting stable, so stable must still open.
-    def test_follower_update_no_overwrite_with_skip_stable_still_opens_stable(self):
+    # skip_stable is independent of overwrite: overwrite=false,skip_stable=true still skips stable.
+    # Uses 'k1' (primed into ingest, unlike 'seed' which lives only in stable) so the existing-
+    # record check the cursor-open-count measurement piggybacks on actually succeeds.
+    def test_follower_update_no_overwrite_with_skip_stable_does_not_open_stable(self):
         self.seed_leader_and_advance_follower()
+
+        primer = self.session_follow.open_cursor(self.uri)
+        self.session_follow.begin_transaction()
+        primer['k1'] = 'v1'
+        self.session_follow.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(2))
+        primer.close()
 
         cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false,skip_stable=true')
 
         def do_update():
             self.session_follow.begin_transaction()
-            cursor.set_key('seed')
-            cursor.set_value('seed-val-2')
+            cursor.set_key('k1')
+            cursor.set_value('v2')
             self.assertEqual(cursor.update(), 0)
             self.session_follow.commit_transaction(
-                'commit_timestamp=' + self.timestamp_str(2))
+                'commit_timestamp=' + self.timestamp_str(3))
 
         delta = self.measure_cursor_opens(do_update)
-        self.assertGreaterEqual(delta, 2,
+        self.assertEqual(delta, 1,
             "overwrite=false,skip_stable=true update on a follower opened {} cursors, "
-            "expected at least 2 (ingest + stable)".format(delta))
+            "expected 1 (ingest only); delta > 1 means the stable cursor "
+            "was opened unnecessarily".format(delta))
 
+        cursor.close()
+
+    # Demonstrates the caller-guarantee risk of combining overwrite=false with skip_stable=true:
+    # the existing-record check can no longer see 'seed', which lives only in stable, so update()
+    # incorrectly reports WT_NOTFOUND instead of succeeding. This is expected, not a bug -- it is
+    # the caller's responsibility to avoid this combination when the check matters.
+    def test_follower_update_no_overwrite_with_skip_stable_misses_stable_record(self):
+        self.seed_leader_and_advance_follower()
+
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false,skip_stable=true')
+
+        self.session_follow.begin_transaction()
+        cursor.set_key('seed')
+        cursor.set_value('seed-val-2')
+        self.assertEqual(cursor.update(), wiredtiger.WT_NOTFOUND)
+        self.session_follow.rollback_transaction()
         cursor.close()
 
     # A remove on a follower with skip_stable=true should open the ingest

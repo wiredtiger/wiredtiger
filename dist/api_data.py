@@ -1597,12 +1597,13 @@ cursor_runtime_config = [
     Config('skip_stable', 'false', r'''
         for a cursor on a layered table, allow WT_CURSOR::insert, WT_CURSOR::update and
         WT_CURSOR::remove to skip consulting the stable constituent on a follower, writing
-        directly to the ingest table instead. For insert and update this only takes effect when
-        \c overwrite is also \c true: without it, the existing-record check that overwrite=false
-        requires can only be answered by consulting stable. For remove, the caller must guarantee
-        the key is already known to exist, for example because it is replaying a delete already
-        confirmed elsewhere; an incorrect guarantee is not guaranteed to raise an error and can
-        corrupt the table. Has no effect on a leader, or for cursors on any other data source''',
+        directly to the ingest table instead. The caller must guarantee this is safe: for
+        insert/update with \c overwrite set to \c false, the existing-record check normally
+        answered by consulting stable will not see a record that lives only in stable; for
+        remove, the key must already be known to exist, for example because it is replaying a
+        delete already confirmed elsewhere. An incorrect guarantee is not guaranteed to raise an
+        error and can corrupt the table. Has no effect on a leader, or for cursors on any other
+        data source''',
         type='boolean', undoc=True),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
