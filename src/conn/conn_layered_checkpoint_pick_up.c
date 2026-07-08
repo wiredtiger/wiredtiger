@@ -477,20 +477,22 @@ err:
 /*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
+ *     database_size_base is the portion of the total database size that the per-table walk below
+ *     cannot see (e.g. the shared metadata table's own on-disk footprint), folded into the running
+ *     total up front.
  */
 static int
-__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
-  const WT_DISAGG_METADATA *metadata)
+__disagg_apply_checkpoint_meta(
+  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, uint64_t database_size_base)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
-    WT_DECL_ITEM(metadata_own_ckpt_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_TIMER apply_timer;
-    uint64_t apply_elapsed_ms, database_size, metadata_own_size;
+    uint64_t apply_elapsed_ms, database_size;
     uint32_t existing_tables, new_tables, new_ingest;
     size_t current_len;
     int i;
@@ -507,7 +509,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     layered_ingest_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
-    database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+    database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER + database_size_base;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
@@ -527,17 +529,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
       false);
     if (metadata_checkpoint_name == NULL)
         goto done;
-
-    /*
-     * The shared metadata table's own on-disk footprint isn't visible to the per-table walk below
-     * (it only visits entries describing other tables' stable files), so account for it here from
-     * the root checkpoint just fetched from shared storage for this same pick-up.
-     */
-    WT_ERR(__wt_scr_alloc(session, 0, &metadata_own_ckpt_buf));
-    WT_ERR(__wt_buf_fmt(session, metadata_own_ckpt_buf, "checkpoint=%.*s",
-      (int)metadata->checkpoint_len, metadata->checkpoint));
-    WT_ERR(__wt_ckpt_last_size(session, metadata_own_ckpt_buf->data, &metadata_own_size));
-    database_size += metadata_own_size;
 
     /*
      * !!!
@@ -842,7 +833,6 @@ err:
     __wt_free(session, metadata_checkpoint_name);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &current_buf);
-    __wt_scr_free(session, &metadata_own_ckpt_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
     WT_TRET(__wt_metadata_cursor_release(session, &md_write_cursor));
@@ -943,7 +933,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
     WT_TIMER pickup_timer;
-    uint64_t current_meta_lsn, pickup_elapsed_ms;
+    uint64_t current_meta_lsn, metadata_own_size, pickup_elapsed_ms;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -1029,9 +1019,18 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 2: Apply the metadata for other tables from the shared metadata table.
      */
 
+    /*
+     * The shared metadata table's own on-disk footprint isn't visible to the per-table walk in
+     * __disagg_apply_checkpoint_meta (it only visits entries describing other tables' stable
+     * files), so compute it here instead, straight from the checkpoint metadata buffer just
+     * fetched from shared storage for this same pick-up: it already carries the same
+     * "checkpoint=(...)" entry that metadata.checkpoint was parsed out of.
+     */
+    WT_ERR(__wt_ckpt_last_size(session, metadata_buf.data, &metadata_own_size));
+
     /* Apply the metadata from the checkpoint. */
     WT_WITH_SCHEMA_LOCK(
-      session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, &metadata));
+      session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, metadata_own_size));
     WT_ERR(ret);
 
     /*
