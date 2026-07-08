@@ -2622,12 +2622,13 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
-                if (found) {
-                    /* Confirmed already deleted: a no-op regardless of position. */
-                    ret = 0;
-                    WT_TRET(__clayered_reset_cursors(clayered, false));
-                    return (ret);
-                }
+                if (found)
+                    /*
+                     * Confirmed already deleted: a no-op regardless of position. Nothing to reset:
+                     * stable is already NULL here, and if the lookup above left the ingest cursor
+                     * positioned on this key, that position is accurate, not a stale probe.
+                     */
+                    return (0);
                 /* Existence unknown either way: assume it exists in stable. */
                 ret = 0;
             }
@@ -2637,14 +2638,17 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
         /*
-         * Skip an existing tombstone: no consecutive tombstones on an update chain. This is a
-         * positioned remove, so unlike the unpositioned/blind case above, the position came from a
-         * real earlier traversal and a blind remove does not excuse a stale position from reporting
-         * not-found.
+         * Skip an existing tombstone: no consecutive tombstones on an update chain. With
+         * blind_remove configured, a confirmed-already-deleted key is a no-op regardless of
+         * position, same as the skip-stable case above; otherwise the position came from a real
+         * earlier traversal and this reports not-found.
          */
         WT_ITEM_SET(value, c_ingest->value);
-        if (__wt_clayered_deleted(&value))
+        if (__wt_clayered_deleted(&value)) {
+            if (F_ISSET(&clayered->iface, WT_CURSTD_BLIND_REMOVE))
+                return (0);
             return (WT_NOTFOUND);
+        }
     }
 
     /*

@@ -90,11 +90,12 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    # A layered cursor does *not* lose position the same way (with or without blind remove -- this
-    # is pre-existing behavior, not something the blind-remove branch adds): the second remove
-    # lands on the "else if (current_cursor == c_ingest)" branch in __clayered_remove_from_ingest,
-    # since the first remove's update() left VALUE_INT set on the ingest cursor. That branch
-    # returns WT_NOTFOUND directly on finding an existing tombstone, with no reset on the way out.
+    # A layered cursor does *not* lose position the same way a plain cursor does (this is
+    # pre-existing behavior, not something the blind-remove branch adds): the second remove lands on
+    # the "else if (current_cursor == c_ingest)" branch in __clayered_remove_from_ingest, since the
+    # first remove's update() left VALUE_INT set on the ingest cursor. With blind_remove configured,
+    # that branch treats the already-deleted key as a no-op and reports success rather than
+    # not-found (matching the skip-stable path's handling of the same situation).
     def test_positioned_double_remove_blind_keeps_position(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
@@ -109,7 +110,7 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), 0)
         self.assertEqual(cursor.get_key(), 'k2')
 
-        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.remove(), 0)
         self.assertEqual(cursor.get_key(), 'k2')
         self.session.rollback_transaction()
         cursor.close()
