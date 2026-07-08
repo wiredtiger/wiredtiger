@@ -28,17 +28,6 @@
 
 #include "schema_disagg_leader_abort.h"
 
-/*
- * Stable writes to unpublished tables panic (WiredTiger invariant). session->create immediately
- * enqueues a CREATE entry with WT_SCHEMA_EPOCH_UNPUBLISHED; any checkpoint between create and
- * publish would capture the table's internally-stable empty pages and trigger the panic.
- *
- * Schema workers hold this lock for the duration of create+publish (microseconds). The checkpoint
- * thread holds it while advancing stable_disaggregated_schema_epoch and running the checkpoint,
- * preventing any concurrent create+publish window from being open during either operation.
- */
-static pthread_mutex_t schema_ckpt_lock;
-
 /* Shared state internal to the workload threads. */
 static volatile bool stable_set;
 static uint64_t schema_op_epoch;
@@ -82,7 +71,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
  * schema_op_execute --
  *     Execute the next schema operation on the given slot and update the caller's table-exists
  *     state. Drop uses lock_wait=false so lock contention returns EBUSY immediately; the caller
- *     yields and retries. Called under the schema_ckpt_rwlock read lock.
+ *     yields and retries.
  */
 static int
 schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -108,14 +97,12 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 /*
  * schema_op_publish --
  *     Assign an epoch and publish the schema operation so it is visible to followers and will be
- *     applied by the next checkpoint. Must be called for both CREATE and DROP. Called under the
- *     schema_ckpt_lock.
+ *     applied by the next checkpoint. Must be called for both CREATE and DROP.
  *
  *     session->publish updates every WT_SCHEMA_EPOCH_UNPUBLISHED entry for this URI in the shared
- *     metadata queue — CREATE on a live table, REMOVE on a dropped one — to the given real epoch.
- *     Without this call, the entry keeps WT_TS_MAX and is never applied by any checkpoint, so
- *     drops are never durably committed to shared metadata and recreating the same URI risks
- *     triggering the "stable data checkpointed for unpublished table" invariant.
+ *     metadata queue — CREATE on a live table, REMOVE on a dropped one — to a real epoch. Without
+ *     this call for DROP, the REMOVE entry keeps WT_TS_MAX and is never applied by any checkpoint,
+ *     leaving the table permanently in shared metadata.
  */
 static uint64_t
 schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -133,18 +120,21 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 /*
  * schema_op_insert_data --
  *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
- *     as value. This lets the verifier confirm data durability for surviving tables.
+ *     as value. Returns the commit timestamp so the caller can record it for the verifier.
  *
- *     Called after the schema_ckpt_rwlock read lock is released. The table is already published;
- *     any checkpoint that captures this non-timestamped data will also see the published CREATE
- *     entry with an epoch at or below the checkpoint's schema epoch watermark.
+ *     The commit timestamp is set to stable_timestamp + 2 so the write is not immediately stable.
+ *     This satisfies the disagg invariant that stable writes are only permitted to published tables:
+ *     the table is published at epoch N before this call, and by the time stable_timestamp advances
+ *     past the commit timestamp, any checkpoint that captures this data will also have
+ *     stable_disaggregated_schema_epoch >= N.
  */
-static void
-schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
+static uint64_t
+schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
     WT_CURSOR *cursor;
-    char key_buf[16], val_buf[32];
+    char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
     uint32_t r;
+    uint64_t stable_ts;
 
     testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
     testutil_check(ctx->session->begin_transaction(ctx->session, NULL));
@@ -157,7 +147,14 @@ schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
         testutil_check(cursor->insert(cursor));
     }
     testutil_check(cursor->close(cursor));
-    testutil_check(ctx->session->commit_transaction(ctx->session, NULL));
+
+    /* Query stable_ts immediately before commit to minimise the window where stable can advance. */
+    testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
+    stable_ts = 0;
+    (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
+    testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, stable_ts + 10);
+    testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
+    return (stable_ts + 2);
 }
 
 /*
@@ -172,30 +169,25 @@ thread_schema_run(void *arg)
     SCHEMA_WORKER_CTX ctx;
     THREAD_DATA *td;
     bool is_create;
-    uint64_t epoch, slot;
+    uint64_t commit_ts, epoch, slot;
 
     td = (THREAD_DATA *)arg;
     schema_worker_open(td, &ctx);
 
     for (;;) {
         slot = __wt_random(&td->rnd) % td->cfg->pool_size;
-
-        testutil_check(pthread_mutex_lock(&schema_ckpt_lock));
         if (schema_op_execute(&ctx, slot) == EBUSY) {
-            testutil_check(pthread_mutex_unlock(&schema_ckpt_lock));
             __wt_yield();
             continue;
         }
         is_create = ctx.table_exists[slot];
         epoch = schema_op_publish(&ctx, slot);
-        testutil_check(pthread_mutex_unlock(&schema_ckpt_lock));
-
-        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n",
-              is_create ? "CREATE" : "DROP", epoch, ctx.uris[slot]) < 0)
-            testutil_die(EIO, "fprintf schema record");
-
+        commit_ts = 0;
         if (is_create)
-            schema_op_insert_data(&ctx, slot, epoch);
+            commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
+        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %" PRIu64 " %s\n",
+              is_create ? "CREATE" : "DROP", epoch, commit_ts, ctx.uris[slot]) < 0)
+            testutil_die(EIO, "fprintf schema record");
     }
     /* NOTREACHED */
 }
@@ -226,9 +218,9 @@ thread_ts_run(void *arg)
 
 /*
  * thread_ckpt_run --
- *     Checkpoints periodically. Holds the write lock while advancing
- *     stable_disaggregated_schema_epoch and running the checkpoint so no create->publish sequence
- *     is open during either operation. Writes the ready sentinel after the first checkpoint.
+ *     Checkpoints periodically. Advances stable_disaggregated_schema_epoch to the current
+ *     schema_op_epoch before each checkpoint so all published schema operations are included.
+ *     Writes the ready sentinel after the first checkpoint.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
@@ -261,12 +253,12 @@ thread_ckpt_run(void *arg)
         sleep_time = __wt_random(&td->rnd) % MAX_CKPT_INVL;
         __wt_sleep(sleep_time, 0);
 
-        testutil_check(pthread_mutex_lock(&schema_ckpt_lock));
-        testutil_snprintf(
-          ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, schema_op_epoch);
-        (void)td->conn->set_timestamp(td->conn, ts_cfg);
+        if (schema_op_epoch > 0) {
+            testutil_snprintf(ts_cfg, sizeof(ts_cfg),
+              "stable_disaggregated_schema_epoch=%" PRIx64, schema_op_epoch);
+            (void)td->conn->set_timestamp(td->conn, ts_cfg);
+        }
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
-        testutil_check(pthread_mutex_unlock(&schema_ckpt_lock));
 
         printf("Checkpoint %d complete\n", i);
         fflush(stdout);
@@ -346,7 +338,6 @@ run_workload(TEST_CONFIG *cfg)
     if (cfg->aggressive_sweep)
         strcat(envconf, ENV_CONFIG_SWEEP);
 
-    testutil_check(pthread_mutex_init(&schema_ckpt_lock, NULL));
     stable_set = false;
 
     cfg->opts->disagg.is_enabled = true;

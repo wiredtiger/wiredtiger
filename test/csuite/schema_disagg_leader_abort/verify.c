@@ -31,6 +31,7 @@
 /* Last schema operation on one URI slot within the epoch cutoff. */
 typedef struct {
     uint64_t epoch;
+    uint64_t commit_ts; /* data commit timestamp; 0 for DROP */
     bool is_create;
     bool valid;
 } SLOT_STATE;
@@ -47,11 +48,12 @@ parse_schema_records(
 {
     FILE *fp;
     char op[16], rec_uri[128];
-    uint64_t entry_epoch;
+    uint64_t commit_ts, entry_epoch;
     uint32_t s, t2;
 
     for (s = 0; s < pool_size; s++) {
         states[s].epoch = 0;
+        states[s].commit_ts = 0;
         states[s].is_create = false;
         states[s].valid = false;
     }
@@ -59,7 +61,8 @@ parse_schema_records(
     if ((fp = fopen(fname, "r")) == NULL)
         return;
 
-    while (fscanf(fp, "%15s %" SCNu64 " %127s", op, &entry_epoch, rec_uri) == 3) {
+    while (fscanf(fp, "%15s %" SCNu64 " %" SCNu64 " %127s",
+             op, &entry_epoch, &commit_ts, rec_uri) == 4) {
         if (entry_epoch > cutoff)
             continue;
         if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t ||
@@ -67,6 +70,7 @@ parse_schema_records(
             continue;
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
+            states[s].commit_ts = commit_ts;
             states[s].is_create = (strcmp(op, "CREATE") == 0);
             states[s].valid = true;
         }
@@ -118,12 +122,14 @@ check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[M
 
 /*
  * check_data_rows --
- *     For each slot whose last checkpointed operation was a CREATE, open the table and confirm all
- *     DATA_NROWS rows are present with value matching the creation epoch.
+ *     For each slot whose last checkpointed operation was a CREATE and whose data commit timestamp
+ *     is at or below the last checkpoint timestamp, confirm all DATA_NROWS rows are present.
+ *     Slots whose data commit timestamp exceeds last_ckpt_ts are skipped: the data was committed
+ *     after the last checkpoint and is not durable.
  */
 static void
 check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
-  uint32_t pool_size, bool *fatal)
+  uint32_t pool_size, uint64_t last_ckpt_ts, bool *fatal)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -133,6 +139,8 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
 
     for (s = 0; s < pool_size; s++) {
         if (!states[s].valid || !states[s].is_create)
+            continue;
+        if (last_ckpt_ts > 0 && states[s].commit_ts > last_ckpt_ts)
             continue;
 
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
@@ -179,7 +187,7 @@ verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
 {
     SLOT_STATE states[MAX_POOL_SIZE];
     WT_SESSION *session;
-    uint64_t cutoff;
+    uint64_t cutoff, last_ckpt_ts;
     bool fatal;
     char fname[128], ts_buf[64];
     uint32_t t;
@@ -194,13 +202,18 @@ verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
         return (false);
     }
 
+    last_ckpt_ts = 0;
+    (void)conn->query_timestamp(conn, ts_buf, "get=last_checkpoint");
+    (void)sscanf(ts_buf, "%" SCNx64, &last_ckpt_ts);
+    printf("Schema verify: last_checkpoint_timestamp = %" PRIu64 "\n", last_ckpt_ts);
+
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     for (t = 0; t < cfg->nth; t++) {
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
         parse_schema_records(fname, t, cutoff, states, cfg->pool_size);
         check_schema_presence(session, t, states, cfg->pool_size, &fatal);
-        check_data_rows(session, t, states, cfg->pool_size, &fatal);
+        check_data_rows(session, t, states, cfg->pool_size, last_ckpt_ts, &fatal);
     }
 
     testutil_check(session->close(session, NULL));
