@@ -443,14 +443,12 @@ err:
 
 /*
  * WT_DISAGG_CREATE_REMOVE_ENTRY --
- *     A single table's most recent CREATE or REMOVE operation, as captured in a point-in-time
- *     snapshot of the shared metadata queue.
+ *     A table's queued CREATE or REMOVE operation, copied out of the shared metadata queue.
  */
 typedef struct {
-    char *table_name; /* Owned copy of the table name. */
-    WT_SHARED_METADATA_OP metadata_op;
-    uint32_t orig_idx; /* Position in the queue's chronological order; used to break ties between
-                        * same-named entries so that the most recently queued operation wins. */
+    char *table_name;                  /* Owned copy of the table name. */
+    WT_SHARED_METADATA_OP metadata_op; /* WT_SHARED_METADATA_CREATE or _REMOVE. */
+    uint32_t queue_order;              /* Position in the queue, i.e., chronological order. */
 } WT_DISAGG_CREATE_REMOVE_ENTRY;
 
 /*
@@ -475,8 +473,9 @@ __disagg_create_remove_snapshot_free(
 
 /*
  * __disagg_create_remove_cmp --
- *     Comparator for sorting a CREATE/REMOVE snapshot by table name, breaking ties by original
- *     queue order so that the most recently queued operation for a given name sorts last.
+ *     Sort snapshot entries by table name, then by queue position. Entries for the same table end
+ *     up adjacent and in chronological order, with the most recently queued operation last; qsort
+ *     is not stable, so the explicit queue-position tie-break is what preserves that ordering.
  */
 static int WT_CDECL
 __disagg_create_remove_cmp(const void *a, const void *b)
@@ -488,18 +487,16 @@ __disagg_create_remove_cmp(const void *a, const void *b)
     eb = b;
     if ((cmp = strcmp(ea->table_name, eb->table_name)) != 0)
         return (cmp);
-    return (ea->orig_idx < eb->orig_idx ? -1 : (ea->orig_idx > eb->orig_idx ? 1 : 0));
+    return (ea->queue_order < eb->queue_order ? -1 : (ea->queue_order > eb->queue_order ? 1 : 0));
 }
 
 /*
  * __disagg_create_remove_snapshot_build --
- *     Take a point-in-time snapshot of the latest CREATE or REMOVE operation queued for each table
- *     name in the shared metadata queue, sorted by table name. Checkpoint pick-up processes tables
- *     in ascending name order, so it can look up each table's state with a single forward-moving
- *     merge pointer into this snapshot (see the use of create_remove_idx below) instead of scanning
- *     the whole queue again for every table: the queue can hold one entry per table (e.g. from the
- *     per-checkpoint block manager callback), so scanning it again for each of potentially many
- *     thousands of tables during pick-up is quadratic in the number of tables.
+ *     Copy the shared metadata queue's CREATE and REMOVE entries into an array sorted by table
+ *     name. A per-table queue scan during checkpoint pick-up is quadratic when the queue holds an
+ *     entry per table; sorting instead lets pick-up resolve each table with a forward-moving merge
+ *     pointer. The snapshot cannot go stale: the queue is modified only under the schema lock or
+ *     the checkpoint lock, and checkpoint pick-up holds both for its entire duration.
  */
 static int
 __disagg_create_remove_snapshot_build(
@@ -531,7 +528,7 @@ __disagg_create_remove_snapshot_build(
             continue;
         WT_ERR(__wt_strdup(session, entry->table_name, &entries[i].table_name));
         entries[i].metadata_op = entry->metadata_op;
-        entries[i].orig_idx = (uint32_t)i;
+        entries[i].queue_order = (uint32_t)i;
         i++;
     }
 
@@ -544,8 +541,7 @@ err:
         return (ret);
     }
 
-    if (count > 0)
-        __wt_qsort(entries, count, sizeof(entries[0]), __disagg_create_remove_cmp);
+    __wt_qsort(entries, count, sizeof(entries[0]), __disagg_create_remove_cmp);
 
     *entriesp = entries;
     *countp = count;
@@ -554,12 +550,12 @@ err:
 
 /*
  * __disagg_create_remove_snapshot_lookup --
- *     Advance the merge pointer into a CREATE/REMOVE snapshot up to (and possibly past) the given
- *     table name, and return the latest queued CREATE/REMOVE operation for that name, or
- *     WT_SHARED_METADATA_NONE if there isn't one. The snapshot is sorted by name with same-named
- *     duplicates left adjacent in chronological order, so the last matching entry in a run is the
- *     one to report. Requires that successive calls pass non-decreasing table names, which holds
- *     because checkpoint pick-up processes tables in ascending order.
+ *     Return the most recently queued CREATE or REMOVE operation for the given table, or
+ *     WT_SHARED_METADATA_NONE if there is none; same-named entries are adjacent in chronological
+ *     order, so the last match in a run wins. Successive calls must pass non-decreasing table names
+ *     (checkpoint pick-up visits tables in ascending order): the merge pointer only moves forward,
+ *     so each snapshot entry is visited at most once across the entire pick-up, making all lookups
+ *     together O(snapshot size) rather than O(snapshot size) per call.
  */
 static WT_SHARED_METADATA_OP
 __disagg_create_remove_snapshot_lookup(WT_DISAGG_CREATE_REMOVE_ENTRY *entries, size_t count,
