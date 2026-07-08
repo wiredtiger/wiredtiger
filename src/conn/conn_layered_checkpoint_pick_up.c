@@ -442,11 +442,41 @@ err:
 }
 
 /*
+ * __disagg_accumulate_checkpoint_size --
+ *     Add the most recent checkpoint size embedded in a shared file: metadata entry to the running
+ *     database size total. Only disaggregated stable files contribute to the total.
+ */
+static int
+__disagg_accumulate_checkpoint_size(
+  WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, uint64_t *database_sizep)
+{
+    WT_DECL_RET;
+    uint64_t ckpt_size;
+    const char *key, *value;
+
+    WT_RET(sh_file_cursor->get_key(sh_file_cursor, &key));
+    if (!WT_SUFFIX_MATCH(key, ".wt_stable"))
+        return (0);
+
+    WT_RET(sh_file_cursor->get_value(sh_file_cursor, &value));
+    WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &ckpt_size), true);
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    *database_sizep += ckpt_size;
+    return (0);
+
+err:
+    return (ret);
+}
+
+/*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  uint64_t *database_sizep)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
@@ -472,6 +502,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     layered_ingest_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
+    *database_sizep = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
@@ -617,20 +648,25 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             if (!sh_has[WT_DISAGG_CURSOR_FILE])
                 WT_ERR_MSG(session, EINVAL,
                   "Missing shared file: metadata entry for layered table \"%s\"", current);
-            if (md_has[WT_DISAGG_CURSOR_FILE])
+            if (md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
                  * The file already exists in the local metadata, so we just pick up its latest
                  * checkpoint without changing its other metadata.
                  */
                 WT_ERR(__disagg_update_file_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
-            else
+                WT_ERR(__disagg_accumulate_checkpoint_size(
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], database_sizep));
+            } else {
                 /*
                  * We already have the layered table in the local metadata; we are just picking up
                  * the stable component.
                  */
                 WT_ERR(__disagg_insert_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                WT_ERR(__disagg_accumulate_checkpoint_size(
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], database_sizep));
+            }
             ++existing_tables;
         } else if (!md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -679,6 +715,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
               __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], md_write_cursor));
             WT_ERR(
               __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+            WT_ERR(__disagg_accumulate_checkpoint_size(
+              session, sh_cursors[WT_DISAGG_CURSOR_FILE], database_sizep));
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
                 WT_ERR(__disagg_insert_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
@@ -753,6 +791,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  */
                 WT_ERR(__disagg_insert_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                WT_ERR(__disagg_accumulate_checkpoint_size(
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], database_sizep));
                 ++new_tables;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
@@ -762,6 +802,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  */
                 WT_ERR(__disagg_update_file_meta(
                   session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
+                WT_ERR(__disagg_accumulate_checkpoint_size(
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], database_sizep));
                 ++existing_tables;
             } else if (!sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE])
                 /*
@@ -827,7 +869,8 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
  */
 static int
 __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
-  const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata)
+  const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata,
+  uint64_t database_size)
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -851,8 +894,17 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     __wt_atomic_store_uint64_release(
       &conn->txn_global.last_ckpt_timestamp, metadata->checkpoint_timestamp);
 
-    /* Set the database size. */
-    __wt_disagg_set_database_size(session, ckpt_meta->database_size);
+    /*
+     * Prefer the total just recalculated from the shared metadata walk above to the value embedded
+     * in the checkpoint metadata: it self-heals any drift in the incrementally tracked total instead
+     * of propagating it.
+     */
+    if (database_size != ckpt_meta->database_size)
+        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_WARNING,
+          "disaggregated database size mismatch on checkpoint pick-up: recalculated %" PRIu64
+          ", checkpoint metadata reported %" PRIu64,
+          database_size, ckpt_meta->database_size);
+    __wt_disagg_set_database_size(session, database_size);
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
@@ -882,7 +934,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
     WT_TIMER pickup_timer;
-    uint64_t current_meta_lsn, pickup_elapsed_ms;
+    uint64_t current_meta_lsn, database_size, pickup_elapsed_ms;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -969,7 +1021,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
 
     /* Apply the metadata from the checkpoint. */
-    WT_WITH_SCHEMA_LOCK(session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta));
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, &database_size));
     WT_ERR(ret);
 
     /*
@@ -977,7 +1030,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
 
     __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
-    WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
+    WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata, database_size));
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);

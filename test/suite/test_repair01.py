@@ -64,15 +64,25 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
     def reported_size(self):
-        result = self.repair('fetch_database_size=(local=true)')
+        result = self.repair('fetch_database_size')
         return int(re.search(r': (\d+)$', result).group(1))
 
     def test_config_errors(self):
+        # fetch_database_size is disagg-gated and needs a picked-up checkpoint to pass that
+        # gate; without this, the assertions below would see the disagg guard instead.
+        self.populate()
+
         self.assertIn('wiredtiger_repair: empty config', self.repair(''))
         self.assertIn('No command found', self.repair('uri="table:tbl"'))
-        # local=false so the collision is what fires, not the (now local=true-only) disagg guard.
-        self.assertIn('Only one command is allowed', self.repair(
-            'fetch_database_size=(local=false),fetch_metadata=(local=true)'))
+        # fetch_database_size is checked (and thus disagg-gated) before fetch_metadata, so the
+        # collision message is only reached in the disagg scenario; elsewhere the disagg guard on
+        # fetch_database_size fires first.
+        if self.is_disagg_scenario():
+            self.assertIn('Only one command is allowed', self.repair(
+                'fetch_database_size,fetch_metadata=(local=true)'))
+        else:
+            self.assertIn('requires a disaggregated connection', self.repair(
+                'fetch_database_size,fetch_metadata=(local=true)'))
 
     def test_fetch_metadata(self):
         self.populate()
@@ -117,13 +127,9 @@ class test_repair01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_fetch_database_size(self):
         self.populate()
 
-        # local=false is not yet implemented (FIXME-WT-17945); unlike local=true it does not
-        # require a disaggregated connection just to attempt the command.
-        self.assertIn('not yet supported', self.repair('fetch_database_size=(local=false)'))
-
         if not self.is_disagg_scenario():
             self.assertIn('requires a disaggregated connection',
-                self.repair('fetch_database_size=(local=true)'))
+                self.repair('fetch_database_size'))
             return
 
         # Cross-validate against the disagg_database_size connection statistic.
