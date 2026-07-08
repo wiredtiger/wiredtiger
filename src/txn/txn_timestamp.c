@@ -346,7 +346,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval, step_down_cval;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_ts, oldest_ts, stable_disagg_epoch, stable_ts, step_down_ts;
-    wt_timestamp_t last_oldest_ts, last_stable_disagg_epoch, last_stable_ts;
+    wt_timestamp_t all_durable_ts, last_oldest_ts, last_stable_disagg_epoch, last_stable_ts,
+      current_step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch, has_step_down;
 
@@ -403,7 +404,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         if (!S2C(session)->layered_table_manager.leader)
             WT_RET_MSG(session, EINVAL,
               "set_timestamp: step down timestamp can only be set on a disaggregated leader");
-        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE)
+        if (__wt_atomic_load_uint64_acquire(&txn_global->step_down_timestamp) != WT_TS_NONE)
             WT_RET_MSG(session, EINVAL, "set_timestamp: step down timestamp is already set");
     }
 
@@ -412,12 +413,21 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         goto set;
     }
 
+    /*
+     * Snapshot all_durable before taking the read lock: computing it walks the session array under
+     * the same lock, which cannot be taken recursively.
+     */
+    all_durable_ts = WT_TS_NONE;
+    if (has_step_down)
+        WT_RET(__txn_get_all_durable_timestamp(session, &all_durable_ts));
+
     __wt_readlock(session, &txn_global->rwlock);
 
     last_oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
     last_stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
     last_stable_disagg_epoch =
       __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch);
+    current_step_down_ts = __wt_atomic_load_uint64_acquire(&txn_global->step_down_timestamp);
 
     /*
      * It is an invalid call to set the oldest or stable timestamps or the stable disaggregated
@@ -472,6 +482,35 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
           "set_timestamp: oldest timestamp %s must not be later than stable timestamp %s",
           __wt_timestamp_to_string(oldest_ts, ts_string[0]),
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
+    }
+
+    /*
+     * The cutoff must sit at or ahead of all_durable: content committed at or before it was written
+     * to the stable constituent before arming, so a cutoff below it would leave already durable
+     * content stranded above the boundary in stable. all_durable can lag stable when an in-flight
+     * transaction holds it back, so this is a separate floor rather than a replacement.
+     */
+    if (has_step_down && all_durable_ts != WT_TS_NONE && step_down_ts < all_durable_ts) {
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: step down timestamp %s must not be older than all_durable timestamp %s",
+          __wt_timestamp_to_string(step_down_ts, ts_string[0]),
+          __wt_timestamp_to_string(all_durable_ts, ts_string[1]));
+    }
+
+    /*
+     * Symmetrically, while a step-down is armed the stable timestamp must not advance past the
+     * cutoff, including a later call that raises stable on its own. Stable is the boundary the
+     * step-down checkpoint is taken at, and content above the cutoff belongs to ingest, not stable.
+     * Reaching the cutoff exactly is the step-down target and is allowed; overshooting it is not.
+     */
+    if (has_stable && current_step_down_ts != WT_TS_NONE && stable_ts > current_step_down_ts) {
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: stable timestamp %s must not advance past the armed step down timestamp "
+          "%s",
+          __wt_timestamp_to_string(stable_ts, ts_string[0]),
+          __wt_timestamp_to_string(current_step_down_ts, ts_string[1]));
     }
 
     __wt_readunlock(session, &txn_global->rwlock);
@@ -537,7 +576,7 @@ set:
      * cannot be re-armed while one is already set.
      */
     if (has_step_down) {
-        __wt_atomic_store_uint64_relaxed(&txn_global->step_down_timestamp, step_down_ts);
+        __wt_atomic_store_uint64_release(&txn_global->step_down_timestamp, step_down_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_step_down_upd);
         __wt_verbose_timestamp(session, step_down_ts, "Updated global step down timestamp");
     }
@@ -619,7 +658,7 @@ static int
 __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit_tsp)
 {
     WT_TXN *txn;
-    wt_timestamp_t commit_ts, oldest_ts, stable_ts;
+    wt_timestamp_t commit_ts, oldest_ts, stable_ts, step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
@@ -657,6 +696,19 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
             WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
+
+        /*
+         * While a planned step-down is armed, committed content is redirected to the ingest
+         * constituent, which lives strictly above the cutoff; content at or before the cutoff
+         * belongs to stable. Reject a commit that would land at or below the cutoff.
+         */
+        step_down_ts =
+          __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
+        if (step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts)
+            WT_RET_MSG(session, EINVAL,
+              "commit timestamp %s must be after the step down timestamp %s",
+              __wt_timestamp_to_string(commit_ts, ts_string[0]),
+              __wt_timestamp_to_string(step_down_ts, ts_string[1]));
 
         __txn_assert_after_reads(session, "commit", commit_ts);
     } else {

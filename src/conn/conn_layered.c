@@ -1139,6 +1139,8 @@ static void
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
+    wt_timestamp_t stable_ts, step_down_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
@@ -1170,8 +1172,24 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     if (shared_dsk_cache->hash != NULL)
         __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
 
+    /*
+     * If a cutoff was armed, the step-down checkpoint must have landed exactly on it: stable
+     * advanced to the step-down timestamp so the checkpoint holds all content up to the cut-over
+     * and nothing newer. A mismatch means the boundary the checkpoint captured disagrees with the
+     * boundary writes were split on. Advancing stable to the cutoff is the server's responsibility,
+     * so treat a mismatch as a fatal protocol violation.
+     */
+    step_down_ts = __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
+    if (step_down_ts != WT_TS_NONE) {
+        stable_ts = __wt_get_stable_timestamp(session);
+        WT_ASSERT_ALWAYS(session, stable_ts == step_down_ts,
+          "stable timestamp %s does not match the step down timestamp %s at step down",
+          __wt_timestamp_to_string(stable_ts, ts_string[0]),
+          __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+    }
+
     /* Clear the step-down timestamp after stepping down. */
-    __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
+    __wt_atomic_store_uint64_release(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
 }
 

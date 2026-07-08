@@ -2332,9 +2332,11 @@ methods = {
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
     Config('step_down_timestamp', '', r'''
-        the cutover timestamp for a planned step-down of disaggregated storage: committed writes
-        after this timestamp are directed to the ingest constituent and writes at or before it to
-        the stable constituent. Only valid on a leader'''),
+        the cutover timestamp for a planned step-down in disaggregated storage. Once set on a
+        leader, newly committed writes are directed to the ingest constituent and must commit after
+        this timestamp, while content at or before it belongs to the stable constituent. The value
+        is the boundary the step-down checkpoint is taken at, so the stable timestamp must equal it
+        at step-down; it cannot be changed while already set. Only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([
