@@ -28,21 +28,10 @@
 
 #include "schema_disagg_leader_abort.h"
 
-/*
- * Schema workers hold a read lock during session->create + session->publish. The checkpoint thread
- * holds the write lock while advancing stable_disaggregated_schema_epoch and running the
- * checkpoint. This guarantees: when the checkpoint captures the schema epoch watermark, no
- * create→publish sequence is in flight, so every table whose internal pages are included in the
- * checkpoint has already been published with an epoch at or below the watermark. Without this
- * coupling, session->create immediately enqueues a CREATE entry with WT_SCHEMA_EPOCH_UNPUBLISHED.
- * A checkpoint that fires between create and publish would capture that table's stable internal
- * pages and trigger the "stable data checkpointed for unpublished table" invariant violation.
- */
-static pthread_rwlock_t schema_ckpt_rwlock;
-
 /* Shared state internal to the workload threads. */
 static volatile bool stable_set;
 static uint64_t schema_op_epoch;
+static pthread_mutex_t schema_publish_lock;
 
 /* Per-thread schema worker state. */
 typedef struct {
@@ -83,7 +72,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
  * schema_op_execute --
  *     Execute the next schema operation on the given slot and update the caller's table-exists
  *     state. Drop uses lock_wait=false so lock contention returns EBUSY immediately; the caller
- *     yields and retries. Called under the schema_ckpt_rwlock read lock.
+ *     yields and retries, widening the window for checkpoint to race with schema ops.
  */
 static int
 schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -108,29 +97,31 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 
 /*
  * schema_op_publish --
- *     Assign a monotonically increasing epoch and, for CREATE, publish the table so it is visible
- *     to followers. Called under the schema_ckpt_rwlock read lock.
+ *     Assign an epoch, publish the schema operation, and advance
+ *     stable_disaggregated_schema_epoch. Serialized under the publish lock so epochs are strictly
+ *     increasing; the verifier relies on this ordering when replaying record files.
  *
- *     session->publish is only valid for CREATE: it registers the table in the shared metadata
- *     queue with a real epoch, replacing the WT_SCHEMA_EPOCH_UNPUBLISHED placeholder that
- *     session->create inserts. DROP has no equivalent; the table is already gone.
- *
- *     stable_disaggregated_schema_epoch is NOT advanced here. Only the checkpoint thread advances
- *     it, while holding the write lock, so the epoch watermark and the checkpoint are always
- *     consistent.
+ *     session->publish is only valid for CREATE: it makes a newly created table visible to other
+ *     connections. DROP has no equivalent; the stable epoch is advanced unconditionally so the
+ *     checkpoint captures the drop without a gap in the epoch sequence.
  */
 static uint64_t
-schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create)
+schema_op_publish(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create)
 {
-    char pub_cfg[64];
+    char pub_cfg[64], ts_cfg[64];
     uint64_t epoch;
 
+    testutil_check(pthread_mutex_lock(&schema_publish_lock));
     epoch = __wt_atomic_add_uint64(&schema_op_epoch, 1);
     if (is_create) {
         testutil_snprintf(
           pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
         testutil_check(ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg));
     }
+    testutil_snprintf(
+      ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
+    (void)conn->set_timestamp(conn, ts_cfg);
+    testutil_check(pthread_mutex_unlock(&schema_publish_lock));
     return (epoch);
 }
 
@@ -139,18 +130,19 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create)
  *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
  *     as value.
  *
- *     The commit timestamp is set to stable_timestamp + 10, placing the data above the current
- *     checkpoint's timestamp so it is not captured until the next checkpoint cycle. By that point
- *     the checkpoint thread will have advanced stable_disaggregated_schema_epoch past this table's
- *     epoch, satisfying the invariant that only published tables have checkpointed data.
+ *     The commit timestamp is set to last_checkpoint_timestamp + 1 so the data is not captured
+ *     until the next checkpoint cycle. By that point stable_disaggregated_schema_epoch has been
+ *     advanced past this table's epoch, satisfying the invariant that only published tables have
+ *     checkpointed data.
  */
-static void
-schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
+static uint64_t
+schema_op_insert_data(
+  THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
     WT_CURSOR *cursor;
     char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
     uint32_t r;
-    uint64_t stable_ts;
+    uint64_t base_ts, offset, stable_ts;
 
     testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
     testutil_check(ctx->session->begin_transaction(ctx->session, NULL));
@@ -164,11 +156,26 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     }
     testutil_check(cursor->close(cursor));
 
-    testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
+    /*
+     * Defer data to a future checkpoint by committing well past the current stable timestamp.
+     * Using max(last_checkpoint_ts, stable_ts) as the base guarantees commit_ts > stable_ts
+     * even before the first checkpoint (where last_checkpoint returns 0). The random offset
+     * (100-300 ticks, i.e., 10-30 seconds at 100ms per tick) ensures that by the time the
+     * data becomes stable, the checkpoint thread has run and advanced
+     * stable_disaggregated_schema_epoch past this table's epoch.
+     */
+    base_ts = 0;
+    (void)td->conn->query_timestamp(td->conn, ts_buf, "get=last_checkpoint");
+    (void)sscanf(ts_buf, "%" SCNx64, &base_ts);
     stable_ts = 0;
+    (void)td->conn->query_timestamp(td->conn, ts_buf, "get=stable");
     (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
-    testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, stable_ts + 10);
+    base_ts = WT_MAX(base_ts, stable_ts);
+    offset = __wt_random(&td->rnd) % 200 + 100; /* 100-299 ticks */
+    testutil_snprintf(
+      commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, base_ts + offset);
     testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
+    return (base_ts + offset);
 }
 
 /*
@@ -183,35 +190,25 @@ thread_schema_run(void *arg)
     SCHEMA_WORKER_CTX ctx;
     THREAD_DATA *td;
     bool is_create;
-    uint64_t epoch, slot;
+    uint64_t commit_ts, epoch, slot;
 
     td = (THREAD_DATA *)arg;
     schema_worker_open(td, &ctx);
 
     for (;;) {
         slot = __wt_random(&td->rnd) % td->cfg->pool_size;
-
-        /*
-         * Hold the read lock for the entire create/drop + publish window. The checkpoint thread
-         * holds the write lock while advancing the schema epoch watermark and checkpointing, which
-         * ensures the checkpoint never fires while a table is between create and publish.
-         */
-        testutil_check(pthread_rwlock_rdlock(&schema_ckpt_rwlock));
         if (schema_op_execute(&ctx, slot) == EBUSY) {
-            testutil_check(pthread_rwlock_unlock(&schema_ckpt_rwlock));
             __wt_yield();
             continue;
         }
         is_create = ctx.table_exists[slot];
-        epoch = schema_op_publish(&ctx, slot, is_create);
-        testutil_check(pthread_rwlock_unlock(&schema_ckpt_rwlock));
-
-        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n",
-              is_create ? "CREATE" : "DROP", epoch, ctx.uris[slot]) < 0)
-            testutil_die(EIO, "fprintf schema record");
-
+        epoch = schema_op_publish(td->conn, &ctx, slot, is_create);
+        commit_ts = 0;
         if (is_create)
-            schema_op_insert_data(td->conn, &ctx, slot, epoch);
+            commit_ts = schema_op_insert_data(td, &ctx, slot, epoch);
+        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %" PRIu64 " %s\n",
+              is_create ? "CREATE" : "DROP", epoch, commit_ts, ctx.uris[slot]) < 0)
+            testutil_die(EIO, "fprintf schema record");
     }
     /* NOTREACHED */
 }
@@ -242,9 +239,9 @@ thread_ts_run(void *arg)
 
 /*
  * thread_ckpt_run --
- *     Checkpoints periodically. Holds the write lock while advancing
- *     stable_disaggregated_schema_epoch and running the checkpoint so no create→publish sequences
- *     are in flight during either operation. Writes the ready sentinel after the first checkpoint.
+ *     Checkpoints periodically. Waits until a valid stable timestamp has been set before the first
+ *     checkpoint, then writes the ready sentinel so the parent knows at least one checkpoint has
+ *     completed.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
@@ -252,7 +249,6 @@ thread_ckpt_run(void *arg)
     struct timespec now, start;
     THREAD_DATA *td;
     WT_SESSION *session;
-    char ts_cfg[64];
     uint64_t diff_sec, sleep_time;
     int i;
     bool created_ready;
@@ -277,17 +273,7 @@ thread_ckpt_run(void *arg)
         sleep_time = __wt_random(&td->rnd) % MAX_CKPT_INVL;
         __wt_sleep(sleep_time, 0);
 
-        /*
-         * Advance stable_disaggregated_schema_epoch to cover all published tables, then
-         * checkpoint. Both operations are done under the write lock so no create→publish window
-         * is open when the checkpoint captures the epoch watermark.
-         */
-        testutil_check(pthread_rwlock_wrlock(&schema_ckpt_rwlock));
-        testutil_snprintf(
-          ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, schema_op_epoch);
-        (void)td->conn->set_timestamp(td->conn, ts_cfg);
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
-        testutil_check(pthread_rwlock_unlock(&schema_ckpt_rwlock));
 
         printf("Checkpoint %d complete\n", i);
         fflush(stdout);
@@ -367,7 +353,7 @@ run_workload(TEST_CONFIG *cfg)
     if (cfg->aggressive_sweep)
         strcat(envconf, ENV_CONFIG_SWEEP);
 
-    testutil_check(pthread_rwlock_init(&schema_ckpt_rwlock, NULL));
+    testutil_check(pthread_mutex_init(&schema_publish_lock, NULL));
     stable_set = false;
 
     cfg->opts->disagg.is_enabled = true;
