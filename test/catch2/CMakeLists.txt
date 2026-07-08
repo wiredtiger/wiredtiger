@@ -32,6 +32,7 @@ else()
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
+        misc_tests/test_verify_progress.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp

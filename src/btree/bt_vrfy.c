@@ -8,6 +8,9 @@
 
 #include "wt_internal.h"
 
+/* Minimum interval between verify progress reports. */
+#define WT_VERIFY_PROGRESS_INTERVAL_MS (30 * WT_THOUSAND)
+
 /*
  * There's a bunch of stuff we pass around during verification, group it together to make the code
  * prettier.
@@ -18,7 +21,8 @@ typedef struct {
     WT_ITEM *max_key;  /* Largest key */
     WT_ITEM *max_addr; /* Largest key page */
 
-    uint64_t fcnt; /* Progress counter */
+    uint64_t fcnt;           /* Progress counter */
+    WT_TIMER progress_timer; /* Last progress report time */
 
     /* Accumulated size of all blocks in this btree. */
     uint64_t total_block_size;
@@ -421,6 +425,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
 
+    /* Start the progress-report timer; progress is reported on a time interval, not per page. */
+    __wt_timer_start(session, &vs->progress_timer);
+
     /* Optionally dump specific block offsets. */
 #ifdef HAVE_DIAGNOSTIC
     WT_ERR(__verify_config_offsets(session, cfg, &quit, vs));
@@ -455,6 +462,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
     bm_start = true;
+
+    /* Announce the object being verified; emitted at notice level so it is always logged. */
+    __wt_verbose_notice(session, WT_VERB_VERIFY, "verify: starting on %s", name);
 
     /*
      * Skip the history store explicit call if:
@@ -802,6 +812,23 @@ __tree_stack(WT_VSTUFF *vs)
 }
 
 /*
+ * __wt_verify_progress_due --
+ *     Return whether at least the reporting interval has elapsed since the last verify progress
+ *     report, restarting the timer when it has so the next interval is measured from now.
+ */
+bool
+__wt_verify_progress_due(WT_SESSION_IMPL *session, WT_TIMER *last_report, uint64_t interval_ms)
+{
+    uint64_t elapsed_ms;
+
+    __wt_timer_evaluate_ms(session, last_report, &elapsed_ms);
+    if (elapsed_ms < interval_ms)
+        return (false);
+    __wt_timer_start(session, last_report);
+    return (true);
+}
+
+/*
  * __verify_tree --
  *     Verify a tree, recursively descending through it in depth-first fashion. The page argument
  *     was physically verified (so we know it's correctly formed), and the in-memory version built.
@@ -872,9 +899,12 @@ __verify_tree(
      * we split page verification into a physical verification, which allows the in-memory version
      * of the page to be built, and then a subsequent logical verification which happens here.
      *
-     * Report progress occasionally.
+     * Report progress on a time interval rather than a page count, so a fast verify stays quiet and
+     * a long-running one emits a periodic heartbeat. Only sample the clock every so many pages to
+     * keep the per-page cost negligible; the report itself is still gated on elapsed time.
      */
-    if (__wt_counter_backoff(++vs->fcnt, 100))
+    if (++vs->fcnt % WT_THOUSAND == 0 &&
+      __wt_verify_progress_due(session, &vs->progress_timer, WT_VERIFY_PROGRESS_INTERVAL_MS))
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
 #ifdef HAVE_DIAGNOSTIC
