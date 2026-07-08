@@ -2505,6 +2505,27 @@ tasks:
         vars:
           directory: test/csuite/schema_disagg_leader_abort
 
+  - name: csuite-schema-disagg-leader-abort-stress
+    # Set 2 hour timeout (60 * 60 * 2 = 7200)
+    exec_timeout_secs: 7200
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_leader_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|50}); do
+              echo "Iteration $i/${times|50}"
+              ./test_schema_disagg_leader_abort -b "$build_dir" -t 60
+            done
+
   - name: csuite-wt12015-backup-corruption-test
     tags: ["pull_request"]
     depends_on:
