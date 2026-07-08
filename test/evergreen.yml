@@ -2523,9 +2523,11 @@ tasks:
             set -o verbose
             ${PREPARE_TEST_ENV}
             build_dir=$(cd ../../../ && pwd)
-            for i in $(seq ${times|50}); do
-              echo "Iteration $i/${times|50}"
-              ./test_schema_disagg_leader_abort -b "$build_dir" -t 60
+            for i in $(seq ${times|20}); do
+              echo "Iteration $i/${times|20}"
+              # Max out pool size (-s) and schema threads (-T) for maximum schema churn;
+              # 300s per iteration is the window needed to reproduce prior UAF failures.
+              ./test_schema_disagg_leader_abort -b "$build_dir" -s 64 -T 12 -t 300
             done
 
   - name: csuite-wt12015-backup-corruption-test

@@ -130,17 +130,18 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
  *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
  *     as value. Returns the commit timestamp so the caller can record it for the verifier.
  *
- * The commit timestamp is set to stable_timestamp + 2 so the write is not immediately stable. This
+ * The commit timestamp is set to stable_timestamp + 10 so the write is not immediately stable. This
  *     satisfies the disagg invariant that stable writes are only permitted to published tables: the
  *     table is published at epoch N before this call, and by the time stable_timestamp advances
  *     past the commit timestamp, any checkpoint that captures this data will also have
- *     stable_disaggregated_schema_epoch >= N.
+ *     stable_disaggregated_schema_epoch >= N. The same commit timestamp is returned so the verifier
+ *     uses the true durability point when deciding whether a checkpoint captured this data.
  */
 static uint64_t
 schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
     WT_CURSOR *cursor;
-    uint64_t stable_ts;
+    uint64_t commit_ts, stable_ts;
     uint32_t r;
     char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
 
@@ -159,9 +160,10 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
     stable_ts = 0;
     (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
-    testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, stable_ts + 10);
+    commit_ts = stable_ts + 10;
+    testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
     testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
-    return (stable_ts + 2);
+    return (commit_ts);
 }
 
 /*
