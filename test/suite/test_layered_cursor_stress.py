@@ -575,9 +575,9 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def op_pos_remove(self, nodes, rnd, trace):
         # Removes the current key. A positioned remove of an already-removed key on the follower's
-        # blind-remove cursor now reports success (a no-op) rather than WT_NOTFOUND -- see
-        # __clayered_remove_from_ingest in cur_layered.c -- so relax the reference match the same way
-        # an unpositioned blind remove does (_write_txn's blind_remove note).
+        # blind-remove cursor now reports success (a no-op) rather than WT_NOTFOUND, so relax the
+        # reference match the same way an unpositioned blind remove does (_write_txn's blind_remove
+        # note).
         key = self.state.cur_pos
         already_removed = key not in self.state.py_table   # a repeat remove of an already-deleted key
         trace.log('pos_remove %r' % key)

@@ -66,9 +66,9 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         cursor.close()
 
     # A plain cursor that removes a positioned key, then removes the same (now stale) position
-    # again without re-searching, loses its position on the resulting not-found: WiredTiger's
-    # __cursor_state_restore only restores a saved *external* key copy, and this cursor was
-    # positioned internally (on-page), so nothing gets restored.
+    # again without re-searching, loses its position on the resulting not-found: only a saved
+    # *external* key copy is restored on error, and this cursor was positioned internally
+    # (on-page), so nothing gets restored.
     def test_positioned_double_remove_plain_loses_position(self):
         uri = 'table:' + self.test_name + '_plain'
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -91,11 +91,11 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         cursor.close()
 
     # A layered cursor does *not* lose position the same way a plain cursor does (this is
-    # pre-existing behavior, not something the blind-remove branch adds): the second remove lands on
-    # the "else if (current_cursor == c_ingest)" branch in __clayered_remove_from_ingest, since the
-    # first remove's update() left VALUE_INT set on the ingest cursor. With blind_remove configured,
-    # that branch treats the already-deleted key as a no-op and reports success rather than
-    # not-found (matching the skip-stable path's handling of the same situation).
+    # pre-existing behavior, not something the blind-remove branch adds): the first remove's
+    # update leaves the ingest value cached, so the second remove reuses that cached value
+    # instead of re-reading it. With blind_remove configured, finding the cached value already
+    # deleted is treated as a no-op and reports success rather than not-found (matching how the
+    # skip-stable path handles the same situation).
     def test_positioned_double_remove_blind_keeps_position(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, 'blind_remove=true')
