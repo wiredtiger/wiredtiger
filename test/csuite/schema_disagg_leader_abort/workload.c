@@ -100,23 +100,27 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
  *     Assign an epoch, publish the schema operation, and advance
  *     stable_disaggregated_schema_epoch. Serialized under the publish lock so epochs are strictly
  *     increasing; the verifier relies on this ordering when replaying record files.
+ *
+ *     session->publish is only valid for CREATE: it makes a newly created table visible to other
+ *     connections. DROP has no equivalent; the stable epoch is advanced unconditionally so the
+ *     checkpoint captures the drop without a gap in the epoch sequence.
  */
 static uint64_t
-schema_op_publish(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot)
+schema_op_publish(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, bool is_create)
 {
-    WT_DECL_RET;
     char pub_cfg[64], ts_cfg[64];
     uint64_t epoch;
 
     testutil_check(pthread_mutex_lock(&schema_publish_lock));
     epoch = __wt_atomic_add_uint64(&schema_op_epoch, 1);
-    testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
-    ret = ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg);
-    if (ret == 0) {
+    if (is_create) {
         testutil_snprintf(
-          ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
-        (void)conn->set_timestamp(conn, ts_cfg);
+          pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
+        testutil_check(ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg));
     }
+    testutil_snprintf(
+      ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
+    (void)conn->set_timestamp(conn, ts_cfg);
     testutil_check(pthread_mutex_unlock(&schema_publish_lock));
     return (epoch);
 }
@@ -170,8 +174,8 @@ thread_schema_run(void *arg)
             __wt_yield();
             continue;
         }
-        epoch = schema_op_publish(td->conn, &ctx, slot);
         is_create = ctx.table_exists[slot];
+        epoch = schema_op_publish(td->conn, &ctx, slot, is_create);
         if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n",
               is_create ? "CREATE" : "DROP", epoch, ctx.uris[slot]) < 0)
             testutil_die(EIO, "fprintf schema record");
