@@ -41,22 +41,7 @@
 extern int __wt_optind;
 extern char *__wt_optarg;
 
-/* Global definitions. */
-char home[1024];
-char page_log_home[PATH_MAX];
-
-bool aggressive_sweep;
-volatile bool stable_set;
-uint32_t nth;
-uint32_t pool_size;
-uint64_t schema_op_epoch;
-
-pthread_mutex_t schema_publish_lock;
-
 static TEST_OPTS _opts;
-TEST_OPTS *opts;
-
-const char *const ready_file = "child_ready";
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -92,14 +77,14 @@ sig_handler(int sig)
  *     Create the directory structure needed for a fresh test run.
  */
 static void
-create_test_dirs(void)
+create_test_dirs(TEST_CONFIG *cfg)
 {
     char buf[PATH_MAX];
 
-    testutil_recreate_dir(home);
-    testutil_snprintf(buf, sizeof(buf), "%s/%s", home, RECORDS_DIR);
+    testutil_recreate_dir(cfg->home);
+    testutil_snprintf(buf, sizeof(buf), "%s/%s", cfg->home, RECORDS_DIR);
     testutil_mkdir(buf);
-    testutil_snprintf(buf, sizeof(buf), "%s/%s", home, WT_HOME_DIR);
+    testutil_snprintf(buf, sizeof(buf), "%s/%s", cfg->home, WT_HOME_DIR);
     testutil_mkdir(buf);
 }
 
@@ -109,7 +94,7 @@ create_test_dirs(void)
  *     SIGKILL it to simulate a crash.
  */
 static void
-fork_and_kill_child(uint32_t timeout)
+fork_and_kill_child(TEST_CONFIG *cfg, uint32_t timeout)
 {
     struct sigaction sa;
     pid_t child_pid;
@@ -121,11 +106,11 @@ fork_and_kill_child(uint32_t timeout)
 
     testutil_assert_errno((child_pid = fork()) >= 0);
     if (child_pid == 0) {
-        run_workload();
+        run_workload(cfg);
         /* NOTREACHED */
     }
 
-    while (!testutil_exists(home, ready_file))
+    while (!testutil_exists(cfg->home, READY_FILE))
         testutil_sleep_wait(1, child_pid);
 
     sleep(timeout);
@@ -142,15 +127,15 @@ fork_and_kill_child(uint32_t timeout)
  *     Configure disaggregated leader options and open the database to trigger recovery.
  */
 static void
-open_leader_for_recovery(WT_CONNECTION **connp)
+open_leader_for_recovery(TEST_CONFIG *cfg, WT_CONNECTION **connp)
 {
-    opts->disagg.is_enabled = true;
-    opts->disagg.mode = "leader";
-    opts->disagg.page_log = "palite";
-    opts->disagg.page_log_home = page_log_home;
-    opts->disagg.drain_threads = 1;
+    cfg->opts->disagg.is_enabled = true;
+    cfg->opts->disagg.mode = "leader";
+    cfg->opts->disagg.page_log = "palite";
+    cfg->opts->disagg.page_log_home = cfg->page_log_home;
+    cfg->opts->disagg.drain_threads = 1;
 
-    testutil_wiredtiger_open(opts, WT_HOME_DIR,
+    testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR,
       "create,disaggregated=(lose_all_my_data=true)", NULL, connp, true, false);
 }
 
@@ -161,6 +146,7 @@ open_leader_for_recovery(WT_CONNECTION **connp)
 int
 main(int argc, char *argv[])
 {
+    TEST_CONFIG cfg;
     WT_CONNECTION *conn;
     uint32_t rand_value, timeout;
     int ch;
@@ -169,34 +155,35 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    opts = &_opts;
-    memset(opts, 0, sizeof(*opts));
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.opts = &_opts;
+    memset(cfg.opts, 0, sizeof(*cfg.opts));
 
-    aggressive_sweep = false;
-    nth = MIN_TH;
-    pool_size = MAX_POOL_SIZE / 8; /* Default: 8 slots per thread. */
+    cfg.aggressive_sweep = false;
+    cfg.nth = MIN_TH;
+    cfg.pool_size = MAX_POOL_SIZE / 8; /* Default: 8 slots per thread. */
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "h:pT:v", opts);
+    testutil_parse_begin_opt(argc, argv, "h:pT:v", cfg.opts);
 
     while ((ch = __wt_getopt(progname, argc, argv, "h:ps:ST:t:v")) != EOF)
         switch (ch) {
         case 's':
-            pool_size = (uint32_t)atoi(__wt_optarg);
-            if (pool_size < MIN_POOL_SIZE || pool_size > MAX_POOL_SIZE) {
+            cfg.pool_size = (uint32_t)atoi(__wt_optarg);
+            if (cfg.pool_size < MIN_POOL_SIZE || cfg.pool_size > MAX_POOL_SIZE) {
                 fprintf(stderr, "Pool size must be between %d and %d\n",
                   MIN_POOL_SIZE, MAX_POOL_SIZE);
                 usage();
             }
             break;
         case 'S':
-            aggressive_sweep = true;
+            cfg.aggressive_sweep = true;
             break;
         case 'T':
             rand_th = false;
-            nth = (uint32_t)atoi(__wt_optarg);
+            cfg.nth = (uint32_t)atoi(__wt_optarg);
             break;
         case 't':
             rand_time = false;
@@ -206,7 +193,7 @@ main(int argc, char *argv[])
             verify_only = true;
             break;
         default:
-            if (testutil_parse_single_opt(opts, ch) != 0)
+            if (testutil_parse_single_opt(cfg.opts, ch) != 0)
                 usage();
         }
     argc -= __wt_optind;
@@ -217,63 +204,63 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    opts->disagg.is_enabled = true;
-    testutil_parse_end_opt(opts);
-    testutil_work_dir_from_path(home, sizeof(home), opts->home);
+    cfg.opts->disagg.is_enabled = true;
+    testutil_parse_end_opt(cfg.opts);
+    testutil_work_dir_from_path(cfg.home, sizeof(cfg.home), cfg.opts->home);
     testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
 
     if (!verify_only) {
-        create_test_dirs();
+        create_test_dirs(&cfg);
 
         if (rand_time) {
-            timeout = __wt_random(&opts->extra_rnd) % MAX_TIME;
+            timeout = __wt_random(&cfg.opts->extra_rnd) % MAX_TIME;
             if (timeout < MIN_TIME)
                 timeout = MIN_TIME;
         }
 
-        rand_value = __wt_random(&opts->data_rnd);
+        rand_value = __wt_random(&cfg.opts->data_rnd);
         if (rand_th) {
-            nth = rand_value % MAX_TH;
-            if (nth < MIN_TH)
-                nth = MIN_TH;
+            cfg.nth = rand_value % MAX_TH;
+            if (cfg.nth < MIN_TH)
+                cfg.nth = MIN_TH;
         }
 
         printf("Parent: Create %" PRIu32 " schema threads; pool %" PRIu32
                " slots; sleep %" PRIu32 " seconds\n",
-          nth, pool_size, timeout);
+          cfg.nth, cfg.pool_size, timeout);
         printf("CONFIG: %s%s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32
                " " TESTUTIL_SEED_FORMAT "\n",
-          progname, aggressive_sweep ? " -S" : "", pool_size, nth, timeout,
-          opts->data_seed, opts->extra_seed);
+          progname, cfg.aggressive_sweep ? " -S" : "", cfg.pool_size, cfg.nth, timeout,
+          cfg.opts->data_seed, cfg.opts->extra_seed);
 
-        testutil_snprintf(page_log_home, sizeof(page_log_home), "%s/%s/%s", cwd_start, home,
-          WT_HOME_DIR);
+        testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s",
+          cwd_start, cfg.home, WT_HOME_DIR);
 
-        fork_and_kill_child(timeout);
+        fork_and_kill_child(&cfg, timeout);
     }
 
-    if (chdir(home) != 0)
-        testutil_die(errno, "parent chdir: %s", home);
+    if (chdir(cfg.home) != 0)
+        testutil_die(errno, "parent chdir: %s", cfg.home);
 
     if (!verify_only)
         testutil_copy_data();
 
-    if (page_log_home[0] == '\0')
-        testutil_snprintf(page_log_home, sizeof(page_log_home), "%s/%s/%s", cwd_start, home,
-          WT_HOME_DIR);
+    if (cfg.page_log_home[0] == '\0')
+        testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s",
+          cwd_start, cfg.home, WT_HOME_DIR);
 
     printf("Open leader database, run recovery and verify content\n");
 
-    open_leader_for_recovery(&conn);
-    fatal = verify_schema_state(conn);
+    open_leader_for_recovery(&cfg, &conn);
+    fatal = verify_schema_state(conn, &cfg);
     testutil_check(conn->close(conn, "debug=(skip_checkpoint=true)"));
 
     if (chdir(cwd_start) != 0)
-        testutil_die(errno, "root chdir: %s", home);
+        testutil_die(errno, "root chdir: %s", cfg.home);
 
-    if (!fatal && !opts->preserve)
-        testutil_remove(home);
+    if (!fatal && !cfg.opts->preserve)
+        testutil_remove(cfg.home);
 
-    testutil_cleanup(opts);
+    testutil_cleanup(cfg.opts);
     return (fatal ? EXIT_FAILURE : EXIT_SUCCESS);
 }

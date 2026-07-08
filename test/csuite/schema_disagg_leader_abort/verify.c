@@ -42,7 +42,8 @@ typedef struct {
  */
 static void
 parse_schema_records(
-  const char *fname, uint32_t t, uint64_t cutoff, SLOT_STATE states[MAX_POOL_SIZE])
+  const char *fname, uint32_t t, uint64_t cutoff, SLOT_STATE states[MAX_POOL_SIZE],
+  uint32_t pool_size)
 {
     FILE *fp;
     char op[16], rec_uri[128];
@@ -79,8 +80,8 @@ parse_schema_records(
  *     tables dropped before the cutoff are absent.
  */
 static void
-check_schema_presence(
-  WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE], bool *fatal)
+check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
+  uint32_t pool_size, bool *fatal)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -121,8 +122,8 @@ check_schema_presence(
  *     DATA_NROWS rows are present with value matching the creation epoch.
  */
 static void
-check_data_rows(
-  WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE], bool *fatal)
+check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
+  uint32_t pool_size, bool *fatal)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -137,7 +138,7 @@ check_data_rows(
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
         ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
         if (ret != 0)
-            continue; /* Cursor open failed — schema check already caught this. */
+            continue; /* Cursor open failed - schema check already caught this. */
 
         testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, states[s].epoch);
         for (r = 0; r < DATA_NROWS; r++) {
@@ -174,7 +175,7 @@ check_data_rows(
  *     and contains correct data rows. Returns true if a fatal error is found.
  */
 bool
-verify_schema_state(WT_CONNECTION *conn)
+verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
 {
     SLOT_STATE states[MAX_POOL_SIZE];
     WT_SESSION *session;
@@ -195,11 +196,11 @@ verify_schema_state(WT_CONNECTION *conn)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    for (t = 0; t < nth; t++) {
+    for (t = 0; t < cfg->nth; t++) {
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
-        parse_schema_records(fname, t, cutoff, states);
-        check_schema_presence(session, t, states, &fatal);
-        check_data_rows(session, t, states, &fatal);
+        parse_schema_records(fname, t, cutoff, states, cfg->pool_size);
+        check_schema_presence(session, t, states, cfg->pool_size, &fatal);
+        check_data_rows(session, t, states, cfg->pool_size, &fatal);
     }
 
     testutil_check(session->close(session, NULL));

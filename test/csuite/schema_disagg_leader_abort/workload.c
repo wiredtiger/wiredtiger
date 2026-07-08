@@ -28,6 +28,11 @@
 
 #include "schema_disagg_leader_abort.h"
 
+/* Shared state internal to the workload threads. */
+static volatile bool stable_set;
+static uint64_t schema_op_epoch;
+static pthread_mutex_t schema_publish_lock;
+
 /* Per-thread schema worker state. */
 typedef struct {
     WT_SESSION *session;
@@ -39,7 +44,7 @@ typedef struct {
 
 /*
  * schema_worker_open --
- *     Open the session, record files, and URI table for a schema worker thread.
+ *     Open the session, record file, and URI table for a schema worker thread.
  */
 static void
 schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
@@ -52,7 +57,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
     testutil_assert_errno((ctx->schema_fp = fopen(fname, "w")) != NULL);
     __wt_stream_set_line_buffer(ctx->schema_fp);
 
-    for (i = 0; i < pool_size; i++) {
+    for (i = 0; i < td->cfg->pool_size; i++) {
         testutil_snprintf(
           ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, i);
         ctx->table_exists[i] = false;
@@ -160,7 +165,7 @@ thread_schema_run(void *arg)
     schema_worker_open(td, &ctx);
 
     for (;;) {
-        slot = __wt_random(&td->rnd) % pool_size;
+        slot = __wt_random(&td->rnd) % td->cfg->pool_size;
         if (schema_op_execute(&ctx, slot) == EBUSY) {
             __wt_yield();
             continue;
@@ -217,7 +222,7 @@ thread_ckpt_run(void *arg)
     bool created_ready;
 
     td = (THREAD_DATA *)arg;
-    (void)unlink(ready_file);
+    (void)unlink(READY_FILE);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     created_ready = false;
 
@@ -242,7 +247,7 @@ thread_ckpt_run(void *arg)
         fflush(stdout);
 
         if (!created_ready) {
-            testutil_sentinel(NULL, ready_file);
+            testutil_sentinel(NULL, READY_FILE);
             created_ready = true;
         }
     }
@@ -255,24 +260,28 @@ thread_ckpt_run(void *arg)
  *     timestamp thread.
  */
 static void
-workload_threads_start(WT_CONNECTION *conn, wt_thread_t **thr_out, THREAD_DATA **td_out)
+workload_threads_start(TEST_CONFIG *cfg, WT_CONNECTION *conn,
+  wt_thread_t **thr_out, THREAD_DATA **td_out)
 {
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t i;
 
-    thr = dcalloc(nth + 2, sizeof(*thr));
-    td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+    thr = dcalloc(cfg->nth + 2, sizeof(*thr));
+    td = dcalloc(cfg->nth + 2, sizeof(THREAD_DATA));
 
-    for (i = 0; i < nth + 2; i++) {
+    for (i = 0; i < cfg->nth + 2; i++) {
+        td[i].cfg = cfg;
         td[i].conn = conn;
         td[i].info = i;
-        testutil_random_from_random(&td[i].rnd, i < nth ? &opts->data_rnd : &opts->extra_rnd);
+        testutil_random_from_random(&td[i].rnd,
+          i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
     }
 
-    testutil_check(__wt_thread_create(NULL, &thr[nth], thread_ckpt_run, &td[nth]));
-    testutil_check(__wt_thread_create(NULL, &thr[nth + 1], thread_ts_run, &td[nth + 1]));
-    for (i = 0; i < nth; ++i)
+    testutil_check(__wt_thread_create(NULL, &thr[cfg->nth], thread_ckpt_run, &td[cfg->nth]));
+    testutil_check(
+      __wt_thread_create(NULL, &thr[cfg->nth + 1], thread_ts_run, &td[cfg->nth + 1]));
+    for (i = 0; i < cfg->nth; ++i)
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_schema_run, &td[i]));
 
     *thr_out = thr;
@@ -284,11 +293,11 @@ workload_threads_start(WT_CONNECTION *conn, wt_thread_t **thr_out, THREAD_DATA *
  *     Join all worker threads.
  */
 static void
-workload_threads_join(wt_thread_t *thr)
+workload_threads_join(TEST_CONFIG *cfg, wt_thread_t *thr)
 {
     uint32_t i;
 
-    for (i = 0; i < nth + 2; ++i)
+    for (i = 0; i < cfg->nth + 2; ++i)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 }
 
@@ -298,34 +307,34 @@ workload_threads_join(wt_thread_t *thr)
  *     a checkpoint thread, and a timestamp thread until the parent sends SIGKILL.
  */
 void
-run_workload(void)
+run_workload(TEST_CONFIG *cfg)
 {
     WT_CONNECTION *conn;
     THREAD_DATA *td;
     wt_thread_t *thr;
     char envconf[1024];
 
-    if (chdir(home) != 0)
-        testutil_die(errno, "Child chdir: %s", home);
+    if (chdir(cfg->home) != 0)
+        testutil_die(errno, "Child chdir: %s", cfg->home);
 
     strcpy(envconf, ENV_CONFIG_DEF);
-    if (aggressive_sweep)
+    if (cfg->aggressive_sweep)
         strcat(envconf, ENV_CONFIG_SWEEP);
 
     testutil_check(pthread_mutex_init(&schema_publish_lock, NULL));
     stable_set = false;
 
-    opts->disagg.is_enabled = true;
-    opts->disagg.mode = "leader";
-    opts->disagg.page_log = "palite";
-    opts->disagg.page_log_home = page_log_home;
-    opts->disagg.drain_threads = 1;
+    cfg->opts->disagg.is_enabled = true;
+    cfg->opts->disagg.mode = "leader";
+    cfg->opts->disagg.page_log = "palite";
+    cfg->opts->disagg.page_log_home = cfg->page_log_home;
+    cfg->opts->disagg.drain_threads = 1;
 
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, NULL, &conn, false, false);
+    testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, envconf, NULL, &conn, false, false);
 
-    workload_threads_start(conn, &thr, &td);
+    workload_threads_start(cfg, conn, &thr, &td);
     fflush(stdout);
-    workload_threads_join(thr); /* Blocks until SIGKILL from parent. */
+    workload_threads_join(cfg, thr); /* Blocks until SIGKILL from parent. */
 
     free(thr);
     free(td);

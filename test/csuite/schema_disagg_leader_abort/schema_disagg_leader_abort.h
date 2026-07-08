@@ -46,6 +46,7 @@
 
 /* URI / file name patterns. */
 #define DATA_NROWS 10
+#define READY_FILE "child_ready"
 #define SCHEMA_TABLE_FMT "table:schema_%u_%u"
 #define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "schema-%" PRIu32
 
@@ -59,31 +60,26 @@
 #define ENV_CONFIG_SWEEP \
     ",file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)"
 
+/* Test-wide configuration passed from parent to child and to the verifier. */
+typedef struct {
+    TEST_OPTS *opts;
+    char home[1024];
+    char page_log_home[PATH_MAX];
+    uint32_t nth;
+    uint32_t pool_size;
+    bool aggressive_sweep;
+} TEST_CONFIG;
+
 /* Per-thread argument. */
 typedef struct {
+    TEST_CONFIG *cfg;
     WT_CONNECTION *conn;
     uint32_t info;
     WT_RAND_STATE rnd;
 } THREAD_DATA;
 
-/* Globals shared across translation units. */
-extern char home[1024];
-extern char page_log_home[PATH_MAX];
-
-extern bool aggressive_sweep;
-extern volatile bool stable_set;
-extern uint32_t nth;
-extern uint32_t pool_size;
-extern uint64_t schema_op_epoch;
-
-extern pthread_mutex_t schema_publish_lock;
-
-extern TEST_OPTS *opts;
-
-extern const char *const ready_file;
-
 /* workload.c */
-void run_workload(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+void run_workload(TEST_CONFIG *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* verify.c */
-bool verify_schema_state(WT_CONNECTION *conn);
+bool verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg);
