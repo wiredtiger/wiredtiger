@@ -94,4 +94,4 @@ typedef struct {
 void run_workload(TEST_CONFIG *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* verify.c */
-bool verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg);
+void verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg);

@@ -159,7 +159,7 @@ main(int argc, char *argv[])
     uint32_t rand_value, timeout;
     int ch;
     char cwd_start[PATH_MAX];
-    bool fatal, rand_th, rand_time, verify_only;
+    bool rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -254,15 +254,15 @@ main(int argc, char *argv[])
     printf("Open leader database, run recovery and verify content\n");
 
     open_leader_for_recovery(&cfg, &conn);
-    fatal = verify_schema_state(conn, &cfg);
+    verify_schema_state(conn, &cfg);
     testutil_check(conn->close(conn, "debug=(skip_checkpoint=true)"));
 
     if (chdir(cwd_start) != 0)
         testutil_die(errno, "root chdir: %s", cfg.home);
 
-    if (!fatal && !cfg.opts->preserve)
+    if (!cfg.opts->preserve)
         testutil_remove(cfg.home);
 
     testutil_cleanup(cfg.opts);
-    return (fatal ? EXIT_FAILURE : EXIT_SUCCESS);
+    return (EXIT_SUCCESS);
 }

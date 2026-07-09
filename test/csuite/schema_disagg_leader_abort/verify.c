@@ -86,8 +86,8 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
  *     one whose last such operation was a drop is absent.
  */
 static void
-check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
-  uint32_t pool_size, bool *fatal)
+check_schema_presence(
+  WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE], uint32_t pool_size)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -102,23 +102,15 @@ check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[M
         ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
 
         if (states[s].is_create) {
-            if (ret == WT_NOTFOUND || ret == ENOENT) {
-                printf("SCHEMA FAIL: %s missing after recovery (CREATE at epoch %" PRIu64 ")\n",
-                  uri, states[s].epoch);
-                *fatal = true;
-            } else if (ret != 0) {
-                printf("SCHEMA FAIL: error opening %s: %s\n", uri, wiredtiger_strerror(ret));
-                *fatal = true;
-            } else
-                testutil_check(cursor->close(cursor));
-        } else {
-            if (ret == 0)
-                testutil_check(cursor->close(cursor));
-            else if (ret != WT_NOTFOUND && ret != ENOENT) {
-                printf("SCHEMA FAIL: error checking %s: %s\n", uri, wiredtiger_strerror(ret));
-                *fatal = true;
-            }
-        }
+            testutil_assertfmt(ret == 0,
+              "%s missing after recovery (CREATE at epoch %" PRIu64 "): %s", uri, states[s].epoch,
+              wiredtiger_strerror(ret));
+            testutil_check(cursor->close(cursor));
+        } else if (ret == 0)
+            testutil_check(cursor->close(cursor));
+        else
+            testutil_assertfmt(ret == WT_NOTFOUND || ret == ENOENT, "error checking %s: %s", uri,
+              wiredtiger_strerror(ret));
     }
 }
 
@@ -131,7 +123,7 @@ check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[M
  */
 static void
 check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
-  uint32_t pool_size, uint64_t last_ckpt_ts, bool *fatal)
+  uint32_t pool_size, uint64_t last_ckpt_ts)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -155,22 +147,11 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
             testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
             cursor->set_key(cursor, key_buf);
             ret = cursor->search(cursor);
-            if (ret == 0) {
-                testutil_check(cursor->get_value(cursor, &actual_val));
-                if (strcmp(actual_val, expected_val) != 0) {
-                    printf("DATA FAIL: %s key %s: got %s want %s\n", uri, key_buf, actual_val,
-                      expected_val);
-                    *fatal = true;
-                }
-            } else if (ret != WT_NOTFOUND) {
-                printf("DATA FAIL: error reading %s key %s: %s\n", uri, key_buf,
-                  wiredtiger_strerror(ret));
-                *fatal = true;
-            } else {
-                printf("DATA FAIL: %s missing key %s (epoch %" PRIu64 ")\n", uri, key_buf,
-                  states[s].epoch);
-                *fatal = true;
-            }
+            testutil_assertfmt(ret == 0, "%s key %s: %s (epoch %" PRIu64 ")", uri, key_buf,
+              ret == WT_NOTFOUND ? "missing" : wiredtiger_strerror(ret), states[s].epoch);
+            testutil_check(cursor->get_value(cursor, &actual_val));
+            testutil_assertfmt(strcmp(actual_val, expected_val) == 0, "%s key %s: got %s want %s",
+              uri, key_buf, actual_val, expected_val);
         }
         testutil_check(cursor->close(cursor));
     }
@@ -182,26 +163,24 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
  *
  * Reads per-thread schema record files, uses last_disaggregated_schema_epoch as the epoch cutoff,
  *     and asserts that every table whose final pre-cutoff operation was a CREATE exists and
- *     contains correct data rows. Returns true if a fatal error is found.
+ *     contains correct data rows. Aborts on the first mismatch.
  */
-bool
+void
 verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
 {
     SLOT_STATE states[MAX_POOL_SIZE];
     WT_SESSION *session;
     uint64_t cutoff, last_ckpt_ts;
-    bool fatal;
     char fname[128], ts_buf[64];
     uint32_t t;
 
-    fatal = false;
     cutoff = 0;
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
     (void)sscanf(ts_buf, "%" SCNx64, &cutoff);
     printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", cutoff);
     if (cutoff == 0) {
         printf("Schema verify: no schema epoch checkpointed, skipping.\n");
-        return (false);
+        return;
     }
 
     last_ckpt_ts = 0;
@@ -214,10 +193,9 @@ verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
     for (t = 0; t < cfg->nth; t++) {
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
         parse_schema_records(fname, t, cutoff, states, cfg->pool_size);
-        check_schema_presence(session, t, states, cfg->pool_size, &fatal);
-        check_data_rows(session, t, states, cfg->pool_size, last_ckpt_ts, &fatal);
+        check_schema_presence(session, t, states, cfg->pool_size);
+        check_data_rows(session, t, states, cfg->pool_size, last_ckpt_ts);
     }
 
     testutil_check(session->close(session, NULL));
-    return (fatal);
 }
