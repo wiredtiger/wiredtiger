@@ -28,27 +28,10 @@
 
 #include "schema_disagg_leader_abort.h"
 
-/* Shared state internal to the workload threads. */
-static volatile bool stable_set;
-static uint64_t schema_op_epoch;
-
-/*
- * Orders schema epoch publishing against stable schema epoch advancement. Publishers hold the read
- * lock while assigning and publishing an epoch, the checkpoint thread holds the write lock while
- * advancing the stable schema epoch. This keeps the stable schema epoch from overtaking an epoch a
- * publisher has assigned but not yet published, which the engine rejects.
- */
-static pthread_rwlock_t schema_epoch_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-
-/*
- * Serializes a create-or-drop with its publish so the pair is applied as one unit, with no other
- * schema operation interleaved between them.
- */
-static pthread_mutex_t schema_op_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 /* Per-thread schema worker state. */
 typedef struct {
     WT_SESSION *session;
+    WORKLOAD_STATE *state;
     FILE *schema_fp;
     char tableconf[128];
     char uris[MAX_POOL_SIZE][64];
@@ -75,6 +58,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
         ctx->table_exists[i] = false;
     }
 
+    ctx->state = td->state;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &ctx->session));
     testutil_snprintf(ctx->tableconf, sizeof(ctx->tableconf),
       "key_format=S,value_format=S,type=layered,block_manager=disagg");
@@ -83,8 +67,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 /*
  * schema_op_execute --
  *     Execute the next schema operation on the given slot and update the caller's table-exists
- *     state. Drop uses lock_wait=false so lock contention returns EBUSY immediately; the caller
- *     yields and retries.
+ *     state.
  */
 static int
 schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -118,11 +101,11 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
     uint64_t epoch;
     char pub_cfg[64];
 
-    testutil_assert(pthread_rwlock_rdlock(&schema_epoch_rwlock) == 0);
-    epoch = __wt_atomic_add_uint64(&schema_op_epoch, 1);
+    testutil_assert(pthread_rwlock_rdlock(&ctx->state->epoch_rwlock) == 0);
+    epoch = __wt_atomic_add_uint64(&ctx->state->schema_op_epoch, 1);
     testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
     testutil_check(ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg));
-    testutil_assert(pthread_rwlock_unlock(&schema_epoch_rwlock) == 0);
+    testutil_assert(pthread_rwlock_unlock(&ctx->state->epoch_rwlock) == 0);
     return (epoch);
 }
 
@@ -179,15 +162,15 @@ thread_schema_run(void *arg)
 
     for (;;) {
         slot = __wt_random(&td->rnd) % td->cfg->pool_size;
-        testutil_assert(pthread_mutex_lock(&schema_op_mutex) == 0);
+        testutil_assert(pthread_mutex_lock(&ctx.state->op_mutex) == 0);
         if (schema_op_execute(&ctx, slot) == EBUSY) {
-            testutil_assert(pthread_mutex_unlock(&schema_op_mutex) == 0);
+            testutil_assert(pthread_mutex_unlock(&ctx.state->op_mutex) == 0);
             __wt_yield();
             continue;
         }
         is_create = ctx.table_exists[slot];
         epoch = schema_op_publish(&ctx, slot);
-        testutil_assert(pthread_mutex_unlock(&schema_op_mutex) == 0);
+        testutil_assert(pthread_mutex_unlock(&ctx.state->op_mutex) == 0);
         commit_ts = 0;
         if (is_create)
             commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
@@ -215,8 +198,8 @@ thread_ts_run(void *arg)
         testutil_snprintf(
           tscfg, sizeof(tscfg), "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts);
         testutil_check(td->conn->set_timestamp(td->conn, tscfg));
-        if (!stable_set)
-            stable_set = true;
+        if (!td->state->stable_set)
+            td->state->stable_set = true;
         __wt_sleep(0, 100 * WT_THOUSAND);
     }
     /* NOTREACHED */
@@ -246,7 +229,7 @@ thread_ckpt_run(void *arg)
 
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
-        if (!stable_set) {
+        if (!td->state->stable_set) {
             __wt_epoch(NULL, &now);
             diff_sec = WT_TIMEDIFF_SEC(now, start);
             if (diff_sec > MAX_STARTUP)
@@ -258,12 +241,12 @@ thread_ckpt_run(void *arg)
         sleep_time = __wt_random(&td->rnd) % MAX_CKPT_INVL;
         __wt_sleep(sleep_time, 0);
 
-        if (schema_op_epoch > 0) {
-            testutil_assert(pthread_rwlock_wrlock(&schema_epoch_rwlock) == 0);
+        if (td->state->schema_op_epoch > 0) {
+            testutil_assert(pthread_rwlock_wrlock(&td->state->epoch_rwlock) == 0);
             testutil_snprintf(ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64,
-              schema_op_epoch);
+              td->state->schema_op_epoch);
             (void)td->conn->set_timestamp(td->conn, ts_cfg);
-            testutil_assert(pthread_rwlock_unlock(&schema_epoch_rwlock) == 0);
+            testutil_assert(pthread_rwlock_unlock(&td->state->epoch_rwlock) == 0);
         }
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
@@ -284,8 +267,8 @@ thread_ckpt_run(void *arg)
  *     timestamp thread.
  */
 static void
-workload_threads_start(
-  TEST_CONFIG *cfg, WT_CONNECTION *conn, wt_thread_t **thr_out, THREAD_DATA **td_out)
+workload_threads_start(TEST_CONFIG *cfg, WT_CONNECTION *conn, WORKLOAD_STATE *state,
+  wt_thread_t **thr_out, THREAD_DATA **td_out)
 {
     THREAD_DATA *td;
     wt_thread_t *thr;
@@ -297,6 +280,7 @@ workload_threads_start(
     for (i = 0; i < cfg->nth + 2; i++) {
         td[i].cfg = cfg;
         td[i].conn = conn;
+        td[i].state = state;
         td[i].info = i;
         testutil_random_from_random(
           &td[i].rnd, i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
@@ -332,6 +316,7 @@ workload_threads_join(TEST_CONFIG *cfg, wt_thread_t *thr)
 void
 run_workload(TEST_CONFIG *cfg)
 {
+    WORKLOAD_STATE state;
     WT_CONNECTION *conn;
     THREAD_DATA *td;
     wt_thread_t *thr;
@@ -339,7 +324,9 @@ run_workload(TEST_CONFIG *cfg)
     if (chdir(cfg->home) != 0)
         testutil_die(errno, "Child chdir: %s", cfg->home);
 
-    stable_set = false;
+    WT_CLEAR(state);
+    testutil_assert(pthread_rwlock_init(&state.epoch_rwlock, NULL) == 0);
+    testutil_assert(pthread_mutex_init(&state.op_mutex, NULL) == 0);
 
     cfg->opts->disagg.is_enabled = true;
     cfg->opts->disagg.mode = "leader";
@@ -349,7 +336,7 @@ run_workload(TEST_CONFIG *cfg)
 
     testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, ENV_CONFIG_DEF, NULL, &conn, false, false);
 
-    workload_threads_start(cfg, conn, &thr, &td);
+    workload_threads_start(cfg, conn, &state, &thr, &td);
     fflush(stdout);
     workload_threads_join(cfg, thr); /* Blocks until SIGKILL from parent. */
 
