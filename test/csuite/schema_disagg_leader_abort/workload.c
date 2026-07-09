@@ -143,10 +143,6 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
     stable_ts = 0;
     (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
-    /*
-     * Commit strictly after stable, a random number of ticks ahead, so the data is not immediately
-     * durable. The engine rejects a commit timestamp at or before stable.
-     */
     commit_ts = stable_ts + 1 + __wt_random(ctx->rnd) % 100;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
     testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
