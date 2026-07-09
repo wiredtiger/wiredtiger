@@ -2525,8 +2525,7 @@ tasks:
             build_dir=$(cd ../../../ && pwd)
             for i in $(seq ${times|20}); do
               echo "Iteration $i/${times|20}"
-              # Max out pool size (-s) and schema threads (-T) for maximum schema churn;
-              # 300s per iteration is the window needed to reproduce prior UAF failures.
+              # Max out pool size (-s) and schema threads (-T) for maximum schema churn.
               ./test_schema_disagg_leader_abort -b "$build_dir" -s 64 -T 12 -t 300
             done
 

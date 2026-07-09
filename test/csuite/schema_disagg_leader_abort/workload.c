@@ -107,8 +107,8 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
  *     applied by the next checkpoint. Must be called for both CREATE and DROP.
  *
  * session->publish updates every WT_SCHEMA_EPOCH_UNPUBLISHED entry for this URI in the shared
- *     metadata queue — CREATE on a live table, REMOVE on a dropped one — to a real epoch. Without
- *     this call for DROP, the REMOVE entry keeps WT_TS_MAX and is never applied by any checkpoint,
+ *     metadata queue CREATE on a live table, REMOVE on a dropped one to a real epoch. Without this
+ *     call for DROP, the REMOVE entry keeps WT_TS_MAX and is never applied by any checkpoint,
  *     leaving the table permanently in shared metadata.
  */
 static uint64_t
@@ -156,7 +156,7 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     }
     testutil_check(cursor->close(cursor));
 
-    /* Query stable_ts immediately before commit to minimise the window where stable can advance. */
+    /* Query stable_ts immediately before commit to minimize the window where stable can advance. */
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
     stable_ts = 0;
     (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
