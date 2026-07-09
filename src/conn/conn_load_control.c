@@ -84,13 +84,13 @@ __wti_conn_load_control_config(WT_SESSION_IMPL *session, const char *cfg[], bool
  * __conn_calc_load_pct --
  *     Calculate the percentage of part relative to whole. Returns 0 if whole is zero.
  */
-static WT_INLINE uint16_t
+static WT_INLINE float
 __conn_calc_load_pct(uint64_t part, uint64_t whole)
 {
     if (whole == 0)
-        return (0);
+        return (0.0F);
 
-    return ((uint16_t)WT_MIN((part * 100) / whole, 1000));
+    return (WT_MIN((float)part * 100 / (float)whole, 1000.0F));
 }
 
 /*
@@ -111,7 +111,7 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_LOAD_CONTROL *load_control;
     uint64_t cache_read, cache_req, delta_read, delta_req, prev_read, prev_req;
-    uint16_t read_load, cache_miss_pct;
+    float cache_miss_pct, read_load;
 
     conn = S2C(session);
     load_control = &conn->load_control;
@@ -129,7 +129,7 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
      * When statistics are disabled the read counters stay at zero, and with no new page requests
      * since the last review the miss rate is treated as zero, giving the cache fill ratio alone.
      */
-    cache_miss_pct = 0;
+    cache_miss_pct = 0.0F;
     if (delta_req != 0) {
         prev_read = __wt_atomic_load_uint64_relaxed(&load_control->prev_cache_read);
         __wt_atomic_store_uint64_relaxed(&load_control->prev_cache_read, cache_read);
@@ -138,10 +138,10 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
 
         /* Factor in the cache miss rate when load control is enabled */
         if (F_ISSET(load_control, WT_CONN_LOAD_CONTROL))
-            cache_miss_pct = (uint16_t)WT_MIN((delta_read * 100) / delta_req, 100);
+            cache_miss_pct = WT_MIN((float)delta_read * 100 / (float)delta_req, 100.0F);
     }
 
-    return ((uint16_t)WT_MIN((uint32_t)read_load * (uint32_t)(100 + cache_miss_pct) / 100, 1000));
+    return ((uint16_t)WT_MIN(read_load * (100 + cache_miss_pct) / 100, 1000.0F));
 }
 
 /*
@@ -169,8 +169,10 @@ uint16_t
 __wt_conn_calc_write_load(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_LOAD_CONTROL *load_control;
+    float write_load;
 
     load_control = &S2C(session)->load_control;
-    return (__conn_calc_load_pct(
-      __wt_cache_dirty_inuse(S2C(session)->cache), load_control->write_load_max));
+    write_load = __conn_calc_load_pct(
+      __wt_cache_dirty_inuse(S2C(session)->cache), load_control->write_load_max);
+    return ((uint16_t)write_load);
 }
