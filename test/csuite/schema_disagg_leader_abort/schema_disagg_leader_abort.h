@@ -53,7 +53,6 @@
 /* Connection config. */
 #define ENV_CONFIG_DEF                                                                             \
     "create,"                                                                                      \
-    "eviction_updates_trigger=95,eviction_updates_target=80,"                                      \
     "log=(enabled,file_max=10M,remove=false),statistics=(all),statistics_log=(json,on_close,wait=" \
     "1)"
 
