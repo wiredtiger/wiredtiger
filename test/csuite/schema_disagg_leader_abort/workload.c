@@ -61,7 +61,12 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
 
     ctx->rnd = &td->rnd;
     ctx->state = td->state;
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &ctx->session));
+    /*
+     * FIXME-WT-18013: Disable cursor caching. A cached cursor keeps referencing its table's data
+     * handle after the table is dropped, so recreating the same URI or a cache sweep dereferences
+     * the freed handle and crashes. Drop this once the layered cursor cache is purged on drop.
+     */
+    testutil_check(td->conn->open_session(td->conn, NULL, "cache_cursors=false", &ctx->session));
     testutil_snprintf(ctx->tableconf, sizeof(ctx->tableconf),
       "key_format=S,value_format=S,type=layered,block_manager=disagg");
 }
