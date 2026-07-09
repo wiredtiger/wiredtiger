@@ -53,13 +53,13 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
-    # An unpositioned remove with skip_stable configured skips the stable lookup and so cannot
-    # tell "exists only in stable" from "doesn't exist at all"; it assumes the key exists rather
-    # than fail.
-    def test_delete_non_existent_key_skip_stable(self):
+    # An unpositioned remove with overwrite=true (the default) skips the stable lookup and so
+    # cannot tell "exists only in stable" from "doesn't exist at all"; it assumes the key exists
+    # rather than fail.
+    def test_delete_non_existent_key_overwrite(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
 
-        cursor = self.session.open_cursor(self.uri, None, 'skip_stable=true')
+        cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cursor.set_key(1)
         self.assertEqual(cursor.remove(), 0)
@@ -94,12 +94,12 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
     # A layered cursor does *not* lose position the same way a plain cursor does (this is
     # pre-existing behavior, not something the skip-stable branch adds): the first remove's
     # update leaves the ingest value cached, so the second remove reuses that cached value
-    # instead of re-reading it. With skip_stable configured, finding the cached value already
-    # deleted is treated as a no-op and reports success rather than not-found (matching how the
-    # skip-stable path handles the same situation).
-    def test_positioned_double_remove_skip_stable_keeps_position(self):
+    # instead of re-reading it. With overwrite=true (the default), finding the cached value
+    # already deleted is treated as a no-op and reports success rather than not-found (matching
+    # how the skip-stable path handles the same situation).
+    def test_positioned_double_remove_overwrite_keeps_position(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(self.uri, None, 'skip_stable=true')
+        cursor = self.session.open_cursor(self.uri)
 
         self.session.begin_transaction()
         cursor['k2'] = 'v2'

@@ -27,9 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # The stable cursor on a follower must not open until the first read after the
-# follower has picked up a checkpoint. Insert/update with overwrite and skip_stable
-# both set, and remove with skip_stable set, must never open stable; all other
-# writes and all reads must open it.
+# follower has picked up a checkpoint. Insert, update, and remove with overwrite=true
+# must never open stable; all other writes and all reads must open it.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -150,15 +149,9 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         # Replicate the leader's writes to the follower's ingest.
         self.insert_keys(session_follow, 5, 10)
 
-        # Open the follower cursor. skip_stable is what actually gates the skip-stable path for
-        # every write; for insert/update it also requires overwrite=true (already the default),
-        # while overwrite=false forces the existing-record check that always opens stable
-        # regardless of skip_stable. Remove has no such interaction with overwrite, so the
-        # "overwrite" scenario dimension maps directly onto skip_stable for it.
-        if self.do_op is _op_remove:
-            cursor_config = 'skip_stable=true' if self.overwrite else None
-        else:
-            cursor_config = 'skip_stable=true' if self.overwrite else 'overwrite=false'
+        # Open the follower cursor. overwrite=true (the default) gates the skip-stable path for
+        # every write -- insert, update, and remove alike.
+        cursor_config = None if self.overwrite else 'overwrite=false'
         cursor_follow = session_follow.open_cursor(self.uri, None, cursor_config)
 
         # Any operation before a checkpoint must not open stable.

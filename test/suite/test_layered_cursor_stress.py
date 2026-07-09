@@ -176,15 +176,15 @@ class Node:
     # One connection's view: a layered table (dsc) and a plain reference table (asc), one cursor each
     # in one session, used for both reads and writes. Sharing the cursor keeps layered and reference
     # in lockstep and leaves the cursor positioned after a write (toward long-lived positioned chains).
-    # skip_stable is set on the follower's dsc cursor to exercise the skip-stable path.
+    # skip_stable marks the follower's dsc cursor, whose default overwrite=true configuration skips
+    # the stable lookup on that role; overwrite has no such effect on the leader.
     def __init__(self, conn, session, dsc_uri, asc_uri, skip_stable=False):
         self.conn = conn
         self.session = session
         self.dsc_uri = dsc_uri
         self.asc_uri = asc_uri
         self.skip_stable = skip_stable
-        dsc_config = 'skip_stable=true' if skip_stable else None
-        self.dsc_c = session.open_cursor(dsc_uri, None, dsc_config)
+        self.dsc_c = session.open_cursor(dsc_uri)
         self.asc_c = session.open_cursor(asc_uri)
 
     def reset_all(self):

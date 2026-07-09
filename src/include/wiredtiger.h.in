@@ -699,7 +699,13 @@ struct __wt_cursor {
      * @config{overwrite, configures whether the cursor's insert and update methods check the
      * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
      * ::WT_DUPLICATE_KEY if the record exists\, and WT_CURSOR::update fails with ::WT_NOTFOUND if
-     * the record does not exist., a boolean flag; default \c true.}
+     * the record does not exist.  For a cursor on a layered table\, \c overwrite set to \c true
+     * also allows WT_CURSOR::insert\, WT_CURSOR::update and WT_CURSOR::remove to skip consulting
+     * the stable constituent on a follower\, writing directly to the ingest table instead; the
+     * caller must guarantee this is safe\, for example because the key's existing state was already
+     * confirmed elsewhere.  An incorrect guarantee is not guaranteed to raise an error and can
+     * corrupt the table.  Has no effect on a leader\, or for cursors on any other data source., a
+     * boolean flag; default \c true.}
      * @configend
      * @errors
      */
@@ -799,10 +805,9 @@ struct __wt_cursor {
 #define WT_CURSTD_OVERWRITE     0x020000000ull
 #define WT_CURSTD_RAW           0x040000000ull
 #define WT_CURSTD_RAW_SEARCH        0x080000000ull
-#define WT_CURSTD_SKIP_STABLE   0x100000000ull
-#define WT_CURSTD_VALUE_EXT     0x200000000ull /* Value points out of tree. */
-#define WT_CURSTD_VALUE_INT     0x400000000ull /* Value points into tree. */
-#define WT_CURSTD_VERSION_CURSOR    0x800000000ull /* Version cursor. */
+#define WT_CURSTD_VALUE_EXT     0x100000000ull /* Value points out of tree. */
+#define WT_CURSTD_VALUE_INT     0x200000000ull /* Value points into tree. */
+#define WT_CURSTD_VERSION_CURSOR    0x400000000ull /* Version cursor. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
 #define WT_CURSTD_KEY_SET   (WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define WT_CURSTD_VALUE_SET (WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -1038,7 +1043,13 @@ struct __wt_session {
      * @config{overwrite, configures whether the cursor's insert and update methods check the
      * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
      * ::WT_DUPLICATE_KEY if the record exists\, and WT_CURSOR::update fails with ::WT_NOTFOUND if
-     * the record does not exist., a boolean flag; default \c true.}
+     * the record does not exist.  For a cursor on a layered table\, \c overwrite set to \c true
+     * also allows WT_CURSOR::insert\, WT_CURSOR::update and WT_CURSOR::remove to skip consulting
+     * the stable constituent on a follower\, writing directly to the ingest table instead; the
+     * caller must guarantee this is safe\, for example because the key's existing state was already
+     * confirmed elsewhere.  An incorrect guarantee is not guaranteed to raise an error and can
+     * corrupt the table.  Has no effect on a leader\, or for cursors on any other data source., a
+     * boolean flag; default \c true.}
      * @config{raw, ignore the encodings for the key and value\, manage data as if the formats were
      * \c "u". See @ref cursor_raw for details., a boolean flag; default \c false.}
      * @config{read_once, results that are brought into cache from disk by this cursor will be given

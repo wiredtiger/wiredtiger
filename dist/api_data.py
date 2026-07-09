@@ -1592,19 +1592,13 @@ cursor_runtime_config = [
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist''',
+        not exist. For a cursor on a layered table, \c overwrite set to \c true also allows
+        WT_CURSOR::insert, WT_CURSOR::update and WT_CURSOR::remove to skip consulting the stable
+        constituent on a follower, writing directly to the ingest table instead; the caller must
+        guarantee this is safe, for example because the key's existing state was already
+        confirmed elsewhere. An incorrect guarantee is not guaranteed to raise an error and can
+        corrupt the table. Has no effect on a leader, or for cursors on any other data source''',
         type='boolean'),
-    Config('skip_stable', 'false', r'''
-        for a cursor on a layered table, allow WT_CURSOR::insert, WT_CURSOR::update and
-        WT_CURSOR::remove to skip consulting the stable constituent on a follower, writing
-        directly to the ingest table instead. The caller must guarantee this is safe: for
-        insert/update with \c overwrite set to \c false, the existing-record check normally
-        answered by consulting stable will not see a record that lives only in stable; for
-        remove, the key must already be known to exist, for example because it is replaying a
-        delete already confirmed elsewhere. An incorrect guarantee is not guaranteed to raise an
-        error and can corrupt the table. Has no effect on a leader, or for cursors on any other
-        data source''',
-        type='boolean', undoc=True),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
         type='boolean', undoc=True),
