@@ -2601,10 +2601,11 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              *     theoretical -- if the guarantee is ever violated (overwrite=true used for a
              *     remove on a key that never existed anywhere), the tombstone this writes has
              *     nothing on stable to correspond to. That is caught as a hard drain-time
-             *     violation only while the tombstone is not yet globally visible; once it is,
-             *     drain accepts it silently, so a violation here is not guaranteed to surface
-             *     loudly. We can't tell at this point whether the guarantee held, so there is
-             *     nothing to log or assert on here without also flagging every legitimate case.
+             *     violation only while the tombstone is not yet included in the checkpoint the
+             *     standby has picked up; once it is, drain accepts it silently, so a violation
+             *     here is not guaranteed to surface loudly. We can't tell at this point whether
+             *     the guarantee held, so there is nothing to log or assert on here without also
+             *     flagging every legitimate case.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
@@ -2620,7 +2621,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             } else if (ret != 0)
                 /*
                  * A real error (e.g. a prepare conflict or rollback): reset, matching the error
-                 * handling __clayered_lookup does for the non-skip-stable path below.
+                 * handling the ordinary (stable-consulting) lookup path uses below.
                  */
                 WT_TRET(__clayered_reset_cursors(clayered, false));
         } else
@@ -2631,7 +2632,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         /*
          * Skip an existing tombstone: no consecutive tombstones on an update chain. With
          * overwrite=true, a confirmed-already-deleted key is a no-op regardless of position, same
-         * as the skipped-stable case above; otherwise the position came from a real earlier
+         * as the overwrite=true case above; otherwise the position came from a real earlier
          * traversal and this reports not-found.
          */
         WT_ITEM_SET(value, c_ingest->value);
@@ -2644,7 +2645,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 
     /*
      * If ingest wasn't confirmed positioned on this key by a real lookup above (found is false only
-     * for the skip-stable case, where neither ingest nor the truncate list had an entry for this
+     * for the overwrite=true case, where neither ingest nor the truncate list had an entry for this
      * key), current_cursor can still be whatever an unrelated earlier operation on this cursor left
      * it as -- WT_CURSOR::set_key doesn't clear it. Never trust it in that case: always set the key
      * explicitly rather than risk writing under a stale one.
