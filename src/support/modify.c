@@ -485,6 +485,22 @@ retry:
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
+        /*
+         * We need the on-page value as the base, so the page must be present. If it isn't, an
+         * update chain is referencing a page that was never instantiated or has gone away; dump the
+         * ref and cursor state.
+         */
+        WT_ERR_ASSERT(session, WT_DIAGNOSTIC_TXN_VISIBILITY,
+          cbt->ref != NULL && cbt->ref->page != NULL, WT_ERROR,
+          "modify reconstruct with missing base page: dhandle=%s ref=%p state=%d page_del=%p "
+          "slot=%" PRIu32 " ins_head=%p ins=%p modify.type=%d modify.txnid=%" PRIu64
+          " modify.prepare_state=%d",
+          session->dhandle == NULL ? "(null)" : session->dhandle->name, (void *)cbt->ref,
+          cbt->ref == NULL ? -1 : (int)WT_REF_GET_STATE(cbt->ref),
+          cbt->ref == NULL ? NULL : (void *)cbt->ref->page_del, cbt->slot, (void *)cbt->ins_head,
+          (void *)cbt->ins, (int)modify->type, __wt_atomic_load_uint64_v_acquire(&modify->txnid),
+          (int)__wt_atomic_load_uint8_v_acquire(&modify->prepare_state));
+
         WT_ERR_ERROR_OK(
           __wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw), WT_RESTART, true);
 
