@@ -66,19 +66,12 @@ typedef struct {
     uint32_t pool_size;
 } TEST_CONFIG;
 
-/*
- * Runtime state shared by the workload threads.
- *
- * epoch_rwlock orders epoch publishing against stable schema epoch advancement: publishers hold the
- * read lock, the checkpoint thread the write lock, so the stable epoch never overtakes an
- * assigned-but-unpublished epoch, which the engine rejects. op_mutex serializes a create-or-drop
- * with its publish so the pair applies as one unit.
- */
+/* Global state shared by all workload threads. */
 typedef struct {
-    volatile bool stable_set;
-    uint64_t schema_op_epoch;
-    pthread_rwlock_t epoch_rwlock;
-    pthread_mutex_t op_mutex;
+    volatile bool stable_set;      /* set once the stable timestamp is first advanced */
+    uint64_t schema_op_epoch;      /* next schema epoch to assign */
+    pthread_rwlock_t epoch_rwlock; /* held for read while publishing, for write while advancing */
+    pthread_mutex_t op_mutex;      /* serializes a schema operation with its publish */
 } WORKLOAD_STATE;
 
 /* Per-thread argument. */

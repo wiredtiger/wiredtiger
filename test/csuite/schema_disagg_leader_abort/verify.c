@@ -28,24 +28,22 @@
 
 #include "schema_disagg_leader_abort.h"
 
-/* The final create or drop recorded for one URI slot at or below the epoch cutoff. */
+/* The last durable create or drop recorded for one URI slot. */
 typedef struct {
     uint64_t epoch;
-    uint64_t commit_ts; /* data commit timestamp; 0 for DROP */
+    uint64_t commit_ts;
     bool is_create;
     bool valid;
 } SLOT_STATE;
 
 /*
  * parse_schema_records --
- *     Scan one thread's schema record file, filling the per-slot state array with the last
- *     operation seen per URI slot. Cutoff is the last durable schema epoch after recovery
- *     (last_disaggregated_schema_epoch): records assigned an epoch above it were not captured by
- *     any checkpoint before the crash and are ignored. Only records whose URI belongs to thread t
- *     are kept.
+ *     Record the last durable operation for each of thread t's URI slots. durable_epoch is the
+ *     highest schema epoch that survived recovery; a record assigned a higher epoch never reached a
+ *     checkpoint before the crash, so it is ignored. Records for other threads are skipped.
  */
 static void
-parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
+parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
   SLOT_STATE states[MAX_POOL_SIZE], uint32_t pool_size)
 {
     FILE *fp;
@@ -65,7 +63,7 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
 
     while (fscanf(fp, "%15s %" SCNu64 " %" SCNu64 " %127s", op, &entry_epoch, &commit_ts,
              rec_uri) == 4) {
-        if (entry_epoch > cutoff)
+        if (entry_epoch > durable_epoch)
             continue;
         if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t || s >= pool_size)
             continue;
@@ -81,9 +79,8 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
 
 /*
  * check_schema_presence --
- *     For each slot with a valid record, assert that a table whose last operation at or below the
- *     epoch cutoff (the last durable schema epoch after recovery) was a create still exists, and
- *     one whose last such operation was a drop is absent.
+ *     For each slot with a durable record, assert that a table whose last operation was a create
+ *     still exists and one whose last operation was a drop is absent.
  */
 static void
 check_schema_presence(
@@ -161,24 +158,25 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
  * verify_schema_state --
  *     Verify schema and data state after recovery.
  *
- * Reads per-thread schema record files, uses last_disaggregated_schema_epoch as the epoch cutoff,
- *     and asserts that every table whose final pre-cutoff operation was a CREATE exists and
- *     contains correct data rows. Aborts on the first mismatch.
+ * Reads the per-thread schema record files and takes last_disaggregated_schema_epoch as the highest
+ *     durable schema epoch. Asserts that every table whose last durable operation was a create
+ *     exists and holds the right rows, and every one last dropped is gone. Aborts on the first
+ *     mismatch.
  */
 void
 verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
 {
     SLOT_STATE states[MAX_POOL_SIZE];
     WT_SESSION *session;
-    uint64_t cutoff, last_ckpt_ts;
+    uint64_t durable_epoch, last_ckpt_ts;
     char fname[128], ts_buf[64];
     uint32_t t;
 
-    cutoff = 0;
+    durable_epoch = 0;
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
-    (void)sscanf(ts_buf, "%" SCNx64, &cutoff);
-    printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", cutoff);
-    if (cutoff == 0) {
+    (void)sscanf(ts_buf, "%" SCNx64, &durable_epoch);
+    printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", durable_epoch);
+    if (durable_epoch == 0) {
         printf("Schema verify: no schema epoch checkpointed, skipping.\n");
         return;
     }
@@ -192,7 +190,7 @@ verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
 
     for (t = 0; t < cfg->nth; t++) {
         testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, t);
-        parse_schema_records(fname, t, cutoff, states, cfg->pool_size);
+        parse_schema_records(fname, t, durable_epoch, states, cfg->pool_size);
         check_schema_presence(session, t, states, cfg->pool_size);
         check_data_rows(session, t, states, cfg->pool_size, last_ckpt_ts);
     }
