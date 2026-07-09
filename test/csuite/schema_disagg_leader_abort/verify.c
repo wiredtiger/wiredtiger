@@ -86,29 +86,32 @@ static void
 check_schema_presence(
   WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE], uint32_t pool_size)
 {
-    WT_CURSOR *cursor;
+    WT_CURSOR *md_cursor;
     WT_DECL_RET;
     uint32_t s;
     char uri[64];
+
+    /* Validate presence against the metadata entry rather than instantiating each table. */
+    testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &md_cursor));
 
     for (s = 0; s < pool_size; s++) {
         if (!states[s].valid)
             continue;
 
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
-        ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
+        md_cursor->set_key(md_cursor, uri);
+        ret = md_cursor->search(md_cursor);
+        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 
-        if (states[s].is_create) {
-            testutil_assertfmt(ret == 0,
-              "%s missing after recovery (CREATE at epoch %" PRIu64 "): %s", uri, states[s].epoch,
-              wiredtiger_strerror(ret));
-            testutil_check(cursor->close(cursor));
-        } else if (ret == 0)
-            testutil_check(cursor->close(cursor));
+        if (states[s].is_create)
+            testutil_assertfmt(ret == 0, "%s missing after recovery (CREATE at epoch %" PRIu64 ")",
+              uri, states[s].epoch);
         else
-            testutil_assertfmt(ret == WT_NOTFOUND || ret == ENOENT, "error checking %s: %s", uri,
-              wiredtiger_strerror(ret));
+            testutil_assertfmt(
+              ret == WT_NOTFOUND, "%s present after recovery (last op was DROP)", uri);
     }
+
+    testutil_check(md_cursor->close(md_cursor));
 }
 
 /*
