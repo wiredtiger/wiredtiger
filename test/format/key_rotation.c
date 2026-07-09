@@ -67,10 +67,8 @@ disagg_key_push(
 {
     WT_CRYPT_KEYS crypt;
     WT_DECL_RET;
-    wt_timestamp_t push_ts;
+    wt_timestamp_t push_ts = floor_ts + mmrand(&g.extra_rnd, 1, 5);
     char key_buf[64];
-
-    push_ts = floor_ts + mmrand(&g.extra_rnd, 1, 5);
 
     WT_CLEAR(crypt);
     testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
