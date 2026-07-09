@@ -232,6 +232,8 @@ disagg_key_validate_persisted(WT_SESSION *session, WT_PAGE_LOG *page_log,
 void
 disagg_key_validate_after_checkpoint(WT_SESSION *session)
 {
+    WT_DECL_RET;
+
     /* Only push mode persists rotated keys, and the read-back is PALite-specific. */
     if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH ||
       strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0)
@@ -243,7 +245,6 @@ disagg_key_validate_after_checkpoint(WT_SESSION *session)
 
     WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
     memset(&args, 0, sizeof(args));
-    WT_DECL_RET;
     ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
     testutil_check_error_ok(ret, WT_NOTFOUND);
     if (ret != WT_NOTFOUND) {
