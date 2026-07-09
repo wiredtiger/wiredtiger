@@ -455,8 +455,15 @@ retry:
     }
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
-    if (ret == EBUSY)
+    if (ret == EBUSY) {
+        /*
+         * The retry re-fetches the checkpoint name and reallocates the scratch buffer, so release
+         * both before looping.
+         */
+        __wt_free(session, checkpoint_name);
+        __wt_scr_free(session, &stable_uri_buf);
         goto retry;
+    }
 
     WT_ERR(ret);
 
