@@ -68,10 +68,14 @@ typedef struct {
 
 /* Global state shared by all workload threads. */
 typedef struct {
-    volatile bool stable_set;      /* set once the stable timestamp is first advanced */
-    uint64_t schema_op_epoch;      /* next schema epoch to assign */
-    pthread_rwlock_t epoch_rwlock; /* held for read while publishing, for write while advancing */
-    pthread_mutex_t op_mutex;      /* serializes a schema operation with its publish */
+    volatile bool stable_set; /* set once the stable timestamp is first advanced */
+    uint64_t schema_op_epoch; /* next schema epoch to assign */
+    /*
+     * Serializes a schema thread's create-or-drop and publish against the checkpoint thread's epoch
+     * advance and checkpoint. Held across the checkpoint so no unpublished create is ever in the
+     * shared metadata queue while a checkpoint runs.
+     */
+    pthread_mutex_t op_mutex;
 } WORKLOAD_STATE;
 
 /* Per-thread argument. */
