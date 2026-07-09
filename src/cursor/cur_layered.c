@@ -2600,10 +2600,11 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
              *     tombstone a harmless redundant delete. That reliance is real, not just
              *     theoretical -- if the guarantee is ever violated (overwrite=true used for a
              *     remove on a key that never existed anywhere), the tombstone this writes has
-             *     nothing on stable to correspond to. __layered_assert_stable_btree_state catches
-             *     that case at drain time only while the tombstone is not yet globally visible;
-             *     once it is, drain accepts it silently, so a violation here is not guaranteed to
-             *     surface loudly.
+             *     nothing on stable to correspond to. That is caught as a hard drain-time
+             *     violation only while the tombstone is not yet globally visible; once it is,
+             *     drain accepts it silently, so a violation here is not guaranteed to surface
+             *     loudly. We can't tell at this point whether the guarantee held, so there is
+             *     nothing to log or assert on here without also flagging every legitimate case.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
