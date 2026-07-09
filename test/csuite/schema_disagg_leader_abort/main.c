@@ -31,15 +31,9 @@
 /*
  * Disaggregated schema epoch crash recovery test.
  *
- * Schema operations in disaggregated storage become durable through two steps: a create or drop is
- * published at a schema epoch, and the stable schema epoch is later advanced so a checkpoint can
- * capture it. This test hammers that path and checks it survives an unclean shutdown.
- *
- * A leader child forks and runs worker threads that create, drop, and publish layered tables while
- * a checkpoint thread advances the stable schema epoch and checkpoints. The parent sends SIGKILL to
- * the child once a checkpoint has completed. On restart, the verifier replays what each thread
- * durably recorded and confirms recovery matches: tables last published as created exist with their
- * data, and tables last published as dropped are gone.
+ * Worker threads create, drop, and publish layered tables on a leader while it checkpoints. The
+ * test crashes the leader mid-run and confirms that, after recovery, the tables match the schema
+ * operations that were made durable before the crash.
  */
 
 extern int __wt_optind;
