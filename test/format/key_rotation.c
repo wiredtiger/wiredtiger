@@ -102,8 +102,21 @@ disagg_key_push_initial(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(conn->get_key_provider(conn, &kp));
 
-    wt_timestamp_t push_ts;
-    testutil_check(disagg_key_push(session, kp, g.stable_timestamp, &push_ts));
+    /*
+     * Use a fixed +1 offset so stable advances by exactly one timestamp. The rotation thread uses a
+     * random offset during normal operation, but the initial push must stay within reach of the
+     * timestamp thread to avoid driving stable ahead of committed transactions.
+     */
+    wt_timestamp_t push_ts = g.stable_timestamp + 1;
+    WT_CRYPT_KEYS crypt;
+    WT_CLEAR(crypt);
+    char key_buf[64];
+    testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
+    crypt.keys.data = key_buf;
+    crypt.keys.size = strlen(key_buf);
+    crypt.timestamp = push_ts;
+    testutil_check(kp->set_key(kp, session, &crypt));
+    key_push_history_append(push_ts);
 
     /* Advance stable to the pushed key so the checkpoint drains it. */
     char ts_buf[WT_TS_HEX_STRING_SIZE + 24];
