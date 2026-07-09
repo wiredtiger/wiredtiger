@@ -262,7 +262,7 @@ disagg_switch_roles(void)
         timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
 
-        /* Verify the key this step-up checkpoint persisted correct KEK. */
+        /* Verify that this step-up checkpoint persisted the correct KEK. */
         disagg_key_validate_after_checkpoint(session);
         wt_wrap_close_session(session);
     }

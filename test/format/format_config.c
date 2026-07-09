@@ -1517,23 +1517,15 @@ config_disagg_key_provider(void)
         return;
     }
 
-    if (!config_explicit(NULL, "disagg.key_provider"))
-        switch (mmrand(&g.extra_rnd, 1, 10)) {
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5: /* 50% push */
-            config_single(NULL, "disagg.key_provider=2", false);
-            break;
-        case 6:
-        case 7: /* 20% pull */
-            config_single(NULL, "disagg.key_provider=1", false);
-            break;
-        default: /* 30% off */
-            config_single(NULL, "disagg.key_provider=0", false);
-            break;
-        }
+    if (!config_explicit(NULL, "disagg.key_provider")) {
+        uint32_t r = mmrand(&g.extra_rnd, 1, 10);
+        if (r <= 5)
+            config_single(NULL, "disagg.key_provider=2", false); /* 50% push */
+        else if (r <= 7)
+            config_single(NULL, "disagg.key_provider=1", false); /* 20% pull */
+        else
+            config_single(NULL, "disagg.key_provider=0", false); /* 30% off */
+    }
 }
 
 /*

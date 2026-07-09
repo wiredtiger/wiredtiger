@@ -57,9 +57,9 @@ key_push_history_append(wt_timestamp_t ts)
 
 /*
  * disagg_key_push --
- *     Push a new key one timestamp above the given floor, recording it on success. Returns EINVAL
- *     without recording when stable advanced past the chosen timestamp, leaving the caller to
- *     retry.
+ *     Push a new key at a randomly chosen timestamp above the given floor, recording it on success.
+ *     Returns EINVAL without recording when stable advanced past the chosen timestamp, leaving the
+ *     caller to retry.
  */
 static int
 disagg_key_push(
@@ -157,6 +157,7 @@ disagg_validate_kek_page(
     testutil_assert(hdr.signature == WT_CRYPT_HEADER_SIGNATURE);
 
     persisted_ts = hdr.timestamp;
+    testutil_assert(hdr.header_size + hdr.crypt_size <= page->size);
     key_data = (const uint8_t *)page->data + hdr.header_size;
     key_size = hdr.crypt_size;
 

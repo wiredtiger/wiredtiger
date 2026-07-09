@@ -47,10 +47,7 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
         if (opts->disagg.key_provider != DISAGG_KEY_PROVIDER_OFF) {
             int version;
 
-            if (opts->disagg.key_provider == DISAGG_KEY_PROVIDER_PUSH)
-                version = 1;
-            else
-                version = 0;
+            version = (opts->disagg.key_provider == DISAGG_KEY_PROVIDER_PUSH) ? 1 : 0;
             testutil_snprintf(key_provider_ext_cfg, sizeof(key_provider_ext_cfg),
               TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT, opts->build_dir, version);
             testutil_strcat(
