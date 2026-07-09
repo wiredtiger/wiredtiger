@@ -40,6 +40,12 @@ static uint64_t schema_op_epoch;
  */
 static pthread_rwlock_t schema_epoch_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
+/*
+ * Serializes a create-or-drop with its publish so the pair is applied as one unit, with no other
+ * schema operation interleaved between them.
+ */
+static pthread_mutex_t schema_op_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /* Per-thread schema worker state. */
 typedef struct {
     WT_SESSION *session;
@@ -173,12 +179,15 @@ thread_schema_run(void *arg)
 
     for (;;) {
         slot = __wt_random(&td->rnd) % td->cfg->pool_size;
+        testutil_assert(pthread_mutex_lock(&schema_op_mutex) == 0);
         if (schema_op_execute(&ctx, slot) == EBUSY) {
+            testutil_assert(pthread_mutex_unlock(&schema_op_mutex) == 0);
             __wt_yield();
             continue;
         }
         is_create = ctx.table_exists[slot];
         epoch = schema_op_publish(&ctx, slot);
+        testutil_assert(pthread_mutex_unlock(&schema_op_mutex) == 0);
         commit_ts = 0;
         if (is_create)
             commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
