@@ -120,7 +120,7 @@ static uint64_t
 schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
     WT_CURSOR *cursor;
-    uint64_t commit_ts, oldest_ts;
+    uint64_t commit_ts, stable_ts;
     uint32_t r;
     char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
 
@@ -135,12 +135,15 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     }
     testutil_check(cursor->close(cursor));
 
-    /* Query oldest_ts immediately before commit to minimize the window where it can advance. */
-    testutil_check(conn->query_timestamp(conn, ts_buf, "get=oldest"));
-    oldest_ts = 0;
-    (void)sscanf(ts_buf, "%" SCNx64, &oldest_ts);
-    /* Commit a random number of ticks ahead of oldest so the data is not immediately durable. */
-    commit_ts = oldest_ts + __wt_random(ctx->rnd) % 100;
+    /* Query stable_ts immediately before commit to minimize the window where it can advance. */
+    testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
+    stable_ts = 0;
+    (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
+    /*
+     * Commit strictly after stable, a random number of ticks ahead, so the data is not immediately
+     * durable. The engine rejects a commit timestamp at or before stable.
+     */
+    commit_ts = stable_ts + 1 + __wt_random(ctx->rnd) % 100;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
     testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
     return (commit_ts);
