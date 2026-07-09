@@ -98,8 +98,8 @@ disagg_key_push_initial(WT_CONNECTION *conn)
         return;
 
     WT_SESSION *session;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
     WT_KEY_PROVIDER *kp;
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(conn->get_key_provider(conn, &kp));
 
     wt_timestamp_t push_ts;
@@ -177,18 +177,17 @@ disagg_read_kek_page(
 
     /* Parse the KEK page LSN from the key_provider config. */
     char *kp_str = NULL;
+    WT_CONFIG_ITEM page_cval, lsn_cval;
     testutil_check(__wt_strndup(
       (WT_SESSION_IMPL *)session, metadata->key_provider, metadata->key_provider_len, &kp_str));
-    WT_CONFIG_ITEM page_cval;
     testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, kp_str, "page.1", &page_cval));
-    WT_CONFIG_ITEM lsn_cval;
     testutil_check(__wt_config_subgets((WT_SESSION_IMPL *)session, &page_cval, "lsn", &lsn_cval));
     uint64_t key_provider_lsn = (uint64_t)lsn_cval.val;
 
     WT_PAGE_LOG_HANDLE *plh;
+    WT_PAGE_LOG_GET_ARGS get_args;
     testutil_check(
       page_log->pl_open_handle(page_log, session, WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID, &plh));
-    WT_PAGE_LOG_GET_ARGS get_args;
     WT_CLEAR(get_args);
     get_args.lsn = key_provider_lsn;
 
