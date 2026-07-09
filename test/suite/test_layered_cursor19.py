@@ -202,11 +202,10 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
 
         cursor.close()
 
-    # Demonstrates the caller-guarantee risk of overwrite=true on update: the existing-record check
-    # can no longer see 'seed', which lives only in stable, so update() incorrectly reports
-    # WT_NOTFOUND instead of succeeding. This is expected, not a bug -- it is the caller's
-    # responsibility to know overwrite=true means the stable-only existing-record check is skipped.
-    def test_follower_update_overwrite_misses_stable_record(self):
+    # Mirror of the insert case above: with overwrite=true, update() is an upsert and doesn't need
+    # to know whether 'seed' (which lives only in stable) already existed, so it succeeds and
+    # creates the record in ingest rather than reporting WT_NOTFOUND.
+    def test_follower_update_overwrite_creates_stable_only_key(self):
         self.seed_leader_and_advance_follower()
 
         cursor = self.session_follow.open_cursor(self.uri)
@@ -214,8 +213,8 @@ class test_layered_cursor19(wttest.WiredTigerTestCase):
         self.session_follow.begin_transaction()
         cursor.set_key('seed')
         cursor.set_value('seed-val-2')
-        self.assertEqual(cursor.update(), wiredtiger.WT_NOTFOUND)
-        self.session_follow.rollback_transaction()
+        self.assertEqual(cursor.update(), 0)
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
         cursor.close()
 
     # A remove on a follower with overwrite=true (the default) should open the ingest cursor only,
