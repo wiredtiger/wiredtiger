@@ -32,6 +32,7 @@
 typedef struct {
     WT_SESSION *session;
     WORKLOAD_STATE *state;
+    WT_RAND_STATE *rnd;
     FILE *schema_fp;
     char tableconf[128];
     char uris[MAX_POOL_SIZE][64];
@@ -49,8 +50,10 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
     char fname[128];
 
     testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, td->info);
+    /* Discard any record file left by a previous run before opening a fresh one. */
     (void)unlink(fname);
     testutil_assert_errno((ctx->schema_fp = fopen(fname, "w")) != NULL);
+    /* Flush the record file per line so entries survive the SIGKILL crash. */
     __wt_stream_set_line_buffer(ctx->schema_fp);
 
     for (i = 0; i < td->cfg->pool_size; i++) {
@@ -58,6 +61,7 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
         ctx->table_exists[i] = false;
     }
 
+    ctx->rnd = &td->rnd;
     ctx->state = td->state;
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &ctx->session));
     testutil_snprintf(ctx->tableconf, sizeof(ctx->tableconf),
@@ -137,7 +141,8 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
     stable_ts = 0;
     (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
-    commit_ts = stable_ts + 10;
+    /* Commit a random 10 to 100 ticks ahead of stable so the data is not immediately durable. */
+    commit_ts = stable_ts + 10 + __wt_random(ctx->rnd) % 91;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
     testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
     return (commit_ts);
