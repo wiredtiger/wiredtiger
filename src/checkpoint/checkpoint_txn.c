@@ -35,6 +35,7 @@ typedef struct {
 
 typedef struct {
     bool can_skip;
+    bool database_size_fix;
     bool force;
     bool flush_tier_enabled;
     bool flush_tier_force;
@@ -133,8 +134,12 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     __wt_atomic_store_bool_relaxed(&conn->tiered.flush_ckpt_complete, false);
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->tiered.flush_most_recent = session->ckpt.current_sec;
-    /* Storing the last flush timestamp here for the future and for debugging. */
-    conn->tiered.flush_ts = conn->txn_global.last_ckpt_timestamp;
+    /*
+     * The load is relaxed rather than acquire: this runs on the checkpoint thread, under the
+     * checkpoint lock, which is the same thread that publishes the timestamp. The value is only
+     * copied for future and debugging use.
+     */
+    conn->tiered.flush_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp);
     /*
      * It would be more efficient to return here if no tiered storage is enabled in the system. If
      * the user asks for a flush_tier without tiered storage, the loop below is effectively a no-op
@@ -198,7 +203,8 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
             WT_STAT_CONN_INCR(session, flush_tier_switched);
             __wt_tree_modify_set(session);
             btree->flush_most_recent_secs = session->ckpt.current_sec;
-            btree->flush_most_recent_ts = conn->txn_global.last_ckpt_timestamp;
+            btree->flush_most_recent_ts =
+              __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp);
             WT_ERR(__wt_session_release_dhandle(session));
             release = false;
         }
@@ -877,15 +883,19 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  * __checkpoint_update_disagg_database_size --
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
-static void
-__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
+static int
+__checkpoint_update_disagg_database_size(
+  WT_SESSION_IMPL *session, uint64_t drop_size, bool database_size_fix)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t recomputed_size;
+    bool recomputed;
 
     conn = S2C(session);
 
     if (!__wt_conn_is_disagg(session))
-        return;
+        return (0);
 
     /*
      * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
@@ -897,12 +907,34 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
-     * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
-     * occur when data is removed reducing the total storage footprint. Guard against
-     * overflow/underflow in both cases.
+     * The repair database flow asks us to recompute the database size from the metadata from
+     * scratch, superseding the incremental delta below, since the metadata already reflects this
+     * checkpoint's own sizes. A recompute error fails the checkpoint instead of falling back, since
+     * the caller explicitly asked for this recompute and needs to know.
      */
-    if (session->ckpt.ckpt_size_delta != 0) {
+    recomputed = false;
+    if (database_size_fix) {
+        if ((ret = __wt_disagg_get_database_size(session, &recomputed_size)) != 0) {
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "disagg database size fix: failed to recompute database size: %s",
+              __wt_strerror(session, ret, NULL, 0));
+            return (ret);
+        }
+
+        recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+        __wt_disagg_set_database_size(session, recomputed_size);
+        __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
+        recomputed = true;
+    }
+
+    /*
+     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
+     * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
+     * added during the checkpoint. Negative deltas occur when data is removed reducing the total
+     * storage footprint. Guard against overflow/underflow in both cases.
+     */
+    if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
         uint64_t db;
         int64_t delta;
 
@@ -925,6 +957,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
      */
     WT_ASSERT(
       session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+    return (0);
 }
 
 /*
@@ -1237,6 +1270,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t last_ckpt_ts;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -1252,9 +1286,9 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * skip checkpoints. Also, don't skip if the stable disaggregated schema epoch changed, as the
      * metadata operation queue may have entries to flush even without new committed data.
      */
-    if (!conn->modified && ckpt_cfg->use_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session) &&
+    last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
+    if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
+      last_ckpt_ts == __wt_get_stable_timestamp(session) &&
       txn_global->last_ckpt_disaggregated_schema_epoch ==
         __wt_get_stable_disaggregated_schema_epoch(session)) {
         ckpt_cfg->can_skip = true;
@@ -1311,6 +1345,13 @@ __checkpoint_parse_config(
 
     WT_RET(__wt_config_gets(session, cfg, "drop", &cval));
     ckpt_cfg->drop = cval.len != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "debug.database_size_fix", &cval));
+    ckpt_cfg->database_size_fix = cval.val != 0;
+    if (ckpt_cfg->database_size_fix &&
+      !(__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader))
+        WT_RET_MSG(
+          session, ENOTSUP, "database_size_fix requires a disaggregated leader connection");
 
     return (0);
 }
@@ -1884,7 +1925,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (ckpt_cfg.use_timestamp) {
         conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_schema_epoch;
-        conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -1892,16 +1932,20 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp. This should never be a problem, as checkpoint timestamp should never be less
          * than recovery timestamp. This could potentially avoid MongoDB making two calls to
          * determine last stable recovery timestamp.
+         *
+         * The store is release to pair with the acquire load in sweep.
          */
-        if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
-            conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
+        if (ckpt_tmp_ts == WT_TS_NONE)
+            ckpt_tmp_ts = conn->txn_global.recovery_timestamp;
+        __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, ckpt_tmp_ts);
     } else {
         conn->txn_global.last_ckpt_disaggregated_schema_epoch = WT_TS_NONE;
-        conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
+        __wt_atomic_store_uint64_release(&conn->txn_global.last_ckpt_timestamp, WT_TS_NONE);
     }
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session, drop_size);
+    WT_ERR(
+      __checkpoint_update_disagg_database_size(session, drop_size, ckpt_cfg.database_size_fix));
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
