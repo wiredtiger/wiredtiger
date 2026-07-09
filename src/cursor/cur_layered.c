@@ -2538,8 +2538,10 @@ __clayered_modify_check(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, 
         return (0);
 
     /* The leader's underlying stable cursor runs the check itself. */
-    if (S2C(session)->layered_table_manager.leader)
+    if (S2C(session)->layered_table_manager.leader &&
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         return (0);
+    ;
 
     /*
      * The probe searches and resets the constituent cursors, destroying the walk-consistent
