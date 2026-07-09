@@ -244,7 +244,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
 
     SECTION("In memory, should write oldest update in the list")
     {
-        F_SET(S2BT(session), WT_BTREE_IN_MEMORY);
+        F_SET_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -259,7 +259,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
     }
     SECTION("Not in-memory, should write newest update in the list")
     {
-        F_CLR(S2BT(session), WT_BTREE_IN_MEMORY);
+        F_CLR_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -309,7 +309,7 @@ TEST_CASE_METHOD(
 
     SECTION("In-memory, should write oldest update with timestamp > prune timestamp in the list")
     {
-        F_SET(S2BT(session), WT_BTREE_IN_MEMORY);
+        F_SET_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -359,7 +359,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
 
     SECTION("In-memory, should write oldest update with timestamp > prune timestamp in the list")
     {
-        F_SET(S2BT(session), WT_BTREE_IN_MEMORY);
+        F_SET_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
@@ -375,7 +375,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
 
     SECTION("Not In-memory, should write newest update")
     {
-        F_CLR(S2BT(session), WT_BTREE_IN_MEMORY);
+        F_CLR_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY);
         F_SET(&r, WT_REC_EVICT);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
@@ -424,7 +424,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture,
     session->txn->time_point.id = 50;
     session->txn->isolation = WT_ISO_SNAPSHOT;
     F_CLR(session->dhandle, WT_DHANDLE_HS);
-    F_CLR(S2BT(session), WT_BTREE_IN_MEMORY);
+    F_CLR_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY);
 
     WTI_RECONCILE r;
     setup_reconcile_context(&r, page, WT_TXN_NONE, 0);

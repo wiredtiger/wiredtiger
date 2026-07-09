@@ -1251,7 +1251,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && F_ISSET(upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS))))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
-    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    else if (F_ISSET_ATOMIC_32(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
@@ -1653,6 +1653,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
                 __wt_btree_advance_ingest_max(op->btree, txn->time_point.durable_timestamp);
+            else if (F_ISSET_ATOMIC_32(op->btree, WT_BTREE_IN_MEMORY) &&
+              F_ISSET(op->btree, WT_BTREE_DISAGGREGATED))
+                __wt_btree_advance_max(
+                  &op->btree->max_upd_durable_ts, txn->time_point.durable_timestamp);
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_ERR(__wt_txn_op_set_timestamp(session, op, true));

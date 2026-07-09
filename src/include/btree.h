@@ -186,6 +186,13 @@ struct __wt_btree {
     /* For an ingest btree, an upper bound on the durable timestamp of any update it holds. */
     wt_shared wt_timestamp_t max_ingest_write_ts;
 
+    /*
+     * For a disaggregated btree that is in memory awaiting publication, an upper bound on the
+     * durable timestamp of any committed update it holds. Checkpoint uses this to detect stable
+     * data in an unpublished table without walking the tree.
+     */
+    wt_shared wt_timestamp_t max_upd_durable_ts;
+
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
@@ -350,21 +357,30 @@ struct __wt_btree {
  * explanation.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 12 */
-#define WT_BTREE_BULK 0x0001000u            /* Bulk-load handle */
-#define WT_BTREE_CLOSED 0x0002000u          /* Handle closed */
-#define WT_BTREE_DISAGGREGATED 0x0004000u   /* In disaggregated storage */
-#define WT_BTREE_GARBAGE_COLLECT 0x0008000u /* Content becomes obsolete automatically */
-#define WT_BTREE_IGNORE_CACHE 0x0010000u    /* Cache-resident object */
-#define WT_BTREE_IN_MEMORY 0x0020000u       /* Cache-resident object */
-#define WT_BTREE_LOGGED 0x0040000u          /* Commit-level durability without timestamps */
-#define WT_BTREE_NO_CHECKPOINT 0x0080000u   /* Disable checkpoints */
-#define WT_BTREE_NO_EVICT 0x0100000u        /* Cache-resident object. Never run eviction on it. */
-#define WT_BTREE_READONLY 0x0200000u        /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x0400000u         /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x0800000u       /* Handle skipped checkpoint */
-#define WT_BTREE_VERIFY 0x1000000u          /* Handle is for verify */
-                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_BTREE_BULK 0x001000u            /* Bulk-load handle */
+#define WT_BTREE_CLOSED 0x002000u          /* Handle closed */
+#define WT_BTREE_DISAGGREGATED 0x004000u   /* In disaggregated storage */
+#define WT_BTREE_GARBAGE_COLLECT 0x008000u /* Content becomes obsolete automatically */
+#define WT_BTREE_IGNORE_CACHE 0x010000u    /* Cache-resident object */
+#define WT_BTREE_LOGGED 0x020000u          /* Commit-level durability without timestamps */
+#define WT_BTREE_NO_CHECKPOINT 0x040000u   /* Disable checkpoints */
+#define WT_BTREE_NO_EVICT 0x080000u        /* Cache-resident object. Never run eviction on it. */
+#define WT_BTREE_READONLY 0x100000u        /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x200000u         /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x400000u       /* Handle skipped checkpoint */
+#define WT_BTREE_VERIFY 0x800000u          /* Handle is for verify */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+/*
+ * Flags manipulated concurrently with other threads. These must be accessed with the atomic flag
+ * macros. FIXME-WT-18015: audit the remaining WT_BTREE flags and move those requiring atomic
+ * access.
+ */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BTREE_IN_MEMORY 0x1u /* Cache-resident object */
+                                /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    wt_shared uint32_t flags_atomic;
 };
 
 /* Flags that make a btree handle special (not for normal use). */

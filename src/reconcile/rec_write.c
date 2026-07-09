@@ -1011,7 +1011,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
           "Incorrect arguments passed to rec_write for a checkpoint call");
 
         /* In-memory btrees shouldn't write pages. */
-        WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY),
+        WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_IN_MEMORY),
           "Attempted to write page to disk when the btree is configured to be in-memory");
 
         /*
@@ -1296,8 +1296,8 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * checkpoint, before writing the checkpoint. In short, we don't do checkpoint writes here;
      * clear the boundary information as a reminder and create the checkpoint during wrapup.
      */
-    return (
-      !F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) && __wt_ref_is_root(r->ref));
+    return (!F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) &&
+      !F_ISSET_ATOMIC_32(btree, WT_BTREE_IN_MEMORY) && __wt_ref_is_root(r->ref));
 }
 
 /*

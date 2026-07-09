@@ -1516,7 +1516,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+    if (instantiate_upd && !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_IN_MEMORY) &&
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 

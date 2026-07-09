@@ -476,7 +476,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          *
          */
         if (!discard && !marked_dead) {
-            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY))
+            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) ||
+              F_ISSET_ATOMIC_32(btree, WT_BTREE_IN_MEMORY))
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));

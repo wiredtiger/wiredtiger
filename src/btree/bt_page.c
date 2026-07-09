@@ -949,7 +949,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY));
 
     /* We don't handle in-memory prepare resolution here. */
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_IN_MEMORY));
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
