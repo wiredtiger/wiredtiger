@@ -110,8 +110,8 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_LOAD_CONTROL *load_control;
-    uint64_t cache_read, cache_req, delta_read, delta_req, prev_read, prev_req;
     float cache_miss_pct, read_load;
+    uint64_t cache_read, cache_req, delta_read, delta_req, prev_read, prev_req;
 
     conn = S2C(session);
     load_control = &conn->load_control;
