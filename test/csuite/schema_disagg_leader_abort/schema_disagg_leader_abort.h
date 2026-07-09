@@ -71,11 +71,13 @@ typedef struct {
     volatile bool stable_set; /* set once the stable timestamp is first advanced */
     uint64_t schema_op_epoch; /* next schema epoch to assign */
     /*
-     * Serializes a schema thread's create-or-drop and publish against the checkpoint thread's epoch
-     * advance and checkpoint. Held across the checkpoint so no unpublished create is ever in the
-     * shared metadata queue while a checkpoint runs.
+     * Orders schema operations against the checkpoint. Schema threads hold the read lock across
+     * create-or-drop and publish, so they run concurrently with each other; the checkpoint thread
+     * holds the write lock across the epoch advance and the checkpoint. With the write lock held no
+     * schema thread is between create and publish, so no unpublished create is ever in the shared
+     * metadata queue while a checkpoint runs.
      */
-    pthread_mutex_t op_mutex;
+    pthread_rwlock_t lock;
 } WORKLOAD_STATE;
 
 /* Per-thread argument. */

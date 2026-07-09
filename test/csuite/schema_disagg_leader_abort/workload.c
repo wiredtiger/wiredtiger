@@ -108,8 +108,8 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
     uint64_t epoch;
     char pub_cfg[64];
 
-    /* The caller holds op_mutex, so the increment and publish are already serialized. */
-    epoch = ++ctx->state->schema_op_epoch;
+    /* Concurrent publishers hold the read lock, so the epoch increment must be atomic. */
+    epoch = __wt_atomic_add_uint64(&ctx->state->schema_op_epoch, 1);
     testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
     testutil_check(ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg));
     return (epoch);
@@ -172,15 +172,15 @@ thread_schema_run(void *arg)
 
     for (;;) {
         slot = __wt_random(&td->rnd) % td->cfg->pool_size;
-        testutil_assert(pthread_mutex_lock(&ctx.state->op_mutex) == 0);
+        testutil_assert(pthread_rwlock_rdlock(&ctx.state->lock) == 0);
         if (schema_op_execute(&ctx, slot) == EBUSY) {
-            testutil_assert(pthread_mutex_unlock(&ctx.state->op_mutex) == 0);
+            testutil_assert(pthread_rwlock_unlock(&ctx.state->lock) == 0);
             __wt_yield();
             continue;
         }
         is_create = ctx.table_exists[slot];
         epoch = schema_op_publish(&ctx, slot);
-        testutil_assert(pthread_mutex_unlock(&ctx.state->op_mutex) == 0);
+        testutil_assert(pthread_rwlock_unlock(&ctx.state->lock) == 0);
         commit_ts = 0;
         if (is_create)
             commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
@@ -219,10 +219,10 @@ thread_ts_run(void *arg)
  * thread_ckpt_run --
  *     Checkpoints periodically. Advances stable_disaggregated_schema_epoch to the current
  *     schema_op_epoch before each checkpoint so all published schema operations are included. Holds
- *     op_mutex across the epoch advance and the checkpoint so no schema operation runs
- *     concurrently: every queued create is therefore published, and the checkpoint never captures
- *     data for a table that is not yet published. Writes the ready sentinel after the first
- *     checkpoint.
+ *     the write lock across the epoch advance and the checkpoint so no schema thread is between
+ *     create and publish: every queued create is therefore published, and the checkpoint never
+ *     captures data for a table that is not yet published. Writes the ready sentinel after the
+ *     first checkpoint.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
@@ -254,14 +254,14 @@ thread_ckpt_run(void *arg)
         sleep_time = __wt_random(&td->rnd) % MAX_CKPT_INVL;
         __wt_sleep(sleep_time, 0);
 
-        testutil_assert(pthread_mutex_lock(&td->state->op_mutex) == 0);
+        testutil_assert(pthread_rwlock_wrlock(&td->state->lock) == 0);
         if (td->state->schema_op_epoch > 0) {
             testutil_snprintf(ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64,
               td->state->schema_op_epoch);
             (void)td->conn->set_timestamp(td->conn, ts_cfg);
         }
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
-        testutil_assert(pthread_mutex_unlock(&td->state->op_mutex) == 0);
+        testutil_assert(pthread_rwlock_unlock(&td->state->lock) == 0);
 
         printf("Checkpoint %d complete\n", i);
         fflush(stdout);
@@ -346,7 +346,7 @@ run_workload(TEST_CONFIG *cfg)
     }
 
     WT_CLEAR(state);
-    testutil_assert(pthread_mutex_init(&state.op_mutex, NULL) == 0);
+    testutil_assert(pthread_rwlock_init(&state.lock, NULL) == 0);
 
     cfg->opts->disagg.is_enabled = true;
     cfg->opts->disagg.mode = "leader";
