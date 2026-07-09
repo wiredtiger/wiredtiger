@@ -138,9 +138,7 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
             continue;
 
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
-        ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
-        if (ret != 0)
-            continue; /* Cursor open failed - schema check already caught this. */
+        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
         testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, states[s].epoch);
         for (r = 0; r < DATA_NROWS; r++) {
