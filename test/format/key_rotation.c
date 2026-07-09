@@ -65,13 +65,13 @@ static int
 disagg_key_push(
   WT_SESSION *session, WT_KEY_PROVIDER *kp, wt_timestamp_t floor_ts, wt_timestamp_t *push_tsp)
 {
-    WT_CRYPT_KEYS crypt;
     WT_DECL_RET;
-    char key_buf[64];
 
     wt_timestamp_t push_ts = floor_ts + mmrand(&g.extra_rnd, 1, 5);
 
+    WT_CRYPT_KEYS crypt;
     WT_CLEAR(crypt);
+    char key_buf[64];
     testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
     crypt.keys.data = key_buf;
     crypt.keys.size = strlen(key_buf);
@@ -94,20 +94,19 @@ disagg_key_push(
 void
 disagg_key_push_initial(WT_CONNECTION *conn)
 {
-    WT_KEY_PROVIDER *kp;
-    WT_SESSION *session;
-    wt_timestamp_t push_ts;
-    char ts_buf[WT_TS_HEX_STRING_SIZE + 24];
-
     if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH)
         return;
 
+    WT_SESSION *session;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    WT_KEY_PROVIDER *kp;
     testutil_check(conn->get_key_provider(conn, &kp));
 
+    wt_timestamp_t push_ts;
     testutil_check(disagg_key_push(session, kp, g.stable_timestamp, &push_ts));
 
     /* Advance stable to the pushed key so the checkpoint drains it. */
+    char ts_buf[WT_TS_HEX_STRING_SIZE + 24];
     testutil_snprintf(ts_buf, sizeof(ts_buf), "stable_timestamp=%" PRIx64, (uint64_t)push_ts);
     testutil_check(conn->set_timestamp(conn, ts_buf));
     g.stable_timestamp = push_ts;
@@ -142,7 +141,6 @@ disagg_validate_kek_page(
   const WT_ITEM *page, wt_timestamp_t expected_ts, wt_timestamp_t checkpoint_ts)
 {
     WT_CRYPT_HEADER hdr;
-    char buf[64];
 
     /* Byte-swap the leading crypt header before reading its fields. */
     testutil_assert(page->size >= sizeof(WT_CRYPT_HEADER));
@@ -160,6 +158,7 @@ disagg_validate_kek_page(
       " for checkpoint timestamp %" PRIu64,
       persisted_ts, (uint64_t)expected_ts, (uint64_t)checkpoint_ts);
 
+    char buf[64];
     testutil_snprintf(buf, sizeof(buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)expected_ts);
     testutil_assertfmt(key_size == strlen(buf) && memcmp(key_data, buf, key_size) == 0,
       "persisted KEK bytes do not match the expected key for timestamp %" PRIu64,
@@ -174,22 +173,22 @@ static void
 disagg_read_kek_page(
   WT_SESSION *session, WT_PAGE_LOG *page_log, const WT_DISAGG_METADATA *metadata, WT_ITEM *page)
 {
-    WT_CONFIG_ITEM lsn_cval, page_cval;
-    WT_PAGE_LOG_GET_ARGS get_args;
-    WT_PAGE_LOG_HANDLE *plh;
-    char *kp_str = NULL;
-
     WT_CLEAR(*page);
 
     /* Parse the KEK page LSN from the key_provider config. */
+    char *kp_str = NULL;
     testutil_check(__wt_strndup(
       (WT_SESSION_IMPL *)session, metadata->key_provider, metadata->key_provider_len, &kp_str));
+    WT_CONFIG_ITEM page_cval;
     testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, kp_str, "page.1", &page_cval));
+    WT_CONFIG_ITEM lsn_cval;
     testutil_check(__wt_config_subgets((WT_SESSION_IMPL *)session, &page_cval, "lsn", &lsn_cval));
     uint64_t key_provider_lsn = (uint64_t)lsn_cval.val;
 
+    WT_PAGE_LOG_HANDLE *plh;
     testutil_check(
       page_log->pl_open_handle(page_log, session, WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID, &plh));
+    WT_PAGE_LOG_GET_ARGS get_args;
     WT_CLEAR(get_args);
     get_args.lsn = key_provider_lsn;
 
@@ -233,26 +232,25 @@ disagg_key_validate_persisted(WT_SESSION *session, WT_PAGE_LOG *page_log,
 void
 disagg_key_validate_after_checkpoint(WT_SESSION *session)
 {
-    WT_DECL_RET;
-    WT_DISAGG_METADATA metadata;
-    WT_ITEM full_metadata;
-    WT_PAGE_LOG *page_log;
-    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
-
     /* Only push mode persists rotated keys, and the read-back is PALite-specific. */
     if (GV(DISAGG_KEY_PROVIDER) != DISAGG_KEY_PROVIDER_PUSH ||
       strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0)
         return;
 
     WT_CONNECTION *conn = session->connection;
+    WT_PAGE_LOG *page_log;
     testutil_check(conn->get_page_log(conn, GVS(DISAGG_PAGE_LOG), &page_log));
 
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
     memset(&args, 0, sizeof(args));
+    WT_DECL_RET;
     ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
     testutil_check_error_ok(ret, WT_NOTFOUND);
     if (ret != WT_NOTFOUND) {
+        WT_ITEM full_metadata;
         testutil_check(follower_fetch_full_metadata(
           session, page_log, &args.checkpoint_metadata, &full_metadata));
+        WT_DISAGG_METADATA metadata;
         testutil_check(
           __wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata));
         disagg_key_validate_persisted(session, page_log, &metadata, args.checkpoint_timestamp);
@@ -271,19 +269,19 @@ disagg_key_validate_after_checkpoint(WT_SESSION *session)
 WT_THREAD_RET
 disagg_key_rotation(void *arg)
 {
-    SAP sap;
-    WT_KEY_PROVIDER *kp;
-    WT_SESSION *session;
-    wt_timestamp_t last_push_ts = 0, push_ts, stable_ts;
-    u_int counter = 0, secs;
+    wt_timestamp_t last_push_ts = 0;
+    u_int counter = 0;
 
     (void)arg;
 
+    WT_KEY_PROVIDER *kp;
     testutil_check(g.wts_conn->get_key_provider(g.wts_conn, &kp));
+    SAP sap;
     memset(&sap, 0, sizeof(sap));
+    WT_SESSION *session;
     wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
 
-    for (secs = mmrand(&g.extra_rnd, 1, 5); !g.workers_finished;) {
+    for (u_int secs = mmrand(&g.extra_rnd, 1, 5); !g.workers_finished;) {
         if (secs > 0) {
             __wt_sleep(1, 0);
             --secs;
@@ -291,10 +289,11 @@ disagg_key_rotation(void *arg)
         }
         secs = mmrand(&g.extra_rnd, 1, 5);
 
-        stable_ts = g.stable_timestamp;
+        wt_timestamp_t stable_ts = g.stable_timestamp;
 
         /* Stable can pass push_ts between the read and the call, so a benign EINVAL just retries.
          */
+        wt_timestamp_t push_ts;
         if (disagg_key_push(session, kp, WT_MAX(stable_ts, last_push_ts), &push_ts) == EINVAL)
             continue;
         last_push_ts = push_ts;
