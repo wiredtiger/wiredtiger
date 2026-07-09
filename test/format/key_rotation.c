@@ -70,7 +70,7 @@ disagg_key_push(
     wt_timestamp_t push_ts;
     char key_buf[64];
 
-    push_ts = floor_ts + 1;
+    push_ts = floor_ts + mmrand(&g.extra_rnd, 1, 5);
 
     WT_CLEAR(crypt);
     testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
@@ -306,7 +306,7 @@ disagg_key_rotation(void *arg)
         }
         secs = mmrand(&g.extra_rnd, 1, 5);
 
-        WT_ACQUIRE_READ_WITH_BARRIER(stable_ts, g.stable_timestamp);
+        stable_ts = g.stable_timestamp;
 
         /* Stable can pass push_ts between the read and the call, so a benign EINVAL just retries.
          */
