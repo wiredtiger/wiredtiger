@@ -1595,12 +1595,14 @@ cursor_runtime_config = [
         not exist. FIXME-WT-18019: standard (non-layered) cursors don't yet extend this to
         WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
         regardless of \c overwrite. For a cursor on a layered table, \c overwrite set to \c true
-        also allows WT_CURSOR::insert, WT_CURSOR::update and WT_CURSOR::remove to skip consulting
-        the stable constituent on a follower, writing directly to the ingest table instead; the
-        caller must ensure this is safe, for example because the key's existing state was already
-        confirmed elsewhere, since violating that expectation is not guaranteed to raise an error
-        and can corrupt the table. Has no effect on a leader, or for cursors on any other data
-        source''',
+        also lets WT_CURSOR::insert, WT_CURSOR::update and WT_CURSOR::remove skip some of the
+        checks that would otherwise require consulting the stable constituent on a follower,
+        writing directly to the ingest table instead. The caller asserts that the call can
+        succeed without those checks: for WT_CURSOR::remove, that the key exists somewhere (in
+        ingest, in stable, or both) -- removing a key that is already deleted is a legitimate
+        no-op, not a violation, but removing a key that never existed anywhere is. An incorrect
+        assertion is not guaranteed to raise an error and can corrupt the table. Has no effect on
+        a leader, or for cursors on any other data source''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',

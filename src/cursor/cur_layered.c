@@ -277,6 +277,7 @@ __clayered_op_init(
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
+    op->stable_skipped_for_overwrite = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -2582,30 +2583,30 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        if (op->stable == NULL && F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE)) {
+        if (op->stable == NULL && op->stable_skipped_for_overwrite) {
             /*
              * The stable constituent was deliberately skipped for this overwrite=true remove on
              *     a follower: we can't tell an already-deleted key apart from one that only lives
              *     in stable without the lookup we chose to avoid.
              *
              * A tombstone found in ingest or the truncate list confirms the key is already
-             *     deleted, a genuine no-op regardless of whether the remove was positioned: the
-             *     caller's overwrite=true guarantee is that the key existed, and it no longer
-             *     does, so there is nothing left to report but success.
+             *     deleted -- a legitimate no-op regardless of whether the remove was positioned,
+             *     not a violation: overwrite=true only asserts the key exists somewhere (ingest,
+             *     stable, or both), not that it is still live.
              *
              * Finding nothing at all in ingest or the truncate list leaves the key's existence
              *     genuinely unknown, so assume it exists in stable and fall through to delete it.
-             *     This relies entirely on the caller's guarantee holding: the caller has already
-             *     confirmed the key exists, so it must be sitting in stable, making the resulting
-             *     tombstone a harmless redundant delete. That reliance is real, not just
-             *     theoretical -- if the guarantee is ever violated (overwrite=true used for a
-             *     remove on a key that never existed anywhere), the tombstone this writes has
-             *     nothing on stable to correspond to. That is caught as a hard drain-time
-             *     violation only while the tombstone is not yet included in the checkpoint the
-             *     standby has picked up; once it is, drain accepts it silently, so a violation
-             *     here is not guaranteed to surface loudly. We can't tell at this point whether
-             *     the guarantee held, so there is nothing to log or assert on here without also
-             *     flagging every legitimate case.
+             *     This relies entirely on that assertion holding: the caller is asserting the key
+             *     exists, so if it isn't in ingest or the truncate list it must be sitting in
+             *     stable, making the resulting tombstone a harmless redundant delete. That
+             *     reliance is real, not just theoretical -- if the assertion is wrong (overwrite=
+             *     true used for a remove on a key that never existed anywhere), the tombstone
+             *     this writes has nothing on stable to correspond to. That is caught as a hard
+             *     drain-time violation only while the tombstone is not yet included in the
+             *     checkpoint the standby has picked up; once it is, drain accepts it silently, so
+             *     a violation here is not guaranteed to surface loudly. We can't tell at this
+             *     point whether the assertion was correct, so there is nothing to log or assert
+             *     on here without also flagging every legitimate case.
              */
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
