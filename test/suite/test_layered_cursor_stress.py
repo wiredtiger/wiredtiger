@@ -176,14 +176,11 @@ class Node:
     # One connection's view: a layered table (dsc) and a plain reference table (asc), one cursor each
     # in one session, used for both reads and writes. Sharing the cursor keeps layered and reference
     # in lockstep and leaves the cursor positioned after a write (toward long-lived positioned chains).
-    # skip_stable marks the follower's dsc cursor, whose default overwrite=true configuration skips
-    # the stable lookup on that role; overwrite has no such effect on the leader.
-    def __init__(self, conn, session, dsc_uri, asc_uri, skip_stable=False):
+    def __init__(self, conn, session, dsc_uri, asc_uri):
         self.conn = conn
         self.session = session
         self.dsc_uri = dsc_uri
         self.asc_uri = asc_uri
-        self.skip_stable = skip_stable
         self.dsc_c = session.open_cursor(dsc_uri)
         self.asc_c = session.open_cursor(asc_uri)
 
@@ -332,7 +329,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             session.create(asc, cfg)
         self.state.new_sequence()
         return [Node(self.conn, self.session, dsc, asc),
-                Node(self.conn_follow, self.session_follow, dsc, asc, skip_stable=True)]
+                Node(self.conn_follow, self.session_follow, dsc, asc)]
 
     # --- write protocol --------------------------------------------------
 
@@ -354,20 +351,18 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                 do_node(n)
                 n.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.state.ts))
 
-    def _write_txn(self, nodes, do, label, skip_stable=False):
-        # skip_stable: an unpositioned remove on the follower's skip-stable cursor, with no read
-        # timestamp, skips the stable lookup and so cannot always tell "exists only in stable" from
-        # "doesn't exist at all". It assumes the key exists rather than fail, which is correct for a
+    def _write_txn(self, nodes, do, label, blind_remove=False):
+        # blind_remove: an unpositioned overwrite=true remove on a follower with no read timestamp
+        # skips the stable lookup and so cannot always tell "exists only in stable" from "doesn't
+        # exist at all". It assumes the key exists rather than fail, which is correct for a
         # secondary blindly replaying a leader-validated delete, but means the layered cursor can
         # legitimately report success where the reference reports WT_NOTFOUND for a key that was
-        # never written. The reverse (layered NOTFOUND, reference success) is never acceptable. This
-        # only applies to a node whose dsc cursor actually has skip_stable configured (the
-        # follower) -- the same divergence on the leader's plain cursor is a real bug.
+        # never written. The reverse (layered NOTFOUND, reference success) is never acceptable.
         notfound = False
         def step(n):
             nonlocal notfound
             ret_dsc = do(n.dsc_c); ret_asc = do(n.asc_c)
-            if skip_stable and n.skip_stable and ret_dsc == 0 and ret_asc == wiredtiger.WT_NOTFOUND:
+            if blind_remove and ret_dsc == 0 and ret_asc == wiredtiger.WT_NOTFOUND:
                 pass
             else:
                 self.assertEqual(ret_dsc, ret_asc, '%s result differs layered=%r reference=%r (trace %s)'
@@ -377,10 +372,10 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._txn_scope(nodes, step)
         return notfound
 
-    def _positional(self, nodes, do, label, skip_stable=False):
+    def _positional(self, nodes, do, label, blind_remove=False):
         # Positional update/remove off the cursor's held position; clear cur_pos if the write missed.
         # Returns True if the write hit (so the caller can update the model only on success).
-        notfound = self._write_txn(nodes, do, label, skip_stable=skip_stable)
+        notfound = self._write_txn(nodes, do, label, blind_remove=blind_remove)
         if notfound:
             self.state.cur_pos = None
         self.state.n_positional += 1
@@ -559,12 +554,12 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
-        # An existing key (a real delete) or a missing one. An unpositioned remove on the
-        # follower's skip-stable cursor, with no read timestamp, may report success for a key
-        # that was never written -- see _write_txn's skip_stable note.
+        # An existing key (a real delete) or a missing one. A blind (unpositioned, overwrite=true,
+        # no read timestamp) remove on a follower may report success for a key that was never
+        # written -- see _write_txn's blind_remove note.
         key = self.pick_key(rnd, self.weights.remove_key)
         trace.log('remove %r' % key)
-        self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove', skip_stable=True)
+        self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove', blind_remove=True)
         self.state.py_table.pop(key, None)
         self.state.cur_pos = None
 
@@ -578,13 +573,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
 
     def op_pos_remove(self, nodes, rnd, trace):
         # Removes the current key. A positioned remove of an already-removed key on the follower's
-        # skip-stable cursor now reports success (a no-op) rather than WT_NOTFOUND, so relax the
-        # reference match the same way an unpositioned remove does (_write_txn's skip_stable
+        # blind-remove cursor now reports success (a no-op) rather than WT_NOTFOUND, so relax the
+        # reference match the same way an unpositioned blind remove does (_write_txn's blind_remove
         # note).
         key = self.state.cur_pos
         already_removed = key not in self.state.py_table   # a repeat remove of an already-deleted key
         trace.log('pos_remove %r' % key)
-        self._positional(nodes, lambda c: c.remove(), 'pos_remove', skip_stable=True)
+        self._positional(nodes, lambda c: c.remove(), 'pos_remove', blind_remove=True)
         self.state.py_table.pop(key, None)
         # FIXME-WT-17827: removing an already-removed key returns WT_NOTFOUND but does not clean up the
         # follower layered cursor's position (a plain cursor resets), so a later iterate would diverge.

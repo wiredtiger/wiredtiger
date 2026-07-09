@@ -248,11 +248,10 @@ __clayered_enter_flags(
 
     /*
      * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
-     * stable cursor. An overwrite insert/update/remove can skip it, but only on a follower with no
-     * read timestamp: with a read timestamp set, the write-conflict check must still consult the
-     * stable table regardless of mode.
+     * stable cursor; an overwrite write needs it on the leader, or on a follower with a read
+     * timestamp where the write-conflict check must consult the stable table.
      */
-    if (mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE && role == WTI_CLAYERED_ROLE_FOLLOWER &&
+    if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
