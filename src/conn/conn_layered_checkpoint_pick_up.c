@@ -477,8 +477,8 @@ __disagg_create_remove_map_free(WT_SESSION_IMPL *session, WT_DISAGG_CREATE_REMOV
 
 /*
  * __disagg_create_remove_cmp --
- *     Qsort/binary search comparator: order by table name, then by queue position (only meaningful
- *     before the array is compacted to one entry per name).
+ *     Qsort comparator: order by table name, then by queue position, so a run of same-named entries
+ *     sorts with the latest (highest queue position) one last.
  */
 static int WT_CDECL
 __disagg_create_remove_cmp(const void *a, const void *b)
@@ -492,6 +492,22 @@ __disagg_create_remove_cmp(const void *a, const void *b)
     if ((cmp = strcmp(ae->table_name, be->table_name)) != 0)
         return (cmp);
     return (ae->seq > be->seq ? 1 : (ae->seq < be->seq ? -1 : 0));
+}
+
+/*
+ * __disagg_create_remove_name_cmp --
+ *     Binary search comparator: order by table name only. Only valid once the array has been
+ *     compacted to one entry per name; before that, use __disagg_create_remove_cmp instead.
+ */
+static int WT_CDECL
+__disagg_create_remove_name_cmp(const void *a, const void *b)
+{
+    WT_DISAGG_CREATE_REMOVE_ENTRY *ae, *be;
+
+    ae = (WT_DISAGG_CREATE_REMOVE_ENTRY *)a;
+    be = (WT_DISAGG_CREATE_REMOVE_ENTRY *)b;
+
+    return (strcmp(ae->table_name, be->table_name));
 }
 
 /*
@@ -561,9 +577,8 @@ __disagg_create_remove_map_get(
     WT_DISAGG_CREATE_REMOVE_ENTRY key, *result;
 
     key.table_name = table_name;
-    key.seq = 0;
     result = bsearch(&key, map->entries, map->entries_count, sizeof(WT_DISAGG_CREATE_REMOVE_ENTRY),
-      __disagg_create_remove_cmp);
+      __disagg_create_remove_name_cmp);
 
     *metadata_opp = result == NULL ? WT_SHARED_METADATA_NONE : result->metadata_op;
 }

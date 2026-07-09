@@ -179,6 +179,54 @@ class test_layered_schema11(wttest.WiredTigerTestCase):
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
 
+    def test_no_recreate_dropped_table_nonzero_queue_position(self):
+        """
+        A table dropped on a follower must not be recreated even when its CREATE/REMOVE queue
+        entry is not the first one in the follower's queue. The lookup that resolves the latest
+        queued op per table must work no matter where in the queue that table's entry falls.
+        """
+        # Step 1: Leader creates both tables and checkpoints at epoch 10.
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 10)
+        self.session.create(self.uri2, self.table_config)
+        self.publish(self.uri2, 10)
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(1)
+
+        # Step 2: Follower picks up the checkpoint; both tables are in local metadata.
+        conn_follow, session_follow = self.open_follower()
+        self.assertInLocal(conn_follow, self.uri)
+        self.assertInLocal(conn_follow, self.uri2)
+
+        # Step 3: Follower drops uri2 first, then uri. Both REMOVE ops are deferred (epoch 25 is
+        # ahead of the leader's still-current epoch 10), so both stay queued: uri2's REMOVE is
+        # the first entry in the follower's queue, uri's REMOVE is the second.
+        session_follow.drop(self.uri2)
+        self.publish(self.uri2, 25, session_follow)
+        session_follow.drop(self.uri)
+        self.publish(self.uri, 25, session_follow)
+        self.assertNotInLocal(conn_follow, self.uri)
+        self.assertNotInLocal(conn_follow, self.uri2)
+
+        # Step 4: Leader also drops both tables but re-checkpoints at epoch 10 (before the drop
+        # epoch), so its own REMOVE ops are deferred and both tables remain in shared metadata.
+        self.session.drop(self.uri)
+        self.publish(self.uri, 25)
+        self.session.drop(self.uri2)
+        self.publish(self.uri2, 25)
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(2)
+
+        # Step 5: Follower picks up. Both tables are in shared metadata but absent locally; the
+        # queued REMOVE for each one -- including uri, whose entry is not first in the queue --
+        # must block recreation.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertNotInLocal(conn_follow, self.uri)
+        self.assertNotInLocal(conn_follow, self.uri2)
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
     def test_no_recreate_dropped_table_isolation(self):
         """Dropping one table must not prevent pickup of a second table that still exists."""
         # Step 1: Leader creates both tables and checkpoints at epoch 10.
