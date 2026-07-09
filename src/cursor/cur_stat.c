@@ -415,7 +415,6 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = NULL;
-    uint64_t ckpt_size;
     const char *checkpoint_name = NULL;
     const char *stable_uri = NULL;
 
@@ -436,16 +435,11 @@ retry:
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
         /*
-         * When no tree walk is requested, take block_size from the checkpoint metadata instead; the
-         * other non-walk stable stats are ~0 on a follower because its pages are not resident in
-         * the local cache.
+         * Non-walk stable stats are ~0 on a follower because its pages are not resident in the
+         * local cache. Skip opening the stable table.
          */
-        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
-            ckpt_size = 0;
-            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
-            cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
+        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
             goto done;
-        }
 
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(
