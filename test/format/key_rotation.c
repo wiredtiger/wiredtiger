@@ -123,11 +123,9 @@ disagg_key_push_initial(WT_CONNECTION *conn)
 static wt_timestamp_t
 expected_kek_ts(wt_timestamp_t checkpoint_ts)
 {
-    wt_timestamp_t expected_ts;
-    size_t i;
+    wt_timestamp_t expected_ts = WT_TS_NONE;
 
-    expected_ts = WT_TS_NONE;
-    for (i = 0; i < g.key_push_count; ++i) {
+    for (size_t i = 0; i < g.key_push_count; ++i) {
         if (g.key_push_history[i] > checkpoint_ts)
             break;
         expected_ts = g.key_push_history[i];
@@ -144,9 +142,6 @@ disagg_validate_kek_page(
   const WT_ITEM *page, wt_timestamp_t expected_ts, wt_timestamp_t checkpoint_ts)
 {
     WT_CRYPT_HEADER hdr;
-    wt_timestamp_t persisted_ts;
-    size_t key_size;
-    const uint8_t *key_data;
     char buf[64];
 
     /* Byte-swap the leading crypt header before reading its fields. */
@@ -155,10 +150,10 @@ disagg_validate_kek_page(
     __wt_crypt_header_byteswap(&hdr);
     testutil_assert(hdr.signature == WT_CRYPT_HEADER_SIGNATURE);
 
-    persisted_ts = hdr.timestamp;
+    wt_timestamp_t persisted_ts = hdr.timestamp;
     testutil_assert(hdr.header_size + hdr.crypt_size <= page->size);
-    key_data = (const uint8_t *)page->data + hdr.header_size;
-    key_size = hdr.crypt_size;
+    const uint8_t *key_data = (const uint8_t *)page->data + hdr.header_size;
+    size_t key_size = hdr.crypt_size;
 
     testutil_assertfmt(persisted_ts == expected_ts,
       "persisted KEK timestamp %" PRIu64 " but expected %" PRIu64
@@ -182,12 +177,8 @@ disagg_read_kek_page(
     WT_CONFIG_ITEM lsn_cval, page_cval;
     WT_PAGE_LOG_GET_ARGS get_args;
     WT_PAGE_LOG_HANDLE *plh;
-    uint64_t key_provider_lsn;
-    uint32_t count;
-    u_int retry;
-    char *kp_str;
+    char *kp_str = NULL;
 
-    kp_str = NULL;
     WT_CLEAR(*page);
 
     /* Parse the KEK page LSN from the key_provider config. */
@@ -195,15 +186,15 @@ disagg_read_kek_page(
       (WT_SESSION_IMPL *)session, metadata->key_provider, metadata->key_provider_len, &kp_str));
     testutil_check(__wt_config_getones((WT_SESSION_IMPL *)session, kp_str, "page.1", &page_cval));
     testutil_check(__wt_config_subgets((WT_SESSION_IMPL *)session, &page_cval, "lsn", &lsn_cval));
-    key_provider_lsn = (uint64_t)lsn_cval.val;
+    uint64_t key_provider_lsn = (uint64_t)lsn_cval.val;
 
     testutil_check(
       page_log->pl_open_handle(page_log, session, WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID, &plh));
     WT_CLEAR(get_args);
     get_args.lsn = key_provider_lsn;
 
-    for (retry = 0;; ++retry) {
-        count = 1;
+    for (u_int retry = 0;; ++retry) {
+        uint32_t count = 1;
         testutil_check(plh->plh_get(
           plh, session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, 0, &get_args, page, &count));
         if (count == 1)
@@ -225,9 +216,7 @@ disagg_key_validate_persisted(WT_SESSION *session, WT_PAGE_LOG *page_log,
   const WT_DISAGG_METADATA *metadata, wt_timestamp_t checkpoint_ts)
 {
     WT_ITEM page;
-    wt_timestamp_t expected_ts;
-
-    expected_ts = expected_kek_ts(checkpoint_ts);
+    wt_timestamp_t expected_ts = expected_kek_ts(checkpoint_ts);
     if (expected_ts == WT_TS_NONE)
         return;
 
@@ -244,7 +233,6 @@ disagg_key_validate_persisted(WT_SESSION *session, WT_PAGE_LOG *page_log,
 void
 disagg_key_validate_after_checkpoint(WT_SESSION *session)
 {
-    WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM full_metadata;
@@ -256,7 +244,7 @@ disagg_key_validate_after_checkpoint(WT_SESSION *session)
       strcmp(GVS(DISAGG_PAGE_LOG), "palite") != 0)
         return;
 
-    conn = session->connection;
+    WT_CONNECTION *conn = session->connection;
     testutil_check(conn->get_page_log(conn, GVS(DISAGG_PAGE_LOG), &page_log));
 
     memset(&args, 0, sizeof(args));
@@ -286,13 +274,10 @@ disagg_key_rotation(void *arg)
     SAP sap;
     WT_KEY_PROVIDER *kp;
     WT_SESSION *session;
-    wt_timestamp_t last_push_ts, push_ts, stable_ts;
-    u_int counter, secs;
+    wt_timestamp_t last_push_ts = 0, push_ts, stable_ts;
+    u_int counter = 0, secs;
 
     (void)arg;
-
-    last_push_ts = 0;
-    counter = 0;
 
     testutil_check(g.wts_conn->get_key_provider(g.wts_conn, &kp));
     memset(&sap, 0, sizeof(sap));
