@@ -57,9 +57,6 @@
     "log=(enabled,file_max=10M,remove=false),statistics=(all),statistics_log=(json,on_close,wait=" \
     "1)"
 
-#define ENV_CONFIG_SWEEP \
-    ",file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1)"
-
 /* Test-wide configuration passed from parent to child and to the verifier. */
 typedef struct {
     TEST_OPTS *opts;
@@ -67,7 +64,6 @@ typedef struct {
     char page_log_home[PATH_MAX];
     uint32_t nth;
     uint32_t pool_size;
-    bool aggressive_sweep;
 } TEST_CONFIG;
 
 /* Per-thread argument. */

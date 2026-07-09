@@ -28,7 +28,7 @@
 
 #include "schema_disagg_leader_abort.h"
 
-/* Last schema operation on one URI slot within the epoch cutoff. */
+/* The final create or drop recorded for one URI slot at or below the epoch cutoff. */
 typedef struct {
     uint64_t epoch;
     uint64_t commit_ts; /* data commit timestamp; 0 for DROP */
@@ -38,8 +38,11 @@ typedef struct {
 
 /*
  * parse_schema_records --
- *     Scan one thread's schema record file up to cutoff, filling the per-slot state array with the
- *     last operation seen per URI slot. Only records whose URI belongs to thread t are kept.
+ *     Scan one thread's schema record file, filling the per-slot state array with the last
+ *     operation seen per URI slot. Cutoff is the last durable schema epoch after recovery
+ *     (last_disaggregated_schema_epoch): records assigned an epoch above it were not captured by
+ *     any checkpoint before the crash and are ignored. Only records whose URI belongs to thread t
+ *     are kept.
  */
 static void
 parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
@@ -78,8 +81,9 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t cutoff,
 
 /*
  * check_schema_presence --
- *     For each slot with a valid record, assert that tables created before the cutoff exist and
- *     tables dropped before the cutoff are absent.
+ *     For each slot with a valid record, assert that a table whose last operation at or below the
+ *     epoch cutoff (the last durable schema epoch after recovery) was a create still exists, and
+ *     one whose last such operation was a drop is absent.
  */
 static void
 check_schema_presence(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],

@@ -46,24 +46,30 @@ static TEST_OPTS _opts;
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
+/*
+ * usage --
+ *     Print the command-line usage and exit.
+ */
 static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-b build-dir] [-h dir] [-s pool] [-S] [-T threads] [-t time] [-p] [-v]\n",
-      progname);
+      "usage: %s [-b build-dir] [-h dir] [-s pool] [-T threads] [-t time] [-p] [-v]\n", progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
       "\t-h home directory\n"
       "\t-p preserve directory contents\n"
       "\t-s URI pool size per thread\n"
-      "\t-S aggressive sweep\n"
       "\t-T number of schema threads\n"
       "\t-t timeout in seconds\n"
       "\t-v verify only\n");
     exit(EXIT_FAILURE);
 }
 
+/*
+ * sig_handler --
+ *     Reap the leader child and fail the test if it exits before the parent kills it.
+ */
 static void
 sig_handler(int sig)
 {
@@ -161,7 +167,6 @@ main(int argc, char *argv[])
     cfg.opts = &_opts;
     memset(cfg.opts, 0, sizeof(*cfg.opts));
 
-    cfg.aggressive_sweep = false;
     cfg.nth = MIN_TH;
     cfg.pool_size = MAX_POOL_SIZE / 8; /* Default: 8 slots per thread. */
     rand_th = rand_time = true;
@@ -170,7 +175,7 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, "b:h:pP:T:v", cfg.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:ST:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:T:t:v")) != EOF)
         switch (ch) {
         case 's':
             cfg.pool_size = (uint32_t)atoi(__wt_optarg);
@@ -179,9 +184,6 @@ main(int argc, char *argv[])
                   stderr, "Pool size must be between %d and %d\n", MIN_POOL_SIZE, MAX_POOL_SIZE);
                 usage();
             }
-            break;
-        case 'S':
-            cfg.aggressive_sweep = true;
             break;
         case 'T':
             rand_th = false;
@@ -230,10 +232,8 @@ main(int argc, char *argv[])
         printf("Parent: Create %" PRIu32 " schema threads; pool %" PRIu32 " slots; sleep %" PRIu32
                " seconds\n",
           cfg.nth, cfg.pool_size, timeout);
-        printf("CONFIG: %s%s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT
-               "\n",
-          progname, cfg.aggressive_sweep ? " -S" : "", cfg.pool_size, cfg.nth, timeout,
-          cfg.opts->data_seed, cfg.opts->extra_seed);
+        printf("CONFIG: %s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
+          progname, cfg.pool_size, cfg.nth, timeout, cfg.opts->data_seed, cfg.opts->extra_seed);
 
         testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s", cwd_start,
           cfg.home, WT_HOME_DIR);

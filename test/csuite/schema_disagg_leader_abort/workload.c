@@ -103,13 +103,8 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 
 /*
  * schema_op_publish --
- *     Assign an epoch and publish the schema operation so it is visible to followers and will be
- *     applied by the next checkpoint. Must be called for both CREATE and DROP.
- *
- * session->publish updates every WT_SCHEMA_EPOCH_UNPUBLISHED entry for this URI in the shared
- *     metadata queue CREATE on a live table, REMOVE on a dropped one to a real epoch. Without this
- *     call for DROP, the REMOVE entry keeps WT_TS_MAX and is never applied by any checkpoint,
- *     leaving the table permanently in shared metadata.
+ *     Assign an epoch and publish the schema operation so it is visible to followers. Must be
+ *     called for both CREATE and DROP.
  */
 static uint64_t
 schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
@@ -129,13 +124,6 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
  * schema_op_insert_data --
  *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
  *     as value. Returns the commit timestamp so the caller can record it for the verifier.
- *
- * The commit timestamp is set to stable_timestamp + 10 so the write is not immediately stable. This
- *     satisfies the disagg invariant that stable writes are only permitted to published tables: the
- *     table is published at epoch N before this call, and by the time stable_timestamp advances
- *     past the commit timestamp, any checkpoint that captures this data will also have
- *     stable_disaggregated_schema_epoch >= N. The same commit timestamp is returned so the verifier
- *     uses the true durability point when deciding whether a checkpoint captured this data.
  */
 static uint64_t
 schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
@@ -338,14 +326,9 @@ run_workload(TEST_CONFIG *cfg)
     WT_CONNECTION *conn;
     THREAD_DATA *td;
     wt_thread_t *thr;
-    char envconf[1024];
 
     if (chdir(cfg->home) != 0)
         testutil_die(errno, "Child chdir: %s", cfg->home);
-
-    strcpy(envconf, ENV_CONFIG_DEF);
-    if (cfg->aggressive_sweep)
-        strcat(envconf, ENV_CONFIG_SWEEP);
 
     stable_set = false;
 
@@ -355,7 +338,7 @@ run_workload(TEST_CONFIG *cfg)
     cfg->opts->disagg.page_log_home = cfg->page_log_home;
     cfg->opts->disagg.drain_threads = 1;
 
-    testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, envconf, NULL, &conn, false, false);
+    testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, ENV_CONFIG_DEF, NULL, &conn, false, false);
 
     workload_threads_start(cfg, conn, &thr, &td);
     fflush(stdout);

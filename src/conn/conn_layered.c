@@ -310,27 +310,6 @@ err:
 }
 
 /*
- * __disagg_update_gated_by_unpublished_create --
- *     Return whether an UPDATE for a table must wait for that table's CREATE to be published. A
- *     CREATE still queued at a schema epoch ahead of the UPDATE (including
- *     WT_SCHEMA_EPOCH_UNPUBLISHED = WT_TS_MAX) means the table is not yet visible to followers at
- *     the schema epoch of the UPDATE, so recording its stable data now would expose data for a
- *     table that does not yet exist. Callers must hold the shared metadata queue lock.
- */
-static bool
-__disagg_update_gated_by_unpublished_create(WT_CONNECTION_IMPL *conn, WT_DISAGG_METADATA_OP *entry)
-{
-    WT_DISAGG_METADATA_OP *queue_entry;
-
-    TAILQ_FOREACH (queue_entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (queue_entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-          queue_entry->schema_epoch > entry->schema_epoch &&
-          strcmp(queue_entry->table_name, entry->table_name) == 0)
-            return (true);
-    return (false);
-}
-
-/*
  * __wt_disagg_enqueue_metadata_operation --
  *     Enqueue a metadata operation for a given URI into the shared metadata table to be done at the
  *     next checkpoint.
@@ -386,19 +365,6 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    /*
-     * Do not queue an UPDATE for a table whose CREATE is still unpublished. The table has no stable
-     * data to record yet, and recording it now would expose data for a table not visible to
-     * followers. Once the table is published, a later checkpoint of its stable constituent enqueues
-     * the UPDATE at a valid schema epoch.
-     */
-    if (metadata_op == WT_SHARED_METADATA_UPDATE &&
-      __disagg_update_gated_by_unpublished_create(conn, entry)) {
-        __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Skip UPDATE for unpublished table \"%s\"", table_name);
-        goto err;
-    }
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -571,18 +537,27 @@ __disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *ent
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *queue_entry;
 
     conn = S2C(session);
 
     /*
-     * An UPDATE that reaches this point must not have a CREATE for the same table still pending at
-     * a later schema epoch: that ordering is gated in queue processing, which defers such an UPDATE
-     * until its CREATE is published. Recording stable data ahead of the table's visibility epoch
-     * would expose data for a table the followers cannot yet see.
+     * For UPDATE operations, verify that the table's CREATE will be applied at or before the schema
+     * epoch of the UPDATE, if it has not been applied yet. If a CREATE entry is still in the queue
+     * with a schema epoch ahead of this UPDATE operation's schema epoch (including
+     * WT_SCHEMA_EPOCH_UNPUBLISHED = WT_TS_MAX), the table will not be visible to followers before
+     * the update. Having stable data in an unpublished table is an API contract violation, which
+     * requires that a table must be published before the checkpoint that includes its data.
      */
-    WT_ASSERT(session,
-      entry->metadata_op != WT_SHARED_METADATA_UPDATE ||
-        !__disagg_update_gated_by_unpublished_create(conn, entry));
+    if (entry->metadata_op == WT_SHARED_METADATA_UPDATE) {
+        WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+        TAILQ_FOREACH (queue_entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+            if (queue_entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+              queue_entry->schema_epoch > entry->schema_epoch &&
+              strcmp(queue_entry->table_name, entry->table_name) == 0)
+                WT_RET_MSG(session, EINVAL, "Stable data checkpointed for unpublished table \"%s\"",
+                  entry->table_name);
+    }
 
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
