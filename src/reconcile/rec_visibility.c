@@ -799,7 +799,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
           session_txnid != WT_TXN_NONE && txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
-            WT_ASSERT(session, !upd_select->skip_aborted_prepared_value);
             continue;
         }
         /*
@@ -832,13 +831,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
 
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
-            /*
-             * Same reason as the aborted-prepared skip earlier: this rolled-back prepared value has
-             * no in-chain fallback, so the on-disk cell must not be dropped on this reconciliation.
-             */
             if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
-                upd_select->skip_aborted_prepared_value = true;
-
+                upd_select->skip_prepare_rollback = true;
             continue;
         }
 
@@ -865,14 +859,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
-
-                    /*
-                     * Same reason as the aborted-prepared skip earlier: this rolled-back prepared
-                     * value has no in-chain fallback, so the on-disk cell must not be dropped on
-                     * this reconciliation.
-                     */
                     if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
-                        upd_select->skip_aborted_prepared_value = true;
+                        upd_select->skip_prepare_rollback = true;
                     continue;
                 }
 
@@ -1484,6 +1472,52 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 }
 
 /*
+ * __rec_append_orig_value_if_needed --
+ *     Append the on-page value to the update chain if a reader or an unresolved prepared update may
+ *     still need it once this reconciliation replaces or drops the on-page cell.
+ */
+static int
+__rec_append_orig_value_if_needed(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
+  WT_UPDATE *first_upd, WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
+{
+    /*
+     * There is no on-page value to preserve, or the on-page value is itself a prepared update: a
+     * prepared full update is already on the update chain, and for a prepared tombstone the on-page
+     * value was appended to the update chain when the page was read into memory.
+     */
+    if (!WT_REC_HAS_ON_DISK(vpack) || WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw))
+        return (0);
+
+    /*
+     * If we skipped an unresolved aborted prepared update and selected nothing, the on-page value
+     * is its only rollback fallback: this reconciliation may drop the on-page cell (or a later one
+     * may free its backing overflow blocks), so the fallback must move to the update chain where it
+     * survives the page image being rewritten. Walk the chain from its head and force the append
+     * even though the on-page value's stop may be globally visible.
+     */
+    if (upd_select->upd == NULL) {
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && upd_select->skip_prepare_rollback)
+            return (__rec_append_orig_value(session, page, first_upd, vpack, true));
+        return (0);
+    }
+
+    /*
+     * Returning an update means the original on-page value might be lost, and that's a problem if
+     * there's a reader that needs it: make a copy of the on-page value. We do that any time there
+     * are saved updates (we may need the original on-page value to terminate the update chain, for
+     * example, in the case of an update that modifies the original value). Additionally, make a
+     * copy of the on-page value if the value is an overflow item and anything other than the
+     * on-page cell is being written, because the value's backing overflow blocks aren't part of the
+     * page and are physically removed when this page is next written.
+     */
+    if (F_ISSET(r, WT_REC_HS) && (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+        return (__rec_append_orig_value(
+          session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
+
+    return (0);
+}
+
+/*
  * __wti_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
@@ -1667,26 +1701,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
           WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)),
       "Updated selected that has since been rolled back");
 
-    /*
-     * Returning an update means the original on-page value might be lost, and that's a problem if
-     * there's a reader that needs it, make a copy of the on-page value. We do that any time there
-     * are saved updates (we may need the original on-page value to terminate the update chain, for
-     * example, in the case of an update that modifies the original value). Additionally, make a
-     * copy of the on-page value if the value is an overflow item and anything other than the
-     * on-page cell is being written. This is because the value's backing overflow blocks aren't
-     * part of the page, and they are physically removed by checkpoint writing this page, that is,
-     * the checkpoint doesn't include the overflow blocks so they're removed and future readers of
-     * this page won't be able to find them.
-     *
-     * We never append prepared updates back to the onpage value. If it is a prepared full update,
-     * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
-     * appended to the update chain when the page is read into memory.
-     */
-    if (F_ISSET(r, WT_REC_HS) && upd_select->upd != NULL && WT_REC_HAS_ON_DISK(vpack) &&
-      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
-      (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
-        WT_RET(__rec_append_orig_value(
-          session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
+    WT_RET(__rec_append_orig_value_if_needed(session, r, page, first_upd, vpack, upd_select));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
