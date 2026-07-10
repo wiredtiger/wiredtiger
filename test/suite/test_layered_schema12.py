@@ -75,11 +75,11 @@ class test_layered_schema12(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         try:
             for uri, expected in present.items():
                 if expected:
-                    self.assertInLocal(conn, uri)
-                    self.assertInShared(conn, uri)
+                    self.assertTrue(self.uri_in_local_metadata(conn, uri))
+                    self.assertTrue(self.uri_in_shared_metadata(conn, uri))
                 else:
-                    self.assertNotInLocal(conn, uri)
-                    self.assertNotInShared(conn, uri)
+                    self.assertFalse(self.uri_in_local_metadata(conn, uri))
+                    self.assertFalse(self.uri_in_shared_metadata(conn, uri))
         finally:
             conn.close('debug=(skip_checkpoint=true)')
 
@@ -135,6 +135,10 @@ class test_layered_schema12(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # The checkpoint must succeed even though uri2 remains unpublished.
         self.leader_checkpoint(50)
+
+        # The published table is durable; the unpublished table is in neither the
+        # shared nor the local metadata.
+        self.assertOnFollower({self.uri: True, self.uri2: False})
 
     def test_unpublished_table_not_in_durable_metadata(self):
         """
@@ -238,6 +242,6 @@ class test_layered_schema12(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             ',oldest_timestamp=' + self.timestamp_str(1))
 
         # The durable table survives; the transient table is not resurrected.
-        self.assertInLocal(self.conn, self.uri)
-        self.assertNotInLocal(self.conn, self.uri2)
-        self.assertNotInShared(self.conn, self.uri2)
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri2))
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri2))

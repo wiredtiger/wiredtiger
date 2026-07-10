@@ -808,43 +808,27 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         return 'file:' + tablename + '.wt_stable'
 
-    def uri_in_shared_metadata(self, conn, stable_uri):
-        """Return True if stable_uri is present in the shared metadata table."""
+    def uri_in_shared_metadata(self, conn, uri):
+        """Return True if uri's stable constituent is present in the shared metadata table."""
         session = conn.open_session('')
         cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
-        cursor.set_key(stable_uri)
+        cursor.set_key(self.stable_uri(uri))
         found = cursor.search() == 0
         cursor.close()
         session.close()
         return found
 
     def uri_in_local_metadata(self, conn, uri):
-        """Return True if uri is present in the local metadata (cursor open succeeds)."""
+        """Return True if uri's stable constituent is present in conn's local metadata."""
         session = conn.open_session('')
         exists = True
         try:
-            c = session.open_cursor(uri)
+            c = session.open_cursor(self.stable_uri(uri))
             c.close()
         except wiredtiger.WiredTigerError:
             exists = False
         session.close()
         return exists
-
-    def assertInLocal(self, conn, uri):
-        """Assert that uri's stable constituent is present in conn's local metadata."""
-        self.assertTrue(self.uri_in_local_metadata(conn, self.stable_uri(uri)))
-
-    def assertNotInLocal(self, conn, uri):
-        """Assert that uri's stable constituent is absent from conn's local metadata."""
-        self.assertFalse(self.uri_in_local_metadata(conn, self.stable_uri(uri)))
-
-    def assertInShared(self, conn, uri):
-        """Assert that uri's stable constituent is present in the shared metadata table."""
-        self.assertTrue(self.uri_in_shared_metadata(conn, self.stable_uri(uri)))
-
-    def assertNotInShared(self, conn, uri):
-        """Assert that uri's stable constituent is absent from the shared metadata table."""
-        self.assertFalse(self.uri_in_shared_metadata(conn, self.stable_uri(uri)))
 
     def open_follower(self):
         """Open a follower, pick up the latest leader checkpoint, and open a session on it."""
