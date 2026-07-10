@@ -2485,7 +2485,7 @@ __clayered_constituent_check(
     WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)c;
     WT_DECL_RET;
 
-    if (clayered->current_cursor == c && F_ISSET(c, WT_CURSTD_KEY_INT)) {
+    if (clayered->current_cursor == c && F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT)) {
         /* Positioned on the key: check the held cell and keep the position. */
         WT_WITH_DHANDLE(session, cbt->dhandle, ret = __clayered_cell_check(session, cbt));
     } else {
