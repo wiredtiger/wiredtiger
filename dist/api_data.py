@@ -1796,10 +1796,8 @@ methods = {
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
         Config('size_stats', 'false', r'''
-            Accumulate a per-b-tree size summary (page counts and bytes by page type, key and value
-            bytes and counts, and a leaf page-size histogram) into the data-source statistics as the
-            cursor traverses the tree. Row-store only. Intended for size analytics; read the results
-            with a statistics cursor''',
+            Accumulate a per-b-tree size summary into the data-source statistics as the cursor
+            traverses the tree; row-store only. Read the results with a statistics cursor''',
             type='boolean', undoc=True),
         ]),
     Config('dump', '', r'''
