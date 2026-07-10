@@ -92,6 +92,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_ITEM cell_ref, *src;
     WT_UPDATE *append, *oldest_upd, *onpage_upd_or_tombstone, *tombstone;
     size_t size, total_size;
     bool seen_committed, tombstone_globally_visible;
@@ -230,15 +231,26 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
 
     /* We need the original on-page value for some reader: get a copy. */
     if (!tombstone_globally_visible) {
-        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-        WT_ERR(__wt_page_cell_data_ref_kv(session, page, unpack, tmp));
         /*
          * We should never see an overflow removed value because we haven't freed the overflow
          * blocks.
          */
         WT_ASSERT(session,
           unpack->cell == NULL || __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
-        WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
+        /*
+         * A non-overflow value is already fully in memory, so reference it directly rather than
+         * decoding into a scratch buffer; the allocation below copies it out immediately.
+         */
+        if (unpack->type == WT_CELL_VALUE) {
+            cell_ref.data = unpack->data;
+            cell_ref.size = unpack->size;
+            src = &cell_ref;
+        } else {
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_page_cell_data_ref_kv(session, page, unpack, tmp));
+            src = tmp;
+        }
+        WT_ERR(__wt_upd_alloc(session, src, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
         /*
          * When reconciling during recovery, we need to clear the transaction id as we haven't done
@@ -1136,17 +1148,18 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             upd_select->was_modify = upd->type == WT_UPDATE_MODIFY;
 
             /*
-             * Tombstones on ingest btrees must be non-timestamped; treat them as the last update to
-             * keep. For other update types on ingest btrees, skip the global visibility check: the
-             * global visibility check can return true even when no checkpoint has been picked up
-             * (e.g. because WT_CONN_CLOSING bypasses the pinned-timestamp cap), making updates
-             * appear globally visible before the ingest btree's prune threshold has advanced. Such
-             * updates are instead handled by the pruning check above.
+             * Non-timestamped tombstones on ingest btrees are written non-transactionally by the
+             * step-up clear truncate, so they are globally visible to everyone immediately; treat
+             * them as the last update to keep without a global visibility check. For other update
+             * types on ingest btrees, skip the global visibility check too: it can return true even
+             * when no checkpoint has been picked up (e.g. because WT_CONN_CLOSING bypasses the
+             * pinned-timestamp cap), making updates appear globally visible before the ingest
+             * btree's prune threshold has advanced. Such updates are instead handled by the pruning
+             * check above.
              */
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                /* FIXME-WT-17674: bypass the global visibility check. */
-                if (upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible_all(session, upd)) {
-                    WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
+                if (upd->type == WT_UPDATE_TOMBSTONE && upd->upd_durable_ts == WT_TS_NONE) {
+                    WT_ASSERT(session, upd->txnid == WT_TXN_NONE);
                     found_last_upd_to_keep = true;
                     break;
                 }

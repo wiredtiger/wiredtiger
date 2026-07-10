@@ -43,7 +43,7 @@ BCcLlsvz
 BFGs
 BIGENDIAN
 BLKCACHE
-BLmpRrSVv
+BLmpqRrSVv
 BOOL
 BSR
 BTREE
@@ -417,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -864,6 +865,7 @@ cust
 customizable
 customp
 cutlim
+cutover
 cv
 cval
 cx
@@ -894,6 +896,7 @@ dec
 decile
 deciles
 decl
+decodable
 decompressor
 decr
 decrementing
@@ -969,6 +972,7 @@ durabletime
 dv
 dylib
 eb
+ebusy
 eee
 eg
 ejnprx
@@ -1169,6 +1173,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initializeCursors
 initn
 initsize
@@ -1411,6 +1419,7 @@ nonconflicting
 nonliteral
 nonoverlapping
 nonstandalone
+nontxn
 noop
 nop
 nopos
@@ -1583,6 +1592,7 @@ rebalancing
 recency
 recno
 recnos
+recognizes
 reconfig
 reconfigurations
 reconfigures
@@ -1856,6 +1866,8 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
+underflows
 underfull
 unencoded
 unencrypted

@@ -185,6 +185,11 @@ struct __wt_txn_global {
 
     wt_shared wt_timestamp_t durable_timestamp;
     wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
+    /*
+     * Release-stored by checkpoint once its durable state is established, acquire-loaded by sweep
+     * so that observing the timestamp guarantees the checkpoint's state is visible before an ingest
+     * table is dropped.
+     */
     wt_shared wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
     wt_shared wt_timestamp_t oldest_timestamp;
@@ -192,6 +197,7 @@ struct __wt_txn_global {
     wt_timestamp_t recovery_timestamp;
     wt_shared wt_timestamp_t stable_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t stable_timestamp;
+    wt_shared wt_timestamp_t step_down_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
