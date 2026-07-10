@@ -3224,17 +3224,14 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     WT_CLEAR(value);
 
-    /*
-     * Modify requires a visible base value: search before the conflict check so a missing value
-     * returns WT_NOTFOUND.
-     */
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
+
+    /* Modify requires a visible base value; a missing value returns WT_NOTFOUND. */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
       !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
-
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     if (clayered->current_cursor != c_ingest) {
         /*
