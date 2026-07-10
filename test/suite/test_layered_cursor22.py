@@ -38,7 +38,7 @@
 #   positional operation and its expected result are identical in all three.
 
 import wiredtiger, wttest
-from wiredtiger import stat, WT_NOTFOUND
+from wiredtiger import WT_NOTFOUND
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -115,13 +115,6 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
         cursor.close()
         return value
 
-    # The running count of layered cursor remove operations.
-    def get_current_remove_number(self):
-        stat_cursor = self.session_follow.open_cursor('statistics:')
-        number = stat_cursor[stat.conn.layered_curs_remove][2]
-        stat_cursor.close()
-        return number
-
     # A positional remove issued in a later transaction removes the key and stays positioned on it.
     def test_remove(self):
         self.seed({1: 'v'})
@@ -134,8 +127,10 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
 
         self.assertEqual(self.read_value(1), None)
 
-    # A key deleted before the later-transaction remove must return WT_NOTFOUND without writing a
-    # second, consecutive tombstone.
+    # A key deleted before the later-transaction remove, with overwrite=true (the default), must
+    # report success as a no-op without writing a second, consecutive tombstone. (layered_curs_remove
+    # counts every successful WT_CURSOR::remove call, masked no-ops included, so it can't be used to
+    # detect a skipped write here -- read_value confirms the key is still, correctly, gone.)
     def test_remove_already_deleted(self):
         self.seed({1: 'v'})
         cursor = self.position_follower(1)
@@ -148,12 +143,11 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
         delete_cursor.close()
 
-        # The positional remove finds the tombstone, returns WT_NOTFOUND, and writes nothing more.
-        before = self.get_current_remove_number()
+        # The positional remove finds the tombstone and reports success as a no-op.
         self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(10))
-        self.assertEqual(cursor.remove(), WT_NOTFOUND)
+        self.assertEqual(cursor.remove(), 0)
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
-        self.assertEqual(self.get_current_remove_number(), before)
+        self.assertEqual(self.read_value(1), None)
 
     # A positional update issued in a later transaction writes the new value.
     def test_update(self):

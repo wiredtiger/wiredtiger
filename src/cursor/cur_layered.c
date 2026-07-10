@@ -2625,8 +2625,16 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                  * handling the ordinary (stable-consulting) lookup path uses below.
                  */
                 WT_TRET(__clayered_reset_cursors(clayered, false));
-        } else
+        } else {
             ret = __clayered_lookup(op, &value);
+            /*
+             * A missing key is not a failure to mask with overwrite=true: a real conflict or error
+             * still propagates below unchanged, and __clayered_modify_check above already ran the
+             * write-conflict probe against both constituents regardless of this path.
+             */
+            if (ret == WT_NOTFOUND && F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
+                return (0);
+        }
         WT_RET(ret);
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
