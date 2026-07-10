@@ -157,7 +157,7 @@ main(int argc, char *argv[])
     uint32_t rand_value, timeout;
     int ch;
     char cwd_start[PATH_MAX];
-    bool rand_th, rand_time, verify_only;
+    bool pool_size_set, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -167,15 +167,17 @@ main(int argc, char *argv[])
 
     cfg.nth = MIN_TH;
     cfg.pool_size = MAX_POOL_SIZE / 8; /* Default: 8 slots per thread. */
+    pool_size_set = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:h:pP:T:v", cfg.opts);
+    testutil_parse_begin_opt(argc, argv, "b:h:pP:s:T:t:v", cfg.opts);
 
     while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:T:t:v")) != EOF)
         switch (ch) {
         case 's':
+            pool_size_set = true;
             cfg.pool_size = (uint32_t)atoi(__wt_optarg);
             if (cfg.pool_size < MIN_POOL_SIZE || cfg.pool_size > MAX_POOL_SIZE) {
                 fprintf(
@@ -203,6 +205,10 @@ main(int argc, char *argv[])
         usage();
     if (verify_only && rand_th) {
         fprintf(stderr, "Verify requires -T\n");
+        exit(EXIT_FAILURE);
+    }
+    if (verify_only && !pool_size_set) {
+        fprintf(stderr, "Verify requires -s\n");
         exit(EXIT_FAILURE);
     }
 

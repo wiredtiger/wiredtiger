@@ -177,13 +177,17 @@ thread_schema_run(void *arg)
         }
         is_create = ctx.table_exists[slot];
         epoch = schema_op_publish(&ctx, slot);
-        testutil_assert(pthread_rwlock_unlock(&ctx.state->lock) == 0);
         commit_ts = 0;
         if (is_create)
             commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
+        /*
+         * Write the record before releasing the lock so the checkpoint thread cannot make this
+         * operation durable before the verifier can see it.
+         */
         if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP",
               epoch, commit_ts, ctx.uris[slot]) < 0)
             testutil_die(EIO, "fprintf schema record");
+        testutil_assert(pthread_rwlock_unlock(&ctx.state->lock) == 0);
     }
     /* NOTREACHED */
 }
@@ -255,7 +259,7 @@ thread_ckpt_run(void *arg)
         if (td->state->schema_op_epoch > 0) {
             testutil_snprintf(ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64,
               td->state->schema_op_epoch);
-            (void)td->conn->set_timestamp(td->conn, ts_cfg);
+            testutil_check(td->conn->set_timestamp(td->conn, ts_cfg));
         }
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
         testutil_assert(pthread_rwlock_unlock(&td->state->lock) == 0);
@@ -263,7 +267,7 @@ thread_ckpt_run(void *arg)
         printf("Checkpoint %d complete\n", i);
         fflush(stdout);
 
-        if (!created_ready) {
+        if (!created_ready && td->state->schema_op_epoch > 0) {
             testutil_sentinel(NULL, READY_FILE);
             created_ready = true;
         }

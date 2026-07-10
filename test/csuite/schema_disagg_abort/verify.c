@@ -65,7 +65,7 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
              rec_uri) == 4) {
         if (entry_epoch > durable_epoch)
             continue;
-        if (sscanf(rec_uri, "table:schema_%u_%u", &t2, &s) != 2 || t2 != t || s >= pool_size)
+        if (sscanf(rec_uri, SCHEMA_TABLE_FMT, &t2, &s) != 2 || t2 != t || s >= pool_size)
             continue;
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
@@ -177,10 +177,8 @@ verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=last_disaggregated_schema_epoch"));
     (void)sscanf(ts_buf, "%" SCNx64, &durable_epoch);
     printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", durable_epoch);
-    if (durable_epoch == 0) {
-        printf("Schema verify: no schema epoch checkpointed, skipping.\n");
-        return;
-    }
+    if (durable_epoch == 0)
+        testutil_die(EINVAL, "no schema epoch checkpointed; workload sentinel was set too early");
 
     last_ckpt_ts = 0;
     (void)conn->query_timestamp(conn, ts_buf, "get=last_checkpoint");
