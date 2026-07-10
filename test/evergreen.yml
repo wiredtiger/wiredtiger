@@ -2496,7 +2496,7 @@ tasks:
 
             ./smoke_lazyfs.sh
 
-  - name: csuite-schema-disagg-leader-abort
+  - name: csuite-schema-disagg-abort
     tags: ["pull_request"]
     depends_on: *s-all-dep
     commands:
@@ -2504,9 +2504,9 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
-          directory: test/csuite/schema_disagg_leader_abort
+          directory: test/csuite/schema_disagg_abort
 
-  - name: csuite-schema-disagg-leader-abort-stress
+  - name: csuite-schema-disagg-abort-stress
     tags: ["stress-test-disagg"]
     # Set 2 hour timeout (60 * 60 * 2 = 7200)
     exec_timeout_secs: 7200
@@ -2516,7 +2516,7 @@ tasks:
       - func: "compile wiredtiger"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_leader_abort"
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
           shell: bash
           script: |
             set -o errexit
@@ -2526,7 +2526,7 @@ tasks:
             for i in $(seq ${times|20}); do
               echo "Iteration $i/${times|20}"
               # Max out pool size (-s) and schema threads (-T) for maximum schema churn.
-              ./test_schema_disagg_leader_abort -b "$build_dir" -s 64 -T 12 -t 300
+              ./test_schema_disagg_abort -b "$build_dir" -s 64 -T 12 -t 300
             done
 
   - name: csuite-wt12015-backup-corruption-test
