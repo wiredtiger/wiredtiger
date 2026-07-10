@@ -87,7 +87,7 @@ __rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *
  */
 static int
 __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
-  WT_CELL_UNPACK_KV *unpack, bool write_prepared)
+  WT_CELL_UNPACK_KV *unpack, bool keep_prepare_fallback)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
@@ -133,16 +133,16 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
          * possible for an update on the chain to be globally visible and followed by an (earlier)
          * update that is not yet globally visible.
          *
-         * Skip this shortcut when writing as prepared. The decision to write as prepared was taken
-         * against the pinned stable timestamp captured at reconcile start, which can lag the
-         * current global oldest. By the time we reach here, the chain may have become globally
-         * visible even though we still need to encode this entry as prepared. In that case we must
-         * not return early; the caller relies on the on-page value being available as a rollback
-         * fallback for the prepared update.
+         * Skip this shortcut when the on-page value must be kept as a prepared update's rollback
+         * fallback: visibility can shift between when that need was determined and when we reach
+         * here (the pinned stable timestamp used earlier can lag the current global oldest, or the
+         * prepared update may have been skipped this round entirely), so the chain may look
+         * globally visible even though the fallback is still required. In that case we must not
+         * return early.
          */
         if (WT_UPDATE_DATA_VALUE(upd) &&
           (onpage_upd_or_tombstone != upd || onpage_upd_or_tombstone->type != WT_UPDATE_TOMBSTONE ||
-            !write_prepared) &&
+            !keep_prepare_fallback) &&
           __wt_txn_upd_visible_all(session, upd))
             return (0);
 
@@ -190,7 +190,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
                  * wrongly leave this key as prepared indefinitely if we rollback the prepared
                  * update.
                  */
-                if (seen_committed || !write_prepared)
+                if (seen_committed || !keep_prepare_fallback)
                     return (0);
             }
 
