@@ -33,14 +33,14 @@
 
 import os, time
 import wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # Test WT_SESSION::publish for disaggregated storage.
 @disagg_test_class
-class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess):
+class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
@@ -54,22 +54,6 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Helper methods
     #
-
-    def set_stable_epoch(self, epoch):
-        """
-        Set stable_disaggregated_schema_epoch.
-        """
-        self.conn.set_timestamp(
-            'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
-
-    def leader_checkpoint(self, stable_ts):
-        """
-        Set the oldest and stable timestamps, and then take a timestamped checkpoint.
-        """
-        self.conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(stable_ts) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
 
     def open_follower(self):
         """
@@ -98,15 +82,6 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess):
         session_follower.close()
         conn_follower.close()
         return exists
-
-    def publish(self, uri, epoch, session=None):
-        """
-        Publish a schema change with the given epoch. If session is None, use the main test session.
-        """
-        if session is None:
-            session = self.session
-        session.publish(uri, 'disaggregated=(schema_epoch=' + self.timestamp_str(epoch) + ')')
-
 
     #
     # Functional tests

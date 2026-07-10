@@ -37,11 +37,11 @@
 # dropped before either operation is published must leave no durable trace.
 
 import wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema12(wttest.WiredTigerTestCase):
+class test_layered_schema12(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
@@ -58,19 +58,6 @@ class test_layered_schema12(wttest.WiredTigerTestCase):
     # Helper methods
     #
 
-    def set_stable_epoch(self, epoch):
-        self.conn.set_timestamp(
-            'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
-
-    def leader_checkpoint(self, stable_ts):
-        self.conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(stable_ts) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.session.checkpoint()
-
-    def publish(self, uri, epoch):
-        self.session.publish(uri, 'disaggregated=(schema_epoch=' + self.timestamp_str(epoch) + ')')
-
     def write(self, uri, key, value, commit_ts):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -78,54 +65,21 @@ class test_layered_schema12(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
-    def stable_uri(self, uri):
-        """Return the stable component URI for a given layered table URI."""
-        tablename = uri[len('layered:'):]
-        return 'file:' + tablename + '.wt_stable'
-
-    def uri_in_shared_metadata(self, conn, uri):
-        """Return True if uri's stable constituent is present in the shared metadata table."""
-        session = conn.open_session('')
-        cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
-        cursor.set_key(self.stable_uri(uri))
-        found = cursor.search() == 0
-        cursor.close()
-        session.close()
-        return found
-
-    def uri_in_local_metadata(self, conn, uri):
-        """Return True if uri is present in the local metadata (cursor open succeeds)."""
-        session = conn.open_session('')
-        exists = True
-        try:
-            c = session.open_cursor(uri)
-            c.close()
-        except wiredtiger.WiredTigerError:
-            exists = False
-        session.close()
-        return exists
-
-    def open_follower(self):
-        """Open a follower and pick up the latest leader checkpoint."""
-        conn = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,' + self.conn_config_follower)
-        self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
-        self.disagg_advance_checkpoint(conn)
-        return conn
-
     def assertOnFollower(self, present):
         """
         Pick up the latest checkpoint on a fresh follower and assert which of the
-        expected tables are present. present maps uri -> bool.
+        expected tables are present in both the local and shared metadata.
+        present maps uri -> bool.
         """
-        conn = self.open_follower()
+        conn, _ = self.open_follower()
         try:
             for uri, expected in present.items():
-                self.assertEqual(self.uri_in_local_metadata(conn, uri), expected,
-                    f'follower local metadata: {uri} expected present={expected}')
-                self.assertEqual(self.uri_in_shared_metadata(conn, uri), expected,
-                    f'follower shared metadata: {uri} expected present={expected}')
+                if expected:
+                    self.assertInLocal(conn, uri)
+                    self.assertInShared(conn, uri)
+                else:
+                    self.assertNotInLocal(conn, uri)
+                    self.assertNotInShared(conn, uri)
         finally:
             conn.close('debug=(skip_checkpoint=true)')
 
@@ -135,10 +89,9 @@ class test_layered_schema12(wttest.WiredTigerTestCase):
 
     def test_unrelated_writes_succeed_with_unpublished_table(self):
         """
-        An unpublished table models a schema change from an in-progress transaction
-        (e.g. a multi-document transaction that has created a collection but not yet
-        committed). Unrelated writes to other published tables must continue to
-        succeed while that schema change remains pending.
+        A table that is created but not yet published has a pending schema change.
+        Writes to other, published tables must continue to succeed while that schema
+        change remains pending, and the pending table must not become durable.
         """
         self.set_stable_epoch(10)
 
@@ -157,6 +110,10 @@ class test_layered_schema12(wttest.WiredTigerTestCase):
         # A checkpoint covering the unrelated writes must also succeed with the
         # schema change still pending.
         self.leader_checkpoint(40)
+
+        # The published table is durable in both local and shared metadata; the
+        # unpublished table appears in neither.
+        self.assertOnFollower({self.uri: True, self.uri2: False})
 
     def test_checkpoint_succeeds_with_unpublished_table(self):
         """
@@ -281,6 +238,6 @@ class test_layered_schema12(wttest.WiredTigerTestCase):
             ',oldest_timestamp=' + self.timestamp_str(1))
 
         # The durable table survives; the transient table is not resurrected.
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri2))
-        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri2))
+        self.assertInLocal(self.conn, self.uri)
+        self.assertNotInLocal(self.conn, self.uri2)
+        self.assertNotInShared(self.conn, self.uri2)

@@ -33,12 +33,12 @@
 # was a follower.
 
 import wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
+class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
@@ -55,72 +55,6 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Helper methods
     #
-
-    def set_stable_epoch(self, epoch, conn=None):
-        if conn is None:
-            conn = self.conn
-        conn.set_timestamp(
-            'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
-
-    def leader_checkpoint(self, stable_ts, conn=None, session=None):
-        if conn is None:
-            conn = self.conn
-        if session is None:
-            session = self.session
-        conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(stable_ts) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        session.checkpoint()
-
-    def publish(self, uri, epoch, session=None):
-        if session is None:
-            session = self.session
-        session.publish(uri, 'disaggregated=(schema_epoch=' + self.timestamp_str(epoch) + ')')
-
-    def stable_uri(self, uri):
-        """Return the stable component URI for a given layered table URI."""
-        tablename = uri[len('layered:'):]
-        return 'file:' + tablename + '.wt_stable'
-
-    def uri_in_shared_metadata(self, conn, stable_uri):
-        """
-        Return True if stable_uri is present in the shared metadata table.
-        """
-        session = conn.open_session('')
-        cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
-        cursor.set_key(stable_uri)
-        found = cursor.search() == 0
-        cursor.close()
-        session.close()
-        return found
-
-    def uri_in_local_metadata(self, conn, uri):
-        """Return True if uri is present in the local metadata (cursor open succeeds)."""
-        session = conn.open_session('')
-        exists = True
-        try:
-            c = session.open_cursor(uri)
-            c.close()
-        except wiredtiger.WiredTigerError:
-            exists = False
-        session.close()
-        return exists
-
-    def assertInLocal(self, conn, uri):
-        """Assert that uri's stable constituent is present in conn's local metadata."""
-        self.assertTrue(self.uri_in_local_metadata(conn, self.stable_uri(uri)))
-
-    def assertNotInLocal(self, conn, uri):
-        """Assert that uri's stable constituent is absent from conn's local metadata."""
-        self.assertFalse(self.uri_in_local_metadata(conn, self.stable_uri(uri)))
-
-    def assertInShared(self, conn, uri):
-        """Assert that uri's stable constituent is present in the shared metadata table."""
-        self.assertTrue(self.uri_in_shared_metadata(conn, self.stable_uri(uri)))
-
-    def assertNotInShared(self, conn, uri):
-        """Assert that uri's stable constituent is absent from the shared metadata table."""
-        self.assertFalse(self.uri_in_shared_metadata(conn, self.stable_uri(uri)))
 
     def setup_leader_with_epoch(self):
         """
@@ -141,16 +75,6 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.conn.reconfigure('disaggregated=(role="follower")')
         conn_follower.reconfigure('disaggregated=(role="leader")')
-
-    def open_follower(self):
-        """Open a follower, pick up the latest leader checkpoint, and open a session on it."""
-        conn = self.wiredtiger_open(
-            'follower',
-            self.extensionsConfig() + ',create,' + self.conn_config_follower)
-        self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
-        self.disagg_advance_checkpoint(conn)
-        session = conn.open_session('')
-        return conn, session
 
     def checkpoint_and_advance(self, epoch, stable_ts, conn_leader):
         """
