@@ -522,8 +522,8 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         /*
          * Overflow keys referenced from an internal page are tree overhead. Match the raw type: a
-         * removed overflow cell (WT_CELL_KEY_OVFL_RM) normalizes to WT_CELL_KEY_OVFL but its backing
-         * blocks are already freed, so reading it would fault or mis-account.
+         * removed overflow cell (WT_CELL_KEY_OVFL_RM) normalizes to WT_CELL_KEY_OVFL but its
+         * backing blocks are already freed, so reading it would fault or corrupt the accounting.
          */
         WT_CELL_UNPACK_ADDR unpack_addr;
         WT_CELL_FOREACH_ADDR (session, dsk, unpack_addr) {
