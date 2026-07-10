@@ -444,14 +444,12 @@ __size_stat_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 
     WT_STAT_DSRC_INCR(session, btree_size_overflow_pages);
     WT_STAT_DSRC_INCRV(session, btree_size_overflow_bytes, dsk->mem_size);
-    if (S2BT(session)->type == BTREE_ROW) {
-        if (kind == WT_SIZE_STAT_OVFL_KEY) {
-            WT_STAT_DSRC_INCRV(session, btree_size_key_bytes, dsk->u.datalen);
-            WT_STAT_DSRC_INCR(session, btree_size_key_count);
-        } else if (kind == WT_SIZE_STAT_OVFL_VALUE) {
-            WT_STAT_DSRC_INCRV(session, btree_size_value_bytes, dsk->u.datalen);
-            WT_STAT_DSRC_INCR(session, btree_size_value_count);
-        }
+    if (kind == WT_SIZE_STAT_OVFL_KEY) {
+        WT_STAT_DSRC_INCRV(session, btree_size_key_bytes, dsk->u.datalen);
+        WT_STAT_DSRC_INCR(session, btree_size_key_count);
+    } else if (kind == WT_SIZE_STAT_OVFL_VALUE) {
+        WT_STAT_DSRC_INCRV(session, btree_size_value_bytes, dsk->u.datalen);
+        WT_STAT_DSRC_INCR(session, btree_size_value_count);
     }
 
 err:
