@@ -3237,9 +3237,12 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     /*
-     * The conflict check probes by searching, which resets the constituent cursors. When the base
-     * value lives in the ingest table, re-seat that position: the branch below reads its value and
-     * applies the modify against it.
+     * The modify conflict check probes by searching, which resets the constituent cursors. When the
+     * base value lives in the ingest table, re-seat that position: the branch below reads its value
+     * and applies the modify against it.
+     *
+     * FIXME-WT-17962: Move the conflict check before the lookup, making it consistent with other
+     * operations and removing the need for an additional search.
      */
     if (clayered->current_cursor == c_ingest && !F_ISSET(c_ingest, WT_CURSTD_KEY_INT)) {
         c_ingest->set_key(c_ingest, &cursor->key);
