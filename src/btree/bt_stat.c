@@ -430,12 +430,9 @@ __size_stat_hist_incr(WT_SESSION_IMPL *session, size_t bucket)
 static int
 __size_stat_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, int kind)
 {
-    WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const WT_PAGE_HEADER *dsk;
-
-    btree = S2BT(session);
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_blkcache_read(session, tmp, NULL, addr, addr_size));
@@ -447,7 +444,7 @@ __size_stat_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 
     WT_STAT_DSRC_INCR(session, btree_size_overflow_pages);
     WT_STAT_DSRC_INCRV(session, btree_size_overflow_bytes, dsk->mem_size);
-    if (btree->type == BTREE_ROW) {
+    if (S2BT(session)->type == BTREE_ROW) {
         if (kind == WT_SIZE_STAT_OVFL_KEY) {
             WT_STAT_DSRC_INCRV(session, btree_size_key_bytes, dsk->u.datalen);
             WT_STAT_DSRC_INCR(session, btree_size_key_count);
@@ -506,33 +503,27 @@ __wt_size_stat_reset(WT_SESSION_IMPL *session)
 int
 __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_BTREE *btree;
-    WT_CELL_UNPACK_ADDR unpack_addr;
-    WT_CELL_UNPACK_KV unpack_kv;
-    const WT_PAGE_HEADER *dsk;
-    size_t hist_bucket;
-    uint64_t page_mem;
-    uint32_t bucket_width;
-
-    btree = S2BT(session);
+    /* The size summary is a row-store-only feature; callers must not arm it on column store. */
+    WT_ASSERT(session, S2BT(session)->type == BTREE_ROW);
 
     /*
      * Only account pages that have an on-disk image. A page built in memory and not yet read back
      * from disk has no image; count these so callers can quantify how much of the tree the summary
      * did not measure.
      */
-    dsk = page->dsk;
+    const WT_PAGE_HEADER *dsk = page->dsk;
     if (dsk == NULL) {
         WT_STAT_DSRC_INCR(session, btree_size_no_image_pages);
         return (0);
     }
-    page_mem = dsk->mem_size;
+    uint64_t page_mem = dsk->mem_size;
 
     if (WT_PAGE_IS_INTERNAL(page)) {
         WT_STAT_DSRC_INCR(session, btree_size_internal_pages);
         WT_STAT_DSRC_INCRV(session, btree_size_internal_bytes, page_mem);
 
         /* Overflow keys referenced from an internal page are tree overhead. */
+        WT_CELL_UNPACK_ADDR unpack_addr;
         WT_CELL_FOREACH_ADDR (session, dsk, unpack_addr) {
             if (__wt_cell_type(unpack_addr.cell) == WT_CELL_KEY_OVFL)
                 WT_RET(__size_stat_overflow(
@@ -549,7 +540,8 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Bucket the leaf by uncompressed size: equal-width slices of [0, leaf page max), with the
      * final bucket for pages at or above the configured maximum.
      */
-    bucket_width = btree->maxleafpage / (WT_SIZE_STAT_HIST_BUCKETS - 1);
+    uint32_t bucket_width = S2BT(session)->maxleafpage / (WT_SIZE_STAT_HIST_BUCKETS - 1);
+    size_t hist_bucket;
     if (bucket_width == 0)
         hist_bucket = 0;
     else
@@ -562,6 +554,7 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Overflow key/value payloads are pulled in from their referenced pages.
      */
     if (page->type == WT_PAGE_ROW_LEAF) {
+        WT_CELL_UNPACK_KV unpack_kv;
         WT_CELL_FOREACH_KV (session, dsk, unpack_kv) {
             switch (unpack_kv.type) {
             case WT_CELL_KEY:

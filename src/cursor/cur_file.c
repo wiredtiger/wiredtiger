@@ -1180,6 +1180,9 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
      */
     WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
     if (cval.val != 0) {
+        if (btree->type != BTREE_ROW)
+            WT_ERR_MSG(
+              session, EINVAL, "debug=(size_stats) is only supported on row-store objects");
         F_SET(cbt, WT_CBT_SIZE_STAT);
         __wt_size_stat_reset(session);
     }

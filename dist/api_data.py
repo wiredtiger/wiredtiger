@@ -1797,7 +1797,8 @@ methods = {
             type='boolean'),
         Config('size_stats', 'false', r'''
             Accumulate a per-b-tree size summary into the data-source statistics as the cursor
-            traverses the tree; row-store only. Read the results with a statistics cursor''',
+            traverses the tree; row-store only, an error is returned otherwise. Read the results
+            with a statistics cursor''',
             type='boolean', undoc=True),
         ]),
     Config('dump', '', r'''
