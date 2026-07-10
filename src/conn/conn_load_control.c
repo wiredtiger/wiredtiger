@@ -97,13 +97,11 @@ __conn_calc_load_pct(uint64_t part, uint64_t whole)
  * __wt_conn_calc_read_load --
  *     Calculate and return the read load at the system level. Computed on demand from the load-shed
  *     check and the statistics path rather than in the cache accounting hot path. The cache fill
- *     ratio is always calculated; it is amplified by (1 + recent read miss rate) only while load
- *     control is enabled, so that a cache thrashing on disk reads is shed more aggressively (up to
- *     twice the fill ratio) than one serving mostly hits. The miss rate is sampled from the delta
- *     of the cumulative cache read and page request counters since the previous review; those
- *     counters are tracked unconditionally so the sample doesn't go stale while load control is
- *     disabled. The counters advance concurrently with reads, so the sampled delta is approximate,
- *     which is acceptable for a load heuristic.
+ *     ratio is amplified by (1 + recent read miss rate), so that a cache thrashing on disk reads is
+ *     shed more aggressively (up to twice the fill ratio) than one serving mostly hits. The miss
+ *     rate is sampled from the delta of the cumulative cache read and page request counters since
+ *     the previous review. The counters advance concurrently with reads, so the sampled delta is
+ *     approximate, which is acceptable for a load heuristic.
  */
 uint16_t
 __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
@@ -136,9 +134,7 @@ __wt_conn_calc_read_load(WT_SESSION_IMPL *session)
         __wt_atomic_store_uint64_relaxed(&load_control->prev_cache_pages_requested, cache_req);
         delta_read = cache_read - prev_read;
 
-        /* Factor in the cache miss rate when load control is enabled */
-        if (F_ISSET(load_control, WT_CONN_LOAD_CONTROL))
-            cache_miss_pct = WT_MIN((float)delta_read * 100 / (float)delta_req, 100.0F);
+        cache_miss_pct = WT_MIN((float)delta_read * 100 / (float)delta_req, 100.0F);
     }
 
     return ((uint16_t)WT_MIN(read_load * (100 + cache_miss_pct) / 100, 1000.0F));
