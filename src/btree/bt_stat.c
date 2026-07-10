@@ -522,10 +522,14 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_DSRC_INCR(session, btree_size_internal_pages);
         WT_STAT_DSRC_INCRV(session, btree_size_internal_bytes, page_mem);
 
-        /* Overflow keys referenced from an internal page are tree overhead. */
+        /*
+         * Overflow keys referenced from an internal page are tree overhead. Match the raw type: a
+         * removed overflow cell (WT_CELL_KEY_OVFL_RM) normalizes to WT_CELL_KEY_OVFL but its backing
+         * blocks are already freed, so reading it would fault or mis-account.
+         */
         WT_CELL_UNPACK_ADDR unpack_addr;
         WT_CELL_FOREACH_ADDR (session, dsk, unpack_addr) {
-            if (__wt_cell_type(unpack_addr.cell) == WT_CELL_KEY_OVFL)
+            if (unpack_addr.raw == WT_CELL_KEY_OVFL)
                 WT_RET(__size_stat_overflow(
                   session, unpack_addr.data, unpack_addr.size, WT_SIZE_STAT_OVFL_OVERHEAD));
         }
@@ -552,6 +556,10 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Key and value bytes are row-store only. Keys are counted at their physical (on-page) length;
      * prefix compression is deliberately not resolved, matching what occupies the page image.
      * Overflow key/value payloads are pulled in from their referenced pages.
+     *
+     * A removed overflow cell (WT_CELL_{KEY,VALUE}_OVFL_RM) normalizes to WT_CELL_{KEY,VALUE}_OVFL
+     * but its backing blocks are already freed; skip it via the raw type so we never read them. The
+     * removed payload no longer occupies the tree, so there is nothing to attribute.
      */
     if (page->type == WT_PAGE_ROW_LEAF) {
         WT_CELL_UNPACK_KV unpack_kv;
@@ -566,12 +574,14 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
                 WT_STAT_DSRC_INCR(session, btree_size_value_count);
                 break;
             case WT_CELL_KEY_OVFL:
-                WT_RET(__size_stat_overflow(
-                  session, unpack_kv.data, unpack_kv.size, WT_SIZE_STAT_OVFL_KEY));
+                if (unpack_kv.raw == WT_CELL_KEY_OVFL)
+                    WT_RET(__size_stat_overflow(
+                      session, unpack_kv.data, unpack_kv.size, WT_SIZE_STAT_OVFL_KEY));
                 break;
             case WT_CELL_VALUE_OVFL:
-                WT_RET(__size_stat_overflow(
-                  session, unpack_kv.data, unpack_kv.size, WT_SIZE_STAT_OVFL_VALUE));
+                if (unpack_kv.raw == WT_CELL_VALUE_OVFL)
+                    WT_RET(__size_stat_overflow(
+                      session, unpack_kv.data, unpack_kv.size, WT_SIZE_STAT_OVFL_VALUE));
                 break;
             }
         }
