@@ -1049,7 +1049,6 @@ fileops
 filesize
 filesystem
 filesystems
-firstRecordId
 firstfit
 fixup
 floatnum
@@ -1177,7 +1176,6 @@ initialisation
 initialise
 initialised
 initialises
-initializeCursors
 initn
 initsize
 initval
@@ -1652,7 +1650,6 @@ scr
 sd
 sdk
 secretkey
-seekExact
 sempty
 sencrypted
 serializable
@@ -1823,7 +1820,6 @@ traceapi
 tracepat
 transactional
 transactionally
-traverseRecordStore
 trecno
 trk
 trk's

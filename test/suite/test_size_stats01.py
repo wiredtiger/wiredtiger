@@ -31,31 +31,28 @@ from wiredtiger import stat
 
 # test_size_stats01.py
 # A b-tree size summary accumulated into the data-source statistics as a cursor traverses the tree
-# (the debug=(size_stats) cursor flag), then read back with a statistics cursor. This mirrors the way
-# MongoDB's collHash walks a collection: an ordered forward scan, with the accounting piggybacking on
-# the pages that scan already reads. The summary is raw constituents only (per-page-type counts and
-# bytes, leaf key/value bytes and counts, and a leaf page-size histogram); derived figures such as
-# overhead are computed by this test, not the engine.
+# (the debug=(size_stats) cursor flag), then read back with a statistics cursor. The traversal
+# pattern matches the ordered forward scan MongoDB's collHash performs, so the accounting is a free
+# side-effect of a scan the caller already does. The summary is raw constituents only (per-page-type
+# counts and bytes, leaf key/value bytes and counts, and a leaf page-size histogram); derived figures
+# such as overhead are computed by this test, not the engine.
 class test_size_stats01(wttest.WiredTigerTestCase):
     uri = 'table:test_size_stats01'
-    # 32KB leaf / 16KB internal mirrors the MongoDB collection/index page targets.
     params = 'key_format=S,value_format=S,leaf_page_max=32KB,internal_page_max=16KB'
     nrecords = 10000
 
-    # Read the size summary for a btree, driving the traversal exactly the way collHash drives its
-    # record-store scan so the accounting is a free side-effect of work collHash already does:
+    # Read the size summary for a btree, driving the traversal the way the target consumer (collHash)
+    # scans its record store, so the accounting is a free side-effect of that scan:
     #
-    #   1. one next() on a fresh cursor to discover the first key (MongoDB's initializeCursors probe
-    #      for firstRecordId). This walks from the root, accounting the root, the leftmost internal
-    #      path and the first leaf.
-    #   2. a seek back to that first key, then a next() loop to the end (MongoDB's traverseRecordStore
-    #      seekExact(firstRecordId) + next()). The seek repositions via a search, which does not hit
-    #      the walk's per-page hook, so the first leaf is not double-counted; the loop accounts every
-    #      remaining leaf and internal page.
+    #   1. one next() on a fresh cursor to discover the first key. This walks from the root,
+    #      accounting the root, the leftmost internal path and the first leaf.
+    #   2. a seek back to that first key, then a next() loop to the end. The seek repositions via a
+    #      search, which does not hit the walk's per-page hook, so the first leaf is not
+    #      double-counted; the loop accounts every remaining leaf and internal page.
     #
-    # Neither step is an extra scan: both are traversals collHash performs regardless. The statistics
-    # are then read with a statistics=(fast) cursor that does not re-walk the tree. Overhead and the
-    # uncompressed total are derived here, mirroring the analysis the engine leaves to the consumer.
+    # Neither step is an extra scan. The statistics are then read with a statistics=(fast) cursor that
+    # does not re-walk the tree. Overhead and the uncompressed total are derived here, mirroring the
+    # analysis the engine leaves to the consumer.
     def size_summary(self, uri=None, enable=True):
         if uri is None:
             uri = self.uri
@@ -68,8 +65,8 @@ class test_size_stats01(wttest.WiredTigerTestCase):
             cursor = session.open_cursor(uri, None, config)
             scanned = 0
             if cursor.next() == 0:
-                # The probe discovered the first key; seek back to it and traverse forward. This
-                # mirrors collHash reusing one cursor rather than scanning a second time.
+                # The probe discovered the first key; seek back to it and traverse forward, reusing
+                # one cursor rather than scanning a second time.
                 first_key = cursor.get_key()
                 cursor.set_key(first_key)
                 self.assertEqual(cursor.search(), 0)
