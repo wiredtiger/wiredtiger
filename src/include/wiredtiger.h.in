@@ -702,9 +702,10 @@ struct __wt_cursor {
      * the record does not exist.  FIXME-WT-18019: standard (non-layered) cursors don't yet extend
      * this to WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
      * regardless of \c overwrite.  On a follower of a layered table\, \c overwrite set to \c true
-     * also makes WT_CURSOR::remove always succeed\, whether or not the key currently exists.  Has
-     * no effect on a leader\, or for cursors on any other data source., a boolean flag; default \c
-     * true.}
+     * also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing or
+     * already-deleted key; a write conflict with a concurrent\, not-yet-visible change to the same
+     * key can still fail the call.  Has no effect on a leader\, or for cursors on any other data
+     * source., a boolean flag; default \c true.}
      * @configend
      * @errors
      */
@@ -1045,9 +1046,10 @@ struct __wt_session {
      * the record does not exist.  FIXME-WT-18019: standard (non-layered) cursors don't yet extend
      * this to WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
      * regardless of \c overwrite.  On a follower of a layered table\, \c overwrite set to \c true
-     * also makes WT_CURSOR::remove always succeed\, whether or not the key currently exists.  Has
-     * no effect on a leader\, or for cursors on any other data source., a boolean flag; default \c
-     * true.}
+     * also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing or
+     * already-deleted key; a write conflict with a concurrent\, not-yet-visible change to the same
+     * key can still fail the call.  Has no effect on a leader\, or for cursors on any other data
+     * source., a boolean flag; default \c true.}
      * @config{raw, ignore the encodings for the key and value\, manage data as if the formats were
      * \c "u". See @ref cursor_raw for details., a boolean flag; default \c false.}
      * @config{read_once, results that are brought into cache from disk by this cursor will be given
