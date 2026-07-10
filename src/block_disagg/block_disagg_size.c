@@ -55,6 +55,7 @@ __wti_block_disagg_decrease_size(
           "disaggregated block size underflow: decrementing %" PRIu64 " from %" PRIu64
           ", clamped to 0",
           size, orig);
+    WT_ASSERT(session, orig >= size);
 }
 
 /*
