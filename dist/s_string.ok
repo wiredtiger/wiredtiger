@@ -630,7 +630,7 @@ abc
 abcd
 abcdef
 abcdefghijklmnopqrstuvwxyz
-acklSstu
+ackSstu
 acqrel
 addr
 addrs
@@ -796,6 +796,7 @@ colcheck
 colgap
 colgroup
 colgroups
+collHash
 collatorp
 collist
 columngroup
@@ -1044,6 +1045,7 @@ fileops
 filesize
 filesystem
 filesystems
+firstRecordId
 firstfit
 fixup
 floatnum
@@ -1167,6 +1169,7 @@ inflateInit
 infmt
 informations
 init
+initializeCursors
 initn
 initsize
 initval
@@ -1639,6 +1642,7 @@ scr
 sd
 sdk
 secretkey
+seekExact
 sempty
 sencrypted
 serializable
@@ -1809,6 +1813,7 @@ traceapi
 tracepat
 transactional
 transactionally
+traverseRecordStore
 trecno
 trk
 trk's

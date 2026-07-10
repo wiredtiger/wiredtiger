@@ -35,29 +35,6 @@ typedef struct {
     bool dump_pages;
     bool read_corrupt;
 
-    /*
-     * Size accounting, accumulated per checkpoint and reported as a collection-level summary for
-     * the most recent checkpoint. Only collected when the "log_size" option is set.
-     */
-    bool log_size;
-    uint64_t leaf_cnt, internal_cnt, overflow_cnt;
-    uint64_t leaf_mem, internal_mem, overflow_mem;
-    /*
-     * Leaf key/value bytes and counts. Keys are physical (on-page) length; prefix compression is
-     * not resolved. These are leaf-only, overflow keys/values referenced from leaf pages are
-     * included, but overflow keys on internal pages are not.
-     */
-    uint64_t key_bytes, value_bytes;
-    uint64_t key_count, value_count;
-
-    /*
-     * Leaf page-size histogram, bucketed on the uncompressed image size. All but the last bucket
-     * are equal-width slices of [0, leaf page max); the final bucket holds pages at or above leaf
-     * page max.
-     */
-#define WT_VRFY_HIST_BUCKETS 9
-    uint64_t leaf_size_hist[WT_VRFY_HIST_BUCKETS];
-
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -116,9 +93,6 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
-
-    WT_RET(__wt_config_gets(session, cfg, "log_size", &cval));
-    vs->log_size = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
     vs->read_corrupt = cval.val != 0;
@@ -215,50 +189,6 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
             vs->depth_leaf[i] = 0;
         }
     return (0);
-}
-
-/*
- * __dump_size --
- *     Report the collection-level size summary.
- */
-static int
-__dump_size(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
-{
-    WT_BTREE *btree;
-    WT_DECL_ITEM(buf);
-    WT_DECL_RET;
-    size_t i;
-    uint32_t bucket_width;
-
-    btree = S2BT(session);
-    bucket_width = btree->maxleafpage / (WT_VRFY_HIST_BUCKETS - 1);
-
-    /*
-     * The entire summary is emitted as a single message via the message handler: the scalar
-     * constituents followed by the leaf page-size histogram. The in-range histogram buckets are
-     * "<lo>-<hi>B:<count>" and the final bucket is ">=<leaf page max>B:<count>"; all buckets are
-     * printed, including empty ones, so the layout is unambiguous to a downstream parser.
-     */
-    WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_buf_fmt(session, buf,
-      "%s: Size metrics: leaf pages=%" PRIu64 ", internal pages=%" PRIu64
-      ", overflow pages=%" PRIu64 ", leaf bytes=%" PRIu64 ", internal bytes=%" PRIu64
-      ", overflow bytes=%" PRIu64 ", key bytes=%" PRIu64 ", value bytes=%" PRIu64
-      ", key count=%" PRIu64 ", value count=%" PRIu64 ", leaf page-size histogram (uncompressed):",
-      session->dhandle->name, vs->leaf_cnt, vs->internal_cnt, vs->overflow_cnt, vs->leaf_mem,
-      vs->internal_mem, vs->overflow_mem, vs->key_bytes, vs->value_bytes, vs->key_count,
-      vs->value_count));
-    for (i = 0; i < WT_VRFY_HIST_BUCKETS - 1; ++i)
-        WT_ERR(__wt_buf_catfmt(session, buf, " %" WT_SIZET_FMT "-%" WT_SIZET_FMT "B:%" PRIu64,
-          (size_t)(i * bucket_width), (size_t)((i + 1) * bucket_width), vs->leaf_size_hist[i]));
-    WT_ERR(__wt_buf_catfmt(session, buf, " >=%" PRIu32 "B:%" PRIu64, btree->maxleafpage,
-      vs->leaf_size_hist[WT_VRFY_HIST_BUCKETS - 1]));
-
-    WT_ERR(__wt_msg(session, "%s", (const char *)buf->data));
-
-err:
-    __wt_scr_free(session, &buf);
-    return (ret);
 }
 
 /*
@@ -654,13 +584,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         /* Display the tree shape. */
         if (vs->dump_layout)
             WT_ERR(__dump_layout(session, vs));
-
-        /*
-         * The checkpoints are in time-order; report the size summary only for the most recent one,
-         * which reflects the current on-disk shape of the database.
-         */
-        if (vs->log_size && (ckpt + 1)->name == NULL)
-            WT_ERR(__dump_size(session, vs));
     }
 
 done:
@@ -704,13 +627,6 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
 
     /* Accumulated size of all blocks in the btree. */
     vs->total_block_size = 0;
-
-    /* Size metrics are accumulated per checkpoint. */
-    vs->leaf_cnt = vs->internal_cnt = vs->overflow_cnt = 0;
-    vs->leaf_mem = vs->internal_mem = vs->overflow_mem = 0;
-    vs->key_bytes = vs->value_bytes = 0;
-    vs->key_count = vs->value_count = 0;
-    memset(vs->leaf_size_hist, 0, sizeof(vs->leaf_size_hist));
 }
 
 /*
@@ -856,14 +772,6 @@ __stat_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uin
 }
 
 /*
- * Overflow item kinds, identifying what an overflow page's payload represents for the size summary.
- * Only leaf key/value payloads are user data; internal-page overflow keys are tree overhead.
- */
-#define WT_VRFY_OVFL_OVERHEAD 0
-#define WT_VRFY_OVFL_KEY 1
-#define WT_VRFY_OVFL_VALUE 2
-
-/*
  * __tree_stack --
  *     Format page tree stack.
  */
@@ -901,10 +809,7 @@ __verify_tree(
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
-    size_t hist_bucket;
     size_t my_stack_level, next_stack_level;
-    uint64_t page_mem;
-    uint32_t bucket_width;
     uint32_t entry;
 
     btree = S2BT(session);
@@ -1067,31 +972,6 @@ __verify_tree(
                 break;
             default:
                 break; /* Shouldn't even be here */
-            }
-        }
-
-        /*
-         * Accumulate page counts and sizes for the collection-level summary, measured from the
-         * on-disk page image (dsk->mem_size, the bytes the image occupies when instantiated).
-         */
-        if (vs->log_size) {
-            page_mem = page->dsk->mem_size;
-            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-                ++vs->internal_cnt;
-                vs->internal_mem += page_mem;
-            } else {
-                ++vs->leaf_cnt;
-                vs->leaf_mem += page_mem;
-                /*
-                 * Bucket the leaf by uncompressed size: equal-width slices of [0, leaf page max),
-                 * with the final bucket for pages at or above the configured maximum.
-                 */
-                bucket_width = btree->maxleafpage / (WT_VRFY_HIST_BUCKETS - 1);
-                if (bucket_width == 0)
-                    hist_bucket = 0;
-                else
-                    hist_bucket = (size_t)WT_MIN(page_mem / bucket_width, WT_VRFY_HIST_BUCKETS - 1);
-                ++vs->leaf_size_hist[hist_bucket];
             }
         }
     }
@@ -1392,8 +1272,7 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
  *     Read in an overflow page and check it.
  */
 static int
-__verify_overflow(
-  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, int kind, WT_VSTUFF *vs)
+__verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_VSTUFF *vs)
 {
     WT_BM *bm;
     const WT_PAGE_HEADER *dsk;
@@ -1414,27 +1293,6 @@ __verify_overflow(
     if (dsk->type != WT_PAGE_OVFL)
         WT_RET_MSG(session, WT_ERROR, "overflow referenced page at %s is not an overflow page",
           __wt_addr_string(session, addr, addr_size, vs->tmp1));
-
-    /*
-     * Count the overflow page against the totals.
-     *
-     * The payload (datalen) is the key or value data, counted against the same key/value byte
-     * totals as on-page items so downstream overhead stays correct. The overflow page header is
-     * counted as overhead. Ensure we also count the keys and values on the page.
-     */
-    if (vs->log_size) {
-        ++vs->overflow_cnt;
-        vs->overflow_mem += dsk->mem_size;
-        if (S2BT(session)->type == BTREE_ROW) {
-            if (kind == WT_VRFY_OVFL_KEY) {
-                vs->key_bytes += dsk->u.datalen;
-                ++vs->key_count;
-            } else if (kind == WT_VRFY_OVFL_VALUE) {
-                vs->value_bytes += dsk->u.datalen;
-                ++vs->value_count;
-            }
-        }
-    }
 
     WT_RET(bm->verify_addr(bm, session, addr, addr_size));
     return (0);
@@ -1594,8 +1452,7 @@ __verify_page_content_int(
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
-            if ((ret = __verify_overflow(
-                   session, unpack.data, unpack.size, WT_VRFY_OVFL_OVERHEAD, vs)) != 0)
+            if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
@@ -1672,33 +1529,13 @@ __verify_page_content_leaf(
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
             found_ovfl = true;
-            if ((ret = __verify_overflow(session, unpack.data, unpack.size,
-                   unpack.type == WT_CELL_KEY_OVFL ? WT_VRFY_OVFL_KEY : WT_VRFY_OVFL_VALUE, vs)) !=
-              0)
+            if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
                   __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
             break;
-        }
-
-        /*
-         * Accumulate leaf key and value bytes and counts for the size summary, piggybacking on this
-         * walk. Overflow pages are counted separately above.
-         *
-         * Keys are counted at their physical (on-page) length, prefix compression is deliberately
-         * not resolved, so for indexes this is the prefix-compressed figure, matching what occupies
-         * the page image.
-         */
-        if (vs->log_size && page->type == WT_PAGE_ROW_LEAF) {
-            if (unpack.type == WT_CELL_KEY) {
-                vs->key_bytes += unpack.size;
-                ++vs->key_count;
-            } else if (unpack.type == WT_CELL_VALUE) {
-                vs->value_bytes += unpack.size;
-                ++vs->value_count;
-            }
         }
 
         switch (unpack.type) {

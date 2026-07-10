@@ -1174,6 +1174,16 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (cval.val != 0)
         F_SET(cbt, WT_CBT_READ_ONCE);
 
+    /*
+     * Size-summary accounting accumulates into the data-source statistics as the cursor traverses
+     * the tree. Reset the counters here so each configured cursor reports its own traversal.
+     */
+    WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
+    if (cval.val != 0) {
+        F_SET(cbt, WT_CBT_SIZE_STAT);
+        __wt_size_stat_reset(session);
+    }
+
     /* Underlying btree initialization. */
     __wt_btcur_open(cbt);
 

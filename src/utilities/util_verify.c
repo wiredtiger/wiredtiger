@@ -19,9 +19,6 @@ usage(void)
       "continue to the next page after encountering error during verification", "-d config",
       "display underlying information during verification", "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
-      "-l",
-      "report a database-level size summary (user data versus overhead, page fullness); row-store "
-      "only",
       "-k",
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
       "-u",
@@ -29,7 +26,7 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "verify [-acklSstu] [-d dump_address | dump_blocks | dump_layout | dump_tree_shape | "
+      "verify [-ackSstu] [-d dump_address | dump_blocks | dump_layout | dump_tree_shape | "
       "dump_offsets=#,# "
       "| dump_pages] [uri]",
       "options:", options);
@@ -81,13 +78,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &config));
 
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:klSstu?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
-            break;
-        case 'l':
-            WT_ERR(__wt_buf_catfmt(session_impl, config, "log_size,"));
             break;
         case 'c':
             WT_ERR(__wt_buf_catfmt(session_impl, config, "read_corrupt,"));

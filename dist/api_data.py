@@ -1795,6 +1795,12 @@ methods = {
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
+        Config('size_stats', 'false', r'''
+            Accumulate a per-b-tree size summary (page counts and bytes by page type, key and value
+            bytes and counts, and a leaf page-size histogram) into the data-source statistics as the
+            cursor traverses the tree. Row-store only. Intended for size analytics; read the results
+            with a statistics cursor''',
+            type='boolean', undoc=True),
         ]),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex" selects a simple hexadecimal
@@ -1963,9 +1969,6 @@ methods = {
     Config('dump_pages', 'false', r'''
         Display the contents of in-memory pages as they are verified, using the application's
         message handler, intended for debugging''',
-        type='boolean'),
-    Config('log_size', 'false', r'''
-        Report a b-tree size summary for analytics''',
         type='boolean'),
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It
