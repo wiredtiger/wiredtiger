@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "schema_disagg_leader_abort.h"
+#include "schema_disagg_abort.h"
 
 /*
  * Disaggregated schema epoch crash recovery test.

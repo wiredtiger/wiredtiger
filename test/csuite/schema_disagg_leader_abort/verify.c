@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "schema_disagg_leader_abort.h"
+#include "schema_disagg_abort.h"
 
 /* The last durable create or drop recorded for one URI slot. */
 typedef struct {
