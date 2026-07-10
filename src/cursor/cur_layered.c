@@ -2476,8 +2476,8 @@ __clayered_cell_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *     Check a constituent for a write conflict on the key.
  */
 static int
-__clayered_constituent_check(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, WT_CURSOR *c,
-  const WT_ITEM *key, bool trust_position)
+__clayered_constituent_check(
+  WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, WT_CURSOR *c, const WT_ITEM *key)
 {
     if (c == NULL)
         return (0);
@@ -2485,16 +2485,7 @@ __clayered_constituent_check(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *claye
     WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)c;
     WT_DECL_RET;
 
-    /*
-     * Trust the held position when the caller guarantees the current cursor was just seated on the
-     * key (base-value lookup in modify), or when the layered cursor is itself positioned. Absent
-     * both, the current cursor may be left on a different key by a prior op, so search instead.
-     *
-     * FIXME-WT-17962: Move the conflict detection check before the lookup in layered modify, making
-     * it consistent with other operations and removing the need for the trust_position flag.
-     */
-    if (clayered->current_cursor == c &&
-      (trust_position || F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT))) {
+    if (clayered->current_cursor == c && F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT)) {
         /* Positioned on the key: check the held cell and keep the position. */
         WT_WITH_DHANDLE(session, cbt->dhandle, ret = __clayered_cell_check(session, cbt));
     } else {
@@ -2520,8 +2511,7 @@ __clayered_constituent_check(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *claye
  *     transaction in either constituent.
  */
 static int
-__clayered_modify_check(
-  WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool trust_position)
+__clayered_modify_check(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, const WT_ITEM *key)
 {
     /* No read timestamp means every update is visible; nothing to probe. */
     if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
@@ -2539,10 +2529,8 @@ __clayered_modify_check(
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     /* Probe the ingest and stable tables. */
-    WT_RET(__clayered_constituent_check(
-      session, clayered, clayered->ingest_cursor, key, trust_position));
-    WT_RET(__clayered_constituent_check(
-      session, clayered, clayered->stable_cursor, key, trust_position));
+    WT_RET(__clayered_constituent_check(session, clayered, clayered->ingest_cursor, key));
+    WT_RET(__clayered_constituent_check(session, clayered, clayered->stable_cursor, key));
 
     return (0);
 }
@@ -2562,7 +2550,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
 
     WT_CLEAR(value);
 
-    WT_RET(__clayered_modify_check(session, clayered, key, false));
+    WT_RET(__clayered_modify_check(session, clayered, key));
 
     /* The cached value can be stale once VALUE_INT is cleared (localized at a txn boundary). */
     bool hold_value =
@@ -2728,7 +2716,7 @@ __clayered_insert(WT_CURSOR *cursor)
         }
     }
 
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key, false));
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     /* FIXME-WT-17933: on the leader this encodes into the stable table. */
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
@@ -2797,7 +2785,7 @@ __clayered_update(WT_CURSOR *cursor)
                                              WTI_CLAYERED_MODE_WRITE,
       &op));
 
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key, false));
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     if (__clayered_needs_pre_lookup(&op)) {
         WT_ERR(__clayered_lookup(&op, &value));
@@ -2922,7 +2910,7 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_WRITE, &op));
 
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key, false));
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     /*
      * WT_CURSOR.reserve is update-without-overwrite so we should check whether the key exists. With
@@ -3236,14 +3224,27 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     WT_CLEAR(value);
 
-    /* Modify requires a visible base value; a missing value returns WT_NOTFOUND. */
+    /*
+     * Modify requires a visible base value: search before the conflict check so a missing value
+     * returns WT_NOTFOUND.
+     */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
       !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
 
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key, true));
+    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
+
+    /*
+     * The conflict check probes by searching, which resets the constituent cursors. When the base
+     * value lives in the ingest table, re-seat that position: the branch below reads its value and
+     * applies the modify against it.
+     */
+    if (clayered->current_cursor == c_ingest && !F_ISSET(c_ingest, WT_CURSTD_KEY_INT)) {
+        c_ingest->set_key(c_ingest, &cursor->key);
+        WT_ERR(c_ingest->search(c_ingest));
+    }
 
     if (clayered->current_cursor != c_ingest) {
         /*
