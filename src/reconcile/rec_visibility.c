@@ -384,7 +384,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
     btree = S2BT(session);
 
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    if (__wt_btree_stays_in_memory(btree))
         return (false);
     /*
      * We need to save the update chain to check whether the reconciliation makes progress for
@@ -1509,8 +1509,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             return (0);
     }
 
-    if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
-        /* Never write prepared updates for in-memory btrees. */
+    if (__wt_btree_stays_in_memory(S2BT(session))) {
+        /* Never write prepared updates for in-memory btrees, or those awaiting publication. */
         write_prepare = false;
         WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
           &has_newer_updates, &upd_memsize));

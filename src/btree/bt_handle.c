@@ -618,22 +618,27 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * Check if we expect the btree to be published in the future, which happens if (1) the btree is
      * newly created, (2) it is disaggregated, and (3) the disaggregated stable schema epoch is set.
      * Ignore the "system" tables, such as the shared history store and the shared metadata table.
+     *
+     * If we use schema epochs in disaggregated storage, the btree starts in memory, so that we
+     * cannot write any pages until the table is published - not even an empty root page.
      */
     awaits_publish = ckpt->raw.size == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
       !WT_IS_URI_HS(btree->dhandle->name) &&
       strcmp(btree->dhandle->name, WT_DISAGG_METADATA_URI) != 0 &&
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
 
+    if (awaits_publish)
+        F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    else
+        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+
     /*
      * This option allows the tree to be reconciled by eviction. But we only replace the disk image
      * in memory to reduce the memory footprint and nothing is written to disk and no data is moved
      * to the history store. Checkpoint will also skip this tree.
-     *
-     * If we use schema epochs in disaggregated storage, the btree starts in memory, so that we
-     * cannot write any pages until the table is published - not even an empty root page.
      */
     WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
-    if (cval.val || F_ISSET(conn, WT_CONN_IN_MEMORY) || awaits_publish)
+    if (cval.val || F_ISSET(conn, WT_CONN_IN_MEMORY))
         F_SET(btree, WT_BTREE_IN_MEMORY);
     else
         F_CLR(btree, WT_BTREE_IN_MEMORY);
