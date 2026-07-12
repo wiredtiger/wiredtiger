@@ -50,14 +50,8 @@
 #define SCHEMA_TABLE_FMT "table:schema_%u_%u"
 #define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "schema-%" PRIu32
 
-/*
- * Connection config for the workload. Logging is enabled here for normal operation but is not used
- * during recovery: disaggregated recovery reconstructs state from the page log, not the local WAL.
- */
-#define ENV_CONFIG_DEF                                                                             \
-    "create,"                                                                                      \
-    "log=(enabled,file_max=10M,remove=false),statistics=(all),statistics_log=(json,on_close,wait=" \
-    "1)"
+/* Connection config. */
+#define ENV_CONFIG_DEF "create,statistics=(all),statistics_log=(json,on_close,wait=1)"
 
 /* Test-wide configuration passed from parent to child and to the verifier. */
 typedef struct {

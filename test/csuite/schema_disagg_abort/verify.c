@@ -178,7 +178,7 @@ verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg)
     (void)sscanf(ts_buf, "%" SCNx64, &durable_epoch);
     printf("Schema verify: last_disaggregated_schema_epoch = %" PRIu64 "\n", durable_epoch);
     if (durable_epoch == 0)
-        testutil_die(EINVAL, "no schema epoch checkpointed; workload sentinel was set too early");
+        testutil_die(EINVAL, "last_disaggregated_schema_epoch is 0 after recovery");
 
     last_ckpt_ts = 0;
     (void)conn->query_timestamp(conn, ts_buf, "get=last_checkpoint");
