@@ -799,7 +799,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
           session_txnid != WT_TXN_NONE && txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
-            WT_ASSERT(session, !upd_select->skip_prepare_rollback);
+            WT_ASSERT(session, upd_select->prepare_rollback_upd == NULL);
             continue;
         }
         /*
@@ -832,8 +832,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
 
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
-            if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
-                upd_select->skip_prepare_rollback = true;
+            if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE &&
+              upd_select->prepare_rollback_upd == NULL)
+                upd_select->prepare_rollback_upd = upd;
             continue;
         }
 
@@ -860,8 +861,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
-                    if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE)
-                        upd_select->skip_prepare_rollback = true;
+                    if (upd->txnid == WT_TXN_ABORTED && upd->type != WT_UPDATE_TOMBSTONE &&
+                      upd_select->prepare_rollback_upd == NULL)
+                        upd_select->prepare_rollback_upd = upd;
                     continue;
                 }
 
@@ -1479,7 +1481,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
  */
 static int
 __rec_append_orig_value_if_needed(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
-  WT_UPDATE *first_upd, WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
+  WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
 {
     /*
      * There is no on-page value to preserve, or the on-page value is itself a prepared update: a
@@ -1493,8 +1495,9 @@ __rec_append_orig_value_if_needed(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
      * If we skipped an unresolved aborted prepared update and selected nothing, the on-page value
      * is its only rollback fallback: this reconciliation may drop the on-page cell (or a later one
      * may free its backing overflow blocks), so the fallback must move to the update chain where it
-     * survives the page image being rewritten. Walk the chain from its head and force the append
-     * even though the on-page value's stop may be globally visible.
+     * survives the page image being rewritten. Anchor the walk on the skipped prepared update
+     * itself rather than the chain head, which a concurrent writer may be prepending to, and force
+     * the append even though the on-page value's stop may be globally visible.
      *
      * Gate this on WT_REC_HS: prepared updates only reach the disk image on timestamped tables
      * backed by the history store, so an in-memory database or a non-timestamped table never needs
@@ -1502,8 +1505,9 @@ __rec_append_orig_value_if_needed(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
      */
     if (upd_select->upd == NULL) {
         if (F_ISSET(r, WT_REC_HS) && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-          upd_select->skip_prepare_rollback)
-            return (__rec_append_orig_value(session, page, first_upd, vpack, true));
+          upd_select->prepare_rollback_upd != NULL)
+            return (__rec_append_orig_value(
+              session, page, upd_select->prepare_rollback_upd, vpack, true));
         return (0);
     }
 
@@ -1707,7 +1711,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
           WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)),
       "Updated selected that has since been rolled back");
 
-    WT_RET(__rec_append_orig_value_if_needed(session, r, page, first_upd, vpack, upd_select));
+    WT_RET(__rec_append_orig_value_if_needed(session, r, page, vpack, upd_select));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
