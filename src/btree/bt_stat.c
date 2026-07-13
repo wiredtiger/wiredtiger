@@ -25,6 +25,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_BTREE *btree;
     WT_DSRC_STATS **stats;
     uint64_t avg_internal_chain, avg_leaf_chain;
+    bool stale;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -70,8 +71,8 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
       __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma));
     WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages,
       __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages));
-    WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages_accurate,
-      __wt_atomic_load_bool_relaxed(&btree->approx_leaf_pages_accurate));
+    stale = __wt_atomic_load_bool_relaxed(&btree->approx_leaf_pages_stale);
+    WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages_stale, stale);
 
     if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
         __wt_evict_cache_stat_walk(session);
@@ -135,8 +136,8 @@ err:
         uint64_t exact = (uint64_t)WT_STAT_DSRC_READ(stats, btree_row_leaf);
         __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, exact);
         WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages, exact);
-        __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_accurate, true);
-        WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages_accurate, true);
+        __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_stale, false);
+        WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages_stale, false);
         if (exact > 0) {
             uint64_t exact_avg = (uint64_t)WT_STAT_DSRC_READ(stats, btree_entries) / exact;
             __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, exact_avg);

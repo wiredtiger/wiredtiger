@@ -270,12 +270,16 @@ struct __wt_btree {
     wt_shared uint64_t approx_leaf_pages;
 
     /*
-     * Whether approx_leaf_pages is trustworthy: true for a tree that started empty (so the count is
-     * exact by construction) or that has had a WT_STAT_TYPE_TREE_WALK correction since; false for a
-     * table that predates this tracking and has never been corrected, where approx_leaf_pages is
-     * just a leftover zero.
+     * Whether approx_leaf_pages still needs a corrective WT_STAT_TYPE_TREE_WALK: false for a tree
+     * that started empty (so the count is exact by construction) or that has had such a correction
+     * since; true for a table that predates this tracking and has never been corrected, where
+     * approx_leaf_pages is just a leftover zero.
+     *
+     * Modeled as "stale" rather than "accurate" so that summing this field across the constituents
+     * of a layered table still means something: the combined value is nonzero (stale) unless every
+     * constituent is individually accurate.
      */
-    wt_shared bool approx_leaf_pages_accurate;
+    wt_shared bool approx_leaf_pages_stale;
 
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 

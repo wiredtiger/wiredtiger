@@ -9225,10 +9225,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_BTREE_ROW_INTERNAL			2048
 /*!
- * btree: row-store leaf page count is accurate (not stale from before
- * this stat was tracked)
+ * btree: row-store leaf page count is stale (predates this stat or
+ * awaits a tree-walk correction)
  */
-#define	WT_STAT_DSRC_BTREE_ROW_LEAF_PAGES_ACCURATE	2049
+#define	WT_STAT_DSRC_BTREE_ROW_LEAF_PAGES_STALE		2049
 /*! btree: row-store leaf page recent average entries (EWMA) */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF_AVG_ENTRIES		2050
 /*!

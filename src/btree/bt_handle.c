@@ -265,7 +265,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * regardless of what the (nonexistent) checkpoint metadata said.
      */
     if (creation)
-        __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_accurate, true);
+        __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_stale, false);
 
     /* Connect to the underlying block manager. */
     WT_ERR(__wt_blkcache_open(session, dhandle_name, dhandle->cfg, forced_salvage, false,
@@ -840,8 +840,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, ckpt->leaf_entry_ewma);
     __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, ckpt->approx_leaf_pages);
-    __wt_atomic_store_bool_relaxed(
-      &btree->approx_leaf_pages_accurate, ckpt->approx_leaf_pages_accurate);
+    __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_stale, ckpt->approx_leaf_pages_stale);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're

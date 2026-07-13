@@ -1099,13 +1099,13 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
         ckpt->approx_leaf_pages = (uint64_t)a.val;
 
     /*
-     * The accuracy flag postdates approx_leaf_pages itself. Metadata written before this flag
+     * The staleness flag postdates approx_leaf_pages itself. Metadata written before this flag
      * existed cannot tell us whether the counter was ever corrected by a tree walk, so treat it as
      * stale until proven otherwise.
      */
-    ret = __wt_config_subgets(session, v, "approx_leaf_pages_accurate", &a);
+    ret = __wt_config_subgets(session, v, "approx_leaf_pages_stale", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->approx_leaf_pages_accurate = ret != WT_NOTFOUND && a.len != 0 && a.val != 0;
+    ckpt->approx_leaf_pages_stale = ret == WT_NOTFOUND || a.len == 0 || a.val != 0;
 
     return (0);
 }
@@ -1238,15 +1238,14 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
           ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
           ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64
-          ",leaf_entry_ewma=%" PRId64 ",approx_leaf_pages=%" PRId64
-          ",approx_leaf_pages_accurate=%d)",
+          ",leaf_entry_ewma=%" PRId64 ",approx_leaf_pages=%" PRId64 ",approx_leaf_pages_stale=%d)",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
           (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id, (int64_t)ckpt->leaf_entry_ewma,
-          (int64_t)ckpt->approx_leaf_pages, (int)ckpt->approx_leaf_pages_accurate));
+          (int64_t)ckpt->approx_leaf_pages, (int)ckpt->approx_leaf_pages_stale));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 
@@ -1406,8 +1405,8 @@ __wt_meta_ckptlist_set(
             ckpt->next_page_id = btree->next_page_id;
             ckpt->leaf_entry_ewma = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
             ckpt->approx_leaf_pages = __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages);
-            ckpt->approx_leaf_pages_accurate =
-              __wt_atomic_load_bool_relaxed(&btree->approx_leaf_pages_accurate);
+            ckpt->approx_leaf_pages_stale =
+              __wt_atomic_load_bool_relaxed(&btree->approx_leaf_pages_stale);
             /*
              * For disaggregated storage, save the total bytes to the checkpoint size field. Track
              * the delta between this checkpoint and the previous one, this delta will be applied to

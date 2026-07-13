@@ -32,11 +32,11 @@ from wiredtiger import stat
 
 # test_stat17.py
 #   Tests for btree_row_leaf_avg_entries, btree_row_leaf_pages, and
-#   btree_row_leaf_pages_accurate.
+#   btree_row_leaf_pages_stale.
 #
-#   btree_row_leaf_avg_entries:        EWMA of K/V pairs per row-store leaf page.
-#   btree_row_leaf_pages:               incremental approximate leaf page count.
-#   btree_row_leaf_pages_accurate:      whether btree_row_leaf_pages can be trusted.
+#   btree_row_leaf_avg_entries:  EWMA of K/V pairs per row-store leaf page.
+#   btree_row_leaf_pages:        incremental approximate leaf page count.
+#   btree_row_leaf_pages_stale:  whether btree_row_leaf_pages can NOT yet be trusted.
 #
 #   Both leaf-page stats are available without WT_STAT_TYPE_TREE_WALK.
 #
@@ -52,11 +52,14 @@ from wiredtiger import stat
 #   All three values are persisted through checkpoint metadata and survive a
 #   server restart.
 #
-#   A table created after this stat was added always has an accurate count
-#   (it starts empty, which is exact). A table checkpointed before this
-#   tracking existed has no way to tell "empty" apart from "never corrected";
-#   btree_row_leaf_pages_accurate lets a caller distinguish the two by
-#   reading false until a WT_STAT_TYPE_TREE_WALK stats cursor corrects it.
+#   A table created after this stat was added is never stale (it starts
+#   empty, which is exact). A table checkpointed before this tracking
+#   existed has no way to tell "empty" apart from "never corrected";
+#   btree_row_leaf_pages_stale lets a caller distinguish the two by reading
+#   nonzero until a WT_STAT_TYPE_TREE_WALK stats cursor corrects it. It is
+#   modeled as "stale" rather than "accurate" so that summing it across the
+#   constituents of a layered table stays meaningful: the combined value is
+#   zero only if every constituent is individually accurate.
 class test_stat17(wttest.WiredTigerTestCase):
     uri = 'table:test_stat17'
 
@@ -205,24 +208,24 @@ class test_stat17(wttest.WiredTigerTestCase):
             'btree_row_leaf_pages must be at least as large after restart')
 
     # A table created after this stat was added starts empty, which is an
-    # exact count, so it's accurate from the very first checkpoint even
+    # exact count, so it's never stale from the very first checkpoint even
     # without a tree walk.
-    def test_accurate_for_new_table(self):
+    def test_not_stale_for_new_table(self):
         self.session.create(self.uri, self.create_params)
         self._insert(self.nrows)
         self.session.checkpoint()
 
-        accurate = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_accurate)
-        self.assertEqual(accurate, 1,
-            'a table created after this stat exists should always be accurate')
+        stale = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale)
+        self.assertEqual(stale, 0,
+            'a table created after this stat exists should never be stale')
 
         self.reopen_conn()
-        accurate = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_accurate)
-        self.assertEqual(accurate, 1,
-            'accuracy must survive checkpoint/restart for a table created with this stat')
+        stale = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale)
+        self.assertEqual(stale, 0,
+            'staleness must survive checkpoint/restart for a table created with this stat')
 
     # Simulate a table checkpointed before this stat existed: strip
-    # approx_leaf_pages_accurate (and zero approx_leaf_pages) from the
+    # approx_leaf_pages_stale (and zero approx_leaf_pages) from the
     # underlying file's metadata, the way metadata written by a version of
     # WT that predates this tracking would look.
     def _simulate_legacy_metadata(self, fileuri):
@@ -230,7 +233,7 @@ class test_stat17(wttest.WiredTigerTestCase):
         mc.set_key(fileuri)
         mc.search()
         config = mc.get_value()
-        config = re.sub(r'approx_leaf_pages_accurate=\d+', 'approx_leaf_pages_accurate=0', config)
+        config = re.sub(r'approx_leaf_pages_stale=\d+', 'approx_leaf_pages_stale=1', config)
         config = re.sub(r'approx_leaf_pages=\d+', 'approx_leaf_pages=0', config)
         mc.set_key(fileuri)
         mc.set_value(config)
@@ -247,9 +250,9 @@ class test_stat17(wttest.WiredTigerTestCase):
         self.open_conn()
 
     # A table whose metadata predates this stat (simulated here) must read
-    # as inaccurate, even though btree_row_leaf_pages itself reads 0 - the
-    # same 0 a genuinely empty table would report.
-    def test_inaccurate_for_legacy_table(self):
+    # as stale, even though btree_row_leaf_pages itself reads 0 - the same 0
+    # a genuinely empty table would report.
+    def test_stale_for_legacy_table(self):
         fileuri = 'file:' + self.uri.split(':')[1] + '.wt'
 
         self.session.create(self.uri, self.create_params)
@@ -258,16 +261,16 @@ class test_stat17(wttest.WiredTigerTestCase):
         self._simulate_legacy_metadata(fileuri)
         self._reopen_conn_no_checkpoint()
 
-        accurate = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_accurate)
+        stale = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale)
         pages = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages)
-        self.assertEqual(accurate, 0,
-            'table with metadata predating this stat should read as inaccurate')
+        self.assertNotEqual(stale, 0,
+            'table with metadata predating this stat should read as stale')
         self.assertEqual(pages, 0,
             'the simulated legacy counter should read 0, same as a genuinely empty table')
 
     # Once a tree walk corrects a legacy table's counter and a subsequent
-    # write dirties the tree so the correction is checkpointed, the accurate
-    # flag flips true and stays true across a restart.
+    # write dirties the tree so the correction is checkpointed, the stale
+    # flag clears and stays clear across a restart.
     def test_legacy_table_corrected_by_tree_walk(self):
         fileuri = 'file:' + self.uri.split(':')[1] + '.wt'
 
@@ -277,7 +280,7 @@ class test_stat17(wttest.WiredTigerTestCase):
         self._simulate_legacy_metadata(fileuri)
         self._reopen_conn_no_checkpoint()
 
-        self.assertEqual(self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_accurate), 0)
+        self.assertNotEqual(self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale), 0)
 
         # The tree-walk correction only updates in-memory state; it needs a
         # subsequent write to dirty the tree so the next checkpoint actually
@@ -291,9 +294,9 @@ class test_stat17(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self._reopen_conn_no_checkpoint()
-        accurate = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_accurate)
+        stale = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale)
         pages = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages)
-        self.assertEqual(accurate, 1,
-            'accuracy must flip true once a tree walk has corrected the counter and it is checkpointed')
+        self.assertEqual(stale, 0,
+            'staleness must clear once a tree walk has corrected the counter and it is checkpointed')
         self.assertEqual(pages, exact_pages,
             'corrected count must survive the restart')
