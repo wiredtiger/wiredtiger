@@ -52,11 +52,13 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-b build-dir] [-h dir] [-s pool] [-T threads] [-t time] [-p] [-v]\n", progname);
+      "usage: %s [-b build-dir] [-h dir] [-p] [-P seed] [-s pool] [-T threads] [-t time] [-v]\n",
+      progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
       "\t-h home directory\n"
       "\t-p preserve directory contents\n"
+      "\t-P tiered storage options\n"
       "\t-s URI pool size per thread\n"
       "\t-T number of schema threads\n"
       "\t-t timeout in seconds\n"

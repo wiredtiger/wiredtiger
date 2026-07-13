@@ -256,10 +256,6 @@ thread_ckpt_run(void *arg)
         __wt_sleep(sleep_time, 0);
 
         testutil_assert(pthread_rwlock_wrlock(&td->state->lock) == 0);
-        /*
-         * Latch whether any schema ops were published before this checkpoint so the sentinel gate
-         * reflects what this checkpoint actually captured, not a later value of schema_op_epoch.
-         */
         epoch_checkpointed = td->state->schema_op_epoch > 0;
         if (epoch_checkpointed) {
             testutil_snprintf(ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64,
