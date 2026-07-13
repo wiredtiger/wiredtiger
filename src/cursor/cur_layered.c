@@ -3221,33 +3221,28 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
+    int modify_check_ret;
 
     WT_CLEAR(value);
 
     /*
-     * Modify requires a visible base value: search before the conflict check so a missing value
-     * returns WT_NOTFOUND.
+     * FIXME-WT-17962: In ASC, the cursor modify logic differs from insert() and update(): it first
+     * checks whether the entry exists and only then checks for invisible updates, so a missing base
+     * value returns WT_NOTFOUND ahead of any WT_ROLLBACK. For now, layered cursors should follow
+     * the same behavior. However, we still need to call lookup after the modify check, since the
+     * modify check may unposition the internal cursors.
      */
+    modify_check_ret = __clayered_modify_check(session, clayered, &cursor->key);
+    if (modify_check_ret != 0 && modify_check_ret != WT_ROLLBACK)
+        WT_ERR(modify_check_ret);
+
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
       !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
 
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
-
-    /*
-     * The modify conflict check probes by searching, which resets the constituent cursors. When the
-     * base value lives in the ingest table, re-seat that position: the branch below reads its value
-     * and applies the modify against it.
-     *
-     * FIXME-WT-17962: Move the conflict check before the lookup, making it consistent with other
-     * operations and removing the need for an additional search.
-     */
-    if (clayered->current_cursor == c_ingest && !F_ISSET(c_ingest, WT_CURSTD_KEY_INT)) {
-        c_ingest->set_key(c_ingest, &cursor->key);
-        WT_ERR(c_ingest->search(c_ingest));
-    }
+    WT_ERR(modify_check_ret);
 
     if (clayered->current_cursor != c_ingest) {
         /*
