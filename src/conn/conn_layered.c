@@ -1227,6 +1227,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      * Update the strict checkpoint metadata mode before any checkpoint pickup below, so that a
      * single reconfigure call carrying both settings applies the mode to its own pickup. The
      * setting is sticky: leave it unchanged when the configuration does not mention it.
+     *
+     * Expected lifecycle: open with the mode off, because a clean-startup pickup populates an empty
+     * node from the checkpoint and the metadata queue explains none of those differences. Enable it
+     * via reconfigure once every table create and drop reaches this node through replicated
+     * operations and publish() rather than through pickup; it then stays on across
+     * checkpoint_meta-only reconfigures. Disable it the same way for the rare window where a node
+     * must install checkpoints while knowingly inconsistent, such as after stepping down with
+     * pending unpublished drops.
      */
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets(session, cfg, "disaggregated.strict_checkpoint_metadata", &cval), true);

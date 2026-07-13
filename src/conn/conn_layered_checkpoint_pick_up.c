@@ -711,6 +711,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     metadata_checkpoint_name = NULL;
     existing_tables = new_tables = new_ingest = 0;
+
+    /*
+     * Strict mode enforces that any layered table present in only one of the local and shared
+     * metadata is explained by a queued CREATE or REMOVE with a schema epoch greater than the
+     * checkpoint's; an unexplained difference is corruption and fatal. Non-layered entries keep the
+     * legacy behavior, as the publish flow does not exist for them.
+     */
     strict = S2C(session)->disaggregated_storage.strict_checkpoint_metadata;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);

@@ -497,7 +497,10 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 done:
     /*
      * Third, merge everything together, creating a new connection state. Exclude any configuration
-     * parameters that should not be preserved across calls to reconfigure.
+     * parameters that should not be preserved across calls to reconfigure. The strict checkpoint
+     * metadata flag is sticky, but it is excluded as well: the in-memory flag is the single source
+     * of truth, and preserving the value here would let a later reconfigure silently re-apply a
+     * stale setting after a reconfigure that failed midway.
      */
     WT_ERR(__wt_config_merge(session, cfg,
       "disaggregated=(checkpoint_meta=,last_materialized_lsn=,strict_checkpoint_metadata=)", &p));
