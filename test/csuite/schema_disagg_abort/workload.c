@@ -234,7 +234,7 @@ thread_ckpt_run(void *arg)
     char ts_cfg[64];
     uint64_t diff_sec, sleep_time;
     int i;
-    bool created_ready;
+    bool created_ready, epoch_checkpointed;
 
     td = (THREAD_DATA *)arg;
     (void)unlink(READY_FILE);
@@ -256,7 +256,12 @@ thread_ckpt_run(void *arg)
         __wt_sleep(sleep_time, 0);
 
         testutil_assert(pthread_rwlock_wrlock(&td->state->lock) == 0);
-        if (td->state->schema_op_epoch > 0) {
+        /*
+         * Latch whether any schema ops were published before this checkpoint so the sentinel gate
+         * reflects what this checkpoint actually captured, not a later value of schema_op_epoch.
+         */
+        epoch_checkpointed = td->state->schema_op_epoch > 0;
+        if (epoch_checkpointed) {
             testutil_snprintf(ts_cfg, sizeof(ts_cfg), "stable_disaggregated_schema_epoch=%" PRIx64,
               td->state->schema_op_epoch);
             testutil_check(td->conn->set_timestamp(td->conn, ts_cfg));
@@ -267,7 +272,7 @@ thread_ckpt_run(void *arg)
         printf("Checkpoint %d complete\n", i);
         fflush(stdout);
 
-        if (!created_ready && td->state->schema_op_epoch > 0) {
+        if (!created_ready && epoch_checkpointed) {
             testutil_sentinel(NULL, READY_FILE);
             created_ready = true;
         }
