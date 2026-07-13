@@ -295,6 +295,12 @@ struct __wt_disaggregated_storage {
       last_checkpoint_schema_epoch; /* The schema epoch of the last checkpoint. */
 
     /*
+     * Whether checkpoint pickup validates that the local and shared metadata contain equivalent
+     * sets of layered tables. Sticky: changed only by a configuration that mentions it.
+     */
+    bool strict_checkpoint_metadata;
+
+    /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
      * track back links between the subsequent versions of the metadata pages. Protected by the
      * checkpoint lock.

@@ -499,8 +499,8 @@ done:
      * Third, merge everything together, creating a new connection state. Exclude any configuration
      * parameters that should not be preserved across calls to reconfigure.
      */
-    WT_ERR(__wt_config_merge(
-      session, cfg, "disaggregated=(checkpoint_meta=,last_materialized_lsn=)", &p));
+    WT_ERR(__wt_config_merge(session, cfg,
+      "disaggregated=(checkpoint_meta=,last_materialized_lsn=,strict_checkpoint_metadata=)", &p));
     __wt_free(session, conn->cfg);
     conn->cfg = p;
 

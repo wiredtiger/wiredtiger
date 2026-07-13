@@ -155,6 +155,13 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
+    Config('strict_checkpoint_metadata', '', r'''
+        enable or disable strict validation of the equivalence of local and shared metadata
+        during checkpoint pickup. When enabled, a layered table present in only one of the two
+        metadata tables and not explained by a pending metadata update with a schema epoch
+        greater than the picked-up checkpoint's schema epoch causes a panic. The setting is
+        sticky: it is only changed by a configuration string that mentions it explicitly''',
+        choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
