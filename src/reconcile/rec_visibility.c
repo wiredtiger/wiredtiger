@@ -1495,9 +1495,14 @@ __rec_append_orig_value_if_needed(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
      * may free its backing overflow blocks), so the fallback must move to the update chain where it
      * survives the page image being rewritten. Walk the chain from its head and force the append
      * even though the on-page value's stop may be globally visible.
+     *
+     * Gate this on WT_REC_HS: prepared updates only reach the disk image on timestamped tables
+     * backed by the history store, so an in-memory database or a non-timestamped table never needs
+     * this fallback.
      */
     if (upd_select->upd == NULL) {
-        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && upd_select->skip_prepare_rollback)
+        if (F_ISSET(r, WT_REC_HS) && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+          upd_select->skip_prepare_rollback)
             return (__rec_append_orig_value(session, page, first_upd, vpack, true));
         return (0);
     }
