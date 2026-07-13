@@ -104,9 +104,6 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         if expect_json:
             verbose_config += ",json_output=[message]"
         conn = self.wiredtiger_open(self.home, verbose_config)
-        # If the body raises (e.g. an operation is skipped under a hook), we must still close the
-        # connection and drain the captured verbose output, otherwise it leaks into the stdout check
-        # at teardown.
         try:
             # Yield the connection resource to the execution context, allowing it to perform any
             # necessary operations on the connection (for generating the expected verbose output).
