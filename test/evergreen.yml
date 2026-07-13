@@ -3836,6 +3836,18 @@ tasks:
             cd dist
             bash -x s_all -E 2>&1
 
+  - name: s-outdated-fixmes
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/dist"
+          shell: bash
+          include_expansions_in_env:
+            - jira_api_token
+          script: |
+            JIRA_API_TOKEN="$jira_api_token" ${python_binary|python3} s_outdated_fixmes.py --label-outdated 2>&1
+
   - name: conf-dump-test
     tags: ["pull_request", "python"]
     depends_on:

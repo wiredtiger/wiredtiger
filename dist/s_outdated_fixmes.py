@@ -29,7 +29,12 @@
 # Identify all FIXME comments in the codebase associated with a WT ticket and then confirm all of
 # these tickets are still open. If a closed ticket is found report the error.
 
-import glob, os, re, subprocess, sys
+import argparse, datetime, glob, json, os, re, subprocess, sys, urllib.request
+
+# Grace period: tickets closed as Done/Fixed on a feature branch need time to
+# merge back to the develop branch before their FIXMEs are flagged as outdated.
+GRACE_PERIOD_DAYS = 90
+GRACE_PERIOD_RESOLUTIONS = {"Done", "Fixed"}
 
 def all_files():
     """
@@ -68,22 +73,109 @@ def find_fixme_tickets():
             pass
     return fixme_tickets
 
+def query_jira_ticket(ticket):
+    """Query Jira for a ticket's resolution and resolution date."""
+
+    url = (
+        f"https://jira.mongodb.org/rest/api/2/issue/{ticket}"
+        f"?fields=resolution,resolutiondate"
+    )
+
+    try:
+        with urllib.request.urlopen(url) as response:
+            fields = json.loads(response.read()).get("fields", {})
+    except (urllib.error.URLError, json.JSONDecodeError):
+        fields = {}
+
+    resolution = fields.get("resolution") or {}
+    return resolution.get("name"), fields.get("resolutiondate")
+
+def is_outdated(resolution, resolution_date):
+    """Return True if a ticket's FIXME should be flagged as outdated."""
+
+    if resolution is None:
+        return False  # Ticket is not resolved.
+
+    if resolution not in GRACE_PERIOD_RESOLUTIONS:
+        return True  # Duplicate, Won't Fix, etc. are flagged immediately.
+
+    if resolution_date is None:
+        return True  # No resolution date info. Assume it's outdated.
+
+    # All other resolutions are flagged after a grace period.
+    date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+    iso_date = datetime.datetime.strptime(resolution_date, date_format)
+    days_since = (datetime.datetime.now(datetime.timezone.utc) - iso_date).days
+
+    return days_since >= GRACE_PERIOD_DAYS
+
+def label_ticket(ticket, token):
+    """Add the outdated-fixme label to a Jira ticket."""
+
+    url = f"https://jira.mongodb.org/rest/api/2/issue/{ticket}"
+
+    body = json.dumps(
+        {"update": {"labels": [{"add": "outdated-fixme"}]}}
+    ).encode()
+
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="PUT",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    urllib.request.urlopen(request)
+
+def parse_args():
+    """Return the parsed command line arguments."""
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--label-outdated",
+        action="store_true",
+        help="Add a 'outdated-fixme' label to each outdated ticket found.",
+    )
+
+    return parser.parse_args()
+
+def get_jira_token():
+    """Return the Jira token required for --label-outdated, or exit if it's unset."""
+
+    token_name = "JIRA_API_TOKEN"
+    token = os.environ.get(token_name)
+
+    if not token:
+        sys.exit(
+            f"--label-outdated requires the {token_name} environment variable to be set."
+        )
+
+    return token
+
 def main():
     """
     Query JIRA for all tickets with a FIXME in the codebase. If any of these tickets are closed
     report them all and return an error code.
     """
+    args = parse_args()
+    token = get_jira_token() if args.label_outdated else None
+
     closed_ticket_found=False
-    STATUS_CATEGORY_DONE='rest/api/2/statuscategory/3'
     for (ticket, file) in sorted(find_fixme_tickets()):
-        rest_query = \
-            f"curl -s -X GET https://jira.mongodb.org/rest/api/2/issue/{ticket}?fields=status"
-        query_result = subprocess.run(rest_query, shell=True, capture_output=True, text=True).stdout
-        if STATUS_CATEGORY_DONE in query_result:
+        query_result = query_jira_ticket(ticket)
+        if is_outdated(*query_result):
             print(f"{ticket} is a closed ticket that has a FIXME comment in {file}.")
             closed_ticket_found=True
+            if args.label_outdated:
+                label_ticket(ticket, token)
 
-    if closed_ticket_found:
+    # In labeling mode, only critical errors should fail the script, not the
+    # presence of outdated FIXMEs.
+    if closed_ticket_found and not args.label_outdated:
         sys.exit(1)
 
 if __name__ == '__main__':
