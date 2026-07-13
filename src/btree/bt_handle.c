@@ -623,8 +623,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * cannot write any pages until the table is published - not even an empty root page.
      */
     awaits_publish = ckpt->raw.size == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      !WT_IS_URI_HS(btree->dhandle->name) &&
-      strcmp(btree->dhandle->name, WT_DISAGG_METADATA_URI) != 0 &&
+      !WT_IS_URI_HS(btree->dhandle->name) && !WT_IS_URI_METADATA(btree->dhandle->name) &&
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
 
     if (awaits_publish)
