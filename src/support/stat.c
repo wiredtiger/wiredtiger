@@ -52,6 +52,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: overflow pages",
   "btree: row-store empty values",
   "btree: row-store internal pages",
+  "btree: row-store leaf page count is accurate (not stale from before this stat was tracked)",
   "btree: row-store leaf page recent average entries (EWMA)",
   "btree: row-store leaf pages",
   "btree: row-store leaf pages (approximate, incremental)",
@@ -537,6 +538,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_overflow = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
+    /* not clearing btree_row_leaf_pages_accurate */
     stats->btree_row_leaf_avg_entries = 0;
     stats->btree_row_leaf = 0;
     stats->btree_row_leaf_pages = 0;
@@ -976,6 +978,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_overflow += from->btree_overflow;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
+    to->btree_row_leaf_pages_accurate += from->btree_row_leaf_pages_accurate;
     to->btree_row_leaf_avg_entries += from->btree_row_leaf_avg_entries;
     to->btree_row_leaf += from->btree_row_leaf;
     to->btree_row_leaf_pages += from->btree_row_leaf_pages;
@@ -1447,6 +1450,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_overflow += WT_STAT_DSRC_READ(from, btree_overflow);
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
+    to->btree_row_leaf_pages_accurate += WT_STAT_DSRC_READ(from, btree_row_leaf_pages_accurate);
     to->btree_row_leaf_avg_entries += WT_STAT_DSRC_READ(from, btree_row_leaf_avg_entries);
     to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
     to->btree_row_leaf_pages += WT_STAT_DSRC_READ(from, btree_row_leaf_pages);

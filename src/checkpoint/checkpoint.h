@@ -138,9 +138,10 @@ struct __wt_ckpt {
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */
 
-    uint64_t next_page_id;      /* Next page ID available for allocation */
-    uint64_t leaf_entry_ewma;   /* Approximate avg entries per row-store leaf page */
-    uint64_t approx_leaf_pages; /* Approximate row-store leaf page count */
+    uint64_t next_page_id;           /* Next page ID available for allocation */
+    uint64_t leaf_entry_ewma;        /* Approximate avg entries per row-store leaf page */
+    uint64_t approx_leaf_pages;      /* Approximate row-store leaf page count */
+    bool approx_leaf_pages_accurate; /* Whether approx_leaf_pages has been corrected by a walk */
 
     void *bpriv; /* Block manager private */
 

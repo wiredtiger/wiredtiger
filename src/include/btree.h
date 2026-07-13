@@ -269,6 +269,14 @@ struct __wt_btree {
      */
     wt_shared uint64_t approx_leaf_pages;
 
+    /*
+     * Whether approx_leaf_pages is trustworthy: true for a tree that started empty (so the count is
+     * exact by construction) or that has had a WT_STAT_TYPE_TREE_WALK correction since; false for a
+     * table that predates this tracking and has never been corrected, where approx_leaf_pages is
+     * just a leftover zero.
+     */
+    wt_shared bool approx_leaf_pages_accurate;
+
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
     /*
