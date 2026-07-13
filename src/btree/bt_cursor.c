@@ -1246,46 +1246,6 @@ err:
 }
 
 /*
- * __cursor_modify_conflict_check --
- *     For a modify whose base value isn't visible, probe for a write conflict on the key so the
- *     conflict is reported (WT_ROLLBACK) rather than a missing value (WT_NOTFOUND). Handles both
- *     row and column store; the base-read search has reset the cursor, so this re-searches.
- */
-static int
-__cursor_modify_conflict_check(WT_CURSOR_BTREE *cbt)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    uint64_t sleep_usecs, yield_count;
-
-    cursor = &cbt->iface;
-    session = CUR2S(cbt);
-    yield_count = sleep_usecs = 0;
-
-    WT_ERR(__wt_cursor_localkey(cursor));
-    __cursor_novalue(cursor);
-
-retry:
-    WT_ERR(__wt_cursor_func_init(cbt, true));
-    WT_ERR(__cursor_search(cbt, NULL, NULL, true));
-    ret = __curfile_update_check(cbt);
-
-err:
-    if (ret == WT_RESTART) {
-        __cursor_restart(session, &yield_count, &sleep_usecs);
-        goto retry;
-    }
-
-    /* This check doesn't maintain a position across calls, clear resources. */
-    if (ret == 0)
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    WT_TRET(__cursor_reset(cbt));
-
-    return (ret);
-}
-
-/*
  * __wt_btcur_remove --
  *     Remove a record from the tree.
  */
@@ -1638,10 +1598,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t max_memsize, new, orig;
-    bool overwrite;
+    uint64_t sleep_usecs, yield_count;
+    bool overwrite, valid;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
+    yield_count = sleep_usecs = 0;
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
@@ -1671,18 +1633,18 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
-        ret = __wt_btcur_search(cbt);
-        /*
-         * If the base value isn't visible, probe for a write conflict before reporting a missing
-         * value, so the write-conflict check precedes the existence check: an update invisible to
-         * this transaction is reported as WT_ROLLBACK rather than WT_NOTFOUND. The base-read search
-         * resets the cursor on WT_NOTFOUND, so use a self-contained probe.
-         */
-        if (ret == WT_NOTFOUND) {
-            WT_ERR(__cursor_modify_conflict_check(cbt));
-            ret = WT_NOTFOUND;
-        }
-        WT_ERR(ret);
+retry:
+        WT_ERR(__wt_cursor_localkey(cursor));
+        WT_ERR(__wt_cursor_func_init(cbt, true));
+        WT_ERR(__cursor_search(cbt, NULL, NULL, false));
+        if (cbt->compare == 0) {
+            WT_ERR(__curfile_update_check(cbt));
+            WT_ERR(__wti_cursor_valid(cbt, &valid, true));
+            if (!valid)
+                WT_ERR(WT_NOTFOUND);
+            WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
+        } else
+            WT_ERR(WT_NOTFOUND);
     }
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
@@ -1723,6 +1685,10 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      */
     if (ret != 0) {
 err:
+        if (ret == WT_RESTART) {
+            __cursor_restart(session, &yield_count, &sleep_usecs);
+            goto retry;
+        }
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
