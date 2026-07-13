@@ -436,10 +436,15 @@ retry:
     if (!S2C(session)->layered_table_manager.leader) {
         /*
          * Non-walk stable stats are ~0 on a follower because its pages are not resident in the
-         * local cache. Skip opening the stable table.
+         * local cache, except block_size: read it from the checkpoint metadata directly, since the
+         * non-walk path never opens the stable dhandle to get it any other way.
          */
-        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
+        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
+            uint64_t ckpt_size = 0;
+            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+            cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
             goto done;
+        }
 
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(

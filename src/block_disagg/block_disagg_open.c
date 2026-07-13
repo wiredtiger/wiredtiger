@@ -186,6 +186,29 @@ __wt_block_disagg_ckpt_size(WT_SESSION_IMPL *session, const char *uri, uint64_t 
 }
 
 /*
+ * __block_disagg_ckpt_size_dhandle --
+ *     Return the checkpoint size for the current dhandle. The dhandle name may carry a checkpoint
+ *     suffix (a "<stable-uri>/<checkpoint-name>" form, used to read a specific checkpoint without a
+ *     traditional checkpoint cursor) which isn't itself a metadata key; strip it so the lookup
+ *     always targets the table's actual metadata entry.
+ */
+static int
+__block_disagg_ckpt_size_dhandle(WT_SESSION_IMPL *session, uint64_t *sizep)
+{
+    WT_DECL_ITEM(name_buf);
+    WT_DECL_RET;
+    const char *uri;
+
+    uri = session->dhandle->name;
+    WT_ERR(__wt_btree_shared_base_name(session, &uri, NULL, &name_buf));
+    WT_ERR(__wt_block_disagg_ckpt_size(session, uri, sizep));
+
+err:
+    __wt_scr_free(session, &name_buf);
+    return (ret);
+}
+
+/*
  * __wti_block_disagg_stat --
  *     Set the statistics for a live block handle. For disaggregated storage there is no underlying
  *     file, so block_size is sourced from the most recent checkpoint in the metadata.
@@ -199,7 +222,7 @@ __wti_block_disagg_stat(
     WT_UNUSED(block_disagg);
 
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
-    WT_RET(__wt_block_disagg_ckpt_size(session, session->dhandle->name, &ckpt_size));
+    WT_RET(__block_disagg_ckpt_size_dhandle(session, &ckpt_size));
     WT_STAT_WRITE(session, stats, block_size, (int64_t)ckpt_size);
     return (0);
 }
@@ -216,7 +239,7 @@ __wti_block_disagg_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *s
 
     WT_UNUSED(bm);
 
-    WT_RET(__wt_block_disagg_ckpt_size(session, session->dhandle->name, &ckpt_size));
+    WT_RET(__block_disagg_ckpt_size_dhandle(session, &ckpt_size));
     *sizep = (wt_off_t)ckpt_size;
     return (0);
 }
