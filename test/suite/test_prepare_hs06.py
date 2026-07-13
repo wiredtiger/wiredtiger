@@ -36,6 +36,7 @@ import wiredtiger, wttest
 # use-after-free), and it also tripped the checkpoint-validate diagnostics with a spurious
 # "__assert_ckpt_matches" abort. With corruption_abort disabled the corrupt read should now surface
 # as an ordinary WT_PANIC the application can handle, not a crash.
+@wttest.skip_for_hook("disagg", "corrupts blocks which are not relevant for disagg")
 class test_prepare_hs06(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=50MB,statistics=(fast),debug_mode=(corruption_abort=false),'
                    'eviction_dirty_trigger=50,eviction_updates_trigger=50')
