@@ -99,31 +99,30 @@ schema_op_execute(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
 
 /*
  * schema_op_publish --
- *     Assign an epoch and publish the schema operation so it is visible to followers. Must be
- *     called for both CREATE and DROP.
+ *     Publish the schema operation at the given epoch so it is visible to followers. Must be called
+ *     for both CREATE and DROP.
  */
-static uint64_t
-schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot)
+static void
+schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
 {
-    uint64_t epoch;
     char pub_cfg[64];
 
-    /* Concurrent publishers hold the read lock, so the epoch increment must be atomic. */
-    epoch = __wt_atomic_add_uint64(&ctx->state->schema_op_epoch, 1);
     testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
     testutil_check(ctx->session->publish(ctx->session, ctx->uris[slot], pub_cfg));
-    return (epoch);
 }
 
 /*
  * schema_op_insert_data --
- *     Populate a newly created table with DATA_NROWS rows, each keyed by row index with the epoch
- *     as value. Returns the commit timestamp so the caller can record it for the verifier.
+ *     Populate a newly created table with rows keyed DATA_KEY_MIN..DATA_KEY_MAX, each valued with
+ *     the epoch. Returns the commit timestamp through commit_tsp. Returns WT_ROLLBACK if the commit
+ *     lost the race with an advancing stable timestamp, in which case no data is durable.
  */
-static uint64_t
-schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
+static int
+schema_op_insert_data(
+  WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch, uint64_t *commit_tsp)
 {
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     uint64_t commit_ts, stable_ts;
     uint32_t r;
     char commit_cfg[64], key_buf[16], ts_buf[64], val_buf[32];
@@ -131,7 +130,7 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, epoch);
     testutil_check(ctx->session->begin_transaction(ctx->session, NULL));
     testutil_check(ctx->session->open_cursor(ctx->session, ctx->uris[slot], NULL, NULL, &cursor));
-    for (r = 0; r < DATA_NROWS; r++) {
+    for (r = DATA_KEY_MIN; r <= DATA_KEY_MAX; r++) {
         testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
         cursor->set_key(cursor, key_buf);
         cursor->set_value(cursor, val_buf);
@@ -143,11 +142,18 @@ schema_op_insert_data(WT_CONNECTION *conn, SCHEMA_WORKER_CTX *ctx, uint64_t slot
     testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
     stable_ts = 0;
     (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
-    /* Commit just past stable so the data is not immediately durable. */
-    commit_ts = stable_ts + 1 + __wt_random(ctx->rnd) % 100;
+    /*
+     * Commit ahead of stable so the data is not immediately durable. The margin keeps the timestamp
+     * thread from advancing stable past the commit timestamp before the commit completes.
+     */
+    commit_ts = stable_ts + 10 + __wt_random(ctx->rnd) % 50;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
-    testutil_check(ctx->session->commit_transaction(ctx->session, commit_cfg));
-    return (commit_ts);
+    ret = ctx->session->commit_transaction(ctx->session, commit_cfg);
+    if (ret == WT_ROLLBACK)
+        return (WT_ROLLBACK);
+    testutil_check(ret);
+    *commit_tsp = commit_ts;
+    return (0);
 }
 
 /*
@@ -176,18 +182,30 @@ thread_schema_run(void *arg)
             continue;
         }
         is_create = ctx.table_exists[slot];
-        epoch = schema_op_publish(&ctx, slot);
-        commit_ts = 0;
-        if (is_create)
-            commit_ts = schema_op_insert_data(td->conn, &ctx, slot, epoch);
+        /* Concurrent publishers hold the read lock, so the epoch increment must be atomic. */
+        epoch = __wt_atomic_add_uint64(&ctx.state->schema_op_epoch, 1);
         /*
-         * Write the record before releasing the lock so the checkpoint thread cannot make this
-         * operation durable before the verifier can see it.
+         * Record the operation before publishing it. If a crash lands after the record but before
+         * the publish, the epoch is never checkpointed and the verifier ignores the record. Keeping
+         * the record and publish under the read lock closes the window where a checkpoint could
+         * make the operation durable before the record reaches the file.
          */
-        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP",
-              epoch, commit_ts, ctx.uris[slot]) < 0)
+        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP", epoch,
+              ctx.uris[slot]) < 0)
             testutil_die(EIO, "fprintf schema record");
+        schema_op_publish(&ctx, slot, epoch);
         testutil_assert(pthread_rwlock_unlock(&ctx.state->lock) == 0);
+
+        /*
+         * Insert data outside the read lock so the checkpoint thread is not starved. The data is
+         * committed ahead of stable, so it cannot become durable until stable later advances, long
+         * after the record below reaches the file.
+         */
+        if (is_create &&
+          schema_op_insert_data(td->conn, &ctx, slot, epoch, &commit_ts) != WT_ROLLBACK)
+            if (fprintf(ctx.schema_fp, "INSERT %" PRIu64 " %" PRIu64 " %d %d %s\n", epoch,
+                  commit_ts, DATA_KEY_MIN, DATA_KEY_MAX, ctx.uris[slot]) < 0)
+                testutil_die(EIO, "fprintf insert record");
     }
     /* NOTREACHED */
 }

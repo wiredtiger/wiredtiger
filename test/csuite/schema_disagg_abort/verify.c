@@ -28,19 +28,26 @@
 
 #include "schema_disagg_abort.h"
 
-/* The last durable create or drop recorded for one URI slot. */
+/* No durable insert was recorded for the slot's last create. */
+#define DATA_COMMIT_TS_NONE UINT64_MAX
+
+/* The last durable create or drop recorded for one URI slot, and its inserted data if any. */
 typedef struct {
     uint64_t epoch;
-    uint64_t commit_ts;
+    uint64_t commit_ts; /* DATA_COMMIT_TS_NONE when the create has no durable insert record */
+    uint32_t key_min;
+    uint32_t key_max;
     bool is_create;
     bool valid;
 } SLOT_STATE;
 
 /*
  * parse_schema_records --
- *     Record the last durable operation for each of thread t's URI slots. durable_epoch is the
- *     highest schema epoch that survived recovery; a record assigned a higher epoch never reached a
- *     checkpoint before the crash, so it is ignored. Records for other threads are skipped.
+ *     Record the last durable operation for each of thread t's URI slots, plus the inserted data
+ *     for its last create. durable_epoch is the highest schema epoch that survived recovery; a
+ *     record assigned a higher epoch never reached a checkpoint before the crash, so it is ignored.
+ *     Records for other threads are skipped. A slot's INSERT record always follows its CREATE
+ *     record in the file, so a single ordered pass suffices.
  */
 static void
 parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
@@ -48,12 +55,13 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
 {
     FILE *fp;
     uint64_t commit_ts, entry_epoch;
-    uint32_t s, t2;
-    char op[16], rec_uri[128];
+    uint32_t key_max, key_min, s, t2;
+    char line[256], op[16], rec_uri[128];
 
     for (s = 0; s < pool_size; s++) {
         states[s].epoch = 0;
-        states[s].commit_ts = 0;
+        states[s].commit_ts = DATA_COMMIT_TS_NONE;
+        states[s].key_min = states[s].key_max = 0;
         states[s].is_create = false;
         states[s].valid = false;
     }
@@ -61,15 +69,36 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
     if ((fp = fopen(fname, "r")) == NULL)
         return;
 
-    while (fscanf(fp, "%15s %" SCNu64 " %" SCNu64 " %127s", op, &entry_epoch, &commit_ts,
-             rec_uri) == 4) {
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (sscanf(line, "%15s", op) != 1)
+            continue;
+
+        if (strcmp(op, "INSERT") == 0) {
+            if (sscanf(line, "%*s %" SCNu64 " %" SCNu64 " %" SCNu32 " %" SCNu32 " %127s",
+                  &entry_epoch, &commit_ts, &key_min, &key_max, rec_uri) != 5)
+                continue;
+            if (entry_epoch > durable_epoch)
+                continue;
+            if (sscanf(rec_uri, SCHEMA_TABLE_FMT, &t2, &s) != 2 || t2 != t || s >= pool_size)
+                continue;
+            /* The insert belongs to the slot's current create. */
+            if (states[s].valid && states[s].is_create && states[s].epoch == entry_epoch) {
+                states[s].commit_ts = commit_ts;
+                states[s].key_min = key_min;
+                states[s].key_max = key_max;
+            }
+            continue;
+        }
+
+        if (sscanf(line, "%*s %" SCNu64 " %127s", &entry_epoch, rec_uri) != 2)
+            continue;
         if (entry_epoch > durable_epoch)
             continue;
         if (sscanf(rec_uri, SCHEMA_TABLE_FMT, &t2, &s) != 2 || t2 != t || s >= pool_size)
             continue;
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
-            states[s].commit_ts = commit_ts;
+            states[s].commit_ts = DATA_COMMIT_TS_NONE;
             states[s].is_create = (strcmp(op, "CREATE") == 0);
             states[s].valid = true;
         }
@@ -117,9 +146,10 @@ check_schema_presence(
 /*
  * check_data_rows --
  *     For each slot whose last checkpointed operation was a CREATE and whose data commit timestamp
- *     is at or below the last checkpoint timestamp, confirm all DATA_NROWS rows are present. Slots
- *     whose data commit timestamp exceeds last_ckpt_ts are skipped: the data was committed after
- *     the last checkpoint and is not durable.
+ *     is at or below the last checkpoint timestamp, confirm the recorded key range is present.
+ *     Slots with no durable insert record, or whose data commit timestamp exceeds last_ckpt_ts, are
+ *     skipped: the data was either never committed or committed after the last checkpoint and is
+ *     not durable.
  */
 static void
 check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
@@ -134,6 +164,8 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
     for (s = 0; s < pool_size; s++) {
         if (!states[s].valid || !states[s].is_create)
             continue;
+        if (states[s].commit_ts == DATA_COMMIT_TS_NONE)
+            continue;
         if (last_ckpt_ts > 0 && states[s].commit_ts > last_ckpt_ts)
             continue;
 
@@ -141,7 +173,7 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
         testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
         testutil_snprintf(expected_val, sizeof(expected_val), "%" PRIu64, states[s].epoch);
-        for (r = 0; r < DATA_NROWS; r++) {
+        for (r = states[s].key_min; r <= states[s].key_max; r++) {
             testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
             cursor->set_key(cursor, key_buf);
             ret = cursor->search(cursor);

@@ -45,7 +45,8 @@
 #define MIN_TIME 10
 
 /* URI / file name patterns. */
-#define DATA_NROWS 10
+#define DATA_KEY_MIN 0
+#define DATA_KEY_MAX 9
 #define READY_FILE "child_ready"
 #define SCHEMA_TABLE_FMT "table:schema_%u_%u"
 #define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "schema-%" PRIu32
