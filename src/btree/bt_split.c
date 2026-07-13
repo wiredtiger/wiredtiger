@@ -1526,11 +1526,12 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
      *
-     * Also do this for in-memory btrees, to make sure we write out any changes if the btree loses
-     * its temporary in-memory status (e.g., if an unpublished table is published).
+     * A btree awaiting publication is reconciled in memory only, so the rebuilt page would
+     * otherwise be clean and hold its only copy in an in-memory image. Keep it dirty so the
+     * checkpoint that runs once the table is published rewrites it to shared storage.
      */
     if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
-      __wt_btree_stays_in_memory(S2BT(session))) {
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
         WT_RET(__wt_page_modify_init(session, page));
         __wt_page_modify_set(session, page);
     }
