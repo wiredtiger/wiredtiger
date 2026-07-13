@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+import wiredtiger, wttest
+from helper_disagg import disagg_test_class, gen_disagg_storages
+from helper_layered_stepdown import LayeredStepdownMixin
+from wtscenario import make_scenarios
+
+# test_layered_async_stepdown03.py
+<<<<<<< Updated upstream
+#    Rollback guards: straddlers roll back; arm validation and timestamp guards.
+=======
+#    Rollback guards and arm-API validation for the async (elegant) step-down.
+#
+#    A transaction that began before the cutoff was armed is a "straddler" and rolls back with
+#    WT_ROLLBACK, caught either at its next write or, if it does no further write, at commit.
+#    Read-only transactions and ingest writers are never disturbed. The arm itself is
+#    leader-only and cannot be re-armed while set. Writers surviving past the reconfigure are
+#    not tested: the server drains every pre-arm writer before demoting.
+>>>>>>> Stashed changes
+@disagg_test_class
+class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
+
+    uri = 'layered:guards'
+
+    def create_table(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+<<<<<<< Updated upstream
+    # Straddler rolls back on write; retry after the arm commits to ingest.
+    def test_straddler_rollback_on_write(self):
+        self.create_table()
+
+        # Begin a transaction and write before the arm (this lands in stable).
+=======
+    # A straddler is rolled back on its next write, and the retry after the cutoff commits
+    # cleanly to ingest.
+    def test_straddler_rollback_on_write(self):
+        self.create_table()
+
+        # Begin a transaction and write before the cutoff is armed (this lands in stable).
+>>>>>>> Stashed changes
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['straddle'] = 'before'
+
+        # The server arms the step-down while this transaction is still in flight.
+        self.arm(20)
+
+        # The next write by the straddling transaction must roll back: its data sits in stable
+<<<<<<< Updated upstream
+        # but would commit after the arm, where it belongs in ingest.
+=======
+        # but would commit after the cutoff, where it belongs in ingest.
+>>>>>>> Stashed changes
+        def straddle_write():
+            cursor['straddle2'] = 'after'
+        self.assert_step_down_rollback(straddle_write)
+        self.session.rollback_transaction()
+        cursor.close()
+
+<<<<<<< Updated upstream
+        # The server retries the transaction after the arm: it now routes cleanly to ingest.
+=======
+        # The server retries the transaction after the cutoff: it now routes cleanly to ingest.
+>>>>>>> Stashed changes
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['straddle'] = 'after'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'straddle'})
+        self.assertEqual(self.read_keys_at(self.uri, 40), {'straddle'})
+
+    # Straddler rollback applies to any write; remove rolls back like insert.
+=======
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 40), {'straddle'})
+        self.assertEqual(self.keys_of(self.uri, 40), {'straddle'})
+
+    # The straddler rollback is keyed on the write, not the operation type: a remove by a
+    # transaction that began before the cutoff rolls back just like an insert would.
+>>>>>>> Stashed changes
+    def test_straddler_rollback_non_insert(self):
+        self.create_table()
+        self.write_at(self.uri, {'k1': 'base'}, 10)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+
+        # The server arms the step-down while this transaction is in flight.
+        self.arm(20)
+
+        self.assert_step_down_rollback(lambda: cursor.remove())
+        self.session.rollback_transaction()
+        cursor.close()
+
+<<<<<<< Updated upstream
+    # Txn writes pre-arm, arm fires, commit rolls back; retry lands in ingest.
+=======
+    # The commit-time race: a transaction writes before the cutoff, the cutoff is armed, then it
+    # commits with no further write. The commit must roll back, and the retry lands in ingest.
+>>>>>>> Stashed changes
+    def test_arm_just_before_commit_rolls_back(self):
+        self.create_table()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'                       # pre-arm write to stable; no further write follows
+
+        self.arm(20)                             # armed right before commit
+
+        self.assert_step_down_rollback(
+            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
+        cursor.close()
+
+        # The rolled-back write left nothing behind, in either constituent.
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+
+        # The retry runs after the arm and commits cleanly to ingest.
+=======
+        self.assertEqual(self.kv_of(self.uri, 40), {})
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 40), set())
+
+        # The retry runs after the cutoff and commits cleanly to ingest.
+>>>>>>> Stashed changes
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
+=======
+        self.assertEqual(self.kv_of(self.uri, 40), {'k1': 'v'})
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 40), {'k1'})
+>>>>>>> Stashed changes
+
+    # The guard is keyed on straddling the arm, not on the commit timestamp: a straddler rolls
+    # back even when it would commit at or below the cutoff (where its content could in principle
+    # stay in stable). This matches the design choice to roll back every concurrent writer.
+    def test_straddler_commit_below_cutoff_also_rolls_back(self):
+        self.create_table()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+
+        self.arm(20)
+
+        self.assert_step_down_rollback(
+            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15)))
+        cursor.close()
+
+    # The "roll back all concurrent writers" rule extends to non-layered tables: a straddler
+    # whose only write went to a plain table is still rolled back at commit.
+    def test_straddler_plain_table_commit_rolls_back(self):
+        plain_uri = 'table:guards_plain'
+        self.set_global_ts(1, 1)
+        self.session.create(plain_uri, 'key_format=S,value_format=S')
+
+        cursor = self.session.open_cursor(plain_uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+
+        self.arm(20)
+
+        self.assert_step_down_rollback(
+            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
+        cursor.close()
+
+<<<<<<< Updated upstream
+    # The happy path: transactions that begin after the arm and commit above the cutoff
+=======
+    # The happy path: once armed, transactions that begin after the cutoff and commit above it
+>>>>>>> Stashed changes
+    # are never rolled back and land in ingest.
+    def test_post_arm_commits_above_cutoff_succeed(self):
+        self.create_table()
+
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i, commit_ts in enumerate((30, 40, 50)):
+            self.session.begin_transaction()
+            cursor['post%d' % i] = 'v%d' % commit_ts
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        cursor.close()
+
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_kvs_at(self.uri, 60), {'post0': 'v30', 'post1': 'v40', 'post2': 'v50'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 60), {'post0', 'post1', 'post2'})
+=======
+        self.assertEqual(self.kv_of(self.uri, 60), {'post0': 'v30', 'post1': 'v40', 'post2': 'v50'})
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 60), {'post0', 'post1', 'post2'})
+>>>>>>> Stashed changes
+
+    # A post-arm transaction must commit strictly above the cutoff: its content lands in ingest,
+    # above the boundary the step-down checkpoint captures, so a commit at or below the cutoff
+    # would be invisible on the new leader and is rejected outright.
+    def test_post_arm_commit_at_or_below_cutoff_rejected(self):
+        self.create_table()
+
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for commit_ts in (15, 20):
+            self.session.begin_transaction()
+            cursor['k%d' % commit_ts] = 'v'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                    'commit_timestamp=' + self.timestamp_str(commit_ts)),
+                '/must be after the step down timestamp/')
+        cursor.close()
+
+        # The rejected commits left nothing behind in either constituent.
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
+        self.assertEqual(self.read_kvs_at(self.uri, 25), {})
+=======
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 25), set())
+        self.assertEqual(self.kv_of(self.uri, 25), {})
+>>>>>>> Stashed changes
+
+    # A read-only transaction that straddles the arm commits normally: the guard only fires for
+    # transactions that performed writes, so reads are never disturbed.
+    def test_readonly_straddler_commits_fine(self):
+        self.create_table()
+        self.write_at(self.uri, {'k1': 'v'}, 10)
+
+<<<<<<< Updated upstream
+        # A read-only transaction begins before the arm and commits after it.
+=======
+        # A read-only transaction begins before the cutoff and commits after it.
+>>>>>>> Stashed changes
+        rcur = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        self.assertEqual(rcur['k1'], 'v')
+        self.arm(20)
+        self.assertEqual(rcur['k1'], 'v')
+        # Committing a read-only transaction must succeed (no WT_ROLLBACK).
+        self.session.commit_transaction()
+        rcur.close()
+
+    # The two tests below run an in-flight stable writer through the planned step-down sequence
+    # up to the checkpoint and check the straddler guard still holds there: the mid-sequence
+    # stable advance and checkpoint must not disturb it. Shared prefix: begin and write stable,
+    # arm, advance stable to the cutoff, take the step-down checkpoint on another session.
+    def stable_writer_through_checkpoint(self):
+        self.create_table()
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+        self.arm(20)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+        return cursor
+
+    # A write after the step-down checkpoint, still armed, rolls back.
+    def test_stable_writer_write_after_checkpoint_rolls_back(self):
+        cursor = self.stable_writer_through_checkpoint()
+
+        def straddle_write():
+            cursor['k2'] = 'v'
+        self.assert_step_down_rollback(straddle_write)
+        self.session.rollback_transaction()
+        cursor.close()
+
+    # A commit after the step-down checkpoint, still armed, rolls back.
+    def test_stable_writer_commit_after_checkpoint_rolls_back(self):
+        cursor = self.stable_writer_through_checkpoint()
+
+        self.assert_step_down_rollback(
+            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
+        cursor.close()
+
+    # An ingest writer survives the demotion: a transaction that began after the arm writes to
+    # ingest, the node steps down underneath it, and its commit as a follower succeeds.
+    def test_ingest_writer_survives_demotion(self):
+        self.create_table()
+
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+
+        # The server completes the step-down under the in-flight ingest writer: stable advances
+        # to the cutoff, the step-down checkpoint is taken (on another session, as this one has
+        # the transaction open), the node reconfigures to follower.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
+        # The ingest writer commits as a follower; its content is in ingest and readable.
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v'})
+=======
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 40), {'k1'})
+        self.assertEqual(self.kv_of(self.uri, 40), {'k1': 'v'})
+>>>>>>> Stashed changes
+
+    # The cutoff cannot be re-armed while one is set.
+    def test_double_arm_rejected(self):
+        self.create_table()
+        self.arm(20)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.arm(30), '/step down timestamp is already set/')
+
+    # Arming is only valid on a leader.
+    def test_arm_on_follower_rejected(self):
+        self.create_table()
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.arm(20), '/can only be set on a disaggregated leader/')
+
+    # The cutoff must sit at or ahead of all_durable: content at or below all_durable is already
+    # committed to stable, so a lower cutoff would strand it above the step-down boundary. Arming
+    # exactly at all_durable is allowed.
+    def test_arm_below_all_durable_rejected(self):
+        self.create_table()
+        self.write_at(self.uri, {'k1': 'v'}, 10)
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.arm(5), '/must not be older than all_durable timestamp/')
+        self.arm(10)
+
+    # While armed, stable may reach the cutoff exactly (the step-down target) but never
+    # overshoot it.
+    def test_stable_cannot_pass_armed_cutoff(self):
+        self.create_table()
+        self.arm(20)
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
+            '/must not advance past the armed step down timestamp/')
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+
+    # Arming and advancing stable to the cutoff in a single set_timestamp call works, and the
+    # arm takes full effect: no re-arm, no stable overshoot afterwards.
+    def test_arm_and_stable_in_one_call(self):
+        self.create_table()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20) +
+                                ',step_down_timestamp=' + self.timestamp_str(20))
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.arm(30), '/step down timestamp is already set/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
+            '/must not advance past the armed step down timestamp/')
+
+    # FIXME-WT-17895: the overshoot check compares stable against the cutoff in effect before
+    # the call, so a single call that arms and overshoots in one go is accepted and leaves
+    # stable above the cutoff. Pins the current behavior; arguably the call should be rejected.
+    def test_arm_with_stable_overshoot_in_one_call(self):
+        self.create_table()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25) +
+                                ',step_down_timestamp=' + self.timestamp_str(20))
+
+    # FIXME-WT-17895: nothing validates the cutoff against the current stable timestamp (only
+    # against all_durable), so arming below stable is accepted; the mismatch only surfaces at
+    # the stable == cutoff assert during the step-down itself. Pins the current behavior.
+    def test_arm_below_stable_accepted(self):
+        self.set_global_ts(1, 10)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.arm(5)
+
+    # The drain signal the server polls before taking the step-down checkpoint: all_durable is
+    # held below the cutoff by a pre-arm transaction with a reserved commit timestamp, recovers
+    # when it resolves, and passes the cutoff once post-arm commits land above it.
+    def test_all_durable_drain_signal_while_armed(self):
+        self.create_table()
+        self.write_at(self.uri, {'k1': 'v'}, 10)
+
+        # An in-flight transaction reserves commit timestamp 12; a later commit at 15 leaves a
+        # hole, so all_durable is clamped just below the reservation.
+        straddler = self.conn.open_session()
+        scur = straddler.open_cursor(self.uri, None, None)
+        straddler.begin_transaction()
+        scur['held'] = 'v'
+        straddler.timestamp_transaction('commit_timestamp=' + self.timestamp_str(12))
+        self.write_at(self.uri, {'k2': 'v'}, 15)
+        self.assertEqual(self.all_durable(), 11)
+
+        self.arm(20)
+        self.assertEqual(self.all_durable(), 11, 'arming must not move all_durable')
+
+        # The straddler resolves (the server rolls it back and retries): the hole closes.
+        straddler.rollback_transaction()
+        scur.close()
+        straddler.close()
+        self.assertEqual(self.all_durable(), 15)
+
+        # A post-arm commit above the cutoff carries all_durable past it: drained.
+        self.write_at(self.uri, {'k3': 'v'}, 25)
+        self.assertEqual(self.all_durable(), 25)
+
+    # An untimestamped commit while armed succeeds and lands in ingest: the commit-timestamp
+    # floor only applies to timestamped commits. Pins the current behavior until the server
+    # contract settles whether untimestamped writes are legal while a step-down is armed.
+    def test_untimestamped_commit_while_armed(self):
+        self.create_table()
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+        self.session.commit_transaction()
+        cursor.close()
+
+<<<<<<< Updated upstream
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), {'k1'})
+=======
+        self.assertEqual(self.keys_of(self.ingest_uri(self.uri), 25), {'k1'})
+>>>>>>> Stashed changes
