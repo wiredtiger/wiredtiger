@@ -36,6 +36,7 @@ import wiredtiger, wttest
 # use-after-free), and it also tripped the checkpoint-validate diagnostics with a spurious
 # "__assert_ckpt_matches" abort. With corruption_abort disabled the corrupt read should now surface
 # as an ordinary WT_PANIC the application can handle, not a crash.
+@wttest.skip_for_hook("tiered", "corrupts local block files not used by tiered storage")
 @wttest.skip_for_hook("disagg", "corrupts blocks which are not relevant for disagg")
 class test_prepare_hs06(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=50MB,statistics=(fast),debug_mode=(corruption_abort=false),'
@@ -49,7 +50,9 @@ class test_prepare_hs06(wttest.WiredTigerTestCase):
     def alloc_extlist_blocks(self):
         # Decode every checkpoint's address cookie from the metadata and return the (offset, size) of
         # each alloc extent-list block that lives in its own on-disk block.
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
+        tools_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tools')
+        if tools_dir not in sys.path:
+            sys.path.append(tools_dir)
         from py_common.binary_data import unpack_int
 
         cursor = self.session.open_cursor('metadata:', None, None)
@@ -93,7 +96,8 @@ class test_prepare_hs06(wttest.WiredTigerTestCase):
         self.write_rows(1, 12000)
         self.session.checkpoint()
 
-        # Find the current checkpoint's alloc extent-list block, then corrupt exactly that block.
+        # Corrupt every alloc extent-list block the checkpoint cookies point at, leaving the rest of
+        # the file intact.
         blocks = self.alloc_extlist_blocks()
         self.assertGreater(len(blocks), 0,
             "expected at least one on-disk alloc extent-list block to corrupt")
