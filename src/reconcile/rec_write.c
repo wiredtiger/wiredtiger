@@ -44,13 +44,11 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
     /*
      * Retain a disk image on row-store leaf pages so eviction can replace them with a clean
      * in-memory image as if just read from disk. Column-store pages are excluded: their format does
-     * not produce a reusable single-block image. Disaggregated pages are excluded: they manage
-     * their own disk image retention and the split-rewrite that follows scrub resets reconciliation
-     * state in a way that interferes with their skip-write logic.
+     * not produce a reusable single-block image.
      */
     return (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
-      page->disagg_info == NULL && LF_ISSET(WT_REC_CHECKPOINT) &&
-      !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
+      LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
+      F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
 }
 
 /*
@@ -2733,9 +2731,11 @@ copy_image:
     /*
      * If re-instantiating this page in memory (because eviction wants to, or because we want to
      * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
-     * copy of the disk image.
+     * copy of the disk image. Under scrub, skip the copy when newer stable content was written: the
+     * page won't be left clean, so the swap path cannot fire.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
+    if ((F_ISSET(r, WT_REC_SCRUB) && !r->newer_updates_than_last_rec_used) ||
+      F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
