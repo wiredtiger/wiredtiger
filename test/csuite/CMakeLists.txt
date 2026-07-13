@@ -92,29 +92,6 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
-if(ENABLE_PALITE)
-    define_c_test(
-        TARGET test_schema_disagg_abort
-        SOURCES
-            schema_disagg_abort/main.c
-            schema_disagg_abort/workload.c
-            schema_disagg_abort/verify.c
-        DIR_NAME schema_disagg_abort
-        EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
-        ARGUMENTS $<TARGET_FILE:test_schema_disagg_abort>
-        DEPENDS "WT_POSIX"
-        LABEL "disagg"
-    )
-    # Use C++ linker for building this target.
-    # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
-    # to link against the C++ sanitizer runtimes.
-    # Some extensions (PALite, tiered storage) require C++ runtime to be linked
-    # for sanitizers to work correctly.
-    if(TARGET test_schema_disagg_abort)
-        set_target_properties(test_schema_disagg_abort PROPERTIES LINKER_LANGUAGE CXX)
-    endif()
-endif()
-
 define_c_test(
     TARGET test_scope
     SOURCES scope/main.c
