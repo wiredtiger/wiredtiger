@@ -44,11 +44,13 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
     /*
      * Retain a disk image on row-store leaf pages so eviction can replace them with a clean
      * in-memory image as if just read from disk. Column-store pages are excluded: their format does
-     * not produce a reusable single-block image.
+     * not produce a reusable single-block image. Disaggregated pages are excluded: they manage
+     * their own disk image retention and the split-rewrite that follows scrub resets reconciliation
+     * state in a way that interferes with their skip-write logic.
      */
     return (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
-      LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
-      F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
+      page->disagg_info == NULL && LF_ISSET(WT_REC_CHECKPOINT) &&
+      !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
 }
 
 /*
