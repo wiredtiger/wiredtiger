@@ -289,6 +289,30 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.setup_leader_empty()
         self.run_panic_subprocess('stale_remove_panics')
 
+    def subprocess_strict_at_open_panics(self):
+        """Subprocess body for the strict-at-open panic test; expected to panic/abort."""
+        self.setup_leader_with_table()
+
+        # Open a follower with strict mode already enabled in the open config. Its
+        # clean-startup pickup finds uri in the shared metadata with nothing in the
+        # empty local metadata or queue to explain it.
+        conn_follow = self.wiredtiger_open('follower',
+            self.extensionsConfig() + ',create,' + self.conn_base_config +
+            'disaggregated=(role="follower",lose_all_my_data=true,' +
+            'strict_checkpoint_metadata=true)')
+        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+
+    def test_strict_at_open_panics(self):
+        """
+        Strict validation enabled in the open config panics on the clean-startup
+        pickup: an empty node's differences from the checkpoint are unexplained by
+        design, which is why the mode must be enabled only after the startup pickup.
+        """
+        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
+        # in a subprocess so that the panic/abort does not kill the test runner.
+        self.setup_leader_empty()
+        self.run_panic_subprocess('strict_at_open_panics')
+
     #
     # Flag semantics tests.
     #
