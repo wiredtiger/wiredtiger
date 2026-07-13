@@ -697,14 +697,15 @@ commit_transaction(TINFO *tinfo, bool prepared)
         ret = session->commit_transaction(session, NULL);
         if (prepared)
             lock_readunlock(session, &g.prepare_commit_lock);
-        replay_committed(tinfo);
     } else
         ret = session->commit_transaction(session, NULL);
 
-    if (ret == WT_ROLLBACK) {
+    if (ret == WT_ROLLBACK || ret == WT_CACHE_FULL) {
         ++tinfo->rollback;
         return false;
     }
+    testutil_check(ret);
+    replay_committed(tinfo);
     ++tinfo->commit;
     /*
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
