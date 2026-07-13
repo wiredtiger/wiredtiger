@@ -2451,7 +2451,7 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
-    if (!closing && __wt_btree_is_stale_disagg(session))
+    if (__wt_btree_is_stale_disagg(session))
         ret = __wt_set_return(session, EBUSY);
     else
         /*
