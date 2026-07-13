@@ -439,22 +439,22 @@ struct __wti_update_select {
 
     WT_TIME_WINDOW tw;
 
-    bool upd_saved;             /* An element on the row's update chain was saved */
-    bool no_ts_tombstone;       /* Tombstone without a timestamp */
-    bool skip_prepare_rollback; /* Skipped a prepared update rolled back after the stable
-                                   timestamp */
-    bool was_modify;            /* There was a MODIFY on the update chain */
+    bool upd_saved;                   /* An element on the row's update chain was saved */
+    bool no_ts_tombstone;             /* Tombstone without a timestamp */
+    bool skip_aborted_prepared_value; /* Skip a non-tombstone aborted prepared update on the
+                                          update chain */
+    bool was_modify;                  /* There was a MODIFY on the update chain */
 };
 
-#define WTI_UPDATE_SELECT_INIT(upd_select)           \
-    do {                                             \
-        (upd_select)->upd = NULL;                    \
-        (upd_select)->tombstone = NULL;              \
-        (upd_select)->upd_saved = false;             \
-        (upd_select)->no_ts_tombstone = false;       \
-        (upd_select)->skip_prepare_rollback = false; \
-        (upd_select)->was_modify = false;            \
-        WT_TIME_WINDOW_INIT(&(upd_select)->tw);      \
+#define WTI_UPDATE_SELECT_INIT(upd_select)                 \
+    do {                                                   \
+        (upd_select)->upd = NULL;                          \
+        (upd_select)->tombstone = NULL;                    \
+        (upd_select)->upd_saved = false;                   \
+        (upd_select)->no_ts_tombstone = false;             \
+        (upd_select)->skip_aborted_prepared_value = false; \
+        (upd_select)->was_modify = false;                  \
+        WT_TIME_WINDOW_INIT(&(upd_select)->tw);            \
     } while (0)
 
 #define WT_REC_RESULT_SINGLE_PAGE(session, r)                                    \
