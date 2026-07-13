@@ -1174,8 +1174,17 @@ __wti_rec_row_leaf(
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
                 }
             } else if (__wt_txn_tw_stop_visible_all(session, twp)) {
-                upd = &upd_tombstone;
-                ++r->keys_removed_from_disk_image_count;
+                /*
+                 * Keep the on-disk cell when the chain still has an unstable aborted prepared
+                 * update that we skipped this round: the cell is its only rollback fallback, and
+                 * dropping it now would strand the prepared update with nothing to fall back to on
+                 * a later reconciliation.
+                 */
+                if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
+                  !upd_select.skip_aborted_prepared_value) {
+                    upd = &upd_tombstone;
+                    ++r->keys_removed_from_disk_image_count;
+                }
             }
         }
 
