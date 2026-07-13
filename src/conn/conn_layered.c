@@ -1401,6 +1401,8 @@ err:
 
     if (ret != 0 && reconfig && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
+    if (ret != 0 && reconfig && was_leader && !leader)
+        return (__wt_panic(session, ret, "failed to step-down as primary"));
     return (ret);
 }
 
