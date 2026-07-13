@@ -43,7 +43,7 @@ BCcLlsvz
 BFGs
 BIGENDIAN
 BLKCACHE
-BLmpRrSVv
+BLmpqRrSVv
 BOOL
 BSR
 BTREE
@@ -417,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -969,6 +970,7 @@ durabletime
 dv
 dylib
 eb
+ebusy
 eee
 eg
 ejnprx

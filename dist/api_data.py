@@ -2154,6 +2154,10 @@ methods = {
             testing of WiredTiger.''', undoc=True,
             choices=['before_metadata_sync', 'before_metadata_update',
                 'before_key_rotation', 'during_key_rotation', 'after_key_rotation']),
+        Config('database_size_fix', 'false', r'''
+            if true, recompute the disaggregated database size from the sum of all the collections'
+            latest checkpoint sizes, instead of applying the incremental delta''',
+            type='boolean'),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the
@@ -2331,7 +2335,7 @@ methods = {
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
-    Config('step_down_ts', '', r'''
+    Config('step_down_timestamp', '', r'''
         the cutover timestamp for a planned step-down of disaggregated storage: committed writes
         after this timestamp are directed to the ingest constituent and writes at or before it to
         the stable constituent. Only valid on a leader'''),

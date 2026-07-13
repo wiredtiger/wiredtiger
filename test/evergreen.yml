@@ -5350,11 +5350,11 @@ tasks:
   - name: format-abort-recovery-stress-test
     depends_on: *s-all-dep
     commands:
-      # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
+      # Allow one hour beyond test runtime because recovery under load can cause the test to
       # run longer.
       - command: timeout.update
         params:
-          exec_timeout_secs: 3600
+          exec_timeout_secs: 5400
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -6177,6 +6177,30 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_workload_update_trigger.py
+
+    ##################################################
+    # Performance Tests for disagg follower startup  #
+    ##################################################
+
+  - name: perf-disagg-many-tables-follower-startup
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: disagg_many_tables_follower_startup_perf.py
+          maxruns: 1
+          wtarg: -ops ['"wiredtiger_open_no_pickup", "reconfigure_pickup"'] -args '["--num-tables", "500000"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
 
     ###########################################
     # Performance Tests for log consolidation #
