@@ -113,6 +113,7 @@ typedef struct {
         int actions_per_work_item; /* actions bundled into one work item; default 10 */
         int checkpoint_interval;   /* seconds between checkpoints; default 30 (ASC) or 10 (DSC) */
         uint64_t seed;             /* RNG seed; must match leader/follower; default 1 */
+        const char *conn_config;   /* extra wiredtiger_open config, appended to the base */
     } config;
 
     WT_CONNECTION *conn;
@@ -232,7 +233,7 @@ usage(void)
       "    [-G] [-p] [-T threads] [-h home] [-R role]\n"
       "    [-n table_count] [-P plateau_step] [-m measure_count]\n"
       "    [-u in_use_fraction] [-d dropped_fraction] [-i insert_fraction] [-c create_fraction]\n"
-      "    [-w actions_per_work_item] [-C checkpoint_interval] [-s seed]\n",
+      "    [-w actions_per_work_item] [-k checkpoint_interval] [-s seed] [-C conn_config]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-G  enable disaggregated storage (DSC) mode with layered tables\n"
@@ -248,8 +249,10 @@ usage(void)
       "\t-i  fraction of non-create actions that are inserts (default 0.5)\n"
       "\t-c  fraction of all actions that are creates (default 0.0001)\n"
       "\t-w  actions bundled into one work item (default 10)\n"
-      "\t-C  seconds between checkpoints (default 30 ASC, 10 DSC)\n"
-      "\t-s  RNG seed; must match between leader and follower (default 1)\n");
+      "\t-k  seconds between checkpoints (default 30 ASC, 10 DSC)\n"
+      "\t-s  RNG seed; must match between leader and follower (default 1)\n"
+      "\t-C  extra wiredtiger_open config, appended to the base (e.g. for a follower,\n"
+      "\t    'disaggregated=(checkpoint_pickup_defer_period=17)')\n");
     return (EXIT_FAILURE);
 }
 
@@ -280,7 +283,7 @@ main(int argc, char *argv[])
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &shared.opts);
 
     while ((ch = __wt_getopt(
-              progname, argc, argv, "c:C:d:i:m:n:P:R:s:u:w:" SHARED_PARSE_OPTIONS)) != EOF)
+              progname, argc, argv, "c:C:d:i:k:m:n:P:R:s:u:w:" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             shared.config.create_fraction = atof(__wt_optarg);
@@ -295,6 +298,10 @@ main(int argc, char *argv[])
             break;
 
         case 'C':
+            shared.config.conn_config = __wt_optarg;
+            break;
+
+        case 'k':
             shared.config.checkpoint_interval = atoi(__wt_optarg);
             break;
 
@@ -407,9 +414,13 @@ static void
 bench_dhandle(SHARED *shared)
 {
     char *home = shared->opts.home;
+    char conn_config[1024];
 
-    testutil_wiredtiger_open(
-      &shared->opts, home, BENCH_DHANDLE_CONN_BASE, NULL, &shared->conn, false, true);
+    testutil_snprintf(conn_config, sizeof(conn_config), "%s%s%s", BENCH_DHANDLE_CONN_BASE,
+      shared->config.conn_config == NULL ? "" : ",",
+      shared->config.conn_config == NULL ? "" : shared->config.conn_config);
+
+    testutil_wiredtiger_open(&shared->opts, home, conn_config, NULL, &shared->conn, false, true);
 
     bench_dhandle_run(shared);
 
@@ -637,8 +648,8 @@ sample_memory(uint64_t *rss_bytes, uint64_t *malloc_bytes)
     /*
      * Allocator bytes in use. Detect the allocator at runtime rather than at compile time: a build
      * may link tcmalloc (wt-mkme -tcmalloc), whose interposed malloc makes glibc's mallinfo2 report
-     * near-zero. Prefer tcmalloc's numeric-property query if its C entry point is present, then fall
-     * back to glibc mallinfo2.
+     * near-zero. Prefer tcmalloc's numeric-property query if its C entry point is present, then
+     * fall back to glibc mallinfo2.
      */
     {
         typedef int (*get_numeric_property_t)(const char *, size_t *);
