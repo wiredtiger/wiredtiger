@@ -202,7 +202,8 @@ restart:
             /*
              * The root is the walk's starting point and is never swapped in below, so account it
              * here. Only reached when a walk begins at the tree's start; a seek-positioned scan
-             * misses the root and the descent path leading to the first page.
+             * misses the root and the descent path leading to the first page. A WT_RESTART could
+             * cause re-entry and over accounting. This is a known limitation.
              */
             if (LF_ISSET(WT_READ_SIZE_STAT))
                 WT_ERR(__wti_size_stat_page(session, ref->page));
@@ -345,7 +346,9 @@ descend:
                 /*
                  * Accumulate the size summary. Every page (leaf and internal) is swapped in here
                  * exactly once per traversal, so this is the single choke point for per-page
-                 * accounting.
+                 * accounting. The one exception is WT_RESTART: it restarts the descent and
+                 * re-accounts the pages, requiring a concurrent a split. This should be rare to
+                 * impossible for databases being verified as they are read-only.
                  */
                 if (LF_ISSET(WT_READ_SIZE_STAT))
                     WT_ERR(__wti_size_stat_page(session, ref->page));
