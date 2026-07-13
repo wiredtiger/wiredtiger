@@ -52,13 +52,11 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-b build-dir] [-h dir] [-p] [-P seed] [-s pool] [-T threads] [-t time] [-v]\n",
-      progname);
+      "usage: %s [-b build-dir] [-h dir] [-p] [-s pool] [-T threads] [-t time] [-v]\n", progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
       "\t-h home directory\n"
       "\t-p preserve directory contents\n"
-      "\t-P tiered storage options\n"
       "\t-s URI pool size per thread\n"
       "\t-T number of schema threads\n"
       "\t-t timeout in seconds\n"
@@ -174,9 +172,9 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:h:pP:s:T:t:v", cfg.opts);
+    testutil_parse_begin_opt(argc, argv, "b:h:ps:T:t:v", cfg.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:T:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:h:ps:T:t:v")) != EOF)
         switch (ch) {
         case 's':
             pool_size_set = true;
