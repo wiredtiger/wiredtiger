@@ -344,6 +344,7 @@ NOP
 NOTFOUND
 NOTREACHED
 NOWAIT
+NROWS
 NUL
 NUM
 NVRAM
@@ -449,6 +450,7 @@ SCons
 SDK
 SIGABRT
 SIGBUS
+SIGKILL
 SIGSEGV
 SIMD
 SLS
@@ -511,6 +513,7 @@ TieredConfigMixin
 Timespec
 Tput
 TryCV
+Tunables
 TypeError
 Typedefs
 UBSAN
@@ -911,6 +914,7 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
 designator
@@ -930,6 +934,7 @@ difftime
 dir
 directio
 dirlist
+dirs
 dirstore
 disagg
 disaggregated
@@ -1477,6 +1482,7 @@ overcount
 oversized
 ovfl
 ownp
+pP
 pR
 pT
 packv
