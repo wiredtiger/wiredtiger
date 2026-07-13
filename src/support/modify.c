@@ -488,8 +488,22 @@ retry:
         /*
          * We need the on-page value as the base, so the page must be present. If it isn't, an
          * update chain is referencing a page that was never instantiated or has gone away; dump the
-         * ref and cursor state.
+         * ref, cursor, and update-chain state to show why no full update was found.
          */
+        if (cbt->ref == NULL || cbt->ref->page == NULL) {
+            WT_UPDATE *dbg_upd;
+            uint64_t dbg_pos;
+
+            for (dbg_upd = modify, dbg_pos = 0; dbg_upd != NULL; dbg_upd = dbg_upd->next, ++dbg_pos)
+                __wt_errx(session,
+                  "  upd[%" PRIu64 "]=%p type=%d txnid=%" PRIu64 " start_ts=%" PRIu64
+                  " durable_ts=%" PRIu64 " prepare_state=%d size=%" PRIu32,
+                  dbg_pos, (void *)dbg_upd, (int)dbg_upd->type,
+                  __wt_atomic_load_uint64_v_acquire(&dbg_upd->txnid), dbg_upd->upd_start_ts,
+                  dbg_upd->upd_durable_ts,
+                  (int)__wt_atomic_load_uint8_v_acquire(&dbg_upd->prepare_state), dbg_upd->size);
+        }
+
         WT_ERR_ASSERT(session, WT_DIAGNOSTIC_TXN_VISIBILITY,
           cbt->ref != NULL && cbt->ref->page != NULL, WT_ERROR,
           "modify reconstruct with missing base page: dhandle=%s ref=%p state=%d page_del=%p "
