@@ -36,6 +36,9 @@ from wiredtiger import stat
 # side-effect of a scan the caller already does. The summary is raw constituents only (per-page-type
 # counts and bytes, leaf key/value bytes and counts, and a leaf page-size histogram); derived figures
 # such as overhead are computed by this test, not the engine.
+#
+# The summary also works on layered (disaggregated) tables, where it measures the stable
+# constituent's on-disk row-store btree; running under the disagg hook exercises that path.
 class test_size_stats01(wttest.WiredTigerTestCase):
     uri = 'table:test_size_stats01'
     params = 'key_format=S,value_format=S,leaf_page_max=32KB,internal_page_max=16KB'
@@ -211,6 +214,10 @@ class test_size_stats01(wttest.WiredTigerTestCase):
 
     # An overflow item's payload is counted against value bytes (via the overflow page), so it is not
     # mistaken for overhead, keeping derived overhead a small fraction of a well-packed tree.
+    #
+    # Skipped under the disagg hook: disaggregated storage's larger page sizing keeps these values
+    # on-page, so the stable constituent never forms the overflow pages this test needs.
+    @wttest.skip_for_hook("disagg", "cannot force overflow pages on the layered stable constituent")
     def test_size_overflow(self):
         nrecords, valuesize = 500, 2000
         self.populate_overflow(nrecords, valuesize)
