@@ -452,15 +452,15 @@ struct __wti_update_select {
     bool was_modify; /* There was a MODIFY on the update chain */
 };
 
-#define WTI_UPDATE_SELECT_INIT(upd_select)           \
-    do {                                             \
-        (upd_select)->upd = NULL;                    \
-        (upd_select)->tombstone = NULL;              \
-        (upd_select)->upd_saved = false;             \
-        (upd_select)->no_ts_tombstone = false;       \
-        (upd_select)->prepare_rollback_upd = NULL;   \
-        (upd_select)->was_modify = false;            \
-        WT_TIME_WINDOW_INIT(&(upd_select)->tw);      \
+#define WTI_UPDATE_SELECT_INIT(upd_select)         \
+    do {                                           \
+        (upd_select)->upd = NULL;                  \
+        (upd_select)->tombstone = NULL;            \
+        (upd_select)->upd_saved = false;           \
+        (upd_select)->no_ts_tombstone = false;     \
+        (upd_select)->prepare_rollback_upd = NULL; \
+        (upd_select)->was_modify = false;          \
+        WT_TIME_WINDOW_INIT(&(upd_select)->tw);    \
     } while (0)
 
 #define WT_REC_RESULT_SINGLE_PAGE(session, r)                                    \
