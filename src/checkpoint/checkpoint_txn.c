@@ -719,27 +719,19 @@ static void
 __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
 {
     WT_CONNECTION_IMPL *conn;
-    bool periodic;
     uint64_t time_diff;
 
     conn = S2C(session);
 
     time_diff = __checkpoint_running_time(session);
-    periodic = (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count;
 
-    if (final || periodic) {
+    if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint prepare %s for %" PRIu64 " seconds and it has gathered %" PRIu64
           " dhandles and skipped %" PRIu64 " dhandles",
           final ? "ran" : "has been running", time_diff, conn->ckpt.handle_stats.apply,
           conn->ckpt.handle_stats.skip);
-        /*
-         * Only advance the shared progress-message counter for genuine periodic messages, so that
-         * an unconditional final message doesn't perturb the checkpoint phase's own message
-         * cadence.
-         */
-        if (periodic)
-            conn->ckpt.progress.msg_count++;
+        conn->ckpt.progress.msg_count++;
     }
 }
 
@@ -846,8 +838,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Output a verbose progress message for long running checkpoints. */
-    if (conn->ckpt.progress.msg_count > 0)
-        __checkpoint_progress(session, true);
+    __checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
