@@ -285,15 +285,19 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
     WT_SESSION *session;
+    STEPDOWN_ARGS stepdown_args;
     wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid,
       follower_tid, hs_tid, import_tid, random_tid;
-    wt_thread_t key_rotation_tid, timestamp_tid;
+    wt_thread_t key_rotation_tid, stepdown_tid, timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
-    bool lastrun, running;
+    bool lastrun, running, stepdown_triggered, stepdown_running;
 
     conn = g.wts_conn;
     lastrun = (run_current == run_total);
+    stepdown_triggered = false;
+    stepdown_running = false;
+    memset(&stepdown_args, 0, sizeof(stepdown_args));
 
     /* Make the modify pad character printable to simplify debugging and logging. */
     __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
@@ -309,6 +313,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     memset(&import_tid, 0, sizeof(import_tid));
     memset(&key_rotation_tid, 0, sizeof(key_rotation_tid));
     memset(&random_tid, 0, sizeof(random_tid));
+    memset(&stepdown_tid, 0, sizeof(stepdown_tid));
     memset(&timestamp_tid, 0, sizeof(timestamp_tid));
 
     modify_repl_init();
@@ -360,6 +365,15 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     replay_run_begin(session);
 
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        char replay_log_path[MAX_FORMAT_PATH];
+        testutil_snprintf(
+          replay_log_path, sizeof(replay_log_path), "%s/replay_ops_%u.log", g.home, run_current);
+        g.replay_op_log = fopen(replay_log_path, "w");
+        testutil_assertfmt(g.replay_op_log != NULL, "failed to open %s", replay_log_path);
+        __wt_stream_set_line_buffer(g.replay_op_log);
+    }
+
     for (i = 0; i < GV(RUNS_THREADS); ++i) {
         tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -393,6 +407,37 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {
+        /*
+         * When the timer expires during an async disagg leader phase, spawn the step-down in a
+         * background thread. The step-down joins the checkpoint/timestamp threads, drains in-flight
+         * transactions, and takes the step-down checkpoint. Running it in a separate thread keeps
+         * the spin loop ticking (track_ops) so terminal output stays live during the drain (up to
+         * 60 s). fourths is paused at -1 while the thread runs; once it signals done, fourths is
+         * reset to grant workers additional time before operations() returns. The role transition
+         * and follower ops happen via disagg_switch_roles() and the next operations() call in t.c.
+         */
+        if (fourths == 0 && !stepdown_triggered && disagg_is_mode_switch() && g.disagg_leader &&
+          GV(DISAGG_STEPDOWN_ASYNC)) {
+            stepdown_args.checkpoint_tid = &checkpoint_tid;
+            stepdown_args.timestamp_tid = &timestamp_tid;
+            stepdown_args.done = false;
+            testutil_check(
+              __wt_thread_create(NULL, &stepdown_tid, disagg_stepdown_thread, &stepdown_args));
+            stepdown_triggered = true; /* Prevent re-trigger; the thread owns the step-down now. */
+            stepdown_running = true;   /* Track that we need to poll and later join. */
+            fourths = -1;              /* Pause quit timer until step-down thread signals done. */
+        }
+
+        /* Once the step-down thread completes, grant workers additional operation time. */
+        if (stepdown_running) {
+            bool stepdown_complete;
+            WT_ACQUIRE_READ_WITH_BARRIER(stepdown_complete, stepdown_args.done);
+            if (stepdown_complete) {
+                stepdown_running = false;
+                fourths = DISAGG_SWITCH_FOLLOWER_OPS_SEC * 4;
+            }
+        }
+
         /* Clear out the totals each pass. */
         memset(&total, 0, sizeof(total));
         for (i = 0, running = false; i < GV(RUNS_THREADS); ++i) {
@@ -476,10 +521,16 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &background_compact_tid));
     if (GV(BACKUP))
         testutil_check(__wt_thread_join(NULL, &backup_tid));
-    if (g.checkpoint_config == CHECKPOINT_ON)
+    /*
+     * The async step-down thread joins checkpoint_tid and timestamp_tid internally. Skip the joins
+     * here if the step-down was triggered to avoid joining an already-joined thread.
+     */
+    if (g.checkpoint_config == CHECKPOINT_ON && !stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
     if (GV(OPS_COMPACTION))
         testutil_check(__wt_thread_join(NULL, &compact_tid));
+    if (GV(DISAGG_STEPDOWN_ASYNC) && stepdown_triggered)
+        testutil_check(__wt_thread_join(NULL, &stepdown_tid));
     if (disagg_is_multi_node() && !g.disagg_leader)
         testutil_check(__wt_thread_join(NULL, &follower_tid));
     if (GV(OPS_HS_CURSOR))
@@ -490,7 +541,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &key_rotation_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
-    if (g.transaction_timestamps_config)
+    if (g.transaction_timestamps_config && !stepdown_triggered)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
@@ -510,11 +561,16 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     disagg_sync_multi_node(session);
 
+    if (g.replay_op_log != NULL) {
+        fclose(g.replay_op_log);
+        g.replay_op_log = NULL;
+    }
+
     replay_run_end(session);
 
     if (lastrun) {
         tinfo_teardown();
-        if (g.transaction_timestamps_config)
+        if (g.transaction_timestamps_config && !GV(DISAGG_STEPDOWN_ASYNC))
             timestamp_teardown(session);
     }
 
@@ -597,18 +653,35 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
 }
 
 /*
+ * next_timestamp --
+ *     Allocate the next global timestamp under the step-down read lock. The write lock is held
+ *     exclusively during step-down notification; threads blocked here unblock with values strictly
+ *     above step_down_ts, routing their writes to ingest.
+ */
+uint64_t
+next_timestamp(WT_SESSION *session)
+{
+    uint64_t ts;
+
+    lock_readlock(session, &g.timestamp_lock);
+    ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+    lock_readunlock(session, &g.timestamp_lock);
+    return (ts);
+}
+
+/*
  * commit_transaction --
  *     Commit a transaction.
  */
-static void
+static bool
 commit_transaction(TINFO *tinfo, bool prepared)
 {
+    WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
 
     session = tinfo->session;
 
-    ++tinfo->commit;
     tinfo->ignore_prepare = false;
 
     ts = 0; /* -Wconditional-uninitialized */
@@ -618,21 +691,30 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_commit_ts(tinfo);
-        else
-            ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+        else {
+            ts = next_timestamp(session);
+        }
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
 
         if (prepared)
             testutil_check(
               session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
 
-        testutil_check(session->commit_transaction(session, NULL));
+        ret = session->commit_transaction(session, NULL);
         if (prepared)
             lock_readunlock(session, &g.prepare_commit_lock);
-        replay_committed(tinfo);
     } else
-        testutil_check(session->commit_transaction(session, NULL));
+        ret = session->commit_transaction(session, NULL);
 
+    if (ret == WT_ROLLBACK) {
+        ++tinfo->rollback;
+        trace_uri_op(tinfo, NULL, "commit rolled back read-ts=%" PRIu64 ", commit-ts=%" PRIu64,
+          tinfo->read_ts, ts);
+        return false;
+    }
+    testutil_check(ret);
+    replay_committed(tinfo);
+    ++tinfo->commit;
     /*
      * Remember our oldest commit timestamp. Updating the thread's commit timestamp allows read,
      * oldest and stable timestamps to advance, ensure we don't race.
@@ -641,6 +723,8 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
     trace_uri_op(tinfo, NULL, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts,
       tinfo->commit_ts);
+
+    return (true);
 }
 
 /*
@@ -663,7 +747,7 @@ rollback_transaction(TINFO *tinfo, bool prepared)
         if (GV(RUNS_PREDICTABLE_REPLAY))
             ts = replay_rollback_ts(tinfo);
         else
-            ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+            ts = next_timestamp(session);
 
         testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_ROLLBACK, ts));
     }
@@ -705,7 +789,7 @@ prepare_transaction(TINFO *tinfo)
          * the stable timestamp. The subsequent commit will increment it again, ensuring
          * correctness.
          */
-        ts = __wt_atomic_add_uint64_v(&g.timestamp, 1);
+        ts = next_timestamp(session);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
@@ -1018,13 +1102,19 @@ ops(void *arg)
     iso_level_t iso_level;
     thread_op op;
     uint64_t reset_op, session_op, throttle_delay, truncate_op;
+    uint64_t rlog_key, rlog_lane, rlog_read_ts, rlog_replay_ts;
     uint32_t max_rows, ntries, range, rnd;
-    u_int i, throttle_delay_max;
-    const char *iso_config;
+    u_int i, rlog_table_id, throttle_delay_max;
+    int rlog_ret;
+    const char *iso_config, *rlog_op_name;
     bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
+    rlog_key = rlog_lane = rlog_read_ts = rlog_replay_ts = 0;
+    rlog_table_id = 0;
+    rlog_ret = 0;
+    rlog_op_name = NULL;
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -1076,13 +1166,15 @@ rollback_retry:
 
         ++tinfo->ops;
 
-        if (!tinfo->replay_again)
+        if (!tinfo->replay_again) {
             /*
              * Number of failures so far for the current operation and key. In predictable replay,
              * unless we have a read operation, we cannot give up on any operation and maintain the
              * integrity of the replay.
              */
             ntries = 0;
+            rlog_op_name = NULL;
+        }
 
         /* Number of tries only gets incremented during predictable replay. */
         testutil_assert(ntries == 0 || (!intxn && tinfo->replay_again));
@@ -1222,6 +1314,23 @@ rollback_retry:
         }
         replay_adjust_key(tinfo, max_rows);
 
+        /* Once the operation and key have been finalized, construct a replay log entry. */
+        if (GV(RUNS_PREDICTABLE_REPLAY)) {
+            static const char *const op_names[] = {[INSERT] = "INSERT",
+              [MODIFY] = "MODIFY",
+              [READ] = "READ",
+              [REMOVE] = "REMOVE",
+              [TRUNCATE] = "TRUNCATE",
+              [UPDATE] = "UPDATE"};
+            rlog_lane = tinfo->lane;
+            rlog_replay_ts = tinfo->replay_ts;
+            rlog_read_ts = tinfo->read_ts;
+            rlog_key = tinfo->keyno;
+            rlog_table_id = table->id;
+            rlog_ret = 0;
+            rlog_op_name = op_names[op];
+        }
+
         /*
          * If the operation is a truncate, select a range.
          *
@@ -1293,8 +1402,12 @@ rollback_retry:
             val_gen(table, &tinfo->data_rnd, tinfo->new_value, tinfo->keyno);
 
         /* If modify, build a modify change vector. */
-        if (op == MODIFY)
+        if (op == MODIFY) {
+            if (replay_stale_read_ts(tinfo))
+                goto rollback;
+
             modify_build(tinfo);
+        }
 
         ret = 0;
         skip1 = skip2 = NULL;
@@ -1325,6 +1438,8 @@ rollback_retry:
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
             if (GV(RUNS_PREDICTABLE_REPLAY) && ret == WT_ROLLBACK)
                 goto rollback;
+            if (GV(RUNS_PREDICTABLE_REPLAY))
+                rlog_ret = tinfo->op_ret;
             skip2 = table;
         }
         if (ret == 0 && table->mirror) {
@@ -1422,8 +1537,15 @@ skip_operation:
         case 3:
         case 4:           /* 40% */
             __wt_yield(); /* Encourage races */
-            commit_transaction(tinfo, prepared);
-            snap_repeat_update(tinfo, true);
+            snap_repeat_update(tinfo, commit_transaction(tinfo, prepared));
+            if (rlog_op_name != NULL) {
+                fprintf(g.replay_op_log,
+                  "%s lane=%" PRIu64 " commit_ts=%" PRIu64 " read_ts=%" PRIu64 " key=%" PRIu64
+                  " table=%u ret=%d\n",
+                  rlog_op_name, rlog_lane, rlog_replay_ts, rlog_read_ts, rlog_key, rlog_table_id,
+                  rlog_ret);
+                rlog_op_name = NULL;
+            }
             break;
         case 5: /* 10% */
 rollback:

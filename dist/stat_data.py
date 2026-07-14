@@ -64,6 +64,10 @@ class BtreeStat(Stat):
     prefix = 'btree'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, BtreeStat.prefix, desc, flags)
+class BtreeSizeStat(Stat):
+    prefix = 'btree-size'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, BtreeSizeStat.prefix, desc, flags)
 class CacheStat(Stat):
     prefix = 'cache'
     def __init__(self, name, desc, flags=''):
@@ -347,8 +351,10 @@ conn_stats = [
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_shared_dsk_bytes_duplicate', 'shared disk bytes saved by sharing duplicate disk images', 'no_clear,no_scale,size'),
     CacheStat('cache_shared_dsk_hash_size', 'shared disk hash table size', 'no_clear,no_scale'),
     CacheStat('cache_shared_dsk_hit', 'shared disk hit'),
+    CacheStat('cache_shared_dsk_lock_contention', 'shared disk bucket lock contention count'),
     CacheStat('cache_shared_dsk_miss', 'shared disk miss'),
     CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
@@ -669,9 +675,9 @@ conn_stats = [
     ##########################################
     # Load Control statistics
     ##########################################
-    LoadControlStat('read_load', 'read load at the system level'),
+    LoadControlStat('read_load', 'read load at the system level', 'no_clear,no_scale'),
     LoadControlStat('read_reject_count', 'number of read operations rejected due to load control'),
-    LoadControlStat('write_load', 'write load at the system level'),
+    LoadControlStat('write_load', 'write load at the system level', 'no_clear,no_scale'),
     LoadControlStat('write_reject_count', 'number of write operations rejected due to load control'),
 
     ##########################################
@@ -1070,6 +1076,30 @@ dsrc_stats = [
     BtreeStat('btree_row_leaf_pages', 'row-store leaf pages (approximate, incremental)', 'no_scale'),
 
     ##########################################
+    # Btree size summary statistics (opt-in, accumulated by a debug=(size_stats) cursor scan)
+    ##########################################
+    BtreeSizeStat('btree_size_internal_bytes', 'internal page bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_internal_pages', 'internal pages', 'no_scale'),
+    BtreeSizeStat('btree_size_key_bytes', 'key bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_key_count', 'key count', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_bytes', 'leaf page bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_leaf_hist_0', 'leaf page-size histogram bucket 0', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_1', 'leaf page-size histogram bucket 1', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_2', 'leaf page-size histogram bucket 2', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_3', 'leaf page-size histogram bucket 3', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_4', 'leaf page-size histogram bucket 4', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_5', 'leaf page-size histogram bucket 5', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_6', 'leaf page-size histogram bucket 6', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_7', 'leaf page-size histogram bucket 7', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_hist_8', 'leaf page-size histogram bucket 8 (>= maximum leaf page size)', 'no_scale'),
+    BtreeSizeStat('btree_size_leaf_pages', 'leaf pages', 'no_scale'),
+    BtreeSizeStat('btree_size_no_image_pages', 'pages skipped for having no on-disk image', 'no_scale'),
+    BtreeSizeStat('btree_size_overflow_bytes', 'overflow page bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_overflow_pages', 'overflow pages', 'no_scale'),
+    BtreeSizeStat('btree_size_value_bytes', 'value bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_value_count', 'value count', 'no_scale'),
+
+    ##########################################
     # Eviction statistics
     ##########################################
     EvictStat('eviction_fail', 'data source pages selected for eviction unable to be evicted'),
@@ -1277,9 +1307,11 @@ conn_dsrc_stats = [
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
+    CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_pages_requested_hs', 'pages requested from the history store'),
     CacheStat('cache_pages_requested_internal', 'pages requested from the cache internal'),
     CacheStat('cache_pages_requested_leaf', 'pages requested from the cache leaf'),
+    CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_checkpoint', 'pages read into cache by checkpoint'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
@@ -1405,6 +1437,10 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_search_near_ingest', 'Layered table cursor search near operations from the ingest btrees'),
     LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from the stable btrees'),
     LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from the stable btrees'),
+    LayeredStat('layered_curs_stable_value_tombstone', 'Layered table stable values equal to the tombstone byte sequence'),
+    LayeredStat('layered_curs_stable_value_tombstone_prefix', 'Layered table stable values beginning with the tombstone byte sequence and ending with a non-tombstone byte'),
+    LayeredStat('layered_curs_stable_value_tombstone_suffix', 'Layered table stable values beginning with the tombstone byte sequence and ending with a tombstone byte'),
+    LayeredStat('layered_curs_stable_value_tombstone_x3', 'Layered table stable values equal to three tombstone bytes'),
     LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),

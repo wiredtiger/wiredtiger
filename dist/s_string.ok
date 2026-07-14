@@ -417,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -643,6 +644,7 @@ allocator
 allocators
 allocfile
 allocsize
+analytics
 aor
 ap
 api
@@ -658,6 +660,7 @@ assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -795,6 +798,7 @@ colcheck
 colgap
 colgroup
 colgroups
+collHash
 collatorp
 collist
 columngroup
@@ -969,6 +973,7 @@ durabletime
 dv
 dylib
 eb
+ebusy
 eee
 eg
 ejnprx
@@ -1119,6 +1124,7 @@ groupd
 gte
 handleops
 handlep
+handoff
 hardcoded
 hashmap
 hashq
@@ -1704,6 +1710,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr
@@ -1861,6 +1868,7 @@ undeleted
 underflowed
 underflowing
 underflows
+underfull
 unencoded
 unencrypted
 unesc

@@ -152,6 +152,13 @@ typedef struct {
     enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
 
+/* Arguments passed to the async step-down background thread. */
+typedef struct {
+    wt_thread_t *checkpoint_tid;
+    wt_thread_t *timestamp_tid;
+    volatile bool done; /* Set to true by the thread when step-down completes. */
+} STEPDOWN_ARGS;
+
 /* Session application private information referenced in the event handlers. */
 typedef struct {
     WT_SESSION *trace; /* Tracing session for logging operations */
@@ -282,6 +289,7 @@ typedef struct {
     wt_timestamp_t replay_cached_committed; /* Our committed timestamp, cached */
     uint32_t replay_calculate_committed;    /* Times before recalculating cached committed */
     wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
+    FILE *replay_op_log;                    /* Predictable replay per-run operation log */
     wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
     wt_timestamp_t timestamp_copy;          /* A copy of the timestamp, for safety checks */
 
@@ -293,6 +301,19 @@ typedef struct {
      * prepared transaction's durable timestamp when it is committing.
      */
     RWLOCK prepare_commit_lock;
+
+    /*
+     * Lock to freeze the timestamp counter during asynchronous step-down notification. Read lock:
+     * held briefly in commit_transaction() while incrementing g.timestamp. Write lock: held
+     * exclusively during notification to capture step_down_ts and advance g.timestamp past it,
+     * ensuring all post-notify allocations land strictly above step_down_ts.
+     */
+    RWLOCK timestamp_lock;
+
+    wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is active; 0 if not active. */
+
+    volatile bool checkpoint_quit; /* Signal checkpoint thread to stop before workers finish. */
+    volatile bool timestamp_quit;  /* Signal timestamp thread to stop before workers finish. */
 
     /*
      * Single-thread failure. Not a WiredTiger library lock because it's set up before configuring
@@ -476,6 +497,8 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+void disagg_async_stepdown(wt_thread_t *, wt_thread_t *);
+WT_THREAD_RET disagg_stepdown_thread(void *);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);
@@ -508,6 +531,7 @@ void table_dump_page(WT_SESSION *, const char *, TABLE *, uint64_t, const char *
 void table_verify(TABLE *, void *);
 void timestamp_init(void);
 wt_timestamp_t timestamp_minimum_committed(void);
+uint64_t next_timestamp(WT_SESSION *);
 void timestamp_once(WT_SESSION *, bool, bool);
 void timestamp_sync_threads_commit_ts(void);
 void replay_adjust_key(TINFO *, uint64_t);
@@ -524,6 +548,7 @@ wt_timestamp_t replay_read_ts(TINFO *);
 void replay_rollback(TINFO *);
 void replay_run_begin(WT_SESSION *);
 void replay_run_end(WT_SESSION *);
+bool replay_stale_read_ts(TINFO *);
 int timestamp_query(const char *, wt_timestamp_t *);
 void timestamp_teardown(WT_SESSION *);
 void trace_config(const char *);

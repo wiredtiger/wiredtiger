@@ -295,32 +295,21 @@ err:
 }
 
 /*
- * __wt_verify_disagg_database_size --
- *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
- *     checkpoint size for every file, then compare the total against the stored database size.
+ * __wt_disagg_get_database_size --
+ *     Recompute the disaggregated database size from scratch: walk the metadata and sum the most
+ *     recent checkpoint size for every file. The fixed overhead for the KEK table and shared turtle
+ *     page is not included; callers add it when comparing against or storing a database_size.
  */
 int
-__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+__wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t database_size, ckpt_size, total_size;
+    uint64_t ckpt_size, total_size;
     const char *uri, *value;
 
-    /*
-     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
-     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
-     * would otherwise see database size as 0 against a non-empty local metadata.
-     */
-    if (!__wt_disagg_has_picked_up_checkpoint(session))
-        return (0);
-
-    conn = S2C(session);
     cursor = NULL;
     total_size = 0;
-
-    database_size = conn->disaggregated_storage.database_size;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
@@ -340,13 +329,44 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         total_size += ckpt_size;
 
         __wt_verbose_debug3(session, WT_VERB_VERIFY,
-          "disagg database size verify: %s checkpoint size %" PRIu64, uri, ckpt_size);
+          "disagg database size: %s checkpoint size %" PRIu64, uri, ckpt_size);
     }
     /*
      * A not found error is okay. cursor->next() returns it once it goes through all the metadata
      * entries.
      */
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    *sizep = total_size;
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __wt_verify_disagg_database_size --
+ *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
+ *     checkpoint size for every file, then compare the total against the stored database size.
+ */
+int
+__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t database_size, total_size;
+
+    /*
+     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
+     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
+     * would otherwise see database size as 0 against a non-empty local metadata.
+     */
+    if (!__wt_disagg_has_picked_up_checkpoint(session))
+        return (0);
+
+    conn = S2C(session);
+    database_size = conn->disaggregated_storage.database_size;
+
+    WT_RET(__wt_disagg_get_database_size(session, &total_size));
 
     /*
      * Three cases to consider after the metadata walk:
@@ -370,15 +390,13 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
         if (total_size != database_size)
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_ERROR,
               "database size mismatch: sum of btree checkpoint sizes %" PRIu64
               " does not match stored database size %" PRIu64,
               total_size, database_size);
     }
 
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
+    return (0);
 }
 
 /*
@@ -517,19 +535,20 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Account for the root page in the accumulated total block size. */
             WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
+#ifdef HAVE_DIAGNOSTIC
             /* Validate the size of the btree. */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
                 /*
-                 * FIXME-WT-16660: We are seeing mismatches due to nuanced reconciliation issues,
+                 * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues,
                  * where bytes_total increments happen before the reconciliation panic boundary,
                  * leaving us in an inconsistent state if reconciliation fails after the increment
-                 * but before completion. Re-enable this check once this is resolved.
+                 * but before completion. Only fail in diagnostic builds for now; enable this branch
+                 * in production builds once this is resolved.
                  */
-                if (false)
-                    WT_ERR_MSG(session, WT_ERROR,
-                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
-                      ckpt->size, vs->total_block_size);
-            }
+                WT_ERR_MSG(session, WT_ERROR,
+                  "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                  ckpt->size, vs->total_block_size);
+#endif
 
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
@@ -1575,6 +1594,15 @@ __verify_page_content_leaf(
                   session, NULL, ref, cell_num - 1, tw->start_ts, tw->stop_ts, vs));
             break;
         }
+
+        /*
+         * On a disaggregated stable table, account inline values that share the layered tombstone's
+         * encoded namespace. Overflow values never qualify (they are large and the cell holds an
+         * address, not the bytes), so only inline value cells are checked.
+         */
+        if ((unpack.type == WT_CELL_VALUE || unpack.type == WT_CELL_VALUE_SHORT) &&
+          F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            __wt_clayered_stable_value_stat(session, unpack.data, unpack.size);
 
         /* Verify key-associated history-store entries. */
         if (page->type == WT_PAGE_ROW_LEAF) {
