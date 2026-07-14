@@ -856,7 +856,6 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
     conn->txn_global.last_ckpt_disaggregated_schema_epoch = metadata->schema_epoch;
-
     /* Release store to pair with the acquire load in sweep. */
     __wt_atomic_store_uint64_release(
       &conn->txn_global.last_ckpt_timestamp, metadata->checkpoint_timestamp);
@@ -984,8 +983,16 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * least as large as the one set for the checkpoint it is opening. Observing a larger value is
      * harmless: a follower resets every adopted checkpoint's ids regardless.
      */
-    __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
-      WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->base_write_gen), metadata.base_write_gen + 1));
+    if (metadata.base_write_gen != 0) {
+        __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
+          WT_MAX(
+            __wt_atomic_load_uint64_relaxed(&conn->base_write_gen), metadata.base_write_gen + 1));
+        __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
+          WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
+            __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
+        /* The checkpoint carried a complete high-water mark, so we can trust the base write gen. */
+        conn->disaggregated_storage.base_write_gen_established = true;
+    }
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
