@@ -186,6 +186,9 @@ struct __wt_btree {
     /* For an ingest btree, an upper bound on the durable timestamp of any update it holds. */
     wt_shared wt_timestamp_t max_ingest_write_ts;
 
+    /* For an unpublished btree, the smallest durable timestamp of any update it holds. */
+    wt_shared wt_timestamp_t min_unpublished_durable_ts;
+
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100

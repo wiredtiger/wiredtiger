@@ -404,80 +404,6 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __checkpoint_disagg_row_leaf_has_stable_update --
- *     Return true if a row-leaf page has any committed update at or below the checkpoint timestamp.
- */
-static bool
-__checkpoint_disagg_row_leaf_has_stable_update(WT_PAGE *page, wt_timestamp_t checkpoint_timestamp)
-{
-    WT_INSERT *ins;
-    WT_INSERT_HEAD *inshead;
-    WT_ROW *rip;
-    WT_UPDATE *upd;
-    uint32_t i;
-
-#define __CKPT_IS_STABLE_UPDATE(upd, ts)                                                \
-    ((upd)->txnid != WT_TXN_ABORTED && (upd)->prepare_state != WT_PREPARE_INPROGRESS && \
-      (upd)->upd_durable_ts != WT_TS_NONE && (upd)->upd_durable_ts <= (ts))
-
-    if ((inshead = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        WT_SKIP_FOREACH (ins, inshead)
-            for (upd = ins->upd; upd != NULL; upd = upd->next)
-                if (__CKPT_IS_STABLE_UPDATE(upd, checkpoint_timestamp))
-                    return (true);
-
-    WT_ROW_FOREACH (page, rip, i) {
-        for (upd = WT_ROW_UPDATE(page, rip); upd != NULL; upd = upd->next)
-            if (__CKPT_IS_STABLE_UPDATE(upd, checkpoint_timestamp))
-                return (true);
-        if ((inshead = WT_ROW_INSERT(page, rip)) != NULL)
-            WT_SKIP_FOREACH (ins, inshead)
-                for (upd = ins->upd; upd != NULL; upd = upd->next)
-                    if (__CKPT_IS_STABLE_UPDATE(upd, checkpoint_timestamp))
-                        return (true);
-    }
-
-#undef __CKPT_IS_STABLE_UPDATE
-    return (false);
-}
-
-/*
- * __checkpoint_disagg_btree_has_stable_update --
- *     Walk a row-store btree and return true if any committed update falls at or below the
- *     checkpoint timestamp. Returns false for non-row-store btrees or when no checkpoint timestamp
- *     is set.
- */
-static int
-__checkpoint_disagg_btree_has_stable_update(WT_SESSION_IMPL *session, bool *has_stable_updatep)
-{
-    WT_DECL_RET;
-    WT_REF *ref;
-    wt_timestamp_t checkpoint_timestamp;
-    uint32_t flags;
-
-    *has_stable_updatep = false;
-
-    if (S2BT(session)->type != BTREE_ROW)
-        return (0);
-
-    checkpoint_timestamp = S2C(session)->txn_global.checkpoint_timestamp;
-    if (checkpoint_timestamp == WT_TS_NONE)
-        return (0);
-
-    flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_SKIP_INTL;
-    ref = NULL;
-    while ((ret = __wt_tree_walk(session, &ref, flags)) == 0 && ref != NULL) {
-        if (__checkpoint_disagg_row_leaf_has_stable_update(ref->page, checkpoint_timestamp)) {
-            *has_stable_updatep = true;
-            break;
-        }
-    }
-
-    WT_TRET(__wt_page_release(session, ref, flags));
-    return (ret);
-}
-
-/*
  * __checkpoint_disagg_maybe_publish --
  *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
  *     schema epoch covers the table's CREATE entry. If so, clear WT_BTREE_AWAITS_PUBLISH so the
@@ -491,8 +417,8 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t ckpt_epoch;
-    bool found_create, has_stable_update;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
+    bool found_create;
 
     conn = S2C(session);
     dhandle = session->dhandle;
@@ -514,10 +440,10 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
         }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    has_stable_update = false;
     if (!found_create) {
-        WT_RET(__checkpoint_disagg_btree_has_stable_update(session, &has_stable_update));
-        if (has_stable_update)
+        ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
+        if (btree->min_unpublished_durable_ts != WT_TS_NONE &&
+          btree->min_unpublished_durable_ts <= ckpt_timestamp)
             WT_RET_MSG(session, EINVAL, "stable data checkpointed for unpublished table \"%s\"",
               dhandle->name);
     }
