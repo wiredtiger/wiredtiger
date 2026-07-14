@@ -234,8 +234,8 @@ thread_ts_run(void *arg)
 /*
  * thread_ckpt_run --
  *     Checkpoints periodically. Advances the stable schema epoch under the write lock so every
- *     published operation is captured and no half-created table is, then writes the ready sentinel
- *     after the first checkpoint that includes a schema operation.
+ *     published operation is captured, then writes the ready sentinel after the first checkpoint
+ *     that includes a schema operation.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)

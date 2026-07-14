@@ -43,11 +43,9 @@ typedef struct {
 
 /*
  * parse_schema_records --
- *     Record the last durable operation for each of thread t's URI slots, plus the inserted data
- *     for its last create. durable_epoch is the highest schema epoch that survived recovery; a
- *     record assigned a higher epoch never reached a checkpoint before the crash, so it is ignored.
- *     Records for other threads are skipped. The file is in operation order, so one top-to-bottom
- *     pass sees a create before the insert that belongs to it.
+ *     Record thread t's last durable operation per slot, plus the data inserted for its last
+ *     create. durable_epoch is the highest schema epoch that survived recovery; records above it
+ *     never reached a checkpoint before the crash and are ignored, as are records for other threads.
  */
 static void
 parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
@@ -148,8 +146,7 @@ check_schema_presence(
  *     For each slot whose last checkpointed operation was a CREATE and whose data commit timestamp
  *     is at or below the last checkpoint timestamp, confirm the recorded key range is present.
  *     Slots with no durable insert record, or whose data commit timestamp exceeds last_ckpt_ts, are
- *     skipped: the data was either never committed or committed after the last checkpoint and is
- *     not durable.
+ *     skipped.
  */
 static void
 check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POOL_SIZE],
