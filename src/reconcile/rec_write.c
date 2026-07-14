@@ -2731,10 +2731,12 @@ copy_image:
     /*
      * If re-instantiating this page in memory (because eviction wants to, or because we want to
      * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
-     * copy of the disk image. Under scrub, skip the copy when newer stable content was written: the
-     * page won't be left clean, so the swap path cannot fire.
+     * copy of the disk image. During checkpoint scrub, skip the copy when newer stable content was
+     * written: the page is left dirty, so the swap path cannot fire and the image is useless.
+     * During eviction scrub the update chain is intact regardless, so the image is always useful.
      */
-    if ((F_ISSET(r, WT_REC_SCRUB) && !r->newer_updates_than_last_rec_used) ||
+    if ((F_ISSET(r, WT_REC_SCRUB) &&
+          !(F_ISSET(r, WT_REC_CHECKPOINT) && r->newer_updates_than_last_rec_used)) ||
       F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 

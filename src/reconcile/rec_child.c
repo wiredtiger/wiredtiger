@@ -273,13 +273,13 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
 
         case WT_REF_MEM:
             /*
-             * In memory. Fail eviction: the parent cannot be evicted while a child is in-memory. A
-             * clean in-memory child can legitimately appear here (e.g. after a scrub swap that left
-             * a retained image pending a follow-on clean eviction), so return EBUSY and let the
-             * caller retry once the child is flushed to disk.
+             * In memory.
+             *
+             * We should never be here during eviction, active child pages in an evicted page's
+             * subtree fails the eviction attempt.
              */
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (EBUSY);
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+              "unexpected WT_REF_MEM child state during eviction reconciliation");
 
             /*
              * If called during checkpoint, acquire a hazard pointer so the child isn't evicted,
