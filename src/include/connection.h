@@ -165,7 +165,7 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 3
+#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 4
 #define WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION 1
 
 /*
@@ -1041,8 +1041,21 @@ struct __wt_connection_impl {
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
 
-    /* Connection's base write generation. */
-    uint64_t base_write_gen;
+    /*
+     * Connection's base write generation. Set once at startup for local storage. Under
+     * disaggregated storage a follower also advances it at every checkpoint pickup, under the
+     * checkpoint lock, to stay past the generations of the checkpoints it adopts; see the open path
+     * for how that read is ordered against the update. Accessed with relaxed atomics because the
+     * follower mutates it at runtime; ordering comes from the checkpoint lock, not the atomic.
+     */
+    wt_shared uint64_t base_write_gen;
+
+    /*
+     * High-water mark of write generations used this run, seeded from the base write generation. A
+     * disaggregated leader persists this in the checkpoint metadata as the base write generation a
+     * follower must adopt to stay past the leader's generations.
+     */
+    wt_shared uint64_t max_write_gen;
 
     uint32_t stat_flags; /* Options declared in flags.py */
 

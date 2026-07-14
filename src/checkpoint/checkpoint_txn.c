@@ -2736,8 +2736,11 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t max_write_gen;
 
     btree = S2BT(session);
+    conn = S2C(session);
 
     /*
      * Reconciliation just wrote a checkpoint, everything has been written. Update the checkpoint
@@ -2751,6 +2754,18 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
         }
+
+    /*
+     * Keep the connection-wide high-water mark of write generations current. A tree's write
+     * generation only becomes durable through a checkpoint, so updating it here (once per tree, not
+     * per page) is sufficient. A disaggregated leader persists this so a follower can lift its base
+     * write generation past the leader's generations.
+     */
+    do {
+        max_write_gen = __wt_atomic_load_uint64_relaxed(&conn->max_write_gen);
+        if (btree->write_gen <= max_write_gen)
+            break;
+    } while (!__wt_atomic_cas_uint64(&conn->max_write_gen, max_write_gen, btree->write_gen));
 
     /*
      * During RTS, recovery, or shutdown reset the maximum timestamp used for reconciliation to a

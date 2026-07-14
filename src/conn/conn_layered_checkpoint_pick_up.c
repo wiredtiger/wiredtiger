@@ -856,6 +856,7 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
     conn->txn_global.last_ckpt_disaggregated_schema_epoch = metadata->schema_epoch;
+
     /* Release store to pair with the acquire load in sweep. */
     __wt_atomic_store_uint64_release(
       &conn->txn_global.last_ckpt_timestamp, metadata->checkpoint_timestamp);
@@ -968,6 +969,23 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
       metadata.schema_epoch, __wt_timestamp_to_string(metadata.schema_epoch, ts_string[2]),
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
+
+    /*
+     * Lift the base write generation past every generation the checkpoint's writer (the leader)
+     * used, so this checkpoint's transaction ids are recognized as belonging to an earlier
+     * generation range and reset when its trees are opened. This must happen before we apply the
+     * checkpoint below, because applying it reads the shared metadata table's own checkpoint, whose
+     * foreign ids must already be resettable for its entries to be visible here.
+     *
+     * Concurrency: we hold the checkpoint lock, the only writer of the base write generation once
+     * followers are active. A fresh stable-tree open reads the base write generation only after
+     * acquiring the same checkpoint lock to fetch this checkpoint's metadata, which happens-after
+     * this update; because the base write generation is monotonic, that open observes a value at
+     * least as large as the one set for the checkpoint it is opening. Observing a larger value is
+     * harmless: a follower resets every adopted checkpoint's ids regardless.
+     */
+    __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
+      WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->base_write_gen), metadata.base_write_gen + 1));
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
