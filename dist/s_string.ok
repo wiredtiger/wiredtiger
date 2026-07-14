@@ -1505,6 +1505,7 @@ portably
 pos
 posint
 posix
+posoplog
 postrun
 postsize
 powershell

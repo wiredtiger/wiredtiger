@@ -64,7 +64,12 @@ def _op_prev(cursor):
     return cursor.prev()
 
 def _op_remove(cursor):
-    cursor.set_key('key_0')
+    # A follower's overwrite=true remove asserts the key is still live, so repeat calls (this test
+    # calls do_op twice, before and after the checkpoint) must each target a distinct, still-live
+    # key rather than removing the same key twice; insert_keys populates key_0 through key_4.
+    idx = getattr(cursor, '_remove_key_idx', 0)
+    cursor.set_key(f'key_{idx}')
+    cursor._remove_key_idx = idx + 1
     return cursor.remove()
 
 def _op_reserve(cursor):
