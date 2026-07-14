@@ -352,6 +352,12 @@ disagg_stepdown_thread(void *arg)
 void
 disagg_switch_roles(void)
 {
+    SAP sap;
+    WT_SESSION *session;
+
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+
     /* Perform step-up or step-down. */
     g.disagg_leader = !g.disagg_leader;
 
@@ -365,13 +371,8 @@ disagg_switch_roles(void)
              * so they belong in this synchronous path (after operations() returns) rather than the
              * background thread, to avoid cache pressure from concurrent worker activity.
              */
-            SAP sap;
-            WT_SESSION *session;
             wt_timestamp_t stable_after;
             char config[128];
-
-            memset(&sap, 0, sizeof(sap));
-            wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
 
             /*
              * Pin stable at exactly step_down_ts now that all operations have finished. Use
@@ -397,37 +398,30 @@ disagg_switch_roles(void)
             track("[stepdown] checkpoint verified", 0ULL);
 
             g.stepdown_ts = WT_TS_NONE;
-            wt_wrap_close_session(session);
 
             track("[role change] leader -> follower (async completion)", 0ULL);
             testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
             follower_read_latest_checkpoint();
         } else {
-            /*
-             * FIXME-WT-15763: graceful sync step-down is not yet fully supported, so reopen.
-             */
             track("[role change] leader -> follower (sync)", 0ULL);
-            wts_reopen();
+            timestamp_sync_threads_commit_ts();
+            timestamp_once(session, false, false);
+            testutil_check(session->checkpoint(session, NULL));
+            testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
             follower_read_latest_checkpoint();
             wts_prepare_discover(g.wts_conn);
         }
     } else {
         /* Stepping up: [follower -> leader] */
-        SAP sap;
-        WT_SESSION *session;
-
         track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
 
-        memset(&sap, 0, sizeof(sap));
-        wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
         /* Advance timestamps to cover all in-memory commits from the follower phase. */
         timestamp_sync_threads_commit_ts();
         timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
-        wt_wrap_close_session(session);
     }
-
+    wt_wrap_close_session(session);
     /* After every switch, verify the contents of each table */
     wts_verify_mirrors(g.wts_conn, NULL, NULL);
 }
