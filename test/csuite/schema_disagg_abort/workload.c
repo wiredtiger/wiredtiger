@@ -118,7 +118,7 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
  *
  * The timestamp thread advances stable independently, so stable can move to or past the commit
  *     timestamp between the stable read and the commit. WiredTiger rejects that commit with EINVAL
- *     and rolls the transaction back. Return WT_ROLLBACK in that case so the caller records no data.
+ *     and rolls the transaction back.
  */
 static int
 schema_op_insert_data(
