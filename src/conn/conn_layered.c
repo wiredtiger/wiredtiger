@@ -1041,14 +1041,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
     /*
-     * Establish the base write generation from all files before we begin checkpointing as leader,
-     * so the high-water mark we persist covers every file, including ones a follower adopted but
-     * did not modify. We have not written any data this run, so the scanned generations all belong
-     * to earlier runs and the base write generation correctly marks the boundary.
-     */
-    WT_ERR(__wt_meta_correct_base_write_gen(session));
-
-    /*
      * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
      * before draining the ingest tables, so that the updates to the stable tables will be correctly
      * included in the new checkpoint.
@@ -1365,17 +1357,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
-
-        /*
-         * A leader establishes the base write generation from all files at startup, before any data
-         * is written this run, so the scanned generations all belong to earlier runs and the base
-         * write generation correctly marks the boundary. This covers a checkpoint that did not
-         * carry the base write generation (for example one written before it was recorded in the
-         * checkpoint metadata), so the high-water mark a later checkpoint persists covers every
-         * file.
-         */
-        if (leader)
-            WT_ERR(__wt_meta_correct_base_write_gen(session));
 
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
         if (cval.val != 0)

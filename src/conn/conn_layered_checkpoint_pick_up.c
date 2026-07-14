@@ -990,7 +990,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
           WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
             __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
-    }
+    } else
+        /*
+         * This checkpoint predates recording the base write generation. Reconstruct it by scanning
+         * all files' persisted write generations, so the high-water mark a later checkpoint records
+         * covers every file. This runs before any tree is opened this run, so the scanned
+         * generations all belong to earlier runs and the base write generation correctly marks the
+         * boundary.
+         */
+        WT_ERR(__wt_meta_correct_base_write_gen(session));
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
