@@ -54,7 +54,7 @@ from wiredtiger import stat
 #   hold WT_LEAF_STATS_UNKNOWN (UINT64_MAX, read back as -1 through this
 #   int64-typed stat) until a WT_STAT_TYPE_TREE_WALK sets real values for
 #   both together. A table created after this tracking existed never sees
-#   that sentinel: it starts empty, which is exact by construction.
+#   that reserved marker: it starts empty, which is exact by construction.
 class test_stat17(wttest.WiredTigerTestCase):
     uri = 'table:test_stat17'
 
@@ -204,7 +204,7 @@ class test_stat17(wttest.WiredTigerTestCase):
 
     # A table created after this stat was added starts empty, which is an
     # exact count, so neither field is ever left at the WT_LEAF_STATS_UNKNOWN
-    # sentinel, from the very first checkpoint even without a tree walk.
+    # reserved marker, from the very first checkpoint even without a tree walk.
     def test_never_unknown_for_new_table(self):
         self.session.create(self.uri, self.create_params)
         self._insert(self.nrows)

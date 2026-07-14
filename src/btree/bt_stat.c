@@ -85,8 +85,8 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
     /*
      * These read as WT_LEAF_STATS_UNKNOWN for a table whose checkpoint metadata predates this
-     * tracking and hasn't yet had a corrective WT_STAT_TYPE_TREE_WALK; callers treat that sentinel
-     * as "unknown, fall back to another estimation technique or trigger a walk."
+     * tracking and hasn't yet had a corrective WT_STAT_TYPE_TREE_WALK; callers treat that reserved
+     * marker as "unknown, fall back to another estimation technique or trigger a walk."
      */
     WT_STATP_DSRC_SET(session, stats, btree_row_leaf_avg_entries,
       __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma));
