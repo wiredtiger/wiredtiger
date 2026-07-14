@@ -696,16 +696,15 @@ struct __wt_cursor {
      * @configstart{WT_CURSOR.reconfigure, see dist/api_data.py}
      * @config{append, append written values as new records\, giving each a new record number key;
      * valid only for cursors with record number keys., a boolean flag; default \c false.}
-     * @config{overwrite, configures whether the cursor's insert and update methods check the
-     * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
+     * @config{overwrite, configures whether the cursor's insert\, update\, and remove methods check
+     * the existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
      * ::WT_DUPLICATE_KEY if the record exists\, and WT_CURSOR::update fails with ::WT_NOTFOUND if
-     * the record does not exist.  FIXME-WT-18019: standard (non-layered) cursors don't yet extend
-     * this to WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
-     * regardless of \c overwrite.  On a follower of a layered table\, \c overwrite set to \c true
+     * the record does not exist.  On a follower of a layered table\, \c overwrite set to \c true
      * also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing or
      * already-deleted key; a write conflict with a concurrent\, not-yet-visible change to the same
-     * key can still fail the call.  Has no effect on a leader\, or for cursors on any other data
-     * source., a boolean flag; default \c true.}
+     * key can still fail the call.  FIXME-WT-18019: standard (non-layered) cursors don't yet extend
+     * this to WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
+     * regardless of \c overwrite.  Has no effect on a leader., a boolean flag; default \c true.}
      * @configend
      * @errors
      */
@@ -1040,16 +1039,15 @@ struct __wt_session {
      * @config{next_random_seed, configure the cursor to set an initial random seed when using \c
      * next_random configuration.  This is used for testing purposes only.  See @ref cursor_random
      * for details., a string; default \c 0.}
-     * @config{overwrite, configures whether the cursor's insert and update methods check the
-     * existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
+     * @config{overwrite, configures whether the cursor's insert\, update\, and remove methods check
+     * the existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert fails with
      * ::WT_DUPLICATE_KEY if the record exists\, and WT_CURSOR::update fails with ::WT_NOTFOUND if
-     * the record does not exist.  FIXME-WT-18019: standard (non-layered) cursors don't yet extend
-     * this to WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
-     * regardless of \c overwrite.  On a follower of a layered table\, \c overwrite set to \c true
+     * the record does not exist.  On a follower of a layered table\, \c overwrite set to \c true
      * also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing or
      * already-deleted key; a write conflict with a concurrent\, not-yet-visible change to the same
-     * key can still fail the call.  Has no effect on a leader\, or for cursors on any other data
-     * source., a boolean flag; default \c true.}
+     * key can still fail the call.  FIXME-WT-18019: standard (non-layered) cursors don't yet extend
+     * this to WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
+     * regardless of \c overwrite.  Has no effect on a leader., a boolean flag; default \c true.}
      * @config{raw, ignore the encodings for the key and value\, manage data as if the formats were
      * \c "u". See @ref cursor_raw for details., a boolean flag; default \c false.}
      * @config{read_once, results that are brought into cache from disk by this cursor will be given

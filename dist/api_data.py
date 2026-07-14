@@ -1589,16 +1589,15 @@ cursor_runtime_config = [
         cursors with record number keys''',
         type='boolean'),
     Config('overwrite', 'true', r'''
-        configures whether the cursor's insert and update methods check the existing state of
-        the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
-        if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist. FIXME-WT-18019: standard (non-layered) cursors don't yet extend this to
-        WT_CURSOR::remove; a missing or already-deleted key still fails with ::WT_NOTFOUND
-        regardless of \c overwrite. On a follower of a layered table, \c overwrite set to \c true
-        also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing or
+        configures whether the cursor's insert, update, and remove methods check the existing
+        state of the record. If \c overwrite is \c false, WT_CURSOR::insert fails with
+        ::WT_DUPLICATE_KEY if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND
+        if the record does not exist. On a follower of a layered table, \c overwrite set to
+        \c true also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing or
         already-deleted key; a write conflict with a concurrent, not-yet-visible change to the
-        same key can still fail the call. Has no effect on a leader, or for cursors on any other
-        data source''',
+        same key can still fail the call. FIXME-WT-18019: standard (non-layered) cursors don't
+        yet extend this to WT_CURSOR::remove; a missing or already-deleted key still fails with
+        ::WT_NOTFOUND regardless of \c overwrite. Has no effect on a leader''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
