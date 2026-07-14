@@ -289,8 +289,12 @@ disagg_key_rotation(void *arg)
         }
         secs = mmrand(&g.extra_rnd, 1, 5);
 
-        wt_timestamp_t stable_ts;
-        testutil_check(timestamp_query("get=stable_timestamp", &stable_ts));
+        /*
+         * Read stable atomically on this thread's own session. The connection level query API
+         * shares the default session with the timestamp thread's set_timestamp, which races under
+         * TSan.
+         */
+        wt_timestamp_t stable_ts = __wt_get_stable_timestamp((WT_SESSION_IMPL *)session);
 
         /* Stable can pass push_ts between the read and the call, so a benign EINVAL just retries.
          */
