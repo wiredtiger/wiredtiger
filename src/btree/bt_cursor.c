@@ -1599,7 +1599,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_SESSION_IMPL *session;
     size_t max_memsize, new, orig;
     uint64_t sleep_usecs, yield_count;
-    bool overwrite, valid;
+    bool key_out_of_bounds, overwrite, valid;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -1633,13 +1633,17 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
+        WT_ERR(__btcur_bounds_contains_key(
+          session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
+        if (key_out_of_bounds)
+            WT_ERR(WT_NOTFOUND);
 retry:
         WT_ERR(__wt_cursor_localkey(cursor));
         WT_ERR(__wt_cursor_func_init(cbt, true));
         WT_ERR(__cursor_search(cbt, NULL, NULL, false));
         if (cbt->compare == 0) {
             WT_ERR(__curfile_update_check(cbt));
-            WT_ERR(__wti_cursor_valid(cbt, &valid, true));
+            WT_ERR(__wti_cursor_valid(cbt, &valid, false));
             if (!valid)
                 WT_ERR(WT_NOTFOUND);
             WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
