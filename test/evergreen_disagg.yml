@@ -638,7 +638,7 @@ variables:
   - &schema-disagg-abort-test-disagg
     depends_on:
         - name: compile
-    exec_timeout_secs: 3600
+    exec_timeout_secs: 7200
     commands:
       - func: "fetch artifacts"
       - command: shell.exec

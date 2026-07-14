@@ -172,9 +172,9 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:h:ps:T:t:v", cfg.opts);
+    testutil_parse_begin_opt(argc, argv, "b:h:pP:s:T:t:v", cfg.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:h:ps:T:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:T:t:v")) != EOF)
         switch (ch) {
         case 's':
             pool_size_set = true;
