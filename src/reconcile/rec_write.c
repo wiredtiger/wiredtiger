@@ -128,15 +128,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
-    else {
-        if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE))
-            WT_STAT_CONN_INCRV(
-              session, session_table_compact_bytes_rewrite_inmem, ref->page->memory_footprint);
-        /* If writing a page in service of compaction, we're done, clear the flag. */
-        F_CLR_ATOMIC_16(ref->page,
-          WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT | WT_PAGE_INTL_PINDEX_UPDATE |
-            WT_PAGE_COMPACTION_WRITE);
-    }
 
 err:
     if (page_locked)
@@ -397,6 +388,16 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
+        WT_STAT_CONN_INCRV(
+          session, session_table_compact_bytes_rewrite_inmem, page->memory_footprint);
+    /*
+     * Retire the reconciliation state before releasing the page lock so subsequent operations
+     * cannot have their newer state cleared by this reconciliation.
+     */
+    F_CLR_ATOMIC_16(page,
+      WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT | WT_PAGE_INTL_PINDEX_UPDATE |
+        WT_PAGE_COMPACTION_WRITE);
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
     /*
