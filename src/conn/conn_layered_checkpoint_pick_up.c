@@ -974,7 +974,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * used, so this checkpoint's transaction ids are recognized as belonging to an earlier
      * generation range and reset when its trees are opened. This must happen before we apply the
      * checkpoint below, because applying it reads the shared metadata table's own checkpoint, whose
-     * foreign ids must already be resettable for its entries to be visible here.
+     * foreign ids must already be subject to reset for its entries to be visible here.
      *
      * Concurrency: we hold the checkpoint lock, the only writer of the base write generation once
      * followers are active. A fresh stable-tree open reads the base write generation only after
