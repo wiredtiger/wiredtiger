@@ -449,6 +449,7 @@ SCons
 SDK
 SIGABRT
 SIGBUS
+SIGKILL
 SIGSEGV
 SIMD
 SLS
@@ -511,6 +512,7 @@ TieredConfigMixin
 Timespec
 Tput
 TryCV
+Tunables
 TypeError
 Typedefs
 UBSAN
@@ -644,7 +646,6 @@ allocator
 allocators
 allocfile
 allocsize
-analytics
 aor
 ap
 api
@@ -798,7 +799,6 @@ colcheck
 colgap
 colgroup
 colgroups
-collHash
 collatorp
 collist
 columngroup
@@ -914,6 +914,7 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
 designator
@@ -933,6 +934,7 @@ difftime
 dir
 directio
 dirlist
+dirs
 dirstore
 disagg
 disaggregated
@@ -1482,6 +1484,7 @@ overcount
 oversized
 ovfl
 ownp
+pP
 pR
 pT
 packv
@@ -1868,7 +1871,6 @@ undeleted
 underflowed
 underflowing
 underflows
-underfull
 unencoded
 unencrypted
 unesc
