@@ -38,7 +38,7 @@ import wiredtiger, wttest
 # as an ordinary WT_PANIC the application can handle, not a crash.
 @wttest.skip_for_hook("tiered", "corrupts local block files not used by tiered storage")
 @wttest.skip_for_hook("disagg", "corrupts blocks which are not relevant for disagg")
-class test_prepare_hs06(wttest.WiredTigerTestCase):
+class test_corrupt02(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=50MB,statistics=(fast),debug_mode=(corruption_abort=false),'
                    'eviction_dirty_trigger=50,eviction_updates_trigger=50')
 
@@ -89,7 +89,7 @@ class test_prepare_hs06(wttest.WiredTigerTestCase):
             cursor[str(i)] = b'a' * 500
         cursor.close()
 
-    def test_prepare_hs06(self):
+    def test_corrupt02(self):
         self.session.create(self.uri, 'key_format=S,value_format=u')
 
         # Load enough data that the alloc extent list is large enough to be written as its own block.
