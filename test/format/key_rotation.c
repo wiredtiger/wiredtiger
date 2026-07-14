@@ -289,7 +289,6 @@ disagg_key_rotation(void *arg)
         }
         secs = mmrand(&g.extra_rnd, 1, 5);
 
-        /* Query WT's stable timestamp directly to avoid racing on the shared global. */
         wt_timestamp_t stable_ts;
         testutil_check(timestamp_query("get=stable_timestamp", &stable_ts));
 
