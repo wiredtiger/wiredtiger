@@ -93,7 +93,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
             '/must not advance past the armed step down timestamp/')
 
-    # A single call that arms and moves stable past the cutoff must be rejected,
+    # A single call that arms and moves stable past the cutoff must be rejected.
     def test_arm_with_stable_overshoot_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
