@@ -564,7 +564,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     if (lastrun) {
         tinfo_teardown();
-        if (g.transaction_timestamps_config)
+        if (g.transaction_timestamps_config && !GV(DISAGG_STEPDOWN_ASYNC))
             timestamp_teardown(session);
     }
 
@@ -650,7 +650,7 @@ begin_transaction(TINFO *tinfo, const char *iso_config)
  * next_timestamp --
  *     Allocate the next global timestamp under the step-down read lock. The write lock is held
  *     exclusively during step-down notification; threads blocked here unblock with values strictly
- *     above step_down_ts, routing their writes to ingest (TC3).
+ *     above step_down_ts, routing their writes to ingest.
  */
 uint64_t
 next_timestamp(WT_SESSION *session)
@@ -700,8 +700,10 @@ commit_transaction(TINFO *tinfo, bool prepared)
     } else
         ret = session->commit_transaction(session, NULL);
 
-    if (ret == WT_ROLLBACK || ret == WT_CACHE_FULL) {
+    if (ret == WT_ROLLBACK) {
         ++tinfo->rollback;
+        trace_uri_op(tinfo, NULL, "commit rolled back read-ts=%" PRIu64 ", commit-ts=%" PRIu64,
+          tinfo->read_ts, ts);
         return false;
     }
     testutil_check(ret);

@@ -105,8 +105,6 @@
 
 #define MIN_TIMESTAMP 2 /* Minimum timestamp */
 
-#define SLEEP_TIME 5 /* Sleep time in seconds for various waits */
-
 #include "format_config.h"
 extern CONFIG configuration_list[];
 

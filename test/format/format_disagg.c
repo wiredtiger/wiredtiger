@@ -245,11 +245,9 @@ stepdown_workers_drained(wt_timestamp_t step_down_ts)
  *     timestamp threads so they cannot interfere. 2. Write lock: capture step_down_ts, advance
  *     g.timestamp past it, and notify WT via set_timestamp(step_down_timestamp) - all under the
  *     lock so WT begins enforcing the boundary before any new timestamps are handed out. WT rolls
- *     back in-flight write transactions with ts <= step_down_ts (TC4); threads unblocked from the
- *     write lock get ts values > step_down_ts -> ingest (TC3). 3. Drain: wait until every worker
- *     has committed or rolled back at or below step_down_ts. Steps 4 (pin stable, checkpoint) and 5
- *     (reconfigure to follower) are deferred to disagg_switch_roles() and run after operations()
- *     returns, so the checkpoint does not race with active workers filling the cache.
+ *     back in-flight write transactions while setting the stepdown_ts; threads unblocked from the
+ *     write lock get ts values > step_down_ts -> ingest. 3. Drain: wait until every worker has
+ *     committed or rolled back at or below step_down_ts.
  */
 void
 disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
@@ -267,7 +265,7 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
 
     /*
      * Stop the checkpoint thread before notifying WT. An uncontrolled checkpoint taken after
-     * notification could land stable at the wrong boundary, breaking the TC6 invariant.
+     * notification could land stable at the wrong boundary.
      */
     if (g.checkpoint_config == CHECKPOINT_ON) {
         g.checkpoint_quit = true;
@@ -387,7 +385,7 @@ disagg_switch_roles(void)
 
             /*
              * Step-down checkpoint: stable is pinned at step_down_ts, so the checkpoint captures
-             * exactly the content up to the cut-over and nothing newer. Verify TC6 afterward.
+             * exactly the content up to the cut-over and nothing newer.
              */
             track("[stepdown] taking step-down checkpoint", 0ULL);
             testutil_check(session->checkpoint(session, NULL));
