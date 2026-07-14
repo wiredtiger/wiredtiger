@@ -225,18 +225,17 @@ disagg_is_mode_switch(void)
 
 /*
  * stepdown_workers_drained --
- *     Return true when WT's all_durable timestamp has reached step_down_ts, meaning every
- *     transaction at or below step_down_ts has completed (committed or rolled back). Using
- *     all_durable is stronger than checking per-thread commit_ts: it guarantees no gaps remain in
- *     the commit history at or below the step-down boundary.
+ *     Return true once every worker's most recent commit is past step_down_ts, proving no worker
+ *     can commit at or below the boundary again. Only commits the workers have completed count:
+ *     querying WT's all_durable would miss a timestamp a worker has allocated but not yet given to
+ *     timestamp_transaction, letting the drain finish early and that commit land behind stable.
+ *     Timer-based runs are required (enforced at configuration): a worker that exhausts its
+ *     operation count stops committing and would stall the drain.
  */
 static bool
 stepdown_workers_drained(wt_timestamp_t step_down_ts)
 {
-    wt_timestamp_t all_durable;
-
-    testutil_check(timestamp_query("get=all_durable", &all_durable));
-    return (all_durable >= step_down_ts);
+    return (timestamp_minimum_committed() >= step_down_ts);
 }
 
 /*
