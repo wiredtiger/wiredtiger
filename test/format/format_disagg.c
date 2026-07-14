@@ -382,6 +382,7 @@ disagg_switch_roles(void)
             lock_writelock(session, &g.prepare_commit_lock);
             testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
             lock_writeunlock(session, &g.prepare_commit_lock);
+            g.stable_timestamp = g.stepdown_ts;
 
             /*
              * Step-down checkpoint: stable is pinned at step_down_ts, so the checkpoint captures
