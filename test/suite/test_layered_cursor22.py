@@ -127,28 +127,6 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
 
         self.assertEqual(self.read_value(1), None)
 
-    # A key deleted before the later-transaction remove, with overwrite=true (the default), must
-    # report success as a no-op without writing a second, consecutive tombstone. (layered_curs_remove
-    # counts every successful WT_CURSOR::remove call, masked no-ops included, so it can't be used to
-    # detect a skipped write here -- read_value confirms the key is still, correctly, gone.)
-    def test_remove_already_deleted(self):
-        self.seed({1: 'v'})
-        cursor = self.position_follower(1)
-
-        # Delete the key with a second cursor before the positional remove runs.
-        delete_cursor = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction()
-        delete_cursor.set_key(1)
-        self.assertEqual(delete_cursor.remove(), 0)
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
-        delete_cursor.close()
-
-        # The positional remove finds the tombstone and reports success as a no-op.
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(10))
-        self.assertEqual(cursor.remove(), 0)
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
-        self.assertEqual(self.read_value(1), None)
-
     # A positional update issued in a later transaction writes the new value.
     def test_update(self):
         self.seed({1: 'v'})

@@ -166,15 +166,15 @@ class test_layered_cursor23(wttest.WiredTigerTestCase):
 
         mismatches = []
         for method in ('insert', 'update', 'modify', 'reserve', 'remove'):
+            # A follower's remove with overwrite=true asserts the key is live: it's a caller
+            # contract violation (a diagnostic-build assertion, not a testable return code) to call
+            # it when the key isn't visible in either constituent at the read timestamp. Skip that
+            # combination here; every other combination must still match the reference exactly.
+            if method == 'remove' and self.role == 'follower' and self.overwrite \
+              and not (self.vis_stable or self.vis_ingest):
+                continue
             expected = self.run_method(self.session, self.uri_ref, method)
             actual = self.run_method(self.test_session, self.uri, method)
-            # A follower's remove with overwrite=true masks a missing key's WT_NOTFOUND into
-            # success -- unlike the plain reference cursor, which doesn't have this behavior yet
-            # (tracked separately). Any other outcome (a real conflict, a duplicate key, etc.)
-            # must still match the reference exactly; this is the one deliberate divergence.
-            if method == 'remove' and self.role == 'follower' and self.overwrite \
-              and expected == 'WT_NOTFOUND':
-                expected = 'success'
             if actual != expected:
                 mismatches.append(f'{method}: layered={actual} ref={expected}')
         self.assertEqual(mismatches, [],

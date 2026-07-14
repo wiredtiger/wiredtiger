@@ -2201,11 +2201,10 @@ row_remove(TINFO *tinfo, bool positioned)
     cursor = tinfo->cursor;
 
     /*
-     * An unpositioned overwrite=true remove on a disagg follower is a blind delete: it assumes the
-     * key exists rather than looking it up, which is only correct when the leader already confirmed
-     * the key before replicating the delete. This thread issues fresh, random removes of its own
-     * instead of replaying leader-confirmed ones, so drop overwrite for the call. FIXME-WT-17254:
-     * replay leader-confirmed deletes on the follower instead.
+     * An unpositioned overwrite=true remove on a disagg follower asserts the caller already knows
+     * the key exists, so it never fails with WT_NOTFOUND -- correct only when the leader already
+     * confirmed the key before replicating the delete. This thread issues fresh, random removes of
+     * its own instead of replaying leader-confirmed ones, so drop overwrite for the call.
      */
     blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
     if (blind_remove)
