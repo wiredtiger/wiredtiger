@@ -94,6 +94,28 @@ class test_txn32(wttest.WiredTigerTestCase):
         sfollow.close()
         conn_follow.close()
 
+    def test_primary_reopen_reads_its_data(self):
+        self.session.create(self.stable, 'key_format=S,value_format=S')
+        c = self.session.open_cursor(self.stable)
+        for i in range(self.nrows):
+            c['k%d' % i] = 'value'
+        c.close()
+        self.session.checkpoint()
+
+        # Churn a different table so write generations climb before the reopen.
+        self.session.create(self.churn, 'key_format=i,value_format=S')
+        for round in range(10):
+            cc = self.session.open_cursor(self.churn)
+            cc[round] = 'churn'
+            cc.close()
+            self.session.checkpoint()
+
+        # Reopen directly as primary. The pick-up on reopen must re-establish the base write
+        # generation; otherwise the previous run's committed data would not be recognized this
+        # run and would be unreadable.
+        self.reopen_disagg_conn(self.conn_config + ',')
+        self.check(self.session, self.stable, 'value')
+
     def test_stepped_up_leader_reads_table_untouched_by_latest_checkpoint(self):
         conn_follow = self.wiredtiger_open(
             'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
