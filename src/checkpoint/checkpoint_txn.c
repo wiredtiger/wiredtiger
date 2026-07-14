@@ -418,7 +418,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_DATA_HANDLE *dhandle;
     WT_DISAGG_METADATA_OP *entry;
     wt_timestamp_t ckpt_epoch, ckpt_timestamp;
-    bool found_create;
+    bool published;
 
     conn = S2C(session);
     dhandle = session->dhandle;
@@ -430,17 +430,17 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    found_create = false;
+    published = false;
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
         if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
           strcmp(entry->stable_uri, dhandle->name) == 0 && entry->schema_epoch <= ckpt_epoch) {
-            found_create = true;
+            published = true;
             break;
         }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    if (!found_create) {
+    if (!published) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
         if (btree->min_unpublished_durable_ts != WT_TS_NONE &&
           btree->min_unpublished_durable_ts <= ckpt_timestamp)
@@ -448,7 +448,7 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
               dhandle->name);
     }
 
-    if (found_create)
+    if (published)
         F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
     return (0);
 }
