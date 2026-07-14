@@ -436,9 +436,9 @@ TEST_CASE_METHOD(kp_fixture, "set_key rejects non-monotonic timestamp", "[key_pr
 
     const std::string key_bytes = "push-mode-key-monotonic";
     REQUIRE(push_key(&stub, key_bytes, 10) == 0);
-    REQUIRE(push_key(&stub, key_bytes, 10) == EINVAL); /* Equal rejected. */
-    REQUIRE(push_key(&stub, key_bytes, 5) == EINVAL);  /* Smaller rejected. */
-    REQUIRE(push_key(&stub, key_bytes, 11) == 0);      /* Larger accepted. */
+    REQUIRE(push_key(&stub, key_bytes, 10) == EBUSY); /* Equal rejected. */
+    REQUIRE(push_key(&stub, key_bytes, 5) == EBUSY);  /* Smaller rejected. */
+    REQUIRE(push_key(&stub, key_bytes, 11) == 0);     /* Larger accepted. */
 
     /* Only the two successful pushes are queued. */
     int n = 0;
@@ -461,9 +461,9 @@ TEST_CASE_METHOD(kp_fixture, "set_key rejects timestamp <= stable", "[key_provid
     REQUIRE(wt_conn->set_timestamp(wt_conn, "stable_timestamp=14") == 0); /* 0x14 == 20. */
 
     const std::string key_bytes = "push-mode-stable-check";
-    REQUIRE(push_key(&stub, key_bytes, 20) == EINVAL); /* Equal to stable. */
-    REQUIRE(push_key(&stub, key_bytes, 10) == EINVAL); /* Below stable. */
-    REQUIRE(push_key(&stub, key_bytes, 30) == 0);      /* Strictly above stable. */
+    REQUIRE(push_key(&stub, key_bytes, 20) == EBUSY); /* Equal to stable. */
+    REQUIRE(push_key(&stub, key_bytes, 10) == EBUSY); /* Below stable. */
+    REQUIRE(push_key(&stub, key_bytes, 30) == 0);     /* Strictly above stable. */
 
     conn_impl->key_provider = nullptr;
     F_CLR(conn_impl, WT_CONN_KEY_PROVIDER_PUSH);
