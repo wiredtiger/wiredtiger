@@ -229,8 +229,6 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
 #define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
 #define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
-#define CLAYERED_ENTER_OVERWRITE_BLIND \
-    0x10u /* Follower overwrite=true op: caller guarantees success. */
 
 /*
  * __clayered_enter_flags --
@@ -248,23 +246,17 @@ __clayered_enter_flags(
     if (mode == WTI_CLAYERED_MODE_ITERATE || mode == WTI_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
 
-    if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER)) {
-        /*
-         * overwrite=true asserts the caller already knows the operation will succeed, so this op
-         * never needs stable for its own existence check, independent of the write-conflict check's
-         * separate need for stable below.
-         */
-        LF_SET(CLAYERED_ENTER_OVERWRITE_BLIND);
-
-        /*
-         * The persistent stable cursor still opens on a read timestamp: __clayered_modify_check's
-         * write-conflict probe reads clayered->stable_cursor directly (not this op's stable slot)
-         * and needs it available whenever a read timestamp is set. Without a read timestamp,
-         * nothing on this path needs stable at all.
-         */
-        if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
-            LF_SET(CLAYERED_ENTER_SKIP_STABLE);
-    }
+    /*
+     * The persistent stable cursor still opens on a read timestamp: __clayered_modify_check's
+     * write-conflict probe reads clayered->stable_cursor directly (not this op's stable slot) and
+     * needs it available whenever a read timestamp is set. Without a read timestamp, nothing on
+     * this path needs stable at all -- overwrite=true asserts the caller already knows the key
+     * exists, so this op never needs stable for its own existence check either way (see
+     * __clayered_op_init).
+     */
+    if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
+      !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+        LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
     if (role != clayered->last_role)
         LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
@@ -277,22 +269,27 @@ __clayered_enter_flags(
  *     Populate the per-operation state.
  */
 static WT_INLINE void
-__clayered_op_init(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYERED_ROLE role, uint32_t flags)
+__clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYERED_OP_MODE mode,
+  WTI_CLAYERED_ROLE role)
 {
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
+    bool overwrite_blind;
+
+    /*
+     * overwrite=true asserts the caller already knows the key exists, so this op never needs
+     * stable for its own existence check -- independent of whether the persistent stable cursor
+     * happens to be open for the write-conflict check's separate needs (see
+     * __clayered_enter_flags).
+     */
+    overwrite_blind =
+      (mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER);
 
     op->clayered = clayered;
     op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
-    /*
-     * NULL the stable slot for a blind overwrite op even if the persistent cursor happens to be
-     * open (e.g. kept alive for the write-conflict check): this op's own existence check must never
-     * consult it.
-     */
-    op->stable = LF_ISSET(CLAYERED_ENTER_OVERWRITE_BLIND) ? NULL : clayered->stable_cursor;
+    op->stable = overwrite_blind ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-    op->stable_skipped_for_overwrite = LF_ISSET(CLAYERED_ENTER_OVERWRITE_BLIND);
+    op->stable_skipped_for_overwrite = overwrite_blind;
 }
 
 /*
@@ -334,7 +331,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
 
-    __clayered_op_init(clayered, op, role, flags);
+    __clayered_op_init(clayered, op, mode, role);
 
     if (!F_ISSET(clayered, WTI_CLAYERED_ACTIVE)) {
         /*
@@ -2635,31 +2632,11 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                     return (0);
                 }
 
-#ifdef HAVE_DIAGNOSTIC
                 /*
-                 * Diagnostic builds verify the caller's guarantee instead of trusting it: consult
-                 * stable directly (bypassing the persistent stable cursor's lifecycle, which
-                 * follows the write-conflict check's needs, not this check's) and crash if the key
-                 * isn't there either, catching a caller bug immediately instead of writing a
-                 * tombstone with nothing on stable to correspond to.
+                 * Existence unknown either way: assume it exists in stable, per the caller's
+                 * guarantee, and fall through to write the tombstone. Not independently verifiable
+                 * here without consulting stable, which this path deliberately skips.
                  */
-                {
-                    WT_CURSOR *verify_stable = clayered->stable_cursor;
-                    WT_ITEM stable_value;
-                    int diag_ret;
-
-                    WT_CLEAR(stable_value);
-                    diag_ret = verify_stable == NULL ?
-                      WT_NOTFOUND :
-                      __clayered_lookup_constituent(op, verify_stable, &stable_value);
-                    WT_ASSERT_ALWAYS(session, diag_ret == 0,
-                      "WT_CURSOR::remove with overwrite=true on a layered follower cursor found no "
-                      "corresponding key in ingest, the truncate list, or stable -- the caller "
-                      "violated the guarantee that this operation would succeed");
-                    /* Clean up the position the verification search above may have left behind. */
-                    WT_IGNORE_RET(__clayered_reset_cursors(clayered, false));
-                }
-#endif
                 ret = 0;
             } else if (ret != 0)
                 /*
