@@ -356,9 +356,7 @@ disagg_switch_roles(void)
     g.disagg_leader = !g.disagg_leader;
 
     if (!g.disagg_leader) {
-        /* Stepping down: [leader -> follower]. Reset the leader-side KEK push history. */
-        disagg_key_history_clear();
-
+        /* Stepping down: [leader -> follower]. */
         if (GV(DISAGG_STEPDOWN_ASYNC)) {
             /*
              * The async step-down thread stopped the checkpoint/timestamp threads and drained
@@ -410,6 +408,7 @@ disagg_switch_roles(void)
              */
             track("[role change] leader -> follower (sync)", 0ULL);
             wts_reopen();
+            disagg_key_history_clear();
             follower_read_latest_checkpoint();
             wts_prepare_discover(g.wts_conn);
         }
