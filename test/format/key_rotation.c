@@ -50,7 +50,7 @@ static void
 key_push_history_append(wt_timestamp_t ts)
 {
     testutil_assertfmt(g.key_push_count < KEY_PUSH_HISTORY_MAX,
-      "key rotation history full at %d entries, cannot push %#" PRIx64, KEY_PUSH_HISTORY_MAX,
+      "key rotation history full at %d entries, cannot push %" PRIu64, KEY_PUSH_HISTORY_MAX,
       (uint64_t)ts);
     g.key_push_history[g.key_push_count++] = ts;
 }
@@ -72,7 +72,7 @@ disagg_key_push(
     WT_CRYPT_KEYS crypt;
     WT_CLEAR(crypt);
     char key_buf[64];
-    testutil_snprintf(key_buf, sizeof(key_buf), "%s%#" PRIx64, KEY_PREFIX, (uint64_t)push_ts);
+    testutil_snprintf(key_buf, sizeof(key_buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)push_ts);
     crypt.keys.data = key_buf;
     crypt.keys.size = strlen(key_buf);
     crypt.timestamp = push_ts;
@@ -154,14 +154,14 @@ disagg_validate_kek_page(
     size_t key_size = hdr.crypt_size;
 
     testutil_assertfmt(persisted_ts == expected_ts,
-      "persisted KEK timestamp %#" PRIx64 " but expected %#" PRIx64
-      " for checkpoint timestamp %#" PRIx64,
+      "persisted KEK timestamp %" PRIu64 " but expected %" PRIu64
+      " for checkpoint timestamp %" PRIu64,
       persisted_ts, (uint64_t)expected_ts, (uint64_t)checkpoint_ts);
 
     char buf[64];
-    testutil_snprintf(buf, sizeof(buf), "%s%#" PRIx64, KEY_PREFIX, (uint64_t)expected_ts);
+    testutil_snprintf(buf, sizeof(buf), "%s%" PRIu64, KEY_PREFIX, (uint64_t)expected_ts);
     testutil_assertfmt(key_size == strlen(buf) && memcmp(key_data, buf, key_size) == 0,
-      "persisted KEK bytes do not match the expected key for timestamp %#" PRIx64,
+      "persisted KEK bytes do not match the expected key for timestamp %" PRIu64,
       (uint64_t)expected_ts);
 }
 
@@ -297,7 +297,7 @@ disagg_key_rotation(void *arg)
         if (disagg_key_push(session, kp, WT_MAX(stable_ts, last_push_ts), &push_ts) == EINVAL)
             continue;
         last_push_ts = push_ts;
-        trace_msg(session, "key rotation #%u pushed timestamp %#" PRIx64, ++counter, push_ts);
+        trace_msg(session, "key rotation #%u pushed timestamp %" PRIu64, ++counter, push_ts);
 
         /* Validate pushed key list against latest checkpoint. */
         if (g.disagg_leader)
