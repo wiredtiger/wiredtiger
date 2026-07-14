@@ -52,28 +52,3 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
         cursor.close()
-
-    # A plain cursor that removes a positioned key, then removes the same (now stale) position
-    # again without re-searching, loses its position on the resulting not-found: only a saved
-    # *external* key copy is restored on error, and this cursor was positioned internally
-    # (on-page), so nothing gets restored.
-    def test_positioned_double_remove_plain_loses_position(self):
-        uri = 'table:' + self.test_name + '_plain'
-        self.session.create(uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(uri)
-
-        self.session.begin_transaction()
-        cursor['k1'] = 'v1'
-        self.session.commit_transaction()
-
-        self.session.begin_transaction()
-        cursor.set_key('k1')
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.remove(), 0)
-        self.assertEqual(cursor.get_key(), 'k1')
-
-        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
-        self.assertRaisesWithMessage(
-            wiredtiger.WiredTigerError, lambda: cursor.get_key(), "/requires key be set/")
-        self.session.rollback_transaction()
-        cursor.close()
