@@ -644,6 +644,7 @@ allocator
 allocators
 allocfile
 allocsize
+analytics
 aor
 ap
 api
@@ -659,6 +660,7 @@ assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -796,6 +798,7 @@ colcheck
 colgap
 colgroup
 colgroups
+collHash
 collatorp
 collist
 columngroup
@@ -1121,6 +1124,7 @@ groupd
 gte
 handleops
 handlep
+handoff
 hardcoded
 hashmap
 hashq
@@ -1863,6 +1867,7 @@ undeleted
 underflowed
 underflowing
 underflows
+underfull
 unencoded
 unencrypted
 unesc
