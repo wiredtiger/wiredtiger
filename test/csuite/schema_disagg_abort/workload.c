@@ -188,10 +188,8 @@ thread_schema_run(void *arg)
         /* Concurrent publishers hold the read lock, so the epoch increment must be atomic. */
         epoch = __wt_atomic_add_uint64(&ctx.state->schema_op_epoch, 1);
         /*
-         * Record the operation before publishing it. If a crash lands after the record but before
-         * the publish, the epoch is never checkpointed and the verifier ignores the record. Keeping
-         * the record and publish under the read lock closes the window where a checkpoint could
-         * make the operation durable before the record reaches the file.
+         * Record the operation under the lock, before publishing, so it reaches the file before a
+         * checkpoint can make it durable.
          */
         if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP", epoch,
               ctx.uris[slot]) < 0)
@@ -199,11 +197,7 @@ thread_schema_run(void *arg)
         schema_op_publish(&ctx, slot, epoch);
         testutil_assert(pthread_rwlock_unlock(&ctx.state->lock) == 0);
 
-        /*
-         * Insert data outside the read lock so the checkpoint thread is not starved. The data is
-         * committed ahead of stable, so it cannot become durable until stable later advances, long
-         * after the record below reaches the file.
-         */
+        /* Insert data outside the read lock so the checkpoint thread is not starved. */
         if (is_create &&
           schema_op_insert_data(td->conn, &ctx, slot, epoch, &commit_ts) != WT_ROLLBACK)
             if (fprintf(ctx.schema_fp, "INSERT %" PRIu64 " %" PRIu64 " %d %d %s\n", epoch,
@@ -239,12 +233,9 @@ thread_ts_run(void *arg)
 
 /*
  * thread_ckpt_run --
- *     Checkpoints periodically. Advances stable_disaggregated_schema_epoch to the current
- *     schema_op_epoch before each checkpoint so all published schema operations are included. Holds
- *     the write lock across the epoch advance and the checkpoint so no schema thread is between
- *     create and publish: every queued create is therefore published, and the checkpoint never
- *     captures data for a table that is not yet published. Writes the ready sentinel after the
- *     first checkpoint.
+ *     Checkpoints periodically. Advances the stable schema epoch under the write lock so every
+ *     published operation is captured and no half-created table is, then writes the ready sentinel
+ *     after the first checkpoint that includes a schema operation.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)

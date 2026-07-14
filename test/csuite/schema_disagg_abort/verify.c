@@ -46,8 +46,8 @@ typedef struct {
  *     Record the last durable operation for each of thread t's URI slots, plus the inserted data
  *     for its last create. durable_epoch is the highest schema epoch that survived recovery; a
  *     record assigned a higher epoch never reached a checkpoint before the crash, so it is ignored.
- *     Records for other threads are skipped. A slot's INSERT record always follows its CREATE
- *     record in the file, so a single ordered pass suffices.
+ *     Records for other threads are skipped. The file is in operation order, so one top-to-bottom
+ *     pass sees a create before the insert that belongs to it.
  */
 static void
 parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
