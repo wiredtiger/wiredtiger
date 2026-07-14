@@ -1594,9 +1594,9 @@ cursor_runtime_config = [
         ::WT_DUPLICATE_KEY if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND
         if the record does not exist. On a follower of a layered table, \c overwrite set to
         \c true also makes WT_CURSOR::remove no longer fail with ::WT_NOTFOUND for a missing key;
-        the caller must guarantee that the operation will succeed. A write conflict with a
-        concurrent, not-yet-visible change to the same key can still fail the call. Has no effect
-        on a leader''',
+        the caller must guarantee that the key exists. A write conflict with a concurrent,
+        not-yet-visible change to the same key can still fail the call. Has no effect on a
+        leader''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
