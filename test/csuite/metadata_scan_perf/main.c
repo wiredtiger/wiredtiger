@@ -129,6 +129,9 @@ usage(void)
       "  -D  -G decompose: break the size-gathering scan into cursor walk, value, and size-\n"
       "      extraction costs instead of running the scan-vs-point-lookup comparison\n"
       "  -I  number of timed iterations of each method (default %d)\n"
+      "  -M  -G all methods: on one warm database, compare point lookups, the WiredTiger internal\n"
+      "      config parse, and the hand-rolled parse at 100/1000/10000 collections, with "
+      "extrapolation\n"
       "  -L  -G scan length: measure only the first L collections, 0 for all (default 0). Lets "
       "the\n"
       "      scan be timed at several lengths against one large database to check linear scaling.\n"
@@ -749,6 +752,101 @@ disagg_compare(uint64_t iterations, uint64_t scan_limit)
 }
 
 /*
+ * disagg_compare_all --
+ *     Re-open an existing disaggregated database and, on one warm connection, time the three ways
+ *     of reading every collection's checkpoint size at a fixed set of collection counts: statistics
+ *     point lookups, the WiredTiger internal config parse, and the hand-rolled targeted parse. The
+ *     collection stable files are contiguous and key-sorted, so measuring the first L of them is a
+ *     valid subset for all three methods. Prints a table and a linear extrapolation. Runs in its
+ *     own connection.
+ */
+static void
+disagg_compare_all(uint64_t iterations)
+{
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    static const uint64_t lengths[] = {100, 1000, 10000};
+    static const uint64_t targets[] = {100000, 200000, 400000, 600000};
+    double m1_per[WT_ELEMENTS(lengths)], m2_per[WT_ELEMENTS(lengths)],
+      point_per[WT_ELEMENTS(lengths)];
+    uint64_t avail, count, i, k, limit, m1_size, m1_us, m2_size, m2_us,
+      measured[WT_ELEMENTS(lengths)], point_size, point_us, total, us;
+
+    opts->disagg.page_log_home = opts->home;
+    testutil_wiredtiger_open(opts, opts->home, DISAGG_CONN_CONFIG, NULL, &conn, false, false);
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    /* Report the average metadata entry size, and warm the cache with a full-parse scan. */
+    disagg_report_entry_size(session, 100);
+    (void)disagg_scan_pass(session, SCAN_FULL_PARSE, 0, &avail, &total);
+    printf("\nDatabase holds %" PRIu64 " collection stable files (warming scan)\n", avail);
+
+    for (k = 0; k < WT_ELEMENTS(lengths); k++) {
+        limit = lengths[k] > avail ? avail : lengths[k];
+        measured[k] = limit;
+
+        /* Point lookups: one statistics=(size) cursor per collection, best of iterations. */
+        point_us = UINT64_MAX;
+        point_size = 0;
+        for (i = 0; i < iterations; i++) {
+            us = disagg_size_via_stat(session, i, limit, &count, &point_size);
+            if (us < point_us)
+                point_us = us;
+        }
+
+        /* Method 1: single scan, WiredTiger internal checkpoint load per entry. */
+        m1_us = UINT64_MAX;
+        m1_size = 0;
+        for (i = 0; i < iterations; i++) {
+            us = disagg_scan_pass(session, SCAN_FULL_PARSE, limit, &count, &m1_size);
+            if (us < m1_us)
+                m1_us = us;
+        }
+
+        /* Method 2: single scan, hand-rolled targeted size extraction per entry. */
+        m2_us = UINT64_MAX;
+        m2_size = 0;
+        for (i = 0; i < iterations; i++) {
+            us = disagg_scan_pass(session, SCAN_FAST_PARSE, limit, &count, &m2_size);
+            if (us < m2_us)
+                m2_us = us;
+        }
+
+        /* All three methods must agree on the aggregate size for the same collection set. */
+        testutil_assertfmt(point_size == m1_size && m1_size == m2_size,
+          "size methods disagree at %" PRIu64 " collections: point=%" PRIu64 " m1=%" PRIu64
+          " m2=%" PRIu64,
+          limit, point_size, m1_size, m2_size);
+
+        point_per[k] = limit > 0 ? (double)point_us / (double)limit : 0.0;
+        m1_per[k] = limit > 0 ? (double)m1_us / (double)limit : 0.0;
+        m2_per[k] = limit > 0 ? (double)m2_us / (double)limit : 0.0;
+    }
+
+    printf("\nTime to read every collection's checkpoint size (warm, best of %" PRIu64 "):\n",
+      iterations);
+    printf("  %-12s  %-24s  %-24s  %-24s\n", "collections", "point lookups", "Method 1 (WT parse)",
+      "Method 2 (hand-rolled)");
+    for (k = 0; k < WT_ELEMENTS(lengths); k++)
+        printf("  %-12" PRIu64 "  %9.3f ms %6.3f us/c  %9.3f ms %6.3f us/c  %9.3f ms %6.3f us/c\n",
+          measured[k], measured[k] * point_per[k] / 1000.0, point_per[k],
+          measured[k] * m1_per[k] / 1000.0, m1_per[k], measured[k] * m2_per[k] / 1000.0, m2_per[k]);
+
+    /* Extrapolate linearly from the largest measured length (each method is O(collections)). */
+    k = WT_ELEMENTS(lengths) - 1;
+    printf("\nExtrapolation (linear, from the %" PRIu64 "-collection per-collection cost):\n",
+      measured[k]);
+    printf("  %-12s  %-16s  %-16s  %-16s\n", "collections", "point lookups", "Method 1 (WT parse)",
+      "Method 2 (hand-rolled)");
+    for (i = 0; i < WT_ELEMENTS(targets); i++)
+        printf("  %-12" PRIu64 "  %13.2f s  %13.2f s  %13.2f s\n", targets[i],
+          targets[i] * point_per[k] / (double)WT_MILLION,
+          targets[i] * m1_per[k] / (double)WT_MILLION, targets[i] * m2_per[k] / (double)WT_MILLION);
+
+    testutil_check(conn->close(conn, NULL));
+}
+
+/*
  * main --
  *     Parse the arguments and drive the create and/or scan phases.
  */
@@ -757,7 +855,7 @@ main(int argc, char *argv[])
 {
     uint64_t collections, iterations, rows, samples, scan_limit;
     int ch;
-    bool create_only, decompose, scan_only;
+    bool all_methods, create_only, decompose, scan_only;
 
     (void)testutil_set_progname(argv);
     __wt_stream_set_line_buffer(stderr);
@@ -771,10 +869,10 @@ main(int argc, char *argv[])
     rows = DEFAULT_DISAGG_ROWS;
     samples = DEFAULT_SAMPLE_OPENS;
     scan_limit = 0;
-    create_only = decompose = scan_only = false;
+    all_methods = create_only = decompose = scan_only = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, opts);
-    while ((ch = __wt_getopt(progname, argc, argv, "cC:DI:L:rR:S:" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "cC:DI:L:MrR:S:" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             create_only = true;
@@ -787,6 +885,9 @@ main(int argc, char *argv[])
             break;
         case 'I':
             iterations = (uint64_t)strtoull(__wt_optarg, NULL, 10);
+            break;
+        case 'M':
+            all_methods = true;
             break;
         case 'L':
             scan_limit = (uint64_t)strtoull(__wt_optarg, NULL, 10);
@@ -846,7 +947,9 @@ main(int argc, char *argv[])
         if (!scan_only)
             disagg_create(collections, rows);
         if (!create_only) {
-            if (decompose)
+            if (all_methods)
+                disagg_compare_all(iterations);
+            else if (decompose)
                 disagg_decompose(iterations, scan_limit);
             else
                 disagg_compare(iterations, scan_limit);
