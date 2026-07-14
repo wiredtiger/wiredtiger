@@ -407,8 +407,8 @@ disagg_switch_roles(void)
              * FIXME-WT-15763: graceful sync step-down is not yet fully supported, so reopen.
              */
             track("[role change] leader -> follower (sync)", 0ULL);
-            wts_reopen();
             disagg_key_history_clear();
+            wts_reopen();
             follower_read_latest_checkpoint();
             wts_prepare_discover(g.wts_conn);
         }
