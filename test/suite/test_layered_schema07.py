@@ -272,6 +272,99 @@ class test_layered_schema07(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.assertFalse(self.table_exists_on_follower(self.uri),
             'unpublished table must not be visible to followers')
 
+    def test_commit_evicted_unstable_without_publish(self):
+        """
+        A committed but unstable update on an unpublished table must survive in-memory
+        reconciliation (eviction keeps the tree in memory while it awaits publication), and a
+        checkpoint at a stable timestamp below the write must succeed: the table holds only
+        unstable data and is skipped rather than written out. The table stays invisible to
+        followers, and the committed key remains readable on the leader.
+        """
+        self.set_stable_epoch(5)
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        cursor[1] = 'committed'
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+
+        # Force the page through in-memory reconciliation while the table is still unpublished.
+        self.evict(self.uri, [1])
+
+        # Checkpoint at a stable timestamp below the write: the table has only unstable data, so
+        # it is skipped rather than written out.
+        self.leader_checkpoint(1)
+
+        # The committed key is readable on the leader.
+        c = self.session.open_cursor(self.uri)
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), 1)
+        self.assertEqual(c.get_value(), 'committed')
+        self.assertEqual(c.next(), wiredtiger.WT_NOTFOUND)
+        c.close()
+
+        # The table was never published, so it must remain invisible to followers.
+        self.assertFalse(self.table_exists_on_follower(self.uri),
+            'unpublished table must not be visible to followers')
+
+        # Publish and advance the stable epoch and timestamp, so all data is stable and the table
+        # is published at shutdown.
+        self.publish(self.uri, 10)
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(3)
+
+    def test_commit_evicted_unstable_published(self):
+        """
+        A committed but unstable update on a published table must survive in-memory reconciliation,
+        and a checkpoint that does not advance the stable timestamp past the write must exclude it:
+        the table is visible to followers (it was published) but contains no data, because the
+        write is above the stable timestamp. The committed key remains readable on the leader.
+        """
+        self.set_stable_epoch(5)
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        # Publish at epoch 10 and advance the stable epoch to match, so the table is published and
+        # becomes visible to followers at the next checkpoint.
+        self.publish(self.uri, 10)
+        self.set_stable_epoch(10)
+
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(self.uri)
+        cursor[1] = 'committed'
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+
+        # Force the page through in-memory reconciliation.
+        self.evict(self.uri, [1])
+
+        # Checkpoint at a stable timestamp below the write: the write is unstable, so the stable
+        # checkpoint excludes it.
+        self.leader_checkpoint(1)
+
+        # The committed key is readable on the leader.
+        c = self.session.open_cursor(self.uri)
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), 1)
+        self.assertEqual(c.get_value(), 'committed')
+        self.assertEqual(c.next(), wiredtiger.WT_NOTFOUND)
+        c.close()
+
+        # The follower sees the published table, but it must be empty: the write is not stable.
+        conn_follower = self.open_follower()
+        self.disagg_advance_checkpoint(conn_follower)
+        session_follower = conn_follower.open_session('')
+        c = session_follower.open_cursor(self.uri)
+        self.assertEqual(c.next(), wiredtiger.WT_NOTFOUND,
+            'follower must not see the unstable write')
+        c.close()
+        session_follower.close()
+        conn_follower.close()
+
+        # Advance the stable timestamp past the write and checkpoint, so all data is stable at
+        # shutdown.
+        self.leader_checkpoint(3)
+
     def test_drop_deferred_until_publish(self):
         """
         A drop of a published table is deferred until the drop is itself

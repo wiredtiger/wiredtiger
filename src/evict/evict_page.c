@@ -1093,6 +1093,17 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (__wt_btree_stays_in_memory(btree) && !modified && !closing)
         return (__wt_set_return(session, EBUSY));
 
+    /*
+     * A btree awaiting publication is reconciled in memory, which selects the newest committed
+     * update irrespective of the stable timestamp. That update is then marked as written to the
+     * data store, so the checkpoint that runs after publication would persist it even if it is not
+     * stable, bypassing precise checkpoint. Keep such pages in memory with their update chains
+     * intact; they are reconciled normally once the table is published. Eviction while closing is
+     * still allowed, as no further checkpoint will observe the selection.
+     */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) && !closing)
+        return (__wt_set_return(session, EBUSY));
+
     /* Check if the page can be evicted. */
     if (!closing) {
         /*
