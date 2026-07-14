@@ -276,10 +276,9 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYER
     bool overwrite_blind;
 
     /*
-     * overwrite=true asserts the caller already knows the key exists, so this op never needs
-     * stable for its own existence check -- independent of whether the persistent stable cursor
-     * happens to be open for the write-conflict check's separate needs (see
-     * __clayered_enter_flags).
+     * NULL the stable slot for a follower's overwrite write (insert, update, or remove): this op's
+     * own existing-record or existence check skips stable, independent of whether the persistent
+     * stable cursor happens to be open for the write-conflict check's separate needs.
      */
     overwrite_blind =
       (mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER);
@@ -2617,6 +2616,10 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                      * redundant against a key that isn't live locally -- a caller contract
                      * violation under overwrite=true, whose guarantee is that the operation
                      * succeeds against a live key, not that a repeat delete is tolerated.
+                     *
+                     * This diagnostic check cannot also verify against stable: this path
+                     * deliberately skips opening the stable cursor, so stable is unavailable here
+                     * regardless of build type.
                      */
                     WT_ASSERT_ALWAYS(session, false,
                       "WT_CURSOR::remove with overwrite=true on a layered follower cursor found "
