@@ -396,7 +396,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
     btree = S2BT(session);
 
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    if (__wt_btree_stays_in_memory(btree))
         return (false);
     /*
      * We need to save the update chain to check whether the reconciliation makes progress for
@@ -1135,6 +1135,21 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             continue;
         }
 
+        /*
+         * A btree awaiting publication is checkpointed with precise semantics once it is published.
+         * Don't select an update that is not yet stable into the in-memory image: it would be
+         * marked as written to the data store, forcing the post-publication checkpoint to persist
+         * it and bypassing precise checkpoint. Keep it in the update chain via save and restore
+         * instead. This does not apply to genuine in-memory btrees, which are never checkpointed.
+         */
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+          F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
+          upd->upd_durable_ts > r->rec_start_pinned_stable_ts) {
+            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *has_newer_updatesp = true;
+            continue;
+        }
+
         if (WT_REC_CAN_PRUNE_UPD(upd->txnid, upd->upd_durable_ts, r)) {
             first_pruned_update = upd;
             found_last_upd_to_keep = upd_select->upd != NULL;
@@ -1521,8 +1536,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             return (0);
     }
 
-    if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
-        /* Never write prepared updates for in-memory btrees. */
+    if (__wt_btree_stays_in_memory(S2BT(session))) {
+        /* Never write prepared updates for in-memory btrees, or those awaiting publication. */
         write_prepare = false;
         WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
           &has_newer_updates, &upd_memsize));
