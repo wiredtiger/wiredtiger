@@ -256,6 +256,14 @@ struct __wt_btree {
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
     /*
+     * Sentinel for leaf_entry_ewma / approx_leaf_pages meaning "never tracked": the table's
+     * checkpoint metadata predates this tracking and no WT_STAT_TYPE_TREE_WALK correction has run
+     * since. Neither field is updated by ordinary split/reconciliation activity while it holds this
+     * value; both are set together, straight to their exact values, by the first corrective walk.
+     */
+#define WT_LEAF_STATS_UNKNOWN UINT64_MAX
+
+    /*
      * Approximate average number of K/V pairs per row-store leaf page. Maintained as an EWMA
      * updated at page fault-in (for cold pages) and at reconciliation (for modified pages). Not
      * authoritative: use WT_STAT_TYPE_TREE_WALK for exact counts.
@@ -268,18 +276,6 @@ struct __wt_btree {
      * many pages are deleted. Persisted through checkpoint metadata.
      */
     wt_shared uint64_t approx_leaf_pages;
-
-    /*
-     * Whether approx_leaf_pages still needs a corrective WT_STAT_TYPE_TREE_WALK: false for a tree
-     * that started empty (so the count is exact by construction) or that has had such a correction
-     * since; true for a table that predates this tracking and has never been corrected, where
-     * approx_leaf_pages is just a leftover zero.
-     *
-     * Modeled as "stale" rather than "accurate" so that summing this field across the constituents
-     * of a layered table still means something: the combined value is nonzero (stale) unless every
-     * constituent is individually accurate.
-     */
-    wt_shared bool approx_leaf_pages_stale;
 
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 

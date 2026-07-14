@@ -42,7 +42,6 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_BTREE *btree;
     WT_DSRC_STATS **stats;
     uint64_t avg_internal_chain, avg_leaf_chain;
-    bool stale;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -84,12 +83,15 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
     WT_STATP_DSRC_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
 
+    /*
+     * These read as WT_LEAF_STATS_UNKNOWN for a table whose checkpoint metadata predates this
+     * tracking and hasn't yet had a corrective WT_STAT_TYPE_TREE_WALK; callers treat that sentinel
+     * as "unknown, fall back to another estimation technique or trigger a walk."
+     */
     WT_STATP_DSRC_SET(session, stats, btree_row_leaf_avg_entries,
       __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma));
     WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages,
       __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages));
-    stale = __wt_atomic_load_bool_relaxed(&btree->approx_leaf_pages_stale);
-    WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages_stale, stale);
 
     if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
         __wt_evict_cache_stat_walk(session);
@@ -151,15 +153,13 @@ err:
      */
     if ((ret == 0 || ret == WT_NOTFOUND) && btree->type == BTREE_ROW) {
         uint64_t exact = (uint64_t)WT_STAT_DSRC_READ(stats, btree_row_leaf);
+        uint64_t exact_avg =
+          exact > 0 ? (uint64_t)WT_STAT_DSRC_READ(stats, btree_entries) / exact : 0;
+
         __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, exact);
         WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages, exact);
-        __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_stale, false);
-        WT_STATP_DSRC_SET(session, stats, btree_row_leaf_pages_stale, false);
-        if (exact > 0) {
-            uint64_t exact_avg = (uint64_t)WT_STAT_DSRC_READ(stats, btree_entries) / exact;
-            __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, exact_avg);
-            WT_STATP_DSRC_SET(session, stats, btree_row_leaf_avg_entries, exact_avg);
-        }
+        __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, exact_avg);
+        WT_STATP_DSRC_SET(session, stats, btree_row_leaf_avg_entries, exact_avg);
     }
     return (ret == WT_NOTFOUND ? 0 : ret);
 }

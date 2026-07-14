@@ -30,14 +30,12 @@ import wttest
 from wiredtiger import stat
 
 # test_stat17.py
-#   Tests for btree_row_leaf_avg_entries, btree_row_leaf_pages, and
-#   btree_row_leaf_pages_stale.
+#   Tests for btree_row_leaf_avg_entries and btree_row_leaf_pages.
 #
-#   btree_row_leaf_avg_entries:  EWMA of K/V pairs per row-store leaf page.
-#   btree_row_leaf_pages:        incremental approximate leaf page count.
-#   btree_row_leaf_pages_stale:  whether btree_row_leaf_pages can NOT yet be trusted.
+#   btree_row_leaf_avg_entries: EWMA of K/V pairs per row-store leaf page.
+#   btree_row_leaf_pages:       incremental approximate leaf page count.
 #
-#   Both leaf-page stats are available without WT_STAT_TYPE_TREE_WALK.
+#   Both stats are available without WT_STAT_TYPE_TREE_WALK.
 #
 #   btree_row_leaf_pages is incremented at each leaf split (in-memory or
 #   eviction). The cache is kept small so that eviction splits fire during
@@ -48,14 +46,15 @@ from wiredtiger import stat
 #   reflected in both the stat cursor and the in-memory btree field so a
 #   subsequent fast read still sees it.
 #
-#   All three values are persisted through checkpoint metadata and survive a
+#   Both values are persisted through checkpoint metadata and survive a
 #   server restart.
 #
-#   A table created after this stat was added is never stale (it starts
-#   empty, which is exact). It is modeled as "stale" rather than "accurate"
-#   so that summing it across the constituents of a layered table stays
-#   meaningful: the combined value is zero only if every constituent is
-#   individually accurate.
+#   A table whose checkpoint metadata predates this tracking has neither
+#   value updated by ordinary split/reconciliation activity - both fields
+#   hold WT_LEAF_STATS_UNKNOWN (UINT64_MAX, read back as -1 through this
+#   int64-typed stat) until a WT_STAT_TYPE_TREE_WALK sets real values for
+#   both together. A table created after this tracking existed never sees
+#   that sentinel: it starts empty, which is exact by construction.
 class test_stat17(wttest.WiredTigerTestCase):
     uri = 'table:test_stat17'
 
@@ -204,19 +203,25 @@ class test_stat17(wttest.WiredTigerTestCase):
             'btree_row_leaf_pages must be at least as large after restart')
 
     # A table created after this stat was added starts empty, which is an
-    # exact count, so it's never stale from the very first checkpoint even
-    # without a tree walk.
-    def test_not_stale_for_new_table(self):
+    # exact count, so neither field is ever left at the WT_LEAF_STATS_UNKNOWN
+    # sentinel, from the very first checkpoint even without a tree walk.
+    def test_never_unknown_for_new_table(self):
         self.session.create(self.uri, self.create_params)
         self._insert(self.nrows)
         self.session.checkpoint()
 
-        stale = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale)
-        self.assertEqual(stale, 0,
-            'a table created after this stat exists should never be stale')
+        pages = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages)
+        avg = self._dsrc_stat(stat.dsrc.btree_row_leaf_avg_entries)
+        self.assertGreaterEqual(pages, 0,
+            'a table created after this stat exists should never read as unknown (-1)')
+        self.assertGreaterEqual(avg, 0,
+            'a table created after this stat exists should never read as unknown (-1)')
 
         self.reopen_conn()
-        stale = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages_stale)
-        self.assertEqual(stale, 0,
-            'staleness must survive checkpoint/restart for a table created with this stat')
+        pages = self._dsrc_stat(stat.dsrc.btree_row_leaf_pages)
+        avg = self._dsrc_stat(stat.dsrc.btree_row_leaf_avg_entries)
+        self.assertGreaterEqual(pages, 0,
+            'must not become unknown (-1) across checkpoint/restart for a table created with this stat')
+        self.assertGreaterEqual(avg, 0,
+            'must not become unknown (-1) across checkpoint/restart for a table created with this stat')
 

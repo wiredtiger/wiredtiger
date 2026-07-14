@@ -260,13 +260,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__btree_conf(session, &ckpt, WT_DHANDLE_IS_CHECKPOINT(dhandle)));
     lr_fh_meta.allocsize = btree->allocsize;
 
-    /*
-     * A tree with no prior checkpoint starts empty, so its leaf page count is exact by construction
-     * regardless of what the (nonexistent) checkpoint metadata said.
-     */
-    if (creation)
-        __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_stale, false);
-
     /* Connect to the underlying block manager. */
     WT_ERR(__wt_blkcache_open(session, dhandle_name, dhandle->cfg, forced_salvage, false,
       btree->allocsize, &lr_fh_meta, &btree->bm));
@@ -840,7 +833,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, ckpt->leaf_entry_ewma);
     __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, ckpt->approx_leaf_pages);
-    __wt_atomic_store_bool_relaxed(&btree->approx_leaf_pages_stale, ckpt->approx_leaf_pages_stale);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
