@@ -247,12 +247,11 @@ __clayered_enter_flags(
         LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
-     * The persistent stable cursor still opens on a read timestamp: __clayered_modify_check's
-     * write-conflict probe reads clayered->stable_cursor directly (not this op's stable slot) and
-     * needs it available whenever a read timestamp is set. Without a read timestamp, nothing on
-     * this path needs stable at all -- overwrite=true asserts the caller already knows the key
-     * exists, so this op never needs stable for its own existence check either way (see
-     * __clayered_op_init).
+     * The persistent stable cursor still opens on a read timestamp: the write-conflict probe reads
+     * clayered->stable_cursor directly (not this op's stable slot) and needs it available whenever
+     * a read timestamp is set. Without a read timestamp, nothing on this path needs stable at all
+     * -- overwrite=true asserts the caller already knows the key exists, so this op never needs
+     * stable for its own existence check either way.
      */
     if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
