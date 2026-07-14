@@ -362,7 +362,9 @@ disagg_switch_roles(void)
     g.disagg_leader = !g.disagg_leader;
 
     if (!g.disagg_leader) {
-        /* Stepping down: [leader -> follower]. Reset the leader-side KEK push history. */
+        /* Stepping down: [leader -> follower]. */
+
+        /* Reset the leader-side KEK push history. */
         disagg_key_history_clear();
 
         if (GV(DISAGG_STEPDOWN_ASYNC)) {
