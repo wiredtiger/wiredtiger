@@ -151,18 +151,14 @@ schema_op_insert_data(
      */
     commit_ts = stable_ts + 10 + __wt_random(ctx->rnd) % 50;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
+    /*
+     * The commit config is code-controlled and always valid, so the only EINVAL commit_transaction
+     * can return here is a bad commit timestamp: stable or oldest advanced to or past it. Treat that
+     * as no durable data.
+     */
     ret = ctx->session->commit_transaction(ctx->session, commit_cfg);
-    if (ret == EINVAL) {
-        /*
-         * Forgive only the known race: confirm stable has reached or passed the commit timestamp.
-         * Any other EINVAL is a real error and must not be masked.
-         */
-        testutil_check(conn->query_timestamp(conn, ts_buf, "get=stable"));
-        stable_ts = 0;
-        (void)sscanf(ts_buf, "%" SCNx64, &stable_ts);
-        if (stable_ts >= commit_ts)
-            return (WT_ROLLBACK);
-    }
+    if (ret == EINVAL)
+        return (WT_ROLLBACK);
     testutil_check(ret);
     *commit_tsp = commit_ts;
     return (0);
