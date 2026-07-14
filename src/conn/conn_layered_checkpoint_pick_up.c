@@ -970,18 +970,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /*
-     * Lift the base write generation past every generation the checkpoint's writer (the leader)
-     * used, so this checkpoint's transaction ids are recognized as belonging to an earlier
-     * generation range and reset when its trees are opened. This must happen before we apply the
-     * checkpoint below, because applying it reads the shared metadata table's own checkpoint, whose
-     * foreign ids must already be subject to reset for its entries to be visible here.
+     * Adopt the high-water mark of write generations the checkpoint's writer (the leader) recorded,
+     * so that if this node later steps up its base write generation already sits past the former
+     * leader's generations and a checkpoint it then reopens is recognized as belonging to an
+     * earlier generation range. A follower reads foreign checkpoints correctly regardless of this
+     * value because it resets their ids on open by role; a checkpoint written before the high-water
+     * mark was recorded simply leaves the base write generation unchanged.
      *
      * Concurrency: we hold the checkpoint lock, the only writer of the base write generation once
-     * followers are active. A fresh stable-tree open reads the base write generation only after
-     * acquiring the same checkpoint lock to fetch this checkpoint's metadata, which happens-after
-     * this update; because the base write generation is monotonic, that open observes a value at
-     * least as large as the one set for the checkpoint it is opening. Observing a larger value is
-     * harmless: a follower resets every adopted checkpoint's ids regardless.
+     * followers are active; the base write generation is monotonic.
      */
     if (metadata.base_write_gen != 0) {
         __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
@@ -990,15 +987,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
           WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
             __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
-    } else
-        /*
-         * This checkpoint predates recording the base write generation. Reconstruct it by scanning
-         * all files' persisted write generations, so the high-water mark a later checkpoint records
-         * covers every file. This runs before any tree is opened this run, so the scanned
-         * generations all belong to earlier runs and the base write generation correctly marks the
-         * boundary.
-         */
-        WT_ERR(__wt_meta_correct_base_write_gen(session));
+    }
 
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));

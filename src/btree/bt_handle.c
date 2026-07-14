@@ -799,18 +799,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /*
      * Reset the runtime write generation when the checkpoint's transaction ids are not usable in
      * this run: an imported tree, or a checkpoint whose generations precede this run's base write
-     * generation. In disaggregated storage a follower lifts its base write generation past every
-     * picked-up checkpoint's generations (under the checkpoint lock, at pickup), so a checkpoint
-     * written by another node satisfies this same test and its foreign ids are reset here.
-     *
-     * The base write generation read here is not taken under the checkpoint lock, but a fresh
-     * disaggregated open first acquires that lock to fetch the checkpoint metadata, which
-     * happens-after the pickup that set the base write generation for this checkpoint. Since the
-     * base write generation only increases, this open observes a value large enough to reset the
-     * checkpoint's ids.
+     * generation. In disaggregated storage a follower also resets every checkpoint: the ids were
+     * written by the leader and are meaningless in this node's id space. A leader keeps its own
+     * ids, so a checkpoint it reopens in the same run stays readable.
      */
     if (F_ISSET(session, WT_SESSION_IMPORT) ||
-      ckpt->run_write_gen < __wt_atomic_load_uint64_relaxed(&conn->base_write_gen))
+      ckpt->run_write_gen < __wt_atomic_load_uint64_relaxed(&conn->base_write_gen) ||
+      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !conn->layered_table_manager.leader))
         btree->run_write_gen = btree->write_gen;
     else
         btree->run_write_gen = ckpt->run_write_gen;
