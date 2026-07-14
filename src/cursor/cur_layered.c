@@ -2609,7 +2609,6 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
             if (ret == WT_NOTFOUND) {
                 if (found) {
-#ifdef HAVE_DIAGNOSTIC
                     /*
                      * A tombstone already in ingest (or a truncate-list hit) means this remove is
                      * redundant against a key that isn't live locally -- a caller contract
@@ -2620,12 +2619,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                      * deliberately skips opening the stable cursor, so stable is unavailable here
                      * regardless of build type.
                      */
-                    WT_ASSERT_ALWAYS(session, false,
-                      "WT_CURSOR::remove with overwrite=true on a layered follower cursor found "
-                      "the key already deleted in ingest or covered by the truncate list -- the "
-                      "caller violated the guarantee that this operation would succeed against a "
-                      "live key");
-#endif
+                    WT_ASSERT(session, false);
                     /*
                      * Nothing to reset: stable is already NULL here, and if the lookup above left
                      * the ingest cursor positioned on this key, that position is accurate, not a
@@ -2661,12 +2655,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         WT_ITEM_SET(value, c_ingest->value);
         if (__wt_clayered_deleted(&value)) {
             if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE)) {
-#ifdef HAVE_DIAGNOSTIC
-                WT_ASSERT_ALWAYS(session, false,
-                  "WT_CURSOR::remove with overwrite=true on a layered follower cursor found the "
-                  "cached ingest value already deleted -- the caller violated the guarantee that "
-                  "this operation would succeed against a live key");
-#endif
+                WT_ASSERT(session, false);
                 return (0);
             }
             return (WT_NOTFOUND);
