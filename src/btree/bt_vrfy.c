@@ -402,8 +402,7 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 
 /*
  * __verify_one_checkpoint --
- *     Load, verify and unload a single checkpoint. The checkpoint is unloaded on every path once it
- *     has been loaded, so callers must not add error handling that jumps past the unload.
+ *     Load, verify and unload a single checkpoint.
  */
 static int
 __verify_one_checkpoint(
@@ -416,10 +415,12 @@ __verify_one_checkpoint(
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
+    bool evict_off;
 
     btree = S2BT(session);
     bm = btree->bm;
     name = session->dhandle->name;
+    evict_off = false;
 
     if (WT_VRFY_DUMP(vs)) {
         WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
@@ -437,22 +438,15 @@ __verify_one_checkpoint(
     if (root_addr_size == 0)
         goto done;
 
-    /*
-     * Eviction is still locked out, so the only cleanup a failure owes is the unload: WT_ERR can
-     * bail straight to the err label.
-     */
     WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
     if (WT_VRFY_DUMP(vs))
         WT_ERR(__wt_msg(session, "Root:\n\t> addr: %s",
           __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
-    /*
-     * Enable eviction on the tree. From here until it is locked out again below, the err label is no
-     * longer a safe exit: it unloads the checkpoint but does not re-acquire the lock or discard the
-     * tree. Failures must be accumulated into ret so the eviction handshake still runs.
-     */
+    /* Enable eviction while verifying the tree; the err path re-acquires it under evict_off. */
     __wt_evict_file_exclusive_off(session);
+    evict_off = true;
 
     /* Create a fake, unpacked parent cell for the tree based on the checkpoint information. */
     memset(&addr_unpack, 0, sizeof(addr_unpack));
@@ -468,14 +462,18 @@ __verify_one_checkpoint(
     /* Verify the tree. */
     WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
+    /*
+     * Bail on a hard verification failure. In read_corrupt mode the tree verification returns
+     * success and stashes the error in vs->verify_err, so this doesn't fire; the remaining checks
+     * run and use WT_TRET so that error isn't masked before it is applied below.
+     */
+    WT_ERR(ret);
+
     /* Account for the root page in the accumulated total block size. */
     WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
 #ifdef HAVE_DIAGNOSTIC
-    /*
-     * Validate the size of the btree. Eviction is enabled between here and the re-acquire below, so
-     * record the mismatch in ret without jumping; the eviction handshake must still run.
-     */
+    /* Validate the size of the btree. */
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
         /*
          * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues, where
@@ -509,11 +507,6 @@ __verify_one_checkpoint(
             WT_TRET_MSG(
               session, __wt_hs_verify_one(session, btree->id), "history store verification failed");
         }
-        /*
-         * We cannot error out here. If we got an error verifying the history store, we need to
-         * follow through with reacquiring the exclusive call below. We'll error out after that and
-         * unloading this checkpoint.
-         */
     }
 
     /*
@@ -523,18 +516,20 @@ __verify_one_checkpoint(
     if (vs->verify_err != 0)
         ret = vs->verify_err;
 
-    /*
-     * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of that
-     * handle, and there's a race with eviction entering the tree and seeing an invalid root page.
-     * Eviction must work on trees being verified (else we'd have to do our own eviction), lock
-     * eviction out whenever we're loading a new root page. This function is called with eviction
-     * locked out, so we released the lock above and re-acquire it here.
-     */
-    WT_TRET(__wt_evict_file_exclusive_on(session));
-    WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
-
 done:
 err:
+    /*
+     * If eviction was enabled to verify the tree, re-acquire the exclusive lock and discard the
+     * tree before unloading the checkpoint. Eviction must work on trees being verified (else we'd
+     * have to do our own eviction), so we release the lock while verifying and lock it out again
+     * here. The discard must run while the lock is held and before the unload, as the tree's pages
+     * reference this checkpoint's block manager.
+     */
+    if (evict_off) {
+        WT_TRET(__wt_evict_file_exclusive_on(session));
+        WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
+    }
+
     /* Unload the checkpoint. */
     WT_TRET(bm->checkpoint_unload(bm, session));
 
