@@ -344,7 +344,6 @@ NOP
 NOTFOUND
 NOTREACHED
 NOWAIT
-NROWS
 NUL
 NUM
 NVRAM
@@ -450,7 +449,6 @@ SCons
 SDK
 SIGABRT
 SIGBUS
-SIGKILL
 SIGSEGV
 SIMD
 SLS
@@ -513,7 +511,6 @@ TieredConfigMixin
 Timespec
 Tput
 TryCV
-Tunables
 TypeError
 Typedefs
 UBSAN
@@ -662,6 +659,7 @@ assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -914,7 +912,6 @@ dequeued
 der
 deref
 dereference
-dereferences
 dereferencing
 desc
 designator
@@ -934,7 +931,6 @@ difftime
 dir
 directio
 dirlist
-dirs
 dirstore
 disagg
 disaggregated
@@ -1126,6 +1122,7 @@ groupd
 gte
 handleops
 handlep
+handoff
 hardcoded
 hashmap
 hashq
@@ -1482,7 +1479,6 @@ overcount
 oversized
 ovfl
 ownp
-pP
 pR
 pT
 packv
@@ -1711,6 +1707,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr
