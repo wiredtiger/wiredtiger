@@ -1263,8 +1263,7 @@ err:
 
     __wt_ckptlist_free(session, &ckptbase);
 
-    if (name_buf != NULL)
-        __wt_scr_free(session, &name_buf);
+    __wt_scr_free(session, &name_buf);
     __wt_free(session, config);
 
     return (ret);
