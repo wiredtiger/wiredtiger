@@ -50,7 +50,7 @@ table_verify(TABLE *table, void *arg)
     /*
      * Verify can race with special-handle transitions and return EBUSY. In switch mode, async role
      * switches can leave handles in a dirty state; skip the retry delay to avoid minutes of
-     * accumulated wait time across many runs.
+     * accumulated wait time across many runs. FIXME - WT-18083
      */
     if (disagg_is_mode_switch()) {
         ret = session->verify(session, table->uri, "strict");
