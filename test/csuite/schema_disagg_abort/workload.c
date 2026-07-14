@@ -151,11 +151,6 @@ schema_op_insert_data(
      */
     commit_ts = stable_ts + 10 + __wt_random(ctx->rnd) % 50;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
-    /*
-     * The commit config is code-controlled and always valid, so the only EINVAL commit_transaction
-     * can return here is a bad commit timestamp: stable or oldest advanced to or past it. Treat that
-     * as no durable data.
-     */
     ret = ctx->session->commit_transaction(ctx->session, commit_cfg);
     if (ret == EINVAL)
         return (WT_ROLLBACK);
