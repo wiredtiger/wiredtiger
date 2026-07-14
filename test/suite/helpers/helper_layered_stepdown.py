@@ -96,9 +96,7 @@ class LayeredStepdownMixin:
         stat_cursor.close()
         return count
 
-    # Run op and expect WT_ROLLBACK, carrying the given step-down reason on the
-    # session's last error (None skips the message check), with the dedicated
-    # statistic ticking exactly once.
+    # Run op and expect WT_ROLLBACK.
     def assert_step_down_rollback(self, op, reason=STRADDLER_REASON):
         before = self.step_down_rollbacks()
         self.assertRaisesException(wiredtiger.WiredTigerError, op,

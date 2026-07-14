@@ -23,6 +23,7 @@ test_layered_async_stepdown01.py  # FIXME: WT-17895
 test_layered_async_stepdown02.py  # FIXME: WT-17895
 test_layered_async_stepdown03.py  # FIXME: WT-17895
 test_layered_async_stepdown04.py  # FIXME: WT-17895
+test_layered_async_stepdown05.py  # FIXME: WT-17895
 test_log03.py
 test_metadata_cursor01.py
 test_metadata_cursor04.py

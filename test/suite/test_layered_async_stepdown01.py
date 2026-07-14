@@ -141,8 +141,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'pre', 'c': 'post'})
         self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'pre', 'd': 'post'})
 
-    # Step-down sequence: arm → stable=cutoff → checkpoint → reconfigure to follower; ingest content 
-    # survives.
+    # Ingest content survives the full step-down sequence.
     def test_content_survives_step_down(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')

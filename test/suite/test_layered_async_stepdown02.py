@@ -294,7 +294,6 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
 
         # search_near: lands on a visible stable neighbour, never the invisible ingest 'c'.
-        rcur.reset()
         rcur.set_key('c')
         cmp = rcur.search_near()
         self.assertNotEqual(cmp, wiredtiger.WT_NOTFOUND)
@@ -309,7 +308,6 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # largest_key ignores visibility: it reports the ingest maximum even though this
         # snapshot cannot read it.
-        rcur.reset()
         self.assertEqual(rcur.largest_key(), 0)
         self.assertEqual(rcur.get_key(), 'z')
 
