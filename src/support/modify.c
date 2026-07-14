@@ -399,6 +399,25 @@ err:
 }
 
 /*
+ * __wt_update_list_print --
+ *     Print the contents of an update chain, one message per update.
+ */
+void
+__wt_update_list_print(WT_SESSION_IMPL *session, WT_UPDATE *head)
+{
+    WT_UPDATE *upd;
+    uint64_t pos;
+
+    for (upd = head, pos = 0; upd != NULL; upd = upd->next, ++pos)
+        WT_IGNORE_RET(__wt_msg(session,
+          "  upd[%" PRIu64 "]=%p type=%d txnid=%" PRIu64 " start_ts=%" PRIu64 " durable_ts=%" PRIu64
+          " prepare_state=%d flags=%#" PRIx16 " size=%" PRIu32,
+          pos, (void *)upd, (int)upd->type, __wt_atomic_load_uint64_v_acquire(&upd->txnid),
+          upd->upd_start_ts, upd->upd_durable_ts,
+          (int)__wt_atomic_load_uint8_v_acquire(&upd->prepare_state), upd->flags, upd->size));
+}
+
+/*
  * __wt_modify_reconstruct_from_upd_list --
  *     Takes an in-memory modify and populates an update value with the reconstructed full value.
  */
@@ -490,19 +509,8 @@ retry:
          * update chain is referencing a page that was never instantiated or has gone away; dump the
          * ref, cursor, and update-chain state to show why no full update was found.
          */
-        if (cbt->ref == NULL || cbt->ref->page == NULL) {
-            WT_UPDATE *dbg_upd;
-            uint64_t dbg_pos;
-
-            for (dbg_upd = modify, dbg_pos = 0; dbg_upd != NULL; dbg_upd = dbg_upd->next, ++dbg_pos)
-                __wt_errx(session,
-                  "  upd[%" PRIu64 "]=%p type=%d txnid=%" PRIu64 " start_ts=%" PRIu64
-                  " durable_ts=%" PRIu64 " prepare_state=%d size=%" PRIu32,
-                  dbg_pos, (void *)dbg_upd, (int)dbg_upd->type,
-                  __wt_atomic_load_uint64_v_acquire(&dbg_upd->txnid), dbg_upd->upd_start_ts,
-                  dbg_upd->upd_durable_ts,
-                  (int)__wt_atomic_load_uint8_v_acquire(&dbg_upd->prepare_state), dbg_upd->size);
-        }
+        if (cbt->ref == NULL || cbt->ref->page == NULL)
+            __wt_update_list_print(session, modify);
 
         WT_ERR_ASSERT(session, WT_DIAGNOSTIC_TXN_VISIBILITY,
           cbt->ref != NULL && cbt->ref->page != NULL, WT_ERROR,
