@@ -1041,15 +1041,12 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
     /*
-     * If no checkpoint adopted while a follower carried the base write generation, establish it by
-     * scanning all files before we begin checkpointing as leader, so the high-water mark we persist
-     * covers every file. We have not written any data this run, so the scanned generations all
-     * belong to earlier runs.
+     * Establish the base write generation from all files before we begin checkpointing as leader,
+     * so the high-water mark we persist covers every file, including ones a follower adopted but
+     * did not modify. We have not written any data this run, so the scanned generations all belong
+     * to earlier runs and the base write generation correctly marks the boundary.
      */
-    if (!conn->disaggregated_storage.base_write_gen_established) {
-        WT_ERR(__wt_meta_correct_base_write_gen(session));
-        conn->disaggregated_storage.base_write_gen_established = true;
-    }
+    WT_ERR(__wt_meta_correct_base_write_gen(session));
 
     /*
      * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
@@ -1370,17 +1367,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         }
 
         /*
-         * If no picked-up checkpoint carried the base write generation (for example a checkpoint
-         * written before it was recorded in the checkpoint metadata), scan all files here to
-         * establish it from their persisted write generations. This happens at startup, before any
-         * data is written this run, so the scanned generations all belong to earlier runs and the
-         * base write generation correctly marks the boundary. Doing it now means the high-water
-         * mark a later checkpoint persists covers every file, including ones not modified this run.
+         * A leader establishes the base write generation from all files at startup, before any data
+         * is written this run, so the scanned generations all belong to earlier runs and the base
+         * write generation correctly marks the boundary. This covers a checkpoint that did not
+         * carry the base write generation (for example one written before it was recorded in the
+         * checkpoint metadata), so the high-water mark a later checkpoint persists covers every
+         * file.
          */
-        if (leader && !conn->disaggregated_storage.base_write_gen_established) {
+        if (leader)
             WT_ERR(__wt_meta_correct_base_write_gen(session));
-            conn->disaggregated_storage.base_write_gen_established = true;
-        }
 
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
         if (cval.val != 0)

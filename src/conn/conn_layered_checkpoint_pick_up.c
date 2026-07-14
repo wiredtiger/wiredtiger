@@ -990,8 +990,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
           WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
             __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
-        /* The checkpoint carried a complete high-water mark, so we can trust the base write gen. */
-        conn->disaggregated_storage.base_write_gen_established = true;
     }
 
     /* Load crypt key data with the key provider extension, if any. */

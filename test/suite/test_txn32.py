@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -58,34 +58,61 @@ class test_txn32(wttest.WiredTigerTestCase):
             self.assertEqual(c.get_value(), expected)
         c.close()
 
-    def test_follower_reads_table_untouched_by_latest_checkpoint(self):
-        conn_follow = self.wiredtiger_open(
-            'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
-        sfollow = conn_follow.open_session('')
-
+    # Create the tables on both nodes, populate the stable table once and make it durable,
+    # then churn a different table across many checkpoints so write generations climb well
+    # past the untouched table's.
+    def populate_and_churn(self, sfollow):
         self.session.create(self.stable, 'key_format=S,value_format=S')
         sfollow.create(self.stable, 'key_format=S,value_format=S')
         self.session.create(self.churn, 'key_format=i,value_format=S')
         sfollow.create(self.churn, 'key_format=i,value_format=S')
 
-        # Populate the stable table once and make it durable, then never touch it again.
         c = self.session.open_cursor(self.stable)
         for i in range(self.nrows):
             c['k%d' % i] = 'value'
         c.close()
         self.session.checkpoint()
 
-        # Churn a different table across many checkpoints so write generations climb
-        # well past the untouched table's.
         for round in range(10):
             cc = self.session.open_cursor(self.churn)
             cc[round] = 'churn'
             cc.close()
             self.session.checkpoint()
 
+    def test_follower_reads_table_untouched_by_latest_checkpoint(self):
+        conn_follow = self.wiredtiger_open(
+            'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
+        sfollow = conn_follow.open_session('')
+
+        self.populate_and_churn(sfollow)
+
         # The follower adopts the latest checkpoint and must read the untouched table in
         # full, served from its stable component.
         self.disagg_advance_checkpoint(conn_follow)
+        self.check(sfollow, self.stable, 'value')
+
+        sfollow.close()
+        conn_follow.close()
+
+    def test_stepped_up_leader_reads_table_untouched_by_latest_checkpoint(self):
+        conn_follow = self.wiredtiger_open(
+            'follower', self.extensionsConfig() + ',' + self.conn_config_follower)
+        sfollow = conn_follow.open_session('')
+
+        self.populate_and_churn(sfollow)
+
+        # Promote the follower to leader; the switch picks up the latest checkpoint. Its
+        # step-up establishes the base write generation by scanning all files, before it
+        # writes anything as leader.
+        self.disagg_switch_follower_and_leader(conn_follow, self.conn)
+
+        # The new leader must read the untouched table in full, and a checkpoint it takes
+        # (using the base write generation established at step-up) must keep it readable.
+        self.check(sfollow, self.stable, 'value')
+        cc = sfollow.open_cursor(self.churn)
+        cc[999] = 'churn'
+        cc.close()
+        sfollow.checkpoint()
         self.check(sfollow, self.stable, 'value')
 
         sfollow.close()

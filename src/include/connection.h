@@ -289,14 +289,6 @@ struct __wt_disaggregated_storage {
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
-
-    /*
-     * Whether the connection's base write generation has been established from a complete source
-     * this run: a picked-up checkpoint that carried it, or the recovery/bootstrap scan of all
-     * files. Until then, a leader cannot persist a complete high-water mark, so its first
-     * checkpoint scans all files. Protected by the checkpoint lock.
-     */
-    bool base_write_gen_established;
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
     wt_shared wt_timestamp_t
