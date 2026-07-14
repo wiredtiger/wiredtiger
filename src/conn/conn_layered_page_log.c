@@ -521,8 +521,6 @@ __disagg_prune_pending_crypt_keys(WT_SESSION_IMPL *session, wt_timestamp_t bound
  * __wti_disagg_set_crypt_key --
  *     Queue an encryption key to be persisted at the next checkpoint that covers its timestamp.
  *     Timestamps must be monotonically increasing and greater than the global stable timestamp.
- *     Returns EINVAL for a malformed key, and EBUSY when the timestamp has already been overtaken,
- *     which the caller can resolve by choosing a higher timestamp and retrying.
  */
 int
 __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT_CRYPT_KEYS *crypt)
@@ -545,7 +543,7 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
 
     stable_ts = __wt_get_stable_timestamp(session);
     if (crypt->timestamp <= stable_ts)
-        WT_ERR_MSG(session, EBUSY,
+        WT_ERR_MSG(session, EINVAL,
           "set_key timestamp %" PRIu64
           " must be strictly greater than the stable timestamp %" PRIu64,
           crypt->timestamp, stable_ts);
@@ -559,7 +557,7 @@ __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session, const WT
     last_pushed = TAILQ_LAST(
       &conn->disaggregated_storage.pending_crypt_key_qh, __wt_disagg_pending_crypt_key_qh);
     if (last_pushed != NULL && crypt->timestamp <= last_pushed->timestamp)
-        WT_ERR_MSG(session, EBUSY,
+        WT_ERR_MSG(session, EINVAL,
           "set_key timestamp %" PRIu64
           " must be strictly greater than the last pushed timestamp %" PRIu64,
           crypt->timestamp, last_pushed->timestamp);

@@ -57,7 +57,7 @@ key_push_history_append(wt_timestamp_t ts)
 
 /*
  * disagg_key_push --
- *     Push a new key one timestamp above the given floor, recording it on success. Returns EBUSY
+ *     Push a new key one timestamp above the given floor, recording it on success. Returns EINVAL
  *     without recording when stable advanced past the chosen timestamp, leaving the caller to
  *     retry.
  */
@@ -77,8 +77,8 @@ disagg_key_push(
     crypt.keys.size = strlen(key_buf);
     crypt.timestamp = push_ts;
 
-    if ((ret = kp->set_key(kp, session, &crypt)) == EBUSY)
-        return (EBUSY);
+    if ((ret = kp->set_key(kp, session, &crypt)) == EINVAL)
+        return (EINVAL);
     testutil_check(ret);
 
     key_push_history_append(push_ts);
@@ -291,9 +291,10 @@ disagg_key_rotation(void *arg)
 
         wt_timestamp_t stable_ts = g.stable_timestamp;
 
-        /* Stable can pass push_ts between the read and the call, so a benign EBUSY just retries. */
+        /* Stable can pass push_ts between the read and the call, so a benign EINVAL just retries.
+         */
         wt_timestamp_t push_ts;
-        if (disagg_key_push(session, kp, WT_MAX(stable_ts, last_push_ts), &push_ts) == EBUSY)
+        if (disagg_key_push(session, kp, WT_MAX(stable_ts, last_push_ts), &push_ts) == EINVAL)
             continue;
         last_push_ts = push_ts;
         trace_msg(session, "key rotation #%u pushed timestamp %#" PRIx64, ++counter, push_ts);
