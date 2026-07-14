@@ -45,7 +45,8 @@ typedef struct {
  * parse_schema_records --
  *     Record thread t's last durable operation per slot, plus the data inserted for its last
  *     create. durable_epoch is the highest schema epoch that survived recovery; records above it
- *     never reached a checkpoint before the crash and are ignored, as are records for other threads.
+ *     never reached a checkpoint before the crash and are ignored, as are records for other
+ *     threads.
  */
 static void
 parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
