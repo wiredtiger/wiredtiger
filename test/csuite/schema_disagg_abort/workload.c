@@ -116,6 +116,10 @@ schema_op_publish(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch)
  *     Populate a newly created table with rows keyed DATA_KEY_MIN..DATA_KEY_MAX, each valued with
  *     the epoch. Returns the commit timestamp through commit_tsp. Returns WT_ROLLBACK if the commit
  *     lost the race with an advancing stable timestamp, in which case no data is durable.
+ *
+ * The timestamp thread advances stable independently, so stable can move to or past the commit
+ *     timestamp between the stable read and the commit. WiredTiger rejects that with EINVAL and
+ *     rolls the transaction back.
  */
 static int
 schema_op_insert_data(
@@ -149,7 +153,7 @@ schema_op_insert_data(
     commit_ts = stable_ts + 10 + __wt_random(ctx->rnd) % 50;
     testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
     ret = ctx->session->commit_transaction(ctx->session, commit_cfg);
-    if (ret == WT_ROLLBACK)
+    if (ret == EINVAL || ret == WT_ROLLBACK)
         return (WT_ROLLBACK);
     testutil_check(ret);
     *commit_tsp = commit_ts;
