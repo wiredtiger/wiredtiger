@@ -1795,6 +1795,11 @@ methods = {
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
+        Config('size_stats', 'false', r'''
+            Accumulate a per-b-tree size summary into the data-source statistics as the cursor
+            traverses the tree; row-store only, an error is returned otherwise. Read the results
+            with a statistics cursor''',
+            type='boolean', undoc=True),
         ]),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex" selects a simple hexadecimal

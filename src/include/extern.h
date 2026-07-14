@@ -1676,6 +1676,8 @@ extern int __wti_session_compact_readonly(WT_SESSION *wt_session, const char *ur
   const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_session_notsup(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
@@ -1767,10 +1769,9 @@ extern void __wt_block_compact_get_progress_stats(
   WT_SESSION_IMPL *session, WT_BM *bm, uint64_t *pages_reviewedp);
 extern void __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block);
 extern void __wt_block_disagg_checkpoint_rollback(WT_SESSION_IMPL *session);
+extern void __wt_block_disagg_decrease_size(WT_SESSION_IMPL *session, uint64_t size);
 extern void __wt_block_disagg_header_byteswap_copy(
   WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to);
-extern void __wt_block_disagg_obsolete_delta_chain(
-  WT_SESSION_IMPL *session, uint64_t cumulative_size);
 extern void __wt_block_disagg_set_size(WT_SESSION_IMPL *session, uint64_t size);
 extern void __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats);
 extern void __wt_bm_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
@@ -1895,6 +1896,7 @@ extern void __wt_shared_dsk_cache_get(WT_SESSION_IMPL *session, const uint8_t *a
   size_t addr_size, WT_SHARED_DSK_ITEM **shared_dsk_retp);
 extern void __wt_shared_dsk_cache_release(
   WT_SESSION_IMPL *session, WT_SHARED_DSK_ITEM *shared_dsk_item);
+extern void __wt_size_stat_reset(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard(WT_SESSION_IMPL *session);
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
 extern void __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *to);
