@@ -437,12 +437,21 @@ __verify_one_checkpoint(
     if (root_addr_size == 0)
         goto done;
 
+    /*
+     * Eviction is still locked out, so the only cleanup a failure owes is the unload: WT_ERR can
+     * bail straight to the err label.
+     */
     WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
     if (WT_VRFY_DUMP(vs))
         WT_ERR(__wt_msg(session, "Root:\n\t> addr: %s",
           __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
+    /*
+     * Enable eviction on the tree. From here until it is locked out again below, the err label is no
+     * longer a safe exit: it unloads the checkpoint but does not re-acquire the lock or discard the
+     * tree. Failures must be accumulated into ret so the eviction handshake still runs.
+     */
     __wt_evict_file_exclusive_off(session);
 
     /* Create a fake, unpacked parent cell for the tree based on the checkpoint information. */
