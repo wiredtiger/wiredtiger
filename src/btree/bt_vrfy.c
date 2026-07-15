@@ -455,12 +455,6 @@ __verify_one_checkpoint(
 
     /* Verify the tree. */
     WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
-
-    /*
-     * Bail on a hard verification failure. In read_corrupt mode the tree verification returns
-     * success and stashes the error, so this doesn't fire; the remaining checks run and use WT_TRET
-     * so that error isn't masked before it is applied below.
-     */
     WT_ERR(ret);
 
     /* Account for the root page in the accumulated total block size. */
