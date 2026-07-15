@@ -2612,8 +2612,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                  * skips opening the stable cursor, so stable is unavailable here regardless of
                  * build type.
                  */
-                WT_ASSERT_ALWAYS(session, false,
-                  "overwrite=true should guarantee the key exists for remove()");
+                WT_ASSERT_ALWAYS(
+                  session, false, "overwrite=true should guarantee the key exists for remove()");
                 return (0);
             }
 
@@ -2634,8 +2634,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         WT_ITEM_SET(value, c_ingest->value);
         if (__wt_clayered_deleted(&value)) {
             if (blind_remove) {
-                WT_ASSERT_ALWAYS(session, false,
-                  "overwrite=true should guarantee the key exists for remove()");
+                WT_ASSERT_ALWAYS(
+                  session, false, "overwrite=true should guarantee the key exists for remove()");
                 return (0);
             }
             return (WT_NOTFOUND);
