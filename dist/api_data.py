@@ -160,7 +160,8 @@ connection_disaggregated_config_common = [
         during checkpoint pickup. When enabled, a layered table present in only one of the two
         metadata tables and not explained by a pending metadata update with a schema epoch
         greater than the picked-up checkpoint's schema epoch causes a panic. The setting is
-        sticky: it is only changed by a configuration string that mentions it explicitly.
+        preserved across calls to reconfigure and only changed by a configuration string that
+        names it explicitly.
         Strict validation assumes table creates and drops reach this node through replicated
         operations and publish(), not through checkpoint pickup itself; it must be disabled
         for a clean-startup pickup, where the empty local metadata explains nothing''',
