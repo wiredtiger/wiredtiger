@@ -37,6 +37,17 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_is_stale_disagg --
+ *     Return whether the current btree belongs to an outdated disaggregated generation.
+ */
+static WT_INLINE bool
+__wt_btree_is_stale_disagg(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED | WT_BTREE_READONLY) &&
+      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -2297,6 +2308,29 @@ __wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
         if (__wt_atomic_cas_uint64(&btree->max_ingest_write_ts, cur, target))
             break;
         cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    }
+}
+
+/*
+ * __wt_btree_update_unpublished_min --
+ *     Update an unpublished btree's lower bound on the durable timestamps it holds. We use this to
+ *     detect if the btree holds any stable data while the btree is still unpublished, which would
+ *     be an API violation.
+ */
+static WT_INLINE void
+__wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    target = durable_ts;
+    cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    while (cur == WT_TS_NONE || cur > target) {
+        if (__wt_atomic_cas_uint64(&btree->min_unpublished_durable_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
     }
 }
 
