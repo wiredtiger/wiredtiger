@@ -1351,6 +1351,8 @@ conn_dsrc_stats = [
     CacheStat('cache_write_restore_invisible', 'pages written requiring in-memory restoration due to invisible updates'),
     CacheStat('cache_write_restore_scrub', 'pages written requiring in-memory restoration due to scrub eviction'),
     CacheStat('cache_write_restore_scrub_precise_checkpoint', 'pages written requiring in-memory restoration due to precise checkpoint scrub'),
+    CacheStat('cache_write_restore_scrub_skipped_dirty', 'precise checkpoint scrub skipped because the page will be left dirty'),
+    CacheStat('cache_write_restore_scrub_skipped_prepared', 'precise checkpoint scrub skipped because the page contains prepared transactions'),
 
     ##########################################
     # Checkpoint Cleanup statistics

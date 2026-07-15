@@ -56,17 +56,39 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
  *     Return true if reconciliation should save a disk image for in-memory re-instantiation.
  */
 static WT_INLINE bool
-__rec_save_disk_image(WTI_RECONCILE *r, WT_MULTI *multi)
+__rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
 {
+    WT_PAGE_MODIFY *mod;
+
     if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return (true);
+
+    if (!F_ISSET(r, WT_REC_SCRUB))
+        return (false);
+
     /*
-     * During checkpoint scrub, skip the image when newer stable content was written: the page stays
-     * dirty, so the swap path cannot fire. During eviction scrub the update chain is always intact,
-     * so the image is useful regardless.
+     * Skip the image if the page will be left dirty: the swap eviction path requires WT_PAGE_CLEAN
+     * so the image would never be used. Check both whether new updates arrived during
+     * reconciliation (page_state no longer clean) and whether reconciliation itself skipped updates
+     * that must remain in memory (leave_dirty).
      */
-    return (F_ISSET(r, WT_REC_SCRUB) &&
-      !(F_ISSET(r, WT_REC_CHECKPOINT) && r->newer_updates_than_last_rec_used));
+    mod = r->page->modify;
+    if (__wt_atomic_load_uint32_acquire(&mod->page_state) != WT_PAGE_CLEAN || r->leave_dirty) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_dirty);
+        return (false);
+    }
+
+    /*
+     * During checkpoint scrub, skip the image when the page contains prepared transactions: delta
+     * packing asserts that prepared tombstones are visible to all, which may not hold after
+     * split-rewrite resets the page's reconciliation state.
+     */
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && r->rec_page_cell_with_prepared_txn) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_prepared);
+        return (false);
+    }
+
+    return (true);
 }
 
 /*
@@ -2751,7 +2773,7 @@ copy_image:
      * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
      * copy of the disk image.
      */
-    if (__rec_save_disk_image(r, multi))
+    if (__rec_save_disk_image(session, r, multi))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
