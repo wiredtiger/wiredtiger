@@ -1396,6 +1396,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     if (vs->skip_per_key_hs)
         return (0);
 
+    WT_STAT_CONN_INCR(session, session_table_verify_hs_keys_checked);
+
     /* Read the HS at the same checkpoint as the data store, so the two views are consistent. */
     WT_ASSERT(session, session->hs_checkpoint == NULL);
     session->hs_checkpoint = vs->hs_checkpoint_name;
