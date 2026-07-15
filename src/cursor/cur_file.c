@@ -1175,8 +1175,10 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         F_SET(cbt, WT_CBT_READ_ONCE);
 
     /*
-     * Size-summary accounting accumulates into the data-source statistics as the cursor traverses
-     * the tree. Reset the counters here so each configured cursor reports its own traversal.
+     * Size-summary accounting accumulates into the shared data-source statistics as the cursor
+     * traverses the tree. Reset here so a fresh open starts from zero. The counters are not
+     * cursor-local: the consumer must not open another size_stats cursor on the same btree while a
+     * walk is in progress, or the reset will wipe a partial accumulation.
      */
     WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
     if (cval.val != 0) {

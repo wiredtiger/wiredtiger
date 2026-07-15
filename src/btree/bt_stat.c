@@ -459,7 +459,9 @@ err:
 
 /*
  * __wt_size_stat_reset --
- *     Clear the size-summary statistics ahead of a fresh accounting traversal.
+ *     Clear the size-summary statistics ahead of a fresh accounting traversal. The counters live in
+ *     the shared dhandle stats, so callers must not reset while another size_stats walk on this
+ *     btree is still accumulating.
  */
 void
 __wt_size_stat_reset(WT_SESSION_IMPL *session)
