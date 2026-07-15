@@ -1061,6 +1061,7 @@ forceerror
 foreach
 formatmessage
 forw
+foundp
 foward
 fprintf
 fread
