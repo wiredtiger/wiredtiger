@@ -408,19 +408,11 @@ static int
 __verify_one_checkpoint(
   WT_SESSION_IMPL *session, WT_VSTUFF *vs, WT_CKPT *ckpt, bool skip_hs, bool last_ckpt)
 {
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_CELL_UNPACK_ADDR addr_unpack;
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
     WT_DECL_RET;
-    size_t root_addr_size;
-    uint8_t root_addr[WT_ADDR_MAX_COOKIE];
-    const char *name;
-    bool evict_off;
-
-    btree = S2BT(session);
-    bm = btree->bm;
-    name = session->dhandle->name;
-    evict_off = false;
+    const char *name = session->dhandle->name;
+    bool evict_off = false;
 
     if (WT_VRFY_DUMP(vs)) {
         WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
@@ -431,6 +423,8 @@ __verify_one_checkpoint(
      * Load the checkpoint. Once it is loaded every exit path must run through the unload at the err
      * label.
      */
+    size_t root_addr_size;
+    uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     WT_RET(bm->checkpoint_load(
       bm, session, ckpt->raw.data, ckpt->raw.size, root_addr, &root_addr_size, true));
 
@@ -449,6 +443,7 @@ __verify_one_checkpoint(
     evict_off = true;
 
     /* Create a fake, unpacked parent cell for the tree based on the checkpoint information. */
+    WT_CELL_UNPACK_ADDR addr_unpack;
     memset(&addr_unpack, 0, sizeof(addr_unpack));
     WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
     if (ckpt->ta.prepare)
