@@ -154,9 +154,9 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         # Replicate the leader's writes to the follower's ingest.
         self.insert_keys(session_follow, 5, 10)
 
-        # Open the follower cursor. overwrite=true (the default) gates the skip-stable path for
-        # every write -- insert, update, and remove alike.
-        cursor_config = None if self.overwrite else 'overwrite=false'
+        # Explicitly configure overwrite=true to gate the skip-stable path for every write --
+        # insert, update, and remove alike.
+        cursor_config = 'overwrite=true' if self.overwrite else 'overwrite=false'
         cursor_follow = session_follow.open_cursor(self.uri, None, cursor_config)
 
         # Any operation before a checkpoint must not open stable.

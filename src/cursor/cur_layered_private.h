@@ -67,11 +67,4 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
-    /*
-     * Whether a NULL stable above is because this operation deliberately skipped it (an
-     * overwrite=true write on a follower with no read timestamp), as opposed to some other reason
-     * stable might not be open yet (for example no checkpoint has been recorded for this table).
-     * Only the former is safe to treat as "assume the key exists" in __clayered_remove_from_ingest.
-     */
-    bool stable_skipped_for_overwrite;
 };

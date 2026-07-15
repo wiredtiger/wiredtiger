@@ -12,7 +12,7 @@
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
 static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
-static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *, bool *);
+static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
@@ -247,10 +247,8 @@ __clayered_enter_flags(
         LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
-     * A read timestamp still requires the persistent stable cursor to be open for the
-     * write-conflict check. Without one, nothing on this path needs stable at all -- overwrite=true
-     * asserts the caller already knows the key exists, so this op never needs stable for its own
-     * existence check either way.
+     * A follower overwrite write skips stable for its own existence check. A read timestamp still
+     * requires the persistent stable cursor to be open for the write-conflict check.
      */
     if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
@@ -286,7 +284,6 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYER
     op->stable = overwrite_blind ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-    op->stable_skipped_for_overwrite = overwrite_blind;
 }
 
 /*
@@ -1949,14 +1946,10 @@ err:
 
 /*
  * __clayered_lookup --
- *     Position a layered cursor. If foundp is non-NULL, set it to whether the ingest constituent or
- *     the truncate list had any entry for the key, tombstone or not --
- *     a caller that skips stable for an overwrite=true write uses this to tell a
- *     confirmed-already-deleted key apart from one whose existence couldn't be confirmed locally at
- *     all.
+ *     Position a layered cursor.
  */
 static int
-__clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *foundp)
+__clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
@@ -1974,12 +1967,10 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value, bool *foundp)
      * the stable constituent. An overwrite=true write on a follower deliberately skips this: the
      * caller's guarantee covers stable too, so this op never needs to consult it.
      */
-    if (!found && op->stable != NULL && !op->stable_skipped_for_overwrite)
+    if (!found && op->stable != NULL)
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value), true);
 
 err:
-    if (foundp != NULL)
-        *foundp = found;
     if (ret != 0) {
         WT_TRET(__clayered_reset_cursors(clayered, false));
         /* Reset the buffer if the key was deleted on the ingest table. */
@@ -2014,7 +2005,7 @@ __clayered_search(WT_CURSOR *cursor)
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
-    WT_ERR(__clayered_lookup(&op, &cursor->value, NULL));
+    WT_ERR(__clayered_lookup(&op, &cursor->value));
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_STAT_CLAYERED_READ_CONSTITUENT_INCR(session, clayered, layered_curs_search);
 
@@ -2585,10 +2576,19 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     WT_CURSOR *const c_ingest = op->ingest;
     WT_DECL_RET;
     WT_ITEM value;
+    bool blind_remove;
     bool found;
 
     WT_CLEAR(value);
     found = true;
+
+    /*
+     * A NULL operation stable cursor has two meanings: this operation may have deliberately hidden
+     * an available stable cursor for an overwrite follower write, or the follower may not have a
+     * checkpoint yet. Only the former can assume a key missed by ingest exists in stable.
+     */
+    blind_remove = op->stable == NULL && clayered->stable_cursor != NULL &&
+      F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE);
 
     WT_RET(__clayered_modify_check(session, clayered, key));
 
@@ -2599,9 +2599,9 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     if (!positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        ret = __clayered_lookup(op, &value, &found);
-        if (op->stable_skipped_for_overwrite && ret == WT_NOTFOUND) {
-            if (found) {
+        if (blind_remove) {
+            ret = __clayered_lookup_ingest_and_truncate(op, &value, &found);
+            if (ret == WT_NOTFOUND && found) {
                 /*
                  * A tombstone already in ingest (or a truncate-list hit) means this remove is
                  * redundant against a key that isn't live locally -- a caller contract violation
@@ -2612,17 +2612,15 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                  * skips opening the stable cursor, so stable is unavailable here regardless of
                  * build type.
                  */
-                WT_ASSERT(session, false);
+                WT_ASSERT_ALWAYS(session, false,
+                  "overwrite=true should guarantee the key exists for remove()");
                 return (0);
             }
 
-            /*
-             * Existence unknown either way: assume it exists in stable, per the caller's guarantee,
-             * and fall through to write the tombstone. Not independently verifiable here without
-             * consulting stable, which this path deliberately skips.
-             */
-            ret = 0;
-        }
+            if (ret == WT_NOTFOUND && !found)
+                ret = 0;
+        } else
+            ret = __clayered_lookup(op, &value);
         WT_RET(ret);
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
@@ -2636,7 +2634,8 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         WT_ITEM_SET(value, c_ingest->value);
         if (__wt_clayered_deleted(&value)) {
             if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE)) {
-                WT_ASSERT(session, false);
+                WT_ASSERT_ALWAYS(session, false,
+                  "overwrite=true should guarantee the key exists for remove()");
                 return (0);
             }
             return (WT_NOTFOUND);
@@ -2787,7 +2786,7 @@ __clayered_insert(WT_CURSOR *cursor)
      * lookup results in an error, and a failed lookup leaves the original key intact.
      */
     if (__clayered_needs_pre_lookup(&op)) {
-        WT_ERR_NOTFOUND_OK(__clayered_lookup(&op, &value, NULL), true);
+        WT_ERR_NOTFOUND_OK(__clayered_lookup(&op, &value), true);
         if (ret == 0) {
             WT_ERR(__clayered_copy_duplicate_kv(&op));
             WT_ERR(__clayered_reset_cursors(clayered, false));
@@ -2869,7 +2868,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
     if (__clayered_needs_pre_lookup(&op)) {
-        WT_ERR(__clayered_lookup(&op, &value, NULL));
+        WT_ERR(__clayered_lookup(&op, &value));
         /*
          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
          * have landed on.
@@ -3001,7 +3000,7 @@ __clayered_reserve(WT_CURSOR *cursor)
      * no ingest cursor the stable cursor reserves without overwrite and runs the check itself.
      */
     if (op.ingest != NULL)
-        WT_ERR(__clayered_lookup(&op, &value, NULL));
+        WT_ERR(__clayered_lookup(&op, &value));
 
     WT_ERR(__clayered_put(&op, &cursor->key, NULL, WTI_CLAYERED_PUT_RESERVE));
 
@@ -3314,7 +3313,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
      */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
       !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
-        WT_ERR(__clayered_lookup(op, &value, NULL));
+        WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
 
