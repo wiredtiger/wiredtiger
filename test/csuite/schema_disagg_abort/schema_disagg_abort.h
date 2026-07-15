@@ -61,11 +61,15 @@ typedef struct {
     char page_log_home[PATH_MAX];
     uint32_t nth;
     uint32_t pool_size;
+    bool switch_mode; /* enable role-switch phase */
 } TEST_CONFIG;
 
 /* Global state shared by all workload threads. */
 typedef struct {
     volatile bool stable_set; /* set once the stable timestamp is first advanced */
+    volatile bool stop_phase; /* set to quiesce all worker threads cleanly */
+    volatile bool
+      ckpt_enabled;           /* leader phase checkpoints; follower phase only advances the epoch */
     uint64_t schema_op_epoch; /* next schema epoch to assign */
     /* Read: a schema thread's create/drop and publish. Write: the checkpoint. */
     pthread_rwlock_t lock;
@@ -78,6 +82,9 @@ typedef struct {
     WORKLOAD_STATE *state;
     uint32_t info;
     WT_RAND_STATE rnd;
+    bool
+      table_exists[MAX_POOL_SIZE]; /* seeded from the caller and copied back so phases carry over */
+    uint64_t last_timestamp;       /* last timestamp used, seeded and copied back across phases */
 } THREAD_DATA;
 
 /* workload.c */

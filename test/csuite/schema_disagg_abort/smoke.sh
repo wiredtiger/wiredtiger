@@ -19,3 +19,7 @@ $TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 2 -h WT_TEST.schema_disagg_ab
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 4 -h WT_TEST.schema_disagg_abort.t4
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 2 -s 4 -h WT_TEST.schema_disagg_abort.s4
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -t 10 -T 2 -s 16 -h WT_TEST.schema_disagg_abort.s16
+
+# Switch-mode: small timeout targets a kill before the role switch; large targets phase 2.
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -t 5  -T 2 -m -h WT_TEST.schema_disagg_abort.switch_short
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -t 25 -T 2 -m -h WT_TEST.schema_disagg_abort.switch_long

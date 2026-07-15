@@ -52,10 +52,12 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-b build-dir] [-h dir] [-p] [-s pool] [-T threads] [-t time] [-v]\n", progname);
+      "usage: %s [-b build-dir] [-h dir] [-m] [-p] [-s pool] [-T threads] [-t time] [-v]\n",
+      progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
       "\t-h home directory\n"
+      "\t-m switch mode (randomly start as leader or follower, then switch roles mid-run)\n"
       "\t-p preserve directory contents\n"
       "\t-s URI pool size per thread\n"
       "\t-T number of schema threads\n"
@@ -172,10 +174,13 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     verify_only = false;
 
-    testutil_parse_begin_opt(argc, argv, "b:h:pP:s:T:t:v", cfg.opts);
+    testutil_parse_begin_opt(argc, argv, "b:h:mpP:s:T:t:v", cfg.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:h:pP:s:T:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:h:mpP:s:T:t:v")) != EOF)
         switch (ch) {
+        case 'm':
+            cfg.switch_mode = true;
+            break;
         case 's':
             pool_size_set = true;
             cfg.pool_size = (uint32_t)atoi(__wt_optarg);
@@ -236,8 +241,10 @@ main(int argc, char *argv[])
         printf("Parent: Create %" PRIu32 " schema threads; pool %" PRIu32 " slots; sleep %" PRIu32
                " seconds\n",
           cfg.nth, cfg.pool_size, timeout);
-        printf("CONFIG: %s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
-          progname, cfg.pool_size, cfg.nth, timeout, cfg.opts->data_seed, cfg.opts->extra_seed);
+        printf("CONFIG: %s -s %" PRIu32 " -T %" PRIu32 " -t %" PRIu32 "%s " TESTUTIL_SEED_FORMAT
+               "\n",
+          progname, cfg.pool_size, cfg.nth, timeout, cfg.switch_mode ? " -m" : "",
+          cfg.opts->data_seed, cfg.opts->extra_seed);
 
         testutil_snprintf(cfg.page_log_home, sizeof(cfg.page_log_home), "%s/%s/%s", cwd_start,
           cfg.home, WT_HOME_DIR);
