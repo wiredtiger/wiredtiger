@@ -156,7 +156,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         cursor = session_follow.open_cursor(self.uri2)
         cursor.close()
 
-        # Once the create's epoch reaches a shared checkpoint, the table converges: the leader's
+        # Once the create epoch reaches a shared checkpoint, the table converges: the leader's
         # data becomes readable on the follower.
         cursor = self.session.open_cursor(self.uri2)
         self.session.begin_transaction()
