@@ -173,10 +173,8 @@ def main():
             if args.label_outdated:
                 label_ticket(ticket, token)
 
-    # In labeling mode, only critical errors should fail the script, not the
-    # presence of outdated FIXMEs.
-    if closed_ticket_found and not args.label_outdated:
-        sys.exit(1)
+    exit_code = 1 if closed_ticket_found else 0
+    sys.exit(exit_code)
 
 if __name__ == '__main__':
     main()
