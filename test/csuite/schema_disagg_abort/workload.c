@@ -133,67 +133,23 @@ schema_op_insert_data(SCHEMA_WORKER_CTX *ctx, uint64_t slot, uint64_t epoch, uin
 }
 
 /*
- * thread_schema_run --
- *     Creates and drops disaggregated tables from a per-thread pool. Each successful operation is
- *     assigned a monotonically increasing schema epoch and durably recorded so the verifier can
- *     reconstruct the expected post-recovery state.
- */
-static WT_THREAD_RET
-thread_schema_run(void *arg)
-{
-    SCHEMA_WORKER_CTX ctx;
-    THREAD_DATA *td;
-    bool is_create;
-    uint64_t commit_ts, epoch, slot;
-
-    td = (THREAD_DATA *)arg;
-    schema_worker_open(td, &ctx);
-
-    /* Each thread keeps independent epoch and commit-timestamp sequences. */
-    commit_ts = epoch = 0;
-    for (;;) {
-        slot = __wt_random(&td->rnd) % td->cfg->pool_size;
-        if (schema_op_execute(&ctx, slot) == EBUSY) {
-            __wt_yield();
-            continue;
-        }
-        is_create = ctx.table_exists[slot];
-        ++epoch;
-        testutil_check(schema_op_publish(&ctx, slot, epoch));
-        /* Release so the timestamp thread's paired acquire load sees the completed publish. */
-        __wt_atomic_store_uint64_release(&td->schema_op_epoch, epoch);
-        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP", epoch,
-              ctx.uris[slot]) < 0)
-            testutil_die(EIO, "fprintf schema record");
-        if (is_create) {
-            ++commit_ts;
-            schema_op_insert_data(&ctx, slot, epoch, commit_ts);
-            /* Release so the timestamp thread's paired acquire load sees the completed commit. */
-            __wt_atomic_store_uint64_release(&td->last_commit_ts, commit_ts);
-            if (fprintf(ctx.schema_fp, "INSERT %" PRIu64 " %" PRIu64 " %d %d %s\n", epoch,
-                  commit_ts, DATA_KEY_MIN, DATA_KEY_MAX, ctx.uris[slot]) < 0)
-                testutil_die(EIO, "fprintf insert record");
-        }
-    }
-    /* NOTREACHED */
-}
-
-/*
  * workers_min --
- *     Return the minimum value of a uint64_t field across all schema worker threads, using acquire
- *     ordering to pair with each worker's release store. Returns 0 if any worker has not yet set
- *     the field.
+ *     Return the minimum of the selected per-thread field across all schema worker threads, read
+ *     with acquire ordering to pair with each worker's release store. Returns 0 if any worker has
+ *     not yet set the field.
  */
 static uint64_t
-workers_min(WORKLOAD_STATE *state, size_t field_offset)
+workers_min(WORKLOAD_STATE *state, bool want_epoch)
 {
+    THREAD_DATA *w;
     uint64_t min_val, val;
     uint32_t i;
 
     min_val = UINT64_MAX;
     for (i = 0; i < state->nth_workers; i++) {
-        val = __wt_atomic_load_uint64_acquire(
-          (uint64_t *)((uint8_t *)&state->workers[i] + field_offset));
+        w = &state->workers[i];
+        val =
+          __wt_atomic_load_uint64_acquire(want_epoch ? &w->published_epoch : &w->stable_ready_ts);
         if (val == 0)
             return (0);
         if (val < min_val)
@@ -203,27 +159,131 @@ workers_min(WORKLOAD_STATE *state, size_t field_offset)
 }
 
 /*
+ * Inserts committed on not-yet-stable tables, queued until their table's epoch is stable. Entries
+ * arrive already ordered because epochs and commit timestamps come from monotonic counters.
+ */
+#define PUBLISH_WAIT_QUEUE_MAX 256
+typedef struct {
+    uint64_t epoch;
+    uint64_t commit_ts;
+} PUBLISH_WAIT_QUEUE_ENTRY;
+typedef struct {
+    PUBLISH_WAIT_QUEUE_ENTRY entries[PUBLISH_WAIT_QUEUE_MAX];
+    uint64_t head; /* next entry to release */
+    uint64_t tail; /* next slot to fill */
+} PUBLISH_WAIT_QUEUE;
+
+/*
+ * publish_wait_queue_push --
+ *     Queue a committed insert awaiting its table's epoch to become stable. Drop the oldest entry
+ *     if the queue is full: a later release covers it, since epochs and timestamps only climb.
+ */
+static void
+publish_wait_queue_push(PUBLISH_WAIT_QUEUE *q, uint64_t epoch, uint64_t commit_ts)
+{
+    PUBLISH_WAIT_QUEUE_ENTRY *e;
+
+    if (q->tail - q->head == PUBLISH_WAIT_QUEUE_MAX)
+        q->head++;
+    e = &q->entries[q->tail++ % PUBLISH_WAIT_QUEUE_MAX];
+    e->epoch = epoch;
+    e->commit_ts = commit_ts;
+}
+
+/*
+ * publish_wait_queue_release --
+ *     Pop every queued insert whose table epoch has reached the stable frontier and return the
+ *     newest released commit timestamp, or 0 if none were released.
+ */
+static uint64_t
+publish_wait_queue_release(PUBLISH_WAIT_QUEUE *q, uint64_t stable_epoch)
+{
+    PUBLISH_WAIT_QUEUE_ENTRY *e;
+    uint64_t released;
+
+    released = 0;
+    while (q->head != q->tail) {
+        e = &q->entries[q->head % PUBLISH_WAIT_QUEUE_MAX];
+        if (e->epoch > stable_epoch)
+            break;
+        released = e->commit_ts;
+        q->head++;
+    }
+    return (released);
+}
+
+/*
+ * thread_schema_run --
+ *     Creates and drops disaggregated tables from a per-thread pool. Each successful operation is
+ *     assigned a monotonically increasing schema epoch and durably recorded so the verifier can
+ *     reconstruct the expected post-recovery state. Inserted data is committed immediately but held
+ *     back from stability until its table is published, so data never goes stable before its table.
+ */
+static WT_THREAD_RET
+thread_schema_run(void *arg)
+{
+    PUBLISH_WAIT_QUEUE queue;
+    SCHEMA_WORKER_CTX ctx;
+    THREAD_DATA *td;
+    bool is_create;
+    uint64_t commit_ts, epoch, released, slot;
+
+    td = (THREAD_DATA *)arg;
+    schema_worker_open(td, &ctx);
+
+    WT_CLEAR(queue);
+    for (;;) {
+        /*
+         * Release queued inserts whose table epoch every thread has now published. Until then their
+         * data stays unstable, exercising unpublished tables that hold unstable data.
+         */
+        released = publish_wait_queue_release(&queue, workers_min(td->state, true));
+        if (released != 0)
+            __wt_atomic_store_uint64_release(&td->stable_ready_ts, released);
+
+        slot = __wt_random(&td->rnd) % td->cfg->pool_size;
+        if (schema_op_execute(&ctx, slot) == EBUSY) {
+            __wt_yield();
+            continue;
+        }
+        is_create = ctx.table_exists[slot];
+        epoch = __wt_atomic_add_uint64(&ctx.state->next_epoch, 1);
+        testutil_check(schema_op_publish(&ctx, slot, epoch));
+        /* Release so the timestamp thread's paired acquire load sees the completed publish. */
+        __wt_atomic_store_uint64_release(&td->published_epoch, epoch);
+        if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP", epoch,
+              ctx.uris[slot]) < 0)
+            testutil_die(EIO, "fprintf schema record");
+        if (is_create) {
+            commit_ts = __wt_atomic_add_uint64(&ctx.state->next_commit_ts, 1);
+            schema_op_insert_data(&ctx, slot, epoch, commit_ts);
+            if (fprintf(ctx.schema_fp, "INSERT %" PRIu64 " %" PRIu64 " %d %d %s\n", epoch,
+                  commit_ts, DATA_KEY_MIN, DATA_KEY_MAX, ctx.uris[slot]) < 0)
+                testutil_die(EIO, "fprintf insert record");
+            publish_wait_queue_push(&queue, epoch, commit_ts);
+        }
+    }
+    /* NOTREACHED */
+}
+
+/*
  * thread_ts_run --
- *     Advances oldest and stable timestamps. Both stable_timestamp and
- *     stable_disaggregated_schema_epoch are set to the minimum last-committed value across all
- *     schema worker threads, so stable never races ahead of an in-flight commit or publish.
+ *     Advances the oldest and stable timestamps and the stable schema epoch, keeping stable data on
+ *     published tables only.
  */
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
     THREAD_DATA *td;
-    uint64_t min_commit_ts, min_epoch;
+    uint64_t stable_epoch, stable_ts;
     char tscfg[128];
 
     td = (THREAD_DATA *)arg;
     for (;;) {
-        /*
-         * Wait until every schema worker has published at least one schema operation and committed
-         * at least one insert.
-         */
-        min_commit_ts = workers_min(td->state, offsetof(THREAD_DATA, last_commit_ts));
-        min_epoch = workers_min(td->state, offsetof(THREAD_DATA, schema_op_epoch));
-        if (min_commit_ts == 0 || min_epoch == 0) {
+        /* Wait until every worker has published an epoch and released an insert for stability. */
+        stable_epoch = workers_min(td->state, true);
+        stable_ts = workers_min(td->state, false);
+        if (stable_epoch == 0 || stable_ts == 0) {
             __wt_sleep(0, 100 * WT_THOUSAND);
             continue;
         }
@@ -231,7 +291,7 @@ thread_ts_run(void *arg)
         testutil_snprintf(tscfg, sizeof(tscfg),
           "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64
           ",stable_disaggregated_schema_epoch=%" PRIx64,
-          min_commit_ts, min_commit_ts, min_epoch);
+          stable_ts, stable_ts, stable_epoch);
         testutil_check(td->conn->set_timestamp(td->conn, tscfg));
         if (!td->state->stable_set)
             td->state->stable_set = true;
@@ -278,7 +338,7 @@ thread_ckpt_run(void *arg)
         /* Gate the ready sentinel on at least one published schema operation. */
         epoch_checkpointed = false;
         for (j = 0; j < td->state->nth_workers; j++)
-            if (td->state->workers[j].schema_op_epoch > 0) {
+            if (td->state->workers[j].published_epoch > 0) {
                 epoch_checkpointed = true;
                 break;
             }

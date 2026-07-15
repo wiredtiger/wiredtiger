@@ -68,7 +68,13 @@ typedef struct __thread_data THREAD_DATA;
 /* Global state shared by all workload threads. */
 typedef struct {
     volatile bool stable_set; /* set once the stable timestamp is first advanced */
-    THREAD_DATA *workers;     /* schema worker thread data array (length nth_workers) */
+    /*
+     * Monotonic allocators. Every publish and commit must draw a value above the global stable
+     * epoch and timestamp, so these only ever increase.
+     */
+    uint64_t next_epoch;
+    uint64_t next_commit_ts;
+    THREAD_DATA *workers; /* schema worker thread data array (length nth_workers) */
     uint32_t nth_workers;
 } WORKLOAD_STATE;
 
@@ -79,8 +85,13 @@ struct __thread_data {
     WORKLOAD_STATE *state;
     uint32_t info;
     WT_RAND_STATE rnd;
-    uint64_t schema_op_epoch; /* last successfully published schema epoch (0 = none yet) */
-    uint64_t last_commit_ts;  /* last successfully committed insert timestamp (0 = none yet) */
+    /*
+     * The timestamp thread takes the minimum of each field across all threads to set the global
+     * stable epoch and stable timestamp. stable_ready_ts trails the thread's commits until each
+     * insert's table epoch is stable.
+     */
+    uint64_t published_epoch;
+    uint64_t stable_ready_ts;
 };
 
 /* workload.c */
