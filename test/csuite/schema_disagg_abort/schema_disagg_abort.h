@@ -30,7 +30,6 @@
 
 #include "test_util.h"
 
-#include <pthread.h>
 #include <sys/wait.h>
 #include <signal.h>
 
@@ -63,22 +62,26 @@ typedef struct {
     uint32_t pool_size;
 } TEST_CONFIG;
 
+/* Forward declaration: WORKLOAD_STATE holds a pointer into the THREAD_DATA array. */
+typedef struct __thread_data THREAD_DATA;
+
 /* Global state shared by all workload threads. */
 typedef struct {
     volatile bool stable_set; /* set once the stable timestamp is first advanced */
-    uint64_t schema_op_epoch; /* next schema epoch to assign */
-    /* Read: a schema thread's create/drop and publish. Write: the checkpoint. */
-    pthread_rwlock_t lock;
+    THREAD_DATA *workers;     /* schema worker thread data array (length nth_workers) */
+    uint32_t nth_workers;
 } WORKLOAD_STATE;
 
 /* Per-thread argument. */
-typedef struct {
+struct __thread_data {
     TEST_CONFIG *cfg;
     WT_CONNECTION *conn;
     WORKLOAD_STATE *state;
     uint32_t info;
     WT_RAND_STATE rnd;
-} THREAD_DATA;
+    uint64_t schema_op_epoch; /* last successfully published schema epoch (0 = none yet) */
+    uint64_t last_commit_ts;  /* last successfully committed insert timestamp (0 = none yet) */
+};
 
 /* workload.c */
 void run_workload(TEST_CONFIG *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
