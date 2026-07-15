@@ -1224,17 +1224,18 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_CLEAR(complete_checkpoint_meta);
 
     /*
-     * Update the strict checkpoint metadata mode before any checkpoint pickup below, so that a
-     * single reconfigure call carrying both settings applies the mode to its own pickup. The
-     * setting is sticky: leave it unchanged when the configuration does not mention it.
+     * Parse strict_checkpoint_metadata before the checkpoint pickup below: a single reconfigure
+     * call may carry both this setting and a checkpoint to pick up, and that pickup must run with
+     * the new setting. The setting keeps its previous value unless the configuration string names
+     * it explicitly, so the common pickup call, which passes only checkpoint_meta, does not reset
+     * it.
      *
-     * Expected lifecycle: open with the mode off, because a clean-startup pickup populates an empty
-     * node from the checkpoint and the metadata queue explains none of those differences. Enable it
-     * via reconfigure once every table create and drop reaches this node through replicated
-     * operations and publish() rather than through pickup; it then stays on across
-     * checkpoint_meta-only reconfigures. Disable it the same way for the rare window where a node
-     * must install checkpoints while knowingly inconsistent, such as after stepping down with
-     * pending unpublished drops.
+     * Expected usage: leave the mode off while the node starts from a clean state, because the
+     * startup pickup creates every table from the checkpoint and the metadata queue explains none
+     * of those differences. Turn it on with one reconfigure call once every table create and drop
+     * reaches this node through replicated operations and publish() rather than through pickup.
+     * Turn it off again only when the node must install checkpoints while knowingly inconsistent,
+     * for example after stepping down with unpublished tables that still need to be dropped.
      */
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets(session, cfg, "disaggregated.strict_checkpoint_metadata", &cval), true);

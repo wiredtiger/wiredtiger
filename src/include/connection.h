@@ -296,7 +296,7 @@ struct __wt_disaggregated_storage {
 
     /*
      * Whether checkpoint pickup validates that the local and shared metadata contain equivalent
-     * sets of layered tables. Sticky: changed only by a configuration that mentions it.
+     * sets of layered tables. Changed only by a configuration string that names it explicitly.
      */
     bool strict_checkpoint_metadata;
 
