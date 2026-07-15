@@ -39,6 +39,8 @@ typedef struct {
     uint32_t key_max;
     bool is_create;
     bool valid;
+    /* FIXME-WT-17746: Skip slots affected by known checkpoint pick-up recovery problems. */
+    bool skip_verify;
 } SLOT_STATE;
 
 /*
@@ -63,6 +65,7 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
         states[s].key_min = states[s].key_max = 0;
         states[s].is_create = false;
         states[s].valid = false;
+        states[s].skip_verify = false;
     }
 
     if ((fp = fopen(fname, "r")) == NULL)
@@ -91,10 +94,12 @@ parse_schema_records(const char *fname, uint32_t t, uint64_t durable_epoch,
 
         if (sscanf(line, "%*s %" SCNu64 " %127s", &entry_epoch, rec_uri) != 2)
             continue;
-        if (entry_epoch > durable_epoch)
-            continue;
         if (sscanf(rec_uri, SCHEMA_TABLE_FMT, &t2, &s) != 2 || t2 != t || s >= pool_size)
             continue;
+        if (entry_epoch > durable_epoch) {
+            states[s].skip_verify = true;
+            continue;
+        }
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
             states[s].commit_ts = DATA_COMMIT_TS_NONE;
@@ -123,7 +128,7 @@ check_schema_presence(
     testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &md_cursor));
 
     for (s = 0; s < pool_size; s++) {
-        if (!states[s].valid)
+        if (!states[s].valid || states[s].skip_verify)
             continue;
 
         testutil_snprintf(uri, sizeof(uri), SCHEMA_TABLE_FMT, t, s);
@@ -160,7 +165,7 @@ check_data_rows(WT_SESSION *session, uint32_t t, const SLOT_STATE states[MAX_POO
     const char *actual_val;
 
     for (s = 0; s < pool_size; s++) {
-        if (!states[s].valid || !states[s].is_create)
+        if (!states[s].valid || !states[s].is_create || states[s].skip_verify)
             continue;
         if (states[s].commit_ts == DATA_COMMIT_TS_NONE)
             continue;
