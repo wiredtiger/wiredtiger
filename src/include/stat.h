@@ -769,6 +769,8 @@ struct __wt_connection_stats {
     int64_t cache_write_restore_scrub;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_precise_checkpoint;
+    int64_t cache_write_restore_scrub_skipped_prepared;
+    int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_scrub_restore;
@@ -1640,6 +1642,8 @@ struct __wt_dsrc_stats {
     int64_t cache_write_restore_scrub_precise_checkpoint;
     int64_t cache_write_restore_scrub;
     int64_t cache_eviction_blocked_precise_checkpoint;
+    int64_t cache_write_restore_scrub_skipped_prepared;
+    int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_scrub_restore;
