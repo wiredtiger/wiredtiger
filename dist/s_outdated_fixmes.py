@@ -58,10 +58,10 @@ def find_fixme_tickets():
     match_re = re.compile(r'FIX.?ME.*?(WT-[0-9]+)')
     for filepath in all_files():
         try:
-            with open(filepath, 'r') as file:
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as file:
                 for match in match_re.finditer(file.read()):
                     fixme_tickets.add((match[1], filepath))
-        except Exception as e:
+        except Exception:
             # There are files like *.png which cannot be read. In this case skip them silently.
             pass
     return fixme_tickets
