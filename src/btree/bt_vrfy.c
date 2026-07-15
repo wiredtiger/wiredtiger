@@ -435,8 +435,9 @@ __verify_one_checkpoint(
           __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
     /*
-     * We currently hold an exclusive lock which means eviction cannot work on that tree. Given we
-     * will walk all the pages, we need eviction to be enabled to manage the cache load.
+     * We currently hold an exclusive lock which means eviction cannot work on that tree. Eviction
+     * must work on trees being verified (else we'd have to do our own eviction), so we release the
+     * lock while verifying.
      */
     __wt_evict_file_exclusive_off(session);
     evict_off = true;
@@ -508,10 +509,8 @@ done:
 err:
     /*
      * If eviction was enabled to verify the tree, re-acquire the exclusive lock and discard the
-     * tree before unloading the checkpoint. Eviction must work on trees being verified (else we'd
-     * have to do our own eviction), so we release the lock while verifying and lock it out again
-     * here. The discard must run while the lock is held and before the unload, as the tree's pages
-     * reference this checkpoint's block manager.
+     * tree before unloading the checkpoint.The discard must run while the lock is held and before
+     * the unload, as the tree's pages reference this checkpoint's block manager.
      */
     if (evict_off) {
         WT_TRET(__wt_evict_file_exclusive_on(session));
