@@ -48,7 +48,7 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      */
     return (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
       LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
-      F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
+      F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB) && conn->layered_table_manager.leader);
 }
 
 /*

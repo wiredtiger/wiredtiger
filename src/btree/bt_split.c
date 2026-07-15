@@ -1505,7 +1505,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     multi->disk_image = NULL;
 
     /* Preserve the relevant metadata. */
-    if (page->disagg_info != NULL) {
+    if (page->disagg_info != NULL && multi->block_meta != NULL) {
         page->disagg_info->block_meta = *multi->block_meta;
         ref->page->disagg_info->old_rec_lsn_max = multi->block_meta->disagg_lsn;
         page->disagg_info->rec_lsn_max = multi->block_meta->disagg_lsn;
