@@ -82,7 +82,7 @@ def query_jira_ticket(ticket):
     )
 
     try:
-        with urllib.request.urlopen(url) as response:
+        with urllib.request.urlopen(url, timeout=10) as response:
             fields = json.loads(response.read()).get("fields", {})
     except (urllib.error.URLError, json.JSONDecodeError):
         fields = {}
@@ -128,7 +128,7 @@ def label_ticket(ticket, token):
         },
     )
 
-    urllib.request.urlopen(request)
+    urllib.request.urlopen(request, timeout=10)
 
 def parse_args():
     """Return the parsed command line arguments."""
