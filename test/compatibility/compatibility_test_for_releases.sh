@@ -73,13 +73,13 @@ is_major_release()
 bflag()
 {
     # Return if the branch's format command takes the -B flag for backward compatibility.
-    test "$1" = "develop" && echo "-B "
+    test "$1" = "develop" && echo "-B"
     test "$1" = "mongodb-9.0" && echo "-B"
     test "$1" = "mongodb-8.3" && echo "-B"
     test "$1" = "mongodb-8.2" && echo "-B"
     test "$1" = "mongodb-8.0" && echo "-B"
-    test "$1" = "mongodb-7.0" && echo "-B "
-    test "$1" = "mongodb-6.0" && echo "-B "
+    test "$1" = "mongodb-7.0" && echo "-B"
+    test "$1" = "mongodb-6.0" && echo "-B"
     return 0
 }
 
