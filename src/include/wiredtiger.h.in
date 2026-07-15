@@ -9224,14 +9224,20 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * statistics are enabled
  */
 #define	WT_STAT_DSRC_BTREE_ROW_INTERNAL			2048
-/*! btree: row-store leaf page recent average entries (EWMA) */
+/*!
+ * btree: row-store leaf page recent average entries (EWMA), or
+ * UINT64_MAX if never tracked and awaiting a tree-walk correction
+ */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF_AVG_ENTRIES		2049
 /*!
  * btree: row-store leaf pages, only reported if tree_walk or all
  * statistics are enabled
  */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF			2050
-/*! btree: row-store leaf pages (approximate, incremental) */
+/*!
+ * btree: row-store leaf pages (approximate, incremental), or UINT64_MAX
+ * if never tracked and awaiting a tree-walk correction
+ */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF_PAGES		2051
 /*!
  * btree: time spent walking the tree for checkpoint including dirty page

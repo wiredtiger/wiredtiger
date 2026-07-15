@@ -52,9 +52,11 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: overflow pages",
   "btree: row-store empty values",
   "btree: row-store internal pages",
-  "btree: row-store leaf page recent average entries (EWMA)",
+  "btree: row-store leaf page recent average entries (EWMA), or UINT64_MAX if never tracked and "
+  "awaiting a tree-walk correction",
   "btree: row-store leaf pages",
-  "btree: row-store leaf pages (approximate, incremental)",
+  "btree: row-store leaf pages (approximate, incremental), or UINT64_MAX if never tracked and "
+  "awaiting a tree-walk correction",
   "btree: time spent walking the tree for checkpoint including dirty page reconciliation time "
   "(usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
