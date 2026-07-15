@@ -2633,7 +2633,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
          */
         WT_ITEM_SET(value, c_ingest->value);
         if (__wt_clayered_deleted(&value)) {
-            if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE)) {
+            if (blind_remove) {
                 WT_ASSERT_ALWAYS(session, false,
                   "overwrite=true should guarantee the key exists for remove()");
                 return (0);
