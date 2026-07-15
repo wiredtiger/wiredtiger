@@ -5320,7 +5320,7 @@ tasks:
     tags: ["pull_request"]
 
   - <<: *csuite-schema-disagg-abort-stress
-    name: csuite-schema-disagg-abort-stress-1
+    name: csuite-schema-disagg-abort-stress
     tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
