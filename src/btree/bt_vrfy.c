@@ -464,7 +464,7 @@ __verify_one_checkpoint(
     WT_ERR(ret);
 
     /* Account for the root page in the accumulated total block size. */
-    WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
+    WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
 #ifdef HAVE_DIAGNOSTIC
     /* Validate the size of the btree. */
@@ -476,7 +476,7 @@ __verify_one_checkpoint(
          * Only fail in diagnostic builds for now; enable this branch in production builds once this
          * is resolved.
          */
-        WT_TRET_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_ERROR,
           "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
           vs->total_block_size);
 #endif
