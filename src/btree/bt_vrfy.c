@@ -419,10 +419,6 @@ __verify_one_checkpoint(
         WT_RET(__wt_msg(session, "%s, ckpt_name: %s", name, ckpt->name));
     }
 
-    /*
-     * Load the checkpoint. Once it is loaded every exit path must run through the unload at the err
-     * label.
-     */
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     WT_RET(bm->checkpoint_load(
@@ -438,7 +434,10 @@ __verify_one_checkpoint(
         WT_ERR(__wt_msg(session, "Root:\n\t> addr: %s",
           __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
-    /* Enable eviction while verifying the tree; the err path re-acquires it under evict_off. */
+    /*
+     * We currently hold an exclusive lock which means eviction cannot work on that tree. Given we
+     * will walk all the pages, we need eviction to be enabled to manage the cache load.
+     */
     __wt_evict_file_exclusive_off(session);
     evict_off = true;
 
@@ -459,8 +458,8 @@ __verify_one_checkpoint(
 
     /*
      * Bail on a hard verification failure. In read_corrupt mode the tree verification returns
-     * success and stashes the error in vs->verify_err, so this doesn't fire; the remaining checks
-     * run and use WT_TRET so that error isn't masked before it is applied below.
+     * success and stashes the error, so this doesn't fire; the remaining checks run and use WT_TRET
+     * so that error isn't masked before it is applied below.
      */
     WT_ERR(ret);
 
@@ -625,10 +624,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         /* House-keeping between checkpoints. */
         __verify_checkpoint_reset(vs);
 
-        /*
-         * Load, verify and unload the checkpoint. The helper unloads the checkpoint on every path,
-         * so if any errors occurred we can quit directly.
-         */
         WT_ERR(__verify_one_checkpoint(session, vs, ckpt, skip_hs, (ckpt + 1)->name == NULL));
 
         /* Display the tree shape. */
