@@ -1597,7 +1597,7 @@ cursor_runtime_config = [
         the stable table; the caller must guarantee that the key being removed exists. If the key is
         already deleted in ingest or by the truncate list, the operation violates that guarantee.
         A write conflict with a concurrent, not-yet-visible change to the same key can still fail
-        the call. Has no effect on a leader''',
+        the call. This layered-follower remove behavior does not apply on a leader.''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
