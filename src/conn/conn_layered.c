@@ -449,10 +449,8 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 /*
  * __wti_disagg_table_latest_create_remove --
  *     Return the latest CREATE or REMOVE operation for the given table name in the shared metadata
- *     queue, and set the epoch out-parameter to that entry's schema epoch. Returns
- *     WT_SHARED_METADATA_NONE as a sentinel (with WT_SCHEMA_EPOCH_NONE) when no CREATE or REMOVE
- *     entry is found. UPDATE entries are skipped because they do not affect whether the table
- *     exists.
+ *     queue and its schema epoch, or WT_SHARED_METADATA_NONE when no such entry is found. UPDATE
+ *     entries are skipped because they do not affect whether the table exists.
  */
 WT_SHARED_METADATA_OP
 __wti_disagg_table_latest_create_remove(
@@ -1224,18 +1222,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_CLEAR(complete_checkpoint_meta);
 
     /*
-     * Parse strict_checkpoint_metadata before the checkpoint pickup below: a single reconfigure
-     * call may carry both this setting and a checkpoint to pick up, and that pickup must run with
-     * the new setting. The setting keeps its previous value unless the configuration string names
-     * it explicitly, so the common pickup call, which passes only checkpoint_meta, does not reset
-     * it.
-     *
-     * Expected usage: leave the mode off while the node starts from a clean state, because the
-     * startup pickup creates every table from the checkpoint and the metadata queue explains none
-     * of those differences. Turn it on with one reconfigure call once every table create and drop
-     * reaches this node through replicated operations and publish() rather than through pickup.
-     * Turn it off again only when the node must install checkpoints while knowingly inconsistent,
-     * for example after stepping down with unpublished tables that still need to be dropped.
+     * Parse strict_checkpoint_metadata before the checkpoint pickup below, so that a reconfigure
+     * call carrying both settings applies the mode to its own pickup. The setting keeps its
+     * previous value unless the configuration string names it explicitly.
      */
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets(session, cfg, "disaggregated.strict_checkpoint_metadata", &cval), true);

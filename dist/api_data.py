@@ -156,15 +156,12 @@ connection_disaggregated_config_common = [
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
     Config('strict_checkpoint_metadata', '', r'''
-        enable or disable strict validation of the equivalence of local and shared metadata
-        during checkpoint pickup. When enabled, a layered table present in only one of the two
-        metadata tables and not explained by a pending metadata update with a schema epoch
-        greater than the picked-up checkpoint's schema epoch causes a panic. The setting is
-        preserved across calls to reconfigure and only changed by a configuration string that
-        names it explicitly.
-        Strict validation assumes table creates and drops reach this node through replicated
-        operations and publish(), not through checkpoint pickup itself; it must be disabled
-        for a clean-startup pickup, where the empty local metadata explains nothing''',
+        validate at checkpoint pickup that the local and shared metadata contain the same
+        layered tables, treating any difference not explained by a pending metadata update
+        with a schema epoch greater than the checkpoint's as corruption, and panic. Requires
+        all table creates and drops to reach this node through replicated operations and
+        publish(); must be off for a clean-startup pickup. Preserved across calls to
+        reconfigure that do not name it''',
         choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [

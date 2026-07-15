@@ -713,10 +713,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     existing_tables = new_tables = new_ingest = 0;
 
     /*
-     * Strict mode enforces that any layered table present in only one of the local and shared
-     * metadata is explained by a queued CREATE or REMOVE with a schema epoch greater than the
-     * checkpoint's; an unexplained difference is corruption and fatal. Non-layered entries keep the
-     * legacy behavior, as the publish flow does not exist for them.
+     * Strict mode: a layered table present in only one of the local and shared metadata must be
+     * explained by a queued CREATE or REMOVE with a schema epoch greater than the checkpoint's;
+     * anything else is corruption. Non-layered entries are exempt as they have no publish flow.
      */
     strict = S2C(session)->disaggregated_storage.strict_checkpoint_metadata;
 
@@ -906,30 +905,17 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * already dropped the table locally and should not recreate it as a result.
              */
             latest_op = __wti_disagg_table_latest_create_remove(session, current, &latest_epoch);
-            if (latest_op == WT_SHARED_METADATA_REMOVE) {
-                /*
-                 * A REMOVE at an epoch at or below the checkpoint's epoch should already have been
-                 * applied to this checkpoint, so the table still being in the shared metadata is
-                 * unexplained.
-                 */
-                if (strict && latest_epoch <= ckpt_schema_epoch)
-                    WT_ERR_PANIC(session, EINVAL,
-                      "strict checkpoint metadata validation failed: table \"%s\" is present in "
-                      "the shared metadata but not in the local metadata, and its pending REMOVE "
-                      "at schema epoch %" PRIu64
-                      " should already have been applied to the checkpoint at schema epoch "
-                      "%" PRIu64,
-                      current, latest_epoch, ckpt_schema_epoch);
-                continue;
-            }
-            if (strict)
+            if (strict &&
+              (latest_op != WT_SHARED_METADATA_REMOVE || latest_epoch <= ckpt_schema_epoch))
                 WT_ERR_PANIC(session, EINVAL,
                   "strict checkpoint metadata validation failed: table \"%s\" is present in the "
-                  "shared metadata but not in the local metadata, and there is no pending REMOVE "
-                  "with a schema epoch greater than the checkpoint's schema epoch %" PRIu64
-                  "; latest queued operation: %s at schema epoch %" PRIu64,
+                  "shared metadata but not in the local metadata, and is not explained by a "
+                  "pending REMOVE with a schema epoch greater than the checkpoint's schema epoch "
+                  "%" PRIu64 "; latest queued operation: %s at schema epoch %" PRIu64,
                   current, ckpt_schema_epoch, __wti_disagg_shared_metadata_op_to_string(latest_op),
                   latest_epoch);
+            if (latest_op == WT_SHARED_METADATA_REMOVE)
+                continue;
 
             /*
              * This is a new layered table. Create the ingest table if needed, then copy all shared

@@ -219,7 +219,8 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.publish(self.uri2, 30)
         self.leader_checkpoint_at_epoch(30, 2)
 
-        # uri2 is in shared metadata only, unexplained on the follower. Expected to panic.
+        # uri2 is in shared metadata only and the follower never applied the schema
+        # operation that created it, so nothing explains the difference. Expected to panic.
         self.disagg_advance_checkpoint(conn_follow)
 
     def test_strict_shared_only_panics(self):
