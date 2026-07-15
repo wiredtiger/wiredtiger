@@ -29,7 +29,7 @@
 # Identify all FIXME comments in the codebase associated with a WT ticket and then confirm all of
 # these tickets are still open. If a closed ticket is found report the error.
 
-import argparse, datetime, glob, json, os, re, subprocess, sys, urllib.request
+import argparse, datetime, json, os, pathlib, re, sys, urllib.request
 
 # Grace period: tickets closed as Done/Fixed on a feature branch need time to
 # merge back to the develop branch before their FIXMEs are flagged as outdated.
@@ -37,23 +37,16 @@ GRACE_PERIOD_DAYS = 90
 GRACE_PERIOD_RESOLUTIONS = {"Done", "Fixed"}
 
 def all_files():
-    """
-    List all files in the codebase other than those in the .git and build directories.
-    """
+    """List all files in the codebase other than those in the .git and build directories."""
 
-    excluded_dirs = {"../.git"}
+    for p in pathlib.Path("..").rglob("*"):
+        if (
+            p.is_file()
+            and ".git" not in p.parts
+            and "CMakeFiles" not in p.parts
+        ):
+            yield str(p)
 
-    # The build folder can be identified by the presence of CMakeFiles
-    build_files = glob.glob('../**/CMakeFiles')
-    for file in build_files:
-        excluded_dirs.add(os.path.dirname(file))
-
-    search_function = 'find .. -type f '
-    for excluded_dir in excluded_dirs:
-        search_function += f'-not -path "{excluded_dir}/*" '
-
-    result = subprocess.run(search_function, shell=True, capture_output=True, text=True)
-    return result.stdout.split('\n')
 
 def find_fixme_tickets():
     """
