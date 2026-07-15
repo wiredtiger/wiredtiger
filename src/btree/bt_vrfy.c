@@ -35,6 +35,10 @@ typedef struct {
     bool dump_pages;
     bool read_corrupt;
 
+    /* Whether to read from the history store, and if so, which checkpoint. */
+    bool skip_hs;
+    const char *hs_checkpoint_name;
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -291,32 +295,21 @@ err:
 }
 
 /*
- * __wt_verify_disagg_database_size --
- *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
- *     checkpoint size for every file, then compare the total against the stored database size.
+ * __wt_disagg_get_database_size --
+ *     Recompute the disaggregated database size from scratch: walk the metadata and sum the most
+ *     recent checkpoint size for every file. The fixed overhead for the KEK table and shared turtle
+ *     page is not included; callers add it when comparing against or storing a database_size.
  */
 int
-__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+__wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t database_size, ckpt_size, total_size;
+    uint64_t ckpt_size, total_size;
     const char *uri, *value;
 
-    /*
-     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
-     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
-     * would otherwise see database size as 0 against a non-empty local metadata.
-     */
-    if (!__wt_disagg_has_picked_up_checkpoint(session))
-        return (0);
-
-    conn = S2C(session);
     cursor = NULL;
     total_size = 0;
-
-    database_size = conn->disaggregated_storage.database_size;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
@@ -336,13 +329,44 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         total_size += ckpt_size;
 
         __wt_verbose_debug3(session, WT_VERB_VERIFY,
-          "disagg database size verify: %s checkpoint size %" PRIu64, uri, ckpt_size);
+          "disagg database size: %s checkpoint size %" PRIu64, uri, ckpt_size);
     }
     /*
      * A not found error is okay. cursor->next() returns it once it goes through all the metadata
      * entries.
      */
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    *sizep = total_size;
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __wt_verify_disagg_database_size --
+ *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
+ *     checkpoint size for every file, then compare the total against the stored database size.
+ */
+int
+__wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t database_size, total_size;
+
+    /*
+     * Skip the check when no checkpoint has been picked up yet: the in-memory database size is
+     * populated only by checkpoint pickup, so a follower that opens before its first reconfigure
+     * would otherwise see database size as 0 against a non-empty local metadata.
+     */
+    if (!__wt_disagg_has_picked_up_checkpoint(session))
+        return (0);
+
+    conn = S2C(session);
+    database_size = conn->disaggregated_storage.database_size;
+
+    WT_RET(__wt_disagg_get_database_size(session, &total_size));
 
     /*
      * Three cases to consider after the metadata walk:
@@ -366,15 +390,13 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
         total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
         if (total_size != database_size)
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_ERROR,
               "database size mismatch: sum of btree checkpoint sizes %" PRIu64
               " does not match stored database size %" PRIu64,
               total_size, database_size);
     }
 
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
+    return (0);
 }
 
 /*
@@ -502,6 +524,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                 addr_unpack.ta.prepare = 1;
             addr_unpack.raw = WT_CELL_ADDR_INT;
 
+            /* Only verify HS entries against the last checkpoint. */
+            vs->skip_hs = skip_hs || (ckpt + 1)->name != NULL;
+            vs->hs_checkpoint_name = ckpt->name;
+
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
@@ -509,19 +535,20 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Account for the root page in the accumulated total block size. */
             WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
+#ifdef HAVE_DIAGNOSTIC
             /* Validate the size of the btree. */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
                 /*
-                 * FIXME-WT-16660: We are seeing mismatches due to nuanced reconciliation issues,
+                 * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues,
                  * where bytes_total increments happen before the reconciliation panic boundary,
                  * leaving us in an inconsistent state if reconciliation fails after the increment
-                 * but before completion. Re-enable this check once this is resolved.
+                 * but before completion. Only fail in diagnostic builds for now; enable this branch
+                 * in production builds once this is resolved.
                  */
-                if (false)
-                    WT_ERR_MSG(session, WT_ERROR,
-                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
-                      ckpt->size, vs->total_block_size);
-            }
+                WT_ERR_MSG(session, WT_ERROR,
+                  "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                  ckpt->size, vs->total_block_size);
+#endif
 
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
@@ -1348,30 +1375,29 @@ msg:
  *     information and is used for verifying timestamp range overlaps.
  */
 static int
-__verify_key_hs(
-  WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts,
+  wt_timestamp_t newer_stop_ts, WT_VSTUFF *vs)
 {
-/* FIXME-WT-10779 - Enable the history store validation. */
-#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    wt_timestamp_t older_start_ts, older_stop_ts;
+    WT_TIME_WINDOW *tw;
+    wt_timestamp_t older_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
+    int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    /*
-     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
-     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
-     * in which case we initialize our newest with the max txn-id.
-     */
-    older_stop_ts = WT_TS_NONE;
+    /* Read the HS at the same checkpoint as the data store, so the two views are consistent. */
+    WT_ASSERT(session, session->hs_checkpoint == NULL);
+    session->hs_checkpoint = vs->hs_checkpoint_name;
+    ret = __wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor);
+    session->hs_checkpoint = NULL;
+    WT_RET(ret);
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1382,37 +1408,48 @@ __verify_key_hs(
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
-        /* Verify the newer record's start is later than the older record's stop. */
-        if (newer_start_ts < older_stop_ts) {
+
+        /* Stop when we have iterated past the current btree or key. */
+        if (hs_btree_id != btree->id)
+            break;
+        WT_ERR(__wt_compare(session, NULL, vs->tmp2, tmp1, &cmp));
+        if (cmp != 0)
+            break;
+
+        __wt_hs_upd_time_window(hs_cursor, &tw);
+
+        /*
+         * Verify the newer record's start is later than the older record's stop. Skip cases where
+         * we don't have a start timestamp or if we have multiple entries at the same start
+         * timestamp. In the latter case, it's because we don't want to compare the "first" entry's
+         * start timestamp to the stop timestamp of the "later" entry (or entries), because we
+         * expect those to overlap.
+         */
+        if (newer_start_ts != WT_TS_NONE && older_start_ts < newer_start_ts &&
+          newer_start_ts < tw->stop_ts &&
+          !(older_start_ts == WT_TS_NONE && tw->stop_ts == newer_stop_ts)) {
             WT_ERR_MSG(session, WT_ERROR,
-              "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
+              "key %s has an overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
               __wt_buf_set_printable_format(
                 session, tmp1->data, tmp1->size, btree->key_format, false, vs->tmp2),
-              __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
+              __wt_timestamp_to_string(tw->stop_ts, ts_string[0]),
               __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }
 
         if (vs->stable_timestamp != WT_TS_NONE)
-            WT_ERR(
-              __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
+            WT_ERR(__verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, tw->stop_ts, vs));
 
         /*
          * Since we are iterating from newer to older, the current older record becomes the newer
          * for the next round of verification.
          */
         newer_start_ts = older_start_ts;
+        newer_stop_ts = tw->stop_ts;
     }
 err:
     WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(tmp1);
-    WT_UNUSED(newer_start_ts);
-    WT_UNUSED(vs);
-    return (0);
-#endif
 }
 
 /*
@@ -1558,20 +1595,36 @@ __verify_page_content_leaf(
             break;
         }
 
+        /*
+         * On a disaggregated stable table, account inline values that share the layered tombstone's
+         * encoded namespace. Overflow values never qualify (they are large and the cell holds an
+         * address, not the bytes), so only inline value cells are checked.
+         */
+        if ((unpack.type == WT_CELL_VALUE || unpack.type == WT_CELL_VALUE_SHORT) &&
+          F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            __wt_clayered_stable_value_stat(session, unpack.data, unpack.size);
+
         /* Verify key-associated history-store entries. */
         if (page->type == WT_PAGE_ROW_LEAF) {
-            if (unpack.type != WT_CELL_VALUE && unpack.type != WT_CELL_VALUE_COPY &&
-              unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
+            /*
+             * Advance row index with key cells, since a globally visible delete has no value cell.
+             */
+            if (unpack.type != WT_CELL_KEY && unpack.type != WT_CELL_KEY_OVFL)
                 continue;
 
-            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            WT_RET(__wt_row_leaf_key(session, page, rip, vs->tmp1, false));
+            __wti_read_row_time_window(session, page, rip, tw);
+            ++rip;
+            if (!vs->skip_hs)
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, tw->stop_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
             p = vs->tmp1->mem;
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+
+            if (!vs->skip_hs)
+                WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, tw->stop_ts, vs));
 
             recno += rle;
             vs->records_so_far += rle;

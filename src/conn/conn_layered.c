@@ -534,30 +534,8 @@ err:
 static int
 __disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *queue_entry;
-
-    conn = S2C(session);
-
-    /*
-     * For UPDATE operations, verify that the table's CREATE will be applied at or before the schema
-     * epoch of the UPDATE, if it has not been applied yet. If a CREATE entry is still in the queue
-     * with a schema epoch ahead of this UPDATE operation's schema epoch (including
-     * WT_SCHEMA_EPOCH_UNPUBLISHED = WT_TS_MAX), the table will not be visible to followers before
-     * the update. Having stable data in an unpublished table is an API contract violation, which
-     * requires that a table must be published before the checkpoint that includes its data.
-     */
-    if (entry->metadata_op == WT_SHARED_METADATA_UPDATE) {
-        WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-        TAILQ_FOREACH (queue_entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-            if (queue_entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-              queue_entry->schema_epoch > entry->schema_epoch &&
-              strcmp(queue_entry->table_name, entry->table_name) == 0)
-                WT_RET_MSG(session, EINVAL, "Stable data checkpointed for unpublished table \"%s\"",
-                  entry->table_name);
-    }
 
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
@@ -1084,7 +1062,7 @@ err:
  *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
  *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
  */
-static void
+static int
 __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
@@ -1109,7 +1087,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
             continue;
 
         WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
-        WT_IGNORE_RET(ret);
+        WT_RET(ret);
 
         /* Mark the disaggregated as readonly. */
         F_SET(btree, WT_BTREE_READONLY);
@@ -1129,15 +1107,17 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     /* Step down to the follower mode. */
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+    return (0);
 }
 
 /*
  * __disagg_step_down --
  *     Step down to the follower mode.
  */
-static void
+static int
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
+    WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -1152,7 +1132,9 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * eviction paths, especially parent split path, from dirtying pages during the step-down
      * window.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_mark_btrees_readonly_then_step_down(session));
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
+    WT_ERR(ret);
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
     __disagg_shared_metadata_queue_clear(session);
@@ -1172,7 +1154,10 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /* Clear the step-down timestamp after stepping down. */
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
+
+err:
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+    return (ret);
 }
 
 /*
@@ -1267,8 +1252,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     } else if (was_leader && !leader) {
         /* Leader step-down. */
         time_start = __wt_clock(session);
-        WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_down(session));
         time_stop = __wt_clock(session);
+        WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
         WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Step down completed in %" PRIu64 " milliseconds",
@@ -1360,7 +1346,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_NO_SYNC);
+            F_SET(&conn->disaggregated_storage, WT_DISAGG_NO_LOCAL_DURABILITY);
 
         /*
          * Get the percentage of a page size that a delta must be less than in order to write that
@@ -1393,6 +1379,8 @@ err:
 
     if (ret != 0 && reconfig && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
+    if (ret != 0 && reconfig && was_leader && !leader)
+        return (__wt_panic(session, ret, "failed to step-down as primary"));
     return (ret);
 }
 

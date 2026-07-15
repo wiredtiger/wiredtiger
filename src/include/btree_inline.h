@@ -37,6 +37,17 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_is_stale_disagg --
+ *     Return whether the current btree belongs to an outdated disaggregated generation.
+ */
+static WT_INLINE bool
+__wt_btree_is_stale_disagg(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED | WT_BTREE_READONLY) &&
+      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -360,7 +371,6 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     bool is_disagg = __wt_conn_is_disagg(session);
 
     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem, size);
-    __wt_conn_calc_read_load(session);
     if (is_disagg) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_inmem_ingest, size);
@@ -414,7 +424,6 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                 (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_leaf, size);
             }
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
-            __wt_conn_calc_write_load(session);
         }
     }
 }
@@ -606,7 +615,6 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
     __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
     __wt_cache_decr_check_uint64(session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
-    __wt_conn_calc_read_load(session);
     if (is_disagg) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             __wt_cache_decr_check_uint64(
@@ -619,7 +627,6 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
         __wt_cache_page_byte_updates_decr(session, page, size);
     if (__wt_page_is_modified(page)) {
         __wt_cache_page_byte_dirty_decr(session, page, size);
-        __wt_conn_calc_write_load(session);
     }
     /* Track internal size in cache. */
     if (WT_PAGE_IS_INTERNAL(page)) {
@@ -2275,6 +2282,59 @@ __wt_btree_disagg_checkpointed(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __wt_btree_advance_ingest_max --
+ *     Advance an ingest btree's upper bound on the durable timestamps it holds. Sweep uses the
+ *     bound we calculate to decide when the whole ingest table is redundant relative to the stable
+ *     table from the last checkpoint. The bound only ever advances.
+ */
+static WT_INLINE void
+__wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    /*
+     * We track the exact maximum durable timestamp. Correct for any timestamp scheme and sweeps as
+     * promptly as possible, but every advancing commit does a compare-and-swap, so it may show
+     * contention on highly concurrent workloads, especially those that stress a small number of
+     * btrees.
+     */
+    target = durable_ts;
+
+    cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    while (cur < target) {
+        if (__wt_atomic_cas_uint64(&btree->max_ingest_write_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    }
+}
+
+/*
+ * __wt_btree_update_unpublished_min --
+ *     Update an unpublished btree's lower bound on the durable timestamps it holds. We use this to
+ *     detect if the btree holds any stable data while the btree is still unpublished, which would
+ *     be an API violation.
+ */
+static WT_INLINE void
+__wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    target = durable_ts;
+    cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    while (cur == WT_TS_NONE || cur > target) {
+        if (__wt_atomic_cas_uint64(&btree->min_unpublished_durable_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    }
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
@@ -2299,6 +2359,41 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_prefetched);
+        return (false);
+    }
+
+    /*
+     * Check we are not evicting an accessible internal page with an active split generation.
+     *
+     * If a split created new internal pages, those newly created internal pages cannot be evicted
+     * until all threads are known to have exited the original parent page's index, because evicting
+     * an internal page discards its WT_REF array, and a thread traversing the original parent page
+     * index might see a freed WT_REF.
+     *
+     * There are two special cases where we know this is safe:
+     *
+     * 1. WT_DHANDLE_DEAD: The handle is dead, so no readers can be looking at an old index.
+     *
+     * 2. WT_DHANDLE_EXCLUSIVE: The session has exclusive access to the dhandle. This means no other
+     *    sessions can access this btree, so there cannot be any concurrent traversals using old
+     * page indexes. This is critical for operations (e.g., ALTER) that need to evict internal pages
+     *    while holding exclusive access.
+     *
+     *    This check is necessary because __wt_gen_active() checks split generation across all
+     *    sessions globally, without distinguishing which btree each session is operating on.
+     * Without the WT_DHANDLE_EXCLUSIVE check, a session traversing btree A could incorrectly block
+     *    eviction of internal pages in btree B during an exclusive operation. The exclusive access
+     *    guarantee ensures that no other sessions can be traversing this specific btree, making it
+     *    safe to skip the split generation check.
+     *
+     * This gate runs before the WT_BTREE_READONLY shortcut because read-only status is a property
+     * of the local btree, while split-generation safety is a global invariant about reader activity
+     * on this page's index across all sessions.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+      !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
+      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_internal_page_split);
         return (false);
     }
 
@@ -2408,37 +2503,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (modified && !WT_SESSION_BTREE_SYNC(session) &&
       __wt_btree_disagg_checkpointed(session, btree)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_next_checkpoint);
-        return (false);
-    }
-
-    /*
-     * Check we are not evicting an accessible internal page with an active split generation.
-     *
-     * If a split created new internal pages, those newly created internal pages cannot be evicted
-     * until all threads are known to have exited the original parent page's index, because evicting
-     * an internal page discards its WT_REF array, and a thread traversing the original parent page
-     * index might see a freed WT_REF.
-     *
-     * There are two special cases where we know this is safe:
-     *
-     * 1. WT_DHANDLE_DEAD: The handle is dead, so no readers can be looking at an old index.
-     *
-     * 2. WT_DHANDLE_EXCLUSIVE: The session has exclusive access to the dhandle. This means no other
-     *    sessions can access this btree, so there cannot be any concurrent traversals using old
-     * page indexes. This is critical for operations (e.g., ALTER) that need to evict internal pages
-     *    while holding exclusive access.
-     *
-     *    This check is necessary because __wt_gen_active() checks split generation across all
-     *    sessions globally, without distinguishing which btree each session is operating on.
-     * Without the WT_DHANDLE_EXCLUSIVE check, a session traversing btree A could incorrectly block
-     *    eviction of internal pages in btree B during an exclusive operation. The exclusive access
-     *    guarantee ensures that no other sessions can be traversing this specific btree, making it
-     *    safe to skip the split generation check.
-     */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
-      !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
-      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_internal_page_split);
         return (false);
     }
 
@@ -2802,13 +2866,17 @@ __wt_btcur_skip_page(
             walk_skip_stats->total_del_pages_skipped++;
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
-      __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+      __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
+        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate
          * information pointer because as part of the checkpoint operation, this pointer can be
          * released in parallel.
+         *
+         * The in-memory page-modify aggregate carries both ends of the stop-transaction range, so
+         * use the range visibility check; it skips more pages than the snap_min bound used on the
+         * disk-address path, which only has the newest stop transaction.
          */
         *skipp = true;
         walk_skip_stats->total_inmem_del_pages_skipped++;
