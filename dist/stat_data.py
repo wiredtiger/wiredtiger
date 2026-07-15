@@ -922,6 +922,7 @@ conn_stats = [
     SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_truncate_success', 'table truncate successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_verify_fail', 'table verify failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_verify_hs_keys_checked', 'table verify number of keys checked against the history store', 'no_clear,no_scale'),
     SessionOpStat('session_table_verify_success', 'table verify successful calls', 'no_clear,no_scale'),
 
     ##########################################
@@ -1072,8 +1073,8 @@ dsrc_stats = [
     BtreeStat('btree_row_empty_values', 'row-store empty values', 'no_scale,tree_walk'),
     BtreeStat('btree_row_internal', 'row-store internal pages', 'no_scale,tree_walk'),
     BtreeStat('btree_row_leaf', 'row-store leaf pages', 'no_scale,tree_walk'),
-    BtreeStat('btree_row_leaf_avg_entries', 'row-store leaf page recent average entries (EWMA)', 'no_scale'),
-    BtreeStat('btree_row_leaf_pages', 'row-store leaf pages (approximate, incremental)', 'no_scale'),
+    BtreeStat('btree_row_leaf_avg_entries', 'row-store leaf page recent average entries (EWMA), or UINT64_MAX if never tracked and awaiting a tree-walk correction', 'no_scale'),
+    BtreeStat('btree_row_leaf_pages', 'row-store leaf pages (approximate, incremental), or UINT64_MAX if never tracked and awaiting a tree-walk correction', 'no_scale'),
 
     ##########################################
     # Btree size summary statistics (opt-in, accumulated by a debug=(size_stats) cursor scan)

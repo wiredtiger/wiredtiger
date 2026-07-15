@@ -897,8 +897,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Output a verbose progress message for long running checkpoints. */
-    if (conn->ckpt.progress.msg_count > 0)
-        __checkpoint_progress(session, true);
+    __checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
@@ -1802,9 +1801,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__checkpoint_db_debug_crash_points(session, cfg));
 
-    /* Log the final checkpoint prepare progress message if needed. */
-    if (conn->ckpt.progress.msg_count > 0)
-        __checkpoint_prepare_progress(session, true);
+    /* Log the final checkpoint prepare progress message. */
+    __checkpoint_prepare_progress(session, true);
 
     /*
      * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
