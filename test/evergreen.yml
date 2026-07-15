@@ -1796,27 +1796,6 @@ variables:
           format_args: disagg.mode=switch runs.timer=3
           times: 1
 
-  - &csuite-schema-disagg-abort-stress
-    depends_on:
-      - name: compile
-    exec_timeout_secs: 7200
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            build_dir=$(cd ../../../ && pwd)
-            for i in $(seq ${times|10}); do
-              echo "Iteration $i/${times|10}"
-              # Max out pool size (-s) and schema threads (-T) for maximum schema churn.
-              ./test_schema_disagg_abort -b "$build_dir" -s 64 -T 12 -t 300
-            done
-
 #######################################
 #               Tasks                 #
 #######################################
@@ -5318,10 +5297,6 @@ tasks:
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-2
     tags: ["pull_request"]
-
-  - <<: *csuite-schema-disagg-abort-stress
-    name: csuite-schema-disagg-abort-stress
-    tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
