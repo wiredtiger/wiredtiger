@@ -493,12 +493,12 @@ __verify_one_checkpoint(
              */
             WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
             if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL)
-                WT_TRET(__verify_page_discard(session, bm));
+                WT_ERR(__verify_page_discard(session, bm));
         }
 
         if (!skip_hs) {
             __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
-            WT_TRET_MSG(
+            WT_ERR_MSG(
               session, __wt_hs_verify_one(session, btree->id), "history store verification failed");
         }
     }
