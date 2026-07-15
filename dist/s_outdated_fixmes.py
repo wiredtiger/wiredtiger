@@ -26,8 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Identify all FIXME comments in the codebase associated with a WT ticket and then confirm all of
-# these tickets are still open. If a closed ticket is found report the error.
+# Identify all FIXME comments in the codebase associated with a WT ticket and
+# then confirm all of these tickets are still open. If a closed ticket is found
+# report the error.
 
 import argparse, datetime, json, os, pathlib, re, sys, urllib.request
 
@@ -36,8 +37,12 @@ import argparse, datetime, json, os, pathlib, re, sys, urllib.request
 GRACE_PERIOD_DAYS = 90
 GRACE_PERIOD_RESOLUTIONS = {"Done", "Fixed"}
 
+
 def all_files():
-    """List all files in the codebase other than those in the .git and build directories."""
+    """
+    List all files in the codebase other than those in the .git and build
+    directories.
+    """
 
     for p in pathlib.Path("..").rglob("*"):
         if (
@@ -50,21 +55,24 @@ def all_files():
 
 def find_fixme_tickets():
     """
-    Return all WT tickets that are associated with a FIXME comment in the codebase.
+    Return all WT tickets that are associated with a FIXME comment in the
+    codebase.
     """
 
     fixme_tickets = set()
 
-    match_re = re.compile(r'FIX.?ME.*?(WT-[0-9]+)')
+    match_re = re.compile(r"FIX.?ME.*?(WT-[0-9]+)")
     for filepath in all_files():
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as file:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as file:
                 for match in match_re.finditer(file.read()):
                     fixme_tickets.add((match[1], filepath))
         except Exception:
-            # There are files like *.png which cannot be read. In this case skip them silently.
+            # There are files like *.png which cannot be read. In this case
+            # skip them silently.
             pass
     return fixme_tickets
+
 
 def query_jira_ticket(ticket):
     """Query Jira for a ticket's resolution and resolution date."""
@@ -82,6 +90,7 @@ def query_jira_ticket(ticket):
 
     resolution = fields.get("resolution") or {}
     return resolution.get("name"), fields.get("resolutiondate")
+
 
 def is_outdated(resolution, resolution_date):
     """Return True if a ticket's FIXME should be flagged as outdated."""
@@ -101,6 +110,7 @@ def is_outdated(resolution, resolution_date):
     days_since = (datetime.datetime.now(datetime.timezone.utc) - iso_date).days
 
     return days_since >= GRACE_PERIOD_DAYS
+
 
 def label_ticket(ticket, token):
     """Add the outdated-fixme label to a Jira ticket."""
@@ -123,6 +133,7 @@ def label_ticket(ticket, token):
 
     urllib.request.urlopen(request, timeout=10)
 
+
 def parse_args():
     """Return the parsed command line arguments."""
 
@@ -136,8 +147,11 @@ def parse_args():
 
     return parser.parse_args()
 
+
 def get_jira_token():
-    """Return the Jira token required for --label-outdated, or exit if it's unset."""
+    """
+    Return the Jira token required for --label-outdated, or exit if it's unset.
+    """
 
     token_name = "JIRA_API_TOKEN"
     token = os.environ.get(token_name)
@@ -149,25 +163,27 @@ def get_jira_token():
 
     return token
 
+
 def main():
     """
-    Query JIRA for all tickets with a FIXME in the codebase. If any of these tickets are closed
-    report them all and return an error code.
+    Query JIRA for all tickets with a FIXME in the codebase. If any of these
+    tickets are closed, report them all and return an error code.
     """
     args = parse_args()
     token = get_jira_token() if args.label_outdated else None
 
-    closed_ticket_found=False
-    for (ticket, file) in sorted(find_fixme_tickets()):
+    closed_ticket_found = False
+    for ticket, file in sorted(find_fixme_tickets()):
         query_result = query_jira_ticket(ticket)
         if is_outdated(*query_result):
             print(f"{ticket} is a closed ticket that has a FIXME comment in {file}.")
-            closed_ticket_found=True
+            closed_ticket_found = True
             if args.label_outdated:
                 label_ticket(ticket, token)
 
     exit_code = 1 if closed_ticket_found else 0
     sys.exit(exit_code)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
