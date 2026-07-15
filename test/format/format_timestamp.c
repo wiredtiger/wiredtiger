@@ -73,6 +73,14 @@ timestamp_sync_threads_commit_ts(void)
     TINFO **tlp;
     wt_timestamp_t ts;
 
+    /*
+     * Workers committed up to g.timestamp (atomic post-increment, so g.timestamp equals the last
+     * used value). timestamp_minimum_committed() returns g.timestamp-1, which would leave the final
+     * committed timestamp uncovered by stable. Bump by one so stable lands exactly at the last used
+     * timestamp.
+     */
+    __wt_atomic_add_uint64_v(&g.timestamp, 1);
+
     if (tinfo_list == NULL)
         return;
 
@@ -202,7 +210,7 @@ timestamp(void *arg)
      * rollback errors, and we don't have the luxury of giving up on an operation that has rolled
      * back.
      */
-    while (!g.workers_finished) {
+    while (!g.workers_finished && !g.timestamp_quit) {
         if (!GV(RUNS_PREDICTABLE_REPLAY)) {
             /*
              * Under precise checkpoint, eviction can only write pages whose updates are at or below
