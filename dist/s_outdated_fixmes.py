@@ -131,7 +131,7 @@ def label_ticket(ticket, token):
         },
     )
 
-    urllib.request.urlopen(request, timeout=10)
+    urllib.request.urlopen(request, timeout=10).close()
 
 
 def parse_args():
