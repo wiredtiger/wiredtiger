@@ -173,6 +173,10 @@ class test_verify_hs_overlap(test_rollback_to_stable_base):
         self.build_skewed_dup(uri, "abcde" * 4, "fghij" * 4, 20, 30, 40)
         self.session.verify(uri, None)
 
+        # We can't actually construct a DB where this check trips, so just check the config is
+        # accepted.
+        self.session.verify(uri, "skip_per_key_hs")
+
     def test_rts_dup_consistency(self):
         # Sanity check that RTS handles the DS/HS duplicate. Having stable < B makes RTS rewrite
         # both copies.
