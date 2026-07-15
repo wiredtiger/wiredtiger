@@ -448,14 +448,6 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
     WT_SESSION_IMPL *session = CUR2S(clayered);
     const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
 
-    /*
-     * Forward the size summary to the stable constituent. The file-cursor open path then sets the
-     * flag, resets the stable btree's counters and enforces row-store, and because this open path
-     * runs again on every follower checkpoint advance the request survives stable reopens.
-     */
-    if (F_ISSET(clayered, WTI_CLAYERED_SIZE_STAT))
-        cfg[1] = "debug=(size_stats=true)";
-
     WT_RET(__wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor));
     if (F_ISSET((WT_CURSOR *)clayered, WT_CURSTD_OVERWRITE))
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE);
@@ -3122,21 +3114,16 @@ __clayered_close(WT_CURSOR *cursor)
 err:
     if (ret == 0) {
         /*
-         * If releasing the cursor fails in any way, it will be left in a state that allows it to be
-         * normally closed.
+         * Close constituent cursors before caching the layered cursor. A cursor-cache sweep
+         * triggered during constituent close could otherwise find the layered cursor already in the
+         * cache with constituent pointers still set, and double-close them.
          */
+        WT_TRET(__clayered_close_cursors(clayered));
+
         bool released = false;
-        ret = __wti_cursor_cache_release(session, cursor, &released);
-
-        if (released) {
-            /*
-             * If the cursor has been cached, try to cache the constituent cursors by evoking a
-             * cursor close.
-             */
-            WT_TRET(__clayered_close_cursors(clayered));
-
+        WT_TRET(__wti_cursor_cache_release(session, cursor, &released));
+        if (released)
             goto done;
-        }
     }
     /* For cached cursors, free any extra buffers retained now. */
     __wt_cursor_free_cached_memory(cursor);
@@ -3514,19 +3501,6 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
         clayered->next_random_sample_size = (u_int)cval.val;
-        cacheable = false;
-    }
-
-    /*
-     * The size summary is a debug feature measured on the stable constituent's on-disk row-store
-     * btree; the ingest table is in-memory and not a meaningful size target. Remember the request
-     * so the stable constituent inherits debug=(size_stats) each time it is opened or reopened, and
-     * disable caching so a size-stats cursor is never handed back to an open that did not ask for
-     * it.
-     */
-    WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
-    if (cval.val != 0) {
-        F_SET(clayered, WTI_CLAYERED_SIZE_STAT);
         cacheable = false;
     }
 
