@@ -257,6 +257,21 @@ typedef struct __wt_disagg_checkpoint_meta {
 
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
+struct __wt_repair {
+#define WT_REPAIR_STATE_IDLE 0
+#define WT_REPAIR_STATE_OPERATING 1
+    /*
+     * Tracks the status of a repair operation.
+     */
+    wt_shared uint8_t state;
+
+    /*
+     * Memory space for the last report string. Only hold one report string at a time as it's used
+     * interactively. Owned by the connection and freed at connection destroy.
+     */
+    WT_ITEM last_report;
+};
+
 /*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
@@ -328,7 +343,7 @@ struct __wt_disaggregated_storage {
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_NO_SYNC 0x1u
+#define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -750,7 +765,8 @@ struct __wt_conn_tiered {
 #define WT_CONN_HOTBACKUP_START(conn)                                                          \
     do {                                                                                       \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE)); \
-        (conn)->backup.timestamp = (conn)->txn_global.last_ckpt_timestamp;                     \
+        (conn)->backup.timestamp =                                                             \
+          __wt_atomic_load_uint64_acquire(&(conn)->txn_global.last_ckpt_timestamp);            \
         __wt_atomic_store_uint64_relaxed(&(conn)->backup.start, (conn)->ckpt.most_recent);     \
         (conn)->backup.list = NULL;                                                            \
     } while (0)
@@ -994,6 +1010,18 @@ struct __wt_connection_impl {
 
     /* Parallel page reconciliation during a checkpoint. */
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
+
+    /*
+     * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
+     * visibility without holding any lock. Two buffers alternate so eviction always has a valid
+     * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
+     */
+    WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
+    uint64_t *ckpt_eviction_snap_array[2];
+    size_t ckpt_eviction_snap_capacity[2];
+    wt_shared uint32_t ckpt_eviction_snap_idx;
+    wt_shared bool
+      ckpt_eviction_snap_published; /* true once the first snapshot has been published */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
@@ -1254,6 +1282,11 @@ struct __wt_connection_impl {
 #define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
+
+    /*
+     * Repair arguments and memory holder.
+     */
+    WT_REPAIR repair;
 };
 
 /*
