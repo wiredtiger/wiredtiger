@@ -424,7 +424,7 @@ struct __wt_txn {
      * transaction that started before a planned step-down was armed and is still writing
      * afterwards.
      */
-    wt_timestamp_t stepdown_ts_at_begin;
+    bool stepdown_ts_armed;
 
     /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and

@@ -238,8 +238,8 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
 static WT_INLINE uint32_t
-__clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
-  WTI_CLAYERED_ROLE role, bool stepdown_ts_armed)
+__clayered_enter_flags(
+  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
 {
     WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
@@ -266,7 +266,7 @@ __clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
      * While a step-down is armed on the leader, the cursor behaves like a follower: it reads and
      * writes the ingest constituent over the still-live stable table.
      */
-    if (stepdown_ts_armed)
+    if (session->txn->stepdown_ts_armed)
         LF_SET(CLAYERED_ENTER_STEPDOWN_ARMED);
 
     return (flags);
@@ -301,15 +301,12 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
-    wt_timestamp_t stepdown_ts =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
     WTI_CLAYERED_ROLE role =
       conn->layered_table_manager.leader ? WTI_CLAYERED_ROLE_LEADER : WTI_CLAYERED_ROLE_FOLLOWER;
-    bool stepdown_ts_armed = role == WTI_CLAYERED_ROLE_LEADER && stepdown_ts != WT_TS_NONE;
-    uint32_t flags = __clayered_enter_flags(clayered, mode, role, stepdown_ts_armed);
+    uint32_t flags = __clayered_enter_flags(clayered, mode, role);
 
     if (mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE)
-        WT_RET(__wt_txn_stepdown_straddler_check(session, stepdown_ts));
+        WT_RET(__wt_txn_stepdown_straddler_check(session));
 
     /*
      * A positioned cursor may continue reading across a step-down: the demoted stable tree holds

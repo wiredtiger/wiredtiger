@@ -1970,8 +1970,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
      * transactions are unaffected.
      */
     if (txn->mod_count != 0)
-        WT_ERR(__wt_txn_stepdown_straddler_check(
-          session, __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp)));
+        WT_ERR(__wt_txn_stepdown_straddler_check(session));
 
 err:
     /*

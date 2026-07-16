@@ -2001,17 +2001,18 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
  *     timestamp (WT_TS_NONE when none is armed).
  */
 static WT_INLINE int
-__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, wt_timestamp_t stepdown_ts)
+__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn = session->txn;
+    wt_timestamp_t stepdown_ts =
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
 
-    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) ||
-      txn->stepdown_ts_at_begin == stepdown_ts)
+    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) || txn->stepdown_ts_armed)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-      "step-down straddler rollback: txn began at cutoff %" PRIu64 ", armed cutoff %" PRIu64,
-      txn->stepdown_ts_at_begin, stepdown_ts);
+      "step-down straddler rollback: txn began before stepdown timestamp was set %" PRIu64,
+      stepdown_ts);
     WT_STAT_CONN_INCR(session, txn_rollback_step_down);
     __wt_session_set_last_error(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
     return (WT_ROLLBACK);
@@ -2034,8 +2035,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
-    txn->stepdown_ts_at_begin =
-      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
+    txn->stepdown_ts_armed = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -2069,6 +2069,17 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
         __wt_txn_get_snapshot(session);
     }
+
+    /*
+     * Record whether a planned step-down was already armed when this transaction started; the
+     * straddler check uses this to roll back write transactions that were in flight when the
+     * step-down was armed. Sample it after taking the snapshot: arming happens under the rwlock
+     * write lock, so if the snapshot can see any post-arm commit, this load is guaranteed to see
+     * the arm as well. Racing the arm itself is harmless: the transaction samples unarmed, counts
+     * as in-flight at the arm, and rolls back on its first write.
+     */
+    txn->stepdown_ts_armed =
+      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
