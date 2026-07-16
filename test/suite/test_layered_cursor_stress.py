@@ -587,12 +587,13 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.py_table[key] = value   # only record the key if the update actually hit
 
     def op_pos_remove(self, nodes, rnd, trace):
-        # Removes the current key.
+        # The long-lived position can be stale, so it cannot satisfy the blind-remove guarantee.
+        # Use the stable-aware remove cursors and reset the shared positioned cursors afterward.
         key = self.state.cur_pos
         if key not in self.state.py_table:
             return
         trace.log('pos_remove %r' % key)
-        self._positional(nodes, lambda c: c.remove(), 'pos_remove')
+        self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'pos_remove')
         self.state.py_table.pop(key, None)
         for n in nodes:
             n.reset_all()
