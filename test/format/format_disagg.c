@@ -362,6 +362,10 @@ disagg_switch_roles(void)
 
     if (!g.disagg_leader) {
         /* Stepping down: [leader -> follower]. */
+
+        /* Reset the leader-side KEK push history. */
+        disagg_key_history_clear();
+
         if (GV(DISAGG_STEPDOWN_ASYNC)) {
             /*
              * The async step-down thread stopped the checkpoint/timestamp threads and drained
@@ -420,6 +424,9 @@ disagg_switch_roles(void)
         timestamp_sync_threads_commit_ts();
         timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
+
+        /* Verify that this step-up checkpoint persisted the correct KEK. */
+        disagg_key_validate_after_checkpoint(session);
     }
     wt_wrap_close_session(session);
     /* After every switch, verify the contents of each table */
