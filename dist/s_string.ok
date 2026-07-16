@@ -1061,7 +1061,6 @@ forceerror
 foreach
 formatmessage
 forw
-foundp
 foward
 fprintf
 fread
@@ -1506,7 +1505,6 @@ portably
 pos
 posint
 posix
-posoplog
 postrun
 postsize
 powershell

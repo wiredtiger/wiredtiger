@@ -103,9 +103,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
     def oplog_apply_traffic(self):
         # Create some oplog traffic, a mix of inserts and updates
         self.oplog.insert(self.table_oplog_id, self.ninserts)
-        # update()/remove() index into the per-table entlist by position, which also grows from
-        # prior updates/removes -- posoplog tracks that total growth, unlike nitems (insert count
-        # only), so it's the offset that correctly lands on this batch's own fresh inserts.
         if (self.nupdates > 0):
             self.oplog.update(self.table_oplog_id, self.nupdates, self.posoplog + self.update_offset)
         if (self.nremoves > 0):

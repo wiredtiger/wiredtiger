@@ -38,7 +38,7 @@
 #   positional operation and its expected result are identical in all three.
 
 import wiredtiger, wttest
-from wiredtiger import WT_NOTFOUND
+from wiredtiger import stat, WT_NOTFOUND
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -115,6 +115,13 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
         cursor.close()
         return value
 
+    # The running count of layered cursor remove operations.
+    def get_current_remove_number(self):
+        stat_cursor = self.session_follow.open_cursor('statistics:')
+        number = stat_cursor[stat.conn.layered_curs_remove][2]
+        stat_cursor.close()
+        return number
+
     # A positional remove issued in a later transaction removes the key and stays positioned on it.
     def test_remove(self):
         self.seed({1: 'v'})
@@ -126,6 +133,27 @@ class test_layered_cursor22(wttest.WiredTigerTestCase):
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
         self.assertEqual(self.read_value(1), None)
+
+    # A key deleted before the later-transaction remove must return WT_NOTFOUND without writing a
+    # second, consecutive tombstone.
+    def test_remove_already_deleted(self):
+        self.seed({1: 'v'})
+        cursor = self.position_follower(1)
+
+        # Delete the key with a second cursor before the positional remove runs.
+        delete_cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false')
+        self.session_follow.begin_transaction()
+        delete_cursor.set_key(1)
+        self.assertEqual(delete_cursor.remove(), 0)
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
+        delete_cursor.close()
+
+        # The positional remove finds the tombstone, returns WT_NOTFOUND, and writes nothing more.
+        before = self.get_current_remove_number()
+        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(10))
+        self.assertEqual(cursor.remove(), WT_NOTFOUND)
+        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(11))
+        self.assertEqual(self.get_current_remove_number(), before)
 
     # A positional update issued in a later transaction writes the new value.
     def test_update(self):

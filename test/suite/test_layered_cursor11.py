@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Test remove returns not found when deleting a non-existent key with overwrite disabled.
+# Test remove returns not found when deleting an non-existent key
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -46,7 +46,7 @@ class test_layered_cursor11(wttest.WiredTigerTestCase):
     def test_delete_non_existent_key(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
 
-        cursor = self.session.open_cursor(self.uri, None, 'overwrite=false')
+        cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cursor.set_key(1)
         self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)

@@ -247,8 +247,9 @@ __clayered_enter_flags(
         LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
-     * A follower overwrite write skips stable for its own existence check. A read timestamp still
-     * requires the persistent stable cursor to be open for the write-conflict check.
+     * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
+     * stable cursor; an overwrite write needs it on the leader, or on a follower with a read
+     * timestamp where the write-conflict check must consult the stable table.
      */
     if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
@@ -1954,11 +1955,7 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(session, op->stable != NULL);
 
-    /*
-     * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
-     * the stable constituent. An overwrite=true write on a follower deliberately skips this: the
-     * caller's guarantee covers stable too, so this op never needs to consult it.
-     */
+    /* If the key didn't exist in ingest and the cursor is setup for reading, check stable. */
     if (!found && op->stable != NULL)
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value), true);
 
@@ -2604,15 +2601,17 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
                 ret = 0;
         } else
             ret = __clayered_lookup(op, &value);
-        WT_RET(ret);
+        if (ret != 0) {
+            WT_TRET(__clayered_reset_cursors(clayered, false));
+            return (ret);
+        }
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
         /*
          * Skip an existing tombstone: no consecutive tombstones on an update chain. Without
          * overwrite=true, the position came from a real earlier traversal and this reports
          * not-found. With overwrite=true, the cached value already being a tombstone is the same
-         * caller contract violation as the ingest lookup case above -- diagnostic builds catch it
-         * the same way.
+         * caller contract violation as the ingest lookup case above.
          */
         WT_ITEM_SET(value, c_ingest->value);
         if (__wt_clayered_deleted(&value)) {
