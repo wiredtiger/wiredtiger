@@ -434,6 +434,18 @@ retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
+        /*
+         * On a follower the stable's pages are not resident in the local cache, so its non-walk
+         * stats are ~0 - except the block size, which we read from the checkpoint metadata directly
+         * since this path never opens the stable table to obtain it.
+         */
+        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
+            uint64_t ckpt_size = 0;
+            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+            cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
+            goto done;
+        }
+
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
@@ -455,8 +467,15 @@ retry:
     }
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
-    if (ret == EBUSY)
+    if (ret == EBUSY) {
+        /*
+         * The retry re-fetches the checkpoint name and reallocates the scratch buffer, so release
+         * both before looping.
+         */
+        __wt_free(session, checkpoint_name);
+        __wt_scr_free(session, &stable_uri_buf);
         goto retry;
+    }
 
     WT_ERR(ret);
 

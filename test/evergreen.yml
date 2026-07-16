@@ -1759,7 +1759,7 @@ variables:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch runs.timer=5:10
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
@@ -1774,7 +1774,7 @@ variables:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
@@ -2495,6 +2495,16 @@ tasks:
             set -o verbose
 
             ./smoke_lazyfs.sh
+
+  - name: csuite-schema-disagg-abort
+    tags: ["pull_request"]
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/csuite/schema_disagg_abort
 
   - name: csuite-wt12015-backup-corruption-test
     tags: ["pull_request"]
@@ -5350,11 +5360,11 @@ tasks:
   - name: format-abort-recovery-stress-test
     depends_on: *s-all-dep
     commands:
-      # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
+      # Allow one hour beyond test runtime because recovery under load can cause the test to
       # run longer.
       - command: timeout.update
         params:
-          exec_timeout_secs: 3600
+          exec_timeout_secs: 5400
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -6177,6 +6187,30 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_workload_update_trigger.py
+
+    ##################################################
+    # Performance Tests for disagg follower startup  #
+    ##################################################
+
+  - name: perf-disagg-many-tables-follower-startup
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: disagg_many_tables_follower_startup_perf.py
+          maxruns: 1
+          wtarg: -ops ['"wiredtiger_open_no_pickup", "reconfigure_pickup"'] -args '["--num-tables", "500000"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
 
     ###########################################
     # Performance Tests for log consolidation #
