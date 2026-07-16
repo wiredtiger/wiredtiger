@@ -2677,8 +2677,7 @@ VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
         THROW_ERRNO(ret, "Error opening a session.");
 
     std::string uri = runner->_thread->_op._table._uri;
-    return (verify_session->verify(verify_session, uri.c_str(),
-      verify_call_config.empty() ? nullptr : verify_call_config.c_str()));
+    return (verify_session->verify(verify_session, uri.c_str(), verify_call_config.c_str()));
 }
 
 uint64_t
