@@ -2719,19 +2719,26 @@ VerifyOperationInternal::parse_config(const std::string &config)
 
     WT_CONFIG_PARSER *cp = nullptr;
     WT_CONFIG_ITEM k, v;
+    int ret = 0;
 
-    if (wiredtiger_config_parser_open(nullptr, config.c_str(), config.length(), &cp) == 0) {
-        while (cp->next(cp, &k, &v) == 0) {
-            std::string key(k.str, k.len);
-            std::string val(v.str, v.len);
-            if (key == "session") {
-                verify_session_config = val;
-            } else if (key == "verify") {
-                verify_call_config = val;
-            }
-        }
-        cp->close(cp);
+    if ((ret = wiredtiger_config_parser_open(nullptr, config.c_str(), config.length(), &cp)) != 0)
+        THROW_ERRNO(ret, "Error opening config parser for verify op config: \"" << config << "\"");
+
+    while ((ret = cp->next(cp, &k, &v)) == 0) {
+        std::string key(k.str, k.len);
+        std::string val(v.str, v.len);
+        if (key == "session")
+            verify_session_config = val;
+        else if (key == "verify")
+            verify_call_config = val;
+        else
+            THROW("Unknown key \"" << key << "\" in verify op config: \"" << config << "\"");
     }
+    if (ret != WT_NOTFOUND)
+        THROW_ERRNO(ret, "Error parsing verify op config: \"" << config << "\"");
+    ret = cp->close(cp);
+    if (ret != 0)
+        THROW_ERRNO(ret, "Error closing config parser for verify op config");
 }
 
 Track::Track(bool latency_tracking)
