@@ -2593,16 +2593,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         if (blind_remove) {
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found_local);
             if (ret == WT_NOTFOUND && found_local) {
-                /*
-                 * A tombstone already in ingest (or a truncate-list hit) means this remove is
-                 * redundant against a key that isn't live locally -- a caller contract violation
-                 * under overwrite=true, whose guarantee is that the operation succeeds against a
-                 * live key, not that a repeat delete is tolerated.
-                 *
-                 * This diagnostic check cannot also verify against stable: this path deliberately
-                 * skips opening the stable cursor, so stable is unavailable here regardless of
-                 * build type.
-                 */
+                /* A local deletion marker violates the caller's live-key guarantee. */
                 WT_ASSERT_ALWAYS(
                   session, false, "overwrite=true should guarantee the key exists for remove()");
                 return (0);
