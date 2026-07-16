@@ -542,7 +542,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._read(nodes, trace, lambda c: (c.set_key(key), c.search())[1])
 
     def op_search_near(self, nodes, rnd, trace):
-        key = self.pick_key(rnd, self.weights.remove_key)
+        key = self.pick_key(rnd, self.weights.search_key)
         # A present key must be found exactly -- but only when the read sees latest. In an as-of-past
         # txn py_table (latest) may include keys not visible at read_ts, so don't expect an exact match.
         exact = key in self.state.py_table and self.state.txn_read_ts is None
@@ -566,7 +566,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def op_remove(self, nodes, rnd, trace):
         # Unpositioned removes use overwrite=false so the stress model can exercise both existing
         # and missing keys without violating the blind-remove caller contract.
-        key = self.pick_key(rnd, self.weights.search_key)
+        key = self.pick_key(rnd, self.weights.remove_key)
         trace.log('remove %r' % key)
         self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove')
         self.state.py_table.pop(key, None)
