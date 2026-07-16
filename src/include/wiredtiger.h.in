@@ -9044,8 +9044,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_SET_TS_STABLE_DISAGG_EPOCH_UPD	2010
 /*! transaction: set timestamp stable updates */
 #define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		2011
-/*! transaction: set timestamp step down updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STEP_DOWN_UPD		2012
+/*! transaction: step-down timestamp is currently set */
+#define	WT_STAT_CONN_TXN_STEPDOWN_TS_SET		2012
 /*! transaction: transaction begins */
 #define	WT_STAT_CONN_TXN_BEGIN				2013
 /*!

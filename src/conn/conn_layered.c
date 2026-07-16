@@ -1180,6 +1180,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     /* Clear the step-down timestamp after stepping down. */
     __wt_atomic_store_uint64_release(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
+    WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
 
 err:
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);

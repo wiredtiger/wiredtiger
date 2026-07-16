@@ -582,7 +582,7 @@ set:
      */
     if (has_step_down) {
         __wt_atomic_store_uint64_release(&txn_global->step_down_timestamp, step_down_ts);
-        WT_STAT_CONN_INCR(session, txn_set_ts_step_down_upd);
+        WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 1);
         __wt_verbose_timestamp(session, step_down_ts, "Updated global step down timestamp");
     }
 
