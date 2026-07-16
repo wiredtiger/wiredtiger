@@ -419,6 +419,16 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
     WT_SESSION_IMPL *session = CUR2S(clayered);
     const char *cfg[3] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL};
 
+    /*
+     * Forward the size summary to the active btree cursor. The file-cursor open path then sets the
+     * flag, resets that btree's counters and enforces row-store. This open path also runs on every
+     * follower checkpoint advance, so the request survives constituent reopens; that re-reset is
+     * safe only when no size_stats walk is in progress (same non-overlap contract as the file
+     * cursor). Leaders do not reopen the active btree mid-scan.
+     */
+    if (F_ISSET(clayered, WTI_CLAYERED_SIZE_STAT))
+        cfg[1] = "debug=(size_stats=true)";
+
     WT_RET(__wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor));
     if (F_ISSET((WT_CURSOR *)clayered, WT_CURSTD_OVERWRITE))
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE);
@@ -2485,7 +2495,7 @@ __clayered_constituent_check(
     WT_CURSOR_BTREE *cbt = (WT_CURSOR_BTREE *)c;
     WT_DECL_RET;
 
-    if (clayered->current_cursor == c && F_ISSET(c, WT_CURSTD_KEY_INT)) {
+    if (F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && clayered->current_cursor == c) {
         /* Positioned on the key: check the held cell and keep the position. */
         WT_WITH_DHANDLE(session, cbt->dhandle, ret = __clayered_cell_check(session, cbt));
     } else {
@@ -3071,21 +3081,16 @@ __clayered_close(WT_CURSOR *cursor)
 err:
     if (ret == 0) {
         /*
-         * If releasing the cursor fails in any way, it will be left in a state that allows it to be
-         * normally closed.
+         * Close constituent cursors before caching the layered cursor. A cursor-cache sweep
+         * triggered during constituent close could otherwise find the layered cursor already in the
+         * cache with constituent pointers still set, and double-close them.
          */
+        WT_TRET(__clayered_close_cursors(clayered));
+
         bool released = false;
-        ret = __wti_cursor_cache_release(session, cursor, &released);
-
-        if (released) {
-            /*
-             * If the cursor has been cached, try to cache the constituent cursors by evoking a
-             * cursor close.
-             */
-            WT_TRET(__clayered_close_cursors(clayered));
-
+        WT_TRET(__wti_cursor_cache_release(session, cursor, &released));
+        if (released)
             goto done;
-        }
     }
     /* For cached cursors, free any extra buffers retained now. */
     __wt_cursor_free_cached_memory(cursor);
@@ -3221,20 +3226,28 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
+    int modify_check_ret;
 
     WT_CLEAR(value);
 
     /*
-     * Modify requires a visible base value: search before the conflict check so a missing value
-     * returns WT_NOTFOUND.
+     * FIXME-WT-17962: In ASC, the cursor modify logic differs from insert() and update(): it first
+     * checks whether the entry exists and only then checks for invisible updates, so a missing base
+     * value returns WT_NOTFOUND ahead of any WT_ROLLBACK. For now, layered cursors should follow
+     * the same behavior. However, we still need to call lookup after the modify check, since the
+     * modify check may unposition the internal cursors.
      */
+    modify_check_ret = __clayered_modify_check(session, clayered, &cursor->key);
+    if (modify_check_ret != 0 && modify_check_ret != WT_ROLLBACK)
+        WT_ERR(modify_check_ret);
+
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
       !F_ISSET(&clayered->iface, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(op, &value));
     else
         WT_ITEM_SET(value, cursor->value);
 
-    WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
+    WT_ERR(modify_check_ret);
 
     if (clayered->current_cursor != c_ingest) {
         /*
@@ -3455,6 +3468,18 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
         clayered->next_random_sample_size = (u_int)cval.val;
+        cacheable = false;
+    }
+
+    /*
+     * The size summary is a debug feature measured on the active btree behind this layered cursor;
+     * the in-memory ingest table is not a meaningful size target. Remember the request so that
+     * btree inherits debug=(size_stats) each time it is opened or reopened, and disable caching so
+     * a size-stats cursor is never handed back to an open that did not ask for it.
+     */
+    WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
+    if (cval.val != 0) {
+        F_SET(clayered, WTI_CLAYERED_SIZE_STAT);
         cacheable = false;
     }
 

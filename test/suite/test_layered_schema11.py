@@ -187,3 +187,80 @@ class test_layered_schema11(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
+
+    #
+    # Error handling tests for publishing drops on a follower
+    #
+
+    def setup_follower_with_table(self):
+        """
+        Create and publish uri on the leader, checkpoint at epoch 10, and open a follower
+        that has picked up the checkpoint.
+        """
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 10)
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(1)
+        conn_follow, session_follow = self.open_follower()
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        return conn_follow, session_follow
+
+    def test_follower_drop_publish_zero_epoch(self):
+        """Publishing a follower drop with a zero schema epoch returns EINVAL."""
+        conn_follow, session_follow = self.setup_follower_with_table()
+
+        session_follow.drop(self.uri)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: session_follow.publish(self.uri, 'disaggregated=(schema_epoch=0)'),
+            '/zero not permitted/')
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_follower_drop_publish_epoch_not_newer_than_stable(self):
+        """
+        Once the follower's stable schema epoch is set, publishing a follower drop at an
+        epoch at or below it is rejected.
+        """
+        conn_follow, session_follow = self.setup_follower_with_table()
+
+        session_follow.drop(self.uri)
+        self.set_stable_epoch(30, conn_follow)
+
+        # Epoch equal to stable must fail.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.publish(self.uri, 30, session_follow),
+            '/Cannot publish with a schema epoch that is older/')
+        # Epoch older than stable must fail.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.publish(self.uri, 20, session_follow),
+            '/Cannot publish with a schema epoch that is older/')
+        # Epoch newer than stable succeeds.
+        self.publish(self.uri, 40, session_follow)
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_follower_drop_publish_without_epoch_noop(self):
+        """
+        Publish without a schema epoch on a follower drop is a no-op: the remove stays
+        unpublished and can still be published later.
+        """
+        conn_follow, session_follow = self.setup_follower_with_table()
+
+        session_follow.drop(self.uri)
+        # No schema_epoch in the config: returns success without publishing anything.
+        session_follow.publish(self.uri, '')
+
+        # The leader checkpoints again; the table remains in shared metadata (the leader
+        # never dropped it) and the queued REMOVE still prevents recreation on pickup.
+        self.leader_checkpoint(2)
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
+        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+
+        # The remove is still unpublished: publishing it with a real epoch succeeds.
+        self.publish(self.uri, 25, session_follow)
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
