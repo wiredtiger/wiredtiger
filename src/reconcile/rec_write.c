@@ -69,8 +69,8 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
     /*
      * Disaggregated dirty eviction unconditionally sets WT_REC_SCRUB (see evict_reconcile) because
      * the evicted page cannot be read back until it is materialized. The disk image is required so
-     * split children can be re-instantiated as WT_REF_MEM rather than pushed to WT_REF_DISK with
-     * a post-frontier LSN. Skip the guards below that apply only to checkpoint scrub.
+     * split children can be re-instantiated as WT_REF_MEM rather than pushed to WT_REF_DISK with a
+     * post-frontier LSN. Skip the guards below that apply only to checkpoint scrub.
      */
     if (!F_ISSET(r, WT_REC_CHECKPOINT) && r->page->disagg_info != NULL)
         return (true);
