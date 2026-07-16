@@ -2591,10 +2591,14 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         if (blind_remove) {
             ret = __clayered_lookup_ingest_and_truncate(op, &value, &found_local);
             if (ret == WT_NOTFOUND && found_local) {
-                /* A local deletion marker violates the caller's live-key guarantee. */
-                WT_ASSERT_ALWAYS(
-                  session, false, "overwrite=true should guarantee the key exists for remove()");
-                return (0);
+                if (!positioned) {
+                    /* A local deletion marker violates the caller's live-key guarantee. */
+                    WT_ASSERT_ALWAYS(session, false,
+                      "overwrite=true should guarantee the key exists for remove()");
+                    return (0);
+                }
+                /* A positioned cursor can be stale after another operation deletes the key. */
+                ret = WT_NOTFOUND;
             }
 
             if (ret == WT_NOTFOUND && !found_local)
