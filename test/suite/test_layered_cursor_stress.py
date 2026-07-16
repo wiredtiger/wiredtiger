@@ -80,8 +80,10 @@ def write_allowed(txn):
 
 # The default Weights() below are a balanced starting point; the tuned per-theme mixes live in
 # WORKLOAD_PROFILES and are what the suite actually runs.
-# FIXME-WT-17827: modify on a deleted slot aborts on the follower layered cursor, so there is no
-# positional modify op here; add one once WT-17827 lands.
+# FIXME-WT-17827: the follower layered cursor mishandles operating on a just-removed cursor -- a repeat
+# remove of an already-deleted key leaves a stale position (a later iterate then diverges) and modify on
+# a deleted slot aborts. So op_pos_remove resets the dsc cursor in that case (see there) and there is no
+# modify op; revisit both once WT-17827 lands.
 # FIXME-WT-17825: add prepared transactions once fixed (prepare misbehaves on the follower layered cursor).
 
 @dataclass(frozen=True)
@@ -101,6 +103,13 @@ class SearchKeyWeights:
     # a removed key, exercising tombstones and the search_near neighbor logic).
     existing: float = 50
     missing: float = 50
+
+@dataclass(frozen=True)
+class RemoveKeyWeights:
+    # op_remove picks an existing key (a real delete that mutates state) or a missing one (layered and
+    # reference must return the same not-found result -- removing an absent/tombstoned key).
+    existing: float = 80
+    missing: float = 20
 
 @dataclass(frozen=True)
 class BulkRemoveWeights:
@@ -134,6 +143,7 @@ class Weights:
     bulk_insert_frac: float = 0.1 # fraction of the pool each scen_bulk_insert batch covers
     txn_mode: TxnModeWeights = field(default_factory=TxnModeWeights)
     search_key: SearchKeyWeights = field(default_factory=SearchKeyWeights)
+    remove_key: RemoveKeyWeights = field(default_factory=RemoveKeyWeights)
     bulk_remove_mode: BulkRemoveWeights = field(default_factory=BulkRemoveWeights)
 
 @dataclass(frozen=True)
@@ -245,7 +255,8 @@ WORKLOAD_PROFILES = {
     'write_churn': dict(n_keys=55, n_ops=14000, seeds=3, weights=Weights(
         next=11, prev=11, search=10, search_near=7, pos_update=24, pos_remove=14, put=13, remove=9,
         reset=0.5, full_scan=0.4, advance_checkpoint=3.5, evict=5.0, bulk_insert=2.0, bulk_remove=0.6,
-        txn_begin=3, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=70, missing=30))),
+        txn_begin=3, bulk_insert_frac=0.4, search_key=SearchKeyWeights(existing=70, missing=30),
+        remove_key=RemoveKeyWeights(existing=70, missing=30))),
     'txn': dict(n_keys=55, n_ops=20000, seeds=3, weights=Weights(
         next=18, prev=18, search=16, search_near=10, pos_update=10, pos_remove=4, put=4, remove=2,
         reset=0.5, full_scan=0.4, advance_checkpoint=1.5, evict=3.5, bulk_insert=1.5, bulk_remove=0.4,
@@ -531,7 +542,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self._read(nodes, trace, lambda c: (c.set_key(key), c.search())[1])
 
     def op_search_near(self, nodes, rnd, trace):
-        key = self.pick_key(rnd, self.weights.search_key)
+        key = self.pick_key(rnd, self.weights.remove_key)
         # A present key must be found exactly -- but only when the read sees latest. In an as-of-past
         # txn py_table (latest) may include keys not visible at read_ts, so don't expect an exact match.
         exact = key in self.state.py_table and self.state.txn_read_ts is None
@@ -570,15 +581,19 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
             self.state.py_table[key] = value   # only record the key if the update actually hit
 
     def op_pos_remove(self, nodes, rnd, trace):
-        # Removes the current key. A blind follower remove now asserts the key is live, so skip
-        # entirely if the model already considers it gone: a repeat remove here would trip that
-        # assertion in diagnostic builds instead of being a tolerated no-op.
+        # Removes the current key.
         key = self.state.cur_pos
-        if key not in self.state.py_table:
-            return
+        already_removed = key not in self.state.py_table   # a repeat remove of an already-deleted key
         trace.log('pos_remove %r' % key)
         self._positional(nodes, lambda c: c.remove(), 'pos_remove')
         self.state.py_table.pop(key, None)
+        # FIXME-WT-17827: removing an already-removed key returns WT_NOTFOUND but does not clean up the
+        # follower layered cursor's position (a plain cursor resets), so a later iterate would diverge.
+        # Reset just the layered (dsc) cursor to realign it with the reference. Remove once WT-17827 lands.
+        if already_removed:
+            for n in nodes:
+                n.dsc_c.reset()
+            self.state.cur_pos = None
 
     def op_txn_begin(self, nodes, rnd, trace):
         # No txn open -> begin one (flavor by the txn_mode weights); a txn open -> end it.
