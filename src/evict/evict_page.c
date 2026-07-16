@@ -775,6 +775,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
                 mod->mod_disk_image = tmp;
                 return (ret);
             }
+            WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
         }
 
         break;

@@ -58,8 +58,6 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 static WT_INLINE bool
 __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
 {
-    WT_PAGE_MODIFY *mod;
-
     if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return (true);
 
@@ -76,13 +74,10 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
         return (true);
 
     /*
-     * Skip the image if the page will be left dirty: the swap eviction path requires WT_PAGE_CLEAN
-     * so the image would never be used. Check both whether new updates arrived during
-     * reconciliation (page_state no longer clean) and whether reconciliation itself skipped updates
-     * that must remain in memory (leave_dirty).
+     * Skip the image if reconciliation could not write all updates: the page will remain dirty and
+     * the swap eviction path requires WT_PAGE_CLEAN, so the image would never be used.
      */
-    mod = r->page->modify;
-    if (__wt_atomic_load_uint32_acquire(&mod->page_state) != WT_PAGE_CLEAN || r->leave_dirty) {
+    if (r->leave_dirty) {
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_dirty);
         return (false);
     }
