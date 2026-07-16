@@ -1599,7 +1599,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_SESSION_IMPL *session;
     size_t max_memsize, new, orig;
     uint64_t sleep_usecs, yield_count;
-    bool key_out_of_bounds, overwrite, valid;
+    bool key_out_of_bounds, leaf_found, overwrite, valid;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -1637,18 +1637,34 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
           session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
         if (key_out_of_bounds)
             WT_ERR(WT_NOTFOUND);
+
+        /*
+         * If we have a page pinned, search it before descending from the root. This attempt is made
+         * only on the initial pass: the retry path releases the page, so re-checking would examine
+         * a stale reference.
+         */
+        valid = leaf_found = false;
+        if (__cursor_page_pinned(cbt, true)) {
+            __wt_txn_cursor_op(session);
+            WT_ERR(__cursor_search(cbt, cbt->ref, &leaf_found, false));
+            if (leaf_found && cbt->compare == 0) {
+                WT_ERR(__curfile_update_check(cbt));
+                WT_ERR(__wti_cursor_valid(cbt, &valid, false));
+            }
+        }
+        if (!valid) {
 retry:
-        WT_ERR(__wt_cursor_localkey(cursor));
-        WT_ERR(__wt_cursor_func_init(cbt, true));
-        WT_ERR(__cursor_search(cbt, NULL, NULL, false));
-        if (cbt->compare == 0) {
+            WT_ERR(__wt_cursor_localkey(cursor));
+            WT_ERR(__wt_cursor_func_init(cbt, true));
+            WT_ERR(__cursor_search(cbt, NULL, NULL, false));
+            if (cbt->compare != 0)
+                WT_ERR(WT_NOTFOUND);
             WT_ERR(__curfile_update_check(cbt));
             WT_ERR(__wti_cursor_valid(cbt, &valid, false));
             if (!valid)
                 WT_ERR(WT_NOTFOUND);
-            WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
-        } else
-            WT_ERR(WT_NOTFOUND);
+        }
+        WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
     }
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
