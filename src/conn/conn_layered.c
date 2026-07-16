@@ -1012,6 +1012,14 @@ __disagg_step_up(WT_SESSION_IMPL *session)
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
 
     /*
+     * The step-down timestamp never survives into a step-up: completing the step-down is the only
+     * way it clears, so finding it set here means the role state machine was violated.
+     */
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp) == WT_TS_NONE,
+      "stepping up while the step-down timestamp is set");
+
+    /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
      * below depend on WiredTiger already being in the leader mode.
      */

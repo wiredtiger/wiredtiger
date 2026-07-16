@@ -346,7 +346,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval, step_down_cval;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_ts, oldest_ts, stable_disagg_epoch, stable_ts, step_down_ts;
-    wt_timestamp_t all_durable_ts, last_oldest_ts, last_stable_disagg_epoch, last_stable_ts,
+    wt_timestamp_t last_durable_ts, last_oldest_ts, last_stable_disagg_epoch, last_stable_ts,
       current_step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch, has_step_down;
@@ -413,14 +413,6 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         goto set;
     }
 
-    /*
-     * Snapshot all_durable before taking the read lock: computing it walks the session array under
-     * the same lock, which cannot be taken recursively.
-     */
-    all_durable_ts = WT_TS_NONE;
-    if (has_step_down)
-        WT_RET(__txn_get_all_durable_timestamp(session, &all_durable_ts));
-
     __wt_readlock(session, &txn_global->rwlock);
 
     last_oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
@@ -485,18 +477,31 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * The step-down timestamp must be at or ahead of all_durable: content committed up to
-     * all_durable already lives in the stable constituent, so a step-down timestamp below it would
-     * leave durable content stranded above the boundary in stable. all_durable can lag stable when
-     * an in-flight transaction holds it back, so this is a separate floor rather than a
-     * replacement.
+     * The step-down timestamp is the boundary the step-down checkpoint is taken at: everything
+     * committed at or before it belongs to stable. Reject a value below the current stable
+     * timestamp, which can never move backwards to meet it, and a value below the newest committed
+     * durable timestamp, whose content already lives in stable above the boundary.
      */
-    if (has_step_down && all_durable_ts != WT_TS_NONE && step_down_ts < all_durable_ts) {
-        __wt_readunlock(session, &txn_global->rwlock);
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: step down timestamp %s must not be older than all_durable timestamp %s",
-          __wt_timestamp_to_string(step_down_ts, ts_string[0]),
-          __wt_timestamp_to_string(all_durable_ts, ts_string[1]));
+    if (has_step_down) {
+        if (__wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) &&
+          step_down_ts < last_stable_ts) {
+            __wt_readunlock(session, &txn_global->rwlock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down timestamp %s must not be older than the stable timestamp "
+              "%s",
+              __wt_timestamp_to_string(step_down_ts, ts_string[0]),
+              __wt_timestamp_to_string(last_stable_ts, ts_string[1]));
+        }
+        last_durable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
+        if (__wt_atomic_load_bool_relaxed(&txn_global->has_durable_timestamp) &&
+          step_down_ts < last_durable_ts) {
+            __wt_readunlock(session, &txn_global->rwlock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down timestamp %s must not be older than the newest durable "
+              "timestamp %s",
+              __wt_timestamp_to_string(step_down_ts, ts_string[0]),
+              __wt_timestamp_to_string(last_durable_ts, ts_string[1]));
+        }
     }
 
     /*
