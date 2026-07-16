@@ -265,8 +265,7 @@ __wt_schema_simple_layered_source(WT_SESSION_IMPL *session, const char *uri, cha
     WT_ERR(__wt_metadata_search(session, cgname->data, &cgconf));
     WT_ERR(__wt_config_getones(session, cgconf, "source", &cval));
     /* The column-group source must be a layered: URI. */
-    if (cval.len <= strlen("layered:") ||
-      strncmp(cval.str, "layered:", strlen("layered:")) != 0) {
+    if (cval.len <= strlen("layered:") || strncmp(cval.str, "layered:", strlen("layered:")) != 0) {
         ret = WT_NOTFOUND;
         goto err;
     }
