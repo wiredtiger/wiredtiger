@@ -898,6 +898,9 @@ static int
 __rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
+#ifdef HAVE_DIAGNOSTIC
+    WT_DATA_HANDLE *saved_dhandle;
+#endif
     WT_MULTI *multi;
     uint32_t i;
 
@@ -905,6 +908,17 @@ __rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     if (r->hs_cursor != NULL)
         WT_RET(r->hs_cursor->reset(r->hs_cursor));
+
+#ifdef HAVE_DIAGNOSTIC
+    if (r->gc_verify_cursor != NULL) {
+        /* The close swaps the session's data handle; preserve the reconciled tree's handle. */
+        saved_dhandle = session->dhandle;
+        WT_RET(r->gc_verify_cursor->close(r->gc_verify_cursor));
+        r->gc_verify_cursor = NULL;
+        session->dhandle = saved_dhandle;
+    }
+    r->gc_verify_open_failed = false;
+#endif
 
     if (btree->type == BTREE_ROW)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)

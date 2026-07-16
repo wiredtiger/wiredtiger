@@ -178,6 +178,15 @@ struct __wti_reconcile {
     /* Track the prune timestamp at the time reconciliation started. */
     wt_timestamp_t rec_prune_timestamp;
 
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Cursor on the stable table's latest checkpoint, opened lazily to verify garbage collected
+     * keys and closed at the end of the reconciliation so it never pins a checkpoint across runs.
+     */
+    WT_CURSOR *gc_verify_cursor;
+    bool gc_verify_open_failed; /* Don't retry a failed open within a reconciliation. */
+#endif
+
     /* Track the page's maximum transaction/timestamp. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;
@@ -444,6 +453,13 @@ struct __wti_update_select {
     bool skip_aborted_prepared_value; /* Skip a non-tombstone aborted prepared update on the
                                           update chain */
     bool was_modify;                  /* There was a MODIFY on the update chain */
+
+    /*
+     * The newest update garbage collection pruned from the chain, set only when the whole key is
+     * pruned (no newer update survives), so it is the key's state at the prune timestamp. Consumed
+     * by the diagnostic GC verification.
+     */
+    WT_UPDATE *gc_pruned_upd;
 };
 
 #define WTI_UPDATE_SELECT_INIT(upd_select)                 \
@@ -454,6 +470,7 @@ struct __wti_update_select {
         (upd_select)->no_ts_tombstone = false;             \
         (upd_select)->skip_aborted_prepared_value = false; \
         (upd_select)->was_modify = false;                  \
+        (upd_select)->gc_pruned_upd = NULL;                \
         WT_TIME_WINDOW_INIT(&(upd_select)->tw);            \
     } while (0)
 

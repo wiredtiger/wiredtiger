@@ -1176,12 +1176,19 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         } else if (first_pruned_update != NULL) {
             if (*first_txn_updp != first_pruned_update)
                 *has_newer_updatesp = true;
-            else if (WT_REC_HAS_ON_DISK(vpack))
+            else {
                 /*
-                 * If we choose to garbage collect the key and it has an associated on-page value,
-                 * ensure that the on-page value is forcefully deleted as well.
+                 * The whole key is pruned: the newest pruned update is the key's state at the prune
+                 * timestamp, remember it for GC verification.
                  */
-                upd_select->upd = &upd_tombstone;
+                upd_select->gc_pruned_upd = first_pruned_update;
+                if (WT_REC_HAS_ON_DISK(vpack))
+                    /*
+                     * If we choose to garbage collect the key and it has an associated on-page
+                     * value, ensure that the on-page value is forcefully deleted as well.
+                     */
+                    upd_select->upd = &upd_tombstone;
+            }
         } else
             *has_newer_updatesp = true;
     }

@@ -872,6 +872,264 @@ __rec_row_garbage_collect_tw_eligible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
     return (false);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __rec_gc_verify --
+ *     Verify the newest state garbage collection is pruning for a key against the stable table's
+ *     latest checkpoint: a pruned data value must be present (and byte-equal when the expected
+ *     value is supplied), a pruned delete must be absent. The contract is to verify only when
+ *     correctness is provable: conditions with a benign explanation for divergence skip the check
+ *     and bump a counter, so the check never raises a false alarm.
+ */
+static int
+__rec_gc_verify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key,
+  const WT_ITEM *expected_value, bool expect_absent)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *stable_cursor;
+    WT_DATA_HANDLE *saved_dhandle;
+    WT_DECL_ITEM(ckpt_uri);
+    WT_DECL_RET;
+    WT_ITEM stable_value;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    wt_timestamp_t ckpt_ts, ts_c;
+    char *stable_uri;
+    const char *checkpoint_name;
+    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
+    bool ignore_cache_size;
+
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+    stable_uri = NULL;
+    checkpoint_name = NULL;
+
+    /*
+     * The stable cursor's open/search/reset leave the session's data handle pointing at the stable
+     * checkpoint; the surrounding reconciliation depends on it, so restore it on every exit.
+     */
+    saved_dhandle = session->dhandle;
+
+    /*
+     * A checkpoint session cannot open another checkpoint cursor. A running transaction (an
+     * application thread evicting inside its own transaction) imposes its snapshot and read
+     * timestamp on the stable search, hiding or exposing versions the prune decision was not based
+     * on; only judge stable content from a clean transaction context.
+     */
+    if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT) || F_ISSET(session->txn, WT_TXN_RUNNING) ||
+      r->gc_verify_open_failed)
+        goto skip_other;
+
+    /*
+     * The stable checkpoint bound below must be the same checkpoint generation the prune timestamp
+     * was derived from, or content differences between checkpoints show up as false mismatches. A
+     * running checkpoint can publish per-file checkpoint metadata before the connection-wide
+     * checkpoint timestamp advances, so skip while one is in progress and require the prune
+     * timestamp to equal the last picked-up checkpoint timestamp both before and after the open.
+     */
+    if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running) ||
+      r->rec_prune_timestamp !=
+        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp))
+        goto skip_gate;
+
+    if (r->gc_verify_cursor == NULL) {
+        __wt_spin_lock(session, &manager->layered_table_lock);
+        entry = manager->init && S2BT(session)->id < manager->open_layered_table_count ?
+          manager->entries[S2BT(session)->id] :
+          NULL;
+        ret = entry == NULL ? WT_NOTFOUND : __wt_strdup(session, entry->stable_uri, &stable_uri);
+        __wt_spin_unlock(session, &manager->layered_table_lock);
+
+        /* Open the stable table's latest checkpoint by name, as the layered cursor does. */
+        if (ret == 0)
+            ret = __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL);
+        if (ret == 0)
+            ret = __wt_scr_alloc(session, 0, &ckpt_uri);
+        if (ret == 0)
+            ret = __wt_buf_fmt(session, ckpt_uri, "%s/%s", stable_uri, checkpoint_name);
+        if (ret == 0)
+            ret = __wt_open_cursor(
+              session, (const char *)ckpt_uri->data, NULL, open_cursor_cfg, &r->gc_verify_cursor);
+        __wt_free(session, stable_uri);
+        __wt_free(session, checkpoint_name);
+        __wt_scr_free(session, &ckpt_uri);
+        if (ret != 0) {
+            r->gc_verify_open_failed = true;
+            goto skip_other;
+        }
+        F_SET(r->gc_verify_cursor, WT_CURSTD_RAW);
+    }
+    stable_cursor = r->gc_verify_cursor;
+
+    /* Re-check the checkpoint generation now that the cursor is bound to a checkpoint. */
+    ts_c = CUR2BT(stable_cursor)->checkpoint_timestamp;
+    ckpt_ts =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+    if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running) ||
+      r->rec_prune_timestamp != ts_c || r->rec_prune_timestamp != ckpt_ts)
+        goto skip_gate;
+
+    __wt_cursor_set_raw_key(stable_cursor, key);
+
+    /* The search may read stable pages; don't let cache pressure recurse into eviction. */
+    ignore_cache_size = F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    ret = stable_cursor->search(stable_cursor);
+    if (!ignore_cache_size)
+        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+
+    if (ret != 0 && ret != WT_NOTFOUND) {
+        /* Any read failure other than a clean miss (busy, rollback) has a benign explanation. */
+        WT_IGNORE_RET(stable_cursor->reset(stable_cursor));
+        goto skip_other;
+    }
+
+    if (expect_absent) {
+        WT_ASSERT_ALWAYS(session, ret == WT_NOTFOUND,
+          "gc verify: garbage collected delete unexpectedly present in the stable table checkpoint "
+          "(prune_timestamp=%" PRIu64 ", checkpoint_timestamp=%" PRIu64 ")",
+          r->rec_prune_timestamp, ts_c);
+        WT_IGNORE_RET(stable_cursor->reset(stable_cursor));
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_passed);
+        ret = 0;
+        goto done;
+    }
+
+    WT_ASSERT_ALWAYS(session, ret != WT_NOTFOUND,
+      "gc verify: garbage collected key missing from the stable table checkpoint "
+      "(prune_timestamp=%" PRIu64 ", checkpoint_timestamp=%" PRIu64 ")",
+      r->rec_prune_timestamp, ts_c);
+
+    /* The raw value references the cursor's page; use it before the reset releases the page. */
+    ret = __wt_cursor_get_raw_value(stable_cursor, &stable_value);
+    if (ret != 0) {
+        WT_TRET(stable_cursor->reset(stable_cursor));
+        goto done;
+    }
+
+    /* Legacy unescaped stable data can collide with the sentinel namespace; don't judge it. */
+    if (__wt_clayered_deleted(&stable_value)) {
+        WT_IGNORE_RET(stable_cursor->reset(stable_cursor));
+        goto skip_other;
+    }
+
+    if (expected_value != NULL)
+        WT_ASSERT_ALWAYS(session,
+          expected_value->size == stable_value.size &&
+            (stable_value.size == 0 ||
+              memcmp(expected_value->data, stable_value.data, stable_value.size) == 0),
+          "gc verify: garbage collected value differs from the stable table checkpoint "
+          "(ingest size=%" WT_SIZET_FMT ", stable size=%" WT_SIZET_FMT ", prune_timestamp=%" PRIu64
+          ")",
+          expected_value->size, stable_value.size, r->rec_prune_timestamp);
+
+    ret = stable_cursor->reset(stable_cursor);
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_passed);
+    goto done;
+
+skip_gate:
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_gate);
+    ret = 0;
+    goto done;
+
+skip_other:
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_other);
+    ret = 0;
+
+done:
+    session->dhandle = saved_dhandle;
+    return (ret);
+}
+
+/*
+ * __rec_gc_verify_pruned_upd --
+ *     Classify the newest update garbage collection pruned from a key's update chain and verify it
+ *     against the stable checkpoint: a standard value must be present and equal, the layered delete
+ *     sentinel and tombstones must be absent. Skip shapes without a provable stable-state
+ *     expectation (prepared, no timestamp, modify).
+ */
+static int
+__rec_gc_verify_pruned_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key, WT_UPDATE *upd)
+{
+    WT_ITEM upd_value;
+
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_attempts);
+
+    if (upd->prepare_state != WT_PREPARE_INIT || upd->prepared_id != WT_PREPARED_ID_NONE ||
+      upd->upd_durable_ts == WT_TS_NONE)
+        goto skip;
+
+    switch (upd->type) {
+    case WT_UPDATE_TOMBSTONE:
+        return (__rec_gc_verify(session, r, key, NULL, true));
+    case WT_UPDATE_STANDARD:
+        WT_CLEAR(upd_value);
+        upd_value.data = upd->data;
+        upd_value.size = upd->size;
+        /* The layered delete sentinel is stored as a standard value but means the key is gone. */
+        if (__wt_clayered_deleted(&upd_value))
+            return (__rec_gc_verify(session, r, key, NULL, true));
+        return (__rec_gc_verify(session, r, key, &upd_value, false));
+    default:
+        /* A modify needs full-value reconstruction; don't judge it. */
+        break;
+    }
+
+skip:
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_other);
+    return (0);
+}
+
+/*
+ * __rec_gc_verify_cell --
+ *     Classify an on-disk cell garbage collection is dropping from an ingest table's disk image and
+ *     verify it against the stable checkpoint: a live value must be present and equal, a
+ *     timestamped delete must be absent. Skip shapes without a provable stable-state expectation
+ *     (prepared, no timestamp, sentinel-typed cells outside plain values).
+ */
+static int
+__rec_gc_verify_cell(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, WT_ROW *rip,
+  WT_CELL_UNPACK_KV *vpack, WT_ITEM *tmpkey)
+{
+    WT_ITEM cell_value;
+    WT_TIME_WINDOW *twp;
+
+    twp = &vpack->tw;
+
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_attempts);
+
+    if (WT_TIME_WINDOW_HAS_PREPARE(twp))
+        goto skip;
+
+    WT_RET(__wt_row_leaf_key(session, page, rip, tmpkey, false));
+
+    if (WT_TIME_WINDOW_HAS_STOP(twp)) {
+        /* Stops without a timestamp come from ingest-local cleanup; the key can still be in stable. */
+        if (twp->durable_stop_ts == WT_TS_NONE)
+            goto skip;
+        return (__rec_gc_verify(session, r, tmpkey, NULL, true));
+    }
+
+    if (twp->durable_start_ts == WT_TS_NONE)
+        goto skip;
+
+    WT_CLEAR(cell_value);
+    cell_value.data = vpack->data;
+    cell_value.size = vpack->size;
+
+    /* The layered delete sentinel is stored as a standard value but means the key is gone. */
+    if (vpack->type == WT_CELL_VALUE && __wt_clayered_deleted(&cell_value))
+        return (__rec_gc_verify(session, r, tmpkey, NULL, true));
+
+    /* In-memory ingest btrees have no overflow or dictionary cells; the bytes are the value. */
+    return (__rec_gc_verify(session, r, tmpkey, &cell_value, false));
+
+skip:
+    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_other);
+    return (0);
+}
+#endif
+
 /*
  * __rec_row_leaf_insert --
  *     Walk an insert chain, writing K/V pairs.
@@ -904,6 +1162,16 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
+#ifdef HAVE_DIAGNOSTIC
+        if (upd_select.gc_pruned_upd != NULL && F_ISSET(r, WT_REC_EVICT)) {
+            WT_ITEM ins_key;
+
+            WT_CLEAR(ins_key);
+            ins_key.data = WT_INSERT_KEY(ins);
+            ins_key.size = WT_INSERT_KEY_SIZE(ins);
+            WT_ERR(__rec_gc_verify_pruned_upd(session, r, &ins_key, upd_select.gc_pruned_upd));
+        }
+#endif
         if ((upd = upd_select.upd) == NULL) {
             /*
              * In cases where a page has grown so large we are trying to force evict it (there is
@@ -1147,6 +1415,13 @@ __wti_rec_row_leaf(
         WT_ERR(__wti_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
 
+#ifdef HAVE_DIAGNOSTIC
+        if (upd_select.gc_pruned_upd != NULL && F_ISSET(r, WT_REC_EVICT)) {
+            WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, false));
+            WT_ERR(__rec_gc_verify_pruned_upd(session, r, tmpkey, upd_select.gc_pruned_upd));
+        }
+#endif
+
         /* Take the timestamp from the update or the cell. */
         if (upd == NULL) {
             twp = &vpack->tw;
@@ -1169,6 +1444,10 @@ __wti_rec_row_leaf(
         if (upd == NULL) {
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
                 if (!upd_select.was_modify && __rec_row_garbage_collect_tw_eligible(r, twp)) {
+#ifdef HAVE_DIAGNOSTIC
+                    if (F_ISSET(r, WT_REC_EVICT))
+                        WT_ERR(__rec_gc_verify_cell(session, r, page, rip, vpack, tmpkey));
+#endif
                     upd = &upd_tombstone;
                     ++r->keys_removed_from_disk_image_count;
                     WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);

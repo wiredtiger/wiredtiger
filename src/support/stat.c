@@ -371,6 +371,14 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: max deltas seen on internal page during reconciliation",
   "reconciliation: max deltas seen on leaf page during reconciliation",
   "reconciliation: maximum blocks required for a page",
+  "reconciliation: number of garbage collected keys considered for verification against the stable "
+  "table for disaggregated storage",
+  "reconciliation: number of garbage collected keys not verified against the stable table because "
+  "the prune timestamp does not match the stable checkpoint for disaggregated storage",
+  "reconciliation: number of garbage collected keys not verified against the stable table for "
+  "other reasons for disaggregated storage",
+  "reconciliation: number of garbage collected keys verified against the stable table for "
+  "disaggregated storage",
   "reconciliation: number of keys that are garbage collected from the disk images in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
@@ -835,6 +843,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_max_internal_page_deltas = 0;
     stats->rec_max_leaf_page_deltas = 0;
     stats->rec_multiblock_max = 0;
+    stats->rec_ingest_gc_verify_attempts = 0;
+    stats->rec_ingest_gc_verify_skipped_gate = 0;
+    stats->rec_ingest_gc_verify_skipped_other = 0;
+    stats->rec_ingest_gc_verify_passed = 0;
     stats->rec_ingest_garbage_collection_keys_disk_image = 0;
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
@@ -1305,6 +1317,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_max_leaf_page_deltas += from->rec_max_leaf_page_deltas;
     if (from->rec_multiblock_max > to->rec_multiblock_max)
         to->rec_multiblock_max = from->rec_multiblock_max;
+    to->rec_ingest_gc_verify_attempts += from->rec_ingest_gc_verify_attempts;
+    to->rec_ingest_gc_verify_skipped_gate += from->rec_ingest_gc_verify_skipped_gate;
+    to->rec_ingest_gc_verify_skipped_other += from->rec_ingest_gc_verify_skipped_other;
+    to->rec_ingest_gc_verify_passed += from->rec_ingest_gc_verify_passed;
     to->rec_ingest_garbage_collection_keys_disk_image +=
       from->rec_ingest_garbage_collection_keys_disk_image;
     to->rec_ingest_garbage_collection_keys_update_chain +=
@@ -1821,6 +1837,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_max_leaf_page_deltas += WT_STAT_DSRC_READ(from, rec_max_leaf_page_deltas);
     if ((v = WT_STAT_DSRC_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
+    to->rec_ingest_gc_verify_attempts += WT_STAT_DSRC_READ(from, rec_ingest_gc_verify_attempts);
+    to->rec_ingest_gc_verify_skipped_gate +=
+      WT_STAT_DSRC_READ(from, rec_ingest_gc_verify_skipped_gate);
+    to->rec_ingest_gc_verify_skipped_other +=
+      WT_STAT_DSRC_READ(from, rec_ingest_gc_verify_skipped_other);
+    to->rec_ingest_gc_verify_passed += WT_STAT_DSRC_READ(from, rec_ingest_gc_verify_passed);
     to->rec_ingest_garbage_collection_keys_disk_image +=
       WT_STAT_DSRC_READ(from, rec_ingest_garbage_collection_keys_disk_image);
     to->rec_ingest_garbage_collection_keys_update_chain +=
@@ -2807,6 +2829,14 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
   "reconciliation: maximum milliseconds spent in moving updates to the history store in a "
   "reconciliation",
+  "reconciliation: number of garbage collected keys considered for verification against the stable "
+  "table for disaggregated storage",
+  "reconciliation: number of garbage collected keys not verified against the stable table because "
+  "the prune timestamp does not match the stable checkpoint for disaggregated storage",
+  "reconciliation: number of garbage collected keys not verified against the stable table for "
+  "other reasons for disaggregated storage",
+  "reconciliation: number of garbage collected keys verified against the stable table for "
+  "disaggregated storage",
   "reconciliation: number of keys that are garbage collected from the disk images in the ingest "
   "btrees for disaggregated storage",
   "reconciliation: number of keys that are garbage collected from the update chains in the ingest "
@@ -3892,6 +3922,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_maximum_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
     /* not clearing rec_maximum_hs_wrapup_milliseconds */
+    stats->rec_ingest_gc_verify_attempts = 0;
+    stats->rec_ingest_gc_verify_skipped_gate = 0;
+    stats->rec_ingest_gc_verify_skipped_other = 0;
+    stats->rec_ingest_gc_verify_passed = 0;
     stats->rec_ingest_garbage_collection_keys_disk_image = 0;
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
@@ -5188,6 +5222,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, rec_maximum_image_build_milliseconds);
     to->rec_maximum_hs_wrapup_milliseconds +=
       WT_STAT_CONN_READ(from, rec_maximum_hs_wrapup_milliseconds);
+    to->rec_ingest_gc_verify_attempts += WT_STAT_CONN_READ(from, rec_ingest_gc_verify_attempts);
+    to->rec_ingest_gc_verify_skipped_gate +=
+      WT_STAT_CONN_READ(from, rec_ingest_gc_verify_skipped_gate);
+    to->rec_ingest_gc_verify_skipped_other +=
+      WT_STAT_CONN_READ(from, rec_ingest_gc_verify_skipped_other);
+    to->rec_ingest_gc_verify_passed += WT_STAT_CONN_READ(from, rec_ingest_gc_verify_passed);
     to->rec_ingest_garbage_collection_keys_disk_image +=
       WT_STAT_CONN_READ(from, rec_ingest_garbage_collection_keys_disk_image);
     to->rec_ingest_garbage_collection_keys_update_chain +=
