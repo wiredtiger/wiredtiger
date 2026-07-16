@@ -2585,7 +2585,7 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
     bool hold_value =
       clayered->current_cursor != NULL && F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT);
 
-    if (!positioned || !hold_value) {
+    if (blind_remove || !positioned || !hold_value) {
         /* Cached value isn't reliable (unpositioned or not holding the value ref); re-read it. */
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
         if (blind_remove) {
@@ -2607,21 +2607,10 @@ __clayered_remove_from_ingest(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool posi
         }
     } else if (clayered->current_cursor == c_ingest) {
         WT_ASSERT(session, F_ISSET(c_ingest, WT_CURSTD_KEY_INT));
-        /*
-         * Skip an existing tombstone: no consecutive tombstones on an update chain. Without
-         * overwrite=true, the position came from a real earlier traversal and this reports
-         * not-found. With overwrite=true, the cached value already being a tombstone is the same
-         * caller contract violation as the ingest lookup case above.
-         */
+        /* Skip an existing tombstone: no consecutive tombstones on an update chain. */
         WT_ITEM_SET(value, c_ingest->value);
-        if (__wt_clayered_deleted(&value)) {
-            if (blind_remove) {
-                WT_ASSERT_ALWAYS(
-                  session, false, "overwrite=true should guarantee the key exists for remove()");
-                return (0);
-            }
+        if (__wt_clayered_deleted(&value))
             return (WT_NOTFOUND);
-        }
     }
 
     /*
