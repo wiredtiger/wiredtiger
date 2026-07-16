@@ -266,10 +266,11 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 
 /*
  * __evict_btree_dominating_cache --
- *     Return if a single btree is occupying at least half of any of our target's cache usage.
+ *     Return if a single btree is occupying at least half of any of our target's cache usage. Only
+ *     the dimensions selected by the given eviction flags are considered.
  */
 static WT_INLINE bool
-__evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t flags)
 {
     WT_CACHE *cache;
     WT_EVICT *evict;
@@ -280,21 +281,24 @@ __evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
     evict = S2C(session)->evict;
     bytes_max = S2C(session)->cache_size + 1;
 
-    if (__wt_cache_bytes_plus_overhead(
-          cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem)) >
-      (uint64_t)(0.5 * evict->eviction_target *
-        (bytes_max + __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate))) /
-        100)
+    if (LF_ISSET(WT_EVICT_CACHE_CLEAN) &&
+      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem)) >
+        (uint64_t)(0.5 * evict->eviction_target *
+          (bytes_max + __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate))) /
+          100)
         return (true);
 
-    bytes_dirty = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
-      __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf);
-    if (__wt_cache_bytes_plus_overhead(cache, bytes_dirty) >
-      (uint64_t)(0.5 * evict->eviction_dirty_target * bytes_max) / 100)
-        return (true);
-    if (__wt_cache_bytes_plus_overhead(
-          cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_updates)) >
-      (uint64_t)(0.5 * evict->eviction_updates_target * bytes_max) / 100)
+    if (LF_ISSET(WT_EVICT_CACHE_DIRTY)) {
+        bytes_dirty = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
+          __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf);
+        if (__wt_cache_bytes_plus_overhead(cache, bytes_dirty) >
+          (uint64_t)(0.5 * evict->eviction_dirty_target * bytes_max) / 100)
+            return (true);
+    }
+    if (LF_ISSET(WT_EVICT_CACHE_UPDATES) &&
+      __wt_cache_bytes_plus_overhead(
+        cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_updates)) >
+        (uint64_t)(0.5 * evict->eviction_updates_target * bytes_max) / 100)
         return (true);
 
     return (false);
@@ -455,7 +459,7 @@ retry:
          * its pages.
          */
         if (btree->evict_priority != 0 && !aggressive &&
-          !__evict_btree_dominating_cache(session, btree)) {
+          !__evict_btree_dominating_cache(session, btree, WT_EVICT_CACHE_ALL)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_stick_in_cache);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -492,13 +496,23 @@ retry:
         }
 
         /*
-         * If we are filling the queue, skip files that haven't been useful in the past.
+         * If we are filling the queue, skip files that haven't been useful in the past. The walk
+         * period only records that previous walks found few candidates, not what the tree holds
+         * now: if the tree dominates the cache usage for a dimension eviction is currently
+         * targeting, skipping it can stall eviction entirely, so walk it regardless. Exclude the
+         * dirty dimension: a dirty-dominating tree being checkpointed cannot queue modified pages,
+         * so re-walking it would spin without progress.
          */
         evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
         if (evict_walk_period != 0 && btree->evict_walk_skips++ < evict_walk_period) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
-            __evict_disagg_btree_skip_count(session, btree);
-            continue;
+            if (__evict_btree_dominating_cache(
+                  session, btree, evict->flags & (WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)))
+                WT_STAT_CONN_INCR(session, eviction_server_walk_dominating_cache);
+            else {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
+                __evict_disagg_btree_skip_count(session, btree);
+                continue;
+            }
         }
 
         /*
