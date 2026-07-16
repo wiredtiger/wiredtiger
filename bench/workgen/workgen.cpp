@@ -2677,7 +2677,8 @@ VerifyOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
         THROW_ERRNO(ret, "Error opening a session.");
 
     std::string uri = runner->_thread->_op._table._uri;
-    return (verify_session->verify(verify_session, uri.c_str(), nullptr));
+    return (verify_session->verify(verify_session, uri.c_str(),
+      verify_call_config.empty() ? nullptr : verify_call_config.c_str()));
 }
 
 uint64_t
@@ -2707,7 +2708,35 @@ TableOperationInternal::parse_config(const std::string &config)
 void
 VerifyOperationInternal::parse_config(const std::string &config)
 {
-    if (!config.empty())
+    /*
+     * Recognise two structured sub-configs in the op config string:
+     *   session=(...) -> passed to open_session()
+     *   verify=(...)  -> passed to session->verify()
+     * A bare config with neither key is treated as an open_session config.
+     */
+
+    if (config.empty())
+        return;
+
+    WT_CONFIG_PARSER *cp = nullptr;
+    WT_CONFIG_ITEM k, v;
+    bool split = false;
+
+    if (wiredtiger_config_parser_open(nullptr, config.c_str(), config.length(), &cp) == 0) {
+        while (cp->next(cp, &k, &v) == 0) {
+            std::string key(k.str, k.len);
+            std::string val(v.str, v.len);
+            if (key == "session") {
+                verify_session_config = val;
+                split = true;
+            } else if (key == "verify") {
+                verify_call_config = val;
+                split = true;
+            }
+        }
+        cp->close(cp);
+    }
+    if (!split)
         verify_session_config = config;
 }
 
