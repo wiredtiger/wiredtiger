@@ -493,7 +493,7 @@ __verify_one_checkpoint(
 
         if (!skip_hs) {
             __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
-            WT_ERR_MSG(
+            WT_ERR_MSG_CHK(
               session, __wt_hs_verify_one(session, btree->id), "history store verification failed");
         }
     }
