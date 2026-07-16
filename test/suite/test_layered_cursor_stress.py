@@ -537,6 +537,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # A blind (unpositioned, overwrite=true, no read timestamp) remove on a follower now asserts
         # the key is live, so only ever target a key the model confirms exists; removing an absent
         # key is covered separately by the overwrite=false tests instead.
+        # TODO: Extend this stress workload with a separate overwrite=false cursor path so both
+        # remove contracts are exercised without reconfiguring a positioned cursor.
         if not self.state.py_table:
             return
         key = rnd.choice(list(self.state.py_table))
