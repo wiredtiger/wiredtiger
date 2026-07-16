@@ -1825,8 +1825,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * As part of recovery, rollback to stable may have left out clearing stale transaction ids.
      * Update the connection base write generation based on the latest checkpoint write generations
      * to reset these transaction ids present on the pages when reading them.
+     *
+     * A disaggregated leader whose base write generation is still unset is opening a checkpoint
+     * written before the aggregate was persisted (an upgrade). Fold in every file's write
+     * generation once, here rather than at pickup, so the base covers tables carried forward
+     * without reconciliation. Later checkpoints see a non-zero base and skip the scan.
      */
-    if (F_ISSET(conn, WT_CONN_RECOVERING))
+    if (F_ISSET(conn, WT_CONN_RECOVERING) ||
+      (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
+        __wt_atomic_load_uint64_relaxed(&conn->base_write_gen) == 0))
         WT_ERR(__wt_meta_correct_base_write_gen(session));
 
     /*
