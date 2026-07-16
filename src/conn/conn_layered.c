@@ -1181,6 +1181,21 @@ __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *le
 }
 
 /*
+ * __disagg_role_transition_stress --
+ *     Timing stress to encourage races with role transition.
+ */
+static void
+__disagg_role_transition_stress(WT_SESSION_IMPL *session, uint32_t flag)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    if (!FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION))
+        return;
+
+    F_SET_ATOMIC_32(conn, flag);
+    __wt_sleep(2, 0);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1242,6 +1257,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /* Follower step-up. */
+        __disagg_role_transition_stress(session, WT_CONN_RECONFIGURING_STEP_UP);
         time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
         time_stop = __wt_clock(session);
@@ -1251,6 +1267,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
           "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
     } else if (was_leader && !leader) {
         /* Leader step-down. */
+        __disagg_role_transition_stress(session, WT_CONN_RECONFIGURING_STEP_DOWN);
         time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_down(session));
         time_stop = __wt_clock(session);

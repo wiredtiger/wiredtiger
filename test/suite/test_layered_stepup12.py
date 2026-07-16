@@ -31,7 +31,7 @@
 #   Attempting to take a schema lock fires an assert when step-up or step-down is ongoing,
 #   aborting the process.
 #
-#   Eight scenarios cover drop, create, truncate, and verify against both transitions:
+#   Scenarios cover drop, create, truncate, and verify against both transitions:
 #     step_up   + drop/create/truncate/verify: schema op races follower->leader step-up
 #     step_down + drop/create/truncate/verify: schema op races leader->follower step-down
 #
@@ -40,7 +40,7 @@
 #
 #   FIXME-WT-17880: Remove this test once we have asynchronous step-up/step-down.
 
-import signal, threading, wiredtiger, wttest
+import signal, threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -82,6 +82,7 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             self.home,
             'statistics=(all)'
             + self.extensionsConfig()
+            + ',timing_stress_for_test=[disagg_role_transition]'
             + f',disaggregated=(role={self.start_role},drain_threads=2)')
 
         session = conn.open_session('')
@@ -99,7 +100,10 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             daemon=True)
         t.start()
 
-        # The assertion in WT_WITH_SCHEMA_LOCK must fire and abort the process.
+        # Wait for the role transition flag to be set internally.
+        time.sleep(1)
+
+        # The assertion in the schema lock must fire and abort the process.
         match self.op:
             case 'drop':
                 lw = 'true' if self.lock_wait else 'false'
@@ -123,6 +127,7 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
         rc, _ = self.run_subprocess_function(
             'SUBPROCESS',
             'test_layered_stepup12.test_layered_stepup12.subprocess_race',
-            silent=True)
+            silent=True,
+            scenario=self.scenario_name)
         self.assertEqual(rc, -signal.SIGABRT,
             f'expected process to abort (rc={-signal.SIGABRT}) but got rc={rc}')

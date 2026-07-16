@@ -184,7 +184,7 @@ class suite_subprocess:
     # Run a method as a subprocess using the run.py machinery.
     # Return the process exit status and the WiredTiger home
     # directory used by the subprocess.
-    def run_subprocess_function(self, directory, funcname, silent=False):
+    def run_subprocess_function(self, directory, funcname, silent=False, scenario=None):
         testparts = funcname.split('.')
         if len(testparts) != 3:
             raise ValueError('bad function name "' + funcname +
@@ -193,6 +193,10 @@ class suite_subprocess:
         runscript = os.path.join(topdir, 'test', 'suite', 'run.py')
         procargs = [ sys.executable, runscript, '-p', '--dir', directory,
             funcname]
+        # Restrict the subprocess to a single scenario so that each scenario is
+        # exercised (and asserted) independently.
+        if scenario is not None:
+            procargs[-1:-1] = [ '-s', str(scenario) ]
 
         returncode = -1
         os.makedirs(directory)
