@@ -183,6 +183,8 @@ class Node:
         self.asc_uri = asc_uri
         self.dsc_c = session.open_cursor(dsc_uri)
         self.asc_c = session.open_cursor(asc_uri)
+        # FIXME-WT-17838: Teach cursors to reopen in a different overwrite mode so this separate
+        # remove cursor pair is no longer needed.
         self.dsc_remove_c = session.open_cursor(dsc_uri, None, 'overwrite=false')
         self.asc_remove_c = session.open_cursor(asc_uri, None, 'overwrite=false')
 
