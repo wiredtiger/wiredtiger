@@ -31,11 +31,9 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# On a follower, insert/update/remove on a layered cursor skip the stable constituent when
-# overwrite=true (and no read timestamp is set). For insert/update this means the existing-record
-# check (WT_DUPLICATE_KEY / WT_NOTFOUND) can no longer see a record that lives only in stable; for
-# remove, overwrite=true asserts the key is already known to exist. The caller is responsible for
-# not relying on overwrite=true when that correctness matters.
+# On a follower, overwrite=true writes may avoid consulting the stable constituent when no read
+# timestamp is set. Callers must only use overwrite=true when they can guarantee that the operation
+# is valid without checking stable.
 @disagg_test_class
 class test_layered_cursor19(wttest.WiredTigerTestCase):
 

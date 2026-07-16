@@ -2201,6 +2201,9 @@ row_remove(TINFO *tinfo, bool positioned)
     cursor = tinfo->cursor;
 
     /*
+     * FIXME-WT-18042: Restore overwrite=true here once format can replay only leader-confirmed
+     * deletes on the follower.
+     *
      * An unpositioned overwrite=true remove on a disagg follower asserts the caller already knows
      * the key exists, so it never fails with WT_NOTFOUND -- correct only when the leader already
      * confirmed the key before replicating the delete. This thread issues fresh, random removes of
