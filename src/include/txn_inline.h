@@ -1994,11 +1994,10 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 
 /*
  * __wt_txn_stepdown_straddler_check --
- *     A "straddler" is a transaction that began before a planned step-down cutoff was armed and is
- *     still writing or committing afterwards; its writes can land on the wrong layered constituent
+ *     A "straddler" is a transaction that began before the step-down timestamp was set and is still
+ *     writing or committing afterwards; its writes can land on the wrong layered constituent
  *     (stable content that belongs in ingest), which cannot be moved. Mark such a transaction for
- *     rollback and return WT_ROLLBACK, otherwise return 0. The caller passes the armed step-down
- *     timestamp (WT_TS_NONE when none is armed).
+ *     rollback and return WT_ROLLBACK, otherwise return 0.
  */
 static WT_INLINE int
 __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session)
@@ -2007,14 +2006,15 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session)
     wt_timestamp_t stepdown_ts =
       __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
 
-    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) || txn->stepdown_ts_armed)
+    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) || txn->stepdown_ts_set)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
       "step-down straddler rollback: txn began before stepdown timestamp was set %" PRIu64,
       stepdown_ts);
-    WT_STAT_CONN_INCR(session, txn_rollback_step_down);
-    __wt_session_set_last_error(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
+    WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
+    __wt_session_set_last_error(
+      session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
     return (WT_ROLLBACK);
 }
 
@@ -2035,7 +2035,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
-    txn->stepdown_ts_armed = false;
+    txn->stepdown_ts_set = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -2071,14 +2071,15 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
     /*
-     * Record whether a planned step-down was already armed when this transaction started; the
-     * straddler check uses this to roll back write transactions that were in flight when the
-     * step-down was armed. Sample it after taking the snapshot: arming happens under the rwlock
-     * write lock, so if the snapshot can see any post-arm commit, this load is guaranteed to see
-     * the arm as well. Racing the arm itself is harmless: the transaction samples unarmed, counts
-     * as in-flight at the arm, and rolls back on its first write.
+     * Record whether the step-down timestamp was already set when this transaction started; the
+     * straddler check uses it to roll back write transactions that started before the timestamp was
+     * set. Read it after taking the snapshot: the timestamp is set under the txn_global rwlock
+     * write lock and the snapshot scan holds the read lock, so a snapshot that includes any commit
+     * made after the timestamp was set is guaranteed to read it as set here. If this read races the
+     * timestamp being set, it reads false, the transaction counts as in-flight, and it rolls back
+     * at its first write, which is the safe direction.
      */
-    txn->stepdown_ts_armed =
+    txn->stepdown_ts_set =
       __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
 
     F_SET(txn, WT_TXN_RUNNING);

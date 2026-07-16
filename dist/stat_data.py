@@ -979,7 +979,7 @@ conn_stats = [
     TxnStat('txn_rollback', 'transactions rolled back'),
     TxnStat('txn_rollback_oldest_id', 'oldest transaction ID rolled back for eviction'),
     TxnStat('txn_rollback_oldest_pinned', 'oldest pinned transaction ID rolled back for eviction'),
-    TxnStat('txn_rollback_step_down', 'transaction rolled back because they started before a planned step-down was armed'),
+    TxnStat('txn_rollback_stepdown', 'in-flight transactions rolled back because they started before the step-down timestamp was set'),
     TxnStat('txn_rollback_to_stable_running', 'transaction rollback to stable currently running', 'no_clear,no_scale'),
     TxnStat('txn_rts', 'rollback to stable calls'),
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),

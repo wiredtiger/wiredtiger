@@ -116,7 +116,7 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
         return (0);
 
     /*
-     * While a planned step-down is armed, the leader directs writes to ingest, so it is expected to
+     * While a step-down timestamp is set, the leader directs writes to ingest, so it is expected to
      * hold the post-cutoff content rather than be empty.
      */
     if (__wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)

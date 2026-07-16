@@ -1964,10 +1964,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
     /*
-     * Straddler guard: a write transaction that began before a planned step-down was armed must not
-     * commit once the cutoff is in effect. A straddler that wrote only before the arm does no
-     * further cursor operation for the write-time check to catch, so catch it here. Read-only
-     * transactions are unaffected.
+     * Straddler guard: a write transaction that started before the step-down timestamp was set must
+     * not commit after it is set. A straddler whose writes all happened before the timestamp was
+     * set never does another cursor operation for the write-time check to catch, so catch it here.
+     * Read-only transactions are unaffected.
      */
     if (txn->mod_count != 0)
         WT_ERR(__wt_txn_stepdown_straddler_check(session));

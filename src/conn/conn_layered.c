@@ -1155,11 +1155,11 @@ __disagg_step_down(WT_SESSION_IMPL *session)
         __wt_atomic_store_uint8_release(&shared_dsk_cache->state, WT_DSK_CACHE_ACTIVE);
 
     /*
-     * If a cutoff was armed, the step-down checkpoint must have landed exactly on it: stable
-     * advanced to the step-down timestamp so the checkpoint holds all content up to the cut-over
-     * and nothing newer. A mismatch means the boundary the checkpoint captured disagrees with the
-     * boundary writes were split on. Advancing stable to the cutoff is the server's responsibility,
-     * so treat a mismatch as a fatal protocol violation.
+     * If a step-down timestamp was set, the step-down checkpoint must have landed exactly on it:
+     * the application advances stable to the step-down timestamp so the checkpoint holds everything
+     * up to that point and nothing newer. A mismatch means the checkpoint captured a different
+     * boundary than the one writes were split on; advancing stable is the application's
+     * responsibility, so treat a mismatch as a fatal protocol violation.
      */
     step_down_ts = __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
     if (step_down_ts != WT_TS_NONE) {

@@ -225,12 +225,12 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_ITERATION 0x01u      /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x02u          /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_STEP_DOWN 0x04u      /* Role changed leader -> follower since last access. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x08u    /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_STEPDOWN_ARMED 0x10u /* A planned step-down is armed on a leader. */
-#define CLAYERED_ENTER_STEP_UP 0x20u        /* Role changed follower -> leader since last access. */
+#define CLAYERED_ENTER_ITERATION 0x01u    /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x02u        /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x04u  /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_STEPDOWN_SET 0x08u /* The step-down timestamp is set on the leader. */
+#define CLAYERED_ENTER_STEP_DOWN 0x10u    /* Role changed leader -> follower since last access. */
+#define CLAYERED_ENTER_STEP_UP 0x20u      /* Role changed follower -> leader since last access. */
 /* A role change in either direction since the cursor's last access. */
 #define CLAYERED_ENTER_ROLE_CHANGE (CLAYERED_ENTER_STEP_DOWN | CLAYERED_ENTER_STEP_UP)
 /*
@@ -263,11 +263,11 @@ __clayered_enter_flags(
           role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
 
     /*
-     * While a step-down is armed on the leader, the cursor behaves like a follower: it reads and
+     * While a step-down is set on the leader, the cursor behaves like a follower: it reads and
      * writes the ingest constituent over the still-live stable table.
      */
-    if (session->txn->stepdown_ts_armed)
-        LF_SET(CLAYERED_ENTER_STEPDOWN_ARMED);
+    if (session->txn->stepdown_ts_set)
+        LF_SET(CLAYERED_ENTER_STEPDOWN_SET);
 
     return (flags);
 }
@@ -283,7 +283,7 @@ __clayered_op_init(
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     op->clayered = clayered;
-    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_STEPDOWN_ARMED)) ?
+    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_STEPDOWN_SET)) ?
       clayered->ingest_cursor :
       NULL;
     /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
@@ -309,10 +309,9 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
         WT_RET(__wt_txn_stepdown_straddler_check(session));
 
     /*
-     * A positioned cursor may continue reading across a step-down: the demoted stable tree holds
-     * the same content as the step-down checkpoint, so a held read position stays valid. Writes
-     * re-route across the boundary and a step-up drains ingest out from under any held position, so
-     * both still require the cursor to be unpositioned.
+     * Reads may stay positioned across a planned step-down: the stable tree after the step-down
+     * matches the step-down checkpoint. A step-up drains ingest under the position, so both require
+     * an unpositioned cursor.
      */
     if (FLD_ISSET(flags, CLAYERED_ENTER_STEP_UP))
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
@@ -764,11 +763,12 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
 /*
  * __clayered_update_ingest --
  *     Manage the ingest cursor lifecycle. A follower opens it on first use and never reopens it
- *     during normal operation. A leader with a step-down armed also uses ingest (writes route there
- *     and reads consult it first), so it opens the cursor too. An unarmed leader keeps it closed:
- *     the ingest table is empty for reads and unused for writes, so an open ingest cursor only adds
- *     the per-operation cache/reopen and dhandle rwlock overhead. A step-up can leave behind an
- *     ingest cursor that is no longer wanted, so close it on the role or arm change.
+ *     during normal operation. A leader with a step-down timestamp set also uses ingest (writes
+ *     route there and reads consult it first), so it opens the cursor too. An unarmed leader keeps
+ *     it closed: the ingest table is empty for reads and unused for writes, so an open ingest
+ *     cursor only adds the per-operation cache/reopen and dhandle rwlock overhead. A step-up can
+ *     leave behind an ingest cursor that is no longer wanted, so close it on the role or arm
+ *     change.
  */
 static int
 __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
@@ -777,7 +777,7 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
     bool want_ingest;
 
     want_ingest =
-      role == WTI_CLAYERED_ROLE_FOLLOWER || FLD_ISSET(flags, CLAYERED_ENTER_STEPDOWN_ARMED);
+      role == WTI_CLAYERED_ROLE_FOLLOWER || FLD_ISSET(flags, CLAYERED_ENTER_STEPDOWN_SET);
 
     if (want_ingest) {
         if (clayered->ingest_cursor == NULL) {
@@ -2564,9 +2564,7 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 
     /*
      * A write routed to stable is covered by the stable cursor's own check; only a write routed to
-     * ingest can conflict with committed history in the other constituent. Keying on the op's
-     * routing decision rather than re-reading the global role keeps the probe consistent with where
-     * this operation's write actually goes.
+     * ingest can conflict with committed history in the other constituent.
      */
     if (op->ingest == NULL)
         return (0);
