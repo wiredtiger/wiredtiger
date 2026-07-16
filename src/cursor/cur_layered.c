@@ -272,7 +272,7 @@ __clayered_op_init(
 
     op->clayered = clayered;
     op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER) ? clayered->ingest_cursor : NULL;
-    op->stable = FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
+    op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
 }
