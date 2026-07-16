@@ -173,6 +173,8 @@ class Node:
         self.asc_uri = asc_uri
         self.dsc_c = session.open_cursor(dsc_uri)
         self.asc_c = session.open_cursor(asc_uri)
+        self.dsc_remove_c = session.open_cursor(dsc_uri, None, 'overwrite=false')
+        self.asc_remove_c = session.open_cursor(asc_uri, None, 'overwrite=false')
 
     def reset_all(self):
         self.dsc_c.reset()
@@ -181,6 +183,8 @@ class Node:
     def close(self):
         self.dsc_c.close()
         self.asc_c.close()
+        self.dsc_remove_c.close()
+        self.asc_remove_c.close()
 
 class State:
     # The model the generator reasons about, never the reference -- it only drives op generation.
@@ -349,6 +353,21 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                              % (label, ret_dsc, ret_asc, self.trace.path))
             if ret_dsc == wiredtiger.WT_NOTFOUND:
                 notfound = True
+        self._txn_scope(nodes, step)
+        return notfound
+
+    def _remove_txn(self, nodes, do, label):
+        notfound = False
+
+        def step(n):
+            nonlocal notfound
+            ret_dsc = do(n.dsc_remove_c)
+            ret_asc = do(n.asc_remove_c)
+            self.assertEqual(ret_dsc, ret_asc, '%s result differs layered=%r reference=%r (trace %s)'
+                             % (label, ret_dsc, ret_asc, self.trace.path))
+            if ret_dsc == wiredtiger.WT_NOTFOUND:
+                notfound = True
+
         self._txn_scope(nodes, step)
         return notfound
 
@@ -534,16 +553,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         self.state.cur_pos = None
 
     def op_remove(self, nodes, rnd, trace):
-        # A blind (unpositioned, overwrite=true, no read timestamp) remove on a follower now asserts
-        # the key is live, so only ever target a key the model confirms exists; removing an absent
-        # key is covered separately by the overwrite=false tests instead.
-        # TODO: Extend this stress workload with a separate overwrite=false cursor path so both
-        # remove contracts are exercised without reconfiguring a positioned cursor.
-        if not self.state.py_table:
-            return
-        key = rnd.choice(list(self.state.py_table))
+        # Unpositioned removes use overwrite=false so the stress model can exercise both existing
+        # and missing keys without violating the blind-remove caller contract.
+        key = self.pick_key(rnd, self.weights.search_key)
         trace.log('remove %r' % key)
-        self._write_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove')
+        self._remove_txn(nodes, lambda c: (c.set_key(key), c.remove())[-1], 'remove')
         self.state.py_table.pop(key, None)
         self.state.cur_pos = None
 
