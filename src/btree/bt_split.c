@@ -853,7 +853,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
         /* Reverse split removes a deleted/empty leaf, not a split replacement. */
-        if (new_entries == 0 && btree->type == BTREE_ROW)
+        if (new_entries == 0 && btree->type == BTREE_ROW &&
+          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
             __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
     for (i = 0; i < deleted_entries; ++i) {
@@ -861,7 +862,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
           session, next_ref, parent, &parent_decr, split_gen, exclusive));
-        if (btree->type == BTREE_ROW)
+        if (btree->type == BTREE_ROW &&
+          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
             __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
 
@@ -1516,7 +1518,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+    if (instantiate_upd && !__wt_btree_stays_in_memory(S2BT(session)) &&
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
@@ -1525,8 +1527,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
+     *
+     * A btree awaiting publication is reconciled in memory only, so the rebuilt page would
+     * otherwise be clean and hold its only copy in an in-memory image. Keep it dirty so the
+     * checkpoint that runs once the table is published rewrites it to shared storage.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
         WT_RET(__wt_page_modify_init(session, page));
         __wt_page_modify_set(session, page);
     }
@@ -2236,7 +2243,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
             WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
-        if (type == WT_PAGE_ROW_LEAF)
+        if (type == WT_PAGE_ROW_LEAF &&
+          __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) !=
+            WT_LEAF_STATS_UNKNOWN)
             (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, 1);
         return (0);
     }
@@ -2325,6 +2334,9 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
 
+    if (__wt_btree_is_stale_disagg(session))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
      * eviction, then proceed with the insert split.
@@ -2376,7 +2388,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
-    if (page->type == WT_PAGE_ROW_LEAF && new_entries > 1)
+    if (page->type == WT_PAGE_ROW_LEAF && new_entries > 1 &&
+      __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
         (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, new_entries - 1);
 
     /*
@@ -2448,11 +2461,14 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
-    /*
-     * Set the session split generation to ensure underlying code isn't surprised by internal page
-     * eviction, then proceed with the split.
-     */
-    WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
+    if (__wt_btree_is_stale_disagg(session))
+        ret = __wt_set_return(session, EBUSY);
+    else
+        /*
+         * Set the session split generation to ensure underlying code isn't surprised by internal
+         * page eviction, then proceed with the split.
+         */
+        WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
 
     if (ret == EBUSY)
         WT_STAT_CONN_DSRC_INCR(session, cache_evict_split_failed_lock);
@@ -2486,6 +2502,9 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
+
+    if (__wt_btree_is_stale_disagg(session))
+        return (__wt_set_return(session, EBUSY));
 
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
