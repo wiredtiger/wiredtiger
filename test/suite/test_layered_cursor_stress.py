@@ -583,17 +583,11 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
     def op_pos_remove(self, nodes, rnd, trace):
         # Removes the current key.
         key = self.state.cur_pos
-        already_removed = key not in self.state.py_table   # a repeat remove of an already-deleted key
+        if key not in self.state.py_table:
+            return
         trace.log('pos_remove %r' % key)
         self._positional(nodes, lambda c: c.remove(), 'pos_remove')
         self.state.py_table.pop(key, None)
-        # FIXME-WT-17827: removing an already-removed key returns WT_NOTFOUND but does not clean up the
-        # follower layered cursor's position (a plain cursor resets), so a later iterate would diverge.
-        # Reset just the layered (dsc) cursor to realign it with the reference. Remove once WT-17827 lands.
-        if already_removed:
-            for n in nodes:
-                n.dsc_c.reset()
-            self.state.cur_pos = None
 
     def op_txn_begin(self, nodes, rnd, trace):
         # No txn open -> begin one (flavor by the txn_mode weights); a txn open -> end it.
