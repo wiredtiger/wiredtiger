@@ -236,11 +236,11 @@ __wt_schema_simple_layered_source(WT_SESSION_IMPL *session, const char *uri, cha
 
     /* Layered tables must say so in their table metadata. */
     ret = __wt_config_getones(session, tableconf, "type", &cval);
-    WT_ERR_NOTFOUND_OK(ret, false);
-    if (ret == WT_NOTFOUND || !WT_CONFIG_LIT_MATCH("layered", cval)) {
+    if (ret == WT_NOTFOUND || (ret == 0 && !WT_CONFIG_LIT_MATCH("layered", cval))) {
         ret = WT_NOTFOUND;
         goto err;
     }
+    WT_ERR(ret);
 
     /* Same simplicity predicate as __wt_is_simple_table: no named columns. */
     WT_ERR(__wt_config_getones(session, tableconf, "columns", &colconf));
@@ -265,7 +265,8 @@ __wt_schema_simple_layered_source(WT_SESSION_IMPL *session, const char *uri, cha
     WT_ERR(__wt_metadata_search(session, cgname->data, &cgconf));
     WT_ERR(__wt_config_getones(session, cgconf, "source", &cval));
     /* The column-group source must be a layered: URI. */
-    if (cval.len <= strlen("layered:") || strncmp(cval.str, "layered:", strlen("layered:")) != 0) {
+    if (cval.len <= strlen("layered:") ||
+      strncmp(cval.str, "layered:", strlen("layered:")) != 0) {
         ret = WT_NOTFOUND;
         goto err;
     }
