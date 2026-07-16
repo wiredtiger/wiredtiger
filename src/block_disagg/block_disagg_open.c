@@ -187,7 +187,9 @@ __wt_block_disagg_ckpt_size(WT_SESSION_IMPL *session, const char *uri, uint64_t 
 
 /*
  * __block_disagg_ckpt_size_dhandle --
- *     Return the checkpoint size for the current dhandle.
+ *     Return the checkpoint size for the current dhandle. A follower's checkpoint dhandle name
+ *     keeps its checkpoint suffix, which is not a metadata key; strip it so the size lookup finds
+ *     the table's metadata entry instead of silently returning zero.
  */
 static int
 __block_disagg_ckpt_size_dhandle(WT_SESSION_IMPL *session, uint64_t *sizep)

@@ -435,9 +435,9 @@ retry:
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
         /*
-         * Non-walk stable stats are ~0 on a follower because its pages are not resident in the
-         * local cache, except block_size: read it from the checkpoint metadata directly, since the
-         * non-walk path never opens the stable dhandle to get it any other way.
+         * On a follower the stable's pages are not resident in the local cache, so its non-walk
+         * stats are ~0 - except the block size, which we read from the checkpoint metadata directly
+         * since this path never opens the stable table to obtain it.
          */
         if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
             uint64_t ckpt_size = 0;
