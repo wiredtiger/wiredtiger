@@ -157,11 +157,14 @@ connection_disaggregated_config_common = [
         choices=['leader', 'follower'], undoc=True),
     Config('strict_checkpoint_metadata', '', r'''
         validate at checkpoint pickup that the local and shared metadata contain the same
-        layered tables, treating any difference not explained by a pending metadata update
-        with a schema epoch greater than the checkpoint's as corruption, and panic. Requires
-        all table creates and drops to reach this node through replicated operations and
-        publish(); must be off for a clean-startup pickup. Preserved across calls to
-        reconfigure that do not name it''',
+        layered tables, panicking on any difference that is not explained by a pending
+        metadata update with a schema epoch greater than the checkpoint's. At startup the
+        mode must be off: the startup pickup populates an empty node from the checkpoint.
+        In steady state turn it on, provided table creates and drops reach this node through
+        replicated operations and publish() rather than through pickup. After a step-down,
+        turn it off until the unpublished tables left behind (step-down discards their
+        pending metadata updates) have been dropped. Preserved across calls to reconfigure
+        that do not name it''',
         choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [

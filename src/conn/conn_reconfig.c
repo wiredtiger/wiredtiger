@@ -498,13 +498,9 @@ done:
     /*
      * Third, merge everything together, creating a new connection state. Exclude any configuration
      * parameters that should not be preserved across calls to reconfigure.
-     * strict_checkpoint_metadata is excluded because its value is kept in connection state that
-     * already persists across reconfigure calls; if the merged configuration also carried it, a
-     * reconfigure failing after applying the setting would leave the two out of sync, and a later
-     * reconfigure would silently re-apply the stale merged value.
      */
-    WT_ERR(__wt_config_merge(session, cfg,
-      "disaggregated=(checkpoint_meta=,last_materialized_lsn=,strict_checkpoint_metadata=)", &p));
+    WT_ERR(__wt_config_merge(
+      session, cfg, "disaggregated=(checkpoint_meta=,last_materialized_lsn=)", &p));
     __wt_free(session, conn->cfg);
     conn->cfg = p;
 
