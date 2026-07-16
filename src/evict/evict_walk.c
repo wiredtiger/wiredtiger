@@ -420,8 +420,9 @@ retry:
             continue;
         }
 
-        /* Skip read-only btrees if we are not looking for clean pages. */
-        if (F_ISSET(btree, WT_BTREE_READONLY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        /* Skip read-only btrees if we are not looking for clean/updates pages. */
+        if (F_ISSET(btree, WT_BTREE_READONLY) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -509,7 +510,7 @@ retry:
          * walking them serves no purpose. Such pages are not eligible for clean eviction, making
          * the operation unnecessary.
          */
-        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+        if (__wt_btree_stays_in_memory(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -1168,7 +1169,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     evict_clean =
-      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !__wt_btree_stays_in_memory(btree) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
     should_evict_page = evict_clean || evict_dirty || evict_updates;
