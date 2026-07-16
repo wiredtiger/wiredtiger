@@ -2256,7 +2256,11 @@ col_remove(TINFO *tinfo, bool positioned)
 
     cursor = tinfo->cursor;
 
-    /* See row_remove for the rationale behind temporarily dropping overwrite here. */
+    /*
+     * FIXME-WT-18043: Restore overwrite=true here once format can replay only leader-confirmed
+     * deletes on the follower. See row_remove for the rationale behind temporarily dropping
+     * overwrite here.
+     */
     blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
     if (blind_remove)
         testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
