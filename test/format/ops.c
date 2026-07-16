@@ -2201,7 +2201,7 @@ row_remove(TINFO *tinfo, bool positioned)
     cursor = tinfo->cursor;
 
     /*
-     * FIXME-WT-18042: Restore overwrite=true here once format can replay only leader-confirmed
+     * FIXME-WT-18043: Restore overwrite=true here once format can replay only leader-confirmed
      * deletes on the follower.
      *
      * An unpositioned overwrite=true remove on a disagg follower asserts the caller already knows
