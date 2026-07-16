@@ -141,4 +141,4 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
                 f'expected process to abort (rc={-signal.SIGABRT}) but got rc={rc}')
         else:
             self.assertGreaterEqual(rc, 0,
-                f'expected no abort (rc=0) but process was killed by signal (rc={rc})')
+                f'expected no abort but process was killed by signal (rc={rc})')
