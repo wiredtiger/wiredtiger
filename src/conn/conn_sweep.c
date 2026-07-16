@@ -41,6 +41,13 @@ __sweep_file_dhandle_check_and_reset_tod(WT_SESSION_IMPL *session, WT_DATA_HANDL
      */
     table = (WT_TABLE *)dhandle;
     if (table->is_simple && table->cg_complete) {
+        /*
+         * Layered sources are never swept. Pinning the table dhandle to them would retain the table
+         * handle for the life of the connection; allow those table handles to expire instead.
+         */
+        if (WT_PREFIX_MATCH(table->cgroups[0]->source, "layered:"))
+            return (WT_ERROR_LOG_ADD(WT_NOTFOUND));
+
         ret = __wt_conn_dhandle_find(session, table->cgroups[0]->source, NULL);
 
         /*

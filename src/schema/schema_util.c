@@ -210,6 +210,76 @@ __wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is
 }
 
 /*
+ * __wt_schema_simple_layered_source --
+ *     Metadata-only probe: if uri is a simple table: with type=layered, copy its underlying layered
+ *     URI. Returns WT_NOTFOUND when the table is missing or not a simple layered table so callers
+ *     can fall back to the normal table-dhandle path.
+ */
+int
+__wt_schema_simple_layered_source(WT_SESSION_IMPL *session, const char *uri, char **sourcep)
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ckey, colconf, cval;
+    WT_DECL_ITEM(cgname);
+    WT_DECL_RET;
+    char *cgconf, *tableconf;
+    const char *tablename;
+    bool is_simple;
+
+    *sourcep = NULL;
+    cgconf = tableconf = NULL;
+
+    if (!WT_PREFIX_MATCH(uri, "table:"))
+        return (WT_NOTFOUND);
+
+    WT_RET(__wt_metadata_search(session, uri, &tableconf));
+
+    /* Layered tables must say so in their table metadata. */
+    ret = __wt_config_getones(session, tableconf, "type", &cval);
+    WT_ERR_NOTFOUND_OK(ret, false);
+    if (ret == WT_NOTFOUND || !WT_CONFIG_LIT_MATCH("layered", cval)) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    /* Same simplicity predicate as __wt_is_simple_table: no named columns. */
+    WT_ERR(__wt_config_getones(session, tableconf, "columns", &colconf));
+    WT_ERR(__wt_is_simple_table(session, &colconf, &is_simple));
+    if (!is_simple) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    /* Named column groups are not simple; refuse those here. */
+    WT_ERR(__wt_config_getones(session, tableconf, "colgroups", &colconf));
+    __wt_config_subinit(session, &cparser, &colconf);
+    if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    tablename = uri + strlen("table:");
+    WT_ERR(__wt_scr_alloc(session, 0, &cgname));
+    WT_ERR(__wt_buf_fmt(session, cgname, "colgroup:%s", tablename));
+    WT_ERR(__wt_metadata_search(session, cgname->data, &cgconf));
+    WT_ERR(__wt_config_getones(session, cgconf, "source", &cval));
+    /* The column-group source must be a layered: URI. */
+    if (cval.len <= strlen("layered:") || strncmp(cval.str, "layered:", strlen("layered:")) != 0) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, sourcep));
+
+err:
+    __wt_scr_free(session, &cgname);
+    __wt_free(session, cgconf);
+    __wt_free(session, tableconf);
+    return (ret);
+}
+
+/*
  * __wti_debug_crash_if_flag_set --
  *     Crash during schema operations for debugging purposes.
  */

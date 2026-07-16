@@ -1004,6 +1004,30 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
     columns = strchr(tablename, '(');
+
+    /*
+     * Simple layered tables: open the layered source from metadata without taking a table dhandle.
+     * Layered dhandles are never swept, so holding a table dhandle pinned to them would retain the
+     * table handle for the life of the connection.
+     */
+    if (columns == NULL) {
+        char *layered_source;
+
+        layered_source = NULL;
+        ret = __wt_schema_simple_layered_source(session, uri, &layered_source);
+        if (ret == 0) {
+            ret = __wt_open_cursor(session, layered_source, owner, cfg, cursorp);
+            __wt_free(session, layered_source);
+            if (ret == 0) {
+                cursor = *cursorp;
+                __wt_free(session, cursor->uri);
+                WT_TRET(__wt_strdup(session, uri, &cursor->uri));
+            }
+            return (ret);
+        }
+        WT_RET_NOTFOUND_OK(ret);
+    }
+
     if (columns == NULL)
         WT_RET(__wt_schema_get_table_uri(session, uri, false, 0, &table));
     else {
