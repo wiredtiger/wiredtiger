@@ -2712,7 +2712,6 @@ VerifyOperationInternal::parse_config(const std::string &config)
      * Recognise two structured sub-configs in the op config string:
      *   session=(...) -> passed to open_session()
      *   verify=(...)  -> passed to session->verify()
-     * A bare config with neither key is treated as an open_session config.
      */
 
     if (config.empty())
@@ -2720,7 +2719,6 @@ VerifyOperationInternal::parse_config(const std::string &config)
 
     WT_CONFIG_PARSER *cp = nullptr;
     WT_CONFIG_ITEM k, v;
-    bool split = false;
 
     if (wiredtiger_config_parser_open(nullptr, config.c_str(), config.length(), &cp) == 0) {
         while (cp->next(cp, &k, &v) == 0) {
@@ -2728,16 +2726,12 @@ VerifyOperationInternal::parse_config(const std::string &config)
             std::string val(v.str, v.len);
             if (key == "session") {
                 verify_session_config = val;
-                split = true;
             } else if (key == "verify") {
                 verify_call_config = val;
-                split = true;
             }
         }
         cp->close(cp);
     }
-    if (!split)
-        verify_session_config = config;
 }
 
 Track::Track(bool latency_tracking)
