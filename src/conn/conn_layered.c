@@ -988,6 +988,7 @@ err:
 static int
 __disagg_step_up(WT_SESSION_IMPL *session)
 {
+    struct timespec tsp;
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session = NULL;
     uint64_t now;
@@ -1011,8 +1012,9 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
 
-    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION))
-        __wt_sleep(1, 0);
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
@@ -1120,6 +1122,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static int
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
+    struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
 
@@ -1130,8 +1133,9 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
 
-    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION))
-        __wt_sleep(1, 0);
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
