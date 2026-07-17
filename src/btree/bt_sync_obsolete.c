@@ -623,7 +623,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
             addr_size = value.len;
         WT_RET_NOTFOUND_OK(ret);
         /*
-         * Backward compatibility: pre-WT-13076 metadata uses newest_start_durable_ts and
+         * Backward compatibility: legacy metadata uses newest_start_durable_ts and
          * newest_stop_durable_ts. New metadata also writes these fields, both set to the new
          * newest_durable_ts as a safe over-estimate. We merge them into newest_durable_ts (not
          * newest_page_stop_durable_ts) because the old newest_stop_durable_ts tracked the max
