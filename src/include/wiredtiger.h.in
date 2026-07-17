@@ -5969,9 +5969,9 @@ struct __wt_page_log_put_args {
        uint64_t backlink_lsn;
        /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
        uint64_t base_lsn;
-       /* Checkpoint-id counterpart of backlink_lsn (reserved, not yet persisted). */
+       /* Deprecated checkpoint-id counterpart of backlink_lsn; no longer used, always 0. */
        uint64_t backlink_checkpoint_id;
-       /* Checkpoint-id counterpart of base_lsn (reserved, not yet persisted). */
+       /* Deprecated checkpoint-id counterpart of base_lsn; no longer used, always 0. */
        uint64_t base_checkpoint_id;
        /* Size in bytes of the page image being written. */
        size_t image_size;
@@ -6015,9 +6015,9 @@ struct __wt_page_log_get_args {
        uint64_t backlink_lsn;
        /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
        uint64_t base_lsn;
-       /* Checkpoint-id counterpart of backlink_lsn (reserved, not yet persisted). */
+       /* Deprecated checkpoint-id counterpart of backlink_lsn; no longer used, always 0. */
        uint64_t backlink_checkpoint_id;
-       /* Checkpoint-id counterpart of base_lsn (reserved, not yet persisted). */
+       /* Deprecated checkpoint-id counterpart of base_lsn; no longer used, always 0. */
        uint64_t base_checkpoint_id;
 
        /*
@@ -6041,9 +6041,9 @@ struct __wt_page_log_discard_args {
        uint64_t backlink_lsn;
        /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
        uint64_t base_lsn;
-       /* Checkpoint-id counterpart of backlink_lsn (reserved, not yet persisted). */
+       /* Deprecated checkpoint-id counterpart of backlink_lsn; no longer used, always 0. */
        uint64_t backlink_checkpoint_id;
-       /* Checkpoint-id counterpart of base_lsn (reserved, not yet persisted). */
+       /* Deprecated checkpoint-id counterpart of base_lsn; no longer used, always 0. */
        uint64_t base_checkpoint_id;
 
        /* Not used for now. */
