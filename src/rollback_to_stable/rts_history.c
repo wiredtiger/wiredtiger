@@ -152,6 +152,18 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
         if (ret == 0)
             newest_page_stop_durable_ts =
               WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)durableval.val);
+        else if (ret == WT_NOTFOUND) {
+            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
+            if (ret == 0)
+                newest_page_stop_durable_ts =
+                  WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)durableval.val);
+            else if (ret == WT_NOTFOUND) {
+                ret = __wt_config_subgets(session, &cval, "stop_durable_ts", &durableval);
+                if (ret == 0)
+                    newest_page_stop_durable_ts =
+                      WT_MAX(newest_page_stop_durable_ts, (wt_timestamp_t)durableval.val);
+            }
+        }
         WT_ERR_NOTFOUND_OK(ret, false);
         ret = __wt_config_subgets(session, &cval, "newest_stop_ts", &durableval);
         if (ret == 0)
