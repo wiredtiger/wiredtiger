@@ -3189,7 +3189,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * in memory. If the page is subsequently modified, that is OK, we'll just reconcile it
          * again.
          */
-        mod->rec_result = WT_PM_REC_EMPTY;
+        WT_RELEASE_WRITE_WITH_BARRIER(mod->rec_result, (uint8_t)WT_PM_REC_EMPTY);
         break;
     case 1: /* 1-for-1 page swap */
         /*
@@ -3251,7 +3251,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
-        mod->rec_result = WT_PM_REC_REPLACE;
+        WT_RELEASE_WRITE_WITH_BARRIER(mod->rec_result, (uint8_t)WT_PM_REC_REPLACE);
         break;
     default: /* Page split */
         if (WT_PAGE_IS_INTERNAL(page))
@@ -3266,7 +3266,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 split:
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
-        mod->rec_result = WT_PM_REC_MULTIBLOCK;
+        /*
+         * Publish the result type last, with a release barrier: the union members backing it (the
+         * replacement-block array and its count) must be visible before a lock-free reader that
+         * keys off the result acts on them. The page discard path reads the result without the page
+         * lock; observing a multiblock split without the matching block array would orphan it.
+         */
+        WT_RELEASE_WRITE_WITH_BARRIER(mod->rec_result, (uint8_t)WT_PM_REC_MULTIBLOCK);
 
         r->multi = NULL;
         r->multi_next = 0;
