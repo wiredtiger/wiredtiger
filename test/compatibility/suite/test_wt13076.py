@@ -27,6 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import compatibility_test
+import os
+import subprocess
 import wiredtiger
 from wtscenario import make_scenarios
 
@@ -92,6 +94,10 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
         session.close()
         conn.close()
 
+    def _verify_file(self, branch):
+        wt = os.path.join(self.branch_build_path(branch.name), 'wt')
+        subprocess.run([wt, 'verify', self.uri], check=True)
+
     def _mutate_pages(self, round_number):
         conn = wiredtiger.wiredtiger_open('.', 'statistics=(all)')
         session = conn.open_session()
@@ -135,17 +141,23 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
 
     def on_older_branch_verify_and_mutate(self):
         self._verify_pages(1)
+        self._verify_file(self.older_branch)
         self._mutate_pages(1)
+        self._verify_file(self.older_branch)
 
     def on_newer_branch_verify_and_mutate(self):
         self._verify_pages(0)
+        self._verify_file(self.newer_branch)
         self._mutate_pages(0)
+        self._verify_file(self.newer_branch)
 
     def on_newer_branch_final_verify(self):
         self._verify_pages(2)
+        self._verify_file(self.newer_branch)
 
     def on_older_branch_final_verify(self):
         self._verify_pages(2)
+        self._verify_file(self.older_branch)
 
 
 if __name__ == '__main__':
