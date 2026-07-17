@@ -193,7 +193,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /* Pair with the release store of the reconciliation result in the reconcile wrapup */
     uint8_t rec_result;
-    WT_ACQUIRE_READ_WITH_BARRIER(rec_result, mod->rec_result);
+    rec_result = __wt_atomic_load_uint8_acquire(&mod->rec_result);
 
     switch (rec_result) {
     case WT_PM_REC_MULTIBLOCK:
