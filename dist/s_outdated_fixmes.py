@@ -74,7 +74,7 @@ def find_fixme_tickets():
     return fixme_tickets
 
 
-def query_jira_ticket(ticket):
+def query_jira_ticket(ticket, token):
     """Query Jira for a ticket's resolution and resolution date."""
 
     url = (
@@ -82,8 +82,11 @@ def query_jira_ticket(ticket):
         f"?fields=resolution,resolutiondate"
     )
 
+    headers = {"Authorization": f"Bearer {token}"}
+    request = urllib.request.Request(url, headers=headers)
+
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=10) as response:
             fields = json.loads(response.read()).get("fields", {})
     except (urllib.error.URLError, json.JSONDecodeError):
         fields = {}
@@ -121,14 +124,13 @@ def label_ticket(ticket, token):
         {"update": {"labels": [{"add": "outdated-fixme"}]}}
     ).encode()
 
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
     request = urllib.request.Request(
-        url,
-        data=body,
-        method="PUT",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
+        url, data=body, method="PUT", headers=headers
     )
 
     urllib.request.urlopen(request, timeout=10).close()
@@ -149,16 +151,14 @@ def parse_args():
 
 
 def get_jira_token():
-    """
-    Return the Jira token required for --label-outdated, or exit if it's unset.
-    """
+    """Return the Jira token, or exit if it's unset."""
 
     token_name = "JIRA_API_TOKEN"
     token = os.environ.get(token_name)
 
     if not token:
         sys.exit(
-            f"--label-outdated requires the {token_name} environment variable to be set."
+            f"This script requires the {token_name} environment variable to be set."
         )
 
     return token
@@ -170,11 +170,11 @@ def main():
     tickets are closed, report them all and return an error code.
     """
     args = parse_args()
-    token = get_jira_token() if args.label_outdated else None
+    token = get_jira_token()
 
     closed_ticket_found = False
     for ticket, file in sorted(find_fixme_tickets()):
-        query_result = query_jira_ticket(ticket)
+        query_result = query_jira_ticket(ticket, token)
         if is_outdated(*query_result):
             print(f"{ticket} is a closed ticket that has a FIXME comment in {file}.")
             closed_ticket_found = True
