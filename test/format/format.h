@@ -523,6 +523,7 @@ void snap_init(TINFO *);
 void snap_op_init(TINFO *, wt_timestamp_t, bool);
 void snap_repeat_stable(WT_SESSION *, TINFO **, size_t);
 void snap_repeat_single(TINFO *);
+wt_timestamp_t snap_repeat_ts_span(void);
 int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_teardown(TINFO *);
