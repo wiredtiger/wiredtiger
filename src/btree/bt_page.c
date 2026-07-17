@@ -529,6 +529,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     WT_RET(__wt_calloc_def(session, delta_size, &delta_state));
     for (size_t i = 0; i < delta_size; ++i) {
         WT_PAGE_HEADER *dhdr = (WT_PAGE_HEADER *)deltas[i].data;
+        delta_state[i].dsk = dhdr;
         delta_state[i].cell = WT_PAGE_HEADER_BYTE(btree, dhdr);
         delta_state[i].entries = dhdr->u.entries;
         delta_state[i].unpacked = false;
