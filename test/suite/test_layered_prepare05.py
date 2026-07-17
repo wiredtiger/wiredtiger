@@ -204,9 +204,10 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         # from memory, so the prepare rollback appends a fresh tail tombstone with no durable flag
         # set; that tombstone gets re-saved and causes one extra write here.
         #
-        # Precise-checkpoint scrub can re-instantiate an unevicted page from its retained disk image,
-        # dropping the in-memory tombstone the same way eviction does. On a full-image (non-delta)
-        # table that produces the same one-off rewrite even when the page was not explicitly evicted.
+        # Precise-checkpoint scrub can re-instantiate a page still in cache from its retained disk
+        # image, dropping the in-memory tombstone the same way eviction does. On a full-image
+        # (non-delta) table that produces the same one-off rewrite even when the page was not
+        # explicitly evicted.
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
             stat: self.evict or not self.delta,
