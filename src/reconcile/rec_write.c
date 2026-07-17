@@ -70,7 +70,7 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
 
     /*
      * In-memory reconciliation never writes the block to disk, so the retained image is the page's
-     * only copy and must always be saved. The skip optimisations below apply only when the block is
+     * only copy and must always be saved. The skip optimizations below apply only when the block is
      * written, where block_cookie provides the fallback copy for split-multi.
      */
     if (F_ISSET(r, WT_REC_IN_MEMORY))
