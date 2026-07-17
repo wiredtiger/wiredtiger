@@ -874,6 +874,53 @@ __rec_row_garbage_collect_tw_eligible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
 
 #ifdef HAVE_DIAGNOSTIC
 /*
+ * __rec_gc_verify_open_cursor --
+ *     Open a raw cursor on the stable table's latest checkpoint, as the layered cursor does, for GC
+ *     verification.
+ */
+static int
+__rec_gc_verify_open_cursor(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *stable_cursor;
+    WT_DECL_ITEM(ckpt_uri);
+    WT_DECL_RET;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    char *stable_uri;
+    const char *checkpoint_name;
+    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
+
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+    stable_cursor = NULL;
+    stable_uri = NULL;
+    checkpoint_name = NULL;
+
+    __wt_spin_lock(session, &manager->layered_table_lock);
+    entry = manager->init && S2BT(session)->id < manager->open_layered_table_count ?
+      manager->entries[S2BT(session)->id] :
+      NULL;
+    ret = entry == NULL ? WT_NOTFOUND : __wt_strdup(session, entry->stable_uri, &stable_uri);
+    __wt_spin_unlock(session, &manager->layered_table_lock);
+    WT_ERR(ret);
+
+    WT_ERR(__wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL));
+    WT_ERR(__wt_scr_alloc(session, 0, &ckpt_uri));
+    WT_ERR(__wt_buf_fmt(session, ckpt_uri, "%s/%s", stable_uri, checkpoint_name));
+    WT_ERR(__wt_open_cursor(
+      session, (const char *)ckpt_uri->data, NULL, open_cursor_cfg, &stable_cursor));
+    F_SET(stable_cursor, WT_CURSTD_RAW);
+    r->gc_verify_cursor = stable_cursor;
+
+err:
+    __wt_free(session, stable_uri);
+    __wt_free(session, checkpoint_name);
+    __wt_scr_free(session, &ckpt_uri);
+    return (ret);
+}
+
+/*
  * __rec_gc_verify --
  *     Verify the newest state garbage collection is pruning for a key against the stable table's
  *     latest checkpoint: a pruned data value must be present (and byte-equal when the expected
@@ -888,21 +935,19 @@ __rec_gc_verify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key,
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *stable_cursor;
     WT_DATA_HANDLE *saved_dhandle;
-    WT_DECL_ITEM(ckpt_uri);
     WT_DECL_RET;
     WT_ITEM stable_value;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     wt_timestamp_t ckpt_ts, ts_c;
-    char *stable_uri;
-    const char *checkpoint_name;
-    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
     bool ignore_cache_size;
+    /*
+     * Defer the counter bump to the single exit: opening and searching the stable cursor clobbers
+     * the session's data handle, so incrementing before the handle is restored would record the
+     * statistic against the stable table rather than the ingest table being reconciled.
+     */
+    enum { GC_VERIFY_SKIP_GATE, GC_VERIFY_SKIP_OTHER, GC_VERIFY_PASSED } verify_case =
+      GC_VERIFY_SKIP_OTHER;
 
     conn = S2C(session);
-    manager = &conn->layered_table_manager;
-    stable_uri = NULL;
-    checkpoint_name = NULL;
 
     /*
      * The stable cursor's open/search/reset leave the session's data handle pointing at the stable
@@ -932,32 +977,9 @@ __rec_gc_verify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key,
         __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp))
         goto skip_gate;
 
-    if (r->gc_verify_cursor == NULL) {
-        __wt_spin_lock(session, &manager->layered_table_lock);
-        entry = manager->init && S2BT(session)->id < manager->open_layered_table_count ?
-          manager->entries[S2BT(session)->id] :
-          NULL;
-        ret = entry == NULL ? WT_NOTFOUND : __wt_strdup(session, entry->stable_uri, &stable_uri);
-        __wt_spin_unlock(session, &manager->layered_table_lock);
-
-        /* Open the stable table's latest checkpoint by name, as the layered cursor does. */
-        if (ret == 0)
-            ret = __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL);
-        if (ret == 0)
-            ret = __wt_scr_alloc(session, 0, &ckpt_uri);
-        if (ret == 0)
-            ret = __wt_buf_fmt(session, ckpt_uri, "%s/%s", stable_uri, checkpoint_name);
-        if (ret == 0)
-            ret = __wt_open_cursor(
-              session, (const char *)ckpt_uri->data, NULL, open_cursor_cfg, &r->gc_verify_cursor);
-        __wt_free(session, stable_uri);
-        __wt_free(session, checkpoint_name);
-        __wt_scr_free(session, &ckpt_uri);
-        if (ret != 0) {
-            r->gc_verify_open_failed = true;
-            goto skip_other;
-        }
-        F_SET(r->gc_verify_cursor, WT_CURSTD_RAW);
+    if (r->gc_verify_cursor == NULL && (ret = __rec_gc_verify_open_cursor(session, r)) != 0) {
+        r->gc_verify_open_failed = true;
+        goto skip_other;
     }
     stable_cursor = r->gc_verify_cursor;
 
@@ -990,8 +1012,7 @@ __rec_gc_verify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key,
           "(prune_timestamp=%" PRIu64 ", checkpoint_timestamp=%" PRIu64 ")",
           r->rec_prune_timestamp, ts_c);
         WT_IGNORE_RET(stable_cursor->reset(stable_cursor));
-        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_passed);
-        ret = 0;
+        verify_case = GC_VERIFY_PASSED;
         goto done;
     }
 
@@ -1001,10 +1022,10 @@ __rec_gc_verify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key,
       r->rec_prune_timestamp, ts_c);
 
     /* The raw value references the cursor's page; use it before the reset releases the page. */
-    ret = __wt_cursor_get_raw_value(stable_cursor, &stable_value);
-    if (ret != 0) {
-        WT_TRET(stable_cursor->reset(stable_cursor));
-        goto done;
+    if ((ret = __wt_cursor_get_raw_value(stable_cursor, &stable_value)) != 0) {
+        /* A failure reading the stable value is benign; the verify must never disrupt reconcile. */
+        WT_IGNORE_RET(stable_cursor->reset(stable_cursor));
+        goto skip_other;
     }
 
     /* Legacy unescaped stable data can collide with the sentinel namespace; don't judge it. */
@@ -1023,22 +1044,32 @@ __rec_gc_verify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key,
           ")",
           expected_value->size, stable_value.size, r->rec_prune_timestamp);
 
-    ret = stable_cursor->reset(stable_cursor);
-    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_passed);
+    WT_IGNORE_RET(stable_cursor->reset(stable_cursor));
+    verify_case = GC_VERIFY_PASSED;
     goto done;
 
 skip_gate:
-    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_gate);
-    ret = 0;
+    verify_case = GC_VERIFY_SKIP_GATE;
     goto done;
 
 skip_other:
-    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_other);
-    ret = 0;
+    verify_case = GC_VERIFY_SKIP_OTHER;
 
 done:
+    /* Restore the reconciled tree's handle before counting so the statistic lands on it. */
     session->dhandle = saved_dhandle;
-    return (ret);
+    switch (verify_case) {
+    case GC_VERIFY_PASSED:
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_passed);
+        break;
+    case GC_VERIFY_SKIP_GATE:
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_gate);
+        break;
+    case GC_VERIFY_SKIP_OTHER:
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_gc_verify_skipped_other);
+        break;
+    }
+    return (0);
 }
 
 /*
