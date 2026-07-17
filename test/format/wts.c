@@ -403,8 +403,9 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 static void
 configure_prefetch(char **p, size_t max)
 {
-    CONFIG_APPEND(*p, ",prefetch=(available=%s,default=%s)", GV(PREFETCH) ? "true" : "false",
-      GV(PREFETCH_DEFAULT) ? "true" : "false");
+    if (GV(PREFETCH))
+        CONFIG_APPEND(
+          *p, ",prefetch=(available=true,default=%s)", GV(PREFETCH_DEFAULT) ? "true" : "false");
 }
 
 /*
@@ -589,6 +590,10 @@ create_database(const char *home, WT_CONNECTION **connp)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+
+    /* Leader: seed an initial key before the create-time close checkpoint. */
+    if (g.disagg_leader)
+        disagg_key_push_initial(conn);
 
     *connp = conn;
 }

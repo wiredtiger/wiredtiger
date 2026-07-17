@@ -21,6 +21,8 @@ static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *
 static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
+static int __rec_wrapup_decrease_disagg_size(
+  WT_SESSION_IMPL *, WTI_RECONCILE *, const uint8_t *, size_t);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
@@ -1011,9 +1013,9 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
             (checkpoint && addr == NULL && addr_sizep == NULL),
           "Incorrect arguments passed to rec_write for a checkpoint call");
 
-        /* In-memory btrees shouldn't write pages. */
-        WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY),
-          "Attempted to write page to disk when the btree is configured to be in-memory");
+        /* In-memory btrees, and btrees awaiting publication, shouldn't write pages. */
+        WT_ASSERT_ALWAYS(session, !__wt_btree_stays_in_memory(btree),
+          "Attempted to write page to disk when the btree must be kept in memory");
 
         /*
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
@@ -1297,8 +1299,8 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * checkpoint, before writing the checkpoint. In short, we don't do checkpoint writes here;
      * clear the boundary information as a reminder and create the checkpoint during wrapup.
      */
-    return (
-      !F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) && __wt_ref_is_root(r->ref));
+    return (!F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) && !__wt_btree_stays_in_memory(btree) &&
+      __wt_ref_is_root(r->ref));
 }
 
 /*
@@ -2929,6 +2931,42 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 }
 
 /*
+ * __rec_wrapup_decrease_disagg_size --
+ *     A newly written full page image terminates the on-disk delta chain, so the prior chain's
+ *     cumulative size must stop counting toward the tree's byte total. Decrease the size when this
+ *     reconciliation wrote a single full image and did not skip the write. Callers gate on their
+ *     own page id conditions before establishing there is a chain to obsolete. When a replacement
+ *     cookie is supplied it records the size being obsoleted; diagnostic builds check they agree.
+ */
+static int
+__rec_wrapup_decrease_disagg_size(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, const uint8_t *cookie, size_t cookie_size)
+{
+    WT_PAGE *page;
+
+    page = r->page;
+
+    /* Only a full page image (no deltas) that was actually written terminates the chain. */
+    if (F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) || r->multi->block_meta->delta_count != 0)
+        return (0);
+
+#ifdef HAVE_DIAGNOSTIC
+    if (cookie != NULL) {
+        WT_BLOCK_DISAGG_ADDRESS_COOKIE unpacked;
+
+        WT_RET(__wt_block_disagg_addr_unpack(session, &cookie, cookie_size, &unpacked));
+        WT_ASSERT(session, unpacked.size == page->disagg_info->block_meta.cumulative_size);
+    }
+#else
+    WT_UNUSED(cookie);
+    WT_UNUSED(cookie_size);
+#endif
+
+    __wt_block_disagg_decrease_size(session, page->disagg_info->block_meta.cumulative_size);
+    return (0);
+}
+
+/*
  * __rec_write_wrapup --
  *     Finish the reconciliation.
  */
@@ -3019,14 +3057,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         }
 
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
-        /*
-         * Update the tree size accounting if we don't free the page id and we terminate the delta
-         * chain.
-         */
-        if (disagg_page_is_valid && !disagg_page_free_required &&
-          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
-            __wt_block_disagg_obsolete_delta_chain(
-              session, ref->page->disagg_info->block_meta.cumulative_size);
+        /* Update the size accounting if we keep the page id and terminate the delta chain. */
+        if (disagg_page_is_valid && !disagg_page_free_required)
+            WT_RET(__rec_wrapup_decrease_disagg_size(session, r, NULL, 0));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3071,11 +3104,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                          * Update the tree size accounting if we don't free the page id and we
                          * terminate the delta chain.
                          */
-                        if (disagg_page_is_valid && !disagg_page_free_required &&
-                          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
-                          r->multi->block_meta->delta_count == 0)
-                            __wt_block_disagg_obsolete_delta_chain(
-                              session, ref->page->disagg_info->block_meta.cumulative_size);
+                        if (disagg_page_is_valid && !disagg_page_free_required)
+                            WT_RET(__rec_wrapup_decrease_disagg_size(session, r, NULL, 0));
                     }
                 }
             } else {
@@ -3100,26 +3130,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                      * the one held on page->disagg_info appears to be from the previous block, and
                      * the one on the multi->block_meta appears to be from the current block.
                      */
-                    if (r->multi_next == 1 && r->multi->block_meta != NULL &&
-                      r->multi->block_meta->delta_count == 0 &&
-                      !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
-
-#ifdef HAVE_DIAGNOSTIC
-                        /*
-                         * The previous cookie has the size we want but it should be also the
-                         * previous cumulative size. Sanity check this is the case in diagnostics
-                         * build.
-                         */
-                        WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-                        const uint8_t *buf = mod->mod_replace.block_cookie;
-                        WT_RET(__wt_block_disagg_addr_unpack(
-                          session, &buf, mod->mod_replace.block_cookie_size, &cookie));
-                        WT_ASSERT(
-                          session, cookie.size == page->disagg_info->block_meta.cumulative_size);
-#endif
-                        __wt_block_disagg_obsolete_delta_chain(
-                          session, page->disagg_info->block_meta.cumulative_size);
-                    }
+                    if (r->multi_next == 1 && r->multi->block_meta != NULL)
+                        WT_RET(__rec_wrapup_decrease_disagg_size(session, r,
+                          mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 }
             }
         }
@@ -3375,8 +3388,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         if (r->multi->block_meta->delta_count == 0 &&
           page->disagg_info->block_meta.cumulative_size > 0)
-            __wt_block_disagg_obsolete_delta_chain(
-              session, page->disagg_info->block_meta.cumulative_size);
+            __wt_block_disagg_decrease_size(session, page->disagg_info->block_meta.cumulative_size);
         /*
          * The page's on-disk chain has now been removed from the running byte total -- by the
          * obsolete above for a failed full image, or by the failed block's discard (whose cookie
