@@ -461,10 +461,12 @@ __checkpoint_cleanup_page_skip(
         *skipp = true;
     else if (addr.ta.newest_page_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
-        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
-          !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
-        if (!*skipp)
+        if (F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) &&
+          F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
+            *skipp = false;
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
+        } else
+            *skipp = true;
     }
 
     /*
