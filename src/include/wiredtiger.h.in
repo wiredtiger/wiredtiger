@@ -2760,13 +2760,14 @@ struct __wt_connection {
      * specified timestamp in tables configured with \c "log=(enabled=false)". Values must be
      * monotonically increasing.  The value must not be older than the current oldest timestamp.
      * See @ref timestamp_global_api., a string; default empty.}
-     * @config{step_down_timestamp, the timestamp to prepare for a planned step-down in
+     * @config{step_down_timestamp, the timestamp that prepares for a planned step-down in
      * disaggregated storage.  Setting it must be serialized with timestamp assignment (under the
-     * application's timestamp mutex). Once set\, writes committing after it are kept locally so
-     * they survive the stepdown\, in-flight write transactions are rolled back for the application
-     * to retry\, and new commits must be after this timestamp.  Before stepping down\, the
-     * application must advance the stable timestamp to equal it and checkpoint at that boundary.
-     * Cannot be changed while set; only valid on a leader., a string; default empty.}
+     * application's timestamp mutex). Once set\, write transactions that start after it is set are
+     * kept locally so their content survives the step-down\, and their commit timestamps must be
+     * after this timestamp; in-flight write transactions are rolled back for the application to
+     * retry.  Before stepping down\, the application must advance the stable timestamp to equal it
+     * and checkpoint at that boundary.  Cannot be changed while set; only valid on a leader., a
+     * string; default empty.}
      * @configend
      * @errors
      */
