@@ -54,6 +54,14 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_
 
 # These are the hook functions that are run when particular APIs are called.
 
+def page_log_extension_entry(path, config):
+    if config is None:
+        return f'"{path}"'
+    return f'"{path}"=(config="{config}")'
+
+def key_provider_extension_entry(path):
+    return f'"{path}"=(early_load=true,config="verbose=-1,key_expires=0")'
+
 # Add the local storage extension whenever we call wiredtiger_open
 def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
@@ -171,18 +179,17 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         elif "cache_size_mb=" not in page_log_config: # don't override user-specified size
             page_log_config = f"cache_size_mb=2048,{page_log_config}"
 
-    if page_log_config == None:
-        ext_lib = f'\"{page_log_extension[0]}\"'
-    else:
-        ext_lib = f'\"{page_log_extension[0]}\"=(config=\"{page_log_config}\")'
+    ext_lib = page_log_extension_entry(page_log_extension[0], page_log_config)
 
-    disagg_config += f',{ext_string},{ext_lib}'
-    # Load the key provider extension. Configure low verbosity to eliminate test failures due to unexpected output and
-    # to always key expire such that we can perform a key rotation every time a checkpoint is called.
+    extensions = f'{ext_string},{ext_lib}'
     if key_provider:
-        key_provider_extension_config =  f'\"{key_provider_extension[0]}\"=(early_load=true,config="verbose=-1,key_expires=0")'
-        disagg_config += f',{key_provider_extension_config}'
-    disagg_config += ']'
+        extensions += f',{key_provider_extension_entry(key_provider_extension[0])}'
+    extensions += ']'
+
+    # Save the hook-injected extensions so runWt can pass them to the external wt utility.
+    testcase.hook_extensions = extensions
+
+    disagg_config += f',{extensions}'
 
     config = conn_config + disagg_config
 
@@ -234,9 +241,9 @@ def replace_uri(uri):
         return uri
 
 # Called to replace Session.alter.
-def session_alter_replace(orig_session_open_cursor, session_self, uri, config):
+def session_alter_replace(orig_session_alter, session_self, uri, config):
     uri = replace_uri(uri)
-    return orig_session_open_cursor(session_self, uri, config)
+    return orig_session_alter(session_self, uri, config)
 
 # Called to replace Session.checkpoint.
 # We add a call to flush_tier during every checkpoint to make sure we are exercising disagg
@@ -252,8 +259,8 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
 
 # Called to replace Session.compact
 def session_compact_replace(orig_session_compact, session_self, uri, config):
-    uri = replace_uri(uri)
-    return orig_session_compact(session_self, uri, config)
+    # Compaction is not supported on disaggregated tables.
+    skip_test('Compaction is not supported in disagg storage')
 
 # Called to replace Session.create
 def session_create_replace(orig_session_create, session_self, uri, config):

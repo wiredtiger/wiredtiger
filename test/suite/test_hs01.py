@@ -32,10 +32,10 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_hs01.py
 # Test that update and modify operations are durable across crash and recovery.
 # Additionally test that checkpoint inserts content into the history store.
 class test_hs01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     format_values = [
         ('column', dict(key_format='r')),
         ('row_integer', dict(key_format='i')),
@@ -54,12 +54,6 @@ class test_hs01(wttest.WiredTigerTestCase):
         if self.precise_checkpoint:
             config += ',precise_checkpoint=true'
         return config
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
         cursor = session.open_cursor(uri)
@@ -115,7 +109,7 @@ class test_hs01(wttest.WiredTigerTestCase):
             self.skipTest('disagg mode requires precise_checkpoint for durable_check')
 
         # Create a small table.
-        uri = "table:test_hs01"
+        uri = f"table:{self.test_name}"
         ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 

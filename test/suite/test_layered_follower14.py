@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_follower14.py
 # Test that the sweep server does not close ingest table dhandles and layered dhandles on a follower
 # or during step-up. Closing the ingest dhandle discards all in-memory data for
 # that table (WT-16974, WT-16703).
@@ -35,39 +34,26 @@
 # entries and corrupt visibility (WT-16798).
 
 import unittest
-import time, wttest, wiredtiger
+import wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
-from wiredtiger import stat
+from sweep_util import sweep_util
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_follower14(wttest.WiredTigerTestCase):
+class test_layered_follower14(sweep_util):
     # Use aggressive sweep settings so the server has every opportunity to
     # incorrectly close the ingest dhandle while we are running as follower.
+    test_name = __qualname__
     conn_config = 'statistics=(all),' \
                   'file_manager=(close_handle_minimum=0,close_idle_time=1,close_scan_interval=1),' \
                   'verbose=(sweep:3),' \
                   'disaggregated=(role="follower")'
 
-    uri = 'layered:test_layered_follower14'
+    uri = f'layered:{test_name}'
     nrows = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered_follower14', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
-
-    def wait_for_sweep(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        baseline = stat_cursor[stat.conn.dh_sweeps][2]
-        stat_cursor.close()
-        for _ in range(120):
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            sweeps = stat_cursor[stat.conn.dh_sweeps][2]
-            stat_cursor.close()
-            # Sweep server only closes after the handle goes through multiple phases.
-            if sweeps - baseline >= 3:
-                return
-            time.sleep(1)
-        self.assertTrue(False, 'sweep server did not run within 120s')
 
     def test_layered_dhandle_not_swept_during_stepup(self):
         """
@@ -88,12 +74,12 @@ class test_layered_follower14(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
         # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
-        cursor = self.session.open_cursor("file:test_layered_follower14.wt_ingest")
+        cursor = self.session.open_cursor(f"file:{self.test_name}.wt_ingest")
 
         # Wait for the sweep server to run several cycles. If it is not configured
         # to skip layered dhandles, it would mark and close them, causing gaps when
         # draining the ingest table at step-up.
-        self.wait_for_sweep()
+        self.wait_for_sweep(increment=3, timeout=120, poll_interval=1)
 
         # Step up to leader.
         self.conn.reconfigure('disaggregated=(role="leader")')
@@ -142,7 +128,7 @@ class test_layered_follower14(wttest.WiredTigerTestCase):
         # Wait for the sweep server to run several cycles. If the layered dhandle is
         # incorrectly swept while the truncate entry lives in its truncate list,
         # the truncated range will go missing.
-        self.wait_for_sweep()
+        self.wait_for_sweep(increment=3, timeout=120, poll_interval=1)
 
         c_start.close()
         c_stop.close()

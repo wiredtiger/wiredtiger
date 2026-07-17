@@ -14,6 +14,8 @@ else()
         misc_tests/test_compact_addr_replace_fail.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_dhandle_ebusy.cpp
+        misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
@@ -47,10 +49,12 @@ else()
         block/unit/test_extent_list_search.cpp
         block/unit/test_extent_list_insert_block.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_get.cpp
+        cross_checkpoint_caching/unit/test_cross_checkpoint_caching_put.cpp
         cross_checkpoint_caching/unit/test_cross_checkpoint_caching_release.cpp
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        cursors/unit/test_layered_op.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
         ext/test_checkpoint_meta_version.cpp

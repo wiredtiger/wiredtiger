@@ -39,13 +39,31 @@ table_verify(TABLE *table, void *arg)
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
+    u_int retries;
 
     conn = (WT_CONNECTION *)arg;
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, table->track_prefix, session_prefetch_cfg(), &session);
-    ret = session->verify(session, table->uri, "strict");
+
+    /*
+     * Verify can race with special-handle transitions and return EBUSY. In switch mode, async role
+     * switches can leave handles in a dirty state; skip the retry delay to avoid minutes of
+     * accumulated wait time across many runs. FIXME - WT-18083
+     */
+    if (disagg_is_mode_switch()) {
+        ret = session->verify(session, table->uri, "strict");
+        retries = 0;
+    } else {
+        for (retries = 0; (ret = session->verify(session, table->uri, "strict")) == EBUSY;
+          ++retries) {
+            if (retries >= WT_MINUTE)
+                break;
+            sleep(1);
+        }
+    }
+
     /*
      * On followers, verify returns ENOENT if the stable constituent is missing. Before the first
      * checkpoint is picked up or if the table has not been created locally, this is expected
@@ -54,8 +72,12 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(
       ret == 0 || ret == EBUSY || (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));
 
-    if (ret == EBUSY)
-        WARN("table.%u skipped verify because of EBUSY", table->id);
+    if (ret == EBUSY) {
+        if (disagg_is_mode_switch())
+            WARN("table.%u skipped verify in switch mode (EBUSY)", table->id);
+        else
+            WARN("table.%u skipped verify because of EBUSY after %u retries", table->id, retries);
+    }
     wt_wrap_close_session(session);
 }
 
@@ -316,7 +338,7 @@ table_verify_mirror(
              */
             if (++failures == 1) {
                 if (g.disagg_storage_config && GV(DISAGG_PRESERVE))
-                    testutil_disagg_preserve(conn, "preserve");
+                    testutil_disagg_preserve(conn, "preserve", WT_TS_NONE);
                 testutil_snprintf(
                   tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id);
                 cursor_dump_page(base_cursor, tagbuf);

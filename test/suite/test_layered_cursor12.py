@@ -30,23 +30,23 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_cursor12.py
-#   Test that follower cursors see updated data after a new checkpoint is applied.
+# Test that follower cursors see updated data after a new checkpoint is applied.
 #
-#   Key scenarios:
-#   - Unpositioned cursor sees new data after checkpoint advance.
-#   - Cursor preserves position correctly when checkpoint advances.
-#   - With read timestamp, iteration triggers a checkpoint advance.
-#   - Data added/updated/removed across checkpoints is visible after checkpoint advances.
+# Key scenarios:
+# - Unpositioned cursor sees new data after checkpoint advance.
+# - Cursor preserves position correctly when checkpoint advances.
+# - With read timestamp, iteration triggers a checkpoint advance.
+# - Data added/updated/removed across checkpoints is visible after checkpoint advances.
 
 @disagg_test_class
 class test_layered_cursor12(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    uri = 'layered:test_layered_cursor12'
+    uri = f'layered:{test_name}'
 
     nkeys = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor12', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):
@@ -110,7 +110,7 @@ class test_layered_cursor12(wttest.WiredTigerTestCase):
 
     def remove_follower(self, keys):
         """Remove keys on the follower (local deletes). keys is a list of integers."""
-        cursor = self.session_follow.open_cursor(self.uri)
+        cursor = self.session_follow.open_cursor(self.uri, None, 'overwrite=false')
         for k in keys:
             key = self.fmt_key(k)
             self.session_follow.begin_transaction()

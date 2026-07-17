@@ -127,7 +127,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             if (stable_upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(stable_upd, WT_UPDATE_HS)) {
                 tombstone = stable_upd;
                 for (stable_upd = stable_upd->next; stable_upd != NULL;
-                     stable_upd = stable_upd->next) {
+                  stable_upd = stable_upd->next) {
                     if (stable_upd->txnid != WT_TXN_ABORTED) {
                         /*
                          * We have seen a tombstone in the history store so the update cannot have a
@@ -268,10 +268,12 @@ err:
 
 /*
  * __rts_btree_row_modify --
- *     Add the provided update to the head of the update list.
+ *     Add the provided update to the head of the update list. The caller supplies the row slot via
+ *     rip; the cursor is positioned directly without a page search.
  */
 static WT_INLINE int
-__rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, WT_ITEM *key)
+__rts_btree_row_modify(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, WT_UPDATE **updp, WT_ITEM *key)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -282,8 +284,15 @@ __rts_btree_row_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    /* Search the page. */
-    WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
+    /*
+     * The caller already holds the slot, so position the cursor directly instead of searching the
+     * page for the key. cbt.ins is NULL because __wt_btcur_init zeroes the struct; with compare ==
+     * 0 and ins == NULL, __wt_row_modify targets mod_row_update[slot] directly and never reaches
+     * the insert path that needs the key argument.
+     */
+    cbt.ref = ref;
+    cbt.slot = WT_ROW_SLOT(ref->page, rip);
+    cbt.compare = 0;
 
     /* Apply the modification. */
     if (!dryrun)
@@ -626,7 +635,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     }
 
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
+        WT_ERR(__rts_btree_row_modify(session, ref, rip, &upd, key));
     else
         WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
@@ -728,7 +737,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
           tw->durable_start_ts > rollback_timestamp ? "true" : "false",
           !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ? "true" : "false",
           !WT_TIME_WINDOW_HAS_STOP(tw) && prepared ? "true" : "false");
-        if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        if (!__wt_btree_stays_in_memory(S2BT(session)))
             return (__rts_btree_ondisk_fixup_key(
               session, ref, rip, recno, row_key, vpack, rollback_timestamp));
         else {
@@ -752,7 +761,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         if (WT_TIME_WINDOW_HAS_START_PREPARE(tw) && tw->start_prepared_id == tw->stop_prepared_id &&
           tw->start_prepare_ts == tw->stop_prepare_ts && tw->start_txn == tw->stop_txn) {
             WT_ASSERT(session, prepared);
-            if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+            if (!__wt_btree_stays_in_memory(S2BT(session)))
                 return (__rts_btree_ondisk_fixup_key(
                   session, ref, rip, recno, row_key, vpack, rollback_timestamp));
             else {
@@ -833,7 +842,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
     if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
+        WT_ERR(__rts_btree_row_modify(session, ref, rip, &upd, key));
     else
         WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 

@@ -690,7 +690,7 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
      * Now that timestamps extracted from the checkpoint metadata have been configured, configure
      * the pinned timestamp.
      */
-    __wti_txn_update_pinned_timestamp(session, true);
+    __wt_txn_update_pinned_timestamp(session, true);
 
     WT_ASSERT(session,
       !__wt_atomic_load_bool_relaxed(&conn->txn_global.has_stable_timestamp) &&
@@ -946,6 +946,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
           "cannot remove incomplete table '%s' (%s, %s) in readonly mode", uri, colgroup_msg,
           file_msg);
+        ret = 0;
         goto done;
     }
 
@@ -979,7 +980,7 @@ __recovery_file_scan(WT_RECOVERY *r)
       "scanning metadata to remove all incomplete tables");
 
     /* Scan through all table entries in the metadata and clean up incomplete tables. */
-    __recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table);
+    WT_RET(__recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table));
 
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to find the largest file ID");
@@ -1389,8 +1390,8 @@ done:
     } else {
         /* Although rollback to stable is not needed, we still need to set the durable timestamp. */
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        txn_global->has_durable_timestamp =
-          __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp);
+        __wt_atomic_store_bool_relaxed(&txn_global->has_durable_timestamp,
+          __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp));
         __wt_atomic_store_uint64_relaxed(
           &txn_global->durable_timestamp, __wt_get_stable_timestamp(session));
 

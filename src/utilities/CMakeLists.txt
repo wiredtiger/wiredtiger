@@ -19,6 +19,7 @@ set(sources
     util_salvage.c
     util_stat.c
     util_truncate.c
+    util_turtle.c
     util_verbose.c
     util_verify.c
     util_write.c

@@ -26,14 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading, time, wiredtiger, wttest
+import time, wiredtiger, wttest, wtthread
+from checkpoint_util import checkpoint_util
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_checkpoint05.py
-#    Test creating empty tables while a checkpoint is running.
+# Test creating empty tables while a checkpoint is running.
 @disagg_test_class
-class test_layered_checkpoint05(wttest.WiredTigerTestCase):
+class test_layered_checkpoint05(checkpoint_util):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,' \
@@ -42,20 +43,10 @@ class test_layered_checkpoint05(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S,type=layered'
 
-    uri = "table:test_layered_checkpoint05"
+    uri = f"table:{test_name}"
 
-    disagg_storages = gen_disagg_storages('test_layered_checkpoint05', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
-
-    # Wait for a checkpoint to start running
-    def wait_for_checkpoint_start(self):
-        while True:
-            stat_cursor = self.session.open_cursor('statistics:')
-            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
-            stat_cursor.close()
-            if state != 0:
-                break
-            time.sleep(0.1)
 
     # Test creating an empty table while a checkpoint is running.
     def test_layered_checkpoint05(self):
@@ -79,7 +70,7 @@ class test_layered_checkpoint05(wttest.WiredTigerTestCase):
             session.checkpoint()
             self.pr('Checkpoint complete')
             session.close()
-        checkpoint_thread = threading.Thread(target=checkpoint_thread_fn, args=(self.conn,))
+        checkpoint_thread = wtthread.Thread(target=checkpoint_thread_fn, args=(self.conn,))
         checkpoint_thread.start()
 
         # Wait for the checkpoint to start, and then a tiny bit more just in case. There should be

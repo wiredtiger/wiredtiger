@@ -34,7 +34,6 @@ from wtthread import checkpoint_thread
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_checkpoint28.py
 #
 # Make sure that when we open a cursor we secure the proper matching
 # history store checkpoint, and don't bobble or lose it if the database
@@ -127,9 +126,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start before committing.
             ckpt_started = 0
             while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
+                ckpt_started = self.get_stat(stat.conn.checkpoint_state) != 0
                 time.sleep(1)
 
             # Commit the transaction at 25 but make it durable at 35.

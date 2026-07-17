@@ -403,8 +403,9 @@ configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 static void
 configure_prefetch(char **p, size_t max)
 {
-    CONFIG_APPEND(*p, ",prefetch=(available=%s,default=%s)", GV(PREFETCH) ? "true" : "false",
-      GV(PREFETCH_DEFAULT) ? "true" : "false");
+    if (GV(PREFETCH))
+        CONFIG_APPEND(
+          *p, ",prefetch=(available=true,default=%s)", GV(PREFETCH_DEFAULT) ? "true" : "false");
 }
 
 /*
@@ -433,6 +434,32 @@ configure_obsolete_cleanup(char **p, size_t max)
         CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
 
     CONFIG_APPEND(*p, "]");
+}
+
+#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
+
+/*
+ * configure_extensions --
+ *     Build the list of extensions. The full list is passed on every wiredtiger_open so early-load
+ *     entries are present and so no extension goes missing on reopen.
+ */
+static void
+configure_extensions(char **p, size_t max, const char *disagg_ext_cfg, const char *tiered_ext_cfg)
+{
+    CONFIG_APPEND(*p,
+      ",extensions_strict=true,extensions=["
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
+      /* Collators. */
+      REVERSE_PATH,
+      /* Compressors. */
+      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
+      EXTENSION_PATH(ZSTD_PATH),
+      /* Encryptors. */
+      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
+      /* Page log. */
+      disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
+      /* Storage source. */
+      tiered_ext_cfg[0] != '\0' ? tiered_ext_cfg : "\"\"");
 }
 
 /*
@@ -546,23 +573,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
 
-#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
-
     /* Extensions. */
-    CONFIG_APPEND(p,
-      ",extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s],",
-      /* Collators. */
-      REVERSE_PATH,
-      /* Compressors. */
-      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
-      EXTENSION_PATH(ZSTD_PATH),
-      /* Encryptors. */
-      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
-      /* Page log. */
-      disagg_ext_cfg,
-      /* Storage source. */
-      tiered_ext_cfg);
+    configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -578,6 +590,10 @@ create_database(const char *home, WT_CONNECTION **connp)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+
+    /* Leader: seed an initial key before the create-time close checkpoint. */
+    if (g.disagg_leader)
+        disagg_key_push_initial(conn);
 
     *connp = conn;
 }
@@ -751,7 +767,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[1024], disagg_ext_cfg[1024], *p;
+    char config[8 * 1024], disagg_ext_cfg[1024], *p, tiered_ext_cfg[1024];
     const char *enc, *s;
 
     *connp = NULL;
@@ -760,6 +776,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     max = sizeof(config);
     config[0] = '\0';
     disagg_ext_cfg[0] = '\0';
+    tiered_ext_cfg[0] = '\0';
 
     /* Configuration settings that are not persistent between open calls. */
     enc = encryptor_at_open();
@@ -781,6 +798,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     /* Optional disaggregated storage. */
     configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
+    /* Optional tiered storage. */
+    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
     /* Optional live restore. */
     configure_live_restore(&p, max);
 
@@ -789,6 +809,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Obsolete cleanup. */
     configure_obsolete_cleanup(&p, max);
+
+    /* Extensions. */
+    configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)

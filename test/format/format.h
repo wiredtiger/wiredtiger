@@ -34,6 +34,7 @@
 #ifdef HAVE_SETRLIMIT
 #include <sys/resource.h>
 #endif
+#include <setjmp.h>
 #include <signal.h>
 #include <sys/socket.h>
 
@@ -71,11 +72,11 @@
 #define SODIUM_TESTKEY "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 #undef M
-#define M(v) ((v)*WT_MILLION) /* Million */
+#define M(v) ((v) * WT_MILLION) /* Million */
 #undef KILOBYTE
-#define KILOBYTE(v) ((v)*WT_KILOBYTE)
+#define KILOBYTE(v) ((v) * WT_KILOBYTE)
 #undef MEGABYTE
-#define MEGABYTE(v) ((v)*WT_MEGABYTE)
+#define MEGABYTE(v) ((v) * WT_MEGABYTE)
 
 /* Format isn't careful about path buffers, an easy to fix hard-coded length. */
 #define MAX_FORMAT_PATH 1024
@@ -103,6 +104,9 @@
 #define SESSION_PREFETCH_CFG_OFF "prefetch=(enabled=false)"
 
 #define MIN_TIMESTAMP 2 /* Minimum timestamp */
+
+/* Capacity of the static push-mode key rotation history. */
+#define KEY_PUSH_HISTORY_MAX WT_THOUSAND
 
 #include "format_config.h"
 extern CONFIG configuration_list[];
@@ -147,6 +151,13 @@ typedef struct {
     } l;
     enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
+
+/* Arguments passed to the async step-down background thread. */
+typedef struct {
+    wt_thread_t *checkpoint_tid;
+    wt_thread_t *timestamp_tid;
+    volatile bool done; /* Set to true by the thread when step-down completes. */
+} STEPDOWN_ARGS;
 
 /* Session application private information referenced in the event handlers. */
 typedef struct {
@@ -278,6 +289,7 @@ typedef struct {
     wt_timestamp_t replay_cached_committed; /* Our committed timestamp, cached */
     uint32_t replay_calculate_committed;    /* Times before recalculating cached committed */
     wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
+    FILE *replay_op_log;                    /* Predictable replay per-run operation log */
     wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
     wt_timestamp_t timestamp_copy;          /* A copy of the timestamp, for safety checks */
 
@@ -289,6 +301,19 @@ typedef struct {
      * prepared transaction's durable timestamp when it is committing.
      */
     RWLOCK prepare_commit_lock;
+
+    /*
+     * Lock to freeze the timestamp counter during asynchronous step-down notification. Read lock:
+     * held briefly in commit_transaction() while incrementing g.timestamp. Write lock: held
+     * exclusively during notification to capture step_down_ts and advance g.timestamp past it,
+     * ensuring all post-notify allocations land strictly above step_down_ts.
+     */
+    RWLOCK timestamp_lock;
+
+    wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is active; 0 if not active. */
+
+    volatile bool checkpoint_quit; /* Signal checkpoint thread to stop before workers finish. */
+    volatile bool timestamp_quit;  /* Signal timestamp thread to stop before workers finish. */
 
     /*
      * Single-thread failure. Not a WiredTiger library lock because it's set up before configuring
@@ -318,6 +343,9 @@ typedef struct {
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
     int disagg_multi_sync_socket;               /* Socket for leader-follower sync */
+
+    wt_timestamp_t key_push_history[KEY_PUSH_HISTORY_MAX]; /* Push-mode key rotation: timestamps */
+    size_t key_push_count; /* Number of pushed timestamps recorded */
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
@@ -402,7 +430,7 @@ typedef struct {
     struct col_insert {
         uint32_t insert_list[256]; /* Inserted column-store records, maps one-to-one to tables */
         u_int insert_list_cnt;
-    } * col_insert;
+    } *col_insert;
 
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
@@ -447,6 +475,11 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET follower(void *);
+WT_THREAD_RET disagg_key_rotation(void *);
+void disagg_key_push_initial(WT_CONNECTION *);
+void disagg_key_history_clear(void);
+void disagg_key_validate_after_checkpoint(WT_SESSION *);
+int follower_fetch_full_metadata(WT_SESSION *, WT_PAGE_LOG *, const WT_ITEM *, WT_ITEM *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
@@ -464,6 +497,8 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+void disagg_async_stepdown(wt_thread_t *, wt_thread_t *);
+WT_THREAD_RET disagg_stepdown_thread(void *);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);
@@ -488,6 +523,7 @@ void snap_init(TINFO *);
 void snap_op_init(TINFO *, wt_timestamp_t, bool);
 void snap_repeat_stable(WT_SESSION *, TINFO **, size_t);
 void snap_repeat_single(TINFO *);
+wt_timestamp_t snap_repeat_ts_span(void);
 int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_teardown(TINFO *);
@@ -496,6 +532,7 @@ void table_dump_page(WT_SESSION *, const char *, TABLE *, uint64_t, const char *
 void table_verify(TABLE *, void *);
 void timestamp_init(void);
 wt_timestamp_t timestamp_minimum_committed(void);
+uint64_t next_timestamp(WT_SESSION *);
 void timestamp_once(WT_SESSION *, bool, bool);
 void timestamp_sync_threads_commit_ts(void);
 void replay_adjust_key(TINFO *, uint64_t);
@@ -512,7 +549,6 @@ wt_timestamp_t replay_read_ts(TINFO *);
 void replay_rollback(TINFO *);
 void replay_run_begin(WT_SESSION *);
 void replay_run_end(WT_SESSION *);
-bool replay_stale_read_ts(TINFO *);
 int timestamp_query(const char *, wt_timestamp_t *);
 void timestamp_teardown(WT_SESSION *);
 void trace_config(const char *);

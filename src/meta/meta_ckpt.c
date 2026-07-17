@@ -94,6 +94,30 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
 }
 
 /*
+ * __wt_meta_checkpoint_has_prepare --
+ *     Return whether any checkpoint entry in the config string has the prepare flag set.
+ */
+int
+__wt_meta_checkpoint_has_prepare(WT_SESSION_IMPL *session, const char *config, bool *has_prepp)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM cval, key, value;
+    WT_DECL_RET;
+
+    *has_prepp = false;
+
+    WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
+    __wt_config_subinit(session, &ckptconf, &cval);
+    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+        ret = __wt_config_subgets(session, &cval, "prepare", &value);
+        if (ret == 0 && value.val)
+            *has_prepp = true;
+        WT_RET_NOTFOUND_OK(ret);
+    }
+    return (0);
+}
+
+/*
  * __wt_meta_checkpoint --
  *     Return a file's checkpoint information.
  */
@@ -811,8 +835,8 @@ __assert_ckptlist_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, WT_CKPT
     WT_CKPT *ckpt_new, *ckpt_saved;
 
     for (ckpt_saved = saved_list, ckpt_new = new_list;
-         ckpt_saved != NULL && ckpt_saved->order != 0 && ckpt_new != NULL && ckpt_new->order != 0;
-         ckpt_saved++, ckpt_new++)
+      ckpt_saved != NULL && ckpt_saved->order != 0 && ckpt_new != NULL && ckpt_new->order != 0;
+      ckpt_saved++, ckpt_new++)
         __assert_ckpt_matches(session, ckpt_saved, ckpt_new);
 
     WT_ASSERT(session,
@@ -1064,6 +1088,22 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->next_page_id = (uint64_t)a.val;
 
+    /*
+     * These two postdate the metadata of older tables: a table checkpointed before this tracking
+     * existed has no key at all, and there's no way to tell that apart from a genuinely accurate 0
+     * without a marker. Use WT_LEAF_STATS_UNKNOWN as that marker; a corrective
+     * WT_STAT_TYPE_TREE_WALK replaces it with a real value for both fields together.
+     */
+    ret = __wt_config_subgets(session, v, "leaf_entry_ewma", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->leaf_entry_ewma =
+      ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
+
+    ret = __wt_config_subgets(session, v, "approx_leaf_pages", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->approx_leaf_pages =
+      ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
+
     return (0);
 }
 
@@ -1194,13 +1234,15 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
           ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
-          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64 ")",
+          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64
+          ",leaf_entry_ewma=%" PRId64 ",approx_leaf_pages=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
-          (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id));
+          (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id, (int64_t)ckpt->leaf_entry_ewma,
+          (int64_t)ckpt->approx_leaf_pages));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 
@@ -1358,6 +1400,8 @@ __wt_meta_ckptlist_set(
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->next_page_id = btree->next_page_id;
+            ckpt->leaf_entry_ewma = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
+            ckpt->approx_leaf_pages = __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages);
             /*
              * For disaggregated storage, save the total bytes to the checkpoint size field. Track
              * the delta between this checkpoint and the previous one, this delta will be applied to

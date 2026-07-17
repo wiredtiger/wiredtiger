@@ -29,25 +29,19 @@
 import wttest
 from wiredtiger import stat
 
-# test_eviction04.py
 #
 # Test that reconciliation is performing in-memory restoration due to invisible updates
 # during eviction.
 @wttest.skip_for_hook("disagg", "Fails due to evict a page.")
 class test_eviction04(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
-    def get_stat(self, uri):
-        stat_cursor = self.session.open_cursor('statistics:' + uri)
-        cache_write_restore_invisible = stat_cursor[stat.dsrc.cache_write_restore_invisible][2]
-        stat_cursor.close()
-        return cache_write_restore_invisible
-
     def test_eviction(self):
-        uri = 'table:test_eviction04'
+        uri = f'table:{self.test_name}'
 
         # Create a table.
         self.session.create(uri, 'key_format=i,value_format=S')
@@ -70,7 +64,7 @@ class test_eviction04(wttest.WiredTigerTestCase):
         self.assertEqual(evict_cursor.reset(), 0)
         evict_cursor.close()
 
-        self.assertGreater(self.get_stat(uri), 0)
+        self.assertStatGreaterSoon(stat.dsrc.cache_write_restore_invisible, 0, uri=uri)
 
         session2.commit_transaction()
         cursor2.close()

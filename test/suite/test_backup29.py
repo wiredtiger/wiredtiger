@@ -31,8 +31,7 @@ from wtscenario import make_scenarios
 from wtbackup import backup_base
 from wiredtiger import stat
 
-# test_backup29.py
-#    Test interaction between checkpoint and incremental backup. There was a bug in
+# Test interaction between checkpoint and incremental backup. There was a bug in
 # maintaining the incremental backup bitmaps correctly after opening an uncached dhandle.
 # This test reconstructs the failure scenario and verifies correct behavior both when a
 # restart and when dhandle sweep lead to opening an uncached dhandle.
@@ -55,12 +54,6 @@ class test_backup29(backup_base):
 
     few = 100
     nentries = 5000
-
-    def get_stat(self, stat_name):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat_name][2]
-        stat_cursor.close()
-        return value
 
     def parse_blkmods(self, uri):
         meta_cursor = self.session.open_cursor('metadata:')

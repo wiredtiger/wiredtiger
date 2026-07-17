@@ -31,7 +31,6 @@ import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_checkpoint38.py
 #
 # Insert ~1GB of data into a single table and checkpoint with parallel checkpoint threads enabled.
 # Verify that the parallel checkpoint worker threads actually reconciled pages.
@@ -54,12 +53,6 @@ class test_checkpoint38(wttest.WiredTigerTestCase):
                 'eviction_dirty_target=95,eviction_dirty_trigger=99,eviction_checkpoint_target=0'
                 ',statistics=(all),statistics_log=(json,on_close,wait=1)'
                 f',checkpoint_threads={self.checkpoint_threads}')
-
-    def get_stat(self, stat_key):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat_key][2]
-        stat_cursor.close()
-        return val
 
     def test_parallel_checkpoint(self):
         uri = 'table:checkpoint38'

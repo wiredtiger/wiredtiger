@@ -282,7 +282,9 @@ __evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
     if (__wt_cache_bytes_plus_overhead(
           cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem)) >
-      (uint64_t)(0.5 * evict->eviction_target * bytes_max) / 100)
+      (uint64_t)(0.5 * evict->eviction_target *
+        (bytes_max + __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate))) /
+        100)
         return (true);
 
     bytes_dirty = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl) +
@@ -414,8 +416,9 @@ retry:
             continue;
         }
 
-        /* Skip read-only btrees if we are not looking for clean pages. */
-        if (F_ISSET(btree, WT_BTREE_READONLY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        /* Skip read-only btrees if we are not looking for clean/updates pages. */
+        if (F_ISSET(btree, WT_BTREE_READONLY) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -503,7 +506,7 @@ retry:
          * walking them serves no purpose. Such pages are not eligible for clean eviction, making
          * the operation unnecessary.
          */
-        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+        if (__wt_btree_stays_in_memory(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -649,7 +652,9 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         btree_clean_inuse = __wt_btree_bytes_evictable(session);
-        cache_inuse = __wt_cache_bytes_inuse(cache);
+        cache_inuse = __wt_cache_bytes_inuse(cache) +
+          __wt_cache_bytes_plus_overhead(
+            cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate));
         bytes_per_slot = 1 + cache_inuse / evict->evict_slots;
         target_pages_clean = (uint32_t)((btree_clean_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
@@ -1160,7 +1165,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     evict_clean =
-      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified;
+      F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !__wt_btree_stays_in_memory(btree) && !modified;
     evict_dirty = F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified;
     evict_updates = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && __evict_page_updates_candidate(page);
     should_evict_page = evict_clean || evict_dirty || evict_updates;
@@ -1301,8 +1306,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     pages_seen_clean = pages_seen_dirty = pages_seen_updates = 0;
     root_pages_skipped = 0;
     for (evict_entry = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
-         evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
-         last_parent = ref == NULL ? NULL : ref->home,
+      evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
+      last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
 
         if ((give_up = __evict_should_give_up_walk(

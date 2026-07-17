@@ -83,7 +83,7 @@ extern "C" {
     ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=%" PRIu32 "))"
 #define TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT                        \
     ",\"%s/ext/test/key_provider/libwiredtiger_key_provider.so\"=(" \
-    "early_load=true,config=(key_expires=60,verbose=-1))"
+    "early_load=true,config=(version=%d,key_expires=60,verbose=-1))"
 #define TESTUTIL_ENV_CONFIG_TIERED               \
     ",tiered_storage=(bucket=%s"                 \
     ",bucket_prefix=%s,local_retention=%" PRIu32 \
@@ -164,6 +164,11 @@ typedef struct {
     uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
     uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
 
+/* Key provider modes for the disagg.key_provider configuration. */
+#define DISAGG_KEY_PROVIDER_OFF 0
+#define DISAGG_KEY_PROVIDER_PULL 1
+#define DISAGG_KEY_PROVIDER_PUSH 2
+
     /* Fields used for testing disaggregated storage. */
     struct {
         /*
@@ -173,7 +178,7 @@ typedef struct {
          * setup.
          */
         bool is_enabled;          /* Uses disaggregated storage */
-        bool key_provider;        /* Uses key provider testing module for disaggregated storage */
+        uint32_t key_provider;    /* Key provider mode: see DISAGG_KEY_PROVIDER_* */
         bool internal_page_delta; /* Use internal page deltas */
         bool leaf_page_delta;     /* Use leaf page deltas */
 
@@ -449,10 +454,14 @@ typedef struct {
 #define scan_end_check(a) testutil_assert(a)
 
 #ifdef _WIN32
-__declspec(noreturn)
+#define TESTUTIL_NORETURN __declspec(noreturn)
+#else
+#define TESTUTIL_NORETURN
 #endif
-  void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+TESTUTIL_NORETURN
+void testutil_die(int, const char *, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * u64_to_string --
@@ -599,7 +608,7 @@ void testutil_deduce_build_dir(TEST_OPTS *opts);
 void testutil_delete_old_backups(int);
 void testutil_disagg_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
-void testutil_disagg_preserve(WT_CONNECTION *, const char *);
+void testutil_disagg_preserve(WT_CONNECTION *, const char *, uint64_t);
 
 bool testutil_exists(const char *, const char *);
 int testutil_general_event_handler(

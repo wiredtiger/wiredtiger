@@ -326,15 +326,18 @@ join(const Range &range, const Separator &sep)
 }
 
 /* Base-2 (binary) units */
-constexpr uint64_t operator""_KB(unsigned long long val)
+constexpr uint64_t
+operator""_KB(unsigned long long val)
 {
     return val * 1024;
 }
-constexpr uint64_t operator""_MB(unsigned long long val)
+constexpr uint64_t
+operator""_MB(unsigned long long val)
 {
     return val * 1024 * 1024;
 }
-constexpr uint64_t operator""_GB(unsigned long long val)
+constexpr uint64_t
+operator""_GB(unsigned long long val)
 {
     return val * 1024 * 1024 * 1024;
 }
@@ -735,8 +738,7 @@ public:
         if constexpr (Policy != THROW)
             return;
 
-        static constexpr auto sqlite2errno = []() constexpr
-        {
+        static constexpr auto sqlite2errno = []() constexpr {
             std::array<std::errc, SQLITE_NOTADB + 1> a{};
             a[SQLITE_OK] = std::errc::operation_not_permitted; /* unused */
             a[SQLITE_ERROR] = std::errc::invalid_argument;
@@ -749,7 +751,7 @@ public:
             a[SQLITE_READONLY] = std::errc::read_only_file_system;
             a[SQLITE_INTERRUPT] = std::errc::interrupted;
             a[SQLITE_IOERR] = std::errc::io_error;
-            a[SQLITE_CORRUPT] = std::errc::illegal_byte_sequence;
+            a[SQLITE_CORRUPT] = std::errc::bad_message;
             a[SQLITE_NOTFOUND] = std::errc::no_such_file_or_directory;
             a[SQLITE_FULL] = std::errc::no_space_on_device;
             a[SQLITE_CANTOPEN] = std::errc::io_error;
@@ -766,8 +768,7 @@ public:
             a[SQLITE_RANGE] = std::errc::result_out_of_range;
             a[SQLITE_NOTADB] = std::errc::illegal_byte_sequence;
             return a;
-        }
-        ();
+        }();
 
         /* Verify that each slot was assigned. */
         static_assert(
@@ -818,10 +819,10 @@ class Connection {
       "PRAGMA journal_mode = WAL;",
 
       /*
-       * Turn Synchronous mode OFF for better performance. We don't care about database corruption
-       * in case of OS crash or power failure.
+       * Sync at the most critical moments, but less often than in FULL mode. WAL mode is safe from
+       * corruption with synchronous=NORMAL.
        */
-      "PRAGMA synchronous = OFF;",
+      "PRAGMA synchronous = NORMAL;",
 
       /* For temporary store use memory instead of disk. */
       "PRAGMA temp_store = MEMORY;"};
@@ -1058,8 +1059,7 @@ struct Globals : public Table<Globals> {
         COUNT /* number of statements */
     };
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /* Increment LSN. */
@@ -1087,8 +1087,7 @@ struct Globals : public Table<Globals> {
              WHERE id = 1;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Globals::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1188,8 +1187,7 @@ struct Checkpoints : public Table<Checkpoints> {
         COUNT /* number of statements */
     };
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /*
@@ -1221,8 +1219,7 @@ struct Checkpoints : public Table<Checkpoints> {
              WHERE lsn > ?;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Checkpoints::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1360,8 +1357,7 @@ struct Pages : public Table<Pages> {
      */
     static constexpr uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /*
@@ -1495,8 +1491,7 @@ struct Pages : public Table<Pages> {
              WHERE lsn > ?;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Pages::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -2179,12 +2174,8 @@ public:
         /* Ensure exclusive access to storage since we update multiple tables. */
         std::unique_lock write_lock(store_access);
 
-        int ret = 0;
-        if (checkpoint_lsn == WT_PAGE_LOG_LSN_MAX) {
-            ret =
-              checkpoints.get(checkpoint_lsn, nullptr, nullptr, Checkpoints::AccessMode::BYPASS);
-        }
-
+        int ret =
+          checkpoints.get(checkpoint_lsn, nullptr, nullptr, Checkpoints::AccessMode::BYPASS);
         if (ret == WT_NOTFOUND) {
             LOG_DEBUG("No checkpoint found to abandon; lsn = {}", checkpoint_lsn);
             return;

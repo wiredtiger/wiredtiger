@@ -260,8 +260,8 @@ __page_free_delta_leaf_merge_state(
 static WT_INLINE void
 __time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    /* Return if the start time window is empty. */
-    if (!WT_TIME_WINDOW_HAS_START(tw))
+    /* Return if the time window is empty. */
+    if (WT_TIME_WINDOW_IS_EMPTY(tw))
         return;
 
     /*
@@ -274,6 +274,18 @@ __time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
         tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
         tw->start_txn = WT_TXN_NONE;
+    }
+
+    /*
+     * Check if the stop of the time window is globally visible, and if so remove unnecessary
+     * values.
+     */
+    if (__wt_txn_tw_stop_visible_all(session, tw)) {
+        /* The durable timestamp should never be less than the stop timestamp. */
+        WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
+
+        tw->stop_ts = tw->durable_stop_ts = WT_TS_NONE;
+        tw->stop_txn = WT_TXN_NONE;
     }
 }
 
@@ -820,63 +832,21 @@ err:
 }
 
 /*
- * __page_inmem_tombstone --
- *     Create the actual update for a tombstone.
- */
-static int
-__page_inmem_tombstone(
-  WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
-{
-    WT_UPDATE *tombstone;
-    size_t size, total_size;
-
-    size = 0;
-    *sizep = 0;
-    *updp = NULL;
-
-    tombstone = NULL;
-    total_size = 0;
-
-    WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
-
-    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-    total_size += size;
-    tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
-    tombstone->upd_start_ts = unpack->tw.stop_ts;
-    tombstone->txnid = unpack->tw.stop_txn;
-    F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        F_SET(tombstone, WT_UPDATE_DURABLE);
-    *updp = tombstone;
-    *sizep = total_size;
-
-    WT_STAT_CONN_DSRC_INCRV(session, cache_read_restored_tombstone_bytes, total_size);
-
-    return (0);
-}
-
-/*
  * __page_inmem_prepare_update --
  *     Create the actual update for a prepared value.
  */
 static int
-__page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
+__page_inmem_prepare_update(
+  WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
-    size_t size, total_size;
     bool is_disagg;
 
-    size = 0;
-    *sizep = 0;
-
     tombstone = upd = NULL;
-    total_size = 0;
     is_disagg = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED);
 
-    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
-    total_size += size;
+    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
 
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
@@ -907,8 +877,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw)));
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-        total_size += size;
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->upd_durable_ts = WT_TS_NONE;
         tombstone->txnid = unpack->tw.stop_txn;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
@@ -924,7 +893,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     } else
         *updp = upd;
 
-    *sizep = total_size;
     return (0);
 
 err:
@@ -935,34 +903,18 @@ err:
 }
 
 /*
- * __page_inmem_update --
- *     Create the actual update.
- */
-static int
-__page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
-{
-    if (WT_TIME_WINDOW_HAS_PREPARE(&unpack->tw))
-        return (__page_inmem_prepare_update(session, value, unpack, updp, sizep));
-
-    WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
-    return (__page_inmem_tombstone(session, unpack, updp, sizep));
-}
-
-/*
  * __page_inmem_update_col --
- *     Shared code for calling __page_inmem_update on columns.
+ *     Shared code for calling __page_inmem_prepare_update on columns.
  */
 static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
+  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp)
 {
-    WT_RET(__page_inmem_update(session, value, unpack, updp, sizep));
+    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    WT_RET(__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
-    return (0);
+    return (__wt_col_modify(cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, true));
 }
 
 /*
@@ -982,14 +934,12 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_UPDATE *upd;
-    size_t size, total_size;
     uint64_t recno, rle;
     uint32_t i;
 
     btree = S2BT(session);
     page = ref->page;
     upd = NULL;
-    total_size = 0;
 
     /*
      * This variable is only used in assertions so in non-diagnostic builds it throws an unused
@@ -999,18 +949,13 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY));
 
     /* We don't handle in-memory prepare resolution here. */
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY));
+    WT_ASSERT(session, !__wt_btree_stays_in_memory(btree));
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &value));
-    /*
-     * Suppress per-update cache increments in the serial functions; we batch them into a single
-     * call below to avoid O(N) atomic operations on page restore.
-     */
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SKIP_CACHE_INCR));
-    F_SET(session, WT_SESSION_SKIP_CACHE_INCR);
+
     if (page->type == WT_PAGE_COL_VAR) {
         recno = ref->ref_recno;
         WT_COL_FOREACH (page, cip, i) {
@@ -1030,16 +975,12 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
-                /* Create an update to resolve the prepare. */
-                WT_ERR(
-                  __page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd, &size));
-                total_size += size;
+                WT_ERR(__page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd));
                 upd = NULL;
             }
         }
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
-        bool is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
         /*
          * We already know each row's slot from WT_ROW_FOREACH, so position the cursor directly
          * instead of calling __wt_row_search (which would binary search for a slot we already
@@ -1052,13 +993,9 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         cbt.ref = ref;
         cbt.compare = 0;
         WT_ROW_FOREACH (page, rip, i) {
-            /*
-             * Search for prepare records and records with a stop time point if we want to build
-             * delta.
-             */
+            /* Search for prepare records. */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
-            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) &&
-              (!is_disagg || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
                 continue;
 
             /* Get the value and instantiate the update. */
@@ -1066,12 +1003,11 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
 
-            WT_ERR(__page_inmem_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd));
 
             cbt.slot = WT_ROW_SLOT(page, rip);
             cbt.ref = ref;
             WT_ERR(__wt_row_modify(&cbt, NULL, NULL, &upd, WT_UPDATE_INVALID, true, true));
-            total_size += size;
             upd = NULL;
         }
     }
@@ -1081,18 +1017,30 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * updates to avoid reconciling the page every time.
      */
     __wt_page_modify_clear(session, page);
-    F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
-    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
-        F_CLR(session, WT_SESSION_SKIP_CACHE_INCR);
-        __wt_cache_page_inmem_incr(session, page, total_size, false);
         __wt_free_update_list(session, &upd);
     }
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_scr_free(session, &value);
     return (ret);
+}
+
+/*
+ * __inmem_shared_dsk_account --
+ *     Account a shared disk image's bytes in the page footprint and the owning btree's in-memory
+ *     totals.
+ */
+static void
+__inmem_shared_dsk_account(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree = S2BT(session);
+
+    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
+    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    if (WT_PAGE_IS_INTERNAL(page))
+        (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_internal, size);
 }
 
 /*
@@ -1250,9 +1198,9 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     WT_ASSERT(session, shared_dsk_item == NULL || page->disagg_info != NULL);
     if (page->disagg_info != NULL) {
         page->disagg_info->shared_dsk_item = shared_dsk_item;
-        /* memory footprint still includes disk size so per-page eviction logic stays unchanged. */
+        /* Count the disk image in the page footprint and this btree's in-memory total. */
         if (LF_ISSET(WT_PAGE_DISK_SHARED))
-            __wt_cache_page_footprint_incr(session, page, dsk->mem_size);
+            __inmem_shared_dsk_account(session, page, dsk->mem_size);
     }
 
     *pagep = page;
@@ -1621,12 +1569,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     uint8_t smallest_prefix;
-    bool instantiate_upd, is_disagg;
+    bool instantiate_prepare_upd;
 
     last_slot = 0;
     btree = S2BT(session);
-    instantiate_upd = false;
-    is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
+    instantiate_prepare_upd = false;
 
     /* The code depends on the prefix count variables, other initialization shouldn't matter. */
     best_prefix_count = prefix_count = 0;
@@ -1738,15 +1685,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
             WT_ERR(__wt_illegal_value(session, unpack.type));
         }
 
-        /*
-         * If we find a prepare, we'll have to instantiate it in the update chain later. Also
-         * instantiate the tombstone if it is a disaggregated btree. We need the tombstone to trace
-         * whether we have included the delete in the previous reconciliation or not.
-         */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) &&
-          (WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) ||
-            (is_disagg && WT_TIME_WINDOW_HAS_STOP(&unpack.tw))))
-            instantiate_upd = true;
+        /* If we find a prepare, we'll have to instantiate it in the update chain later. */
+        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
+            instantiate_prepare_upd = true;
     }
     WT_CELL_FOREACH_END;
 
@@ -1767,7 +1708,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     if (best_prefix_count <= 10)
         F_SET_ATOMIC_16(page, WT_PAGE_BUILD_KEYS);
 
-    if (instantiate_updp != NULL && instantiate_upd)
+    if (instantiate_updp != NULL && instantiate_prepare_upd)
         *instantiate_updp = true;
 
 err:

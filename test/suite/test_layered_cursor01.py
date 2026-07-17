@@ -30,15 +30,15 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
-# test_layered_cursor01.py
 # Test different variations of cursor operations
 @disagg_test_class
 class test_layered_cursor01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    uri = 'layered:test_layered_cursor01'
+    uri = f'layered:{test_name}'
     session_follow = None
     conn_follow = None
     oplog = None
@@ -81,7 +81,7 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
                 break
         return cursor
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor01', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
     pos_op = [
         ('search', dict(pos_func=position_search)),
         ('search_near', dict(pos_func=position_search_near)),
@@ -104,9 +104,9 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         # Create some oplog traffic, a mix of inserts and updates
         self.oplog.insert(self.table_oplog_id, self.ninserts)
         if (self.nupdates > 0):
-            self.oplog.update(self.table_oplog_id, self.nupdates, self.nitems + self.update_offset)
+            self.oplog.update(self.table_oplog_id, self.nupdates, self.posoplog + self.update_offset)
         if (self.nremoves > 0):
-            self.oplog.remove(self.table_oplog_id, self.nremoves, self.nitems + self.remove_offset)
+            self.oplog.remove(self.table_oplog_id, self.nremoves, self.posoplog + self.remove_offset)
 
         # Apply on both leader and follower
         nops = self.ninserts + self.nupdates + self.nremoves

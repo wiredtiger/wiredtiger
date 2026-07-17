@@ -82,7 +82,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wti_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL);
+        __wti_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL, false);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, val->len))
@@ -184,7 +184,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
-            __wti_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
+            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+            __wti_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, false);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
@@ -195,7 +196,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
                  * info.
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
+                /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+                __wti_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del, false);
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;
@@ -452,26 +454,16 @@ record_loop:
                 WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
-            } else
-                upd_select.skip_aborted_prepared_value = false;
+            }
 
             update_no_copy = true; /* No data copy */
             repeat_count = 1;      /* Single record */
             deleted = false;
 
-            if (upd == NULL && orig_stale &&
-              (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !F_ISSET(r, WT_REC_EVICT) ||
-                !upd_select.skip_aborted_prepared_value)) {
-                /*
-                 * The on-disk value is stale and there was no update. Treat it as deleted.
-                 *
-                 * Keep the on-disk cell when the chain still has an unstable aborted prepared
-                 * update that we skipped this round: the cell is its only rollback fallback, and
-                 * dropping it now would strand the prepared update with nothing to fall back to on
-                 * a later reconciliation.
-                 */
+            if (upd == NULL && orig_stale) {
+                /* The on-disk value is stale and there was no update. Treat it as deleted. */
                 deleted = true;
-                r->key_removed_from_disk_image = true;
+                ++r->keys_removed_from_disk_image_count;
                 twp = &clear_tw;
             } else if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
@@ -492,7 +484,7 @@ record_loop:
                 deleted = orig_deleted;
                 if (deleted) {
                     twp = &clear_tw;
-                    r->key_removed_from_disk_image = true;
+                    ++r->keys_removed_from_disk_image_count;
                     goto compare;
                 }
                 twp = &vpack->tw;
@@ -595,7 +587,7 @@ record_loop:
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
                     twp = &clear_tw;
-                    r->key_removed_from_disk_image = true;
+                    ++r->keys_removed_from_disk_image_count;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));

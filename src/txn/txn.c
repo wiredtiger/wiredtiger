@@ -521,7 +521,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
     /* Try to move the pinned timestamp forward. */
     if (strict)
-        __wti_txn_update_pinned_timestamp(session, false);
+        __wt_txn_update_pinned_timestamp(session, false);
 
     /*
      * For pure read-only workloads, or if the update isn't forced and the oldest ID isn't too far
@@ -783,7 +783,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     if (ret == 0 && cval.len != 0) {
         session->isolation = txn->isolation = WT_CONFIG_LIT_MATCH("snapshot", cval) ?
-                                                          WT_ISO_SNAPSHOT :
+          WT_ISO_SNAPSHOT :
           WT_CONFIG_LIT_MATCH("read-uncommitted", cval) ? WT_ISO_READ_UNCOMMITTED :
                                                           WT_ISO_READ_COMMITTED;
     }
@@ -1206,9 +1206,9 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
           session, btree, txn_time_point->commit_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
-         (first_committed_upd->txnid == WT_TXN_ABORTED ||
-           first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
-         first_committed_upd = first_committed_upd->next)
+      (first_committed_upd->txnid == WT_TXN_ABORTED ||
+        first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
+      first_committed_upd = first_committed_upd->next)
         ;
 
     /*
@@ -1251,7 +1251,7 @@ __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree,
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && F_ISSET(upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS))))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
-    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    else if (__wt_btree_stays_in_memory(btree))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
@@ -1644,6 +1644,22 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 ++prepare_count;
 #endif
             }
+
+            /*
+             * Advance the ingest btree's durable-timestamp bound (for both prepared and
+             * non-prepared commits) so sweep can promptly reclaim the table once it is durable. The
+             * final transaction timestamp can get earlier, but never later than this. Thus our
+             * published maximum might be pessimistic, that's okay.
+             */
+            if (F_ISSET(op->btree, WT_BTREE_GARBAGE_COLLECT))
+                __wt_btree_advance_ingest_max(op->btree, txn->time_point.durable_timestamp);
+
+            /*
+             * Update the minimum durable timestamp for an unpublished btree, so that we can quickly
+             * determine if it contains any stable data.
+             */
+            if (F_ISSET_ATOMIC_32(op->btree, WT_BTREE_AWAITS_PUBLISH))
+                __wt_btree_update_unpublished_min(op->btree, txn->time_point.durable_timestamp);
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
@@ -1821,7 +1837,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     update_durable_ts = false;
     prev_durable_timestamp = WT_TS_NONE;
     if (candidate_durable_timestamp != WT_TS_NONE) {
-        prev_durable_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->durable_timestamp);
+        prev_durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
         update_durable_ts = candidate_durable_timestamp > prev_durable_timestamp;
     }
 
@@ -1831,12 +1847,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (update_durable_ts)
         while (candidate_durable_timestamp > prev_durable_timestamp) {
-            if (__wt_atomic_cas_uint64(&txn_global->durable_timestamp, prev_durable_timestamp,
-                  candidate_durable_timestamp)) {
-                __wt_tsan_suppress_store_bool(&txn_global->has_durable_timestamp, true);
+            if (__wt_atomic_cas_uint64_relaxed(&txn_global->durable_timestamp,
+                  prev_durable_timestamp, candidate_durable_timestamp)) {
+                __wt_atomic_store_bool_release(&txn_global->has_durable_timestamp, true);
                 break;
             }
-            prev_durable_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->durable_timestamp);
+            prev_durable_timestamp =
+              __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
         }
 
     /*
@@ -2503,6 +2520,9 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_atomic_store_uint64_v_relaxed(&s->metadata_pinned, WT_TXN_NONE);
     }
 
+    conn->ckpt_eviction_snap[0].snap_min = WT_TXN_NONE;
+    conn->ckpt_eviction_snap[1].snap_min = WT_TXN_NONE;
+
     return (0);
 }
 
@@ -2747,7 +2767,7 @@ __wt_verbose_dump_txn_one(
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
-    uint32_t i, buf_len;
+    uint32_t i;
     char ckpt_lsn_str[WT_MAX_LSN_STRING];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
@@ -2767,11 +2787,10 @@ __wt_verbose_dump_txn_one(
       !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
 
-    buf_len = 512;
-    WT_RET(__wt_scr_alloc(session, buf_len, &buf));
+    WT_RET(__wt_scr_alloc(session, 0, &buf));
 
     const char *session_name = __wt_atomic_load_ptr_relaxed(&txn_session->name);
-    WT_ERR(__wt_snprintf((char *)buf->data, buf_len,
+    WT_ERR(__wt_buf_fmt(session, buf,
       "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
       ", metadata pinned ID: %" PRIu64 ", name: %s",
       txn_session->id, __wt_atomic_load_uint64_v_relaxed(&txn_shared->id),
@@ -2809,10 +2828,7 @@ __wt_verbose_dump_txn_one(
         WT_ERR(__wt_buf_catfmt(
           session, snapshot_buf, "%s%" PRIu64, i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
-    buf_len = (uint32_t)snapshot_buf->size + 512;
-    if (txn_err_info->err_msg != NULL)
-        buf_len += strlen(txn_err_info->err_msg);
-    WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
     WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
 
@@ -2821,7 +2837,7 @@ __wt_verbose_dump_txn_one(
      * error message.
      */
     WT_ERR(
-      __wt_snprintf((char *)buf->data, buf_len,
+      __wt_buf_fmt(session, buf,
         "transaction id: %" PRIu64 ", mod count: %u"
         ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
         ", snapshot: %s"
@@ -2896,7 +2912,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "oldest ID: %" PRIu64, __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id)));
 
     WT_RET(__wt_msg(session, "durable timestamp: %s",
-      __wt_timestamp_to_string(txn_global->durable_timestamp, ts_string)));
+      __wt_timestamp_to_string(
+        __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp), ts_string)));
     WT_RET(__wt_msg(session, "oldest timestamp: %s",
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string)));
     WT_RET(__wt_msg(session, "pinned timestamp: %s",
@@ -2908,8 +2925,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       __wt_timestamp_to_string(
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch),
         ts_string)));
-    WT_RET(__wt_msg(
-      session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "has_durable_timestamp: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->has_durable_timestamp) ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) ? "yes" : "no"));
     WT_RET(__wt_msg(

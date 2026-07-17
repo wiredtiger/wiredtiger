@@ -14,6 +14,12 @@
       __wt_atomic_load_uint32_relaxed(&(dhandle)->references) == 0)
 
 /*
+ * Grace period before closing an outdated checkpoint handle so the next generation can reuse its
+ * shared disk image. The shared disk cache uses the same window to stop serving reads.
+ */
+#define WT_DISAGG_OUTDATED_GRACE_SECS 5
+
+/*
  * __sweep_file_dhandle_check_and_reset_tod --
  *     Check if the file dhandle exists for the table dhandle and resets its time-of-death if it
  *     does.
@@ -137,9 +143,35 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
     /* This method expects dhandle write lock. */
     WT_ASSERT(session, FLD_ISSET(dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
 
-    /* Only sweep clean trees. */
-    if (btree != NULL && btree->modified)
-        return (0);
+    /*
+     * Sweep only closes clean trees, with one exception: an ingest btree whose entire contents are
+     * known to be durable in the stable table.
+     */
+    if (btree != NULL && btree->modified) {
+        /*
+         * We check that there are no cursors open that can be adding new content, and we hold the
+         * dhandle write lock, which blocks new opens. Open transaction modifications also bump the
+         * in use counter, so we won't close trees in that state.
+         */
+        if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) ||
+          __wt_atomic_load_int32_acquire(&dhandle->session_inuse) != 0)
+            return (0);
+
+        /* Be certain that we're dealing with an ingest table. */
+        WT_ASSERT(session, WT_URI_IS_INGEST(dhandle->name));
+
+        /*
+         * The maximum write timestamp is a potentially conservative maximum of durable timestamps
+         * made in this tree. Conservative or not, it guarantees that there are no writes newer than
+         * that timestamp. Only if the checkpoint covers that timestamp, can we proceed with the
+         * close.
+         */
+        wt_timestamp_t max_write_ts = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+        if (max_write_ts == WT_TS_NONE ||
+          max_write_ts >
+            __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.last_ckpt_timestamp))
+            return (0);
+    }
 
     /*
      * Mark the handle dead and close the underlying handle.
@@ -201,16 +233,25 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
             continue;
         /*
-         * Close outdated btrees immediately, even if they are metadata. For trees not marked with
-         * outdated, wait until the idle time has elapsed since time of death.
+         * For outdated btrees, hold standby node checkpoint handles for a short grace period,
+         * otherwise close them immediately. For trees not marked with outdated, wait until the idle
+         * time has elapsed since time of death.
          */
+        uint64_t tod = __wt_atomic_load_uint64_relaxed(&dhandle->timeofdeath);
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
             if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
                 continue;
+            if (__wt_conn_is_disagg(session) && WT_URI_IS_STABLE_CHECKPOINT(dhandle->name)) {
+                if (tod == 0) {
+                    __wt_atomic_store_uint64_relaxed(&dhandle->timeofdeath, now);
+                    continue;
+                }
+                if (now - tod <= WT_DISAGG_OUTDATED_GRACE_SECS)
+                    continue;
+            }
         } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
-          __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
-          now - dhandle->timeofdeath <= conn->sweep.idle_time)
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 || tod == 0 ||
+          now - tod <= conn->sweep.idle_time)
             continue;
 
         /*
@@ -510,6 +551,24 @@ __sweep_server(void *arg)
           "Sweep server performing a session check after removing %u dead handles", dead_handles);
 
         __sweep_check_session_sweep(session, now);
+
+        /* On a stepped-up leader, mark the shared disk cache dead once its reuse window elapses. */
+        if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
+          __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
+            WT_DSK_CACHE_READONLY) {
+            uint64_t readonly_since =
+              __wt_atomic_load_uint64_relaxed(&conn->cache->shared_dsk_cache.readonly_since);
+            if (now > readonly_since && now - readonly_since > WT_DISAGG_OUTDATED_GRACE_SECS) {
+                /*
+                 * A failed swap means a concurrent step-down reactivated the cache, leave it alone.
+                 */
+                if (!__wt_atomic_cas_uint8(&conn->cache->shared_dsk_cache.state,
+                      WT_DSK_CACHE_READONLY, WT_DSK_CACHE_DEAD))
+                    WT_ASSERT(session,
+                      WT_DSK_CACHE_READABLE(
+                        __wt_atomic_load_uint8_relaxed(&conn->cache->shared_dsk_cache.state)));
+            }
+        }
 
         /* Remember the last sweep time. */
         last = now;

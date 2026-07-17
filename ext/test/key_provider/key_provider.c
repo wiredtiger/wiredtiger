@@ -90,7 +90,7 @@ static const WT_CRYPT_KEYS DEFAULT_KEY = {
 /*
  * On non-Windows platforms, convert clock ticks to microseconds.
  */
-#define CLOCK_USECS(ts) ((ts)*USEC_PER_SEC) / CLOCKS_PER_SEC
+#define CLOCK_USECS(ts) ((ts) * USEC_PER_SEC) / CLOCKS_PER_SEC
 #endif /* CLOCK_USECS */
 
 /*
@@ -142,8 +142,9 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
         lsn = DEFAULT_KEY.r.lsn;
     }
 
-    /* Verify that the key data matches the expected key data */
-    assert(memcmp(key_data, DEFAULT_KEY_DATA, sizeof(DEFAULT_KEY_DATA) - 1) == 0);
+    /* Pull mode generates keys with the default prefix. */
+    if (kp->version == 0)
+        assert(memcmp(key_data, DEFAULT_KEY_DATA, sizeof(DEFAULT_KEY_DATA) - 1) == 0);
 
     kp_free_key(kp);
 
@@ -172,11 +173,12 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     LOG_DEBUG(kp, session, "Current key: LSN=%" PRIu64 ", key_time=%" PRIu64 ", size=%" PRIzu,
       kp->state.lsn, kp->state.key_time, kp->state.key_size);
 
-    LOG_INFO(
-      kp, session, "Loading key for LSN=%" PRIu64 ", size=%" PRIzu, crypt->r.lsn, crypt->keys.size);
+    LOG_INFO(kp, session, "Loading key for LSN=%" PRIu64 ", timestamp=%" PRIu64 ", size=%" PRIzu,
+      crypt->r.lsn, crypt->timestamp, crypt->keys.size);
 
     assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
+    kp->state.timestamp = crypt->timestamp;
 
     /* Reset expiration if a valid key was loaded. */
     if (crypt->keys.data != NULL)
@@ -340,7 +342,8 @@ kp_on_key_update(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS
       kp->state.lsn, kp->state.key_time, kp->state.key_size);
 
     assert(kp->state.key_data != NULL);
-    assert(kp->state.key_state == KEY_STATE_READ); /* Key must have been read */
+    /* Pull mode advances through KEY_STATE_READ via get_key; push mode does not. */
+    assert(kp->version == 1 || kp->state.key_state == KEY_STATE_READ);
 
     if (crypt->keys.size == 0) {
         /* Failure case - error is in keys->r.error */
@@ -352,11 +355,20 @@ kp_on_key_update(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS
 
         /* Update our internal state */
         assert(crypt->r.lsn != 0);
-        kp->state.lsn = crypt->r.lsn;
 
-        assert(memcmp(kp->state.key_data, crypt->keys.data, kp->state.key_size) == 0);
-        assert(kp->state.key_size == crypt->keys.size);
-        kp->state.key_state = KEY_STATE_CURRENT;
+        if (kp->version == 1) {
+            /* The persisted timestamp and LSN must strictly advance. */
+            assert(crypt->timestamp != 0 && crypt->timestamp > kp->state.timestamp);
+            assert(crypt->r.lsn > kp->state.lsn);
+
+            kp_set_key(kp, crypt);
+            kp->state.timestamp = crypt->timestamp;
+        } else {
+            kp->state.lsn = crypt->r.lsn;
+            assert(memcmp(kp->state.key_data, crypt->keys.data, kp->state.key_size) == 0);
+            assert(kp->state.key_size == crypt->keys.size);
+            kp->state.key_state = KEY_STATE_CURRENT;
+        }
     }
 
     return (0);
@@ -413,7 +425,9 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
 
     /* Parse configuration key-value pairs */
     while ((ret = config_parser->next(config_parser, &k, &v)) == 0) {
-        if (configure_int("verbose", &k, &v, &kp->verbose) == 0)
+        if (configure_int("version", &k, &v, &kp->version) == 0)
+            continue;
+        else if (configure_int("verbose", &k, &v, &kp->verbose) == 0)
             continue;
         else if (configure_int("key_expires", &k, &v, &kp->key_expires) == 0)
             continue;
@@ -481,22 +495,23 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     if ((ret = kp_configure(kp, config)) != 0)
         goto err;
 
-    /* Initialize the key provider function table */
+    /* Initialize the key provider function table. */
     wtkp->load_key = kp_load_key;
     wtkp->get_key = kp_get_key;
     wtkp->on_key_update = kp_on_key_update;
     wtkp->terminate = kp_terminate;
 
-    /* Register the key provider with WiredTiger */
-    if ((ret = conn->set_key_provider(conn, wtkp, NULL)) != 0) {
+    /* Register the key provider with WiredTiger. In push mode pass version=1. */
+    const char *kp_config = (kp->version == 1) ? "version=1" : NULL;
+    if ((ret = conn->set_key_provider(conn, wtkp, kp_config)) != 0) {
         LOG_ERROR(kp, NULL, "WT_CONNECTION.set_key_provider: %d (%s)", ret,
           wtext->strerror(wtext, NULL, ret));
         goto err;
     }
 
     LOG_INFO(kp, NULL,
-      "Key provider initialized successfully; config: {verbose=%d, key_expires=%d}", kp->verbose,
-      kp->key_expires);
+      "Key provider initialized successfully; config: {version=%d, verbose=%d, key_expires=%d}",
+      kp->version, kp->verbose, kp->key_expires);
 
     /* One-shot key expiration: first get_key call always expires the key. */
     KEY_ONESHOT_EXPIRE(kp);
@@ -504,8 +519,7 @@ key_provider_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     return (0);
 
 err:
-    if (kp != NULL)
-        kp_terminate((WT_KEY_PROVIDER *)kp, NULL);
+    kp_terminate((WT_KEY_PROVIDER *)kp, NULL);
 
     return (ret);
 }

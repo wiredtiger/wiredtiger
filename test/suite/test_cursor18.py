@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor18.py
-#   Test version cursor under various scenarios.
+# Test version cursor under various scenarios.
 #
 import wttest
 import wiredtiger
@@ -36,7 +35,8 @@ from wtscenario import make_scenarios
 WT_TS_MAX = 2**64-1
 
 class test_cursor18(wttest.WiredTigerTestCase):
-    uri = 'file:test_cursor18.wt'
+    test_name = __qualname__
+    uri = f'file:{test_name}.wt'
 
     types = [
         ('row', dict(keyformat='i', valueformat='i')),
@@ -333,7 +333,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
 
-        self.verify_value(version_cursor, 1, 0, WT_TS_MAX, 0, 3, 1, 64, 0, 0)
+        self.verify_value(version_cursor, 1, 0, WT_TS_MAX, 0, 3, 1, 32, 0, 0)
         self.verify_prepare_fields(version_cursor, 1, WT_TS_MAX)
         self.assertEqual(version_cursor.next(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -583,7 +583,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 1, 1, WT_TS_MAX, 0, 3, 0, 0, 0, 0)
+        self.verify_value(version_cursor, 1, 1, WT_TS_MAX, 0, 3, 0, 128, 0, 0)
         self.verify_prepare_fields(version_cursor, 0, WT_TS_MAX)
         self.assertEqual(version_cursor.next(), 0)
         self.verify_value(version_cursor, 1, 1, WT_TS_MAX, 0, 3, 0, 0, 1, 0)

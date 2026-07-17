@@ -266,8 +266,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     bm = btree->bm;
 
-    /* Initialize the block manager's size from the checkpoint metadata. */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+    /*
+     * Initialize the block manager's size from the checkpoint metadata, but only for the live
+     * handle. A checkpoint cursor open must not clobber the live running total with a stale
+     * checkpoint size, which would later underflow the total in the eviction path.
+     */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_DHANDLE_IS_CHECKPOINT(dhandle) &&
+      checkpoint == NULL)
         __wt_block_disagg_set_size(session, ckpt.size);
 
     /*
@@ -300,8 +305,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
-            /* Warm the cache, if possible. */
-            if (!__wt_conn_is_disagg(session)) {
+            /*
+             * Warm the cache, if possible. Skip when the connection is in read-corrupt mode so that
+             * corrupt pages are handled during the explicit walk instead of via preload.
+             */
+            if (!__wt_conn_is_disagg(session) && !F_ISSET(session, WT_SESSION_READ_SKIP_CORRUPT)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
                 WT_ERR(ret);
             }
@@ -514,6 +522,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_DECL_RET;
     int64_t maj_version, min_version;
     const char **cfg;
+    bool awaits_publish;
 
     btree = S2BT(session);
     cfg = btree->dhandle->cfg;
@@ -590,6 +599,42 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     }
 
     /*
+     * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
+     * replaced with something more robust.
+     */
+    if (WT_URI_IS_INGEST(btree->dhandle->name))
+        /* Flag the ingest btree as participating in automatic garbage collection */
+        F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
+    else {
+        WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
+        if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
+            F_SET(btree, WT_BTREE_DISAGGREGATED);
+
+            WT_RET(__btree_setup_page_log(session, btree));
+
+            /* A page log service and a storage source cannot both be enabled. */
+            WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
+        }
+    }
+
+    /*
+     * Check if we expect the btree to be published in the future, which happens if (1) the btree is
+     * newly created, (2) it is disaggregated, and (3) the disaggregated stable schema epoch is set.
+     * Ignore the "system" tables, such as the shared history store and the shared metadata table.
+     *
+     * If we use schema epochs in disaggregated storage, the btree starts in memory, so that we
+     * cannot write any pages until the table is published - not even an empty root page.
+     */
+    awaits_publish = ckpt->raw.size == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !WT_IS_URI_HS(btree->dhandle->name) && !WT_IS_URI_METADATA(btree->dhandle->name) &&
+      (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
+
+    if (awaits_publish)
+        F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    else
+        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+
+    /*
      * This option allows the tree to be reconciled by eviction. But we only replace the disk image
      * in memory to reduce the memory footprint and nothing is written to disk and no data is moved
      * to the history store. Checkpoint will also skip this tree.
@@ -635,25 +680,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_SET(btree, WT_BTREE_NO_CHECKPOINT);
     else
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
-
-    /*
-     * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
-     * replaced with something more robust.
-     */
-    if (WT_URI_IS_INGEST(btree->dhandle->name))
-        /* Flag the ingest btree as participating in automatic garbage collection */
-        F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
-    else {
-        WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-        if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
-            F_SET(btree, WT_BTREE_DISAGGREGATED);
-
-            WT_RET(__btree_setup_page_log(session, btree));
-
-            /* A page log service and a storage source cannot both be enabled. */
-            WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
-        }
-    }
 
     /* Page sizes */
     WT_RET(__btree_page_sizes(session));
@@ -787,7 +813,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
-    /* If this is the first time opening the tree this run. */
+    /*
+     *  If this is the first time opening the tree this run.
+     *  FIXME-WT-17763: The runtime write generation should not always be updated in disagg mode,
+     *  the proper conditional is more narrow and needs to be implemented here.
+     */
     if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         btree->run_write_gen = btree->write_gen;
@@ -818,6 +848,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         btree->next_page_id = WT_BLOCK_MIN_PAGE_ID; /* Should this be in create? */
     else
         btree->next_page_id = ckpt->next_page_id;
+
+    __wt_atomic_store_uint64_relaxed(&btree->leaf_entry_ewma, ckpt->leaf_entry_ewma);
+    __wt_atomic_store_uint64_relaxed(&btree->approx_leaf_pages, ckpt->approx_leaf_pages);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're

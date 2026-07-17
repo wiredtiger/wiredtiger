@@ -30,16 +30,16 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_cursor13.py
-#   Test cursor bounds on layered cursors with a 1000-key dataset.
+# Test cursor bounds on layered cursors with a 1000-key dataset.
 
 @disagg_test_class
 class test_layered_cursor13(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-    uri = 'layered:test_layered_cursor13'
+    uri = f'layered:{test_name}'
     nkeys = 1000
 
-    disagg_storages = gen_disagg_storages('test_layered_cursor13', disagg_only=True)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
 
     scenarios = make_scenarios(disagg_storages)
 
@@ -101,7 +101,7 @@ class test_layered_cursor13(wttest.WiredTigerTestCase):
     def remove_ingest(self, keys):
         """Remove keys (list of ints) from the follower's local table."""
         session = self.session_follow
-        cursor = session.open_cursor(self.uri)
+        cursor = session.open_cursor(self.uri, None, 'overwrite=false')
         for i in keys:
             key = self.fmt_key(i)
             session.begin_transaction()

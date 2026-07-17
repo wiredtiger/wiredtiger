@@ -30,8 +30,7 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from itertools import permutations, product
 
-# test_layered_cursor15.py
-#    Test layered cursor iteration.
+# Test layered cursor iteration.
 #
 # A follower layered table is more complex than on a leader. In a layered table on a follower
 # there are both ingest and stable tables. Assuming we have either a fixed timestamp, or aren't
@@ -92,13 +91,15 @@ class test_layered_cursor15(wttest.WiredTigerTestCase):
             return
         with self.transaction(session=session, commit_timestamp=ts):
             c = session.open_cursor(uri)
+            remove_cursor = session.open_cursor(uri, None, 'overwrite=false')
             for key, letter in enumerate(sit, 1):
                 if letter in inserts:
                     c[str(key)] = str(key)
                 elif letter in removes:
-                    c.set_key(str(key))
-                    c.remove()
+                    remove_cursor.set_key(str(key))
+                    remove_cursor.remove()
             c.close()
+            remove_cursor.close()
 
     # Iterate using a zigzag pattern: two forward, one back, etc.
     def _verify_zigzag(self, cursor, forward, expect):
@@ -202,7 +203,7 @@ class test_layered_cursor15(wttest.WiredTigerTestCase):
         ts = 100
         uri_sits = []
         for sit in sits:
-            uri = 'table:' + ''.join(sit)
+            uri = 'table:t' + ''.join(sit)
             self.session.create(uri, 'key_format=S,value_format=S,block_manager=disagg,type=layered')
             uri_sits.append((uri, sit))
 

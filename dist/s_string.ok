@@ -27,6 +27,7 @@ Alakuijala
 Alexandrescu's
 Alloc
 Alves
+AssertionError
 Async
 Athlon
 Auth
@@ -42,7 +43,7 @@ BCcLlsvz
 BFGs
 BIGENDIAN
 BLKCACHE
-BLmpRrSVv
+BLmpqRrSVv
 BOOL
 BSR
 BTREE
@@ -81,6 +82,7 @@ CMake
 CMakeFiles
 CMakeLists
 CMakePresets
+CONCAT
 CONF
 CONFIG
 CPP
@@ -141,6 +143,7 @@ DeleteFileW
 Deterministically
 DisAgg
 Disagg
+DisaggCorruptionMixin
 Disaggregated
 Dk
 DmpeRkvXx
@@ -167,6 +170,7 @@ EQ
 ERANGE
 ETIME
 ETIMEDOUT
+EWMA
 EXTLIST
 EXTLIST's
 EXTSUBPATH
@@ -330,6 +334,7 @@ Munge
 Mutex
 Mutexes
 MySecret
+NN
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -379,6 +384,7 @@ PSD
 PSE
 PTR
 PYTHONMALLOC
+Palite
 Palites
 Pe
 PlatformSDK
@@ -411,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -441,6 +448,9 @@ RuntimeError
 SCons
 SDK
 SIGABRT
+SIGBUS
+SIGKILL
+SIGSEGV
 SIMD
 SLS
 SLVG
@@ -502,6 +512,7 @@ TieredConfigMixin
 Timespec
 Tput
 TryCV
+Tunables
 TypeError
 Typedefs
 UBSAN
@@ -635,6 +646,7 @@ allocator
 allocators
 allocfile
 allocsize
+analytics
 aor
 ap
 api
@@ -643,12 +655,14 @@ argc
 args
 argv
 asan
+asc
 ascii
 assertEqual
 assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -786,6 +800,7 @@ colcheck
 colgap
 colgroup
 colgroups
+collHash
 collatorp
 collist
 columngroup
@@ -797,6 +812,7 @@ comparators
 comparep
 compat
 compilable
+concurrencytest
 cond
 conditionalize
 conf
@@ -852,6 +868,7 @@ cust
 customizable
 customp
 cutlim
+cutover
 cv
 cval
 cx
@@ -882,6 +899,7 @@ dec
 decile
 deciles
 decl
+decodable
 decompressor
 decr
 decrementing
@@ -898,6 +916,7 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
 designator
@@ -917,6 +936,7 @@ difftime
 dir
 directio
 dirlist
+dirs
 dirstore
 disagg
 disaggregated
@@ -938,6 +958,7 @@ dryrun
 ds
 dsb
 dsbs
+dsc
 dsk
 dsrc
 dst
@@ -956,6 +977,7 @@ durabletime
 dv
 dylib
 eb
+ebusy
 eee
 eg
 ejnprx
@@ -990,6 +1012,7 @@ ev
 evd
 eventv
 evictable
+ewma
 exactp
 exc
 exe
@@ -1036,6 +1059,7 @@ fixup
 floatnum
 fmt
 fmterr
+fn
 fnv
 fnvhash
 foc
@@ -1104,6 +1128,7 @@ groupd
 gte
 handleops
 handlep
+handoff
 hardcoded
 hashmap
 hashq
@@ -1144,6 +1169,7 @@ ikey
 im
 img
 impl
+incompressible
 incr
 incrementals
 incrementing
@@ -1152,6 +1178,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initn
 initsize
 initval
@@ -1202,6 +1232,7 @@ jsondump
 k'th
 kB
 kbits
+kek
 key'd
 keycmp
 keyedness
@@ -1250,6 +1281,7 @@ lldb
 llll
 llu
 llvm
+loadshed
 loadtext
 loc
 localTime
@@ -1299,6 +1331,7 @@ mb
 mbll
 mbss
 mci
+md
 mdb
 mem
 memadvise
@@ -1391,6 +1424,7 @@ nonconflicting
 nonliteral
 nonoverlapping
 nonstandalone
+nontxn
 noop
 nop
 nopos
@@ -1452,6 +1486,7 @@ overcount
 oversized
 ovfl
 ownp
+pP
 pR
 pT
 packv
@@ -1517,6 +1552,7 @@ proc
 progname
 programmatically
 prout
+providerp
 proxied
 prunable
 ps
@@ -1562,6 +1598,7 @@ rebalancing
 recency
 recno
 recnos
+recognizes
 reconfig
 reconfigurations
 reconfigures
@@ -1614,6 +1651,7 @@ salvageUntilSuccess
 sanitizer
 sanitizers
 scalable
+scen
 schemas
 sclose
 scr
@@ -1677,6 +1715,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr
@@ -1832,6 +1871,9 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
+underflows
+underfull
 unencoded
 unencrypted
 unesc

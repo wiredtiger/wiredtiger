@@ -32,16 +32,16 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_prepare_hs04.py
 # Read prepared updates from on-disk with ignore_prepare.
 # Committing or aborting a prepared update when there exists a tombstone for that key already.
 @wttest.skip_for_hook("disagg", "This test relies on RTS, which is not used in disagg.")
 class test_prepare_hs04(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=5MB,statistics=(fast)'
 
     # Create a small table.
-    uri = "table:test_prepare_hs04"
+    uri = f"table:{test_name}"
 
     nsessions = 3
     nkeys = 40
@@ -61,12 +61,6 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
     value_format='u'
 
     scenarios = make_scenarios(commit_values, format_values)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def search_keys_timestamp_and_ignore(self, ds, txn_config, expected_value, conflict=False):
         cursor = self.session.open_cursor(self.uri)

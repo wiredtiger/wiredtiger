@@ -698,9 +698,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * We can't do this if there is a sync running in the tree in another session: removing the refs
      * frees the blocks for the deleted pages, which can corrupt the free list calculated by the
      * sync.
+     *
+     * We can't do this at all for disaggregated trees. The parent's page-log image may already
+     * contain a proxy cell for the deleted page, either from this checkpoint or an earlier one.
+     * Freeing the block here would leave that reference dangling. Reconciliation handles this
+     * safely by dropping both the block and proxy cell together.
      */
     deleted_entries = 0;
-    if (!__wt_btree_syncing_by_other_sessions(session))
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !__wt_btree_syncing_by_other_sessions(session))
         for (i = 0; i < parent_entries; ++i) {
             next_ref = pindex->index[i];
             WT_ASSERT(session, WT_REF_GET_STATE(next_ref) != WT_REF_SPLIT);
@@ -847,12 +852,19 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
+        /* Reverse split removes a deleted/empty leaf, not a split replacement. */
+        if (new_entries == 0 && btree->type == BTREE_ROW &&
+          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
+            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
           session, next_ref, parent, &parent_decr, split_gen, exclusive));
+        if (btree->type == BTREE_ROW &&
+          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
+            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
 
     /*
@@ -1506,7 +1518,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+    if (instantiate_upd && !__wt_btree_stays_in_memory(S2BT(session)) &&
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
@@ -1515,8 +1527,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
+     *
+     * A btree awaiting publication is reconciled in memory only, so the rebuilt page would
+     * otherwise be clean and hold its only copy in an in-memory image. Keep it dirty so the
+     * checkpoint that runs once the table is published rewrites it to shared storage.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) ||
+      F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
         WT_RET(__wt_page_modify_init(session, page));
         __wt_page_modify_set(session, page);
     }
@@ -1629,7 +1646,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
               supd->onpage_tombstone != NULL && supd->onpage_upd == NULL) {
                 for (WT_UPDATE *scan = upd; scan != NULL && scan != supd->onpage_tombstone;
-                     scan = scan->next) {
+                  scan = scan->next) {
                     if (scan->prepared_id != WT_PREPARED_ID_NONE) {
                         retain_tombstone = true;
                         break;
@@ -1657,7 +1674,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                  * truncate all the updates starting from the onpage value.
                  */
                 for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
-                     prev_onpage = prev_onpage->next)
+                  prev_onpage = prev_onpage->next)
                     ;
                 WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
@@ -1749,9 +1766,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         }
     }
 
-    if (free_size > 0)
-        __wt_cache_page_inmem_decr(session, page, free_size);
-
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
      * running. However, the updates we made might be older than that. Set the first dirty
@@ -1764,6 +1778,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
+    if (free_size > 0)
+        __wt_cache_page_inmem_decr(session, page, free_size);
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 
@@ -2227,6 +2243,10 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
             WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
+        if (type == WT_PAGE_ROW_LEAF &&
+          __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) !=
+            WT_LEAF_STATS_UNKNOWN)
+            (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, 1);
         return (0);
     }
 
@@ -2314,6 +2334,9 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
 
+    if (__wt_btree_is_stale_disagg(session))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
      * eviction, then proceed with the insert split.
@@ -2347,15 +2370,27 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * reference structures.
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
-    for (i = 0; i < new_entries; ++i)
+    for (i = 0; i < new_entries; ++i) {
         WT_ERR(__wt_multi_to_ref(session, ref, page, &mod->mod_multi[i], new_entries, &ref_new[i],
           &parent_incr, i == 0, closing));
+        /*
+         * A disaggregated child without a retained disk image has been pushed to WT_REF_DISK. Its
+         * backing block must be behind the materialization frontier so it can be read back safely.
+         */
+        WT_ASSERT(session,
+          page->disagg_info == NULL || closing || WT_REF_GET_STATE(ref_new[i]) == WT_REF_MEM ||
+            (mod->mod_multi[i].block_meta != NULL &&
+              __wt_materialization_check(session, mod->mod_multi[i].block_meta->disagg_lsn)));
+    }
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
+    if (page->type == WT_PAGE_ROW_LEAF && new_entries > 1 &&
+      __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
+        (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, new_entries - 1);
 
     /*
      * The split succeeded, we can no longer fail.
@@ -2426,11 +2461,14 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
-    /*
-     * Set the session split generation to ensure underlying code isn't surprised by internal page
-     * eviction, then proceed with the split.
-     */
-    WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
+    if (__wt_btree_is_stale_disagg(session))
+        ret = __wt_set_return(session, EBUSY);
+    else
+        /*
+         * Set the session split generation to ensure underlying code isn't surprised by internal
+         * page eviction, then proceed with the split.
+         */
+        WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
 
     if (ret == EBUSY)
         WT_STAT_CONN_DSRC_INCR(session, cache_evict_split_failed_lock);
@@ -2465,6 +2503,9 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
 
+    if (__wt_btree_is_stale_disagg(session))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
      * eviction, then proceed with the reverse split.
@@ -2475,11 +2516,10 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_split_rewrite --
- *     Rewrite an in-memory page with a new version. If the caller changes the ref state later, it
- *     should not change ref state in this function.
+ *     Rewrite an in-memory page with a new version.
  */
 int
-__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool change_ref_state)
+__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 {
     WT_ADDR *addr;
     WT_DECL_RET;
@@ -2552,8 +2592,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
         __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
     ref->page = new->page;
 
-    if (change_ref_state)
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+    WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     __wt_free(session, new);
     return (0);

@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_bulk.py
-#       bulk-cursor test.
+# bulk-cursor test.
 #
 
 import wiredtiger, wttest
@@ -53,12 +52,6 @@ class test_bulk_load(wttest.WiredTigerTestCase):
         ('string', dict(valfmt='S')),
     ]
     scenarios = make_scenarios(types, keyfmt, valfmt)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     # Test a simple bulk-load
     def test_bulk_load(self):

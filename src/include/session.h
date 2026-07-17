@@ -209,7 +209,7 @@ struct __wt_session_impl {
     struct __wt_scratch_track {
         const char *func; /* Allocating function, line */
         int line;
-    } * scratch_track;
+    } *scratch_track;
 #endif
 
     /* Record the important timestamps of each stage in an reconciliation. */
@@ -342,20 +342,28 @@ struct __wt_session_impl {
 #define WT_SESSION_INGEST_REPLAY 0x00008000u
 #define WT_SESSION_INTERNAL 0x00010000u
 #define WT_SESSION_LOGGING_INMEM 0x00020000u
-#define WT_SESSION_NO_DATA_HANDLES 0x00040000u
-#define WT_SESSION_NO_RECONCILE 0x00080000u
-#define WT_SESSION_PREFETCH_ENABLED 0x00100000u
-#define WT_SESSION_PREFETCH_THREAD 0x00200000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x00400000u
-#define WT_SESSION_QUIET_OPEN_FILE 0x00800000u
-#define WT_SESSION_READ_WONT_NEED 0x01000000u
-#define WT_SESSION_RESOLVING_TXN 0x02000000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x04000000u
-#define WT_SESSION_SAVE_ERRORS 0x08000000u
-#define WT_SESSION_SCHEMA_TXN 0x10000000u
-#define WT_SESSION_SKIP_CACHE_INCR 0x20000000u
+#define WT_SESSION_NON_TRANSACTIONAL_TRUNCATE 0x00040000u
+#define WT_SESSION_NO_DATA_HANDLES 0x00080000u
+#define WT_SESSION_NO_RECONCILE 0x00100000u
+#define WT_SESSION_PREFETCH_ENABLED 0x00200000u
+#define WT_SESSION_PREFETCH_THREAD 0x00400000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x00800000u
+#define WT_SESSION_QUIET_OPEN_FILE 0x01000000u
+#define WT_SESSION_READ_SKIP_CORRUPT 0x02000000u
+#define WT_SESSION_READ_WONT_NEED 0x04000000u
+#define WT_SESSION_RESOLVING_TXN 0x08000000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x10000000u
+#define WT_SESSION_SAVE_ERRORS 0x20000000u
+#define WT_SESSION_SCHEMA_TXN 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+/*
+ * The block managers check either flag to determine whether a corruption error on a read is
+ * acceptable.
+ */
+#define WT_SESSION_READ_CORRUPT_OK(session) \
+    F_ISSET((session), WT_SESSION_QUIET_CORRUPT_FILE | WT_SESSION_READ_SKIP_CORRUPT)
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
@@ -385,13 +393,14 @@ struct __wt_session_impl {
     TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) * dhhash;
 
 /* Generations manager */
-#define WT_GEN_CHECKPOINT 0   /* Checkpoint generation */
-#define WT_GEN_EVICT 1        /* Eviction generation */
-#define WT_GEN_HAS_SNAPSHOT 2 /* Snapshot generation */
-#define WT_GEN_HAZARD 3       /* Hazard pointer */
-#define WT_GEN_SPLIT 4        /* Page splits */
-#define WT_GEN_TXN_COMMIT 5   /* Commit generation */
-#define WT_GENERATIONS 6      /* Total generation manager entries */
+#define WT_GEN_CHECKPOINT 0        /* Checkpoint generation */
+#define WT_GEN_EVICT 1             /* Eviction generation */
+#define WT_GEN_HAS_SNAPSHOT 2      /* Snapshot generation */
+#define WT_GEN_HAZARD 3            /* Hazard pointer */
+#define WT_GEN_SPLIT 4             /* Page splits */
+#define WT_GEN_TXN_COMMIT 5        /* Commit generation */
+#define WT_GEN_HAS_CKPT_SNAPSHOT 6 /* Checkpoint snapshot for eviction visibility */
+#define WT_GENERATIONS 7           /* Total generation manager entries */
     wt_shared volatile uint64_t generations[WT_GENERATIONS];
 
     /*
@@ -410,7 +419,7 @@ struct __wt_session_impl {
             void *p; /* Memory, length */
             size_t len;
             uint64_t gen; /* Generation */
-        } * list;
+        } *list;
         size_t cnt;   /* Array entries */
         size_t alloc; /* Allocated bytes */
     } stash[WT_GENERATIONS];

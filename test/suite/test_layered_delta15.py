@@ -32,11 +32,11 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 import time
 
-# test_layered_delta15.py
 # Test that we write internal page deltas to the page log extension.
 
 @disagg_test_class
 class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    test_name = __qualname__
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
@@ -48,8 +48,8 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     uris = [
-        ('layered', dict(uri='layered:test_layered_delta15')),
-        ('btree', dict(uri='file:test_layered_delta15')),
+        ('layered', dict(uri=f'layered:{test_name}')),
+        ('btree', dict(uri=f'file:{test_name}')),
     ]
 
     ts = [
@@ -65,7 +65,7 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palite),'
-    disagg_storages = gen_disagg_storages('test_layered_delta15', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)
@@ -89,12 +89,6 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         extlist.extension('compressors', self.block_compress)
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def insert(self, kv, ts=None):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -150,9 +144,9 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Assert that we have written at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_leaf, 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+            self.assertStatGreaterSoon(stat.conn.rec_page_delta_internal, 0)
         if (self.delta_type == 'none'):
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
             self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
@@ -165,7 +159,7 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
@@ -178,6 +172,6 @@ class test_layered_delta15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+            self.assertStatGreaterSoon(stat.conn.cache_read_internal_delta, 0)
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)

@@ -33,18 +33,18 @@ from wiredtiger import stat
 import time
 
 
-# test_layered_delta08.py
 # Test that we write internal page deltas with deleted leaf page
 # to the page log extension.
 
 @disagg_test_class
 class test_layered_delta08(wttest.WiredTigerTestCase):
 
-    uri = 'file:test_layered_delta08'
+    test_name = __qualname__
+    uri = f'file:{test_name}'
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'page_delta=(delta_pct=100),'
-    disagg_storages = gen_disagg_storages('test_layered_delta08', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages)
@@ -60,14 +60,10 @@ class test_layered_delta08(wttest.WiredTigerTestCase):
 
     def verify_stat(self):
         # Assert that we have deleted at least one internal key page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal_key_deleted][2], 0)
-        stat_cursor.close()
+        self.assertStatGreaterSoon(stat.dsrc.rec_page_delta_internal_key_deleted, 0, uri=self.uri)
 
         # Assert that we have written at least one internal page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal][2], 0)
-        stat_cursor.close()
+        self.assertStatGreaterSoon(stat.dsrc.rec_page_delta_internal, 0, uri=self.uri)
 
     def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)

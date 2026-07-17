@@ -36,6 +36,7 @@ static void config_checkpoint(void);
 static void config_checksum(TABLE *);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
+static void config_disagg_key_provider(void);
 static void config_disagg_storage(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
@@ -493,6 +494,7 @@ config_run(void)
     /* Order can be important, don't shuffle without careful consideration. */
     config_tiered_storage();                         /* Tiered storage */
     config_disagg_storage();                         /* Disaggregated storage */
+    config_disagg_key_provider();                    /* Disaggregated key provider */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
     config_prefetch();                               /* Prefetch */
@@ -1504,6 +1506,29 @@ config_disagg_storage(void)
 }
 
 /*
+ * config_disagg_key_provider --
+ *     Disaggregated key provider mode configuration (0=off, 1=pull, 2=push).
+ */
+static void
+config_disagg_key_provider(void)
+{
+    if (!g.disagg_storage_config) {
+        config_single(NULL, "disagg.key_provider=0", false);
+        return;
+    }
+
+    if (!config_explicit(NULL, "disagg.key_provider")) {
+        uint32_t r = mmrand(&g.extra_rnd, 1, 10);
+        if (r <= 5)
+            config_single(NULL, "disagg.key_provider=2", false); /* 50% push */
+        else if (r <= 7)
+            config_single(NULL, "disagg.key_provider=1", false); /* 20% pull */
+        else
+            config_single(NULL, "disagg.key_provider=0", false); /* 30% off */
+    }
+}
+
+/*
  * config_transaction --
  *     Transaction configuration.
  */
@@ -1581,11 +1606,11 @@ config_transaction(void)
         config_off(NULL, "precise_checkpoint");
         config_off(NULL, "preserve_prepared");
     }
-    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    /* FIXME-WT-17277 Write prepared truncate operation to disk. */
     if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
         if (config_explicit(NULL, "ops.truncate"))
             WARN("%s", "turning off ops.truncate to work with ops.prepare and precise checkpoint");
-        config_off(NULL, "ops.truncate");
+        config_off_all("ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */
