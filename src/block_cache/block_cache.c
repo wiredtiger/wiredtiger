@@ -156,7 +156,7 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
     *reason = WT_BLKCACHE_EVICT_OTHER;
 
     /* Blocks in use cannot be evicted. */
-    if (blkcache_item->ref_count != 0)
+    if (__wt_atomic_load_uint32_v_acquire(&blkcache_item->ref_count) != 0)
         return (false);
 
     /*
@@ -168,7 +168,7 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
         blkcache->min_num_references = blkcache_item->num_references;
 
     /* Don't evict if there is plenty of free space */
-    if (blkcache->bytes_used < blkcache->full_target)
+    if (__wt_atomic_load_uint64_relaxed(&blkcache->bytes_used) < blkcache->full_target)
         return (false);
 
     /*
@@ -216,7 +216,7 @@ __blkcache_eviction_thread(void *arg)
       "Aggressive target = %d, full target = %" PRIu64 ":",
       blkcache->evict_aggressive, blkcache->full_target);
 
-    while (!blkcache->blkcache_exiting) {
+    while (!__wt_atomic_load_bool_v_relaxed(&blkcache->blkcache_exiting)) {
         /*
          * Sweep the cache every second to ensure time-based decay of frequency/recency counters of
          * resident blocks.
@@ -224,7 +224,7 @@ __blkcache_eviction_thread(void *arg)
         __wt_sleep(1, 0);
 
         /* Check if the cache is being destroyed */
-        if (blkcache->blkcache_exiting)
+        if (__wt_atomic_load_bool_v_relaxed(&blkcache->blkcache_exiting))
             return (WT_THREAD_RET_VALUE);
 
         /*
@@ -281,7 +281,7 @@ __blkcache_eviction_thread(void *arg)
                 }
             }
             __wt_spin_unlock(session, &blkcache->hash_locks[i]);
-            if (blkcache->blkcache_exiting)
+            if (__wt_atomic_load_bool_v_relaxed(&blkcache->blkcache_exiting))
                 return (WT_THREAD_RET_VALUE);
         }
         if (no_eviction_candidates)
@@ -423,7 +423,7 @@ __wti_blkcache_put(WT_SESSION_IMPL *session, WT_ITEM *data, WT_ITEM *deltas, uin
     total_data_size = 0;
 
     /* Are we within cache size limits? */
-    if (blkcache->bytes_used > blkcache->max_bytes)
+    if (__wt_atomic_load_uint64_relaxed(&blkcache->bytes_used) > blkcache->max_bytes)
         return (0);
 
     /*
@@ -582,7 +582,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
              * The block might be in use by another thread, wait for it to be released before
              * freeing it.
              */
-            while (blkcache_item->ref_count != 0) {
+            while (__wt_atomic_load_uint32_v_acquire(&blkcache_item->ref_count) != 0) {
                 __wt_spin_backoff(&yield_count, &sleep_usecs);
                 total_usecs += sleep_usecs;
             }
@@ -690,12 +690,13 @@ __wt_blkcache_destroy(WT_SESSION_IMPL *session)
     blkcache = &S2C(session)->blkcache;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block cache with %" PRIu64 " bytes used to be destroyed", blkcache->bytes_used);
+      "block cache with %" PRIu64 " bytes used to be destroyed",
+      __wt_atomic_load_uint64_relaxed(&blkcache->bytes_used));
 
     if (blkcache->type == WT_BLKCACHE_UNCONFIGURED)
         return;
 
-    blkcache->blkcache_exiting = true;
+    __wt_atomic_store_bool_v_relaxed(&blkcache->blkcache_exiting, true);
     WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "block cache eviction thread exited");
 
