@@ -29,8 +29,13 @@ records to form multiple internal levels. It runs two equivalent cases:
    oldest timestamp, and run the same checkpoint-cleanup cycle.
 
 Each case starts from a fresh home directory or a fresh table so cache and
-statistics counters are not contaminated by the other case. The benchmark
-verifies that the deleted key is absent and neighboring keys remain readable.
+statistics counters are not contaminated by the other case. After the initial
+population checkpoint, the benchmark closes and reopens the connection before
+measuring cleanup. For the one-delete case, it deletes the key, checkpoints the
+deletion, closes and reopens again, and only then runs the measured cleanup
+cycle. This empties WiredTiger's cache while allowing the operating system file
+cache to remain warm. The benchmark verifies that the deleted key is absent and
+neighboring keys remain readable.
 
 ## Measurements
 
@@ -59,4 +64,6 @@ for the single-delete case, while correctness checks remain unchanged.
 - Configure and build the benchmark with CMake.
 - Run a small deterministic workload locally.
 - Run a larger workload that creates several internal levels.
+- Confirm the measured cleanup begins after a connection restart with an empty
+  WiredTiger cache.
 - Confirm no generated files or benchmark data are added to the worktree.
