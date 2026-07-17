@@ -1056,8 +1056,12 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
          */
         ret = __wt_config_subgets(session, v, "newest_stop_durable_ts", &a);
         WT_RET_NOTFOUND_OK(ret);
-        if (ret != WT_NOTFOUND && a.len != 0)
-            ckpt->ta.newest_durable_ts = WT_MAX(ckpt->ta.newest_durable_ts, (uint64_t)a.val);
+        if (ret != WT_NOTFOUND && a.len != 0) {
+            if (ckpt->ta.newest_stop_ts != WT_TS_MAX)
+                ckpt->ta.newest_page_stop_durable_ts = (uint64_t)a.val;
+            else
+                ckpt->ta.newest_durable_ts = WT_MAX(ckpt->ta.newest_durable_ts, (uint64_t)a.val);
+        }
     }
 
     ret = __wt_config_subgets(session, v, "prepare", &a);
