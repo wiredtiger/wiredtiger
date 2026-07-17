@@ -340,6 +340,14 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_TIME_AGGREGATE_INIT_MERGE(ta);
 #endif
 
+    /*
+     * The rebuilt image is stamped with the newest delta's write generation, so transaction ids
+     * from older-run sources must be cleared physically here, and identically on every node: clear
+     * against the run write generation recorded in the checkpoint, not this handle's role-adjusted
+     * base write generation.
+     */
+    session->reconstruct_write_gen = btree->ckpt_run_write_gen;
+
     WT_ASSERT(session, new_image != NULL);
     WT_ERR(__page_init_delta_leaf_merge_state(session, btree, deltas, delta_size, &delta_state));
     WT_ERR(__page_init_base_leaf_merge_state(session, btree, base_dsk, &base_state));
@@ -455,6 +463,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
 
 err:
+    session->reconstruct_write_gen = 0;
     __wt_scr_free(session, &disk_s.last_key);
     __page_free_delta_leaf_merge_state(session, delta_size, &delta_state);
     __page_free_base_leaf_merge_state(session, &base_state);
@@ -499,6 +508,14 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
 #ifdef HAVE_DIAGNOSTIC
     WT_TIME_AGGREGATE_INIT_MERGE(ta);
 #endif
+
+    /*
+     * The rebuilt image is stamped with the newest delta's write generation, so transaction ids
+     * from older-run sources must be cleared physically here, and identically on every node: clear
+     * against the run write generation recorded in the checkpoint, not this handle's role-adjusted
+     * base write generation.
+     */
+    session->reconstruct_write_gen = btree->ckpt_run_write_gen;
 
     /* Retrieve the latest write generation from the last delta. */
     latest_write_gen = ((WT_PAGE_HEADER *)deltas[delta_size - 1].data)->write_gen;
@@ -679,6 +696,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     hdr->version = WT_PAGE_VERSION_TS;
 
 err:
+    session->reconstruct_write_gen = 0;
     __wt_free(session, delta_state);
     return (ret);
 }

@@ -262,6 +262,13 @@ struct __wt_session_impl {
     WT_CKPT_SESSION ckpt; /* Checkpoint-related data */
 
     /*
+     * When nonzero, the write generation to clear transaction ids against while unpacking cells to
+     * rebuild a full image from a base image and deltas. The rebuilt image is shared state, so the
+     * threshold must not depend on this handle's role-adjusted base write generation.
+     */
+    uint64_t reconstruct_write_gen;
+
+    /*
      * Operations acting on handles.
      *
      * The preferred pattern is to gather all of the required handles at the beginning of an

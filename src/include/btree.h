@@ -228,7 +228,13 @@ struct __wt_btree {
     uint64_t write_gen;      /* Write generation */
     uint64_t base_write_gen; /* Write generation on startup. */
     uint64_t run_write_gen;  /* Runtime write generation. */
-    uint64_t rec_max_txn;    /* Maximum transaction seen by reconciliation (clean trees). */
+    /*
+     * The run write generation recorded in the checkpoint this open is based on. Unlike the base
+     * and runtime write generations above, this is never adjusted for the role or for recovery, so
+     * every node opening the same checkpoint derives the same value.
+     */
+    uint64_t ckpt_run_write_gen;
+    uint64_t rec_max_txn; /* Maximum transaction seen by reconciliation (clean trees). */
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
     wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
