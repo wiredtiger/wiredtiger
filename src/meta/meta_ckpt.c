@@ -94,6 +94,30 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
 }
 
 /*
+ * __wt_meta_checkpoint_has_prepare --
+ *     Return whether any checkpoint entry in the config string has the prepare flag set.
+ */
+int
+__wt_meta_checkpoint_has_prepare(WT_SESSION_IMPL *session, const char *config, bool *has_prepp)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM cval, key, value;
+    WT_DECL_RET;
+
+    *has_prepp = false;
+
+    WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
+    __wt_config_subinit(session, &ckptconf, &cval);
+    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+        ret = __wt_config_subgets(session, &cval, "prepare", &value);
+        if (ret == 0 && value.val)
+            *has_prepp = true;
+        WT_RET_NOTFOUND_OK(ret);
+    }
+    return (0);
+}
+
+/*
  * __wt_meta_checkpoint --
  *     Return a file's checkpoint information.
  */
@@ -1064,15 +1088,21 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->next_page_id = (uint64_t)a.val;
 
+    /*
+     * These two postdate the metadata of older tables: a table checkpointed before this tracking
+     * existed has no key at all, and there's no way to tell that apart from a genuinely accurate 0
+     * without a marker. Use WT_LEAF_STATS_UNKNOWN as that marker; a corrective
+     * WT_STAT_TYPE_TREE_WALK replaces it with a real value for both fields together.
+     */
     ret = __wt_config_subgets(session, v, "leaf_entry_ewma", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
-        ckpt->leaf_entry_ewma = (uint64_t)a.val;
+    ckpt->leaf_entry_ewma =
+      ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "approx_leaf_pages", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
-        ckpt->approx_leaf_pages = (uint64_t)a.val;
+    ckpt->approx_leaf_pages =
+      ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
 
     return (0);
 }

@@ -188,8 +188,8 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.page_log", "configure page log for disaggregated storage (off | palite)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
 
-  {"disagg.key_provider", "configure a key provider for disaggregated storage", C_BOOL, 20, 0, 0,
-    V_GLOBAL_DISAGG_KEY_PROVIDER},
+  {"disagg.key_provider", "key provider mode for disaggregated storage (0=off, 1=pull, 2=push)",
+    C_IGNORE, 0, 0, 2, V_GLOBAL_DISAGG_KEY_PROVIDER},
 
   {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0,
     WT_VERBOSE_DEBUG_5, V_GLOBAL_DISAGG_PAGE_LOG_VERBOSE},
@@ -199,6 +199,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"disagg.preserve", "preserve layered table constituents after data mismatches",
     C_IGNORE | C_BOOL, 100, 1, 0, V_GLOBAL_DISAGG_PRESERVE},
+
+  {"disagg.stepdown_async", "use async step-down instead of synchronous", C_IGNORE | C_BOOL, 0, 0,
+    0, V_GLOBAL_DISAGG_STEPDOWN_ASYNC},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
@@ -382,14 +385,6 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
-
-  {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0, V_GLOBAL_STRESS_COMPACT_SLOW},
-
-  {"stress.evict_reposition", "stress evict reposition", C_BOOL, 2, 0, 0,
-    V_GLOBAL_STRESS_EVICT_REPOSITION},
-
-  {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0,
-    V_GLOBAL_STRESS_FAILPOINT_EVICTION_SPLIT},
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},

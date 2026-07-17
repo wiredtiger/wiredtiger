@@ -11,21 +11,23 @@
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_READ_CACHE 0x0001u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
-#define WT_READ_NOTFOUND_OK 0x0008u
-#define WT_READ_NO_SPLIT 0x0010u
-#define WT_READ_NO_WAIT 0x0020u
-#define WT_READ_PREFETCH 0x0040u
-#define WT_READ_PREV 0x0080u
-#define WT_READ_RESTART_OK 0x0100u
-#define WT_READ_SEE_DELETED 0x0200u
-#define WT_READ_SKIP_DELETED 0x0400u
-#define WT_READ_SKIP_INTL 0x0800u
-#define WT_READ_TRUNCATE 0x1000u
-#define WT_READ_VISIBLE_ALL 0x2000u
-#define WT_READ_WONT_NEED 0x4000u
+#define WT_READ_CACHE 0x00001u
+#define WT_READ_IGNORE_CACHE_SIZE 0x00002u
+#define WT_READ_INTERNAL_OP 0x00004u /* Internal operations don't bump a page's readgen */
+#define WT_READ_NOTFOUND_OK 0x00008u
+#define WT_READ_NO_SPLIT 0x00010u
+#define WT_READ_NO_WAIT 0x00020u
+#define WT_READ_PREFETCH 0x00040u
+#define WT_READ_PREV 0x00080u
+#define WT_READ_RESTART_OK 0x00100u
+#define WT_READ_SEE_DELETED 0x00200u
+#define WT_READ_SIZE_STAT 0x00400u
+#define WT_READ_SKIP_CORRUPT 0x00800u
+#define WT_READ_SKIP_DELETED 0x01000u
+#define WT_READ_SKIP_INTL 0x02000u
+#define WT_READ_TRUNCATE 0x04000u
+#define WT_READ_VISIBLE_ALL 0x08000u
+#define WT_READ_WONT_NEED 0x10000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_READ_EVICT_WALK_FLAGS \
@@ -38,6 +40,14 @@
  * disable splits.
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
+
+/*
+ * The WT_READ_SKIP_CORRUPT flag means that caller will handle a corrupt page read, while the
+ * WT_CONN_DATA_CORRUPTION flag means that a block manager actually detected one.
+ */
+#define WT_READ_SKIP_CORRUPT_HIT(session, flags) \
+    (FLD_ISSET((flags), WT_READ_SKIP_CORRUPT) && \
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
 
 /*
  * WT_PAGE_HEADER --

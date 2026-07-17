@@ -10,6 +10,7 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
+static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
@@ -448,6 +449,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto done;
     }
 
+    /*
+     * Dirty pages on an outdated disaggregated read-only btree can never be written to shared
+     * storage. Clear the dirty flag so eviction discards the page cleanly instead of attempting
+     * reconciliation.
+     */
+    if (__wt_btree_is_stale_disagg(session))
+        __wt_page_modify_clear(session, page);
+
     if (__wt_page_is_modified(page))
         is_dirty = true;
 
@@ -507,7 +516,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
-    else if ((evict_clean && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) || tree_dead)
+    else if ((evict_clean && !__wt_btree_stays_in_memory(S2BT(session))) || tree_dead)
         /*
          * Pages that belong to dead trees never write back to disk and can't support page splits.
          */
@@ -631,7 +640,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     if (!instantiated && !tree_dead && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !closing)
+      !__wt_btree_stays_in_memory(S2BT(session)) && !closing)
         __evict_page_victim_cache(session, ref);
 
     /*
@@ -706,7 +715,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             /* A disaggregated page must have a retained image to re-instantiate from. */
             WT_ASSERT(
               session, ref->page->disagg_info == NULL || mod->mod_multi[0].disk_image != NULL);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
@@ -757,7 +766,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              */
             tmp = mod->mod_disk_image;
             mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi, true);
+            ret = __wt_split_rewrite(session, ref, &multi);
             __wt_free(session, multi.block_meta);
             if (ret != 0) {
                 mod->mod_disk_image = tmp;
@@ -1081,7 +1090,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * Clean pages can't be evicted from in memory btrees. This should be uncommon - we don't add
      * clean pages to the queue.
      */
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified && !closing)
+    if (__wt_btree_stays_in_memory(btree) && !modified && !closing)
         return (__wt_set_return(session, EBUSY));
 
     /* Check if the page can be evicted. */
@@ -1160,6 +1169,40 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 }
 
 /*
+ * __evict_precise_ckpt_copy_snapshot --
+ *     Copy the published checkpoint snapshot into the session's transaction snapshot so that
+ *     reconciliation can use it for precise checkpoint eviction visibility. Returns true if the
+ *     snapshot was copied, false if no snapshot has been published yet.
+ */
+static bool
+__evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TXN_SNAPSHOT *snap;
+    uint32_t snap_idx;
+    bool published;
+
+    conn = S2C(session);
+
+    WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+    snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+    snap = &conn->ckpt_eviction_snap[snap_idx];
+    WT_ACQUIRE_READ_WITH_BARRIER(published, conn->ckpt_eviction_snap_published);
+    if (published) {
+        session->txn->snapshot_data.snap_min = snap->snap_min;
+        session->txn->snapshot_data.snap_max = snap->snap_max;
+        session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
+        if (snap->snapshot_count > 0)
+            memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
+              snap->snapshot_count * sizeof(snap->snapshot[0]));
+        F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    }
+    WT_LEAVE_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+
+    return (published);
+}
+
+/*
  * __evict_reconcile --
  *     Reconcile the page for eviction.
  */
@@ -1204,8 +1247,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory btrees. */
-    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    /* Always do update restore for in-memory btrees, and for btrees still awaiting publication. */
+    else if (__wt_btree_stays_in_memory(btree))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle)) {
@@ -1279,7 +1322,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !__wt_btree_stays_in_memory(btree)) {
             uint64_t btree_ckpt_gen, ckpt_gen;
             /*
              * If precise checkpoint is configured, only evict the updates that visible to the
@@ -1287,9 +1330,11 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
              */
             btree_ckpt_gen = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen);
             ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-            if (btree_ckpt_gen < ckpt_gen)
-                LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
-            else
+            if (btree_ckpt_gen < ckpt_gen) {
+                if (WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
+                  !__evict_precise_ckpt_copy_snapshot(session))
+                    LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
+            } else
                 __wt_txn_bump_snapshot(session);
         } else
             __wt_txn_bump_snapshot(session);

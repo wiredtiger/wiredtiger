@@ -43,7 +43,7 @@ BCcLlsvz
 BFGs
 BIGENDIAN
 BLKCACHE
-BLmpRrSVv
+BLmpqRrSVv
 BOOL
 BSR
 BTREE
@@ -417,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -448,6 +449,7 @@ SCons
 SDK
 SIGABRT
 SIGBUS
+SIGKILL
 SIGSEGV
 SIMD
 SLS
@@ -510,6 +512,7 @@ TieredConfigMixin
 Timespec
 Tput
 TryCV
+Tunables
 TypeError
 Typedefs
 UBSAN
@@ -643,6 +646,7 @@ allocator
 allocators
 allocfile
 allocsize
+analytics
 aor
 ap
 api
@@ -658,6 +662,7 @@ assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -795,6 +800,7 @@ colcheck
 colgap
 colgroup
 colgroups
+collHash
 collatorp
 collist
 columngroup
@@ -910,6 +916,7 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
 designator
@@ -929,6 +936,7 @@ difftime
 dir
 directio
 dirlist
+dirs
 dirstore
 disagg
 disaggregated
@@ -969,6 +977,7 @@ durabletime
 dv
 dylib
 eb
+ebusy
 eee
 eg
 ejnprx
@@ -1119,6 +1128,7 @@ groupd
 gte
 handleops
 handlep
+handoff
 hardcoded
 hashmap
 hashq
@@ -1168,6 +1178,10 @@ inflateInit
 infmt
 informations
 init
+initialisation
+initialise
+initialised
+initialises
 initn
 initsize
 initval
@@ -1218,6 +1232,7 @@ jsondump
 k'th
 kB
 kbits
+kek
 key'd
 keycmp
 keyedness
@@ -1471,6 +1486,7 @@ overcount
 oversized
 ovfl
 ownp
+pP
 pR
 pT
 packv
@@ -1582,6 +1598,7 @@ rebalancing
 recency
 recno
 recnos
+recognizes
 reconfig
 reconfigurations
 reconfigures
@@ -1698,6 +1715,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr
@@ -1853,6 +1871,9 @@ undeferred
 undefers
 undeleted
 underflowed
+underflowing
+underflows
+underfull
 unencoded
 unencrypted
 unesc

@@ -144,6 +144,7 @@
         (ta)->newest_txn = WT_TXN_NONE;                 \
         (ta)->newest_stop_ts = WT_TS_MAX;               \
         (ta)->newest_stop_txn = WT_TXN_MAX;             \
+        (ta)->oldest_stop_txn = WT_TXN_MAX;             \
         (ta)->prepare = 0;                              \
         (ta)->init_merge = 0;                           \
     } while (0)
@@ -164,6 +165,7 @@
         (ta)->newest_txn = WT_TXN_NONE;                 \
         (ta)->newest_stop_ts = WT_TS_NONE;              \
         (ta)->newest_stop_txn = WT_TXN_NONE;            \
+        (ta)->oldest_stop_txn = WT_TXN_MAX;             \
         (ta)->prepare = 0;                              \
         (ta)->init_merge = 1;                           \
     } while (0)
@@ -225,6 +227,8 @@
             else                                                                               \
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
         }                                                                                      \
+        if ((tw)->stop_txn != WT_TXN_MAX && (tw)->stop_txn != WT_TXN_NONE)                  \
+            (ta)->oldest_stop_txn = WT_MIN((tw)->stop_txn, (ta)->oldest_stop_txn);          \
         if (WT_TIME_WINDOW_HAS_PREPARE(tw))                                                    \
             (ta)->prepare = 1;                                                                 \
     } while (0)
@@ -246,6 +250,8 @@
         (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);                           \
         (ta)->newest_stop_ts = WT_MAX((page_del)->pg_del_start_ts, (ta)->newest_stop_ts);         \
         (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);                 \
+        if ((page_del)->txnid != WT_TXN_NONE)                                                     \
+            (ta)->oldest_stop_txn = WT_MIN((page_del)->txnid, (ta)->oldest_stop_txn);             \
     } while (0)
 
 /* Merge an aggregated time window into another - choosing the most conservative value from each. */
@@ -260,6 +266,7 @@
         (dest)->newest_txn = WT_MAX((dest)->newest_txn, (source)->newest_txn);                \
         (dest)->newest_stop_ts = WT_MAX((dest)->newest_stop_ts, (source)->newest_stop_ts);    \
         (dest)->newest_stop_txn = WT_MAX((dest)->newest_stop_txn, (source)->newest_stop_txn); \
+        (dest)->oldest_stop_txn = WT_MIN((dest)->oldest_stop_txn, (source)->oldest_stop_txn); \
         /*                                                                                    \
          * Ensure newest_txn reflects valid stop transactions. New-format aggregates capture  \
          * this in WT_TIME_AGGREGATE_UPDATE, but old-format aggregates loaded from disk may   \
@@ -287,6 +294,7 @@
         (out_ta)->newest_txn = WT_MAX((out_ta)->newest_txn, (in_ta)->newest_txn);                \
         (out_ta)->newest_stop_ts = WT_MAX((out_ta)->newest_stop_ts, (in_ta)->newest_stop_ts);    \
         (out_ta)->newest_stop_txn = WT_MAX((out_ta)->newest_stop_txn, (in_ta)->newest_stop_txn); \
+        (out_ta)->oldest_stop_txn = WT_MIN((out_ta)->oldest_stop_txn, (in_ta)->oldest_stop_txn); \
     } while (0)
 
 /* Check if the stop time aggregate is set. */

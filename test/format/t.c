@@ -134,6 +134,7 @@ locks_init(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_init(session, &g.backup_lock);
     lock_init(session, &g.prepare_commit_lock);
+    lock_init(session, &g.timestamp_lock);
     testutil_check(session->close(session, NULL));
 }
 
@@ -149,6 +150,7 @@ locks_destroy(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_destroy(session, &g.backup_lock);
     lock_destroy(session, &g.prepare_commit_lock);
+    lock_destroy(session, &g.timestamp_lock);
     testutil_check(session->close(session, NULL));
 }
 
@@ -359,6 +361,9 @@ main(int argc, char *argv[])
         trace_init();
         wts_create_database();
         wts_open(g.home, &g.wts_conn, true);
+        /* Follower: seed an initial key before the first step-up checkpoint. */
+        if (!g.disagg_leader)
+            disagg_key_push_initial(g.wts_conn);
         timestamp_init();
     }
     wts_prepare_discover(g.wts_conn);

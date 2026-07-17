@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+import re
 import wiredtiger
 import functools, json, os, shutil, subprocess, wttest
 from run import wt_builddir
@@ -650,6 +651,47 @@ class DisaggCorruptionMixin:
             input=sql, capture_output=True, text=True, check=True)
         return [line for line in result.stdout.splitlines() if line != '']
 
+    def corrupt_checkpoint_metadata_page(self):
+        """Overwrite the first byte of the newest shared-metadata page image
+        with 0xff so follower checkpoint pickup fails. Returns the
+        (table_id, page_id, lsn) of the corrupted image."""
+        # Table id 2 / page id 1 are WT_SPECIAL_PALI_TURTLE_FILE_ID and
+        # WT_DISAGG_METADATA_MAIN_PAGE_ID: the shared metadata page the follower
+        # reads during checkpoint pickup. Corrupting its newest image makes pickup
+        # fail while leaving every data-table page intact.
+        table_id = 2
+        page_id = 1
+        # Close before querying so WiredTiger flushes its final checkpoint
+        # to palite; the newest lsn we find is then the one pickup will use.
+        self.close_conn()
+        rows = self.sqlite_select_json(table_id,
+            f'SELECT lsn FROM pages WHERE table_id={table_id} '
+            f'AND page_id={page_id} ORDER BY lsn DESC LIMIT 1;')
+        self.assertTrue(rows,
+            f'no metadata page rows for table_id={table_id}, page_id={page_id}')
+        lsn = int(rows[0]['lsn'])
+        sql = (
+            f"UPDATE pages SET page_data = x'ff' || substr(page_data, 2) "
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
+            f"SELECT changes();\n"
+        )
+        rows = self._palite_mutate(table_id, sql)
+        self._require_one_change(rows, table_id, page_id, lsn)
+        return table_id, page_id, lsn
+
+    def corrupt_page_image_at(self, table_id, page_id, lsn):
+        """Overwrite the stored data of a specific (table_id, page_id, lsn)
+        row in the palite pages table with random bytes."""
+        self.close_conn()
+        sql = (
+            f"UPDATE pages SET page_data = randomblob(length(page_data)) "
+            f"WHERE table_id={table_id} AND page_id={page_id} AND lsn={lsn};\n"
+            f"SELECT changes();\n"
+        )
+        rows = self._palite_mutate(table_id, sql)
+        self._require_one_change(rows, table_id, page_id, lsn)
+        return table_id, page_id, lsn
+
     def corrupt_random_page_image(self):
         """Pick one page image (one (page_id, lsn) row in the palite
         pages table) and overwrite the first byte of its stored data
@@ -733,3 +775,93 @@ class DisaggCorruptionMixin:
             raise AssertionError(
                 f"expected 1 affected row, got {affected} for "
                 f"table_id={table_id}, page_id={page_id}, lsn={lsn}")
+
+# Shared helpers for tests that exercise WT_SESSION::publish and schema epochs on
+# layered tables. Tests using this mixin must define conn_config_follower.
+class DisaggSchemaEpochMixin:
+    def set_stable_epoch(self, epoch, conn=None):
+        """Set stable_disaggregated_schema_epoch on the given (or main) connection."""
+        if conn is None:
+            conn = self.conn
+        conn.set_timestamp(
+            'stable_disaggregated_schema_epoch=' + self.timestamp_str(epoch))
+
+    def leader_checkpoint(self, stable_ts, conn=None, session=None):
+        """Set the oldest and stable timestamps, then take a timestamped checkpoint."""
+        if conn is None:
+            conn = self.conn
+        if session is None:
+            session = self.session
+        conn.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(stable_ts) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        session.checkpoint()
+
+    def publish(self, uri, epoch, session=None):
+        """Publish a schema change for uri at the given epoch."""
+        if session is None:
+            session = self.session
+        session.publish(uri, 'disaggregated=(schema_epoch=' + self.timestamp_str(epoch) + ')')
+
+    def stable_uri(self, uri):
+        """Return the stable component URI for a given layered table URI."""
+        tablename = uri[len('layered:'):]
+        return 'file:' + tablename + '.wt_stable'
+
+    def uri_in_shared_metadata(self, conn, uri):
+        """Return True if uri's stable constituent is present in the shared metadata table."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        cursor.set_key(self.stable_uri(uri))
+        found = cursor.search() == 0
+        cursor.close()
+        session.close()
+        return found
+
+    def uri_in_local_metadata(self, conn, uri):
+        """Return True if uri's stable constituent is present in conn's local metadata."""
+        session = conn.open_session('')
+        exists = True
+        try:
+            c = session.open_cursor(self.stable_uri(uri))
+            c.close()
+        except wiredtiger.WiredTigerError:
+            exists = False
+        session.close()
+        return exists
+
+    def open_follower(self):
+        """Open a follower, pick up the latest leader checkpoint, and open a session on it."""
+        conn = self.wiredtiger_open(
+            'follower',
+            self.extensionsConfig() + ',create,' + self.conn_config_follower)
+        self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+        self.disagg_advance_checkpoint(conn)
+        session = conn.open_session('')
+        return conn, session
+
+class DisaggSizeTestMixin:
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        DisaggConfigMixin.conn_extensions(self, extlist)
+
+    def get_checkpoint_size(self):
+        mc = self.session.open_cursor('metadata:')
+        mc.set_key(self.stable_uri)
+        self.assertEqual(mc.search(), 0)
+        sizes = re.findall(r',size=(\d+),', mc.get_value())
+        mc.close()
+        self.assertGreater(len(sizes), 0, 'No size= found in checkpoint metadata')
+        return int(sizes[-1])
+
+    def get_stat(self, stat_key, uri=None):
+        s = self.session.open_cursor('statistics:' + (uri if uri is not None else self.stable_uri))
+        val = s[stat_key][2]
+        s.close()
+        return val
+
+    def get_conn_stat(self, stat_key):
+        s = self.session.open_cursor('statistics:')
+        val = s[stat_key][2]
+        s.close()
+        return val

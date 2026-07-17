@@ -946,6 +946,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
           "cannot remove incomplete table '%s' (%s, %s) in readonly mode", uri, colgroup_msg,
           file_msg);
+        ret = 0;
         goto done;
     }
 
@@ -1389,8 +1390,8 @@ done:
     } else {
         /* Although rollback to stable is not needed, we still need to set the durable timestamp. */
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        txn_global->has_durable_timestamp =
-          __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp);
+        __wt_atomic_store_bool_relaxed(&txn_global->has_durable_timestamp,
+          __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp));
         __wt_atomic_store_uint64_relaxed(
           &txn_global->durable_timestamp, __wt_get_stable_timestamp(session));
 

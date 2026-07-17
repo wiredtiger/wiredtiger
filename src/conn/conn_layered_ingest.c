@@ -133,6 +133,9 @@ static int
 __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_RET;
+#ifdef WT_STANDALONE_BUILD
+    uint32_t orig_flags;
+#endif
 
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
@@ -140,9 +143,19 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
      * Clearing the ingest table is final and owned by no transaction. The session flag makes the
      * truncate write globally visible tombstones that are immediately visible to every reader.
      */
+#ifdef WT_STANDALONE_BUILD
+    /* FIXME-WT-18058: Replace the whole-table clear with incremental per-page draining. */
+    /* The scan must complete during step-up rather than be rolled back by application eviction. */
+    orig_flags = F_MASK(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+#endif
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
     F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
+#ifdef WT_STANDALONE_BUILD
+    F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+    F_SET(session, orig_flags);
+#endif
 
     return (ret);
 }
@@ -709,13 +722,14 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 {
     WT_DECL_RET;
     WT_TRUNCATE *t = NULL, **sorted = NULL;
+    WT_TRUNCATE_LIST *truncate_list = &layered_table->truncate_list;
     size_t i = 0, ntruncates = 0;
 
     *sortedp = NULL;
     *ntruncatesp = 0;
 
-    __wt_readlock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (t, &layered_table->truncateqh, q)
+    __wt_readlock(session, &truncate_list->lock);
+    TAILQ_FOREACH (t, &truncate_list->qh, q)
         if (t->txn_id != WT_TXN_NONE)
             ++ntruncates;
 
@@ -725,7 +739,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
 
     WT_ERR(__wt_calloc(session, ntruncates, sizeof(WT_TRUNCATE *), &sorted));
     /* Populate the array with committed truncates. */
-    TAILQ_FOREACH (t, &layered_table->truncateqh, q)
+    TAILQ_FOREACH (t, &truncate_list->qh, q)
         if (t->txn_id != WT_TXN_NONE)
             sorted[i++] = t;
 
@@ -735,7 +749,7 @@ __layered_build_sorted_truncates(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *lay
     *ntruncatesp = ntruncates;
 
 err:
-    __wt_readunlock(session, &layered_table->truncate_lock);
+    __wt_readunlock(session, &truncate_list->lock);
     if (ret != 0)
         __wt_free(session, sorted);
     return (ret);
