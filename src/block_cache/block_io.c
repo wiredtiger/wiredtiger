@@ -170,7 +170,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             WT_ASSERT(session, blkcache_item->num_deltas == 0);
             if (!expect_conversion) {
                 /* Copy to the caller's buffer before releasing our reference. */
-                WT_ERR(__wt_buf_set(session, buf, ip->data, ip->size));
+                WT_ERR(__wt_buf_set_copy(session, buf, ip->data, ip->size));
                 goto verify;
             }
         }
@@ -560,7 +560,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (ip != &results[0]) {
         __wt_buf_free(session, &results[0]);
         WT_ITEM_MOVE(results[0], *ip);
-    }
+    } else if (blkcache_found)
+        /* No conversion took place: the result still aliases the cache item, so copy it out. */
+        WT_ERR(__wt_buf_set_copy(session, &results[0], results[0].data, results[0].size));
     if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
         __wt_scr_free(session, &etmp);
 
@@ -613,7 +615,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         if (ip != &results[i]) {
             __wt_buf_free(session, &results[i]);
             WT_ITEM_MOVE(results[i], *ip);
-        }
+        } else if (blkcache_found)
+            /* No conversion took place: the result still aliases the cache item, so copy it out. */
+            WT_ERR(__wt_buf_set_copy(session, &results[i], results[i].data, results[i].size));
         if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
             __wt_scr_free(session, &etmp);
 

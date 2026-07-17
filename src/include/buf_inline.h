@@ -89,6 +89,24 @@ __wt_buf_set(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t si
 }
 
 /*
+ * __wt_buf_set_copy --
+ *     Copy data into the buffer's own memory, guaranteeing the buffer no longer references the
+ *     source. Unlike __wt_buf_set, which leaves the buffer aliasing the source when the source
+ *     already lies inside the buffer, this always duplicates. Use it when the source may be freed
+ *     out from under the buffer, e.g. a block-cache item whose reference is about to be released.
+ *     The source must not overlap the buffer's own memory.
+ */
+static WT_INLINE int
+__wt_buf_set_copy(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t size)
+{
+    WT_RET(__wt_buf_init(session, buf, size));
+    if (size != 0)
+        memcpy(buf->mem, data, size);
+    buf->size = size;
+    return (0);
+}
+
+/*
  * __wt_buf_set_and_grow --
  *     Set the contents of the buffer and grow the buffer to the maximum of the specified size and
  *     the content size.
