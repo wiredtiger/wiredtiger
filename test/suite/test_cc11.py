@@ -28,9 +28,11 @@
 
 from test_cc01 import test_cc_base
 from wiredtiger import stat
+import wttest
 
 
 # Verify checkpoint cleanup processes timestamped live pages after their timestamps become old.
+@wttest.skip_for_hook("disagg", "Checkpoint cleanup timestamp test requires standalone tables")
 class test_cc11(test_cc_base):
     conn_config = 'statistics=(all),checkpoint_cleanup=(wait=1,file_wait_ms=0)'
 
