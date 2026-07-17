@@ -462,11 +462,6 @@ __session_config_prefetch(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
 
-    if (S2C(session)->prefetch_auto_on)
-        F_SET(session, WT_SESSION_PREFETCH_ENABLED);
-    else
-        F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
-
     /*
      * Override any connection-level pre-fetch settings if a specific session-level setting was
      * provided.
@@ -2708,6 +2703,11 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Set the default value for session flags. */
     if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
         F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
+
+    if (conn->prefetch_auto_on)
+        F_SET(session_ret, WT_SESSION_PREFETCH_ENABLED);
+    else
+        F_CLR(session_ret, WT_SESSION_PREFETCH_ENABLED);
 
     /*
      * Configuration: currently, the configuration for open_session is the same as
