@@ -227,8 +227,8 @@
             else                                                                               \
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
         }                                                                                      \
-        if ((tw)->stop_txn != WT_TXN_MAX && (tw)->stop_txn != WT_TXN_NONE)                  \
-            (ta)->oldest_stop_txn = WT_MIN((tw)->stop_txn, (ta)->oldest_stop_txn);          \
+        if ((tw)->stop_txn != WT_TXN_MAX && (tw)->stop_txn != WT_TXN_NONE)                     \
+            (ta)->oldest_stop_txn = WT_MIN((tw)->stop_txn, (ta)->oldest_stop_txn);             \
         if (WT_TIME_WINDOW_HAS_PREPARE(tw))                                                    \
             (ta)->prepare = 1;                                                                 \
     } while (0)
