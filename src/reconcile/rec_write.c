@@ -64,13 +64,16 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
     if (!F_ISSET(r, WT_REC_SCRUB))
         return (false);
 
+    /* All eviction driven (non-checkpoint) reconciliations obey the scrub flag. */
+    if (!F_ISSET(r, WT_REC_CHECKPOINT))
+        return (true);
+
     /*
-     * Disaggregated dirty eviction unconditionally sets WT_REC_SCRUB (see evict_reconcile) because
-     * the evicted page cannot be read back until it is materialized. The disk image is required so
-     * split children can be re-instantiated as WT_REF_MEM rather than pushed to WT_REF_DISK with a
-     * post-frontier LSN. Skip the guards below that apply only to checkpoint scrub.
+     * In-memory reconciliation never writes the block to disk, so the retained image is the page's
+     * only copy and must always be saved. The skip optimisations below apply only when the block is
+     * written, where block_cookie provides the fallback copy for split-multi.
      */
-    if (!F_ISSET(r, WT_REC_CHECKPOINT) && r->page->disagg_info != NULL)
+    if (F_ISSET(r, WT_REC_IN_MEMORY))
         return (true);
 
     /*
@@ -87,7 +90,7 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
      * packing asserts that prepared tombstones are visible to all, which may not hold after
      * split-rewrite resets the page's reconciliation state.
      */
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && r->rec_page_cell_with_prepared_txn) {
+    if (r->rec_page_cell_with_prepared_txn) {
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_prepared);
         return (false);
     }
