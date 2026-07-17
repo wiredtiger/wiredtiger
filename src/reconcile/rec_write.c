@@ -451,8 +451,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
 err:
-    if (ret != 0)
+    if (ret != 0) {
+        /*
+         * The reconcile-local block array is normally freed by cleanup when wrapping up the
+         * reconciliation, which this path skips. If cleanup has not run, free it here.
+         */
+        if (r->multi != NULL)
+            WT_TRET(__rec_cleanup(session, r));
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
+    }
     return (ret);
 }
 
@@ -3189,7 +3196,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * in memory. If the page is subsequently modified, that is OK, we'll just reconcile it
          * again.
          */
-        __wt_atomic_store_uint8_release(&mod->rec_result, WT_PM_REC_EMPTY);
+        mod->rec_result = WT_PM_REC_EMPTY;
         break;
     case 1: /* 1-for-1 page swap */
         /*
@@ -3251,7 +3258,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
-        __wt_atomic_store_uint8_release(&mod->rec_result, WT_PM_REC_REPLACE);
+        mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */
         if (WT_PAGE_IS_INTERNAL(page))
@@ -3266,13 +3273,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 split:
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
-        /*
-         * Publish the result type last, with a release barrier: the union members backing it (the
-         * replacement-block array and its count) must be visible before a lock-free reader that
-         * keys off the result acts on them. The page discard path reads the result without the page
-         * lock; observing a multiblock split without the matching block array would orphan it.
-         */
-        __wt_atomic_store_uint8_release(&mod->rec_result, WT_PM_REC_MULTIBLOCK);
+        mod->rec_result = WT_PM_REC_MULTIBLOCK;
 
         r->multi = NULL;
         r->multi_next = 0;

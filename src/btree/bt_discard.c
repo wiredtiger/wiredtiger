@@ -191,11 +191,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* In some failed-split cases, we can't discard updates. */
     update_ignore = F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE);
 
-    /* Pair with the release store of the reconciliation result in the reconcile wrapup */
-    uint8_t rec_result;
-    rec_result = __wt_atomic_load_uint8_acquire(&mod->rec_result);
-
-    switch (rec_result) {
+    switch (mod->rec_result) {
     case WT_PM_REC_MULTIBLOCK:
         /* Free list of replacement blocks. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
