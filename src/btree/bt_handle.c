@@ -813,7 +813,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->write_gen =
       WT_MAX(ckpt->write_gen + 1, __wt_atomic_load_uint64_relaxed(&conn->base_write_gen));
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
-    btree->ckpt_run_write_gen = ckpt->run_write_gen;
 
     /*
      * Reset the runtime write generation when the checkpoint's transaction ids are not usable in

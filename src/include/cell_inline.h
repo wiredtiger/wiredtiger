@@ -1718,16 +1718,7 @@ __cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_g
      *                        durable_ts=NONE               durable_ts=NONE
      */
 
-    if (session->reconstruct_write_gen != 0)
-        /*
-         * Rebuilding a full image from a base image and deltas produces shared bytes: every node
-         * must clear the same transaction ids from the same inputs. Use the run write generation
-         * recorded in the checkpoint rather than this handle's base write generation -- a
-         * follower's role-based reset would clear more than another reader would, and the rebuilt
-         * images would differ between nodes.
-         */
-        write_gen = session->reconstruct_write_gen;
-    else if (WT_READING_CHECKPOINT(session) && session->ckpt.write_gen != 0) {
+    if (WT_READING_CHECKPOINT(session) && session->ckpt.write_gen != 0) {
         /*
          * When reading a checkpoint, override the tree's base write generation with the write
          * generation from the global metadata, which might be newer. This comes into play if the
