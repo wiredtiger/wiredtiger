@@ -2009,9 +2009,9 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session)
     /*
      * While the step-down timestamp is set, writes must run in explicit snapshot transactions: an
      * implicit (autocommit) transaction only begins inside the constituent operation, after this
-     * check and the write routing have made their decisions, so it would evade both. This must
-     * come before the early return below, whose running-transaction test is exactly the hole an
-     * implicit transaction slips through.
+     * check and the write routing have made their decisions, so it would evade both. This must come
+     * before the early return below, whose running-transaction test is exactly the hole an implicit
+     * transaction slips through.
      */
     WT_ASSERT(session,
       stepdown_ts == WT_TS_NONE ||
