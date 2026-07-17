@@ -2867,7 +2867,7 @@ __wt_btcur_skip_page(
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
       __wt_txn_snap_range_visible(session, ta->oldest_stop_txn, ta->newest_stop_txn,
-        ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+        ta->newest_stop_ts, ta->newest_page_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate
