@@ -52,6 +52,7 @@ typedef struct {
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_compare_page_id(const void *, const void *);
 static int __verify_disagg_accumulate_size(WT_SESSION_IMPL *, WT_VSTUFF *, const void *, size_t);
+static int __verify_one_checkpoint(WT_SESSION_IMPL *, WT_VSTUFF *, WT_CKPT *, bool, bool);
 static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
@@ -404,6 +405,129 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __verify_one_checkpoint --
+ *     Load, verify and unload a single checkpoint.
+ */
+static int
+__verify_one_checkpoint(
+  WT_SESSION_IMPL *session, WT_VSTUFF *vs, WT_CKPT *ckpt, bool skip_hs, bool last_ckpt)
+{
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
+    WT_DECL_RET;
+    const char *name = session->dhandle->name;
+    bool evict_off = false;
+
+    if (WT_VRFY_DUMP(vs)) {
+        WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
+        WT_RET(__wt_msg(session, "%s, ckpt_name: %s", name, ckpt->name));
+    }
+
+    size_t root_addr_size;
+    uint8_t root_addr[WT_ADDR_MAX_COOKIE];
+    WT_RET(bm->checkpoint_load(
+      bm, session, ckpt->raw.data, ckpt->raw.size, root_addr, &root_addr_size, true));
+
+    /* Skip trees with no root page. */
+    if (root_addr_size == 0)
+        goto done;
+
+    WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
+
+    if (WT_VRFY_DUMP(vs))
+        WT_ERR(__wt_msg(session, "Root:\n\t> addr: %s",
+          __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
+
+    /*
+     * We currently hold an exclusive lock which means eviction cannot work on that tree. Eviction
+     * must work on trees being verified (else we'd have to do our own eviction), so we release the
+     * lock while verifying.
+     */
+    __wt_evict_file_exclusive_off(session);
+    evict_off = true;
+
+    /* Create a fake, unpacked parent cell for the tree based on the checkpoint information. */
+    WT_CELL_UNPACK_ADDR addr_unpack;
+    memset(&addr_unpack, 0, sizeof(addr_unpack));
+    WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
+    if (ckpt->ta.prepare)
+        addr_unpack.ta.prepare = 1;
+    addr_unpack.raw = WT_CELL_ADDR_INT;
+
+    /* Only verify HS entries against the last checkpoint. */
+    vs->skip_hs = skip_hs || !last_ckpt;
+    vs->hs_checkpoint_name = ckpt->name;
+
+    /* Verify the tree. */
+    WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+    WT_ERR(ret);
+
+    /* Account for the root page in the accumulated total block size. */
+    WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
+
+#ifdef HAVE_DIAGNOSTIC
+    /* Validate the size of the btree. */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
+        /*
+         * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues, where
+         * bytes_total increments happen before the reconciliation panic boundary, leaving us in an
+         * inconsistent state if reconciliation fails after the increment but before completion.
+         * Only fail in diagnostic builds for now; enable this branch in production builds once this
+         * is resolved.
+         */
+        WT_ERR_MSG(session, WT_ERROR,
+          "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
+          vs->total_block_size);
+#endif
+
+    /*
+     * The checkpoints are in time-order, so the last one in the list is the most recent. If this is
+     * the most recent checkpoint, verify the history store against it, also verify page discard
+     * function if we're in disagg mode.
+     */
+    if (ret == 0 && last_ckpt) {
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            /*
+             * The page discard verification routine depends on get_page_ids being implemented.
+             */
+            WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+            if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL)
+                WT_ERR(__verify_page_discard(session, bm));
+        }
+
+        if (!skip_hs) {
+            __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
+            WT_ERR_MSG_CHK(
+              session, __wt_hs_verify_one(session, btree->id), "history store verification failed");
+        }
+    }
+
+    /*
+     * If the read_corrupt mode was turned on, we may have continued traversing and verifying the
+     * pages of the tree despite encountering an error. Set the error.
+     */
+    if (vs->verify_err != 0)
+        ret = vs->verify_err;
+
+done:
+err:
+    /*
+     * If eviction was enabled to verify the tree, re-acquire the exclusive lock and discard the
+     * tree before unloading the checkpoint.The discard must run while the lock is held and before
+     * the unload, as the tree's pages reference this checkpoint's block manager.
+     */
+    if (evict_off) {
+        WT_TRET(__wt_evict_file_exclusive_on(session));
+        WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
+    }
+
+    /* Unload the checkpoint. */
+    WT_TRET(bm->checkpoint_unload(bm, session));
+
+    return (ret);
+}
+
+/*
  * __wt_verify --
  *     Verify a file.
  */
@@ -412,12 +536,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_CELL_UNPACK_ADDR addr_unpack;
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
-    size_t root_addr_size;
-    uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
     bool bm_start, quit, skip_hs;
 
@@ -500,117 +621,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         /* House-keeping between checkpoints. */
         __verify_checkpoint_reset(vs);
 
-        if (WT_VRFY_DUMP(vs)) {
-            WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
-            WT_ERR(__wt_msg(session, "%s, ckpt_name: %s", name, ckpt->name));
-        }
-
-        /* Load the checkpoint. */
-        WT_ERR(bm->checkpoint_load(
-          bm, session, ckpt->raw.data, ckpt->raw.size, root_addr, &root_addr_size, true));
-
-        /* Skip trees with no root page. */
-        if (root_addr_size != 0) {
-            WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
-
-            if (WT_VRFY_DUMP(vs))
-                WT_ERR(__wt_msg(session, "Root:\n\t> addr: %s",
-                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
-
-            __wt_evict_file_exclusive_off(session);
-
-            /*
-             * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
-             */
-            memset(&addr_unpack, 0, sizeof(addr_unpack));
-            WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
-            if (ckpt->ta.prepare)
-                addr_unpack.ta.prepare = 1;
-            addr_unpack.raw = WT_CELL_ADDR_INT;
-
-            /* Only verify HS entries against the last checkpoint. */
-            vs->skip_hs = skip_hs || (ckpt + 1)->name != NULL;
-            vs->hs_checkpoint_name = ckpt->name;
-
-            /* Verify the tree. */
-            WT_WITH_PAGE_INDEX(
-              session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
-
-            /* Account for the root page in the accumulated total block size. */
-            WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
-
-#ifdef HAVE_DIAGNOSTIC
-            /* Validate the size of the btree. */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
-                /*
-                 * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues,
-                 * where bytes_total increments happen before the reconciliation panic boundary,
-                 * leaving us in an inconsistent state if reconciliation fails after the increment
-                 * but before completion. Only fail in diagnostic builds for now; enable this branch
-                 * in production builds once this is resolved.
-                 */
-                WT_ERR_MSG(session, WT_ERROR,
-                  "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
-                  ckpt->size, vs->total_block_size);
-#endif
-
-            /*
-             * The checkpoints are in time-order, so the last one in the list is the most recent. If
-             * this is the most recent checkpoint, verify the history store against it, also verify
-             * page discard function if we're in disagg mode.
-             */
-            if (ret == 0 && (ckpt + 1)->name == NULL) {
-                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-                    /*
-                     * The page discard verification routine depends on get_page_ids being
-                     * implemented.
-                     */
-                    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-                    if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL)
-                        WT_TRET(__verify_page_discard(session, bm));
-                }
-
-                if (!skip_hs) {
-                    __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
-                    WT_TRET_MSG(session, __wt_hs_verify_one(session, btree->id),
-                      "history store verification failed");
-                }
-                /*
-                 * We cannot error out here. If we got an error verifying the history store, we need
-                 * to follow through with reacquiring the exclusive call below. We'll error out
-                 * after that and unloading this checkpoint.
-                 */
-            }
-
-            /*
-             * If the read_corrupt mode was turned on, we may have continued traversing and
-             * verifying the pages of the tree despite encountering an error. Set the error.
-             */
-            if (vs->verify_err != 0)
-                ret = vs->verify_err;
-
-            /*
-             * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
-             * that handle, and there's a race with eviction entering the tree and seeing an invalid
-             * root page. Eviction must work on trees being verified (else we'd have to do our own
-             * eviction), lock eviction out whenever we're loading a new root page. This loop works
-             * because we are called with eviction locked out, so we release the lock at the top of
-             * the loop and re-acquire it here.
-             */
-            WT_TRET(__wt_evict_file_exclusive_on(session));
-            WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
-        }
-
-        /* Unload the checkpoint. */
-        WT_TRET(bm->checkpoint_unload(bm, session));
-
-        /*
-         * We've finished one checkpoint's verification (verification, then eviction and checkpoint
-         * unload): if any errors occurred, quit. Done this way because otherwise we'd need at least
-         * two more state variables on error, one to know if we need to discard the tree from the
-         * cache and one to know if we need to unload the checkpoint.
-         */
-        WT_ERR(ret);
+        WT_ERR(__verify_one_checkpoint(session, vs, ckpt, skip_hs, (ckpt + 1)->name == NULL));
 
         /* Display the tree shape. */
         if (vs->dump_layout)
