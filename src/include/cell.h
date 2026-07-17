@@ -266,6 +266,7 @@ struct __wt_cell_kv {
  */
 struct __wti_delta_int_merge_state {
     WT_CELL_UNPACK_DELTA_INT unpack; /* Current unpacked key+value entry */
+    const WT_PAGE_HEADER *base_dsk;  /* Base image's disk header (timestamp resolution) */
     const WT_PAGE_HEADER *dsk;       /* This delta's disk header (clearing decisions) */
     uint8_t *cell;                   /* Current position in the delta byte stream */
     uint32_t entries;                /* Remaining cell count (key+value pairs each count as 2) */
