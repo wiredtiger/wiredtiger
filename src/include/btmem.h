@@ -270,7 +270,9 @@ struct __wt_page_block_meta {
     uint64_t page_id;
     uint64_t disagg_lsn;
 
+    /* LSN of the preceding write in the delta chain; 0 for a base page. */
     uint64_t backlink_lsn;
+    /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
     uint64_t base_lsn;
 
     uint32_t checksum;

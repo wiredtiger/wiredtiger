@@ -5698,7 +5698,7 @@ struct __wt_page_log {
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param args extended arguments
+     * @param args the checkpoint to complete and its metadata; the assigned LSN is returned in args
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args);
@@ -5710,7 +5710,7 @@ struct __wt_page_log {
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param args arguments
+     * @param args the most recently completed checkpoint and its metadata, returned by the call
      */
     int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args);
@@ -5788,6 +5788,9 @@ struct __wt_page_log {
      *
      * The WT_PAGE_LOG::terminate callback is intended to allow cleanup;
      * the handle will not be subsequently accessed by WiredTiger.
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
      */
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
@@ -5927,15 +5930,15 @@ struct __wt_page_log_complete_checkpoint_args {
         /*
          * Input arguments
          */
-        uint64_t checkpoint_id;
-        uint64_t checkpoint_timestamp;
-        const WT_ITEM *checkpoint_metadata;
-        uint64_t checkpoint_oldest_timestamp;
+        uint64_t checkpoint_id;               /* Identifier of the checkpoint being completed. */
+        uint64_t checkpoint_timestamp;        /* Stable timestamp of the checkpoint. */
+        const WT_ITEM *checkpoint_metadata;   /* Opaque checkpoint metadata to be persisted. */
+        uint64_t checkpoint_oldest_timestamp; /* Oldest timestamp of the checkpoint. */
 
         /*
          * Output arguments, returned by the call.
          */
-        uint64_t lsn;
+        uint64_t lsn;                         /* LSN at which the checkpoint completed. */
 };
 
 /*!
@@ -5945,10 +5948,10 @@ struct __wt_page_log_get_complete_checkpoint_args {
         /*
          * Output arguments, returned by the call.
          */
-        uint64_t checkpoint_lsn;
-        uint64_t checkpoint_id;
-        uint64_t checkpoint_timestamp;
-        WT_ITEM checkpoint_metadata;
+        uint64_t checkpoint_lsn;       /* LSN at which the checkpoint completed. */
+        uint64_t checkpoint_id;        /* Identifier of the most recently completed checkpoint. */
+        uint64_t checkpoint_timestamp; /* Stable timestamp of the checkpoint. */
+        WT_ITEM checkpoint_metadata;   /* Opaque checkpoint metadata, memory owned by the caller. */
 };
 
 /*!
@@ -5958,23 +5961,29 @@ struct __wt_page_log_put_args {
        /*
         * Input arguments
         */
+       /* LSN of the preceding write in the delta chain; 0 for a base page. */
        uint64_t backlink_lsn;
+       /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
        uint64_t base_lsn;
+       /* Checkpoint-id counterpart of backlink_lsn (reserved, not yet persisted). */
        uint64_t backlink_checkpoint_id;
+       /* Checkpoint-id counterpart of base_lsn (reserved, not yet persisted). */
        uint64_t base_checkpoint_id;
+       /* Size in bytes of the page image being written. */
        size_t image_size;
 
+       /* WT_PAGE_LOG_* flags describing the image. */
        uint32_t flags;
 
        /*
         * Output arguments, returned by the call.
         */
-       uint64_t lsn;
+       uint64_t lsn; /* LSN assigned to this write. */
 
        /*
         * Arguments used by the block cache
         */
-       uint64_t delta_count;
+       uint64_t delta_count; /* Number of deltas in the chain, including this write. */
 };
 
 /*!
@@ -5989,20 +5998,24 @@ struct __wt_page_log_get_args {
        /*
         * Input arguments
         */
-       uint32_t flags;
+       uint32_t flags; /* WT_PAGE_LOG_* flags describing the requested image. */
 
        /*
         * Output arguments, returned by the call
         */
+       /* LSN of the preceding write in the delta chain; 0 for a base page. */
        uint64_t backlink_lsn;
+       /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
        uint64_t base_lsn;
+       /* Checkpoint-id counterpart of backlink_lsn (reserved, not yet persisted). */
        uint64_t backlink_checkpoint_id;
+       /* Checkpoint-id counterpart of base_lsn (reserved, not yet persisted). */
        uint64_t base_checkpoint_id;
 
        /*
         * Arguments used by the block cache
         */
-       uint64_t delta_count;
+       uint64_t delta_count; /* Number of deltas in the chain for the returned page. */
 };
 
 /*!
@@ -6012,9 +6025,13 @@ struct __wt_page_log_discard_args {
        /*
         * Input arguments
         */
+       /* LSN of the preceding write in the delta chain; 0 for a base page. */
        uint64_t backlink_lsn;
+       /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
        uint64_t base_lsn;
+       /* Checkpoint-id counterpart of backlink_lsn (reserved, not yet persisted). */
        uint64_t backlink_checkpoint_id;
+       /* Checkpoint-id counterpart of base_lsn (reserved, not yet persisted). */
        uint64_t base_checkpoint_id;
 
        /* Not used for now. */
@@ -6124,25 +6141,53 @@ struct __wt_page_log_handle {
 
     /*!
      * Put an object into cache.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param page_id the page to be written
+     * @param checkpoint_id the checkpoint to be written to
+     * @param args additional arguments used or returned by the call, memory owned by caller
+     * @param buf content to be written
      */
     int (*plh_cache_put)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args,
         const WT_ITEM *buf);
 
     /*!
-     * Query object in cache.
+     * Query whether an object is present in cache.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param page_id the page to query
+     * @param checkpoint_id the checkpoint to query
+     * @param args additional arguments used or returned by the call, memory owned by caller
      */
     int (*plh_cache_has)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
 
     /*!
-     * Delete object from cache.
+     * Delete an object from cache.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param page_id the page to delete
+     * @param checkpoint_id the checkpoint to delete from
+     * @param args additional arguments used or returned by the call, memory owned by caller
      */
     int (*plh_cache_del)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
 
     /*!
-     * Query if block cache is available.
+     * Query if the block cache is available.
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
      */
     bool (*plh_cache_available)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
 };
