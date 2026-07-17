@@ -173,13 +173,18 @@ def main():
     token = get_jira_token()
 
     closed_ticket_found = False
+    outdated_tickets = set()
+
     for ticket, file in sorted(find_fixme_tickets()):
         query_result = query_jira_ticket(ticket, token)
         if is_outdated(*query_result):
             print(f"{ticket} is a closed ticket that has a FIXME comment in {file}.")
             closed_ticket_found = True
-            if args.label_outdated:
-                label_ticket(ticket, token)
+            outdated_tickets.add(ticket)
+
+    if args.label_outdated:
+        for ticket in outdated_tickets:
+            label_ticket(ticket, token)
 
     exit_code = 1 if closed_ticket_found else 0
     sys.exit(exit_code)
