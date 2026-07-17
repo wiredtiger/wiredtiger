@@ -50,10 +50,10 @@ struct __wti_cursor_layered {
  *	The kind of layered-table operation.
  */
 typedef enum {
-    WTI_CLAYERED_MODE_SEARCH,         /* search, search_near */
-    WTI_CLAYERED_MODE_ITERATE,        /* next, prev */
-    WTI_CLAYERED_MODE_RANDOM,         /* next_random */
-    WTI_CLAYERED_MODE_SCAN,           /* largest_key */
+    WTI_CLAYERED_MODE_SEARCH,  /* search, search_near */
+    WTI_CLAYERED_MODE_ITERATE, /* next, prev */
+    WTI_CLAYERED_MODE_RANDOM,  /* next_random */
+    WTI_CLAYERED_MODE_LARGEST_KEY,
     WTI_CLAYERED_MODE_WRITE,          /* remove, reserve, modify; non-overwrite insert/update */
     WTI_CLAYERED_MODE_WRITE_OVERWRITE /* overwrite insert/update */
 } WTI_CLAYERED_OP_MODE;

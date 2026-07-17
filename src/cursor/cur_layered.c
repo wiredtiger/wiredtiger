@@ -225,12 +225,12 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_ITERATION 0x01u    /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x02u        /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x04u  /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_STEPDOWN_SET 0x08u /* The step-down timestamp is set on the leader. */
-#define CLAYERED_ENTER_STEP_DOWN 0x10u    /* Role changed leader -> follower since last access. */
-#define CLAYERED_ENTER_STEP_UP 0x20u      /* Role changed follower -> leader since last access. */
+#define CLAYERED_ENTER_ITERATION 0x01u   /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_OPEN_INGEST 0x02u /* Open and route to the ingest constituent. */
+#define CLAYERED_ENTER_RESET 0x04u       /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x08u /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_STEP_DOWN 0x10u   /* Role changed leader -> follower since last access. */
+#define CLAYERED_ENTER_STEP_UP 0x20u     /* Role changed follower -> leader since last access. */
 /* A role change in either direction since the cursor's last access. */
 #define CLAYERED_ENTER_ROLE_CHANGE (CLAYERED_ENTER_STEP_DOWN | CLAYERED_ENTER_STEP_UP)
 /*
@@ -263,11 +263,16 @@ __clayered_enter_flags(
           role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
 
     /*
-     * While a step-down is set on the leader, the cursor behaves like a follower: it reads and
-     * writes the ingest constituent over the still-live stable table.
+     * A transaction that started with the step-down timestamp set behaves like a follower: it reads
+     * and writes the ingest constituent over the still-live stable table.
+     *
+     * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
+     * by contract and the application uses it to allocate record IDs, so missing a larger key that
+     * a newer transaction put in ingest would hand out colliding IDs. On a leader without the
+     * step-down timestamp set, the ingest table is empty and the answer is unchanged.
      */
-    if (session->txn->stepdown_ts_set)
-        LF_SET(CLAYERED_ENTER_STEPDOWN_SET);
+    if (session->txn->stepdown_ts_set || mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+        LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
 }
@@ -283,7 +288,7 @@ __clayered_op_init(
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     op->clayered = clayered;
-    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_STEPDOWN_SET)) ?
+    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_OPEN_INGEST)) ?
       clayered->ingest_cursor :
       NULL;
     /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
@@ -777,7 +782,7 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
     bool want_ingest;
 
     want_ingest =
-      role == WTI_CLAYERED_ROLE_FOLLOWER || FLD_ISSET(flags, CLAYERED_ENTER_STEPDOWN_SET);
+      role == WTI_CLAYERED_ROLE_FOLLOWER || FLD_ISSET(flags, CLAYERED_ENTER_OPEN_INGEST);
 
     if (want_ingest) {
         if (clayered->ingest_cursor == NULL) {
@@ -3006,7 +3011,7 @@ __clayered_largest_key(WT_CURSOR *cursor)
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     __cursor_novalue(cursor);
     WT_ERR(__cursor_copy_release(cursor));
-    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SCAN, &op));
+    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_LARGEST_KEY, &op));
 
     c_ingest = op.ingest;
     c_stable = op.stable;
