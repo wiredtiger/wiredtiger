@@ -242,7 +242,10 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.reset_cursors(follower_cursors)
 
         # At this point, we have two connections, our old leader and the follower that is
-        # becoming the new leader. Close the old leader first so there's no confusion within this test.
+        # becoming the new leader. Step down before closing the old leader, so its close does
+        # not write a shutdown checkpoint that would leave conn_follow behind again, then close
+        # it so there's no confusion within this test.
+        self.conn.reconfigure('disaggregated=(role="follower")')
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 

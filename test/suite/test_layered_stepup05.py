@@ -165,7 +165,9 @@ class test_layered_stepup05(wttest.WiredTigerTestCase):
         # Advance the follower to ckpt2 so it sees the full dataset.
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Close the leader and step up the follower.
+        # Step down before closing the leader, so close does not write a shutdown
+        # checkpoint that would leave the follower behind again, then step up the follower.
+        self.conn.reconfigure('disaggregated=(role="follower")')
         self.session.close()
         self.close_conn()
         conn_follow.reconfigure('disaggregated=(role="leader")')

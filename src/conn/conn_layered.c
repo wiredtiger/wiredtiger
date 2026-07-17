@@ -982,6 +982,57 @@ err:
 }
 
 /*
+ * __disagg_assert_latest_checkpoint --
+ *     Refuse to step up unless we are on the page log's latest completed checkpoint. Skipped if
+ *     the page log does not support the lookup.
+ */
+static int
+__disagg_assert_latest_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_PAGE_LOG *page_log;
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS args;
+    uint64_t latest_meta_lsn, our_meta_lsn;
+    char *meta_str;
+
+    conn = S2C(session);
+    meta_str = NULL;
+    WT_CLEAR(args);
+
+    page_log = conn->disaggregated_storage.npage_log->page_log;
+    if (page_log->pl_get_complete_checkpoint == NULL)
+        return (0);
+
+    ret = page_log->pl_get_complete_checkpoint(page_log, &session->iface, &args);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
+    WT_ERR(ret);
+
+    WT_ERR(__wt_strndup(
+      session, args.checkpoint_metadata.data, args.checkpoint_metadata.size, &meta_str));
+    WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
+    latest_meta_lsn = (uint64_t)cval.val;
+
+    our_meta_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    if (our_meta_lsn != latest_meta_lsn)
+        WT_ERR_MSG(session, EINVAL,
+          "Refusing to step up to the leader role: the latest completed checkpoint known to the "
+          "page log has metadata LSN %" PRIu64
+          ", but this node has only picked up metadata LSN %" PRIu64,
+          latest_meta_lsn, our_meta_lsn);
+
+err:
+    __wt_free(session, meta_str);
+    __wt_buf_free(session, &args.checkpoint_metadata);
+    return (ret);
+}
+
+/*
  * __disagg_step_up --
  *     Step up to the node to the leader mode.
  */
@@ -1010,6 +1061,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
+
+    WT_ERR(__disagg_assert_latest_checkpoint(session));
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations

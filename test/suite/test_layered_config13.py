@@ -80,6 +80,10 @@ class test_layered_config13(wttest.WiredTigerTestCase):
 
         # Reopen the connection.
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+
+        # Step down to avoid a shutdown checkpoint on close, which would leave the
+        # checkpoint_meta captured above stale by the time it is picked up again below.
+        self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
         with self.expectedStdoutPattern("Removing local file"):
