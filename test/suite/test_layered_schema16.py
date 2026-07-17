@@ -142,3 +142,45 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_pickup_ebusy_retry(self):
+        # Leader creates the table, writes data, and checkpoints; follower picks it up.
+        self.session.create(self.uri, self.table_config)
+        self.write_all('aaa', 10)
+        self.leader_checkpoint(10)
+        conn_follow, session_follow = self.open_follower()
+        self.assertEqual(self.read_all(session_follow), {i: 'aaa' for i in range(10)})
+
+        # Keep a positioned cursor open on the follower: positioning opens the constituent
+        # cursors, so the ingest and stable data handles stay pinned.
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor.next(), 0)
+
+        # Leader drops the table and checkpoints.
+        self.dropUntilSuccess(self.session, self.uri)
+        self.leader_checkpoint(20)
+
+        # The pickup must fail with EBUSY: the busy handles abort the discard of the dropped
+        # table before the follower advances to the new checkpoint.
+        self.assertRaises(wiredtiger.WiredTigerError,
+                          lambda: self.disagg_advance_checkpoint(conn_follow))
+        self.ignoreStderrPatternIfExists('Failed to pick up disaggregated storage checkpoint')
+
+        # The failed pickup must leave the table intact on the follower: still present in the
+        # local metadata and still readable through the open cursor.
+        self.assertTrue(self.uri_in_local_metadata(conn_follow))
+        cursor.reset()
+        result = {}
+        while cursor.next() == 0:
+            result[cursor.get_key()] = cursor.get_value()
+        self.assertEqual(result, {i: 'aaa' for i in range(10)})
+        cursor.close()
+
+        # With the cursor closed, retrying the pickup must succeed and discard the table.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertFalse(self.uri_in_local_metadata(conn_follow))
+        self.assertRaises(wiredtiger.WiredTigerError,
+                          lambda: session_follow.open_cursor(self.uri))
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')

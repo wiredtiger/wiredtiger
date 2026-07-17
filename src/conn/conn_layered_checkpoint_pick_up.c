@@ -481,10 +481,14 @@ __disagg_close_and_remove_local(WT_SESSION_IMPL *session, const char *uri)
 
 /*
  * __disagg_drop_local_layered_int --
- *     Discard the local state of a layered table that the leader has dropped. Drop the ingest
- *     constituent first: its in-memory contents belong to the dropped incarnation and it is the
- *     most likely piece to be busy, so failing on it leaves the rest of the state intact for a
- *     retry on the next pickup.
+ *     Discard the local state of a layered table that the leader has dropped. If any handle is busy
+ *     (e.g., the application holds an open cursor on the table), the discard fails with EBUSY,
+ *     which aborts the whole pickup before the checkpoint metadata LSN advances; the application
+ *     sees the error from the pickup call and retries it later. A retry after a partial discard is
+ *     safe: the ingest constituent is dropped first because its handles are the most likely to be
+ *     busy, and every removal below tolerates an already-missing entry. The discard is therefore
+ *     not atomic: between a failed pickup and its retry, a reader can observe a partially discarded
+ *     table, the same as reading a table being concurrently dropped.
  */
 static int
 __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
@@ -871,13 +875,13 @@ __disagg_apply_checkpoint_meta(
                       session, sh_cursors, md_write_cursor, sh_has, is_startup, &new_ingest));
                     ++new_tables;
                     continue;
-                }
-                /*
-                 * The file already exists in the local metadata, so we just pick up its latest
-                 * checkpoint without changing its other metadata.
-                 */
-                WT_ERR(__disagg_update_file_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
+                } else
+                    /*
+                     * The file already exists in the local metadata, so we just pick up its latest
+                     * checkpoint without changing its other metadata.
+                     */
+                    WT_ERR(__disagg_update_file_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
+                      md_cursors[WT_DISAGG_CURSOR_FILE]));
             } else
                 /*
                  * We already have the layered table in the local metadata; we are just picking up

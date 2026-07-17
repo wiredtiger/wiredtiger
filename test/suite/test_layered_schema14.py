@@ -54,9 +54,9 @@ class test_layered_schema14(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def read_all(self, session):
+    def read_all(self, session, uri=None):
         """Return the follower's view of the table as a key to value dict."""
-        cursor = session.open_cursor(self.uri)
+        cursor = session.open_cursor(self.uri if uri is None else uri)
         result = {}
         while cursor.next() == 0:
             result[cursor.get_key()] = cursor.get_value()
@@ -168,12 +168,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.leader_checkpoint(40)
         self.disagg_advance_checkpoint(conn_follow)
         self.assertTrue(self.layered_in_local_metadata(conn_follow, self.uri2))
-        cursor = session_follow.open_cursor(self.uri2)
-        result = {}
-        while cursor.next() == 0:
-            result[cursor.get_key()] = cursor.get_value()
-        cursor.close()
-        self.assertEqual(result, {i: 'ccc' for i in range(10)})
+        self.assertEqual(self.read_all(session_follow, self.uri2), {i: 'ccc' for i in range(10)})
 
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
