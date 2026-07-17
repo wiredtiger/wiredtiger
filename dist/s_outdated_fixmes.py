@@ -55,8 +55,8 @@ def all_files():
 
 def find_fixme_tickets():
     """
-    Return all WT tickets that are associated with a FIXME comment in the
-    codebase.
+    Return all WT tickets that are associated with a FIXME comment, together
+    with the file in which the FIXME was found.
     """
 
     fixme_tickets = set()
