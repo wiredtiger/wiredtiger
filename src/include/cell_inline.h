@@ -1157,8 +1157,6 @@ __cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_
             ta->newest_page_stop_durable_ts += ta->newest_stop_ts;
         }
         ta->newest_durable_ts = WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts);
-        if (ta->newest_stop_ts == WT_TS_MAX)
-            ta->newest_page_stop_durable_ts = WT_TS_NONE;
         WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
     }
 
