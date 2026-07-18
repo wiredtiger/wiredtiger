@@ -1157,6 +1157,11 @@ __cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_
             ta->newest_page_stop_durable_ts += ta->newest_stop_ts;
         }
         ta->newest_durable_ts = WT_MAX(ta->newest_durable_ts, ta->newest_page_stop_durable_ts);
+        /*
+         * Legacy leaf cells used the durable stop field for deleted values even when the page was
+         * only partially deleted. Preserve that value for internal cells because it aggregates
+         * child pages, but normalize it for leaf cells when live values remain.
+         */
         if (unpack_addr->raw != WT_CELL_ADDR_INT && ta->newest_stop_ts == WT_TS_MAX)
             ta->newest_page_stop_durable_ts = WT_TS_NONE;
         WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
