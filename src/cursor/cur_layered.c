@@ -2572,8 +2572,8 @@ __clayered_constituent_check(
 
 /*
  * __clayered_modify_check --
- *     Detect a write conflict for an ingest-routed write: a committed update invisible to this
- *     transaction in either constituent.
+ *     Detect a write conflict for an ingest-routed write: an update invisible to this transaction
+ *     in either constituent.
  */
 static int
 __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
@@ -2581,8 +2581,17 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
-    /* No read timestamp means every update is visible; nothing to probe. */
-    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+    /* A read timestamp can position reads below committed updates. */
+    bool has_read_ts = F_ISSET(session->txn, WT_TXN_SHARED_TS_READ);
+    /*
+     * On a leader with the step-down timestamp set, a transaction writing ingest can face live
+     * content about to be committed on stable, unlike a follower whose stable is untouched locally.
+     * That content may be invisible to this snapshot and shares no update chain with the write.
+     */
+    bool stepdown_ts_set = session->txn->stepdown_ts_set;
+
+    /* Otherwise every snapshot-visible update is current; there is nothing to check. */
+    if (!has_read_ts && !stepdown_ts_set)
         return (0);
 
     /*
