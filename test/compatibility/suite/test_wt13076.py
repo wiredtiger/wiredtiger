@@ -123,14 +123,14 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
 
     def test_upgrade_9_0_to_develop(self):
         self.run_method_on_branch(self.older_branch, 'on_older_branch_create')
-        self.run_method_on_branch(self.newer_branch, 'on_newer_branch_verify_and_mutate')
-        self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_branch_verify_and_mutate(0)')
+        self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate(1)')
         self.run_method_on_branch(self.newer_branch, 'on_newer_branch_final_verify')
 
     def test_downgrade_develop_to_9_0(self):
         self.run_method_on_branch(self.newer_branch, 'on_newer_branch_create')
-        self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate')
-        self.run_method_on_branch(self.newer_branch, 'on_newer_branch_verify_and_mutate')
+        self.run_method_on_branch(self.older_branch, 'on_older_branch_verify_and_mutate(0)')
+        self.run_method_on_branch(self.newer_branch, 'on_newer_branch_verify_and_mutate(1)')
         self.run_method_on_branch(self.older_branch, 'on_older_branch_final_verify')
 
     def on_older_branch_create(self):
@@ -139,16 +139,16 @@ class test_wt13076(compatibility_test.CompatibilityTestCase):
     def on_newer_branch_create(self):
         self._create_deleted_pages()
 
-    def on_older_branch_verify_and_mutate(self):
-        self._verify_pages(1)
+    def on_older_branch_verify_and_mutate(self, rounds):
+        self._verify_pages(rounds)
         self._verify_file(self.older_branch)
-        self._mutate_pages(1)
+        self._mutate_pages(rounds)
         self._verify_file(self.older_branch)
 
-    def on_newer_branch_verify_and_mutate(self):
-        self._verify_pages(0)
+    def on_newer_branch_verify_and_mutate(self, rounds):
+        self._verify_pages(rounds)
         self._verify_file(self.newer_branch)
-        self._mutate_pages(0)
+        self._mutate_pages(rounds)
         self._verify_file(self.newer_branch)
 
     def on_newer_branch_final_verify(self):
