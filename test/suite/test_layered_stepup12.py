@@ -117,7 +117,7 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
         deadline = time.time() + 10
         while not role_transition_in_progress():
             self.assertLess(time.time(), deadline, 'role transition did not start')
-            time.sleep(0.001)
+            time.sleep(0.01)
 
         match self.op:
             case 'drop':
