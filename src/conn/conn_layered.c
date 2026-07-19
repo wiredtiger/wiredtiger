@@ -995,6 +995,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 1);
 
     /*
      * Some functionality in stepping up needs a session that can open data handles. The default
@@ -1058,6 +1059,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 err:
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 0);
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
@@ -1128,6 +1130,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     __wt_verbose_debug1(
@@ -1166,6 +1169,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
 
 err:
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 0);
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
     return (ret);
 }

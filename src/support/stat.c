@@ -2621,6 +2621,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
+  "disagg: role transition in progress",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
   "layered: Layered table cursor insert operations",
@@ -3710,6 +3711,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
+    /* not clearing disagg_role_transition_in_progress */
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
     stats->layered_curs_insert = 0;
@@ -4916,6 +4918,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
+    to->disagg_role_transition_in_progress +=
+      WT_STAT_CONN_READ(from, disagg_role_transition_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
