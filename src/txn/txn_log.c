@@ -570,6 +570,15 @@ err:
     WT_CONN_CLOSE_ABORT(session, ret);
 #endif
     __wt_logrec_free(session, &logrec);
+
+    if (full && ret != 0) {
+        /* Clear full checkpoint state on failure. */
+        WT_INIT_LSN(ckpt_lsn);
+        txn->ckpt_nsnapshot = 0;
+        __wt_scr_free(session, &txn->ckpt_snapshot);
+        txn->full_ckpt = false;
+    }
+
     return (ret);
 }
 
