@@ -1019,6 +1019,21 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
     /*
+     * Lift the base write generation past every generation this node has persisted. Picking up a
+     * checkpoint adopts the aggregate another leader recorded, but a checkpoint this node wrote
+     * itself is never picked up, so without this its own previous-reign generations stay above the
+     * base and their transaction ids -- meaningless after the role change -- would be read as
+     * current. Trees reopened for the new role then recognize their checkpoints as cross-run and
+     * reset. Safe under the checkpoint lock held here.
+     */
+    __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
+      WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->base_write_gen),
+        __wt_atomic_load_uint64_relaxed(&conn->max_write_gen) + 1));
+    __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
+      WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
+        __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
+
+    /*
      * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
      * before draining the ingest tables, so that the updates to the stable tables will be correctly
      * included in the new checkpoint.
