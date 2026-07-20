@@ -81,19 +81,19 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         start = 1024
         data = bytes(data_to_corrupt_with, 'latin-1')
         end = start + len(data)
-        with open(tablename, 'r+b') as tablepointer:
+        with open(tablename, 'r+b') as f:
             pos = start
             for b_off, b_size in protect:
                 b_end = b_off + b_size
                 if b_end <= pos or b_off >= end:
                     continue
                 if b_off > pos:
-                    tablepointer.seek(pos)
-                    tablepointer.write(data[pos - start:b_off - start])
+                    f.seek(pos)
+                    f.write(data[pos - start:b_off - start])
                 pos = max(pos, b_end)
             if pos < end:
-                tablepointer.seek(pos)
-                tablepointer.write(data[pos - start:])
+                f.seek(pos)
+                f.write(data[pos - start:])
 
     def corrupt_salvage_verify(self):
         # An exclusive handle operation can fail if there is dirty data in the cache, closing the
