@@ -647,6 +647,40 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
 }
 
 /*
+ * __split_update_approx_leaf_pages --
+ *     Apply a split's net change to the row-store approximate leaf-page count: leaf pages created,
+ *     less the leaf removed by a reverse split and any deleted refs reclaimed alongside it.
+ */
+static void
+__split_update_approx_leaf_pages(
+  WT_SESSION_IMPL *session, WT_REF *ref, const uint32_t new_entries, const uint32_t deleted_entries)
+{
+    WT_BTREE *btree = S2BT(session);
+    if (btree->type != BTREE_ROW)
+        return;
+
+    /* Do not turn an untracked legacy value into a misleading tracked value. */
+    if (__wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) == WT_LEAF_STATS_UNKNOWN)
+        return;
+
+    /* Internal-page splits do not change the leaf count. */
+    int64_t leaf_delta = 0;
+    if (new_entries == 0 || (ref->page != NULL && ref->page->type == WT_PAGE_ROW_LEAF))
+        leaf_delta = (int64_t)new_entries - 1;
+
+    /* Deleted refs reclaimed during the split remove their leaves too. */
+    leaf_delta -= (int64_t)deleted_entries;
+
+    if (leaf_delta > 0) {
+        (void)__wt_atomic_add_uint64(&btree->approx_leaf_pages, (uint64_t)leaf_delta);
+        return;
+    }
+
+    for (; leaf_delta < 0; ++leaf_delta)
+        __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
+}
+
+/*
  * __split_parent --
  *     Resolve a multi-page split, inserting new information into the parent.
  */
@@ -797,6 +831,12 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     /* Start making real changes to the tree, errors are fatal. */
     WT_NOT_READ(complete, WT_ERR_PANIC);
 
+    /*
+     * Account for the leaf pages this split adds or removes before the new index is published
+     * below.
+     */
+    __split_update_approx_leaf_pages(session, ref, new_entries, deleted_entries);
+
     /* Encourage a race */
     __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3, NULL);
 
@@ -852,19 +892,12 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
-        /* Reverse split removes a deleted/empty leaf, not a split replacement. */
-        if (new_entries == 0 && btree->type == BTREE_ROW &&
-          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
-            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
           session, next_ref, parent, &parent_decr, split_gen, exclusive));
-        if (btree->type == BTREE_ROW &&
-          __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
-            __wt_atomic_decrement_if_positive_uint64(&btree->approx_leaf_pages);
     }
 
     /*
@@ -2243,10 +2276,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
             WT_STAT_CONN_INCR(session, cache_inmem_split_ingest);
-        if (type == WT_PAGE_ROW_LEAF &&
-          __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) !=
-            WT_LEAF_STATS_UNKNOWN)
-            (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, 1);
         return (0);
     }
 
@@ -2388,9 +2417,6 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_split_leaf);
-    if (page->type == WT_PAGE_ROW_LEAF && new_entries > 1 &&
-      __wt_atomic_load_uint64_relaxed(&S2BT(session)->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
-        (void)__wt_atomic_add_uint64(&S2BT(session)->approx_leaf_pages, new_entries - 1);
 
     /*
      * The split succeeded, we can no longer fail.
