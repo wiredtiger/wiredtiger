@@ -30,7 +30,6 @@
 
 #include "test_util.h"
 
-#include <pthread.h>
 #include <sys/wait.h>
 #include <signal.h>
 
@@ -64,28 +63,42 @@ typedef struct {
     bool switch_mode; /* enable role-switch phase */
 } TEST_CONFIG;
 
+/* Forward declaration: WORKLOAD_STATE holds a pointer into the THREAD_DATA array. */
+typedef struct __thread_data THREAD_DATA;
+
 /* Global state shared by all workload threads. */
 typedef struct {
     volatile bool stable_set; /* set once the stable timestamp is first advanced */
-    volatile bool stop_phase; /* set to quiesce all worker threads cleanly */
+    volatile bool stop_phase; /* set to quiesce all worker threads cleanly between phases */
     volatile bool
-      ckpt_enabled;           /* leader phase checkpoints; follower phase only advances the epoch */
-    uint64_t schema_op_epoch; /* next schema epoch to assign */
-    /* Read: a schema thread's create/drop and publish. Write: the checkpoint. */
-    pthread_rwlock_t lock;
+      ckpt_enabled; /* leader phase checkpoints; follower phase only advances the epoch */
+    /*
+     * Monotonic allocators. Every publish and commit must draw a value above the global stable
+     * epoch and timestamp, so these only ever increase.
+     */
+    uint64_t next_epoch;
+    uint64_t next_commit_ts;
+    THREAD_DATA *workers; /* schema worker thread data array (length nth_workers) */
+    uint32_t nth_workers;
 } WORKLOAD_STATE;
 
 /* Per-thread argument. */
-typedef struct {
+struct __thread_data {
     TEST_CONFIG *cfg;
     WT_CONNECTION *conn;
     WORKLOAD_STATE *state;
     uint32_t info;
     WT_RAND_STATE rnd;
-    bool
-      table_exists[MAX_POOL_SIZE]; /* seeded from the caller and copied back so phases carry over */
-    uint64_t last_timestamp;       /* last timestamp used, seeded and copied back across phases */
-} THREAD_DATA;
+    /*
+     * The timestamp thread takes the minimum of each field across all threads to set the global
+     * stable epoch and stable timestamp. stable_ready_ts trails the thread's commits until each
+     * insert's table epoch is stable.
+     */
+    uint64_t published_epoch;
+    uint64_t stable_ready_ts;
+    /* Seeded from the caller and copied back so a role switch carries table state across phases. */
+    bool table_exists[MAX_POOL_SIZE];
+};
 
 /* workload.c */
 void run_workload(TEST_CONFIG *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));

@@ -677,6 +677,23 @@ variables:
               ./test_schema_disagg_abort -b "$build_dir" -s 64 -T 12 -t 300 -m
             done
 
+  - &schema-disagg-abort-smoke-test-disagg
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Lightweight smoke coverage: leader plus short switch-mode runs.
+            bash ./smoke.sh
+
   # Configure flags for builtins.
   - &configure_flags_with_builtins
     HAVE_BUILTIN_EXTENSION_LZ4: -DHAVE_BUILTIN_EXTENSION_LZ4=1
@@ -748,6 +765,10 @@ tasks:
 
   - <<: *schema-disagg-abort-switch-test-disagg
     name: schema-disagg-abort-switch-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+
+  - <<: *schema-disagg-abort-smoke-test-disagg
+    name: schema-disagg-abort-smoke-test-disagg-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
 
 #######################################

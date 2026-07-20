@@ -155,6 +155,18 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
+    Config('strict_checkpoint_metadata', '', r'''
+        validate at checkpoint pickup that the local and shared metadata contain the same
+        layered tables, panicking on any difference that is not explained by a pending
+        metadata update with a schema epoch greater than the schema epoch of the picked-up
+        checkpoint. At startup the mode must be off: the startup pickup populates an empty
+        node from the checkpoint. Turn it on after startup, provided table creates and drops
+        reach this node through replicated operations and publish() rather than through
+        pickup. After a step-down,
+        turn it off until the unpublished tables left behind (step-down discards their
+        pending metadata updates) have been dropped. Preserved across calls to reconfigure
+        that do not name it''',
+        choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
@@ -1032,7 +1044,8 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
+        'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
+        'evict_reposition',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -1592,7 +1605,12 @@ cursor_runtime_config = [
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist''',
+        not exist. On a follower of a layered table with no read timestamp, \c overwrite set to
+        \c true causes WT_CURSOR::remove to write a tombstone to the ingest table without checking
+        the stable table; the caller must guarantee that the key being removed exists. If the key is
+        already deleted in ingest or by the truncate list, the operation violates that guarantee.
+        A write conflict with a concurrent, not-yet-visible change to the same key can still fail
+        the call. This layered-follower remove behavior does not apply on a leader.''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
@@ -1795,6 +1813,11 @@ methods = {
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
+        Config('size_stats', 'false', r'''
+            Accumulate a per-b-tree size summary into the data-source statistics as the cursor
+            traverses the tree; row-store only, an error is returned otherwise. Read the results
+            with a statistics cursor''',
+            type='boolean', undoc=True),
         ]),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex" selects a simple hexadecimal
@@ -1967,6 +1990,10 @@ methods = {
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It
         will skip past the corrupt block and continue with the verification process''',
+        type='boolean'),
+    Config('skip_per_key_hs', 'false', r'''
+        Skip an expensive per-key check for whether data store and history timestamps make sense
+        when considered together''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no data has a start timestamp after the stable timestamp, to be run after

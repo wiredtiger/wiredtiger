@@ -288,7 +288,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     STEPDOWN_ARGS stepdown_args;
     wt_thread_t alter_tid, background_compact_tid, backup_tid, checkpoint_tid, compact_tid,
       follower_tid, hs_tid, import_tid, random_tid;
-    wt_thread_t stepdown_tid, timestamp_tid;
+    wt_thread_t key_rotation_tid, stepdown_tid, timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
     bool lastrun, running, stepdown_triggered, stepdown_running;
@@ -311,6 +311,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     memset(&follower_tid, 0, sizeof(follower_tid));
     memset(&hs_tid, 0, sizeof(hs_tid));
     memset(&import_tid, 0, sizeof(import_tid));
+    memset(&key_rotation_tid, 0, sizeof(key_rotation_tid));
     memset(&random_tid, 0, sizeof(random_tid));
     memset(&stepdown_tid, 0, sizeof(stepdown_tid));
     memset(&timestamp_tid, 0, sizeof(timestamp_tid));
@@ -400,6 +401,9 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 
     if (g.checkpoint_config == CHECKPOINT_ON)
         testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
+
+    if (GV(DISAGG_KEY_PROVIDER) == DISAGG_KEY_PROVIDER_PUSH)
+        testutil_check(__wt_thread_create(NULL, &key_rotation_tid, disagg_key_rotation, NULL));
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {
@@ -533,6 +537,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &hs_tid));
     if (GV(IMPORT))
         testutil_check(__wt_thread_join(NULL, &import_tid));
+    if (GV(DISAGG_KEY_PROVIDER) == DISAGG_KEY_PROVIDER_PUSH)
+        testutil_check(__wt_thread_join(NULL, &key_rotation_tid));
     if (GV(OPS_RANDOM_CURSOR))
         testutil_check(__wt_thread_join(NULL, &random_tid));
     if (g.transaction_timestamps_config && !stepdown_triggered)
@@ -1396,12 +1402,8 @@ rollback_retry:
             val_gen(table, &tinfo->data_rnd, tinfo->new_value, tinfo->keyno);
 
         /* If modify, build a modify change vector. */
-        if (op == MODIFY) {
-            if (replay_stale_read_ts(tinfo))
-                goto rollback;
-
+        if (op == MODIFY)
             modify_build(tinfo);
-        }
 
         ret = 0;
         skip1 = skip2 = NULL;
@@ -2265,8 +2267,22 @@ row_remove(TINFO *tinfo, bool positioned)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    bool blind_remove;
 
     cursor = tinfo->cursor;
+
+    /*
+     * FIXME-WT-18043: Restore overwrite=true here once format can replay only leader-confirmed
+     * deletes on the follower.
+     *
+     * An unpositioned overwrite=true remove on a disagg follower asserts the caller already knows
+     * the key exists, so it never fails with WT_NOTFOUND -- correct only when the leader already
+     * confirmed the key before replicating the delete. This thread issues fresh, random removes of
+     * its own instead of replaying leader-confirmed ones, so drop overwrite for the call.
+     */
+    blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
+    if (blind_remove)
+        testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
 
     if (!positioned) {
         key_gen(tinfo->table, tinfo->key, tinfo->keyno);
@@ -2286,6 +2302,9 @@ row_remove(TINFO *tinfo, bool positioned)
      */
     ret = cursor->remove(cursor);
 
+    if (blind_remove)
+        testutil_check(cursor->reconfigure(cursor, "overwrite=true"));
+
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
@@ -2304,14 +2323,27 @@ col_remove(TINFO *tinfo, bool positioned)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    bool blind_remove;
 
     cursor = tinfo->cursor;
+
+    /*
+     * FIXME-WT-18043: Restore overwrite=true here once format can replay only leader-confirmed
+     * deletes on the follower. See row_remove for the rationale behind temporarily dropping
+     * overwrite here.
+     */
+    blind_remove = !positioned && g.disagg_storage_config && !g.disagg_leader;
+    if (blind_remove)
+        testutil_check(cursor->reconfigure(cursor, "overwrite=false"));
 
     if (!positioned)
         cursor->set_key(cursor, tinfo->keyno);
 
     /* See row_remove for the rationale behind calling cursor->remove() directly. */
     ret = cursor->remove(cursor);
+
+    if (blind_remove)
+        testutil_check(cursor->reconfigure(cursor, "overwrite=true"));
 
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
