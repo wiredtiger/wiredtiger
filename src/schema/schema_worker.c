@@ -77,12 +77,15 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
 {
     WT_DECL_ITEM(ckpt_uri);
     WT_DECL_RET;
-    WT_CONNECTION_IMPL *conn = S2C(session);
     const char *checkpoint_name = NULL;
+    bool leader;
 
     WT_ASSERT(session, stable_uri != NULL);
 
-    if (conn->layered_table_manager.leader) {
+    /* Sample the role once so the open and the error message below agree if it changes. */
+    leader = S2C(session)->layered_table_manager.leader;
+
+    if (leader) {
         /* Verify the stable table of the layered table. */
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
@@ -115,7 +118,7 @@ err:
     __wt_free(session, checkpoint_name);
     if (ret != 0 && ret != EBUSY)
         WT_RET_MSG(session, ret, "Verify (layered): %s stable table verification failed on the %s",
-          stable_uri, conn->layered_table_manager.leader ? "leader" : "follower");
+          stable_uri, leader ? "leader" : "follower");
     return (ret);
 }
 
