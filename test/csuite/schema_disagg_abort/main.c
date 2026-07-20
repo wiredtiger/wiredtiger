@@ -97,9 +97,33 @@ create_test_dirs(TEST_CONFIG *cfg)
 }
 
 /*
+ * switch_recorded --
+ *     Return whether the child has written the switch marker to thread 0's record file.
+ */
+static bool
+switch_recorded(const char *home)
+{
+    FILE *fp;
+    char line[512], path[512];
+    bool found;
+
+    testutil_snprintf(path, sizeof(path), "%s/" SCHEMA_RECORDS_FILE, home, (uint32_t)0);
+    if ((fp = fopen(path, "r")) == NULL)
+        return (false);
+    found = false;
+    while (fgets(line, sizeof(line), fp) != NULL)
+        if (strncmp(line, "SWITCH", strlen("SWITCH")) == 0) {
+            found = true;
+            break;
+        }
+    (void)fclose(fp);
+    return (found);
+}
+
+/*
  * fork_and_kill_child --
- *     Fork the leader child, wait for it to complete its first checkpoint, sleep the timeout, then
- *     SIGKILL it to simulate a crash.
+ *     Fork the child, wait until the crash window has opened, sleep the timeout, then SIGKILL it to
+ *     simulate a crash.
  */
 static void
 fork_and_kill_child(TEST_CONFIG *cfg, uint32_t timeout)
@@ -118,8 +142,17 @@ fork_and_kill_child(TEST_CONFIG *cfg, uint32_t timeout)
         /* NOTREACHED */
     }
 
-    while (!testutil_exists(cfg->home, READY_FILE))
-        testutil_sleep_wait(1, child_pid);
+    /*
+     * Wait until the crash window has opened before starting the timer. In switch mode the crash
+     * must land in phase 2, so wait for the switch marker, which appears regardless of the starting
+     * role. Otherwise wait for the first leader checkpoint.
+     */
+    if (cfg->switch_mode) {
+        while (!switch_recorded(cfg->home))
+            testutil_sleep_wait(1, child_pid);
+    } else
+        while (!testutil_exists(cfg->home, READY_FILE))
+            testutil_sleep_wait(1, child_pid);
 
     sleep(timeout);
 
@@ -193,6 +226,10 @@ main(int argc, char *argv[])
         case 'T':
             rand_th = false;
             cfg.nth = (uint32_t)atoi(__wt_optarg);
+            if (cfg.nth < MIN_TH || cfg.nth > MAX_TH) {
+                fprintf(stderr, "Thread count must be between %d and %d\n", MIN_TH, MAX_TH);
+                usage();
+            }
             break;
         case 't':
             rand_time = false;

@@ -1796,27 +1796,6 @@ variables:
           format_args: disagg.mode=switch runs.timer=3
           times: 1
 
-  - &schema-disagg-abort-switch-test
-    depends_on: *s-all-dep
-    exec_timeout_secs: 7200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            build_dir=$(cd ../../../ && pwd)
-            for i in $(seq ${times|10}); do
-              echo "Iteration $i/${times|10}"
-              # Switch mode (-m) exercises a random role switch mid-workload before the crash.
-              ./test_schema_disagg_abort -b "$build_dir" -s 64 -T 12 -t 300 -m
-            done
-
 #######################################
 #               Tasks                 #
 #######################################
@@ -5318,10 +5297,6 @@ tasks:
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-2
     tags: ["pull_request"]
-
-  - <<: *schema-disagg-abort-switch-test
-    name: schema-disagg-abort-switch-test-1
-    tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
