@@ -26,12 +26,27 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ * Disaggregated schema epoch crash recovery test.
+ *
+ * The test binary runs in one of three roles, each in its own process:
+ *
+ *   parent   - orchestrator and verifier. Spawns the children, kills them per the configured mode,
+ *              then reopens the surviving state and verifies it against the record files.
+ *   leader   - runs schema worker threads that create, drop, publish, and populate layered tables
+ *              while checkpointing, until killed.
+ *   follower - tracks the leader through schema events and checkpoint pickups; steps up when the
+ *              leader dies in kill-leader mode.
+ *
+ * The children are started by re-spawning this binary with an internal role option, so no state is
+ * inherited by forking: everything a child needs travels through the command line. The leader
+ * relays events to the follower over a pipe whose descriptor numbers are likewise passed on the
+ * command line.
+ */
+
 #pragma once
 
 #include "test_util.h"
-
-#include <sys/wait.h>
-#include <signal.h>
 
 /* Tunables. */
 #define MAX_CKPT_INVL 4
@@ -46,62 +61,71 @@
 /* URI / file name patterns. */
 #define DATA_KEY_MIN 0
 #define DATA_KEY_MAX 9
-#define READY_FILE "child_ready"
+#define LEADER_READY_FILE "leader_ready"
+#define SWITCH_DONE_FILE "switch_done" /* switch mode: the role transition has completed */
 #define SCHEMA_TABLE_FMT "table:schema_%u_%u"
-#define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "schema-%" PRIu32
+
+/*
+ * Per-thread record files: "<records dir>/<base>-<thread>". The single-format/base-name split keeps
+ * every snprintf format a literal so the compiler can check it.
+ */
+#define RECORDS_FILE_FMT RECORDS_DIR DIR_DELIM_STR "%s-%" PRIu32
+#define SCHEMA_RECORDS_BASE "schema"
+#define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR SCHEMA_RECORDS_BASE "-%" PRIu32
+
+/* Multi-node mode: follower home, sentinels and record files. */
+#define FOLLOWER_HOME_DIR "WT_FOLLOWER"
+#define FOLLOWER_READY_FILE "follower_ready"
+#define FOLLOWER_STEPPED_UP_FILE "follower_stepped_up"
+#define FOLLOWER_RECORDS_BASE "follower"
+#define FOLLOWER_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR FOLLOWER_RECORDS_BASE "-%" PRIu32
 
 /* Connection config. */
 #define ENV_CONFIG_DEF "create,statistics=(all),statistics_log=(json,on_close,wait=1)"
 
-/* Test-wide configuration passed from parent to child and to the verifier. */
+/* Which process this instance of the binary is. */
+typedef enum { ROLE_PARENT = 0, ROLE_LEADER, ROLE_FOLLOWER } TEST_ROLE;
+
+/* Which child processes the parent kills in multi-node mode. */
+typedef enum { KILL_NONE = 0, KILL_LEADER, KILL_FOLLOWER, KILL_BOTH } KILL_MODE;
+
+/* Schema event relayed from the leader to the follower over the pipe. */
+typedef enum { EVENT_CREATE, EVENT_DROP, EVENT_INSERT, EVENT_CKPT } EVENT_TYPE;
+
+typedef struct {
+    EVENT_TYPE type;
+    uint32_t thread_id;
+    uint64_t epoch;
+    uint64_t commit_ts;
+    uint32_t key_min;
+    uint32_t key_max;
+    char uri[64];
+} SCHEMA_EVENT;
+
+/* Test-wide configuration, built from the command line by every role independently. */
 typedef struct {
     TEST_OPTS *opts;
-    char home[1024];
+    TEST_ROLE role;
+    char home[PATH_MAX];
     char page_log_home[PATH_MAX];
     uint32_t nth;
     uint32_t pool_size;
-    bool switch_mode; /* enable role-switch phase */
+    uint32_t timeout;
+    KILL_MODE kill_mode; /* KILL_NONE runs the single-node scenario */
+    bool switch_mode;    /* single-node: random starting role, then a role switch mid-run */
+    bool verify_only;
+    int pipe_read_fd;  /* -1 when single-node */
+    int pipe_write_fd; /* -1 when single-node */
 } TEST_CONFIG;
 
-/* Forward declaration: WORKLOAD_STATE holds a pointer into the THREAD_DATA array. */
-typedef struct __thread_data THREAD_DATA;
+/* parent.c */
+void parent_main(TEST_CONFIG *cfg, const char *self_path);
 
-/* Global state shared by all workload threads. */
-typedef struct {
-    volatile bool stable_set; /* set once the stable timestamp is first advanced */
-    volatile bool stop_phase; /* set to quiesce all worker threads cleanly between phases */
-    volatile bool
-      ckpt_enabled; /* leader phase checkpoints; follower phase only advances the epoch */
-    /*
-     * Monotonic allocators. Every publish and commit must draw a value above the global stable
-     * epoch and timestamp, so these only ever increase.
-     */
-    uint64_t next_epoch;
-    uint64_t next_commit_ts;
-    THREAD_DATA *workers; /* schema worker thread data array (length nth_workers) */
-    uint32_t nth_workers;
-} WORKLOAD_STATE;
+/* leader.c */
+void leader_main(TEST_CONFIG *cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
-/* Per-thread argument. */
-struct __thread_data {
-    TEST_CONFIG *cfg;
-    WT_CONNECTION *conn;
-    WORKLOAD_STATE *state;
-    uint32_t info;
-    WT_RAND_STATE rnd;
-    /*
-     * The timestamp thread takes the minimum of each field across all threads to set the global
-     * stable epoch and stable timestamp. stable_ready_ts trails the thread's commits until each
-     * insert's table epoch is stable.
-     */
-    uint64_t published_epoch;
-    uint64_t stable_ready_ts;
-    /* Seeded from the caller and copied back so a role switch carries table state across phases. */
-    bool table_exists[MAX_POOL_SIZE];
-};
-
-/* workload.c */
-void run_workload(TEST_CONFIG *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/* follower.c */
+void follower_main(TEST_CONFIG *cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* verify.c */
-void verify_schema_state(WT_CONNECTION *conn, TEST_CONFIG *cfg);
+void verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg, const char *records_base);

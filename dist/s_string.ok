@@ -451,6 +451,7 @@ SDK
 SIGABRT
 SIGBUS
 SIGKILL
+SIGPIPE
 SIGSEGV
 SIMD
 SLS
@@ -504,6 +505,7 @@ TSan
 TTY
 TW
 TXN
+TerminateProcess
 TestSuiteConnection
 Testcases
 ThreadList
@@ -872,6 +874,7 @@ cutlim
 cutover
 cv
 cval
+cwait
 cx
 cxa
 cygwin
@@ -1034,6 +1037,7 @@ fclose
 fcntl
 fd
 fdatasync
+fds
 feffff
 fextend
 ffc
@@ -1479,6 +1483,7 @@ oplog
 optrack
 optwt
 optype
+orchestrator
 ord
 ori
 origcnt
@@ -1598,6 +1603,7 @@ readtime
 readunlock
 realloc
 reallocations
+realpath
 rebalancing
 recency
 recno
@@ -1698,6 +1704,7 @@ softptr
 somename
 sortable
 sp
+spawnv
 spinlock
 spinlocks
 sqlite
@@ -1761,6 +1768,7 @@ subinit
 sublicense
 sublist
 suboptimal
+subproc
 subprocess
 subprocesses
 substring
@@ -1907,6 +1915,7 @@ unredacts
 unreferenced
 unsetting
 unsized
+unspawned
 unsynchronised
 unterminated
 untyped
