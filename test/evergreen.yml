@@ -2506,6 +2506,26 @@ tasks:
         vars:
           directory: test/csuite/schema_disagg_abort
 
+  - name: csuite-schema-disagg-abort-switch
+    tags: ["pull_request"]
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            # Switch mode (-m) exercises a role switch mid-workload before the crash. A shallow and a
+            # deeper phase-2 kill give the PR gate lightweight coverage of both windows.
+            ./test_schema_disagg_abort -b "$build_dir" -T 2 -t 5 -m -h WT_TEST.switch_short
+            ./test_schema_disagg_abort -b "$build_dir" -T 2 -t 25 -m -h WT_TEST.switch_long
+
   - name: csuite-wt12015-backup-corruption-test
     tags: ["pull_request"]
     depends_on:
