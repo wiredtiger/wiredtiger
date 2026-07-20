@@ -31,8 +31,8 @@
 #   merely the latest one it happens to know about. Otherwise it would start writing new
 #   checkpoints whose history omits a checkpoint that another node already advanced past,
 #   corrupting the checkpoint chain. Any step-up failure already aborts the process (see
-#   __wti_disagg_conn_config's panic on step-up failure), so the negative case runs in a
-#   subprocess to catch the abort without killing the test runner.
+#   the panic from __wti_disagg_conn_config on step-up failure), so the negative case runs
+#   in a subprocess to catch the abort without killing the test runner.
 
 import os, signal, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
