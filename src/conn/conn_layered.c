@@ -115,13 +115,14 @@ err:
 }
 
 /*
- * __layered_create_has_following_remove --
- *     Return true if there is a REMOVE entry for the same URI after the given CREATE entry in the
- *     shared metadata queue.
+ * __layered_create_following_remove --
+ *     Return the first REMOVE entry for the same URI after the given CREATE entry in the shared
+ *     metadata queue, or NULL if there is none. When cur_schema_epoch is not WT_SCHEMA_EPOCH_NONE,
+ *     return the REMOVE only if it defers past a checkpoint at that schema epoch.
  */
-static bool
-__layered_create_has_following_remove(
-  WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_DISAGG_METADATA_OP *create_entry)
+static WT_DISAGG_METADATA_OP *
+__layered_create_following_remove(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
+  WT_DISAGG_METADATA_OP *create_entry, wt_timestamp_t cur_schema_epoch)
 {
     WT_DISAGG_METADATA_OP *tmp;
 
@@ -129,7 +130,7 @@ __layered_create_has_following_remove(
 
     tmp = TAILQ_NEXT(create_entry, q);
     if (tmp == NULL)
-        return (false);
+        return (NULL);
 
     TAILQ_FOREACH_FROM(tmp, &conn->disaggregated_storage.shared_metadata_qh, q)
     {
@@ -140,10 +141,19 @@ __layered_create_has_following_remove(
              * REMOVE at an earlier epoch than the CREATE is a bug in the queue.
              */
             WT_ASSERT(session, tmp->schema_epoch >= create_entry->schema_epoch);
-            return (true);
+            /*
+             * Only the first following REMOVE can pair with the CREATE: a later REMOVE for the same
+             * URI belongs to a re-create, so if this one is covered by the checkpoint, stop the
+             * scan rather than skipping it.
+             */
+            if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE &&
+              tmp->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED &&
+              tmp->schema_epoch <= cur_schema_epoch)
+                return (NULL);
+            return (tmp);
         }
     }
-    return (false);
+    return (NULL);
 }
 
 /*
@@ -183,7 +193,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
         WT_ASSERT(session, WT_PREFIX_MATCH(entry->stable_uri, "file:"));
 
         /* Check if the table was dropped. */
-        if (__layered_create_has_following_remove(session, conn, entry)) {
+        if (__layered_create_following_remove(session, conn, entry, WT_SCHEMA_EPOCH_NONE) != NULL) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Skip creating missing stable table \"%s\" with schema epoch %" PRIu64
               " from layered config \"%s\" since it is being dropped",
@@ -692,7 +702,7 @@ __wt_disagg_shared_metadata_queue_process(
     struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
+    WT_DISAGG_METADATA_OP *entry, *remove_entry, *skipped, *tmp;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -728,6 +738,37 @@ __wt_disagg_shared_metadata_queue_process(
             continue;
         }
 
+        /*
+         * A covered CREATE whose first following REMOVE defers past this checkpoint means the table
+         * was dropped locally but the drop is not yet published. Applying the CREATE alone would
+         * advertise a table in shared metadata that no node can serve, so cancel both entries: the
+         * pair nets out because no checkpoint covering only the CREATE has been taken. In legacy
+         * mode nothing defers by epoch, so there is nothing to check.
+         */
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE &&
+          entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+          (remove_entry =
+              __layered_create_following_remove(session, conn, entry, cur_schema_epoch)) != NULL) {
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Table \"%s\" was created at epoch %" PRIu64
+              " covered by this checkpoint (schema epoch %" PRIu64
+              "), but its drop at epoch %" PRIu64
+              " was not: canceling both operations so the dropped table is not published to "
+              "shared metadata.",
+              entry->table_name, entry->schema_epoch, cur_schema_epoch, remove_entry->schema_epoch);
+            WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_pair_canceled);
+
+            /* The canceled REMOVE may be the loop's saved next entry; step past it. */
+            if (remove_entry == tmp)
+                tmp = TAILQ_NEXT(tmp, q);
+            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, remove_entry, q);
+            __disagg_shared_metadata_queue_free(session, &remove_entry);
+
+            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+            __disagg_shared_metadata_queue_free(session, &entry);
+            continue;
+        }
+
         /* Park CREATE entries with no stable_value; cancel them if a matching REMOVE follows. */
         if (__disagg_handle_create_remove_pairing(session, conn, entry, &skipped_creates))
             continue;
@@ -749,10 +790,11 @@ __wt_disagg_shared_metadata_queue_process(
     }
 
     /*
-     * Any unmatched parked CREATE entry is an API violation: the stable epoch falls between the
-     * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata. But the
-     * table was dropped and its stable constituent was never created, so we have no data to write.
-     * Publish CREATE and DROP at the same epoch to avoid this window.
+     * Any unmatched parked CREATE entry is an API violation: it is covered by this checkpoint, its
+     * stable constituent was never created so there is no data to write, and no REMOVE for the same
+     * URI remains queued to explain it -- a REMOVE deferring past this checkpoint was canceled
+     * together with its CREATE above, and a covered REMOVE cancels the parked CREATE when
+     * processed.
      */
     if (!TAILQ_EMPTY(&skipped_creates)) {
         TAILQ_FOREACH (skipped, &skipped_creates, q)

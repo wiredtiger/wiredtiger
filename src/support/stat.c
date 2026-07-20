@@ -2446,6 +2446,8 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint-cleanup: successful calls",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: checkpoints skipped because database was clean",
+  "checkpoint: create and remove metadata operation pairs canceled during disaggregated checkpoint "
+  "because the remove was not covered",
   "checkpoint: fsync calls after allocating the transaction ID",
   "checkpoint: fsync duration after allocating the transaction ID (usecs)",
   "checkpoint: generation",
@@ -3539,6 +3541,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_cleanup_success = 0;
     stats->checkpoint_snapshot_acquired = 0;
     stats->checkpoint_skipped = 0;
+    /* not clearing checkpoint_disagg_metadata_pair_canceled */
     stats->checkpoint_fsync_post = 0;
     /* not clearing checkpoint_fsync_post_duration */
     /* not clearing checkpoint_generation */
@@ -4729,6 +4732,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_cleanup_success += WT_STAT_CONN_READ(from, checkpoint_cleanup_success);
     to->checkpoint_snapshot_acquired += WT_STAT_CONN_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_skipped += WT_STAT_CONN_READ(from, checkpoint_skipped);
+    to->checkpoint_disagg_metadata_pair_canceled +=
+      WT_STAT_CONN_READ(from, checkpoint_disagg_metadata_pair_canceled);
     to->checkpoint_fsync_post += WT_STAT_CONN_READ(from, checkpoint_fsync_post);
     to->checkpoint_fsync_post_duration += WT_STAT_CONN_READ(from, checkpoint_fsync_post_duration);
     to->checkpoint_generation += WT_STAT_CONN_READ(from, checkpoint_generation);

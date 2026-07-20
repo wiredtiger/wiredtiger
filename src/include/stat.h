@@ -835,6 +835,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_cleanup_success;
     int64_t checkpoint_snapshot_acquired;
     int64_t checkpoint_skipped;
+    int64_t checkpoint_disagg_metadata_pair_canceled;
     int64_t checkpoint_fsync_post;
     int64_t checkpoint_fsync_post_duration;
     int64_t checkpoint_generation;

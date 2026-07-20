@@ -26,19 +26,21 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Test dropping a never-published layered table on an ex-leader (the rolled-back
-# create case).
+# Test dropping a layered table on an ex-leader after a step-down, before any
+# checkpoint covered the table's creation.
 #
-# A table created while leader but never published leaves a CREATE in the shared
-# metadata queue with the stable constituent's metadata captured, and the local
-# stable constituent exists. Both survive a step-down. Dropping the table as a
-# follower must succeed and remove all local constituents, and the dropped table
-# must stay dead: a later step-up must not recreate the stable constituent and a
-# later leader checkpoint must neither publish the table to shared metadata nor
-# fail.
+# A table created while leader leaves a CREATE in the shared metadata queue with
+# the stable constituent's metadata captured, and the local stable constituent
+# exists. Both survive a step-down. Dropping the table as a follower must succeed
+# and remove all local constituents, and the dropped table must stay dead: a later
+# step-up must not recreate the stable constituent and a later leader checkpoint
+# must neither publish the table to shared metadata nor fail. This holds whether
+# the create was never published (the rolled-back create case) or was published at
+# an epoch no checkpoint has covered yet.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 @disagg_test_class
@@ -107,6 +109,67 @@ class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
 
         # A follower picking up that checkpoint must not see the table.
+        conn_follow, session_follow = self.open_follower()
+        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def pair_canceled_count(self):
+        """Return the connection's canceled create/remove pair statistic."""
+        cursor = self.session.open_cursor('statistics:')
+        val = cursor[stat.conn.checkpoint_disagg_metadata_pair_canceled][2]
+        cursor.close()
+        return val
+
+    def test_drop_published_create_after_step_down(self):
+        """
+        Create and publish a table as leader at an epoch above the last checkpoint's,
+        step down, drop it as follower (the drop stays unpublished), fail back, and
+        checkpoint at an epoch covering the create. The checkpoint must cancel the
+        queued create/remove pair rather than publish the dropped table.
+        """
+        self.set_stable_epoch(10)
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 20)
+
+        # A checkpoint below the publish epoch: the CREATE stays pending and the table
+        # is absent from shared metadata.
+        self.leader_checkpoint(1)
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+
+        # Step down and drop: the REMOVE is enqueued but never published.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.session.drop(self.uri)
+        self.assertEqual(self.local_metadata_keys(self.conn), [])
+
+        # Fail back: step-up must not recreate the dropped stable constituent.
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertEqual(self.pair_canceled_count(), 0)
+
+        # Checkpoint at an epoch covering the CREATE but not the unpublished REMOVE:
+        # the pair must be canceled instead of resurrecting the table in shared
+        # metadata.
+        self.set_stable_epoch(20)
+        with self.expectedStderrPattern('canceling both operations'):
+            self.leader_checkpoint(60)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+        self.assertEqual(self.pair_canceled_count(), 1)
+
+        # The queue is left clean: a later checkpoint and a step-down/step-up cycle
+        # must not revisit the pair.
+        self.set_stable_epoch(30)
+        self.leader_checkpoint(70)
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        self.leader_checkpoint(80)
+        self.assertEqual(self.pair_canceled_count(), 1)
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+
+        # A follower picking up the final checkpoint must not see the table.
         conn_follow, session_follow = self.open_follower()
         self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
