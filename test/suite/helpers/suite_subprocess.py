@@ -191,12 +191,11 @@ class suite_subprocess:
                 '", should be three part dotted name')
         topdir = os.path.dirname(self.buildDirectory())
         runscript = os.path.join(topdir, 'test', 'suite', 'run.py')
-        procargs = [ sys.executable, runscript, '-p', '--dir', directory,
-            funcname]
-        # Restrict the subprocess to a single scenario so that each scenario is
+        # Restrict the subprocess to a single scenario if specified, so that each scenario is
         # exercised (and asserted) independently.
-        if scenario is not None:
-            procargs[-1:-1] = [ '-s', str(scenario) ]
+        scenario_args = [ '-s', str(scenario) ] if scenario is not None else []
+        procargs = [ sys.executable, runscript, '-p', '--dir', directory,
+            *scenario_args, funcname]
 
         returncode = -1
         os.makedirs(directory)

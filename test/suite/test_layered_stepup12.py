@@ -27,12 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_stepup12.py
-#   Verify how operations on layered tables behave during a role transition, against both
+#   Verify how schema operations on layered tables behave during a role transition, against both
 #   step-up (follower->leader) and step-down (leader->follower):
-#     - Schema operations that take only the schema lock (create, and drop with
-#       checkpoint_wait=false) can race the transition, so they hit the schema-op guard and abort
-#       the process.
-#     - Schema operations that take the checkpoint lock first (truncate, verify, and drop with
+#     - Operations that take only the schema lock (create, and drop with checkpoint_wait=false) can
+#       race the transition, so they hit the schema lock guard and abort the process.
+#     - Operations that take the checkpoint lock first (truncate, verify, and drop with
 #       checkpoint_wait=true) are serialized against the transition by that lock - it is held for
 #       the whole step up/down - so they never observe the transition and do not abort.
 #     - Opening a statistics cursor acquires the schema lock to open a data handle, but a handle
@@ -113,10 +112,19 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
         t = threading.Thread(
             target=lambda: conn.reconfigure(f'disaggregated=(role={self.target_role})'),
             daemon=True)
-        t.start()
 
-        # Wait for the role transition flag to be set internally.
-        time.sleep(0.5)
+        def role_transition_in_progress():
+            stat_cursor = session.open_cursor('statistics:', None, None)
+            value = stat_cursor[wiredtiger.stat.conn.disagg_role_transition_in_progress][2]
+            stat_cursor.close()
+            return value != 0
+
+        # Wait until the role transition has begun before initiating the schema op.
+        t.start()
+        deadline = time.time() + 10
+        while not role_transition_in_progress():
+            self.assertLess(time.time(), deadline, 'role transition did not start')
+            time.sleep(0.01)
 
         match self.op:
             case 'drop':
