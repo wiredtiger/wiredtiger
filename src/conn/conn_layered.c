@@ -1222,14 +1222,18 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_CLEAR(complete_checkpoint_meta);
 
     /*
-     * Parse strict_checkpoint_metadata before the checkpoint pickup below, so that a reconfigure
-     * call carrying both settings applies the mode to its own pickup. The setting keeps its
-     * previous value unless the configuration string names it explicitly.
+     * Parse strict_checkpoint_metadata first: a reconfigure call may contain both this setting and
+     * a checkpoint_meta to pick up, and the pickup below must already run with the new setting. The
+     * setting keeps its previous value unless the configuration string names it explicitly.
      */
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets(session, cfg, "disaggregated.strict_checkpoint_metadata", &cval), true);
-    if (ret == 0 && cval.len > 0)
-        conn->disaggregated_storage.strict_checkpoint_metadata = WT_CONFIG_LIT_MATCH("true", cval);
+    if (ret == 0 && cval.len > 0) {
+        if (WT_CONFIG_LIT_MATCH("true", cval))
+            F_SET(&conn->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
+        else
+            F_CLR(&conn->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
+    }
 
     /* Reconfigure-only settings. */
     if (reconfig) {
