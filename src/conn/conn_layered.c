@@ -320,6 +320,53 @@ err:
 }
 
 /*
+ * __disagg_cancel_unpublished_creates --
+ *     Cancel the trailing unpublished CREATE entries for the table, returning true if any were
+ *     canceled: the caller is about to enqueue an unpublished REMOVE, so neither side of the pair
+ *     can ever be covered by a checkpoint and the entries net out. (A create through the table:
+ *     prefix enqueues two CREATE entries, hence the loop.) Any other shape must stay queued --
+ *     a published CREATE may be covered by a later checkpoint (the checkpoint-time cancellation in
+ *     __wt_disagg_shared_metadata_queue_process handles a REMOVE deferring past it), and this
+ *     REMOVE may be published later.
+ */
+static bool
+__disagg_cancel_unpublished_creates(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry, *tmp;
+    bool canceled;
+
+    conn = S2C(session);
+    canceled = false;
+
+    /*
+     * The scan and the removals must be one critical section; the schema lock, held by all enqueue
+     * callers, keeps the decision valid until the caller returns.
+     */
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH_REVERSE_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh,
+      __wt_disagg_shared_metadata_qh, q, tmp)
+    {
+        if (entry->metadata_op == WT_SHARED_METADATA_UPDATE ||
+          strcmp(entry->table_name, table_name) != 0)
+            continue;
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE ||
+          entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+            break;
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Canceling the unpublished CREATE for table \"%s\" (stable URI \"%s\"): the table was "
+          "created and dropped without being published, so the REMOVE is not enqueued",
+          entry->table_name, entry->stable_uri);
+        TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+        __disagg_shared_metadata_queue_free(session, &entry);
+        canceled = true;
+    }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (canceled);
+}
+
+/*
  * __wt_disagg_enqueue_metadata_operation --
  *     Enqueue a metadata operation for a given URI into the shared metadata table to be done at the
  *     next checkpoint.
@@ -344,6 +391,23 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
      * parent session.
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+
+    /*
+     * An unpublished REMOVE pairing with an unpublished CREATE cancels it eagerly: the entries
+     * would otherwise linger forever, and on a follower the lingering REMOVE reads as a local drop
+     * newer than every checkpoint, blocking pickup of a table published under the same name. The
+     * cancellation relies on an unpublished CREATE implying the table is absent from shared
+     * metadata, which does not hold in legacy mode (the legacy step-up enqueues unpublished CREATE
+     * entries for tables already in shared metadata, and nothing defers by epoch), so require a
+     * schema epoch: the stable epoch on a leader, or the last picked-up checkpoint's epoch on a
+     * follower. In legacy mode the pair stays queued and nets out at the next checkpoint.
+     */
+    if (metadata_op == WT_SHARED_METADATA_REMOVE && schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED &&
+      (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE ||
+        __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch) !=
+          WT_SCHEMA_EPOCH_NONE) &&
+      __disagg_cancel_unpublished_creates(session, table_name))
+        return (0);
 
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));

@@ -66,6 +66,13 @@ class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session.close()
         return keys
 
+    def metadata_unstable_count(self):
+        """Return the connection's deferred (unstable) metadata operation statistic."""
+        cursor = self.session.open_cursor('statistics:')
+        val = cursor[stat.conn.checkpoint_disagg_metadata_unstable][2]
+        cursor.close()
+        return val
+
     def test_drop_never_published_after_step_down(self):
         """
         Create a table as leader without publishing it, step down, then drop it
@@ -103,10 +110,15 @@ class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
 
         # A later covering checkpoint must succeed and must not publish the
-        # dropped table to shared metadata.
+        # dropped table to shared metadata. The drop canceled the queued pair
+        # eagerly, so the checkpoint neither defers the entries nor cancels them
+        # itself.
+        unstable_before = self.metadata_unstable_count()
         self.set_stable_epoch(20)
         self.leader_checkpoint(60)
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+        self.assertEqual(self.metadata_unstable_count(), unstable_before)
+        self.assertEqual(self.pair_canceled_count(), 0)
 
         # A follower picking up that checkpoint must not see the table.
         conn_follow, session_follow = self.open_follower()
@@ -173,5 +185,88 @@ class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         conn_follow, session_follow = self.open_follower()
         self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_recreate_never_published(self):
+        """
+        Create a table without publishing it, drop it, and create it again under
+        the same name. The drop must leave no trace of the first incarnation:
+        publishing and checkpointing the new table must succeed and a follower
+        picking up the checkpoint must see only the new incarnation.
+        """
+        self.set_stable_epoch(10)
+        self.session.create(self.uri, self.table_config)
+        self.session.drop(self.uri)
+        self.assertEqual(self.local_metadata_keys(self.conn), [])
+
+        # Re-create under the same name and give it stable content.
+        self.session.create(self.uri, self.table_config)
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[1] = 'second_incarnation'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
+        cursor.close()
+
+        # A checkpoint below the new table's (unpublished) epoch defers only
+        # the new CREATE: the first incarnation's create/remove pair was
+        # canceled at drop time and no longer sits in the queue.
+        unstable_before = self.metadata_unstable_count()
+        self.leader_checkpoint(1)
+        self.assertEqual(self.metadata_unstable_count(), unstable_before + 1)
+
+        # Publish and checkpoint the new incarnation; nothing defers and the
+        # checkpoint-time cancellation stays idle.
+        self.publish(self.uri, 20)
+        unstable_before = self.metadata_unstable_count()
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(60)
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
+        self.assertEqual(self.metadata_unstable_count(), unstable_before)
+        self.assertEqual(self.pair_canceled_count(), 0)
+
+        # A follower picking up the checkpoint sees the new incarnation.
+        conn_follow, session_follow = self.open_follower()
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor[1], 'second_incarnation')
+        cursor.close()
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_follower_recreate_never_published(self):
+        """
+        A follower that creates and drops a never-published table must not let
+        the dead pair block picking up a leader-published table under the same
+        name: the queued unpublished REMOVE would otherwise be taken as a local
+        drop newer than every checkpoint.
+        """
+        # Seed the shared storage with a checkpoint carrying a schema epoch.
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(1)
+
+        # The follower creates and drops the table without publishing it.
+        conn_follow, session_follow = self.open_follower()
+        session_follow.create(self.uri, self.table_config)
+        session_follow.drop(self.uri)
+
+        # The leader independently creates, publishes and checkpoints a table
+        # under the same name.
+        self.session.create(self.uri, self.table_config)
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor[1] = 'from_leader'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
+        cursor.close()
+        self.publish(self.uri, 20)
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(60)
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
+
+        # The follower must pick the table up.
+        self.disagg_advance_checkpoint(conn_follow)
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor[1], 'from_leader')
+        cursor.close()
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
