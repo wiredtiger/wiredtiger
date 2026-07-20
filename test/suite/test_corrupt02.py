@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, sys
 import wiredtiger, wttest
+from metadata_helper import checkpoint_extent_list_blocks
 
 # When a checkpoint drops a previous checkpoint, it reads that checkpoint's extent lists. If the
 # extent-list block is corrupt, the read fails its checksum and drives the diagnostic extent-list
@@ -45,43 +45,6 @@ class test_corrupt02(wttest.WiredTigerTestCase):
     test_name = __qualname__
     uri = f'table:{test_name}'
     tablename = f'{test_name}.wt'
-    allocsize = 4096
-
-    def alloc_extlist_blocks(self):
-        # Decode every checkpoint's address cookie from the metadata and return the (offset, size) of
-        # each alloc extent-list block that lives in its own on-disk block.
-        tools_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tools')
-        if tools_dir not in sys.path:
-            sys.path.append(tools_dir)
-        from py_common.binary_data import unpack_int
-
-        cursor = self.session.open_cursor('metadata:', None, None)
-        cursor.set_key('file:' + self.tablename)
-        self.assertEqual(cursor.search(), 0)
-        config = cursor.get_value()
-        cursor.close()
-
-        blocks = []
-        for cookie in re.findall(r'addr="([0-9a-fA-F]+)"', config):
-            addr = bytes(bytearray.fromhex(cookie))
-            # A regular checkpoint cookie is version 1 followed by 14 packed ints: the root, alloc,
-            # avail and discard triples then the file and checkpoint sizes.
-            if addr[0] != 1:
-                continue
-            addr = addr[1:]
-            values = []
-            while True:
-                try:
-                    v, addr = unpack_int(addr)
-                    values.append(v)
-                except Exception:
-                    break
-            if len(values) != 14:
-                continue
-            off, size, _ = values[3:6]
-            if size != 0:
-                blocks.append(((off + 1) * self.allocsize, size * self.allocsize))
-        return blocks
 
     def write_rows(self, start, count):
         cursor = self.session.open_cursor(self.uri)
@@ -98,7 +61,7 @@ class test_corrupt02(wttest.WiredTigerTestCase):
 
         # Corrupt every alloc extent-list block the checkpoint cookies point at, leaving the rest of
         # the file intact.
-        blocks = self.alloc_extlist_blocks()
+        blocks = checkpoint_extent_list_blocks(self.session, 'file:' + self.tablename, kinds=('alloc',))
         self.assertGreater(len(blocks), 0,
             "expected at least one on-disk alloc extent-list block to corrupt")
         with open(self.tablename, 'r+b') as f:

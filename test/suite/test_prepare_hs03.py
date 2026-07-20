@@ -32,9 +32,10 @@
 # [END_TAGS]
 
 from helper import copy_wiredtiger_home
+from metadata_helper import checkpoint_extent_list_blocks
 import wttest
 from wtdataset import SimpleDataSet
-import os, re, sys
+import os
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
@@ -68,47 +69,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(corrupt_values, format_values)
 
-    # Default allocation size, and therefore the size of a checkpoint's extent-list blocks.
-    allocsize = 4096
-
-    def extlist_blocks(self):
-        # Decode every checkpoint's address cookie from the metadata and return the (offset, size) of
-        # its alloc/avail/discard extent-list blocks. Corrupting one of these makes the following
-        # checkpoint's block read fatal (WT_PANIC) rather than something salvage can recover, so the
-        # corruption below must leave them intact.
-        tools_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tools')
-        if tools_dir not in sys.path:
-            sys.path.append(tools_dir)
-        from py_common.binary_data import unpack_int
-
-        cursor = self.session.open_cursor('metadata:', None, None)
-        cursor.set_key('file:' + self.test_name + '.wt')
-        self.assertEqual(cursor.search(), 0)
-        config = cursor.get_value()
-        cursor.close()
-
-        blocks = []
-        for cookie in re.findall(r'addr="([0-9a-fA-F]+)"', config):
-            addr = bytes(bytearray.fromhex(cookie))
-            # A regular checkpoint cookie is version 1 followed by 14 packed ints: the root, alloc,
-            # avail and discard triples then the file and checkpoint sizes.
-            if addr[0] != 1:
-                continue
-            addr = addr[1:]
-            values = []
-            while True:
-                try:
-                    v, addr = unpack_int(addr)
-                    values.append(v)
-                except Exception:
-                    break
-            if len(values) != 14:
-                continue
-            for off, size, _ in (values[3:6], values[6:9], values[9:12]):
-                if size != 0:
-                    blocks.append(((off + 1) * self.allocsize, size * self.allocsize))
-        return blocks
-
     def corrupt_table(self, data_to_corrupt_with):
         tablename=f"{self.test_name}.wt"
         self.assertEqual(os.path.exists(tablename), True)
@@ -121,7 +81,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # list, and a later checkpoint that drops this one reads its extent lists: a failed read
         # there is fatal (a WT_PANIC under the default corruption_abort), so corrupting one aborts
         # the test whenever the file layout happens to place an extent-list block in the range below.
-        protect = sorted(self.extlist_blocks())
+        protect = sorted(checkpoint_extent_list_blocks(self.session, 'file:' + self.test_name + '.wt'))
         start = 1024
         data = bytes(data_to_corrupt_with, 'latin-1')
         end = start + len(data)
