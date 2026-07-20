@@ -33,6 +33,7 @@
 # must survive a step-down and still be published by the next covering leader checkpoint
 # after a step-up.
 
+import re
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
@@ -49,6 +50,24 @@ class test_layered_schema19(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
+
+    def local_btree_id(self, conn, uri):
+        """Return the btree ID of uri's stable constituent from conn's local metadata."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        value = cursor[self.stable_uri(uri)]
+        cursor.close()
+        session.close()
+        return int(re.search(r'\bid=(\d+)', value).group(1))
+
+    def shared_btree_id(self, conn, uri):
+        """Return the btree ID of uri's stable constituent from the shared metadata table."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        value = cursor[self.stable_uri(uri)]
+        cursor.close()
+        session.close()
+        return int(re.search(r'\bid=(\d+)', value).group(1))
 
     def create_with_pending_publish(self, publish_epoch):
         """
@@ -133,4 +152,58 @@ class test_layered_schema19(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # The other node picks up the covering checkpoint and sees the table.
         self.disagg_advance_checkpoint(conn_follow)
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_failback_covering_pickup_new_incarnation(self):
+        """
+        A pending CREATE covered by a picked-up checkpoint no longer protects the local
+        state: when the new leader created its own incarnation of the table (a fresh
+        btree ID), the covering pickup must discard the dead local constituent and bring
+        in the new incarnation in that same pickup, so that an immediate fail-back
+        serves the new leader's data.
+        """
+        self.create_with_pending_publish(20)
+
+        # Open a second node, which picks up the checkpoint at epoch 10 and does not see
+        # the table.
+        conn_follow, session_follow = self.open_follower()
+        session_follow.close()
+        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+
+        # Swap roles: this node steps down with the CREATE (epoch 20) still pending.
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        conn_follow.reconfigure('disaggregated=(role="leader")')
+
+        # The new leader creates its own incarnation of the table under the same name
+        # (a fresh btree ID), writes data, and checkpoints at epoch 20, covering the
+        # pending CREATE.
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, self.table_config)
+        self.publish(self.uri, 20, session_follow)
+        cursor = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction()
+        for i in range(10):
+            cursor[i] = 'bbb'
+        session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+        cursor.close()
+        self.set_stable_epoch(20, conn_follow)
+        self.leader_checkpoint(10, conn_follow, session_follow)
+        session_follow.close()
+        self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
+
+        # Picking up the covering checkpoint discards this node's dead constituent and
+        # brings in the new incarnation in the same pickup.
+        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertEqual(
+            self.local_btree_id(self.conn, self.uri), self.shared_btree_id(self.conn, self.uri))
+
+        # Fail back immediately, with no pickup in between, and read the new
+        # incarnation's data.
+        conn_follow.reconfigure('disaggregated=(role="follower")')
+        self.conn.reconfigure('disaggregated=(role="leader")')
+        cursor = self.session.open_cursor(self.uri)
+        self.assertEqual({k: v for k, v in cursor}, {i: 'bbb' for i in range(10)})
+        cursor.close()
+
         conn_follow.close('debug=(skip_checkpoint=true)')

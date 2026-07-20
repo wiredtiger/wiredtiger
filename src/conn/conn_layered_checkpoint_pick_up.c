@@ -681,6 +681,19 @@ err:
 }
 
 /*
+ * __disagg_queue_entry_protects --
+ *     Return whether a queued create or remove still protects local state from being reconciled
+ *     away: only when its schema epoch is past the incoming checkpoint's, so the local state is
+ *     newer than the checkpoint rather than a leftover the checkpoint already covers. Without
+ *     schema epochs any entry protects.
+ */
+static bool
+__disagg_queue_entry_protects(wt_timestamp_t latest_epoch, wt_timestamp_t ckpt_schema_epoch)
+{
+    return (ckpt_schema_epoch == WT_SCHEMA_EPOCH_NONE || latest_epoch > ckpt_schema_epoch);
+}
+
+/*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
@@ -864,15 +877,16 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * A btree ID change under the same name means the leader dropped and recreated the
                  * table, possibly across several skipped checkpoints, so the local entries describe
                  * a dead incarnation. Unless the metadata operations queue has a local create or
-                 * drop that has not reached a shared checkpoint yet (the local state is then newer
-                 * than the shared checkpoint), discard the local state and pick the table up as a
-                 * new one.
+                 * drop past this checkpoint's schema epoch (the local state is then newer than the
+                 * shared checkpoint), discard the local state and pick the table up as a new one.
                  */
                 WT_ERR(__disagg_file_id_mismatch(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
                   md_cursors[WT_DISAGG_CURSOR_FILE], &id_mismatch));
                 if (id_mismatch) {
-                    if (__wti_disagg_table_latest_create_remove(session, current, &latest_epoch) !=
-                      WT_SHARED_METADATA_NONE)
+                    latest_op =
+                      __wti_disagg_table_latest_create_remove(session, current, &latest_epoch);
+                    if (latest_op != WT_SHARED_METADATA_NONE &&
+                      __disagg_queue_entry_protects(latest_epoch, ckpt_schema_epoch))
                         continue;
                     WT_ERR(__disagg_drop_local_layered(session, current));
                     WT_ERR(__disagg_pick_up_new_layered(
@@ -898,7 +912,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             /*
              * The shared metadata has a layered: entry but the local metadata does not. This could
              * be a new layered table that we should pick up, but it could also mean that we have
-             * already dropped the table locally and should not recreate it as a result.
+             * already dropped the table locally, with a local remove past this checkpoint's schema
+             * epoch, and should not recreate it as a result.
              */
             latest_op = __wti_disagg_table_latest_create_remove(session, current, &latest_epoch);
             if (strict &&
@@ -910,7 +925,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                   "%" PRIu64 "; latest queued operation: %s at schema epoch %" PRIu64,
                   current, ckpt_schema_epoch, __wti_disagg_shared_metadata_op_to_string(latest_op),
                   latest_epoch);
-            if (latest_op == WT_SHARED_METADATA_REMOVE)
+            if (latest_op == WT_SHARED_METADATA_REMOVE &&
+              __disagg_queue_entry_protects(latest_epoch, ckpt_schema_epoch))
                 continue;
 
             /*
@@ -933,7 +949,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             /*
              * The local metadata has a layered: entry but the shared metadata does not - the leader
              * dropped the table. Discard the local state, unless the metadata operations queue has
-             * a local create that has not reached a shared checkpoint yet.
+             * a local create past this checkpoint's schema epoch.
              */
             latest_op = __wti_disagg_table_latest_create_remove(session, current, &latest_epoch);
             if (strict &&
@@ -945,7 +961,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                   "%" PRIu64 "; latest queued operation: %s at schema epoch %" PRIu64,
                   current, ckpt_schema_epoch, __wti_disagg_shared_metadata_op_to_string(latest_op),
                   latest_epoch);
-            if (latest_op == WT_SHARED_METADATA_CREATE)
+            if (latest_op == WT_SHARED_METADATA_CREATE &&
+              __disagg_queue_entry_protects(latest_epoch, ckpt_schema_epoch))
                 continue;
             WT_ERR(__disagg_drop_local_layered(session, current));
         } else {
