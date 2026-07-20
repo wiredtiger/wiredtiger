@@ -988,12 +988,14 @@ err:
 static int
 __disagg_step_up(WT_SESSION_IMPL *session)
 {
+    struct timespec tsp;
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session = NULL;
     uint64_t now;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 1);
 
     /*
      * Some functionality in stepping up needs a session that can open data handles. The default
@@ -1010,6 +1012,10 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
+
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
@@ -1053,6 +1059,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 err:
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 0);
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
@@ -1117,15 +1124,21 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 static int
 __disagg_step_down(WT_SESSION_IMPL *session)
 {
+    struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
+
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
@@ -1156,6 +1169,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
 
 err:
+    WT_STAT_CONN_SET(session, disagg_role_transition_in_progress, 0);
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
     return (ret);
 }

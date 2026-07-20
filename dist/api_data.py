@@ -1038,7 +1038,8 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
+        'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
+        'evict_reposition',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -1598,7 +1599,12 @@ cursor_runtime_config = [
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist''',
+        not exist. On a follower of a layered table with no read timestamp, \c overwrite set to
+        \c true causes WT_CURSOR::remove to write a tombstone to the ingest table without checking
+        the stable table; the caller must guarantee that the key being removed exists. If the key is
+        already deleted in ingest or by the truncate list, the operation violates that guarantee.
+        A write conflict with a concurrent, not-yet-visible change to the same key can still fail
+        the call. This layered-follower remove behavior does not apply on a leader.''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
