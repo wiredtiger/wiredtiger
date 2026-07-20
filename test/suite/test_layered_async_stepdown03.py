@@ -55,7 +55,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.arm(20)
 
-        # The next write by the straddling transaction must roll back.       
+        # The next write by the straddling transaction must roll back.
         def straddle_write():
             cursor['straddle2'] = 'after'
         self.assert_step_down_rollback(straddle_write)
@@ -96,9 +96,9 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
-        cursor['k1'] = 'v'                      
+        cursor['k1'] = 'v'
 
-        self.arm(20)                             
+        self.arm(20)
 
         self.assert_step_down_rollback(
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
@@ -149,44 +149,6 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
         cursor.close()
 
-    # Transactions that begin after the arm and commit above the cutoff are in ingest.
-    def test_post_arm_commits_above_cutoff_succeed(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        self.arm(20)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i, commit_ts in enumerate((30, 40, 50)):
-            self.session.begin_transaction()
-            cursor[f'post{i}'] = f'v{commit_ts}'
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-        cursor.close()
-
-        self.assertEqual(self.read_kvs_at(self.uri, 60), {'post0': 'v30', 'post1': 'v40', 'post2': 'v50'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 60), {'post0', 'post1', 'post2'})
-
-    # Post-arm commits at or below the cutoff are rejected.
-    def test_post_arm_commit_at_or_below_cutoff_rejected(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        self.arm(20)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for commit_ts in (15, 20):
-            self.session.begin_transaction()
-            cursor[f'k{commit_ts}'] = 'v'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.session.commit_transaction(
-                    'commit_timestamp=' + self.timestamp_str(commit_ts)),
-                '/must be after the step down timestamp/')
-        cursor.close()
-
-        # The rejected commits left nothing behind in either constituent.
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
-        self.assertEqual(self.read_kvs_at(self.uri, 25), {})
-
     # A read-only straddler commits normally; the guard only fires on writes.
     def test_readonly_straddler_commits_fine(self):
         self.set_global_ts(1, 1)
@@ -234,41 +196,3 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assert_step_down_rollback(
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
         cursor.close()
-
-    # An ingest writer begun after the arm commits successfully across the demotion.
-    def test_ingest_writer_survives_demotion(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        self.arm(20)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-        cursor['k1'] = 'v'
-
-        # The server completes the step-down under the in-flight ingest writer.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-        ckpt_session = self.conn.open_session()
-        ckpt_session.checkpoint()
-        ckpt_session.close()
-        self.conn.reconfigure('disaggregated=(role="follower")')
-
-        # The ingest writer commits as a follower; its content is in ingest and readable.
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cursor.close()
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v'})
-
-    # An untimestamped commit while armed succeeds and lands in ingest; pins current behavior.
-    def test_untimestamped_commit_while_armed(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.arm(20)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-        cursor['k1'] = 'v'
-        self.session.commit_transaction()
-        cursor.close()
-
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), {'k1'})

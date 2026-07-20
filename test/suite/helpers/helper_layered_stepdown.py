@@ -35,13 +35,12 @@ from wiredtiger import stat
 # Shared helpers for the layered async step-down test suite.
 class LayeredStepdownMixin:
     # Substring of the WT_ROLLBACK last-error reason.
-    STRADDLER_REASON = 'started before a planned step-down'
-
+    STRADDLER_REASON = 'started before the step-down timestamp was set'
+    
     # FIXME-WT-17895: remove this skip once the planned step-down implementation lands.
     def setUp(self):
         self.skipTest('elegant step-down is not implemented yet')
         super().setUp()
-
     # Set the global oldest and stable timestamps.
     def set_global_ts(self, oldest, stable):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
@@ -50,6 +49,15 @@ class LayeredStepdownMixin:
     # Arm a planned step-down at the given cutoff timestamp.
     def arm(self, ts):
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(ts))
+
+    # Complete an armed step-down: advance stable to the cutoff, take the step-down checkpoint
+    # and demote to follower.
+    def complete_step_down(self, cutoff):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(cutoff))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
     # The file URI of a layered table's ingest constituent.
     def ingest_uri(self, uri):
@@ -97,7 +105,7 @@ class LayeredStepdownMixin:
     # The connection-wide count of step-down transaction rollbacks.
     def step_down_rollbacks(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        count = stat_cursor[stat.conn.txn_rollback_step_down][2]
+        count = stat_cursor[stat.conn.txn_rollback_stepdown][2]
         stat_cursor.close()
         return count
 

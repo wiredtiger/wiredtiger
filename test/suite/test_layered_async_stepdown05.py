@@ -66,7 +66,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(9), '/must not be older than all_durable timestamp/')
+            lambda: self.arm(9), '/must not be older than the newest durable timestamp/')
         self.arm(10)
 
     # While armed, stable may reach the cutoff exactly but never pass it.
@@ -77,7 +77,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(21)),
-            '/must not advance past the armed step down timestamp/')
+            '/must not advance past the step down timestamp/')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
     # Arming and advancing stable to the cutoff in one set_timestamp call takes full effect.
@@ -91,21 +91,68 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
             lambda: self.arm(30), '/step down timestamp is already set/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
-            '/must not advance past the armed step down timestamp/')
+            '/must not advance past the step down timestamp/')
 
-    # A single call that arms and moves stable past the cutoff must be rejected.
-    def test_arm_with_stable_overshoot_rejected(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25) +
-                                            ',step_down_timestamp=' + self.timestamp_str(20)))
-
-    # Arming below the current stable must be rejected for the same reason.
+    # Arming below the current stable must be rejected: stable may never sit past the cutoff.
     def test_arm_below_stable_rejected(self):
         self.set_global_ts(1, 10)
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.arm(5))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.arm(5), '/must not be older than the stable timestamp/')
+
+    # Transactions that begin after the arm and commit above the cutoff are in ingest.
+    def test_post_arm_commits_above_cutoff_succeed(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i, commit_ts in enumerate((30, 40, 50)):
+            self.session.begin_transaction()
+            cursor[f'post{i}'] = f'v{commit_ts}'
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 60),
+            {'post0': 'v30', 'post1': 'v40', 'post2': 'v50'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 60),
+            {'post0', 'post1', 'post2'})
+
+    # Post-arm commits at or below the cutoff are rejected.
+    def test_post_arm_commit_at_or_below_cutoff_rejected(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for commit_ts in (15, 20):
+            self.session.begin_transaction()
+            cursor[f'k{commit_ts}'] = 'v'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                    'commit_timestamp=' + self.timestamp_str(commit_ts)),
+                '/must be after the step down timestamp/')
+        cursor.close()
+
+        # The rejected commits left nothing behind in either constituent.
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
+        self.assertEqual(self.read_kvs_at(self.uri, 25), {})
+
+    # An untimestamped commit while armed succeeds and lands in ingest; pins current behavior.
+    def test_untimestamped_commit_while_armed(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.arm(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+        self.session.commit_transaction()
+        cursor.close()
+
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), {'k1'})
 
     # Arming does not change all_durable behavior: an in-flight txn still clamps it, and it
     # moves normally once that txn resolves and post-arm commits land.

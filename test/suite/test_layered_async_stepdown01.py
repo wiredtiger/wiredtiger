@@ -32,7 +32,7 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # test_layered_async_stepdown01.py
-#    Write routing and lifecycle: pre-arm writes route to stable, post-arm writes route to ingest.
+#    Write routing: pre-arm writes route to stable, post-arm writes route to ingest.
 @disagg_test_class
 class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -61,7 +61,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.arm(20)
 
-        # After the arm, writes are directed to ingest. 
+        # After the arm, writes are directed to ingest.
         self.write_at(self.uri, {k: 'ingest' for k in post}, 30)
 
         # The leader now reads ingest-first, merged over the live stable table: it sees both halves.
@@ -118,6 +118,10 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
             {'k1': 'base', 'k2': 'base', 'k3': 'base'},
             'post-arm update/modify/remove must not touch the stable table')
 
+        # The update, modify and tombstone all survive the completed step-down.
+        self.complete_step_down(20)
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'Xase'})
+
     # All tables share the same cutoff; arming once routes all their post-arm writes to ingest.
     def test_multiple_tables_share_cutoff(self):
         uri1 = 'layered:multi1'
@@ -140,35 +144,3 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b'})
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'pre', 'c': 'post'})
         self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'pre', 'd': 'post'})
-
-    # Ingest content survives the full step-down sequence.
-    def test_content_survives_step_down(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        pre = {'pre' + str(i) for i in range(5)}
-        self.write_at(self.uri, {k: 'stable' for k in pre}, 10)
-
-        self.arm(20)
-        post = {'post' + str(i) for i in range(5)}
-        self.write_at(self.uri, {k: 'ingest' for k in post}, 30)
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), post)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), pre,
-            'post-arm writes must not be in the stable table')
-
-        # The server advances stable to the cutoff and takes the step-down checkpoint: everything
-        # at or below the cutoff becomes durable.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-        self.session.checkpoint()
-
-        # Step down to follower. The cutoff is cleared and the node demotes; ingest content stays.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), post,
-            'post-arm (ingest) content must survive the step-down')
-
-        # Pick up checkpoint; verify merged view: pre-arm from checkpoint, post-arm from ingest.
-        self.ignoreStdoutPattern('Picking up the same checkpoint again')
-        self.disagg_advance_checkpoint(self.conn)
-        expected = {k: 'stable' for k in pre} | {k: 'ingest' for k in post}
-        self.assertEqual(self.read_kvs_at(self.uri, 40), expected,
-            'the full merged view must survive the step-down after checkpoint pickup')
