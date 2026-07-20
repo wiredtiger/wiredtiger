@@ -983,8 +983,8 @@ err:
 
 /*
  * __disagg_assert_latest_checkpoint --
- *     Refuse to step up unless we are on the page log's latest completed checkpoint. Skipped if
- *     the page log does not support the lookup.
+ *     Refuse to step up unless we are on the page log's latest completed checkpoint. Skipped if the
+ *     page log does not support the lookup.
  */
 static int
 __disagg_assert_latest_checkpoint(WT_SESSION_IMPL *session)
