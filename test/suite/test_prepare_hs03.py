@@ -73,10 +73,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         tablename=f"{self.test_name}.wt"
         self.assertEqual(os.path.exists(tablename), True)
 
-        # Overwrite part of the table with 'bad' data, corrupting the table in the process. The impact
-        # of this overwriting can depend on the number of bytes overwritten, depending on what the
-        # rest of the test does and expects.
-        #
         # Leave the checkpoint's extent-list blocks intact. Salvage cannot recover a corrupt extent
         # list, and a later checkpoint that drops this one reads its extent lists: a failed read
         # there is fatal (a WT_PANIC under the default corruption_abort), so corrupting one aborts
