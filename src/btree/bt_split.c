@@ -656,8 +656,7 @@ __split_update_approx_leaf_pages(
   WT_SESSION_IMPL *session, WT_REF *ref, const uint32_t new_entries, const uint32_t deleted_entries)
 {
     WT_BTREE *btree = S2BT(session);
-    bool is_row_leaf;
-    int64_t leaf_delta = 0;
+    int64_t leaf_delta;
 
     if (btree->type != BTREE_ROW)
         return;
@@ -667,11 +666,10 @@ __split_update_approx_leaf_pages(
         return;
 
     /* The deleted refs are siblings of ref, so they have the same page type. */
-    is_row_leaf = ref->page != NULL && ref->page->type == WT_PAGE_ROW_LEAF;
-    if (is_row_leaf) {
-        leaf_delta = (int64_t)new_entries - 1;
-        leaf_delta -= (int64_t)deleted_entries;
-    }
+    if (ref->page == NULL || ref->page->type != WT_PAGE_ROW_LEAF)
+        return;
+
+    leaf_delta = (int64_t)new_entries - 1 - (int64_t)deleted_entries;
 
     if (leaf_delta > 0) {
         (void)__wt_atomic_add_uint64(&btree->approx_leaf_pages, (uint64_t)leaf_delta);
