@@ -29,9 +29,9 @@
 # test_layered_stepup12.py
 #   Verify how schema operations on layered tables behave during a role transition, against both
 #   step-up (follower->leader) and step-down (leader->follower):
-#     - Operations that take only the schema lock (create, and drop with checkpoint_wait=false) can
-#       race the transition, so they hit the schema lock guard and abort the process.
-#     - Operations that take the checkpoint lock first (truncate, verify, and drop with
+#     - Schema ops that take only the schema lock (create, and drop with checkpoint_wait=false) can
+#       race the transition, so they hit the "ongoing role-transition" guard and abort the process.
+#     - Schema ops that take the checkpoint lock first (truncate, verify, and drop with
 #       checkpoint_wait=true) are serialized against the transition by that lock - it is held for
 #       the whole step up/down - so they never observe the transition and do not abort.
 #     - Opening a statistics cursor acquires the schema lock to open a data handle, but a handle
