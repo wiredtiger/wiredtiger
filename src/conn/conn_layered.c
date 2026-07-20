@@ -10,7 +10,7 @@
 
 static int __disagg_accumulate_drop_size(
   WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
-static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
+static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session, bool updates_only);
 
 /*
  * __layered_create_missing_stable_table --
@@ -62,7 +62,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
      * on the follower when the stable constituent did not yet exist) must be cleared before new
      * entries are added below.
      */
-    __disagg_shared_metadata_queue_clear(session);
+    __disagg_shared_metadata_queue_clear(session, false);
 
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
@@ -394,24 +394,45 @@ err:
 
 /*
  * __disagg_shared_metadata_queue_clear --
- *     Clear the update metadata list.
+ *     Clear the shared metadata queue. If updates_only is set, keep CREATE and REMOVE entries: they
+ *     are schema intents not yet covered by a checkpoint and remain valid across a role change.
  */
 static void
-__disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
+__disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session, bool updates_only)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *tmp;
+#ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t stable_schema_epoch;
+#endif
 
     conn = S2C(session);
+#ifdef HAVE_DIAGNOSTIC
+    stable_schema_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+#endif
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
+        if (updates_only && entry->metadata_op != WT_SHARED_METADATA_UPDATE) {
+            WT_ASSERT(session,
+              entry->metadata_op == WT_SHARED_METADATA_CREATE ||
+                entry->metadata_op == WT_SHARED_METADATA_REMOVE);
+            /*
+             * A surviving entry is an intent not yet covered by a checkpoint, so its epoch must be
+             * above the last checkpoint's, except in legacy mode where epochs are not in use.
+             */
+            WT_ASSERT(session,
+              stable_schema_epoch == WT_SCHEMA_EPOCH_NONE ||
+                entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
+                entry->schema_epoch > stable_schema_epoch);
+            continue;
+        }
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
     }
-    WT_TAILQ_SAFE_REMOVE_END
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
@@ -1154,8 +1175,14 @@ __disagg_step_down(WT_SESSION_IMPL *session)
       session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
     WT_ERR(ret);
 
-    /* Do some cleanup as we are abandoning the current checkpoint. */
-    __disagg_shared_metadata_queue_clear(session);
+    /*
+     * We are abandoning the current leader checkpoint, so drop the UPDATE entries: they are
+     * block-manager bookkeeping for that checkpoint. CREATE and REMOVE entries are intents not yet
+     * covered by any checkpoint and remain valid for the follower era, so they survive with their
+     * schema epochs and stable values intact. No UPDATE can be enqueued concurrently: we hold the
+     * checkpoint lock and UPDATE entries are only enqueued during a checkpoint.
+     */
+    __disagg_shared_metadata_queue_clear(session, true);
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
@@ -1634,7 +1661,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     disagg = &conn->disaggregated_storage;
 
     /* Remove the list of URIs for which we still need to update metadata entries. */
-    __disagg_shared_metadata_queue_clear(session);
+    __disagg_shared_metadata_queue_clear(session, false);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {
