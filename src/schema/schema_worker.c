@@ -114,8 +114,8 @@ err:
     __wt_scr_free(session, &ckpt_uri);
     __wt_free(session, checkpoint_name);
     if (ret != 0 && ret != EBUSY)
-        WT_RET_MSG(
-          session, ret, "Verify (layered): %s stable table verification failed", stable_uri);
+        WT_RET_MSG(session, ret, "Verify (layered): %s stable table verification failed on the %s",
+          stable_uri, conn->layered_table_manager.leader ? "leader" : "follower");
     return (ret);
 }
 
