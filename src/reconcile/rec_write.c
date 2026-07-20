@@ -37,18 +37,29 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 
     conn = S2C(session);
 
-    /* Skip during recovery or checkpoint shutdown  the scrubbed image would never be consumed. */
+    /* Skip during recovery or checkpoint shutdown: the scrubbed image would never be consumed. */
     if (F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
         return (false);
 
     /*
-     * Retain a disk image on row-store leaf pages so eviction can replace them with a clean
-     * in-memory image as if just read from disk. Column-store pages are excluded: their format does
-     * not produce a reusable single-block image.
+     * Requirements shared regardless of feature configuration: the swap-eviction path only works
+     * with a row-store leaf image produced by a checkpoint reconciliation that is not a connection
+     * close.
      */
-    return (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && page->type == WT_PAGE_ROW_LEAF &&
-      LF_ISSET(WT_REC_CHECKPOINT) && !LF_ISSET(WT_REC_EVICT_CALL_CLOSING) &&
-      F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
+    if (page->type != WT_PAGE_ROW_LEAF || !LF_ISSET(WT_REC_CHECKPOINT) ||
+      LF_ISSET(WT_REC_EVICT_CALL_CLOSING))
+        return (false);
+
+    switch (__wt_atomic_load_uint8_relaxed(
+      &conn->cache->cache_eviction_controls.checkpoint_scrub_eviction)) {
+    case WT_CACHE_CHECKPOINT_SCRUB_EVICT_OFF:
+        return (false);
+    case WT_CACHE_CHECKPOINT_SCRUB_EVICT_ON:
+        return (true);
+    default: /* WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO */
+        return (
+          F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
+    }
 }
 
 /*
@@ -115,7 +126,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     if (__rec_scrub_eligible(session, page, flags)) {
         LF_SET(WT_REC_SCRUB);
-        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_precise_checkpoint);
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_checkpoint);
     }
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,

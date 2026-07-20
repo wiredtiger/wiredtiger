@@ -40,8 +40,9 @@
 #   3. cache_eviction_blocked_precise_checkpoint stat is present and does not
 #      go negative (smoke-test the counter is wired up correctly).
 #   4. Basic read-write workload produces consistent data after checkpoint.
-#   5. Fuzzy (non-precise) checkpoint does NOT increment cache_write_restore_scrub
-#      — confirming the stat is precise_checkpoint-specific.
+#   5. The eviction.checkpoint_scrub_eviction override (auto/off/on) controls the
+#      path: off disables it, auto matches today's precise-checkpoint behavior,
+#      and on activates it regardless of precise checkpoint.
 
 import wttest
 from wiredtiger import stat
@@ -136,11 +137,11 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
         else:
             # Fuzzy checkpoint must not trigger scrub reconciliation on the
             # precise-checkpoint path.
-            pc_stat = self.get_stat(stat.conn.cache_write_restore_scrub_precise_checkpoint)
+            pc_stat = self.get_stat(stat.conn.cache_write_restore_scrub_checkpoint)
             self.assertEqual(
                 pc_stat, 0,
                 msg=(
-                    'cache_write_restore_scrub_precise_checkpoint should be 0 '
+                    'cache_write_restore_scrub_checkpoint should be 0 '
                     'for a fuzzy checkpoint, got {}'.format(pc_stat)
                 )
             )
@@ -276,3 +277,149 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
                 scrub, 0,
                 msg='cache_write_restore_scrub should accumulate over multiple precise checkpoints'
             )
+
+class test_checkpoint_scrub_evict_config(wttest.WiredTigerTestCase):
+    """
+    Verify the eviction.checkpoint_scrub_eviction override (WT-18005):
+      - off:  checkpoint never scrub-evicts, even under precise checkpoint + pressure.
+      - on:   checkpoint always scrub-evicts eligible row-leaf pages.
+      - auto: defers to the cache-pressure heuristic (the default).
+
+    The checkpoint scrub activation counter increments once per reconciliation
+    that retains a scrub image, so it is a clean signal for whether the override
+    enabled or disabled the path.
+    """
+
+    uri = 'table:scrub_evict_cfg'
+    nrows = 5000
+    vsize = 200
+
+    mode = [
+        ('off',  dict(mode='off',  expect_scrub=False)),
+        ('on',   dict(mode='on',   expect_scrub=True)),
+        ('auto', dict(mode='auto', expect_scrub=True)),
+    ]
+    scenarios = make_scenarios(mode)
+
+    # Small cache creates eviction pressure; precise checkpoint is required for the feature. Under
+    # this pressure the auto heuristic also enables scrub, so auto and on share the same expectation.
+    def conn_config(self):
+        return (
+            'cache_size=50MB,statistics=(all),precise_checkpoint=true,'
+            'eviction=(checkpoint_scrub_eviction={})'.format(self.mode)
+        )
+
+    def _populate(self, value):
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = value
+        cursor.close()
+
+    def test_mode(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.conn.set_timestamp('stable_timestamp=1')
+
+        self._populate('x' * self.vsize)
+        self.session.checkpoint()
+
+        pc = self.get_stat(stat.conn.cache_write_restore_scrub_checkpoint)
+        if self.expect_scrub:
+            self.assertGreater(pc, 0,
+                msg='checkpoint_scrub_eviction={} should scrub eligible pages, stat={}'.format(
+                    self.mode, pc))
+        else:
+            self.assertEqual(pc, 0,
+                msg='checkpoint_scrub_eviction=off must not scrub, stat={}'.format(pc))
+
+class test_checkpoint_scrub_evict_reconfigure(wttest.WiredTigerTestCase):
+    """
+    The override is honored across WT_CONNECTION::reconfigure: turning it off then
+    on flips whether checkpoint scrub-evicts eligible pages.
+    """
+
+    uri = 'table:scrub_evict_reconfig'
+    nrows = 5000
+    vsize = 200
+
+    def conn_config(self):
+        return 'cache_size=50MB,statistics=(all),precise_checkpoint=true'
+
+    def _populate(self, value):
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = value
+        cursor.close()
+
+    def _scrub_stat(self):
+        return self.get_stat(stat.conn.cache_write_restore_scrub_checkpoint)
+
+    def test_reconfigure(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.conn.set_timestamp('stable_timestamp=1')
+
+        # The connection opened with the default (auto), whose open-time checkpoint may already have
+        # scrubbed a page, so compare deltas rather than absolute counts.
+
+        # With the override off, no page should scrub regardless of cache pressure.
+        self.conn.reconfigure('eviction=(checkpoint_scrub_eviction=off)')
+        before = self._scrub_stat()
+        self._populate('a' * self.vsize)
+        self.session.checkpoint()
+        self.assertEqual(self._scrub_stat(), before,
+            'no pages should scrub while the override is off')
+
+        # Turning it on must enable scrub without reopening the connection.
+        self.conn.reconfigure('eviction=(checkpoint_scrub_eviction=on)')
+        before = self._scrub_stat()
+        self._populate('b' * self.vsize)
+        self.session.checkpoint()
+        self.assertGreater(self._scrub_stat(), before,
+            'pages should scrub after enabling the override')
+
+class test_checkpoint_scrub_evict_no_precise(wttest.WiredTigerTestCase):
+    """
+    The mode difference that matters without precise checkpoint:
+      - on:   scrubs regardless of precise checkpoint (the only mode that activates here).
+      - auto: matches today's behavior, which requires precise checkpoint, so it stays off.
+      - off:  disabled.
+    """
+
+    uri = 'table:scrub_evict_noprecise'
+    nrows = 5000
+    vsize = 200
+
+    mode = [
+        ('off',  dict(mode='off',  expect_scrub=False)),
+        ('on',   dict(mode='on',   expect_scrub=True)),
+        ('auto', dict(mode='auto', expect_scrub=False)),
+    ]
+    scenarios = make_scenarios(mode)
+
+    # Deliberately no precise checkpoint: only "on" should activate the scrub path here.
+    def conn_config(self):
+        return (
+            'cache_size=50MB,statistics=(all),precise_checkpoint=false,'
+            'eviction=(checkpoint_scrub_eviction={})'.format(self.mode)
+        )
+
+    def _populate(self, value):
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(self.nrows):
+            cursor[i] = value
+        cursor.close()
+
+    def test_mode(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        self._populate('x' * self.vsize)
+        self.session.checkpoint()
+
+        pc = self.get_stat(stat.conn.cache_write_restore_scrub_checkpoint)
+        if self.expect_scrub:
+            self.assertGreater(pc, 0,
+                msg='checkpoint_scrub_eviction=on should scrub without precise checkpoint, stat={}'
+                    .format(pc))
+        else:
+            self.assertEqual(pc, 0,
+                msg='checkpoint_scrub_eviction={} must not scrub without precise checkpoint, '
+                    'stat={}'.format(self.mode, pc))

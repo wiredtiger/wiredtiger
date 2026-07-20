@@ -2323,6 +2323,11 @@ struct __wt_connection {
      * eviction_dirty_trigger and \c eviction_update_trigger as hard limit.  The configured
      * percentage will be taken in increments of 10 only\, by applying the floor to the given
      * percentage value., an integer between \c 0 and \c 100; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_scrub_eviction, Control whether checkpoint
+     * replaces a reconciled leaf page in cache with a clean copy of its just-written on-disk image.
+     * \c on always attempts the replacement\, \c off never does\, and \c auto lets eviction decide
+     * based on cache pressure.  Most applications should leave this at \c auto., a string\, chosen
+     * from the following options: \c "auto"\, \c "off"\, \c "on"; default \c auto.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
      * page\, attempt to locate a random in-memory page by examining all entries on the root page.,
      * a boolean flag; default \c true.}
@@ -3290,24 +3295,29 @@ struct __wt_connection {
  * eviction_update_trigger as hard limit.  The configured percentage will be taken in increments of
  * 10 only\, by applying the floor to the given percentage value., an integer between \c 0 and \c
  * 100; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is
- * found on the root page\, attempt to locate a random in-memory page by examining all entries on
- * the root page., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_scrub_eviction, Control whether
+ * checkpoint replaces a reconciled leaf page in cache with a clean copy of its just-written on-disk
+ * image.  \c on always attempts the replacement\, \c off never does\, and \c auto lets eviction
+ * decide based on cache pressure.  Most applications should leave this at \c auto., a string\,
+ * chosen from the following options: \c "auto"\, \c "off"\, \c "on"; default \c auto.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
+ * page\, attempt to locate a random in-memory page by examining all entries on the root page., a
+ * boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a
+ * part of application threads will participate in cache management when a cache threshold reaches
+ * its trigger limit., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * incremental_app_eviction, Only a part of application threads will participate in cache management
- * when a cache threshold reaches its trigger limit., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;legacy_page_visit_strategy, Use legacy page visit strategy for
- * eviction.  Using this option is highly discouraged as it will re-introduce a bug where eviction
- * can fail to find older cache content., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prefer_scrub_eviction, Change the eviction strategy to scrub
- * eviction when the cache usage is under half way between the target limit to the trigger limit., a
- * boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip
- * checking for obsolete updates whenever an update operation is performed., a boolean flag; default
- * \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will
- * start to help evict pages from cache.  The number of threads started will vary depending on the
- * current eviction load.  Each eviction worker thread uses a session from a reserved pool of
+ * legacy_page_visit_strategy, Use legacy page visit strategy for eviction.  Using this option is
+ * highly discouraged as it will re-introduce a bug where eviction can fail to find older cache
+ * content., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * prefer_scrub_eviction, Change the eviction strategy to scrub eviction when the cache usage is
+ * under half way between the target limit to the trigger limit., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for obsolete updates
+ * whenever an update operation is performed., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will start to
+ * help evict pages from cache.  The number of threads started will vary depending on the current
+ * eviction load.  Each eviction worker thread uses a session from a reserved pool of
  * WT_EVICT_MAX_WORKERS (64) sessions., an integer between \c 1 and \c 64; default \c 8.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start to
  * help evict pages from cache.  The number of threads currently running will vary depending on the
@@ -6667,644 +6677,641 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * eviction
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	1129
+/*!
+ * cache: checkpoint scrub skipped because the page contains prepared
+ * transactions
+ */
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_PREPARED	1130
+/*! cache: checkpoint scrub skipped because the page will be left dirty */
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY	1131
 /*! cache: dirty bytes belonging to the history store table in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_HS_DIRTY		1130
+#define	WT_STAT_CONN_CACHE_BYTES_HS_DIRTY		1132
 /*! cache: dirty internal page cannot be evicted in disaggregated storage */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	1131
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	1133
 /*! cache: evict page attempts by eviction server */
-#define	WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT	1132
+#define	WT_STAT_CONN_EVICTION_SERVER_EVICT_ATTEMPT	1134
 /*! cache: evict page attempts by eviction worker threads */
-#define	WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT	1133
+#define	WT_STAT_CONN_EVICTION_WORKER_EVICT_ATTEMPT	1135
 /*! cache: evict page failures by eviction server */
-#define	WT_STAT_CONN_EVICTION_SERVER_EVICT_FAIL		1134
+#define	WT_STAT_CONN_EVICTION_SERVER_EVICT_FAIL		1136
 /*! cache: evict page failures by eviction worker threads */
-#define	WT_STAT_CONN_EVICTION_WORKER_EVICT_FAIL		1135
+#define	WT_STAT_CONN_EVICTION_WORKER_EVICT_FAIL		1137
 /*! cache: eviction calls to get a page found queue empty */
-#define	WT_STAT_CONN_EVICTION_GET_REF_EMPTY		1136
+#define	WT_STAT_CONN_EVICTION_GET_REF_EMPTY		1138
 /*! cache: eviction calls to get a page found queue empty after locking */
-#define	WT_STAT_CONN_EVICTION_GET_REF_EMPTY2		1137
+#define	WT_STAT_CONN_EVICTION_GET_REF_EMPTY2		1139
 /*! cache: eviction currently operating in aggressive mode */
-#define	WT_STAT_CONN_EVICTION_AGGRESSIVE_SET		1138
+#define	WT_STAT_CONN_EVICTION_AGGRESSIVE_SET		1140
 /*! cache: eviction empty score */
-#define	WT_STAT_CONN_EVICTION_EMPTY_SCORE		1139
+#define	WT_STAT_CONN_EVICTION_EMPTY_SCORE		1141
 /*!
  * cache: eviction gave up due to detecting a disk value without a
  * timestamp behind the last update on the chain
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1	1140
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1	1142
 /*!
  * cache: eviction gave up due to detecting a tombstone without a
  * timestamp ahead of the selected on disk update
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2	1141
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2	1143
 /*!
  * cache: eviction gave up due to detecting a tombstone without a
  * timestamp ahead of the selected on disk update after validating the
  * update chain
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3	1142
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3	1144
 /*!
  * cache: eviction gave up due to detecting update chain entries without
  * timestamps after the selected on disk update
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4	1143
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4	1145
 /*!
  * cache: eviction gave up due to needing to remove a record from the
  * history store but checkpoint is running
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	1144
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	1146
 /*! cache: eviction gave up due to no progress being made */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_PROGRESS	1145
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_NO_PROGRESS	1147
 /*! cache: eviction passes of a file */
-#define	WT_STAT_CONN_EVICTION_WALK_PASSES		1146
+#define	WT_STAT_CONN_EVICTION_WALK_PASSES		1148
 /*! cache: eviction server candidate queue empty when topping up */
-#define	WT_STAT_CONN_EVICTION_QUEUE_EMPTY		1147
+#define	WT_STAT_CONN_EVICTION_QUEUE_EMPTY		1149
 /*! cache: eviction server candidate queue not empty when topping up */
-#define	WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY		1148
+#define	WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY		1150
 /*! cache: eviction server completed walks of all dhandles */
-#define	WT_STAT_CONN_EVICTION_DHANDLE_COMPLETE_WALK	1149
+#define	WT_STAT_CONN_EVICTION_DHANDLE_COMPLETE_WALK	1151
 /*!
  * cache: eviction server push pages to queue failed because of racing
  * with setting flag
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING	1150
+#define	WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING	1152
 /*!
  * cache: eviction server skipped the internal pages if eviction is not
  * in aggressive mode
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE	1151
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE	1153
 /*! cache: eviction server skipped the pages already in the urgent queue */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_ALREADY_IN_URGENT_QUEUE	1152
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_ALREADY_IN_URGENT_QUEUE	1154
 /*! cache: eviction server skipped the pages when prefetching */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PREFETCHED	1153
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PREFETCHED	1155
 /*! cache: eviction server skipped the root pages */
-#define	WT_STAT_CONN_EVICTION_ROOT_PAGES_SKIPPED	1154
+#define	WT_STAT_CONN_EVICTION_ROOT_PAGES_SKIPPED	1156
 /*!
  * cache: eviction server skips clean history store pages with updates
  * when a precise checkpoint is in progress
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_HISTORY_STORE_PAGES_WITH_UPDATES_DURING_CHECKPOINT	1155
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_HISTORY_STORE_PAGES_WITH_UPDATES_DURING_CHECKPOINT	1157
 /*! cache: eviction server skips dirty pages during a running checkpoint */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT	1156
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT	1158
 /*!
  * cache: eviction server skips disaggregated trees already visited by
  * the ongoing checkpoint
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_DISAGG_TREES_CHECKPOINTED	1157
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_DISAGG_TREES_CHECKPOINTED	1159
 /*! cache: eviction server skips ingest btrees in disagg */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INGEST_TREES	1158
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INGEST_TREES	1160
 /*! cache: eviction server skips internal pages as it has an active child */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_WITH_ACTIVE_CHILD	1159
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_WITH_ACTIVE_CHILD	1161
 /*! cache: eviction server skips metadata pages with history */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY	1160
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY	1162
 /*!
  * cache: eviction server skips pages that are written with transactions
  * greater than the checkpoint timestamp
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_CHECKPOINT_TIMESTAMP	1161
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_CHECKPOINT_TIMESTAMP	1163
 /*!
  * cache: eviction server skips pages that are written with transactions
  * greater than the last running
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_LAST_RUNNING	1162
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_LAST_RUNNING	1164
 /*!
  * cache: eviction server skips pages that are written with transactions
  * greater than the prune timestamp
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP	1163
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP	1165
 /*!
  * cache: eviction server skips pages that have been reconciled
  * previously at the same prune timestamp
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_NOT_MOVE	1164
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_PRUNE_TIMESTAMP_NOT_MOVE	1166
 /*!
  * cache: eviction server skips pages that previously failed eviction and
  * likely will again
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_RETRY	1165
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_RETRY	1167
 /*! cache: eviction server skips pages that we do not want to evict */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_PAGES	1166
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_PAGES	1168
 /*! cache: eviction server skips stable btrees in disagg */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_STABLE_TREES	1167
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_STABLE_TREES	1169
 /*! cache: eviction server skips tree that we do not want to evict */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE	1168
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE	1170
 /*!
  * cache: eviction server skips trees because there are too many active
  * walks
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_TOO_MANY_ACTIVE_WALKS	1169
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_TOO_MANY_ACTIVE_WALKS	1171
 /*! cache: eviction server skips trees that are being checkpointed */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_CHECKPOINTING_TREES	1170
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_CHECKPOINTING_TREES	1172
 /*!
  * cache: eviction server skips trees that are configured to stick in
  * cache
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_STICK_IN_CACHE	1171
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_STICK_IN_CACHE	1173
 /*!
  * cache: eviction server skips trees that are read-only if it is not
  * looking for clean pages
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY	1172
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY	1174
 /*! cache: eviction server skips trees that disable eviction */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_EVICTION_DISABLED	1173
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_EVICTION_DISABLED	1175
 /*! cache: eviction server skips trees that were not useful before */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_NOT_USEFUL_BEFORE	1174
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_NOT_USEFUL_BEFORE	1176
 /*!
  * cache: eviction server slept, because we did not make progress with
  * eviction
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SLEPT		1175
+#define	WT_STAT_CONN_EVICTION_SERVER_SLEPT		1177
 /*! cache: eviction server unable to reach eviction goal */
-#define	WT_STAT_CONN_EVICTION_SLOW			1176
+#define	WT_STAT_CONN_EVICTION_SLOW			1178
 /*! cache: eviction server waiting for a leaf page */
-#define	WT_STAT_CONN_EVICTION_WALK_LEAF_NOTFOUND	1177
+#define	WT_STAT_CONN_EVICTION_WALK_LEAF_NOTFOUND	1179
 /*! cache: eviction state */
-#define	WT_STAT_CONN_EVICTION_STATE			1178
+#define	WT_STAT_CONN_EVICTION_STATE			1180
 /*!
  * cache: eviction threshold cache full target multiplied by 100 for
  * precision
  */
-#define	WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TARGET	1179
+#define	WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TARGET	1181
 /*!
  * cache: eviction threshold cache full trigger multiplied by 100 for
  * precision
  */
-#define	WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TRIGGER	1180
+#define	WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TRIGGER	1182
 /*! cache: eviction threshold dirty target multiplied by 100 for precision */
-#define	WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TARGET	1181
+#define	WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TARGET	1183
 /*!
  * cache: eviction threshold dirty trigger multiplied by 100 for
  * precision
  */
-#define	WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TRIGGER	1182
+#define	WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TRIGGER	1184
 /*!
  * cache: eviction threshold updates target multiplied by 100 for
  * precision
  */
-#define	WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TARGET	1183
+#define	WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TARGET	1185
 /*!
  * cache: eviction threshold updates trigger multiplied by 100 for
  * precision
  */
-#define	WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TRIGGER	1184
+#define	WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TRIGGER	1186
 /*!
  * cache: eviction walk most recent sleeps for checkpoint handle
  * gathering
  */
-#define	WT_STAT_CONN_EVICTION_WALK_SLEEPS		1185
+#define	WT_STAT_CONN_EVICTION_WALK_SLEEPS		1187
 /*! cache: eviction walk pages queued that had updates */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_UPDATES	1186
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_UPDATES	1188
 /*! cache: eviction walk pages queued that were clean */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_CLEAN	1187
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_CLEAN	1189
 /*! cache: eviction walk pages queued that were dirty */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_DIRTY	1188
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_DIRTY	1190
 /*! cache: eviction walk pages seen that had updates */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_UPDATES	1189
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_UPDATES	1191
 /*! cache: eviction walk pages seen that were clean */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_CLEAN	1190
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_CLEAN	1192
 /*! cache: eviction walk pages seen that were dirty */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_DIRTY	1191
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN_DIRTY	1193
 /*! cache: eviction walk restored - had to walk this many pages */
-#define	WT_STAT_CONN_NPOS_EVICT_WALK_MAX		1192
+#define	WT_STAT_CONN_NPOS_EVICT_WALK_MAX		1194
 /*! cache: eviction walk restored position */
-#define	WT_STAT_CONN_EVICTION_RESTORED_POS		1193
+#define	WT_STAT_CONN_EVICTION_RESTORED_POS		1195
 /*! cache: eviction walk restored position differs from the saved one */
-#define	WT_STAT_CONN_EVICTION_RESTORED_POS_DIFFER	1194
+#define	WT_STAT_CONN_EVICTION_RESTORED_POS_DIFFER	1196
 /*! cache: eviction walk target pages histogram - 0-9 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10	1195
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10	1197
 /*! cache: eviction walk target pages histogram - 10-31 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT32	1196
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT32	1198
 /*! cache: eviction walk target pages histogram - 128 and higher */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_GE128	1197
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_GE128	1199
 /*! cache: eviction walk target pages histogram - 32-63 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT64	1198
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT64	1200
 /*! cache: eviction walk target pages histogram - 64-128 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT128	1199
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT128	1201
 /*!
  * cache: eviction walk target pages reduced due to history store cache
  * pressure
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_REDUCED	1200
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_REDUCED	1202
 /*! cache: eviction walk target strategy clean pages */
-#define	WT_STAT_CONN_EVICTION_TARGET_STRATEGY_CLEAN	1201
+#define	WT_STAT_CONN_EVICTION_TARGET_STRATEGY_CLEAN	1203
 /*! cache: eviction walk target strategy dirty pages */
-#define	WT_STAT_CONN_EVICTION_TARGET_STRATEGY_DIRTY	1202
+#define	WT_STAT_CONN_EVICTION_TARGET_STRATEGY_DIRTY	1204
 /*! cache: eviction walk target strategy pages with updates */
-#define	WT_STAT_CONN_EVICTION_TARGET_STRATEGY_UPDATES	1203
+#define	WT_STAT_CONN_EVICTION_TARGET_STRATEGY_UPDATES	1205
 /*! cache: eviction walks abandoned */
-#define	WT_STAT_CONN_EVICTION_WALKS_ABANDONED		1204
+#define	WT_STAT_CONN_EVICTION_WALKS_ABANDONED		1206
 /*! cache: eviction walks gave up because they restarted their walk twice */
-#define	WT_STAT_CONN_EVICTION_WALKS_STOPPED		1205
+#define	WT_STAT_CONN_EVICTION_WALKS_STOPPED		1207
 /*!
  * cache: eviction walks gave up because they saw too many pages and
  * found no candidates
  */
-#define	WT_STAT_CONN_EVICTION_WALKS_GAVE_UP_NO_TARGETS	1206
+#define	WT_STAT_CONN_EVICTION_WALKS_GAVE_UP_NO_TARGETS	1208
 /*!
  * cache: eviction walks gave up because they saw too many pages and
  * found too few candidates
  */
-#define	WT_STAT_CONN_EVICTION_WALKS_GAVE_UP_RATIO	1207
+#define	WT_STAT_CONN_EVICTION_WALKS_GAVE_UP_RATIO	1209
 /*!
  * cache: eviction walks random search fails to locate a page, results in
  * a null position
  */
-#define	WT_STAT_CONN_EVICTION_WALK_RANDOM_RETURNS_NULL_POSITION	1208
+#define	WT_STAT_CONN_EVICTION_WALK_RANDOM_RETURNS_NULL_POSITION	1210
 /*! cache: eviction walks reached end of tree */
-#define	WT_STAT_CONN_EVICTION_WALKS_ENDED		1209
+#define	WT_STAT_CONN_EVICTION_WALKS_ENDED		1211
 /*! cache: eviction walks restarted */
-#define	WT_STAT_CONN_EVICTION_WALK_RESTART		1210
+#define	WT_STAT_CONN_EVICTION_WALK_RESTART		1212
 /*! cache: eviction walks started from root of tree */
-#define	WT_STAT_CONN_EVICTION_WALK_FROM_ROOT		1211
+#define	WT_STAT_CONN_EVICTION_WALK_FROM_ROOT		1213
 /*! cache: eviction walks started from saved location in tree */
-#define	WT_STAT_CONN_EVICTION_WALK_SAVED_POS		1212
+#define	WT_STAT_CONN_EVICTION_WALK_SAVED_POS		1214
 /*! cache: eviction worker thread active */
-#define	WT_STAT_CONN_EVICTION_ACTIVE_WORKERS		1213
+#define	WT_STAT_CONN_EVICTION_ACTIVE_WORKERS		1215
 /*! cache: eviction worker thread stable number */
-#define	WT_STAT_CONN_EVICTION_STABLE_STATE_WORKERS	1214
+#define	WT_STAT_CONN_EVICTION_STABLE_STATE_WORKERS	1216
 /*! cache: files with active eviction walks */
-#define	WT_STAT_CONN_EVICTION_WALKS_ACTIVE		1215
+#define	WT_STAT_CONN_EVICTION_WALKS_ACTIVE		1217
 /*! cache: files with new eviction walks started */
-#define	WT_STAT_CONN_EVICTION_WALKS_STARTED		1216
+#define	WT_STAT_CONN_EVICTION_WALKS_STARTED		1218
 /*!
  * cache: forced eviction - do not retry count to evict pages selected to
  * evict during reconciliation
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_NO_RETRY		1217
+#define	WT_STAT_CONN_EVICTION_FORCE_NO_RETRY		1219
 /*!
  * cache: forced eviction - history store pages failed to evict while
  * session has history store cursor open
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_HS_FAIL		1218
+#define	WT_STAT_CONN_EVICTION_FORCE_HS_FAIL		1220
 /*!
  * cache: forced eviction - history store pages selected while session
  * has history store cursor open
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_HS			1219
+#define	WT_STAT_CONN_EVICTION_FORCE_HS			1221
 /*!
  * cache: forced eviction - history store pages successfully evicted
  * while session has history store cursor open
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_HS_SUCCESS		1220
+#define	WT_STAT_CONN_EVICTION_FORCE_HS_SUCCESS		1222
 /*!
  * cache: forced eviction - pages evicted belonging to ingest btrees
  * count
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_INGEST_SUCCESS	1221
+#define	WT_STAT_CONN_EVICTION_FORCE_INGEST_SUCCESS	1223
 /*! cache: forced eviction - pages evicted that were clean count */
-#define	WT_STAT_CONN_EVICTION_FORCE_CLEAN		1222
+#define	WT_STAT_CONN_EVICTION_FORCE_CLEAN		1224
 /*! cache: forced eviction - pages evicted that were dirty count */
-#define	WT_STAT_CONN_EVICTION_FORCE_DIRTY		1223
+#define	WT_STAT_CONN_EVICTION_FORCE_DIRTY		1225
 /*!
  * cache: forced eviction - pages selected because of a large number of
  * updates to a single item
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_LONG_UPDATE_LIST	1224
+#define	WT_STAT_CONN_EVICTION_FORCE_LONG_UPDATE_LIST	1226
 /*!
  * cache: forced eviction - pages selected because of too many deleted
  * items count
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_DELETE		1225
+#define	WT_STAT_CONN_EVICTION_FORCE_DELETE		1227
 /*!
  * cache: forced eviction - pages selected belonging to ingest btrees
  * unable to be evicted count
  */
-#define	WT_STAT_CONN_EVICTION_FORCE_INGEST_FAIL		1226
+#define	WT_STAT_CONN_EVICTION_FORCE_INGEST_FAIL		1228
 /*! cache: forced eviction - pages selected count */
-#define	WT_STAT_CONN_EVICTION_FORCE			1227
+#define	WT_STAT_CONN_EVICTION_FORCE			1229
 /*! cache: forced eviction - pages selected unable to be evicted count */
-#define	WT_STAT_CONN_EVICTION_FORCE_FAIL		1228
+#define	WT_STAT_CONN_EVICTION_FORCE_FAIL		1230
 /*!
  * cache: garbage collection from the ingest btree page is skipped
  * because the prune timestamp has not moved
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP	1229
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP	1231
 /*! cache: hazard pointer blocked page eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_HAZARD	1230
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_HAZARD	1232
 /*! cache: hazard pointer check calls */
-#define	WT_STAT_CONN_CACHE_HAZARD_CHECKS		1231
+#define	WT_STAT_CONN_CACHE_HAZARD_CHECKS		1233
 /*! cache: hazard pointer check entries walked */
-#define	WT_STAT_CONN_CACHE_HAZARD_WALKS			1232
+#define	WT_STAT_CONN_CACHE_HAZARD_WALKS			1234
 /*! cache: hazard pointer maximum array length */
-#define	WT_STAT_CONN_CACHE_HAZARD_MAX			1233
+#define	WT_STAT_CONN_CACHE_HAZARD_MAX			1235
 /*! cache: history store cursor not cached during eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_HS_CURSOR_NOT_CACHED	1234
+#define	WT_STAT_CONN_CACHE_EVICTION_HS_CURSOR_NOT_CACHED	1236
 /*! cache: history store table insert calls */
-#define	WT_STAT_CONN_CACHE_HS_INSERT			1235
+#define	WT_STAT_CONN_CACHE_HS_INSERT			1237
 /*! cache: history store table insert calls that returned restart */
-#define	WT_STAT_CONN_CACHE_HS_INSERT_RESTART		1236
+#define	WT_STAT_CONN_CACHE_HS_INSERT_RESTART		1238
 /*! cache: history store table key to be processed */
-#define	WT_STAT_CONN_CACHE_HS_KEY_PROCESSED		1237
+#define	WT_STAT_CONN_CACHE_HS_KEY_PROCESSED		1239
 /*! cache: history store table max on-disk size */
-#define	WT_STAT_CONN_CACHE_HS_ONDISK_MAX		1238
+#define	WT_STAT_CONN_CACHE_HS_ONDISK_MAX		1240
 /*! cache: history store table on-disk size */
-#define	WT_STAT_CONN_CACHE_HS_ONDISK			1239
+#define	WT_STAT_CONN_CACHE_HS_ONDISK			1241
 /*! cache: history store table reads */
-#define	WT_STAT_CONN_CACHE_HS_READ			1240
+#define	WT_STAT_CONN_CACHE_HS_READ			1242
 /*! cache: history store table reads missed */
-#define	WT_STAT_CONN_CACHE_HS_READ_MISS			1241
+#define	WT_STAT_CONN_CACHE_HS_READ_MISS			1243
 /*! cache: history store table reads requiring squashed modifies */
-#define	WT_STAT_CONN_CACHE_HS_READ_SQUASH		1242
+#define	WT_STAT_CONN_CACHE_HS_READ_SQUASH		1244
 /*!
  * cache: history store table resolved updates without timestamps that
  * lose their durable timestamp
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	1243
+#define	WT_STAT_CONN_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	1245
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an unstable update
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	1244
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	1246
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an update
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS		1245
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS		1247
 /*!
  * cache: history store table truncation to remove all the keys of a
  * btree
  */
-#define	WT_STAT_CONN_CACHE_HS_BTREE_TRUNCATE		1246
+#define	WT_STAT_CONN_CACHE_HS_BTREE_TRUNCATE		1248
 /*! cache: history store table truncation to remove an update */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE		1247
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE		1249
 /*!
  * cache: history store table truncation to remove range of updates due
  * to an update without a timestamp on data page
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_REMOVE		1248
+#define	WT_STAT_CONN_CACHE_HS_ORDER_REMOVE		1250
 /*!
  * cache: history store table truncation to remove range of updates due
  * to key being removed from the data page during reconciliation
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1249
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1251
 /*!
  * cache: history store table truncations that would have happened in
  * non-dryrun mode
  */
-#define	WT_STAT_CONN_CACHE_HS_BTREE_TRUNCATE_DRYRUN	1250
+#define	WT_STAT_CONN_CACHE_HS_BTREE_TRUNCATE_DRYRUN	1252
 /*!
  * cache: history store table truncations to remove an unstable update
  * that would have happened in non-dryrun mode
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN	1251
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN	1253
 /*!
  * cache: history store table truncations to remove an update that would
  * have happened in non-dryrun mode
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN	1252
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN	1254
 /*! cache: history store table update to be processed */
-#define	WT_STAT_CONN_CACHE_HS_UPDATE_PROCESSED		1253
+#define	WT_STAT_CONN_CACHE_HS_UPDATE_PROCESSED		1255
 /*!
  * cache: history store table updates without timestamps fixed up by
  * reinserting with the fixed timestamp
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_REINSERT		1254
+#define	WT_STAT_CONN_CACHE_HS_ORDER_REINSERT		1256
 /*! cache: history store table writes requiring squashed modifies */
-#define	WT_STAT_CONN_CACHE_HS_WRITE_SQUASH		1255
+#define	WT_STAT_CONN_CACHE_HS_WRITE_SQUASH		1257
 /*! cache: in-memory page passed criteria to be split */
-#define	WT_STAT_CONN_CACHE_INMEM_SPLITTABLE		1256
+#define	WT_STAT_CONN_CACHE_INMEM_SPLITTABLE		1258
 /*! cache: in-memory page splits */
-#define	WT_STAT_CONN_CACHE_INMEM_SPLIT			1257
+#define	WT_STAT_CONN_CACHE_INMEM_SPLIT			1259
 /*! cache: in-memory page splits performed on ingest btree pages */
-#define	WT_STAT_CONN_CACHE_INMEM_SPLIT_INGEST		1258
+#define	WT_STAT_CONN_CACHE_INMEM_SPLIT_INGEST		1260
 /*! cache: ingest pages evicted */
-#define	WT_STAT_CONN_EVICTION_INGEST_SUCCESS		1259
+#define	WT_STAT_CONN_EVICTION_INGEST_SUCCESS		1261
 /*! cache: internal page split blocked its eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT	1260
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT	1262
 /*! cache: internal pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL		1261
+#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL		1263
 /*! cache: internal pages queued for eviction */
-#define	WT_STAT_CONN_EVICTION_INTERNAL_PAGES_QUEUED	1262
+#define	WT_STAT_CONN_EVICTION_INTERNAL_PAGES_QUEUED	1264
 /*! cache: internal pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ_INTERNAL		1263
+#define	WT_STAT_CONN_CACHE_READ_INTERNAL		1265
 /*! cache: internal pages seen by eviction walk */
-#define	WT_STAT_CONN_EVICTION_INTERNAL_PAGES_SEEN	1264
+#define	WT_STAT_CONN_EVICTION_INTERNAL_PAGES_SEEN	1266
 /*! cache: internal pages seen by eviction walk that are already queued */
-#define	WT_STAT_CONN_EVICTION_INTERNAL_PAGES_ALREADY_QUEUED	1265
+#define	WT_STAT_CONN_EVICTION_INTERNAL_PAGES_ALREADY_QUEUED	1267
 /*! cache: internal pages split during eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_INTERNAL	1266
+#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_INTERNAL	1268
 /*! cache: leaf pages currently held in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE_LEAF		1267
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE_LEAF		1269
 /*! cache: leaf pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ_LEAF			1268
+#define	WT_STAT_CONN_CACHE_READ_LEAF			1270
 /*! cache: leaf pages split during eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF		1269
+#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF		1271
 /*!
  * cache: locate a random in-mem ref by examining all entries on the root
  * page
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	1270
+#define	WT_STAT_CONN_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	1272
 /*! cache: maximum bytes configured */
-#define	WT_STAT_CONN_CACHE_BYTES_MAX			1271
+#define	WT_STAT_CONN_CACHE_BYTES_MAX			1273
 /*! cache: maximum clean page size seen at eviction per checkpoint */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_CLEAN_PAGE_SIZE_PER_CHECKPOINT	1272
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_CLEAN_PAGE_SIZE_PER_CHECKPOINT	1274
 /*! cache: maximum dirty page size seen at eviction per checkpoint */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_DIRTY_PAGE_SIZE_PER_CHECKPOINT	1273
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_DIRTY_PAGE_SIZE_PER_CHECKPOINT	1275
 /*!
  * cache: maximum gap between unvisited page and connection evict pass
  * generation seen at eviction
  */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_UNVISITED_GEN_GAP	1274
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_UNVISITED_GEN_GAP	1276
 /*!
  * cache: maximum gap between unvisited page and connection evict pass
  * generation seen at eviction per checkpoint
  */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_UNVISITED_GEN_GAP_PER_CHECKPOINT	1275
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_UNVISITED_GEN_GAP_PER_CHECKPOINT	1277
 /*!
  * cache: maximum gap between visited page and connection evict pass
  * generation seen at eviction
  */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_VISITED_GEN_GAP	1276
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_VISITED_GEN_GAP	1278
 /*!
  * cache: maximum gap between visited page and connection evict pass
  * generation seen at eviction per checkpoint
  */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_VISITED_GEN_GAP_PER_CHECKPOINT	1277
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_VISITED_GEN_GAP_PER_CHECKPOINT	1279
 /*! cache: maximum milliseconds spent at a single eviction */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS	1278
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS	1280
 /*! cache: maximum milliseconds spent at a single eviction per checkpoint */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS_PER_CHECKPOINT	1279
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_MILLISECONDS_PER_CHECKPOINT	1281
 /*!
  * cache: maximum number of times a page tried to be added to eviction
  * queue but fail
  */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_QUEUE_PAGE	1280
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_QUEUE_PAGE	1282
 /*! cache: maximum number of times a page tried to be evicted */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_EVICT_PAGE	1281
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_ATTEMPTS_TO_EVICT_PAGE	1283
 /*! cache: maximum updates page size seen at eviction per checkpoint */
-#define	WT_STAT_CONN_EVICTION_MAXIMUM_UPDATES_PAGE_SIZE_PER_CHECKPOINT	1282
+#define	WT_STAT_CONN_EVICTION_MAXIMUM_UPDATES_PAGE_SIZE_PER_CHECKPOINT	1284
 /*! cache: modified page evict attempts by application threads */
-#define	WT_STAT_CONN_EVICTION_APP_DIRTY_ATTEMPT		1283
+#define	WT_STAT_CONN_EVICTION_APP_DIRTY_ATTEMPT		1285
 /*! cache: modified page evict failures by application threads */
-#define	WT_STAT_CONN_EVICTION_APP_DIRTY_FAIL		1284
+#define	WT_STAT_CONN_EVICTION_APP_DIRTY_FAIL		1286
 /*! cache: modified pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1285
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1287
 /*! cache: multi-block reconciliation blocked whilst checkpoint is running */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	1286
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	1288
 /*! cache: npos read - had to walk this many pages */
-#define	WT_STAT_CONN_NPOS_READ_WALK_MAX			1287
+#define	WT_STAT_CONN_NPOS_READ_WALK_MAX			1289
 /*! cache: number of internal pages read that had deltas attached */
-#define	WT_STAT_CONN_CACHE_READ_INTERNAL_DELTA		1288
+#define	WT_STAT_CONN_CACHE_READ_INTERNAL_DELTA		1290
 /*! cache: number of leaf pages read that had deltas attached */
-#define	WT_STAT_CONN_CACHE_READ_LEAF_DELTA		1289
+#define	WT_STAT_CONN_CACHE_READ_LEAF_DELTA		1291
 /*! cache: number of times dirty trigger was reached */
-#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	1290
+#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	1292
 /*! cache: number of times eviction trigger was reached */
-#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_REACHED	1291
+#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_REACHED	1293
 /*! cache: number of times updates trigger was reached */
-#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	1292
+#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	1294
 /*! cache: number of times when cas update the btree max_lsn failed */
-#define	WT_STAT_CONN_CACHE_CAS_BTREE_MAX_LSN_RACE	1293
+#define	WT_STAT_CONN_CACHE_CAS_BTREE_MAX_LSN_RACE	1295
 /*! cache: obsolete updates removed */
-#define	WT_STAT_CONN_CACHE_OBSOLETE_UPDATES_REMOVED	1294
+#define	WT_STAT_CONN_CACHE_OBSOLETE_UPDATES_REMOVED	1296
 /*! cache: operations timed out waiting for space in cache */
-#define	WT_STAT_CONN_EVICTION_TIMED_OUT_OPS		1295
+#define	WT_STAT_CONN_EVICTION_TIMED_OUT_OPS		1297
 /*!
  * cache: overflow keys on a multiblock row-store page blocked its
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	1296
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	1298
 /*! cache: overflow pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1297
+#define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1299
 /*! cache: page evict attempts by application threads */
-#define	WT_STAT_CONN_EVICTION_APP_ATTEMPT		1298
+#define	WT_STAT_CONN_EVICTION_APP_ATTEMPT		1300
 /*! cache: page evict failures by application threads */
-#define	WT_STAT_CONN_EVICTION_APP_FAIL			1299
+#define	WT_STAT_CONN_EVICTION_APP_FAIL			1301
 /*! cache: page eviction blocked due to materialization frontier */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MATERIALIZATION	1300
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MATERIALIZATION	1302
 /*!
  * cache: page eviction blocked in disaggregated storage as it can only
  * be written by the next checkpoint
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT	1301
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT	1303
 /*! cache: page split during eviction deepened the tree */
-#define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1302
+#define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1304
 /*! cache: page written requiring history store records */
-#define	WT_STAT_CONN_CACHE_WRITE_HS			1303
+#define	WT_STAT_CONN_CACHE_WRITE_HS			1305
 /*! cache: pages already in queue when topping up */
-#define	WT_STAT_CONN_EVICTION_PAGES_REMAINING_IN_QUEUE	1304
+#define	WT_STAT_CONN_EVICTION_PAGES_REMAINING_IN_QUEUE	1306
 /*! cache: pages considered for eviction that were brought in by pre-fetch */
-#define	WT_STAT_CONN_EVICTION_CONSIDER_PREFETCH		1305
+#define	WT_STAT_CONN_EVICTION_CONSIDER_PREFETCH		1307
 /*! cache: pages currently held in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1306
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1308
 /*! cache: pages currently held in the cache from the ingest btrees */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE_INGEST		1307
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE_INGEST		1309
 /*! cache: pages currently held in the cache from the stable btrees */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE_STABLE		1308
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE_STABLE		1310
 /*! cache: pages dirtied due to obsolete time window by eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_OBSOLETE_TW	1309
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_OBSOLETE_TW	1311
 /*! cache: pages evicted ahead of the page materialization frontier */
-#define	WT_STAT_CONN_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	1310
+#define	WT_STAT_CONN_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	1312
 /*! cache: pages evicted in parallel with checkpoint */
-#define	WT_STAT_CONN_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT	1311
+#define	WT_STAT_CONN_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT	1313
 /*! cache: pages queued for eviction */
-#define	WT_STAT_CONN_EVICTION_PAGES_ORDINARY_QUEUED	1312
+#define	WT_STAT_CONN_EVICTION_PAGES_ORDINARY_QUEUED	1314
 /*! cache: pages queued for eviction post lru sorting */
-#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_POST_LRU	1313
+#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_POST_LRU	1315
 /*! cache: pages queued for urgent eviction */
-#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT	1314
+#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT	1316
 /*! cache: pages queued for urgent eviction during walk */
-#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_OLDEST	1315
+#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_OLDEST	1317
 /*!
  * cache: pages queued for urgent eviction from history store due to high
  * dirty content
  */
-#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT_HS_DIRTY	1316
+#define	WT_STAT_CONN_EVICTION_PAGES_QUEUED_URGENT_HS_DIRTY	1318
 /*! cache: pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ				1317
+#define	WT_STAT_CONN_CACHE_READ				1319
 /*! cache: pages read into cache after truncate */
-#define	WT_STAT_CONN_CACHE_READ_DELETED			1318
+#define	WT_STAT_CONN_CACHE_READ_DELETED			1320
 /*! cache: pages read into cache after truncate in prepare state */
-#define	WT_STAT_CONN_CACHE_READ_DELETED_PREPARED	1319
+#define	WT_STAT_CONN_CACHE_READ_DELETED_PREPARED	1321
 /*! cache: pages read into cache by checkpoint */
-#define	WT_STAT_CONN_CACHE_READ_CHECKPOINT		1320
+#define	WT_STAT_CONN_CACHE_READ_CHECKPOINT		1322
 /*!
  * cache: pages removed from the ordinary queue to be queued for urgent
  * eviction
  */
-#define	WT_STAT_CONN_EVICTION_CLEAR_ORDINARY		1321
+#define	WT_STAT_CONN_EVICTION_CLEAR_ORDINARY		1323
 /*! cache: pages requested from the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1322
+#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1324
 /*! cache: pages requested from the cache due to pre-fetch */
-#define	WT_STAT_CONN_CACHE_PAGES_PREFETCH		1323
+#define	WT_STAT_CONN_CACHE_PAGES_PREFETCH		1325
 /*! cache: pages requested from the cache internal */
-#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED_INTERNAL	1324
+#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED_INTERNAL	1326
 /*! cache: pages requested from the cache leaf */
-#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED_LEAF		1325
+#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED_LEAF		1327
 /*! cache: pages requested from the history store */
-#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED_HS		1326
+#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED_HS		1328
 /*! cache: pages seen by eviction walk */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN		1327
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN		1329
 /*! cache: pages seen by eviction walk that are already queued */
-#define	WT_STAT_CONN_EVICTION_PAGES_ALREADY_QUEUED	1328
+#define	WT_STAT_CONN_EVICTION_PAGES_ALREADY_QUEUED	1330
 /*! cache: pages selected for eviction unable to be evicted */
-#define	WT_STAT_CONN_EVICTION_FAIL			1329
+#define	WT_STAT_CONN_EVICTION_FAIL			1331
 /*!
  * cache: pages selected for eviction unable to be evicted because of
  * active children on an internal page
  */
-#define	WT_STAT_CONN_EVICTION_FAIL_ACTIVE_CHILDREN_ON_AN_INTERNAL_PAGE	1330
+#define	WT_STAT_CONN_EVICTION_FAIL_ACTIVE_CHILDREN_ON_AN_INTERNAL_PAGE	1332
 /*!
  * cache: pages selected for eviction unable to be evicted because of
  * failure in reconciliation
  */
-#define	WT_STAT_CONN_EVICTION_FAIL_IN_RECONCILIATION	1331
+#define	WT_STAT_CONN_EVICTION_FAIL_IN_RECONCILIATION	1333
 /*!
  * cache: pages selected for eviction unable to be evicted because of
  * race between checkpoint and updates without timestamps
  */
-#define	WT_STAT_CONN_EVICTION_FAIL_CHECKPOINT_NO_TS	1332
+#define	WT_STAT_CONN_EVICTION_FAIL_CHECKPOINT_NO_TS	1334
 /*!
  * cache: pages selected for eviction unable to be evicted belonging to
  * ingest btrees
  */
-#define	WT_STAT_CONN_EVICTION_FAIL_INGEST		1333
+#define	WT_STAT_CONN_EVICTION_FAIL_INGEST		1335
 /*! cache: pages walked for eviction */
-#define	WT_STAT_CONN_EVICTION_WALK			1334
+#define	WT_STAT_CONN_EVICTION_WALK			1336
 /*!
  * cache: pages with an unresolved multiblock split flagged by checkpoint
  * to be evicted soon
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED	1335
+#define	WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED	1337
 /*!
  * cache: pages with an unresolved multiblock split re-reconciled by
  * checkpoint
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_SPLIT_RE_RECONCILED	1336
+#define	WT_STAT_CONN_CACHE_EVICTION_MULTIBLOCK_SPLIT_RE_RECONCILED	1338
 /*! cache: pages written from cache */
-#define	WT_STAT_CONN_CACHE_WRITE			1337
+#define	WT_STAT_CONN_CACHE_WRITE			1339
+/*!
+ * cache: pages written requiring in-memory restoration due to checkpoint
+ * scrub
+ */
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_CHECKPOINT	1340
 /*!
  * cache: pages written requiring in-memory restoration due to invisible
  * updates
  */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_INVISIBLE	1338
-/*!
- * cache: pages written requiring in-memory restoration due to precise
- * checkpoint scrub
- */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_PRECISE_CHECKPOINT	1339
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_INVISIBLE	1341
 /*!
  * cache: pages written requiring in-memory restoration due to scrub
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB		1340
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB		1342
 /*! cache: percentage overhead */
-#define	WT_STAT_CONN_CACHE_OVERHEAD			1341
+#define	WT_STAT_CONN_CACHE_OVERHEAD			1343
 /*!
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	1342
-/*!
- * cache: precise checkpoint scrub skipped because the page contains
- * prepared transactions
- */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_PREPARED	1343
-/*!
- * cache: precise checkpoint scrub skipped because the page will be left
- * dirty
- */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY	1344
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	1344
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy
@@ -9346,271 +9353,268 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * eviction
  */
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	2083
+/*!
+ * cache: checkpoint scrub skipped because the page contains prepared
+ * transactions
+ */
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_PREPARED	2084
+/*! cache: checkpoint scrub skipped because the page will be left dirty */
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY	2085
 /*! cache: data source pages selected for eviction unable to be evicted */
-#define	WT_STAT_DSRC_EVICTION_FAIL			2084
+#define	WT_STAT_DSRC_EVICTION_FAIL			2086
 /*! cache: dirty internal page cannot be evicted in disaggregated storage */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	2085
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	2087
 /*!
  * cache: eviction gave up due to detecting a disk value without a
  * timestamp behind the last update on the chain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1	2086
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_1	2088
 /*!
  * cache: eviction gave up due to detecting a tombstone without a
  * timestamp ahead of the selected on disk update
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2	2087
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_2	2089
 /*!
  * cache: eviction gave up due to detecting a tombstone without a
  * timestamp ahead of the selected on disk update after validating the
  * update chain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3	2088
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_3	2090
 /*!
  * cache: eviction gave up due to detecting update chain entries without
  * timestamps after the selected on disk update
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4	2089
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_TS_CHECKPOINT_RACE_4	2091
 /*!
  * cache: eviction gave up due to needing to remove a record from the
  * history store but checkpoint is running
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	2090
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_REMOVE_HS_RACE_WITH_CHECKPOINT	2092
 /*! cache: eviction gave up due to no progress being made */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_PROGRESS	2091
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_NO_PROGRESS	2093
 /*! cache: eviction server skipped the pages when prefetching */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PREFETCHED	2092
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PREFETCHED	2094
 /*! cache: eviction walk pages queued that had updates */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_UPDATES	2093
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_UPDATES	2095
 /*! cache: eviction walk pages queued that were clean */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_CLEAN	2094
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_CLEAN	2096
 /*! cache: eviction walk pages queued that were dirty */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_DIRTY	2095
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_QUEUED_DIRTY	2097
 /*! cache: eviction walk pages seen that had updates */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_UPDATES	2096
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_UPDATES	2098
 /*! cache: eviction walk pages seen that were clean */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_CLEAN	2097
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_CLEAN	2099
 /*! cache: eviction walk pages seen that were dirty */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_DIRTY	2098
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN_DIRTY	2100
 /*! cache: eviction walk passes of a file */
-#define	WT_STAT_DSRC_EVICTION_WALK_PASSES		2099
+#define	WT_STAT_DSRC_EVICTION_WALK_PASSES		2101
 /*! cache: eviction walk target pages histogram - 0-9 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2100
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2102
 /*! cache: eviction walk target pages histogram - 10-31 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32	2101
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32	2103
 /*! cache: eviction walk target pages histogram - 128 and higher */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128	2102
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128	2104
 /*! cache: eviction walk target pages histogram - 32-63 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64	2103
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64	2105
 /*! cache: eviction walk target pages histogram - 64-128 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128	2104
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128	2106
 /*!
  * cache: eviction walk target pages reduced due to history store cache
  * pressure
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_REDUCED	2105
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_REDUCED	2107
 /*!
  * cache: garbage collection from the ingest btree page is skipped
  * because the prune timestamp has not moved
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP	2106
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRUNE_TIMESTAMP	2108
 /*! cache: hazard pointer blocked page eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_HAZARD	2107
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_HAZARD	2109
 /*! cache: history store cursor not cached during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_HS_CURSOR_NOT_CACHED	2108
+#define	WT_STAT_DSRC_CACHE_EVICTION_HS_CURSOR_NOT_CACHED	2110
 /*! cache: history store table insert calls */
-#define	WT_STAT_DSRC_CACHE_HS_INSERT			2109
+#define	WT_STAT_DSRC_CACHE_HS_INSERT			2111
 /*! cache: history store table insert calls that returned restart */
-#define	WT_STAT_DSRC_CACHE_HS_INSERT_RESTART		2110
+#define	WT_STAT_DSRC_CACHE_HS_INSERT_RESTART		2112
 /*! cache: history store table key to be processed */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_PROCESSED		2111
+#define	WT_STAT_DSRC_CACHE_HS_KEY_PROCESSED		2113
 /*! cache: history store table reads */
-#define	WT_STAT_DSRC_CACHE_HS_READ			2112
+#define	WT_STAT_DSRC_CACHE_HS_READ			2114
 /*! cache: history store table reads missed */
-#define	WT_STAT_DSRC_CACHE_HS_READ_MISS			2113
+#define	WT_STAT_DSRC_CACHE_HS_READ_MISS			2115
 /*! cache: history store table reads requiring squashed modifies */
-#define	WT_STAT_DSRC_CACHE_HS_READ_SQUASH		2114
+#define	WT_STAT_DSRC_CACHE_HS_READ_SQUASH		2116
 /*!
  * cache: history store table resolved updates without timestamps that
  * lose their durable timestamp
  */
-#define	WT_STAT_DSRC_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	2115
+#define	WT_STAT_DSRC_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	2117
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an unstable update
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	2116
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	2118
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an update
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS		2117
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS		2119
 /*!
  * cache: history store table truncation to remove all the keys of a
  * btree
  */
-#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE		2118
+#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE		2120
 /*! cache: history store table truncation to remove an update */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE		2119
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE		2121
 /*!
  * cache: history store table truncation to remove range of updates due
  * to an update without a timestamp on data page
  */
-#define	WT_STAT_DSRC_CACHE_HS_ORDER_REMOVE		2120
+#define	WT_STAT_DSRC_CACHE_HS_ORDER_REMOVE		2122
 /*!
  * cache: history store table truncation to remove range of updates due
  * to key being removed from the data page during reconciliation
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	2121
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	2123
 /*!
  * cache: history store table truncations that would have happened in
  * non-dryrun mode
  */
-#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE_DRYRUN	2122
+#define	WT_STAT_DSRC_CACHE_HS_BTREE_TRUNCATE_DRYRUN	2124
 /*!
  * cache: history store table truncations to remove an unstable update
  * that would have happened in non-dryrun mode
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN	2123
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE_DRYRUN	2125
 /*!
  * cache: history store table truncations to remove an update that would
  * have happened in non-dryrun mode
  */
-#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN	2124
+#define	WT_STAT_DSRC_CACHE_HS_KEY_TRUNCATE_RTS_DRYRUN	2126
 /*! cache: history store table update to be processed */
-#define	WT_STAT_DSRC_CACHE_HS_UPDATE_PROCESSED		2125
+#define	WT_STAT_DSRC_CACHE_HS_UPDATE_PROCESSED		2127
 /*!
  * cache: history store table updates without timestamps fixed up by
  * reinserting with the fixed timestamp
  */
-#define	WT_STAT_DSRC_CACHE_HS_ORDER_REINSERT		2126
+#define	WT_STAT_DSRC_CACHE_HS_ORDER_REINSERT		2128
 /*! cache: history store table writes requiring squashed modifies */
-#define	WT_STAT_DSRC_CACHE_HS_WRITE_SQUASH		2127
+#define	WT_STAT_DSRC_CACHE_HS_WRITE_SQUASH		2129
 /*! cache: in-memory page passed criteria to be split */
-#define	WT_STAT_DSRC_CACHE_INMEM_SPLITTABLE		2128
+#define	WT_STAT_DSRC_CACHE_INMEM_SPLITTABLE		2130
 /*! cache: in-memory page splits */
-#define	WT_STAT_DSRC_CACHE_INMEM_SPLIT			2129
+#define	WT_STAT_DSRC_CACHE_INMEM_SPLIT			2131
 /*! cache: in-memory page splits performed on ingest btree pages */
-#define	WT_STAT_DSRC_CACHE_INMEM_SPLIT_INGEST		2130
+#define	WT_STAT_DSRC_CACHE_INMEM_SPLIT_INGEST		2132
 /*! cache: internal page split blocked its eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT	2131
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_INTERNAL_PAGE_SPLIT	2133
 /*! cache: internal pages evicted */
-#define	WT_STAT_DSRC_CACHE_EVICTION_INTERNAL		2132
+#define	WT_STAT_DSRC_CACHE_EVICTION_INTERNAL		2134
 /*! cache: internal pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ_INTERNAL		2133
+#define	WT_STAT_DSRC_CACHE_READ_INTERNAL		2135
 /*! cache: internal pages split during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_INTERNAL	2134
+#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_INTERNAL	2136
 /*! cache: leaf pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ_LEAF			2135
+#define	WT_STAT_DSRC_CACHE_READ_LEAF			2137
 /*! cache: leaf pages split during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_LEAF		2136
+#define	WT_STAT_DSRC_CACHE_EVICTION_SPLIT_LEAF		2138
 /*!
  * cache: locate a random in-mem ref by examining all entries on the root
  * page
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	2137
+#define	WT_STAT_DSRC_CACHE_EVICTION_RANDOM_SAMPLE_INMEM_ROOT	2139
 /*! cache: modified pages evicted */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2138
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2140
 /*! cache: multi-block reconciliation blocked whilst checkpoint is running */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	2139
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	2141
 /*! cache: number of internal pages read that had deltas attached */
-#define	WT_STAT_DSRC_CACHE_READ_INTERNAL_DELTA		2140
+#define	WT_STAT_DSRC_CACHE_READ_INTERNAL_DELTA		2142
 /*! cache: number of leaf pages read that had deltas attached */
-#define	WT_STAT_DSRC_CACHE_READ_LEAF_DELTA		2141
+#define	WT_STAT_DSRC_CACHE_READ_LEAF_DELTA		2143
 /*! cache: number of times dirty trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	2142
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	2144
 /*! cache: number of times eviction trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_REACHED	2143
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_REACHED	2145
 /*! cache: number of times updates trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	2144
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	2146
 /*! cache: number of times when cas update the btree max_lsn failed */
-#define	WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_RACE	2145
+#define	WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_RACE	2147
 /*! cache: obsolete updates removed */
-#define	WT_STAT_DSRC_CACHE_OBSOLETE_UPDATES_REMOVED	2146
+#define	WT_STAT_DSRC_CACHE_OBSOLETE_UPDATES_REMOVED	2148
 /*!
  * cache: overflow keys on a multiblock row-store page blocked its
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	2147
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OVERFLOW_KEYS	2149
 /*! cache: overflow pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2148
+#define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2150
 /*! cache: page eviction blocked due to materialization frontier */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MATERIALIZATION	2149
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MATERIALIZATION	2151
 /*!
  * cache: page eviction blocked in disaggregated storage as it can only
  * be written by the next checkpoint
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT	2150
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_NEXT_CHECKPOINT	2152
 /*! cache: page split during eviction deepened the tree */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2151
+#define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2153
 /*! cache: page written requiring history store records */
-#define	WT_STAT_DSRC_CACHE_WRITE_HS			2152
+#define	WT_STAT_DSRC_CACHE_WRITE_HS			2154
 /*! cache: pages dirtied due to obsolete time window by eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2153
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_OBSOLETE_TW	2155
 /*! cache: pages evicted ahead of the page materialization frontier */
-#define	WT_STAT_DSRC_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	2154
+#define	WT_STAT_DSRC_CACHE_EVICTION_AHEAD_OF_LAST_MATERIALIZED_LSN	2156
 /*! cache: pages read into cache */
-#define	WT_STAT_DSRC_CACHE_READ				2155
+#define	WT_STAT_DSRC_CACHE_READ				2157
 /*! cache: pages read into cache after truncate */
-#define	WT_STAT_DSRC_CACHE_READ_DELETED			2156
+#define	WT_STAT_DSRC_CACHE_READ_DELETED			2158
 /*! cache: pages read into cache after truncate in prepare state */
-#define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2157
+#define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2159
 /*! cache: pages read into cache by checkpoint */
-#define	WT_STAT_DSRC_CACHE_READ_CHECKPOINT		2158
+#define	WT_STAT_DSRC_CACHE_READ_CHECKPOINT		2160
 /*! cache: pages requested from the cache */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2159
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2161
 /*! cache: pages requested from the cache due to pre-fetch */
-#define	WT_STAT_DSRC_CACHE_PAGES_PREFETCH		2160
+#define	WT_STAT_DSRC_CACHE_PAGES_PREFETCH		2162
 /*! cache: pages requested from the cache internal */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_INTERNAL	2161
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_INTERNAL	2163
 /*! cache: pages requested from the cache leaf */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_LEAF		2162
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_LEAF		2164
 /*! cache: pages requested from the history store */
-#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_HS		2163
+#define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED_HS		2165
 /*! cache: pages seen by eviction walk */
-#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN		2164
+#define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN		2166
 /*!
  * cache: pages with an unresolved multiblock split flagged by checkpoint
  * to be evicted soon
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED	2165
+#define	WT_STAT_DSRC_CACHE_EVICTION_MULTIBLOCK_CHECKPOINT_FLAGGED	2167
 /*!
  * cache: pages with an unresolved multiblock split re-reconciled by
  * checkpoint
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_MULTIBLOCK_SPLIT_RE_RECONCILED	2166
+#define	WT_STAT_DSRC_CACHE_EVICTION_MULTIBLOCK_SPLIT_RE_RECONCILED	2168
 /*! cache: pages written from cache */
-#define	WT_STAT_DSRC_CACHE_WRITE			2167
+#define	WT_STAT_DSRC_CACHE_WRITE			2169
+/*!
+ * cache: pages written requiring in-memory restoration due to checkpoint
+ * scrub
+ */
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_CHECKPOINT	2170
 /*!
  * cache: pages written requiring in-memory restoration due to invisible
  * updates
  */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE	2168
-/*!
- * cache: pages written requiring in-memory restoration due to precise
- * checkpoint scrub
- */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_PRECISE_CHECKPOINT	2169
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE	2171
 /*!
  * cache: pages written requiring in-memory restoration due to scrub
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB		2170
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB		2172
 /*!
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	2171
-/*!
- * cache: precise checkpoint scrub skipped because the page contains
- * prepared transactions
- */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_PREPARED	2172
-/*!
- * cache: precise checkpoint scrub skipped because the page will be left
- * dirty
- */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY	2173
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	2173
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy
