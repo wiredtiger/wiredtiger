@@ -1998,15 +1998,15 @@ __wt_page_cell_data_ref_kv(
  * ids of a current-run delta cell whenever the base image happens to be older, publishing an
  * address whose aggregate no longer covers the page it references.
  */
-#define WT_CELL_DELTA_INT_UNPACK(session, s)                                           \
-    do {                                                                               \
-        __wt_cell_unpack_kv_delta(                                                     \
-          session, (s)->base_dsk, (s)->dsk, (WT_CELL *)(s)->cell, &(s)->unpack.key);   \
-        (s)->cell += (s)->unpack.key.__len;                                            \
-        __wt_cell_unpack_addr_delta(                                                   \
-          session, (s)->base_dsk, (s)->dsk, (WT_CELL *)(s)->cell, &(s)->unpack.value); \
-        (s)->cell += (s)->unpack.value.__len;                                          \
-        (s)->unpacked = true;                                                          \
+#define WT_CELL_DELTA_INT_UNPACK(session, s)                                                 \
+    do {                                                                                     \
+        __wt_cell_unpack_kv_delta(                                                           \
+          session, (s)->base_dsk, (s)->delta_dsk, (WT_CELL *)(s)->cell, &(s)->unpack.key);   \
+        (s)->cell += (s)->unpack.key.__len;                                                  \
+        __wt_cell_unpack_addr_delta(                                                         \
+          session, (s)->base_dsk, (s)->delta_dsk, (WT_CELL *)(s)->cell, &(s)->unpack.value); \
+        (s)->cell += (s)->unpack.value.__len;                                                \
+        (s)->unpacked = true;                                                                \
     } while (0)
 
 /*
