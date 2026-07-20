@@ -137,7 +137,7 @@ class test_rollback_to_stable47(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify state before backup: 5 stable + 5 unstable records.
-        self.check(value_a, uri, nrows_stable, 10)
+        self.check(value_a, uri, nrows_stable, None, 10)
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(30))
         cursor = self.session.open_cursor(uri)
@@ -166,7 +166,7 @@ class test_rollback_to_stable47(test_rollback_to_stable_base):
         # Keys 1..5: value_a (stable ts=10 <= stable=20) -- must remain.
         # Keys 6..10: tombstoned by RTS (value_b ts=30 > stable=20) -- must be absent.
 
-        self.check(value_a, uri, nrows_stable, 10)
+        self.check(value_a, uri, nrows_stable, None, 10)
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(30))
         cursor = self.session.open_cursor(uri)
