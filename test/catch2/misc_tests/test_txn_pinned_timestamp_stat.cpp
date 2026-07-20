@@ -11,7 +11,6 @@
 
 #include "../utils.h"
 #include "../wrappers/connection_wrapper.h"
-#include "../../utility/test_util.h"
 
 /*
  * The pinned-timestamp lag statistics are computed as unsigned timestamp subtractions. When the
@@ -22,8 +21,8 @@
 TEST_CASE("txn stats: pinned timestamp statistics do not underflow", "[txn][statistics]")
 {
     const std::string home = "WT_TEST.txn_pinned_timestamp_stat";
-    testutil_system("rm -rf %s && mkdir -p %s", home.c_str(), home.c_str());
 
+    /* The connection wrapper creates the home directory and cleans it up on destruction. */
     connection_wrapper conn(home, "create,statistics=(all)");
     WT_CONNECTION_IMPL *conn_impl = conn.get_wt_connection_impl();
     WT_CONNECTION *wt_conn = conn.get_wt_connection();
