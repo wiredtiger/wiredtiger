@@ -248,12 +248,17 @@ thread_schema_run(void *arg)
         }
         is_create = ctx.table_exists[slot];
         epoch = __wt_atomic_add_uint64(&ctx.state->next_epoch, 1);
-        testutil_check(schema_op_publish(&ctx, slot, epoch));
-        /* Release so the timestamp thread's paired acquire load sees the completed publish. */
-        __wt_atomic_store_uint64_release(&td->published_epoch, epoch);
+        /*
+         * Write the record before publishing so it reaches the file before a checkpoint can make
+         * the epoch durable. A crash after the record but before the epoch is durable is safe: the
+         * verifier ignores records whose epoch is above the recovered durable epoch.
+         */
         if (fprintf(ctx.schema_fp, "%s %" PRIu64 " %s\n", is_create ? "CREATE" : "DROP", epoch,
               ctx.uris[slot]) < 0)
             testutil_die(EIO, "fprintf schema record");
+        testutil_check(schema_op_publish(&ctx, slot, epoch));
+        /* Release so the timestamp thread's paired acquire load sees the completed publish. */
+        __wt_atomic_store_uint64_release(&td->published_epoch, epoch);
         if (is_create) {
             commit_ts = __wt_atomic_add_uint64(&ctx.state->next_commit_ts, 1);
             schema_op_insert_data(&ctx, slot, epoch, commit_ts);
@@ -280,9 +285,13 @@ thread_ts_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     for (;;) {
-        /* Wait until every worker has published an epoch and released an insert for stability. */
-        stable_epoch = workers_min(td->state, true);
+        /*
+         * Read the stable timestamp minimum before the epoch minimum, so the epoch covers every
+         * commit included in the timestamp. Order matters: the reverse could make data stable on an
+         * unpublished table.
+         */
         stable_ts = workers_min(td->state, false);
+        stable_epoch = workers_min(td->state, true);
         if (stable_epoch == 0 || stable_ts == 0) {
             __wt_sleep(0, 100 * WT_THOUSAND);
             continue;
@@ -312,9 +321,8 @@ thread_ckpt_run(void *arg)
     THREAD_DATA *td;
     WT_SESSION *session;
     uint64_t diff_sec, sleep_time;
-    uint32_t j;
     int i;
-    bool created_ready, epoch_checkpointed;
+    bool created_ready;
 
     td = (THREAD_DATA *)arg;
     (void)unlink(READY_FILE);
@@ -335,19 +343,13 @@ thread_ckpt_run(void *arg)
         sleep_time = __wt_random(&td->rnd) % MAX_CKPT_INVL;
         __wt_sleep(sleep_time, 0);
 
-        /* Gate the ready sentinel on at least one published schema operation. */
-        epoch_checkpointed = false;
-        for (j = 0; j < td->state->nth_workers; j++)
-            if (td->state->workers[j].published_epoch > 0) {
-                epoch_checkpointed = true;
-                break;
-            }
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
         printf("Checkpoint %d complete\n", i);
         fflush(stdout);
 
-        if (!created_ready && epoch_checkpointed) {
+        /* stable_set implies every worker published, so this checkpoint has a schema operation. */
+        if (!created_ready) {
             testutil_sentinel(NULL, READY_FILE);
             created_ready = true;
         }
