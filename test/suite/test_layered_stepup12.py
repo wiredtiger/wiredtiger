@@ -106,9 +106,12 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             target=lambda: conn.reconfigure(f'disaggregated=(role={self.target_role})'),
             daemon=True)
 
+        transition_stat = wiredtiger.stat.conn.disagg_step_up_in_progress \
+            if self.target_role == 'leader' else wiredtiger.stat.conn.disagg_step_down_in_progress
+
         def role_transition_in_progress():
             stat_cursor = session.open_cursor('statistics:', None, None)
-            value = stat_cursor[wiredtiger.stat.conn.disagg_role_transition_in_progress][2]
+            value = stat_cursor[transition_stat][2]
             stat_cursor.close()
             return value != 0
 
