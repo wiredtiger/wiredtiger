@@ -845,11 +845,16 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
         "timestamp=%" PRIx64 ",\n"
         "oldest_timestamp=%" PRIx64 ",\n"
         "schema_epoch=%" PRIx64 ",\n"
-        "largest_file_id=%" PRIu32 ",\n"
-        "base_write_gen=%" PRIu64,
+        "largest_file_id=%" PRIu32,
         WT_DISAGG_CHECKPOINT_TURTLE_VERSION, WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION,
-        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp, schema_epoch, max_table_id,
-        __wt_atomic_load_uint64_relaxed(&conn->max_write_gen)));
+        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp, schema_epoch, max_table_id));
+
+    /* Optionally simulate a writer that predates the write generation high-water mark. */
+    if (!FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_DISAGG_LEGACY_CHECKPOINT_METADATA))
+        WT_ERR(__wt_buf_catfmt(session, metadata_buf,
+          ",\n"
+          "base_write_gen=%" PRIu64,
+          __wt_atomic_load_uint64_relaxed(&conn->max_write_gen)));
 
     /* Append key provider metadata, if available. */
     WT_ERR(__disagg_append_crypt_meta(session, metadata_buf));
