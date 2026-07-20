@@ -1876,6 +1876,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
             session, ckpt_disagg_schema_epoch, &drop_size));
         WT_ERR_MSG_CHK(session, ret,
           "Disaggregated storage checkpoint failed while processing shared metadata queue");
+
+        /*
+         * Record the high-water mark of this node's write generations. Every tree included in this
+         * checkpoint has folded its write generation in by now, and the shared metadata table
+         * itself is checkpointed after this point, so the mark lands in this checkpoint.
+         */
+        WT_ERR(__wt_disagg_update_shared_max_write_gen(session));
     }
 
     /*

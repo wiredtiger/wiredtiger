@@ -1141,6 +1141,76 @@ err:
 }
 
 /*
+ * __disagg_adopt_shared_max_write_gen --
+ *     Adopt the high-water mark of write generations recorded in the picked-up checkpoint's shared
+ *     metadata table, so that if this node later steps up its base write generation already sits
+ *     past every generation the checkpoint's writer used and a checkpoint it then reopens is
+ *     recognized as belonging to an earlier generation range. A follower reads foreign checkpoints
+ *     correctly regardless of this value because it resets their ids on open.
+ */
+static int
+__disagg_adopt_shared_max_write_gen(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_DECL_ITEM(ckpt_uri);
+    WT_DECL_RET;
+    uint64_t max_write_gen;
+    const char *checkpoint_name, *value;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL};
+
+    conn = S2C(session);
+    cursor = NULL;
+    checkpoint_name = NULL;
+    max_write_gen = 0;
+
+    /*
+     * Read the mark from the shared metadata table at the checkpoint just picked up. A checkpoint
+     * written before the mark existed (an upgrade) has no entry to adopt: remember that a node
+     * becoming leader must derive the base write generation from its local metadata instead.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_meta_checkpoint_last_name(session, WT_DISAGG_METADATA_URI, &checkpoint_name, NULL, NULL),
+      true);
+    if (ret != WT_NOTFOUND) {
+        WT_ERR(__wt_scr_alloc(session, 0, &ckpt_uri));
+        WT_ERR(__wt_buf_fmt(session, ckpt_uri, "%s/%s", WT_DISAGG_METADATA_URI, checkpoint_name));
+
+        WT_ERR(__wt_open_cursor(session, ckpt_uri->data, NULL, cfg, &cursor));
+        cursor->set_key(cursor, WT_SYSTEM_MAX_WRITE_GEN_URI);
+        WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
+        if (ret != WT_NOTFOUND) {
+            WT_ERR(cursor->get_value(cursor, &value));
+            WT_ERR(__wt_config_getones(session, value, WT_SYSTEM_MAX_WRITE_GEN, &cval));
+            max_write_gen = (uint64_t)cval.val;
+        }
+    }
+
+    /*
+     * Concurrency: we hold the checkpoint lock, the only writer of the base write generation once
+     * followers are active; the base write generation is monotonic.
+     */
+    if (max_write_gen != 0) {
+        __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
+          WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->base_write_gen), max_write_gen + 1));
+        __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
+          WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
+            __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
+        conn->disaggregated_storage.base_write_gen_missing = false;
+    } else
+        conn->disaggregated_storage.base_write_gen_missing = true;
+    ret = 0;
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    __wt_scr_free(session, &ckpt_uri);
+    __wt_free(session, checkpoint_name);
+    return (ret);
+}
+
+/*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
@@ -1230,34 +1300,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.schema_epoch, __wt_timestamp_to_string(metadata.schema_epoch, ts_string[2]),
       metadata.largest_file_id, (int)metadata.checkpoint_len, metadata.checkpoint);
 
-    /*
-     * Adopt the high-water mark of write generations the checkpoint's writer (the leader) recorded,
-     * so that if this node later steps up its base write generation already sits past the former
-     * leader's generations and a checkpoint it then reopens is recognized as belonging to an
-     * earlier generation range. A follower reads foreign checkpoints correctly regardless of this
-     * value because it resets their ids on open by role; a checkpoint written before the high-water
-     * mark was recorded (an upgrade) carries no aggregate to adopt, so remember that a node
-     * becoming leader must derive the base write generation from its local metadata instead.
-     *
-     * Concurrency: we hold the checkpoint lock, the only writer of the base write generation once
-     * followers are active; the base write generation is monotonic.
-     */
-    if (metadata.base_write_gen != 0) {
-        __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
-          WT_MAX(
-            __wt_atomic_load_uint64_relaxed(&conn->base_write_gen), metadata.base_write_gen + 1));
-        __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
-          WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
-            __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
-        conn->disaggregated_storage.base_write_gen_missing = false;
-    } else
-        conn->disaggregated_storage.base_write_gen_missing = true;
-
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
 
     /* Update our local metadata with the new checkpoint entry. */
     WT_ERR(__disagg_save_checkpoint_meta_local(session, &metadata));
+
+    /* Adopt the high-water mark of write generations the checkpoint's writer recorded. */
+    WT_ERR(__disagg_adopt_shared_max_write_gen(session));
 
     /*
      * Part 2: Apply the metadata for other tables from the shared metadata table.
