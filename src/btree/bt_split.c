@@ -659,7 +659,7 @@ __split_update_approx_leaf_pages(
     if (btree->type != BTREE_ROW)
         return;
 
-    /* Do not turn an untracked legacy value into a misleading tracked value. */
+    /* Do not turn a legacy value that has not been initialized into a misleading count. */
     if (__wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) == WT_LEAF_STATS_UNKNOWN)
         return;
 
