@@ -292,22 +292,6 @@ struct __wt_import_list {
     WT_WITH_LOCK_WAIT(session, &S2C(session)->metadata_lock, WT_SESSION_LOCKED_METADATA, op)
 
 /*
- * WT_ASSERT_NO_SCHEMA_OP_DURING_ROLE_TRANSITION --
- *	Application threads must not run schema operations during a role transition, which
- *	concurrently modifies layered-table state; internal sessions drive the transition and are
- *	exempt.
- *
- * FIXME-WT-17880: Remove the "role transition" assertions once we have asynchronous
- * step-up/step-down.
- */
-#define WT_ASSERT_NO_SCHEMA_OP_DURING_ROLE_TRANSITION(session)                            \
-    WT_ASSERT_ALWAYS(session,                                                             \
-      !F_ISSET_ATOMIC_32(                                                                 \
-        S2C(session), WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) || \
-        F_ISSET(session, WT_SESSION_INTERNAL),                                            \
-      "schema operation performed during role transition")
-
-/*
  * WT_WITH_SCHEMA_LOCK, WT_WITH_SCHEMA_LOCK_NOWAIT --
  *	Acquire the schema lock, perform an operation, drop the lock.
  *	Check that we are not already holding some other lock: the schema lock
