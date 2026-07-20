@@ -437,9 +437,9 @@ workload_threads_join(TEST_CONFIG *cfg, wt_thread_t *thr)
 /*
  * workload_run_phase --
  *     Start the worker threads for one phase and run them for the given duration. A duration of
- * zero runs until the parent sends SIGKILL. A leader phase checkpoints; a follower phase only
- * advances the schema epoch. The threads are quiesced and joined before returning, carrying the
- * table state back for the next phase.
+ *     zero runs until the parent sends SIGKILL. A leader phase checkpoints; a follower phase only
+ *     advances the schema epoch. The threads are quiesced and joined before returning, carrying the
+ *     table state back for the next phase.
  */
 static void
 workload_run_phase(TEST_CONFIG *cfg, WT_CONNECTION *conn, WORKLOAD_STATE *state,
