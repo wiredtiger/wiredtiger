@@ -759,6 +759,7 @@ err:
          */
         txn->flags = 0;
         txn->time_point.flags = 0;
+        txn->operation_timeout_us = 0;
     }
     return (ret);
 }
