@@ -1561,9 +1561,9 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * new home with an old addr, as the on-page cell would be misinterpreted as an off-page
      * address.
      */
-    page = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
-
-    addr = (WT_ADDR *)__wt_atomic_load_ptr_acquire(&ref->addr);
+    page = ref->home;
+    WT_ACQUIRE_BARRIER();
+    addr = (WT_ADDR *)ref->addr;
     /* If NULL, there is no information. */
     if (addr == NULL)
         return (false);
