@@ -38,6 +38,7 @@ import wiredtiger, wttest
 # as an ordinary WT_PANIC the application can handle, not a crash.
 @wttest.skip_for_hook("tiered", "corrupts local block files not used by tiered storage")
 @wttest.skip_for_hook("disagg", "corrupts blocks which are not relevant for disagg")
+@wttest.skip_for_hook("parallel_checkpoint", "FIXME-WT-18134: deliberately fails a checkpoint; parallel checkpoint tears down worker threads mid-transaction")
 class test_corrupt02(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=50MB,statistics=(fast),debug_mode=(corruption_abort=false),'
                    'eviction_dirty_trigger=50,eviction_updates_trigger=50')
