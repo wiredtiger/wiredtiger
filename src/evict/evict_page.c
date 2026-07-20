@@ -10,6 +10,7 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
+static bool __evict_page_victim_cache_eligible(WT_SESSION_IMPL *, WT_REF *);
 static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
@@ -79,47 +80,47 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  */
 
 /*
- * __evict_page_victim_cache --
- *     Check eligibility and put page in victim cache if applicable.
+ * __evict_page_victim_cache_eligible --
+ *     Check whether a page is eligible to be put in the victim cache.
  */
-static void
-__evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
+static bool
+__evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        return;
+        return (false);
 
     WT_BM *bm = S2BT(session)->bm;
     if (bm == NULL)
-        return;
+        return (false);
 
     WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     if (block_disagg == NULL)
-        return;
+        return (false);
 
     WT_PAGE_LOG_HANDLE *plh = block_disagg->plhandle;
     if (plh == NULL)
-        return;
+        return (false);
 
     if (plh->plh_cache_put == NULL || plh->plh_cache_available == NULL ||
       !plh->plh_cache_available(plh, &session->iface))
-        return;
+        return (false);
 
     WT_PAGE *page = ref->page;
 
     /* Only cache clean pages without modify. */
     if (__wt_page_is_modified(page))
-        return;
+        return (false);
 
     /* Must be a leaf page with disagg info and disk image. */
     if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL || page->dsk == NULL)
-        return;
+        return (false);
 
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
-        return;
+        return (false);
 
     /* Cannot cache root pages. */
     if (__wt_ref_is_root(ref))
-        return;
+        return (false);
 
     /*
      * Pages from cold collections must never enter the victim cache: caching cold data wastes
@@ -128,8 +129,25 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
         WT_STAT_CONN_INCR(session, block_cache_cold_not_cached);
-        return;
+        return (false);
     }
+
+    return (true);
+}
+
+/*
+ * __evict_page_victim_cache --
+ *     Check eligibility and put page in victim cache if applicable.
+ */
+static void
+__evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (!__evict_page_victim_cache_eligible(session, ref))
+        return;
+
+    /* Eligibility has already confirmed the disagg page log handle exists. */
+    WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
+    WT_PAGE *page = ref->page;
 
     /*
      * Time the victim-cache work - compression, checksum and put - and count the pages cached.
@@ -516,7 +534,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
-    else if ((evict_clean && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) || tree_dead)
+    else if ((evict_clean && !__wt_btree_stays_in_memory(S2BT(session))) || tree_dead)
         /*
          * Pages that belong to dead trees never write back to disk and can't support page splits.
          */
@@ -640,7 +658,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     if (!instantiated && !tree_dead && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !closing)
+      !__wt_btree_stays_in_memory(S2BT(session)) && !closing)
         __evict_page_victim_cache(session, ref);
 
     /*
@@ -1090,7 +1108,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * Clean pages can't be evicted from in memory btrees. This should be uncommon - we don't add
      * clean pages to the queue.
      */
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified && !closing)
+    if (__wt_btree_stays_in_memory(btree) && !modified && !closing)
         return (__wt_set_return(session, EBUSY));
 
     /* Check if the page can be evicted. */
@@ -1247,8 +1265,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory btrees. */
-    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    /* Always do update restore for in-memory btrees, and for btrees still awaiting publication. */
+    else if (__wt_btree_stays_in_memory(btree))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle)) {
@@ -1322,7 +1340,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !__wt_btree_stays_in_memory(btree)) {
             uint64_t btree_ckpt_gen, ckpt_gen;
             /*
              * If precise checkpoint is configured, only evict the updates that visible to the

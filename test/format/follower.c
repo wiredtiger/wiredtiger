@@ -32,7 +32,7 @@
  * follower_fetch_full_metadata --
  *     Fetch the full checkpoint metadata from the page log.
  */
-static int
+int
 follower_fetch_full_metadata(WT_SESSION *session, WT_PAGE_LOG *page_log,
   const WT_ITEM *checkpoint_metadata, WT_ITEM *full_metadata)
 {
@@ -149,6 +149,7 @@ follower_read_latest_checkpoint(void)
 
     conn = g.wts_conn;
     disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    memset(&sap, 0, sizeof(sap));
     memset(&args, 0, sizeof(args));
 
     /* Only follower can pickup checkpoints. */
