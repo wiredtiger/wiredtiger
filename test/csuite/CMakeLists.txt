@@ -112,6 +112,9 @@ if(ENABLE_PALITE)
     # for sanitizers to work correctly.
     if(TARGET test_schema_disagg_abort)
         set_target_properties(test_schema_disagg_abort PROPERTIES LINKER_LANGUAGE CXX)
+        # FIXME-WT-18112: Keep this test out of the regular "make check" run until the follower
+        # step-up data-loss bug is fixed. It is driven only by the wiredtiger-disagg project.
+        set_tests_properties(test_schema_disagg_abort PROPERTIES LABELS "disagg")
     endif()
 endif()
 
