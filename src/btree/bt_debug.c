@@ -1020,7 +1020,7 @@ __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
 
         WT_CLEAR(state);
         state.base_dsk = base_dsk;
-        state.dsk = delta_dsk;
+        state.delta_dsk = delta_dsk;
         state.cell = WT_PAGE_HEADER_BYTE(S2BT(session), delta_dsk);
         state.entries = delta_dsk->u.entries;
 
