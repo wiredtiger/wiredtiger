@@ -393,12 +393,12 @@ __disagg_close_one_local(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
- * __disagg_collect_checkpoint_views --
+ * __disagg_collect_checkpoint_dhandles --
  *     Collect the names of all live data handles whose name starts with the given prefix. The
  *     caller must hold the handle list lock.
  */
 static int
-__disagg_collect_checkpoint_views(
+__disagg_collect_checkpoint_dhandles(
   WT_SESSION_IMPL *session, const char *prefix, char ***namesp, size_t *allocp, size_t *countp)
 {
     WT_DATA_HANDLE *dhandle;
@@ -423,14 +423,14 @@ __disagg_collect_checkpoint_views(
 }
 
 /*
- * __disagg_close_checkpoint_views --
- *     Force-close every checkpoint-view handle for a file, i.e. every handle whose name embeds a
+ * __disagg_close_checkpoint_dhandles --
+ *     Force-close every checkpoint dhandle for a file, i.e. every handle whose name embeds a
  *     checkpoint under the URI ("<uri>/<checkpoint>"). A recreated table restarts its checkpoint
  *     numbering, so any surviving handle could be found by a later open of the same checkpoint name
  *     and serve the dropped incarnation's data.
  */
 static int
-__disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *uri)
+__disagg_close_checkpoint_dhandles(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_ITEM(prefix_buf);
     WT_DECL_RET;
@@ -445,7 +445,8 @@ __disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *uri)
 
     /* Collect the names first: the close machinery itself acquires the handle list lock. */
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      ret = __disagg_collect_checkpoint_views(session, prefix_buf->data, &names, &alloc, &count));
+      ret =
+        __disagg_collect_checkpoint_dhandles(session, prefix_buf->data, &names, &alloc, &count));
     WT_ERR(ret);
 
     for (i = 0; i < count; ++i)
@@ -460,58 +461,53 @@ err:
 }
 
 /*
- * __disagg_close_and_remove_local --
- *     Force-close any data handles matching a URI and remove its local metadata entry, if present.
- */
-static int
-__disagg_close_and_remove_local(WT_SESSION_IMPL *session, const char *uri)
-{
-    WT_RET(__disagg_close_one_local(session, uri));
-
-    /*
-     * Followers read a stable constituent through checkpoint-view handles whose names embed the
-     * checkpoint ("<uri>/<checkpoint>"), which the close above does not reach.
-     */
-    if (WT_PREFIX_MATCH(uri, "file:"))
-        WT_RET(__disagg_close_checkpoint_views(session, uri));
-
-    WT_RET_NOTFOUND_OK(__wt_metadata_remove(session, uri));
-    return (0);
-}
-
-/*
  * __disagg_drop_local_layered_int --
  *     Discard the local state of a layered table that the leader has dropped. If any handle is busy
  *     (e.g., the application holds an open cursor on the table), the discard fails with EBUSY,
  *     which aborts the whole pickup before the checkpoint metadata LSN advances; the application
  *     sees the error from the pickup call and retries it later. A retry after a partial discard is
  *     safe: the ingest constituent is dropped first because its handles are the most likely to be
- *     busy, and every removal below tolerates an already-missing entry. The discard is therefore
- *     not atomic: between a failed pickup and its retry, a reader can observe a partially discarded
- *     table, the same as reading a table being concurrently dropped.
+ *     busy, all remaining handles are closed before any local metadata entry is removed, and every
+ *     removal below tolerates an already-missing entry. The discard is still not atomic: between a
+ *     failed pickup and its retry, a reader can observe a partially discarded table, the same as
+ *     reading a table being concurrently dropped.
  */
 static int
 __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
 {
+    WT_DECL_ITEM(layered_uri_buf);
+    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_ITEM(table_uri_buf);
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
 
-    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &table_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &uri_buf));
+
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", name));
+    WT_ERR(__wt_buf_fmt(session, layered_uri_buf, "layered:%s", name));
+    WT_ERR(__wt_buf_fmt(session, table_uri_buf, "table:%s", name));
 
     WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_ingest", name));
     WT_ERR(__wt_schema_drop(session, uri_buf->data, drop_cfg, false));
 
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", name));
-    WT_ERR(__disagg_close_and_remove_local(session, uri_buf->data));
+    /*
+     * Close all data handles before removing any local metadata. Followers read the stable
+     * constituent through checkpoint dhandles whose names embed the checkpoint
+     * ("<uri>/<checkpoint>"), which the close by the base URI does not reach.
+     */
+    WT_ERR(__disagg_close_one_local(session, stable_uri_buf->data));
+    WT_ERR(__disagg_close_checkpoint_dhandles(session, stable_uri_buf->data));
+    WT_ERR(__disagg_close_one_local(session, layered_uri_buf->data));
+    WT_ERR(__disagg_close_one_local(session, table_uri_buf->data));
 
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", name));
-    WT_ERR(__disagg_close_and_remove_local(session, uri_buf->data));
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", name));
-    WT_ERR(__disagg_close_and_remove_local(session, uri_buf->data));
-
-    /* Column groups have no data handles of their own. */
+    /* Remove the local metadata entries. Column groups have no data handles of their own. */
+    WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, stable_uri_buf->data), false);
+    WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, layered_uri_buf->data), false);
+    WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, table_uri_buf->data), false);
     WT_ERR(__wt_buf_fmt(session, uri_buf, "colgroup:%s", name));
     WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, uri_buf->data), false);
 
@@ -519,6 +515,9 @@ __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
       "Discarded the local state of the dropped layered table \"%s\"", name);
 
 err:
+    __wt_scr_free(session, &layered_uri_buf);
+    __wt_scr_free(session, &stable_uri_buf);
+    __wt_scr_free(session, &table_uri_buf);
     __wt_scr_free(session, &uri_buf);
     return (ret);
 }
@@ -998,8 +997,12 @@ __disagg_apply_checkpoint_meta(
                 WT_ERR(__disagg_file_id_mismatch(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
                   md_cursors[WT_DISAGG_CURSOR_FILE], &id_mismatch));
                 if (id_mismatch) {
+                    /* Close all data handles before removing the local metadata entry. */
+                    WT_ERR(__disagg_close_one_local(session, md_keys[WT_DISAGG_CURSOR_FILE]));
                     WT_ERR(
-                      __disagg_close_and_remove_local(session, md_keys[WT_DISAGG_CURSOR_FILE]));
+                      __disagg_close_checkpoint_dhandles(session, md_keys[WT_DISAGG_CURSOR_FILE]));
+                    WT_ERR_NOTFOUND_OK(
+                      __wt_metadata_remove(session, md_keys[WT_DISAGG_CURSOR_FILE]), false);
                     WT_ERR(__disagg_insert_meta(
                       session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
                     ++new_tables;
