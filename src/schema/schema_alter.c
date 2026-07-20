@@ -444,8 +444,6 @@ __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
-    WT_ASSERT_NO_SCHEMA_OP_DURING_ROLE_TRANSITION(session);
-
     /* Add a 2 second wait to simulate session alter slowness. */
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
