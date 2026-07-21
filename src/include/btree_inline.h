@@ -135,8 +135,9 @@ __wt_page_evict_swap(WT_PAGE *page)
     WT_PAGE_MODIFY *mod;
 
     /*
-     * Acquire pairs with the seq_cst CAS that transitions page_state to WT_PAGE_CLEAN at
-     * reconciliation end, ensuring rec_result and mod_disk_image are visible after the state check.
+     * Don't use the more obvious page is modified check, this code has ordering expectations
+     * on the reads between page_state and rec_result/mod_disk_image that need a stronger
+     * load semantic when reading page_state.
      */
     return (!WT_PAGE_IS_INTERNAL(page) && (mod = page->modify) != NULL &&
       __wt_atomic_load_uint32_acquire(&mod->page_state) == WT_PAGE_CLEAN && mod->rec_result != 0 &&

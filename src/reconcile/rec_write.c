@@ -69,6 +69,7 @@ __rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 static WT_INLINE bool
 __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
 {
+    /* The disk image needs to be saved if reconciliation saved updates that need to be restored */
     if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return (true);
 
@@ -80,29 +81,11 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
         return (true);
 
     /*
-     * In-memory reconciliation never writes the block to disk, so the retained image is the page's
-     * only copy and must always be saved. The skip optimizations below apply only when the block is
-     * written, where block_cookie provides the fallback copy for split-multi.
-     */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
-        return (true);
-
-    /*
      * Skip the image if reconciliation could not write all updates: the page will remain dirty and
      * the swap eviction path requires WT_PAGE_CLEAN, so the image would never be used.
      */
     if (r->leave_dirty) {
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_dirty);
-        return (false);
-    }
-
-    /*
-     * During checkpoint scrub, skip the image when the page contains prepared transactions: delta
-     * packing asserts that prepared tombstones are visible to all, which may not hold after
-     * split-rewrite resets the page's reconciliation state.
-     */
-    if (r->rec_page_cell_with_prepared_txn) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_prepared);
         return (false);
     }
 
