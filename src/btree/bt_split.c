@@ -623,6 +623,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     }
 
     /* Free any backing fast-truncate memory. */
+    __wt_dirty_index_clear_page(session, S2BT(session), ref, ref->page);
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */

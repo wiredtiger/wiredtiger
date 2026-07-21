@@ -149,13 +149,15 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     WTI_DIRTY_INDEX *idx;
     uint32_t bp;
 
-    if (page == NULL || (bp = page->dirty_index_slot) == 0 ||
-      (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
+    if (page == NULL || (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return;
 
     __wt_spin_lock(session, &idx->lock);
-    if (WTI_DIRTY_BP_SLOT(bp) < idx->capacity && idx->slots[WTI_DIRTY_BP_SLOT(bp)] == ref)
-        idx->slots[WTI_DIRTY_BP_SLOT(bp)] = NULL;
-    page->dirty_index_slot = 0;
+    bp = page->dirty_index_slot;
+    if (bp != 0) {
+        if (WTI_DIRTY_BP_SLOT(bp) < idx->capacity && idx->slots[WTI_DIRTY_BP_SLOT(bp)] == ref)
+            idx->slots[WTI_DIRTY_BP_SLOT(bp)] = NULL;
+        page->dirty_index_slot = 0;
+    }
     __wt_spin_unlock(session, &idx->lock);
 }
