@@ -49,6 +49,7 @@ from wiredtiger import stat
 class test_eviction06(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=200MB,statistics=(all),'
                    'eviction_dirty_index=true,'
+                   'eviction_dirty_index_disagg=true,'
                    'eviction_dirty_target=80,eviction_dirty_trigger=95,'
                    'eviction_updates_target=80,eviction_updates_trigger=95')
 
@@ -56,8 +57,8 @@ class test_eviction06(wttest.WiredTigerTestCase):
     value_size = 1500
     batch_size = 200
 
-    def get_stat(self, stat_key):
-        stat_cursor = self.session.open_cursor('statistics:')
+    def get_stat(self, stat_key, uri=None):
+        stat_cursor = self.session.open_cursor('statistics:' if uri is None else 'statistics:' + uri)
         val = stat_cursor[stat_key][2]
         stat_cursor.close()
         return val
@@ -93,7 +94,7 @@ class test_eviction06(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
 
         self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
 
         # Phase 2: drive the drain. Tighten the cache and dirty triggers to
         # force eviction pressure, then keep writing so the ring stays
@@ -103,37 +104,61 @@ class test_eviction06(wttest.WiredTigerTestCase):
 
         for _ in range(40):
             self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
-            if self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned) > 0:
+            if self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) > 0:
                 break
             time.sleep(0.05)
 
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned), 0)
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri), 0)
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri), 0)
 
-    # The producer also deduplicates on the page's dirty_index_slot back-pointer
-    # (a non-zero value means the page is already in the ring). That property is
-    # not asserted here: with the ring allocated at open and the eviction drain
-    # always active on an evictable tree, the drain pops and re-fills slots
-    # between any two write waves, so the insert counter cannot cleanly isolate
-    # the back-pointer fast path. That check is exercised implicitly by the
-    # insert/drain test and verified by code review.
+    def test_dirty_index_duplicate_insert_progress(self):
+        uri = 'table:test_eviction06_duplicate'
+        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
+
+        cursor = self.session.open_cursor(uri)
+        for i in range(100):
+            cursor[1] = str(i)
+        cursor.close()
+
+        self.conn.reconfigure('cache_size=20MB,'
+                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
+        self._write_rows(uri, 2, 10000, 'z' * self.value_size)
+
+        for _ in range(40):
+            scanned = self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
+            if scanned > 1:
+                break
+            time.sleep(0.05)
+        self.assertGreater(scanned, 1)
+
+    def test_dirty_index_column_insert(self):
+        uri = 'table:test_eviction06_column'
+        self.session.create(uri, 'key_format=r,value_format=S,leaf_page_max=4KB')
+        self._write_rows(uri, 1, self.nrows, 'x' * self.value_size)
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
+
+    def test_dirty_index_default_off_for_hook(self):
+        if not self.runningHook('disagg'):
+            self.skipTest('requires the disagg hook')
+
+        self.reopen_conn(config='cache_size=200MB,statistics=(all),'
+                                'eviction_dirty_index=true,'
+                                'eviction_dirty_index_disagg=false')
+        uri = 'table:test_eviction06_disagg_off'
+        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
+        self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
+        self.assertEqual(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
 
     def test_dirty_index_disabled(self):
-        # Reopen configured off from the start, rather than reconfiguring a live
-        # connection to false. A runtime reconfigure only stands the drain down:
-        # it does not free rings already allocated for trees opened while the
-        # feature was on, and the producer fast path keys off ring existence, not
-        # the live flag. On a disaggregated leader those background trees keep
-        # taking writes, so their producers would go on filling the surviving
-        # rings and the insert counter would climb. Opening with the feature off
-        # means no ring is ever allocated, so neither the producer nor the drain
-        # can advance a counter under the same write + eviction pressure.
+        # Opening with the feature disabled allocates no ring, so neither producers nor the drain
+        # can advance their counters under write and eviction pressure.
         self.reopen_conn(config='cache_size=200MB,statistics=(all),'
                                 'eviction_dirty_index=false')
         uri = 'table:test_eviction06_off'
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
 
-        baseline_insert = self.get_stat(stat.conn.cache_eviction_dirty_index_insert)
-        baseline_drain  = self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned)
+        baseline_insert = self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri)
+        baseline_drain = self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
 
         self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
         self.conn.reconfigure('cache_size=20MB,'
@@ -142,8 +167,10 @@ class test_eviction06(wttest.WiredTigerTestCase):
             self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
             time.sleep(0.05)
 
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert)       - baseline_insert, 0)
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_drain_scanned) - baseline_drain,  0)
+        self.assertEqual(
+            self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri) - baseline_insert, 0)
+        self.assertEqual(
+            self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri) - baseline_drain, 0)
 
     def test_dirty_index_disabled_at_runtime(self):
         # Reconfiguring the feature off must stand the producer down too, not just
@@ -155,7 +182,7 @@ class test_eviction06(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
         self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
 
-        self.assertGreater(self.get_stat(stat.conn.cache_eviction_dirty_index_insert), 0)
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
 
         self.conn.reconfigure('eviction_dirty_index=false')
 
@@ -165,7 +192,7 @@ class test_eviction06(wttest.WiredTigerTestCase):
         # post-baseline delta isolates activity under the disabled feature -- none.
         self.session.checkpoint()
         time.sleep(1)
-        baseline_insert = self.get_stat(stat.conn.cache_eviction_dirty_index_insert)
+        baseline_insert = self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri)
 
         self.conn.reconfigure('cache_size=20MB,'
                               'eviction_dirty_target=2,eviction_dirty_trigger=5')
@@ -173,7 +200,8 @@ class test_eviction06(wttest.WiredTigerTestCase):
             self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
             time.sleep(0.05)
 
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_dirty_index_insert) - baseline_insert, 0)
+        self.assertEqual(
+            self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri) - baseline_insert, 0)
 
 if __name__ == '__main__':
     wttest.run()

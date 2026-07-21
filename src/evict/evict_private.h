@@ -35,9 +35,9 @@ struct __wti_evict_entry {
 
 /*
  * WTI_DIRTY_INDEX --
- *     Per-btree ring of WT_REF pointers fed by cursor modifies. The ring lock serializes producers
- *     and the eviction walker. Capacity is a power of two so the consumer can mask-index into the
- *     slot array.
+ *     Per-btree ring of WT_REF pointers fed by cursor modifies. Producers reserve positions by
+ *     atomically advancing head, then publish through per-slot sequence counters. Capacity is a
+ *     power of two so the consumer can mask-index into the slot array.
  *
  *     Layout (head and tail are monotonically increasing counters; slot index = counter & mask):
  *
@@ -46,15 +46,15 @@ struct __wti_evict_entry {
  *       slots[]:  [ . ][ R ][ R ][ R ][ R ][ R ][ . ][ . ] ...    (R = live ref, . = empty)
  *                 `------ drained FIFO ------'`--- live ---'
  *
- *     A producer that cannot acquire the lock abandons the fast path. The eviction walker remains
- *     the source of truth, so the ring is best-effort, never authoritative.
+ *     A producer that finds the bounded ring full abandons the fast path. The eviction walker
+ *     remains the source of truth, so the ring is best-effort, never authoritative.
  */
 #define WTI_DIRTY_INDEX_MIN_CAPACITY (16 * 1024u)
 #define WTI_DIRTY_INDEX_MAX_CAPACITY (256 * 1024u)
 
 /*
- * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot. The ring
- * lock protects both this field and the corresponding slot.
+ * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot. Producers
+ * and page teardown coordinate ownership with atomic compare-and-swap operations.
  */
 #define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
 #define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
@@ -63,8 +63,8 @@ struct __wti_evict_entry {
  * Adaptive drain scheduling. After EMPTY_THRESHOLD consecutive empty drains the per-btree drain
  * parks (walker-only) and re-probes once every PROBE_INTERVAL passes. Separately, a precise
  * checkpoint cannot evict a dirty page whose commit timestamp is ahead of the pinned stable
- * timestamp; when a ring fills with such pages the drain captures the median blocked commit
- * timestamp and the walker skips the drain until the stable timestamp crosses it (see
+ * timestamp; when a ring fills with such pages the drain captures the midpoint of the blocked
+ * commit timestamp range and the walker skips the drain until the stable timestamp crosses it (see
  * WT_BTREE.drain_stable_block_ts). The drain then stops re-examining and re-inserting pages it
  * cannot queue while their working set sits ahead of stable; the walker still evicts any page that
  * does fall below stable in the meantime.
@@ -78,11 +78,13 @@ typedef struct {
 } WTI_DIRTY_INDEX_SLOT;
 
 struct __wti_dirty_index {
+    wt_shared uint64_t head; /* Next slot to reserve */
+    uint8_t head_padding[WT_CACHE_LINE_ALIGNMENT - sizeof(uint64_t)];
+    wt_shared uint64_t tail; /* Next slot to drain */
+    uint8_t tail_padding[WT_CACHE_LINE_ALIGNMENT - sizeof(uint64_t)];
     WTI_DIRTY_INDEX_SLOT *slots; /* Circular buffer of published ref pointers */
     uint32_t capacity;           /* Slot count (power of two) */
     uint32_t mask;               /* capacity - 1 */
-    wt_shared uint64_t head;     /* Next slot to reserve */
-    wt_shared uint64_t tail;     /* Next slot to drain */
 };
 
 /*

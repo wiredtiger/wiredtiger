@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+#define WTI_DIRTY_INDEX_ESTIMATED_PAGE_SIZE_MAX (64u * 1024)
+
 /*
  * __evict_dirty_index_capacity --
  *     Return a power-of-two slot count based on the btree's file size.
@@ -20,8 +22,8 @@ __evict_dirty_index_capacity(WT_BTREE *btree, uint64_t size_hint)
     if (WT_IS_HS(btree->dhandle))
         return (WTI_DIRTY_INDEX_MAX_CAPACITY);
 
-    capacity =
-      (uint32_t)WT_MIN(UINT32_MAX, size_hint / WT_MAX(1u, WT_MIN(btree->maxleafpage, 64u * 1024)));
+    capacity = (uint32_t)WT_MIN(UINT32_MAX,
+      size_hint / WT_MAX(1u, WT_MIN(btree->maxleafpage, WTI_DIRTY_INDEX_ESTIMATED_PAGE_SIZE_MAX)));
     capacity = WT_CLAMP(capacity, WTI_DIRTY_INDEX_MIN_CAPACITY, WTI_DIRTY_INDEX_MAX_CAPACITY);
     --capacity;
     capacity |= capacity >> 1;
@@ -44,8 +46,10 @@ __wt_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
     wt_off_t file_size;
     uint32_t capacity, i;
 
-    if (!S2C(session)->evict->eviction_dirty_index || WT_IS_METADATA(btree->dhandle) ||
-      WT_IS_DISAGG_META(btree->dhandle) ||
+    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->evict->eviction_dirty_index) ||
+      WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
+      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+        !__wt_atomic_load_bool_relaxed(&S2C(session)->evict->eviction_dirty_index_disagg)) ||
       F_ISSET(btree, WT_BTREE_READONLY | WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_VERIFY) ||
       WT_DHANDLE_IS_CHECKPOINT(btree->dhandle))
         return (0);
@@ -111,6 +115,11 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
       !F_ISSET(ref, WT_REF_FLAG_LEAF) || (page = ref->page) == NULL || page->modify == NULL ||
       (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return (false);
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index_disagg))
+        return (false);
+    if (__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != 0)
+        return (false);
 
     pos = __wt_atomic_load_uint64_relaxed(&idx->head);
     for (;;) {
@@ -118,9 +127,17 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
         seq = __wt_atomic_load_uint64_acquire(&slotp->sequence);
         dif = (int64_t)(seq - pos);
         if (dif == 0) {
-            if (__wt_atomic_cas_uint64(&idx->head, pos, pos + 1))
+            if (__wt_atomic_cas_uint64_relaxed(&idx->head, pos, pos + 1))
                 break;
+            WT_PAUSE();
+            pos = __wt_atomic_load_uint64_relaxed(&idx->head);
         } else if (dif < 0) {
+            if (WT_STAT_ENABLED(session)) {
+                __wt_atomic_stats_max_uint64(
+                  &evict->dirty_index_ring_full_capacity_max, idx->capacity);
+                __wt_atomic_stats_max_uint64(
+                  &evict->dirty_index_ring_peak_occupancy, idx->capacity);
+            }
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_ring_full);
             return (false);
         } else
@@ -130,7 +147,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     slot = (uint32_t)pos & idx->mask;
     if (!__wt_atomic_cas_uint32(&page->dirty_index_slot, 0, slot + 1)) {
         __wt_atomic_store_ptr_release(&slotp->ref, NULL);
-        __wt_atomic_store_uint64_release(&slotp->sequence, pos + idx->capacity);
+        __wt_atomic_store_uint64_release(&slotp->sequence, pos + 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_contended);
         return (false);
     }
@@ -138,7 +155,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     __wt_atomic_store_ptr_release(&slotp->ref, ref);
     if (__wt_atomic_load_uint32_acquire(&page->dirty_index_slot) != slot + 1) {
         (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
-        __wt_atomic_store_uint64_release(&slotp->sequence, pos + idx->capacity);
+        __wt_atomic_store_uint64_release(&slotp->sequence, pos + 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_contended);
         return (false);
     }

@@ -856,11 +856,16 @@ connection_runtime_config = [
         This setting only alters behavior if it is lower than eviction_trigger''',
         min=1, max='10TB'),
     Config('eviction_dirty_index', 'true', r'''
-        if true, allocate a per-btree dirty-page index that captures page references at
-        modify-time and supplies them to the eviction queue, alongside the tree walker. The drain
-        runs on alternating eviction passes when dirty/updates pressure is active and falls back
-        to the walker when the ring is empty or clean eviction is the bottleneck. Disable to fall
-        back to walker-only candidate discovery (no per-btree ring is allocated)''',
+        if true, use a per-btree dirty-page index that captures page references at modify-time and
+        supplies them to the eviction queue alongside the tree walker. Rings are allocated when a
+        btree handle opens and retained until it closes, so enabling this setting requires existing
+        handles to be reopened before they use the index. Disabling immediately stops producers and
+        drains, but does not free existing rings. The walker remains active as the fallback''',
+        type='boolean'),
+    Config('eviction_dirty_index_disagg', 'false', r'''
+        if true, also use the per-btree dirty-page index for disaggregated storage btrees. Disabled
+        by default because ring churn competes with checkpoint materialization lag. Requires \c
+        eviction_dirty_index''',
         type='boolean'),
     Config('eviction_target', '80', r'''
         perform eviction in worker threads when the cache contains at least this much content. It

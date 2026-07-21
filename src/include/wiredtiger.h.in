@@ -2365,12 +2365,16 @@ struct __wt_connection {
      * is within the range of 0 to 100 or an absolute size when greater than 100. The value is not
      * allowed to exceed the \c cache_size.  Ignored if set to zero., an integer between \c 0 and \c
      * 10TB; default \c 1.}
-     * @config{eviction_dirty_index, if true\, allocate a per-btree dirty-page index that captures
-     * page references at modify-time and supplies them to the eviction queue\, alongside the tree
-     * walker.  The drain runs on alternating eviction passes when dirty/updates pressure is active
-     * and falls back to the walker when the ring is empty or clean eviction is the bottleneck.
-     * Disable to fall back to walker-only candidate discovery (no per-btree ring is allocated)., a
-     * boolean flag; default \c true.}
+     * @config{eviction_dirty_index, if true\, use a per-btree dirty-page index that captures page
+     * references at modify-time and supplies them to the eviction queue alongside the tree walker.
+     * Rings are allocated when a btree handle opens and retained until it closes\, so enabling this
+     * setting requires existing handles to be reopened before they use the index.  Disabling
+     * immediately stops producers and drains\, but does not free existing rings.  The walker
+     * remains active as the fallback., a boolean flag; default \c true.}
+     * @config{eviction_dirty_index_disagg, if true\, also use the per-btree dirty-page index for
+     * disaggregated storage btrees.  Disabled by default because ring churn competes with
+     * checkpoint materialization lag.  Requires \c eviction_dirty_index., a boolean flag; default
+     * \c false.}
      * @config{eviction_dirty_target, perform eviction in worker threads when the cache contains at
      * least this much dirty content.  It is a percentage of the cache size if the value is within
      * the range of 1 to 100 or an absolute size when greater than 100. The value is not allowed to
@@ -3336,12 +3340,15 @@ struct __wt_connection {
  * within the range of 0 to 100 or an absolute size when greater than 100. The value is not allowed
  * to exceed the \c cache_size.  Ignored if set to zero., an integer between \c 0 and \c 10TB;
  * default \c 1.}
- * @config{eviction_dirty_index, if true\, allocate a per-btree dirty-page index that captures page
- * references at modify-time and supplies them to the eviction queue\, alongside the tree walker.
- * The drain runs on alternating eviction passes when dirty/updates pressure is active and falls
- * back to the walker when the ring is empty or clean eviction is the bottleneck.  Disable to fall
- * back to walker-only candidate discovery (no per-btree ring is allocated)., a boolean flag;
- * default \c true.}
+ * @config{eviction_dirty_index, if true\, use a per-btree dirty-page index that captures page
+ * references at modify-time and supplies them to the eviction queue alongside the tree walker.
+ * Rings are allocated when a btree handle opens and retained until it closes\, so enabling this
+ * setting requires existing handles to be reopened before they use the index.  Disabling
+ * immediately stops producers and drains\, but does not free existing rings.  The walker remains
+ * active as the fallback., a boolean flag; default \c true.}
+ * @config{eviction_dirty_index_disagg, if true\, also use the per-btree dirty-page index for
+ * disaggregated storage btrees.  Disabled by default because ring churn competes with checkpoint
+ * materialization lag.  Requires \c eviction_dirty_index., a boolean flag; default \c false.}
  * @config{eviction_dirty_target, perform eviction in worker threads when the cache contains at
  * least this much dirty content.  It is a percentage of the cache size if the value is within the
  * range of 1 to 100 or an absolute size when greater than 100. The value is not allowed to exceed
@@ -6750,59 +6757,56 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	1129
 /*! cache: dirty bytes belonging to the history store table in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_HS_DIRTY		1130
+/*! cache: dirty index drain attempts blocked by hazard-pointer failure */
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD	1131
 /*!
  * cache: dirty index drain passes skipped because the pinned stable
- * timestamp lags the ring median commit timestamp
+ * timestamp lags the midpoint of the blocked commit timestamp range
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_STABLE_LAG	1131
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_STABLE_LAG	1132
 /*!
  * cache: dirty index drain skipped because the disaggregated btree was
  * already visited by the running checkpoint
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_DISAGG_CHECKPOINTED	1132
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_DISAGG_CHECKPOINTED	1133
 /*! cache: dirty index drain skipped due to active checkpoint */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CHECKPOINT	1133
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CHECKPOINT	1134
 /*! cache: dirty index drain skipped due to clean-page eviction pressure */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CLEAN_PRESSURE	1134
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CLEAN_PRESSURE	1135
 /*! cache: dirty index inserts */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT	1135
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT	1136
 /*!
  * cache: dirty index inserts abandoned because a concurrent producer won
  * the slot
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_CONTENDED	1136
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_CONTENDED	1137
 /*! cache: dirty index inserts dropped due to full ring */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL	1137
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL	1138
 /*! cache: dirty index largest capacity among rings that hit full */
-#define	WT_STAT_CONN_EVICTION_DIRTY_INDEX_RING_FULL_CAPACITY_MAX	1138
+#define	WT_STAT_CONN_EVICTION_DIRTY_INDEX_RING_FULL_CAPACITY_MAX	1139
 /*! cache: dirty index largest ring occupancy seen in slots */
-#define	WT_STAT_CONN_EVICTION_DIRTY_INDEX_RING_PEAK_OCCUPANCY	1139
+#define	WT_STAT_CONN_EVICTION_DIRTY_INDEX_RING_PEAK_OCCUPANCY	1140
 /*!
  * cache: dirty index slots dropped by drain because the page was clean
  * or already queued
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE	1140
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE	1141
 /*! cache: dirty index slots examined by drain */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SCANNED	1141
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SCANNED	1142
 /*!
  * cache: dirty index slots queued to ordinary or urgent eviction by
  * drain
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_QUEUED	1142
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_QUEUED	1143
 /*! cache: dirty index slots reinserted after the LRU sort trimmed them */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_TRIM_REINSERTED	1143
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_TRIM_REINSERTED	1144
 /*!
  * cache: dirty index slots reinserted by drain after candidacy filter
  * miss
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_REINSERTED	1144
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_REINSERTED	1145
 /*! cache: dirty index slots skipped by drain due to candidacy filter */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_FILTERED	1145
-/*!
- * cache: dirty index slots skipped by drain due to hazard-pointer
- * failure
- */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD	1146
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_FILTERED	1146
 /*! cache: dirty internal page cannot be evicted in disaggregated storage */
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	1147
 /*! cache: evict page attempts by eviction server */
@@ -9476,55 +9480,52 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	2083
 /*! cache: data source pages selected for eviction unable to be evicted */
 #define	WT_STAT_DSRC_EVICTION_FAIL			2084
+/*! cache: dirty index drain attempts blocked by hazard-pointer failure */
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD	2085
 /*!
  * cache: dirty index drain passes skipped because the pinned stable
- * timestamp lags the ring median commit timestamp
+ * timestamp lags the midpoint of the blocked commit timestamp range
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_STABLE_LAG	2085
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_STABLE_LAG	2086
 /*!
  * cache: dirty index drain skipped because the disaggregated btree was
  * already visited by the running checkpoint
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_DISAGG_CHECKPOINTED	2086
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_DISAGG_CHECKPOINTED	2087
 /*! cache: dirty index drain skipped due to active checkpoint */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CHECKPOINT	2087
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CHECKPOINT	2088
 /*! cache: dirty index drain skipped due to clean-page eviction pressure */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CLEAN_PRESSURE	2088
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CLEAN_PRESSURE	2089
 /*! cache: dirty index inserts */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT	2089
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT	2090
 /*!
  * cache: dirty index inserts abandoned because a concurrent producer won
  * the slot
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT_CONTENDED	2090
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT_CONTENDED	2091
 /*! cache: dirty index inserts dropped due to full ring */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL	2091
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL	2092
 /*!
  * cache: dirty index slots dropped by drain because the page was clean
  * or already queued
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE	2092
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE	2093
 /*! cache: dirty index slots examined by drain */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SCANNED	2093
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SCANNED	2094
 /*!
  * cache: dirty index slots queued to ordinary or urgent eviction by
  * drain
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_QUEUED	2094
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_QUEUED	2095
 /*! cache: dirty index slots reinserted after the LRU sort trimmed them */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_TRIM_REINSERTED	2095
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_TRIM_REINSERTED	2096
 /*!
  * cache: dirty index slots reinserted by drain after candidacy filter
  * miss
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_REINSERTED	2096
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_REINSERTED	2097
 /*! cache: dirty index slots skipped by drain due to candidacy filter */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_FILTERED	2097
-/*!
- * cache: dirty index slots skipped by drain due to hazard-pointer
- * failure
- */
-#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD	2098
+#define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_FILTERED	2098
 /*! cache: dirty internal page cannot be evicted in disaggregated storage */
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_DISAGG_DIRTY_INTERNAL_PAGE	2099
 /*!
