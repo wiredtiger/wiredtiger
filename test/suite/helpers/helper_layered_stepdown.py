@@ -34,9 +34,9 @@ from wiredtiger import stat
 
 # Shared helpers for the layered async step-down test suite.
 class LayeredStepdownMixin:
-    # Substring of the WT_ROLLBACK last-error reason.
+    # A substring of the WT_ROLLBACK last-error reason.
     STRADDLER_REASON = 'started before the step-down timestamp was set'
-    
+
     # FIXME-WT-17895: remove this skip once the planned step-down implementation lands.
     def setUp(self):
         self.skipTest('elegant step-down is not implemented yet')

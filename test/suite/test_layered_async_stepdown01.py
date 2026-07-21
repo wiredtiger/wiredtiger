@@ -101,14 +101,14 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         # Modify k3: build the new value on the stable base, write the result to ingest.
         self.session.begin_transaction()
         cursor.set_key('k3')
-        cursor.modify([wiredtiger.Modify('X', 0, 1)])  # 'base' -> 'Xase'
+        cursor.modify([wiredtiger.Modify('v', 0, 1)])  # 'base' -> 'vase'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(32))
         cursor.close()
 
         # Merged result on the leader: update and modify reflected, remove hides the stable key.
         kv = self.read_kvs_at(self.uri, 40)
         self.assertEqual(kv.get('k1'), 'updated')
-        self.assertEqual(kv.get('k3'), 'Xase')
+        self.assertEqual(kv.get('k3'), 'vase')
         self.assertNotIn('k2', kv)
 
         # All three writes landed in ingest (the remove as a tombstone record shadowing stable);
@@ -120,7 +120,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # The update, modify and tombstone all survive the completed step-down.
         self.complete_step_down(20)
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'Xase'})
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'vase'})
 
     # All tables share the same cutoff; arming once routes all their post-arm writes to ingest.
     def test_multiple_tables_share_cutoff(self):

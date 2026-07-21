@@ -140,7 +140,7 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
         self.assertEqual(self.read_kvs_at(self.uri, 25), {})
 
-    # An untimestamped commit while armed succeeds and lands in ingest; pins current behavior.
+    # A commit without a timestamp while armed succeeds and lands in ingest; pins current behavior.
     def test_untimestamped_commit_while_armed(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')

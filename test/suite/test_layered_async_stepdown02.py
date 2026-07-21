@@ -239,7 +239,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         rcur.set_key('a')
         self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
 
-        # search_near: lands on a visible stable neighbour, never the invisible ingest 'c'.
+        # search_near: lands on a visible stable neighbor, never the invisible ingest 'c'.
         rcur.set_key('c')
         cmp = rcur.search_near()
         self.assertNotEqual(cmp, wiredtiger.WT_NOTFOUND)

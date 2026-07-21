@@ -89,7 +89,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-    # Txn writes pre-arm, arm fires, commit rolls back; retry lands in ingest.
+    # Transaction writes pre-arm, arm fires, commit rolls back; retry lands in ingest.
     def test_arm_just_before_commit_rolls_back(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
