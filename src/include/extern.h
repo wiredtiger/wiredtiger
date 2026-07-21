@@ -2756,6 +2756,8 @@ extern void __ut_disagg_prune_pending_crypt_keys(WT_SESSION_IMPL *session, wt_ti
 extern void __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt);
 extern void __ut_layered_table_truncate_gc(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const wt_timestamp_t prune_timestamp);
+extern void __ut_txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp,
+  uint64_t *last_runningp, uint64_t *metadata_pinnedp, WT_SESSION_IMPL **oldest_sessionp);
 
 #endif
 
