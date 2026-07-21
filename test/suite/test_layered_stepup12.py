@@ -29,11 +29,13 @@
 # test_layered_stepup12.py
 #   Verify how schema operations on layered tables behave during a role transition, against both
 #   step-up (follower->leader) and step-down (leader->follower):
-#     - Operations that take only the schema lock (create, and drop with checkpoint_wait=false) can
-#       race the transition, so they hit the schema lock guard and abort the process.
-#     - Operations that take the checkpoint lock first (truncate, verify, and drop with
+#     - Schema ops that take only the schema lock (create, and drop with checkpoint_wait=false) can
+#       race the transition, so they hit the "ongoing role-transition" guard and abort the process.
+#     - Schema ops that take the checkpoint lock first (truncate, verify, and drop with
 #       checkpoint_wait=true) are serialized against the transition by that lock - it is held for
 #       the whole step up/down - so they never observe the transition and do not abort.
+#     - Opening a statistics cursor acquires the schema lock to open a data handle, but a handle
+#       open is not a schema operation, so it is allowed during a transition and must not abort.
 #
 #   Each scenario runs in a subprocess, so that the expected aborts are caught as a
 #   non-zero exit code without killing the test runner.
@@ -70,6 +72,8 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             dict(op='truncate',                                     expect_abort=False)),
         ('verify',
             dict(op='verify',                                       expect_abort=False)),
+        ('stat_cursor',
+            dict(op='stat_cursor',                                  expect_abort=False)),
     ]
     scenarios = make_scenarios(disagg_storages, transitions, ops)
 
@@ -99,7 +103,10 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             meta = self.disagg_get_complete_checkpoint_meta(conn)
             self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
             conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
-            session.open_cursor(self.uri).close()
+            # Leave the handle unopened for the stat-cursor case so that opening the statistics
+            # cursor during the transition triggers a first-time handle open.
+            if self.op != 'stat_cursor':
+                session.open_cursor(self.uri).close()
 
         # Start the role transition in a background thread.
         t = threading.Thread(
@@ -131,6 +138,9 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
                 session.truncate(self.uri, None, None, None)
             case 'verify':
                 session.verify(self.uri, None)
+            case 'stat_cursor':
+                session.open_cursor(
+                    'statistics:' + self.uri, None, 'statistics=(all)').close()
 
         t.join()
 
