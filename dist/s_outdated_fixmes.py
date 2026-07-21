@@ -34,7 +34,9 @@ import argparse, datetime, json, os, pathlib, re, sys, urllib.request
 
 # Grace period: tickets closed as Done/Fixed on a feature branch need time to
 # merge back to the develop branch before their FIXMEs are flagged as outdated.
-GRACE_PERIOD_DAYS = 90
+# Any other resolution type, such as Duplicate or Won't Fix, is flagged
+# immediately.
+GRACE_PERIOD_DAYS = 50
 GRACE_PERIOD_RESOLUTIONS = {"Done", "Fixed"}
 
 
