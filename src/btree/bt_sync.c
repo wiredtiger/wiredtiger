@@ -252,6 +252,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT, "subq SYNC_START tree=%s",
+          btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
+
         /*
          * Reset the number of obsolete time window pages to let the eviction threads and checkpoint
          * cleanup operation to continue marking the clean obsolete time window pages as dirty once
@@ -435,6 +438,9 @@ err:
          */
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
         __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
+
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT, "subq SYNC_END   tree=%s",
+          btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
     }
 
     __wt_spin_unlock(session, &btree->flush_lock);

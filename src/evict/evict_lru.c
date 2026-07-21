@@ -1387,6 +1387,11 @@ __evict_get_ref(
              * rather than one check per page as it would in a flat queue.
              */
             if (__evict_level_is_dirty_leaf(i)) {
+                WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
+                WT_EVICT_DHANDLE_SUBQUEUE *subq;
+                const char *subq_name;
+                uint32_t slot;
+
                 WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
                 for (slot = 0; slot < evict->dhandle_hash_size; slot++) {
@@ -1394,6 +1399,8 @@ __evict_get_ref(
 
                     if (__wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY) {
                         WT_STAT_CONN_INCR(session, eviction_skip_locked_hashchain);
+                        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+                          "subq WALK   bucket_id=%" PRIu64 " slot=%u CHAIN_BUSY", bucket->id, slot);
                         continue;
                     }
 
@@ -1402,8 +1409,22 @@ __evict_get_ref(
                             continue;
                         if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle)) {
                             WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
+                            __wt_verbose_debug2(session, WT_VERB_EVICTION,
+                              "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u SKIP_SYNCING",
+                              subq->dhandle->name != NULL ? subq->dhandle->name : "(null)",
+                              bucket->id, slot);
                             continue;
                         }
+
+                        /*
+                         * Capture the tree name while we still hold the chain lock: after we drop
+                         * the subqueue lock below, subq may be freed by a concurrent close, so we
+                         * must not dereference it (or its dhandle) for the result trace.
+                         */
+                        subq_name = subq->dhandle->name != NULL ? subq->dhandle->name : "(null)";
+                        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+                          "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u SCAN", subq_name,
+                          bucket->id, slot);
 
                         /*
                          * Hand over hand: take the subqueue lock, then drop the chain lock, so
@@ -1420,6 +1441,11 @@ __evict_get_ref(
                             __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
                         }
                         __wt_spin_unlock(session, &subq->evict_queue_lock);
+
+                        /* subq may now be freed by a concurrent close: use the captured name. */
+                        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+                          "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u %s", subq_name,
+                          bucket->id, slot, ref != NULL ? "GOT_PAGE" : "NO_PAGE");
 
 						/*
 						 * After releasing the subqueue lock never re-acquire the subqueue lock
@@ -1983,14 +2009,27 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
 				WT_STAT_CONN_INCR(session, eviction_pages_unqueued_out_of_memory);
 				return;
 			}
+            __wt_verbose_debug2(session, WT_VERB_EVICTION,
+              "subq CREATE tree=%s bucket_id=%" PRIu64 " slot=%d level=%d",
+              page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
+              bucket->id, hash_slot, (int)i);
             TAILQ_INSERT_HEAD(&dhandle_hashentry->dhandle_hashchain, dhandle_subqueue, dhandle_subq);
-		}
+		} else
+            __wt_verbose_debug2(session, WT_VERB_EVICTION,
+              "subq REUSE  tree=%s bucket_id=%" PRIu64 " slot=%d level=%d",
+              page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
+              bucket->id, hash_slot, (int)i);
 
 		__wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
 		TAILQ_INSERT_TAIL(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
 		__wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
 
         __wt_spin_unlock(session, &dhandle_hashentry->evict_hashchain_lock);
+
+        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+          "subq ENQ    tree=%s bucket_id=%" PRIu64 " slot=%d level=%d",
+          page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
+          bucket->id, hash_slot, (int)i);
 
 
 	} else {

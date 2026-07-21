@@ -624,6 +624,10 @@ __wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *d
                 TAILQ_REMOVE(&hash_entry->dhandle_hashchain, subq, dhandle_subq);
                 __wt_spin_unlock(session, &subq->evict_queue_lock);
 
+                __wt_verbose_debug2(session, WT_VERB_EVICTION,
+                  "subq DESTROY tree=%s bucket_id=%" PRIu64 " slot=%" PRIu32,
+                  dhandle->name != NULL ? dhandle->name : "(null)", bucket->id, hash_slot);
+
                 __wt_spin_destroy(session, &subq->evict_queue_lock);
                 __wt_free(session, subq);
                 break;
