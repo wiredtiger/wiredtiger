@@ -1959,6 +1959,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by application threads",
   "cache: evict page failures by eviction worker threads",
+  "cache: eviction  skips internal pages as it has an active child",
   "cache: eviction bucket items clean internal",
   "cache: eviction bucket items clean leaf",
   "cache: eviction bucket items dirty internal",
@@ -1997,20 +1998,14 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction selected pages from won't need internal bucket",
   "cache: eviction server races with the reconfigure API call in disagg",
   "cache: eviction server read generation",
-  "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
   "is in progress",
-  "cache: eviction server skips dirty pages during a running checkpoint",
-  "cache: eviction server skips ingest btrees in disagg",
-  "cache: eviction server skips internal pages as it has an active child",
-  "cache: eviction server skips metadata pages with history",
   "cache: eviction server skips pages that are written with transactions greater than the "
   "checkpoint timestamp",
   "cache: eviction server skips pages that are written with transactions greater than the prune "
   "timestamp",
   "cache: eviction server skips stable btrees in disagg",
-  "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
   "cache: eviction server skips trees that are read-only if it is not looking for clean pages",
   "cache: eviction server skips trees that disable eviction",
@@ -2020,13 +2015,19 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction skipped a page, because a hazard pointer was set",
   "cache: eviction skipped a page, because the bucket was locked",
   "cache: eviction skipped an empty bucket",
+  "cache: eviction skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction skips a dirty candidate, because it has few updates and we are not under "
   "pressure",
   "cache: eviction skips a dirty page, when we are not aggressive",
   "cache: eviction skips a page, because it cannot be evicted",
   "cache: eviction skips a page, because we could not evict it before",
+  "cache: eviction skips dirty pages during a running checkpoint",
+  "cache: eviction skips ingest btrees in disagg",
+  "cache: eviction skips locked per-dhandle hash chains in dirty buckets",
+  "cache: eviction skips metadata pages with history",
   "cache: eviction skips pages that are written with transactions greater than the last running",
   "cache: eviction skips pages that previously failed eviction and likely will again",
+  "cache: eviction skips trees that are being checkpointed",
   "cache: eviction starting bucket clean internal bucket",
   "cache: eviction starting bucket clean leaf bucket",
   "cache: eviction starting bucket dirty internal bucket",
@@ -2153,6 +2154,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages dirtied due to obsolete time window by eviction",
   "cache: pages evicted ahead of the page materialization frontier",
   "cache: pages evicted in parallel with checkpoint",
+  "cache: pages left unqueued because a per-tree subqueue allocation failed",
   "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
@@ -3052,6 +3054,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_worker_evict_attempt = 0;
     stats->eviction_app_evict_fail = 0;
     stats->eviction_worker_evict_fail = 0;
+    stats->eviction_skip_intl_page_with_active_child = 0;
     /* not clearing eviction_bucket_clean_internal_items */
     /* not clearing eviction_bucket_clean_leaf_items */
     /* not clearing eviction_bucket_dirty_internal_items */
@@ -3084,17 +3087,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_target_bucket_wont_need_internal = 0;
     stats->eviction_server_race_reconfigure_disagg = 0;
     stats->eviction_server_readgen = 0;
-    stats->eviction_skip_intl_page_non_aggressive = 0;
     stats->cache_eviction_blocked_prefetched = 0;
     stats->eviction_skip_history_store_pages_with_updates_during_checkpoint = 0;
-    stats->eviction_skip_dirty_pages_during_checkpoint = 0;
-    stats->eviction_skip_ingest_trees = 0;
-    stats->eviction_skip_intl_page_with_active_child = 0;
-    stats->eviction_skip_metatdata_with_history = 0;
     stats->eviction_skip_page_checkpoint_timestamp = 0;
     stats->eviction_skip_page_prune_timestamp = 0;
     stats->eviction_skip_stable_trees = 0;
-    stats->eviction_skip_checkpointing_trees = 0;
     stats->eviction_skip_trees_stick_in_cache = 0;
     stats->eviction_skip_trees_read_only = 0;
     stats->eviction_skip_trees_eviction_disabled = 0;
@@ -3104,12 +3101,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_skip_page_hazard = 0;
     stats->eviction_skip_page_locked_bucket = 0;
     stats->eviction_skip_empty_bucket = 0;
+    stats->eviction_skip_intl_page_non_aggressive = 0;
     stats->eviction_skip_few_updates_no_pressure = 0;
     stats->eviction_skip_page_dirty_not_aggressive = 0;
     stats->eviction_skip_page_cannot_evict = 0;
     stats->eviction_skip_page_again = 0;
+    stats->eviction_skip_dirty_pages_during_checkpoint = 0;
+    stats->eviction_skip_ingest_trees = 0;
+    stats->eviction_skip_locked_hashchain = 0;
+    stats->eviction_skip_metatdata_with_history = 0;
     stats->eviction_skip_page_last_running = 0;
     stats->eviction_skip_pages_retry = 0;
+    stats->eviction_skip_checkpointing_trees = 0;
     /* not clearing eviction_min_bucket_clean_internal */
     /* not clearing eviction_min_bucket_clean_leaf */
     /* not clearing eviction_min_bucket_dirty_internal */
@@ -3225,6 +3228,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty_obsolete_tw = 0;
     stats->cache_eviction_ahead_of_last_materialized_lsn = 0;
     stats->eviction_pages_in_parallel_with_checkpoint = 0;
+    stats->eviction_pages_unqueued_out_of_memory = 0;
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
@@ -4134,6 +4138,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
     to->eviction_app_evict_fail += WT_STAT_CONN_READ(from, eviction_app_evict_fail);
     to->eviction_worker_evict_fail += WT_STAT_CONN_READ(from, eviction_worker_evict_fail);
+    to->eviction_skip_intl_page_with_active_child +=
+      WT_STAT_CONN_READ(from, eviction_skip_intl_page_with_active_child);
     to->eviction_bucket_clean_internal_items +=
       WT_STAT_CONN_READ(from, eviction_bucket_clean_internal_items);
     to->eviction_bucket_clean_leaf_items +=
@@ -4191,26 +4197,15 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_server_race_reconfigure_disagg +=
       WT_STAT_CONN_READ(from, eviction_server_race_reconfigure_disagg);
     to->eviction_server_readgen += WT_STAT_CONN_READ(from, eviction_server_readgen);
-    to->eviction_skip_intl_page_non_aggressive +=
-      WT_STAT_CONN_READ(from, eviction_skip_intl_page_non_aggressive);
     to->cache_eviction_blocked_prefetched +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_prefetched);
     to->eviction_skip_history_store_pages_with_updates_during_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_skip_history_store_pages_with_updates_during_checkpoint);
-    to->eviction_skip_dirty_pages_during_checkpoint +=
-      WT_STAT_CONN_READ(from, eviction_skip_dirty_pages_during_checkpoint);
-    to->eviction_skip_ingest_trees += WT_STAT_CONN_READ(from, eviction_skip_ingest_trees);
-    to->eviction_skip_intl_page_with_active_child +=
-      WT_STAT_CONN_READ(from, eviction_skip_intl_page_with_active_child);
-    to->eviction_skip_metatdata_with_history +=
-      WT_STAT_CONN_READ(from, eviction_skip_metatdata_with_history);
     to->eviction_skip_page_checkpoint_timestamp +=
       WT_STAT_CONN_READ(from, eviction_skip_page_checkpoint_timestamp);
     to->eviction_skip_page_prune_timestamp +=
       WT_STAT_CONN_READ(from, eviction_skip_page_prune_timestamp);
     to->eviction_skip_stable_trees += WT_STAT_CONN_READ(from, eviction_skip_stable_trees);
-    to->eviction_skip_checkpointing_trees +=
-      WT_STAT_CONN_READ(from, eviction_skip_checkpointing_trees);
     to->eviction_skip_trees_stick_in_cache +=
       WT_STAT_CONN_READ(from, eviction_skip_trees_stick_in_cache);
     to->eviction_skip_trees_read_only += WT_STAT_CONN_READ(from, eviction_skip_trees_read_only);
@@ -4223,14 +4218,24 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_skip_page_locked_bucket +=
       WT_STAT_CONN_READ(from, eviction_skip_page_locked_bucket);
     to->eviction_skip_empty_bucket += WT_STAT_CONN_READ(from, eviction_skip_empty_bucket);
+    to->eviction_skip_intl_page_non_aggressive +=
+      WT_STAT_CONN_READ(from, eviction_skip_intl_page_non_aggressive);
     to->eviction_skip_few_updates_no_pressure +=
       WT_STAT_CONN_READ(from, eviction_skip_few_updates_no_pressure);
     to->eviction_skip_page_dirty_not_aggressive +=
       WT_STAT_CONN_READ(from, eviction_skip_page_dirty_not_aggressive);
     to->eviction_skip_page_cannot_evict += WT_STAT_CONN_READ(from, eviction_skip_page_cannot_evict);
     to->eviction_skip_page_again += WT_STAT_CONN_READ(from, eviction_skip_page_again);
+    to->eviction_skip_dirty_pages_during_checkpoint +=
+      WT_STAT_CONN_READ(from, eviction_skip_dirty_pages_during_checkpoint);
+    to->eviction_skip_ingest_trees += WT_STAT_CONN_READ(from, eviction_skip_ingest_trees);
+    to->eviction_skip_locked_hashchain += WT_STAT_CONN_READ(from, eviction_skip_locked_hashchain);
+    to->eviction_skip_metatdata_with_history +=
+      WT_STAT_CONN_READ(from, eviction_skip_metatdata_with_history);
     to->eviction_skip_page_last_running += WT_STAT_CONN_READ(from, eviction_skip_page_last_running);
     to->eviction_skip_pages_retry += WT_STAT_CONN_READ(from, eviction_skip_pages_retry);
+    to->eviction_skip_checkpointing_trees +=
+      WT_STAT_CONN_READ(from, eviction_skip_checkpointing_trees);
     to->eviction_min_bucket_clean_internal +=
       WT_STAT_CONN_READ(from, eviction_min_bucket_clean_internal);
     to->eviction_min_bucket_clean_leaf += WT_STAT_CONN_READ(from, eviction_min_bucket_clean_leaf);
@@ -4393,6 +4398,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_ahead_of_last_materialized_lsn);
     to->eviction_pages_in_parallel_with_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_pages_in_parallel_with_checkpoint);
+    to->eviction_pages_unqueued_out_of_memory +=
+      WT_STAT_CONN_READ(from, eviction_pages_unqueued_out_of_memory);
     to->cache_read += WT_STAT_CONN_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_CONN_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_CONN_READ(from, cache_read_deleted_prepared);

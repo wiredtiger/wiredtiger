@@ -29,12 +29,12 @@
 struct __wt_evict {
     struct __wt_evict_bucketset evict_bucketset[WT_EVICT_LEVELS];
     uint32_t evict_num_buckets;
-	uint32_t dhandle_hash_size;
+    uint32_t dhandle_hash_size;
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
 
-    uint64_t app_waits;  /* User threads waited for eviction */
-    uint64_t app_evicts; /* Pages evicted by user threads */
+    uint64_t app_waits;     /* User threads waited for eviction */
+    uint64_t app_evicts;    /* Pages evicted by user threads */
     uint64_t evicted_pages; /* The number of evicted pages */
 
     wt_shared uint64_t evict_max_clean_page_size_per_checkpoint;   /* Largest clean page seen at
@@ -159,6 +159,7 @@ extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
+extern void __wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle);
 extern void __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session);

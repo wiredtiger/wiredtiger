@@ -1146,7 +1146,7 @@ __evict_page_updates_candidate(WT_PAGE *page)
  *     Return true if this bucketset level keeps per-tree subqueues.
  */
 static WT_INLINE bool
-__evict_level_is_dirty_leaf(int level)
+__evict_level_is_dirty_leaf(uint32_t level)
 {
     return (level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF || level == WT_EVICT_LEVEL_DIRTY_LEAF);
 }

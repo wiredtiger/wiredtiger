@@ -176,7 +176,8 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
 
     __wt_verbose_debug2(session, WT_VERB_EVICTION, "subq DHANDLE_DESTROY tree=%s",
       dhandle->name != NULL ? dhandle->name : "(null)");
-	__wt_evict_dhandle_subqueues_destroy(session, dhandle);
+
+    __wt_evict_dhandle_subqueues_destroy(session, dhandle);
 
     __wt_rwlock_destroy(session, &dhandle->rwlock);
     __wt_free(session, dhandle->name);
@@ -249,7 +250,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
 
     WT_ERR(__wt_spin_init(session, &dhandle->close_lock, "data handle close"));
 
-	/*
+    /*
      * We are holding the data handle list lock, which protects most threads from seeing the new
      * handle until that lock is released.
      *
