@@ -406,6 +406,11 @@ main(int argc, char *argv[])
          * expected to generate minimal cache activity. Content written in follower mode is not
          * evictable, extended time in this role can lead to cache overflow. The leader occupies the
          * remaining time.
+         *
+         * With async step-down, the leader -> follower transition and the follower window both
+         * happen inside operations() (the background step-down thread reconfigures to follower and
+         * grants the workers DISAGG_SWITCH_FOLLOWER_OPS_SEC), so every rep starts as leader and
+         * disagg_switch_roles() only performs the step-up.
          */
         leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
 

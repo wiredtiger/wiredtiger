@@ -96,6 +96,9 @@
 /* Duration of the follower run in disagg switch mode. */
 #define DISAGG_SWITCH_FOLLOWER_OPS_SEC 10
 
+/* Post-drain window of continued leader writes (routed to ingest) before the write pause. */
+#define DISAGG_STEPDOWN_INGEST_WINDOW_SEC 10
+
 /* Number of RTS threads to use up to 10 (11 is for NULL config). */
 #define RTS_THREADS_MAX 11
 
@@ -310,7 +313,11 @@ typedef struct {
      */
     RWLOCK timestamp_lock;
 
-    wt_timestamp_t stepdown_ts; /* Boundary timestamp when step-down is active; 0 if not active. */
+    /* Boundary timestamp while a step-down is in progress. */
+    wt_timestamp_t stepdown_ts;
+
+    /* Pause worker writes for the step-down checkpoint and role transition. */
+    volatile bool stepdown_pause_writes;
 
     volatile bool checkpoint_quit; /* Signal checkpoint thread to stop before workers finish. */
     volatile bool timestamp_quit;  /* Signal timestamp thread to stop before workers finish. */
@@ -410,6 +417,9 @@ typedef struct {
     bool replay_again; /* Need to redo an operation at a timestamp. */
 
     volatile bool quit; /* thread should quit */
+
+    /* Set when the write pause has been observed with no transaction in flight. */
+    volatile bool pause_ack;
 
     uint64_t ops;    /* total operations */
     uint64_t commit; /* operation counts */
