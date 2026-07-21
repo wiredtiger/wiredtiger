@@ -143,6 +143,12 @@ functions:
           fi
 
           echo "mongodbtoolchain $MDB_TOOLCHAIN_REV not installed, downloading..."
+
+          # The pinned toolchain tarball sources a script that it does not contain.
+          # FIXME-WT-18153: Remove this once the toolchain has been fixed (DEVPROD-37052).
+          mkdir -p "/opt/mongodbtoolchain/revisions/${MDB_TOOLCHAIN_REV}/scripts"
+          touch "/opt/mongodbtoolchain/revisions/${MDB_TOOLCHAIN_REV}/scripts/installer.sh"
+
           curl -fsSL https://s3.amazonaws.com/mongodbtoolchain.build.10gen.cc/installer.sh \
               | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV"
 
