@@ -90,7 +90,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: bytes written from cache",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
-  "cache: checkpoint scrub skipped because the page contains prepared transactions",
   "cache: checkpoint scrub skipped because the page will be left dirty",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
@@ -597,7 +596,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_bytes_write = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
-    stats->cache_write_restore_scrub_skipped_prepared = 0;
     stats->cache_write_restore_scrub_skipped_dirty = 0;
     stats->eviction_fail = 0;
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
@@ -1064,8 +1062,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_bytes_write += from->cache_bytes_write;
     to->cache_eviction_blocked_checkpoint += from->cache_eviction_blocked_checkpoint;
     to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
-    to->cache_write_restore_scrub_skipped_prepared +=
-      from->cache_write_restore_scrub_skipped_prepared;
     to->cache_write_restore_scrub_skipped_dirty += from->cache_write_restore_scrub_skipped_dirty;
     to->eviction_fail += from->eviction_fail;
     to->cache_eviction_blocked_disagg_dirty_internal_page +=
@@ -1562,8 +1558,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_hs);
-    to->cache_write_restore_scrub_skipped_prepared +=
-      WT_STAT_DSRC_READ(from, cache_write_restore_scrub_skipped_prepared);
     to->cache_write_restore_scrub_skipped_dirty +=
       WT_STAT_DSRC_READ(from, cache_write_restore_scrub_skipped_dirty);
     to->eviction_fail += WT_STAT_DSRC_READ(from, eviction_fail);
@@ -2151,12 +2145,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
   "cache: bytes not belonging to page images in the cache",
+  "cache: bytes of clean re-instantiation images retained by checkpoint scrub",
   "cache: bytes read into cache",
   "cache: bytes written from cache",
   "cache: cache tolerance configured",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
-  "cache: checkpoint scrub skipped because the page contains prepared transactions",
   "cache: checkpoint scrub skipped because the page will be left dirty",
   "cache: dirty bytes belonging to the history store table in the cache",
   "cache: dirty internal page cannot be evicted in disaggregated storage",
@@ -2389,6 +2383,7 @@ static const char *const __stats_connection_desc[] = {
   "updates without timestamps",
   "cache: pages selected for eviction unable to be evicted belonging to ingest btrees",
   "cache: pages walked for eviction",
+  "cache: pages with a clean re-instantiation image retained by checkpoint scrub",
   "cache: pages with an unresolved multiblock split flagged by checkpoint to be evicted soon",
   "cache: pages with an unresolved multiblock split re-reconciled by checkpoint",
   "cache: pages written from cache",
@@ -3274,12 +3269,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_inuse */
     /* not clearing cache_bytes_dirty_total */
     /* not clearing cache_bytes_other */
+    /* not clearing cache_scrub_image_bytes */
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
     /* not clearing cache_tolerance_level */
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
-    stats->cache_write_restore_scrub_skipped_prepared = 0;
     stats->cache_write_restore_scrub_skipped_dirty = 0;
     /* not clearing cache_bytes_hs_dirty */
     stats->cache_eviction_blocked_disagg_dirty_internal_page = 0;
@@ -3486,6 +3481,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_fail_checkpoint_no_ts = 0;
     stats->eviction_fail_ingest = 0;
     stats->eviction_walk = 0;
+    /* not clearing cache_scrub_image_pages */
     stats->cache_eviction_multiblock_checkpoint_flagged = 0;
     stats->cache_eviction_multiblock_split_re_reconciled = 0;
     stats->cache_write = 0;
@@ -4360,6 +4356,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_inuse += WT_STAT_CONN_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_CONN_READ(from, cache_bytes_dirty_total);
     to->cache_bytes_other += WT_STAT_CONN_READ(from, cache_bytes_other);
+    to->cache_scrub_image_bytes += WT_STAT_CONN_READ(from, cache_scrub_image_bytes);
     to->cache_bytes_read += WT_STAT_CONN_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_CONN_READ(from, cache_bytes_write);
     to->cache_tolerance_level += WT_STAT_CONN_READ(from, cache_tolerance_level);
@@ -4367,8 +4364,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_hs);
-    to->cache_write_restore_scrub_skipped_prepared +=
-      WT_STAT_CONN_READ(from, cache_write_restore_scrub_skipped_prepared);
     to->cache_write_restore_scrub_skipped_dirty +=
       WT_STAT_CONN_READ(from, cache_write_restore_scrub_skipped_dirty);
     to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
@@ -4658,6 +4653,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_fail_checkpoint_no_ts += WT_STAT_CONN_READ(from, eviction_fail_checkpoint_no_ts);
     to->eviction_fail_ingest += WT_STAT_CONN_READ(from, eviction_fail_ingest);
     to->eviction_walk += WT_STAT_CONN_READ(from, eviction_walk);
+    to->cache_scrub_image_pages += WT_STAT_CONN_READ(from, cache_scrub_image_pages);
     to->cache_eviction_multiblock_checkpoint_flagged +=
       WT_STAT_CONN_READ(from, cache_eviction_multiblock_checkpoint_flagged);
     to->cache_eviction_multiblock_split_re_reconciled +=

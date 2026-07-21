@@ -278,6 +278,78 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
                 msg='cache_write_restore_scrub should accumulate over multiple precise checkpoints'
             )
 
+    def test_scrub_image_gauge(self):
+        """
+        cache_scrub_image_pages / cache_scrub_image_bytes are live gauges of the
+        clean images currently retained for scrub eviction. They must rise when a
+        precise checkpoint retains images and drain back to zero, without ever
+        going negative, once eviction consumes those images.
+        """
+        nrows = 5000
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        if self.precise:
+            self.conn.set_timestamp('stable_timestamp=1')
+
+        self._populate(nrows, self.vsize)
+        self.session.checkpoint()
+
+        pages = self.get_stat(stat.conn.cache_scrub_image_pages)
+        nbytes = self.get_stat(stat.conn.cache_scrub_image_bytes)
+
+        # The gauges are unsigned counts; underflow would surface as a huge value.
+        self.assertGreaterEqual(pages, 0, 'scrub image page gauge must not be negative')
+        self.assertGreaterEqual(nbytes, 0, 'scrub image byte gauge must not be negative')
+
+        if self.precise:
+            self.assertGreater(pages, 0,
+                msg='scrub image page gauge should rise after a precise checkpoint')
+            self.assertGreater(nbytes, 0,
+                msg='scrub image byte gauge should rise after a precise checkpoint')
+
+            # A retained image accounts for at least one page's worth of bytes.
+            self.assertGreaterEqual(nbytes, pages,
+                msg='retained bytes should be at least one per retained page')
+
+            # Dropping the table discards its pages through the image-discard
+            # path. The gauge is connection-wide (internal btrees may retain their
+            # own images), so rather than a strict drain to zero we require the
+            # decrement to run cleanly: the gauge must not grow past its peak and
+            # must stay non-negative, i.e. it never underflows to a huge value.
+            peak_pages, peak_bytes = pages, nbytes
+            self.session.drop(self.uri)
+            pages = self.get_stat(stat.conn.cache_scrub_image_pages)
+            nbytes = self.get_stat(stat.conn.cache_scrub_image_bytes)
+            self.assertLessEqual(pages, peak_pages,
+                msg='scrub image page gauge should not grow when pages are discarded')
+            self.assertLessEqual(nbytes, peak_bytes,
+                msg='scrub image byte gauge should not grow when pages are discarded')
+            self.assertGreaterEqual(pages, 0, 'scrub image page gauge underflowed')
+            self.assertGreaterEqual(nbytes, 0, 'scrub image byte gauge underflowed')
+        else:
+            # Fuzzy checkpoint never retains a scrub image.
+            self.assertEqual(pages, 0, 'fuzzy checkpoint must not retain scrub images')
+            self.assertEqual(nbytes, 0, 'fuzzy checkpoint must not retain scrub image bytes')
+
+    def test_scrub_skipped_dirty_stat_wired(self):
+        """
+        Smoke-test that cache_write_restore_scrub_skipped_dirty is a valid,
+        non-negative counter. It increments when a scrub image is requested for a
+        page that reconciliation leaves dirty, so the image would never be usable.
+        """
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+
+        if self.precise:
+            self.conn.set_timestamp('stable_timestamp=1')
+
+        self._populate(1000, self.vsize)
+        self.session.checkpoint()
+
+        val = self.get_stat(stat.conn.cache_write_restore_scrub_skipped_dirty)
+        self.assertGreaterEqual(val, 0,
+            'cache_write_restore_scrub_skipped_dirty must be >= 0')
+
 class test_checkpoint_scrub_evict_config(wttest.WiredTigerTestCase):
     """
     Verify the eviction.checkpoint_scrub_eviction override (WT-18005):

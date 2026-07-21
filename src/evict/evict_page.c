@@ -693,6 +693,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     WT_DECL_RET;
     WT_MULTI multi;
     WT_PAGE_MODIFY *mod;
+    uint32_t scrub_size;
     bool closing;
     void *tmp;
 
@@ -744,7 +745,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * retained image and take the clean eviction path.
          */
         if (closing)
-            __wt_free(session, mod->mod_disk_image);
+            __wt_rec_image_discard(session, mod);
         if (mod->mod_disk_image == NULL) {
             /*
              * 1-for-1 page swap: Update the parent to reference the replacement page.
@@ -786,6 +787,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              * we need to link the new disk image back to the old disk image.
              */
             tmp = mod->mod_disk_image;
+            scrub_size = __wt_rec_scrub_image_size(mod);
             mod->mod_disk_image = NULL;
             ret = __wt_split_rewrite(session, ref, &multi);
             __wt_free(session, multi.block_meta);
@@ -793,6 +795,9 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
                 mod->mod_disk_image = tmp;
                 return (ret);
             }
+            /* The image was consumed by the re-instantiated page; release its scrub accounting. */
+            if (scrub_size != 0)
+                __wt_cache_scrub_image_decr(session, scrub_size);
             WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
         }
 
@@ -1271,7 +1276,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         ;
     /* Always do update restore for in-memory btrees, and for btrees still awaiting publication. */
     else if (__wt_btree_stays_in_memory(btree))
-        LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
+        LF_SET(WT_REC_IN_MEMORY | WT_REC_SAVE_IMAGE_ALWAYS);
     /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle)) {
         LF_SET(WT_REC_HS);
@@ -1293,7 +1298,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
             if (can_scrub &&
               (!__wt_evict_clean_needed(session, NULL) ||
                 ref->page->read_gen > __evict_read_gen(session))) {
-                LF_SET(WT_REC_SCRUB);
+                LF_SET(WT_REC_SAVE_IMAGE_ALWAYS);
             }
         }
     }
@@ -1309,7 +1314,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          */
         WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
           "Evicting dirty internal pages for disaggregated storage is not allowed.");
-        LF_SET(WT_REC_SCRUB);
+        LF_SET(WT_REC_SAVE_IMAGE_ALWAYS);
     }
 
     /*

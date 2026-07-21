@@ -171,6 +171,10 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, cache_shared_dsk_bytes_duplicate,
       __wt_atomic_load_uint64_relaxed(&cache->bytes_shared_dsk_duplicate));
     WT_STATP_CONN_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
+    WT_STATP_CONN_SET(session, stats, cache_scrub_image_bytes,
+      __wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image));
+    WT_STATP_CONN_SET(session, stats, cache_scrub_image_pages,
+      __wt_atomic_load_uint64_relaxed(&cache->pages_scrub_image));
     WT_STATP_CONN_SET(
       session, stats, cache_bytes_image_ingest, __wt_cache_bytes_image_ingest(cache));
     WT_STATP_CONN_SET(

@@ -553,6 +553,10 @@ struct __wt_page_modify {
 #define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 
+#define WT_REC_IMAGE_NONE 0        /* No re-instantiation image retained */
+#define WT_REC_IMAGE_SCRUB_CLEAN 1 /* Clean image retained by checkpoint scrub (reclaimable) */
+    uint8_t rec_image_state;       /* Why a re-instantiation disk image is retained */
+
 /* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
