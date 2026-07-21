@@ -92,18 +92,17 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
-if(ENABLE_PALITE)
-    define_c_test(
-        TARGET test_schema_disagg_abort
+if(ENABLE_PALITE AND WT_POSIX)
+    # FIXME-WT-18112: Build the binary but register no ctest test, so it never runs in
+    # "make check" or csuite-tests-fast while the follower step-up data-loss bug is open.
+    # The wiredtiger-disagg project invokes the binary directly.
+    create_test_executable(test_schema_disagg_abort
         SOURCES
             schema_disagg_abort/main.c
             schema_disagg_abort/workload.c
             schema_disagg_abort/verify.c
-        DIR_NAME schema_disagg_abort
-        EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
-        ARGUMENTS $<TARGET_FILE:test_schema_disagg_abort>
-        DEPENDS "WT_POSIX"
-        LABEL "disagg"
+        ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/schema_disagg_abort
     )
     # Use C++ linker for building this target.
     # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
@@ -112,9 +111,6 @@ if(ENABLE_PALITE)
     # for sanitizers to work correctly.
     if(TARGET test_schema_disagg_abort)
         set_target_properties(test_schema_disagg_abort PROPERTIES LINKER_LANGUAGE CXX)
-        # FIXME-WT-18112: Keep this test out of the regular "make check" run until the follower
-        # step-up data-loss bug is fixed. It is driven only by the wiredtiger-disagg project.
-        set_tests_properties(test_schema_disagg_abort PROPERTIES LABELS "disagg")
     endif()
 endif()
 
