@@ -35,43 +35,29 @@ struct __wti_evict_entry {
 
 /*
  * WTI_DIRTY_INDEX --
- *     Per-btree multi-producer / single-consumer ring of WT_REF pointers fed by cursor modifies.
- *     The eviction walker drains entries in FIFO order to supply candidates without re-walking the
- *     tree. Capacity is a power of two so the consumer can mask-index into the slot array.
+ *     Per-btree ring of WT_REF pointers fed by cursor modifies. The ring lock serializes producers
+ *     and the eviction walker. Capacity is a power of two so the consumer can mask-index into the
+ *     slot array.
  *
- *     Layout (head and tail are free-running 64-bit counters; slot index = counter & mask):
+ *     Layout (head and tail are monotonically increasing counters; slot index = counter & mask):
  *
  *               tail (consumer)                 head (producers)
  *                 v                               v
  *       slots[]:  [ . ][ R ][ R ][ R ][ R ][ R ][ . ][ . ] ...    (R = live ref, . = empty)
  *                 `------ drained FIFO ------'`--- live ---'
  *
- *     Producer: fetch-add head to reserve a unique slot, release-store the ref into the slot, then
- *     CAS the page's one-indexed back-pointer (dirty_index_slot) so a page is not inserted twice.
- *     Consumer (single drain thread per btree visit): acquire-load head, walk tail..head, take each
- *     ref, then release-store the advanced tail.
- *
- *     A reserved slot can be abandoned (the producer bails after the fetch-add on saturation, or
- *     loses the back-pointer CAS); the consumer sees a NULL slot and skips it. A lost slot only
- *     costs a missed fast-path candidate -- the eviction walker stays the source of truth, so the
- *     ring is best-effort, never authoritative.
+ *     A producer that cannot acquire the lock abandons the fast path. The eviction walker remains
+ *     the source of truth, so the ring is best-effort, never authoritative.
  */
-#define WTI_DIRTY_INDEX_MIN_CAPACITY 16384u
-#define WTI_DIRTY_INDEX_MAX_CAPACITY 262144u
+#define WTI_DIRTY_INDEX_MIN_CAPACITY (16 * 1024u)
+#define WTI_DIRTY_INDEX_MAX_CAPACITY (256 * 1024u)
 
 /*
- * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) packs the owning ring's generation above
- * the one-indexed slot. MAX_CAPACITY is 2^18, so a one-indexed slot needs 19 bits, leaving 13 bits
- * of generation. With auto-grow disabled the generation is always 0, so the encoding degrades to a
- * bare slot+1 -- identical to the single-ring layout. Generation is only used to pick the right
- * ring (active vs the one draining ring) and to guard a back-pointer clear against a stale ring.
+ * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot. The ring
+ * lock protects both this field and the corresponding slot.
  */
-#define WTI_DIRTY_BP_SLOT_BITS 19u
-#define WTI_DIRTY_BP_SLOT_MASK ((1u << WTI_DIRTY_BP_SLOT_BITS) - 1u)
-#define WTI_DIRTY_BP_MAKE(gen, slot) \
-    (((uint32_t)(gen) << WTI_DIRTY_BP_SLOT_BITS) | ((uint32_t)(slot) + 1u))
-#define WTI_DIRTY_BP_GEN(bp) ((bp) >> WTI_DIRTY_BP_SLOT_BITS)
-#define WTI_DIRTY_BP_SLOT(bp) (((bp) & WTI_DIRTY_BP_SLOT_MASK) - 1u)
+#define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
+#define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
 
 /*
  * Adaptive drain scheduling. After EMPTY_THRESHOLD consecutive empty drains the per-btree drain
@@ -86,36 +72,13 @@ struct __wti_evict_entry {
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
 
-/*
- * Clear the saturation hint once the ring drains to this fraction of capacity (capacity >> SHIFT).
- * Set at full, clear at half: the hysteresis bounds how often the hint flips.
- */
-#define WTI_DIRTY_INDEX_SATURATE_CLEAR_SHIFT 1u
-
-/*
- * Auto-grow trigger: grow only when the ring is found saturated on this many consecutive drain
- * passes, so a transient burst that fills the ring once does not provoke a grow -- only a ring that
- * the drain cannot keep empty.
- */
-#define WTI_DIRTY_INDEX_GROW_FULL_THRESHOLD 4u
-
 struct __wti_dirty_index {
-    WT_REF **slots;      /* Circular buffer of ref pointers */
-    uint32_t capacity;   /* Slot count (power of two) */
-    uint32_t mask;       /* capacity - 1 */
-    uint32_t generation; /* Identifies this ring in page back-pointers; 0 unless grown */
-    wt_shared WTI_DIRTY_INDEX
-      *next_old; /* Next ring on the btree's retired list (freed at close) */
-
-    wt_shared uint64_t head; /* Next slot to be filled (monotonic, fetch-add by producers) */
-    wt_shared uint64_t tail; /* Next slot to drain (monotonic, advanced by the consumer) */
-
-    /*
-     * Saturation hint: set by a producer that finds the ring full; cleared by the consumer once the
-     * ring drains below half. Advisory only -- the head/tail overflow check is the correctness
-     * boundary, so relaxed ordering suffices.
-     */
-    wt_shared uint8_t saturated;
+    WT_SPINLOCK lock;
+    WT_REF **slots;    /* Circular buffer of ref pointers */
+    uint32_t capacity; /* Slot count (power of two) */
+    uint32_t mask;     /* capacity - 1 */
+    uint32_t head;     /* Next slot to be filled */
+    uint32_t tail;     /* Next slot to be drained */
 };
 
 /*

@@ -85,11 +85,6 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
      * Auto-grow requires the ring itself; gate it so producers never enter the reclaim generation
      * when no ring is allocated.
      */
-    WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_index_auto_grow", &cval));
-    evict->eviction_dirty_index_auto_grow = (cval.val != 0) && evict->eviction_dirty_index;
-
-    WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_index_disagg", &cval));
-    evict->eviction_dirty_index_disagg = (cval.val != 0) && evict->eviction_dirty_index;
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
     evict->eviction_dirty_target = (double)cval.val;

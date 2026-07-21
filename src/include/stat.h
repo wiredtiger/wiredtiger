@@ -566,7 +566,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_dirty_index_insert_ring_full;
     int64_t eviction_dirty_index_ring_full_capacity_max;
     int64_t eviction_dirty_index_ring_peak_occupancy;
-    int64_t cache_eviction_dirty_index_grow;
     int64_t cache_eviction_dirty_index_drain_stale;
     int64_t cache_eviction_dirty_index_drain_scanned;
     int64_t cache_eviction_dirty_index_drain_queued;
@@ -1025,7 +1024,9 @@ struct __wt_connection_stats {
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;
+    int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
+    int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_time;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
@@ -1578,7 +1579,6 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_dirty_index_insert;
     int64_t cache_eviction_dirty_index_insert_contended;
     int64_t cache_eviction_dirty_index_insert_ring_full;
-    int64_t cache_eviction_dirty_index_grow;
     int64_t cache_eviction_dirty_index_drain_stale;
     int64_t cache_eviction_dirty_index_drain_scanned;
     int64_t cache_eviction_dirty_index_drain_queued;

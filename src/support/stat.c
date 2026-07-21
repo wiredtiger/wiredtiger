@@ -100,7 +100,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: dirty index inserts",
   "cache: dirty index inserts abandoned because a concurrent producer won the slot",
   "cache: dirty index inserts dropped due to full ring",
-  "cache: dirty index rings grown at runtime",
   "cache: dirty index slots dropped by drain because the page was clean or already queued",
   "cache: dirty index slots examined by drain",
   "cache: dirty index slots queued to ordinary or urgent eviction by drain",
@@ -619,7 +618,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_dirty_index_insert = 0;
     stats->cache_eviction_dirty_index_insert_contended = 0;
     stats->cache_eviction_dirty_index_insert_ring_full = 0;
-    stats->cache_eviction_dirty_index_grow = 0;
     stats->cache_eviction_dirty_index_drain_stale = 0;
     stats->cache_eviction_dirty_index_drain_scanned = 0;
     stats->cache_eviction_dirty_index_drain_queued = 0;
@@ -1104,7 +1102,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_eviction_dirty_index_insert_contended;
     to->cache_eviction_dirty_index_insert_ring_full +=
       from->cache_eviction_dirty_index_insert_ring_full;
-    to->cache_eviction_dirty_index_grow += from->cache_eviction_dirty_index_grow;
     to->cache_eviction_dirty_index_drain_stale += from->cache_eviction_dirty_index_drain_stale;
     to->cache_eviction_dirty_index_drain_scanned += from->cache_eviction_dirty_index_drain_scanned;
     to->cache_eviction_dirty_index_drain_queued += from->cache_eviction_dirty_index_drain_queued;
@@ -1623,7 +1620,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_insert_contended);
     to->cache_eviction_dirty_index_insert_ring_full +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_insert_ring_full);
-    to->cache_eviction_dirty_index_grow += WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_grow);
     to->cache_eviction_dirty_index_drain_stale +=
       WT_STAT_DSRC_READ(from, cache_eviction_dirty_index_drain_stale);
     to->cache_eviction_dirty_index_drain_scanned +=
@@ -2237,7 +2233,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty index inserts dropped due to full ring",
   "cache: dirty index largest capacity among rings that hit full",
   "cache: dirty index largest ring occupancy seen in slots",
-  "cache: dirty index rings grown at runtime",
   "cache: dirty index slots dropped by drain because the page was clean or already queued",
   "cache: dirty index slots examined by drain",
   "cache: dirty index slots queued to ordinary or urgent eviction by drain",
@@ -2726,7 +2721,9 @@ static const char *const __stats_connection_desc[] = {
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
+  "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
+  "disagg: step up in progress",
   "disagg: step up most recent time (msecs)",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
@@ -3374,7 +3371,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty_index_insert_ring_full = 0;
     /* not clearing eviction_dirty_index_ring_full_capacity_max */
     /* not clearing eviction_dirty_index_ring_peak_occupancy */
-    stats->cache_eviction_dirty_index_grow = 0;
     stats->cache_eviction_dirty_index_drain_stale = 0;
     stats->cache_eviction_dirty_index_drain_scanned = 0;
     stats->cache_eviction_dirty_index_drain_queued = 0;
@@ -3833,7 +3829,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
+    /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
+    /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_time = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
@@ -4485,7 +4483,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_dirty_index_ring_full_capacity_max);
     to->eviction_dirty_index_ring_peak_occupancy +=
       WT_STAT_CONN_READ(from, eviction_dirty_index_ring_peak_occupancy);
-    to->cache_eviction_dirty_index_grow += WT_STAT_CONN_READ(from, cache_eviction_dirty_index_grow);
     to->cache_eviction_dirty_index_drain_stale +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_index_drain_stale);
     to->cache_eviction_dirty_index_drain_scanned +=
@@ -5074,7 +5071,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
+    to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
+    to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);

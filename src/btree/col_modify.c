@@ -268,8 +268,8 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     }
 
     /*
-     * Announce this dirty leaf to the per-btree ring; see the row-store equivalent for rationale.
-     * Skip when the caller has exclusive page access: batch-modify paths do not benefit.
+     * Announce this dirty leaf to the per-btree ring. Skip callers with exclusive page access,
+     * which perform several modifications while holding the page.
      */
     if (!exclusive)
         WT_IGNORE_RET(__wt_dirty_index_insert(session, S2BT(session), cbt->ref));

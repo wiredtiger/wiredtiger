@@ -620,7 +620,9 @@ conn_stats = [
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
     DisaggStat('disagg_role_leader', 'role leader'),
+    DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
+    DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 
     ##########################################
@@ -1270,7 +1272,6 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty_index_drain_skipped_disagg_checkpointed', 'dirty index drain skipped because the disaggregated btree was already visited by the running checkpoint'),
     CacheStat('cache_eviction_dirty_index_drain_skipped_stable_lag', 'dirty index drain passes skipped because the pinned stable timestamp lags the ring median commit timestamp'),
     CacheStat('cache_eviction_dirty_index_drain_stale', 'dirty index slots dropped by drain because the page was clean or already queued'),
-    CacheStat('cache_eviction_dirty_index_grow', 'dirty index rings grown at runtime'),
     CacheStat('cache_eviction_dirty_index_insert', 'dirty index inserts'),
     CacheStat('cache_eviction_dirty_index_insert_contended', 'dirty index inserts abandoned because a concurrent producer won the slot'),
     CacheStat('cache_eviction_dirty_index_insert_ring_full', 'dirty index inserts dropped due to full ring'),

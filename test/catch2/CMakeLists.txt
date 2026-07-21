@@ -10,6 +10,7 @@ else()
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
+        misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_skip.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
@@ -31,6 +32,8 @@ else()
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_txn_config.cpp
+        misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
