@@ -660,29 +660,6 @@ err:
 }
 
 /*
- * __wt_disagg_update_shared_max_write_gen --
- *     Record in the shared metadata table the high-water mark of write generations this node has
- *     persisted, so a node picking the checkpoint up can place its base write generation past every
- *     generation the checkpoint's writer used.
- */
-int
-__wt_disagg_update_shared_max_write_gen(WT_SESSION_IMPL *session)
-{
-    WT_DECL_ITEM(valbuf);
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, 0, &valbuf));
-    WT_ERR(__wt_buf_fmt(session, valbuf, WT_SYSTEM_MAX_WRITE_GEN "=%" PRIu64,
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->max_write_gen)));
-    WT_ERR(__disagg_shared_metadata_op_helper(
-      session, WT_SYSTEM_MAX_WRITE_GEN_URI, valbuf->data, WT_SHARED_METADATA_UPDATE));
-
-err:
-    __wt_scr_free(session, &valbuf);
-    return (ret);
-}
-
-/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list, returning the total checkpoint size of the tables actually
  *     dropped so the caller can reduce the database size accordingly.

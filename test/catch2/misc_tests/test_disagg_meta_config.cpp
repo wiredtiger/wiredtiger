@@ -211,7 +211,40 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(ret == EINVAL);
     }
 
-    SECTION("A field written at a newer version is skipped by an older reader")
+    SECTION("max_write_gen parsed when present")
+    {
+        std::stringstream metadata_stream;
+        metadata_stream
+          << "version=" << WT_DISAGG_CHECKPOINT_TURTLE_VERSION
+          << ",compatible_version=1,checkpoint=(),timestamp=c0ffee12,max_write_gen=42,";
+        const std::string metadata_str = metadata_stream.str();
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(metadata.max_write_gen == 42);
+    }
+
+    SECTION("max_write_gen defaults to zero when absent")
+    {
+        /* A checkpoint written before the field existed omits it; the reader must default it. */
+        const std::string metadata_str = "checkpoint=(),timestamp=c0ffee12";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(metadata.max_write_gen == 0);
+    }
+
+    SECTION("max_write_gen written at a newer version is skipped by an older reader")
     {
         /*
          * A reader whose current version predates the field sees the checkpoint's version as newer
