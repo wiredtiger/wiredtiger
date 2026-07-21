@@ -174,6 +174,8 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         break;
     }
 
+	__wt_evict_dhandle_subqueues_destroy(session, dhandle);
+
     __wt_rwlock_destroy(session, &dhandle->rwlock);
     __wt_free(session, dhandle->name);
     __wt_free(session, dhandle->checkpoint);
@@ -245,7 +247,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
 
     WT_ERR(__wt_spin_init(session, &dhandle->close_lock, "data handle close"));
 
-    /*
+	/*
      * We are holding the data handle list lock, which protects most threads from seeing the new
      * handle until that lock is released.
      *
@@ -962,6 +964,7 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
     /* Try to remove the handle, protected by the data handle lock. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
     WT_TRET(tret);
+
 
     /*
      * After successfully removing the handle, clean it up.

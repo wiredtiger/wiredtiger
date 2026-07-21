@@ -11,9 +11,6 @@
 #include "evict_private.h"
 #include <math.h>
 
-#define WT_EVICT_DISABLED(btree) btree->evict_data.evict_disabled
-#define WT_EVICT_PAGE_CLEARED(page) (page->evict_data.bucket == NULL)
-
 #define WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF 0
 #define WT_EVICT_LEVEL_DIRTY_LEAF 1
 #define WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF 2
@@ -23,10 +20,8 @@
 #define WT_EVICT_LEVEL_WONT_NEED_INTERNAL 6
 #define WT_EVICT_LEVEL_UPDATES_INTERNAL 7
 #define WT_EVICT_LEVEL_CLEAN_INTERNAL 8
-#define WT_EVICT_LEVEL_DIRTY_SYNCING 9
 
-#define WT_EVICT_ACTIVE_LEVELS WT_EVICT_LEVEL_CLEAN_INTERNAL + 1
-#define WT_EVICT_ALL_LEVELS WT_EVICT_LEVEL_DIRTY_SYNCING + 1
+#define WT_EVICT_LEVELS WT_EVICT_LEVEL_CLEAN_INTERNAL + 1
 
 /*
  * Connection evict data.
@@ -34,7 +29,7 @@
 struct __wt_evict {
     struct __wt_evict_bucketset evict_bucketset[WT_EVICT_LEVELS];
     uint32_t evict_num_buckets;
-    WT_SPINLOCK evict_exclusive_lock;
+	uint32_t dhandle_hash_size;
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
 

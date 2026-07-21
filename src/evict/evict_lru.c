@@ -1118,6 +1118,90 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __evict_scan_queue --
+ *     Scan one page queue for an evictable page. The caller must hold the lock protecting the
+ *     queue: the subqueue lock for a per-tree queue, the bucket lock for a flat one. On success
+ *     return the ref locked, with the dhandle's session_inuse and the btree's evict_busy
+ *     incremented, and the queue lock still held so the caller can unlink the page.
+ *
+ *     per_tree indicates every page in the queue belongs to one tree, whose syncing state the
+ *     caller has already tested; flat queues mix trees, so the check is made here per page.
+ */
+static WT_REF *
+__evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, uint32_t level,
+  bool per_tree, WT_BTREE **btreep, WT_REF_STATE *previous_statep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_BTREE *btree;
+    WT_PAGE *page;
+    WT_REF *ref;
+    WT_REF_STATE previous_state;
+    bool skip_page;
+
+    conn = S2C(session);
+
+    TAILQ_FOREACH (page, queue, evict_data.evict_q) {
+        if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
+            break;
+        ref = page->ref;
+        WT_ASSERT(session, ref != NULL);
+
+        /*
+         * Pages created during splits may end up in the eviction data structures before their home
+         * gets set. This is the same check as we make for the root page. Skip them until their home
+         * gets set or if this is a true root.
+         */
+        if (__wt_ref_is_root(ref))
+            continue;
+
+        /*
+         * We hold the lock protecting this queue, so nobody can remove the page from it, and we can
+         * safely access its dhandle. For a per-tree subqueue the caller already tested the tree.
+         */
+        if (!per_tree && __evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle))
+            continue;
+
+        /* Try to lock the reference. If it's already locked, skip it. */
+        previous_state = WT_REF_GET_STATE(ref);
+        WT_ASSERT(session, previous_state == WT_REF_LOCKED || previous_state == WT_REF_MEM);
+        if (previous_state == WT_REF_LOCKED) {
+            WT_STAT_CONN_INCR(session, eviction_skip_page_locked);
+            continue;
+        }
+        if (previous_state == WT_REF_MEM &&
+          !WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
+            WT_STAT_CONN_INCR(session, eviction_skip_page_locked);
+            continue;
+        }
+
+        /* We have a locked ref. Every path below that skips it must unlock it. */
+        (void)__wt_atomic_add_int32(&page->evict_data.dhandle->session_inuse, 1);
+        WT_WITH_DHANDLE(session, page->evict_data.dhandle,
+          skip_page = __evict_skip_page(session, ref, (int)level));
+        if (skip_page) {
+            WT_REF_UNLOCK(ref, previous_state);
+            (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
+            continue;
+        }
+
+        /* Almost ready to take this page. Check eviction wasn't disabled while we looked. */
+        btree = page->evict_data.dhandle->handle;
+        (void)__wt_atomic_add_uint32_v(&btree->evict_data.evict_busy, 1);
+        if (__wt_atomic_load_int32_relaxed(&btree->evict_data.evict_disabled) > 0) {
+            WT_REF_UNLOCK(ref, previous_state);
+            (void)__wt_atomic_sub_uint32_v(&btree->evict_data.evict_busy, 1);
+            (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
+            continue;
+        }
+
+        *btreep = btree;
+        *previous_statep = previous_state;
+        return (ref);
+    }
+    return (NULL);
+}
+
+/*
  * __evict_get_ref --
  *     Get a page for eviction. The returned page is locked. It will be unlocked by the function
  *     that tries to evict it from memory if eviction fails. The ref remains in its evict bucket. It
@@ -1133,12 +1217,10 @@ __evict_get_ref(
     WT_EVICT *evict;
     WT_EVICT_BUCKET *bucket;
     WT_EVICT_BUCKETSET *bucketset;
-    WT_PAGE *page;
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TXN *txn;
     bool skip_page, checkpoint_running;
-    int skipped, skip_locked;
     uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
     uint64_t cumulative, rand_val, total_items;
 
@@ -1148,7 +1230,6 @@ __evict_get_ref(
     checkpoint_running =
         __wt_atomic_load_bool_v_relaxed(&(&(S2C(session))->txn_global)->checkpoint_running);
     evict = conn->evict;
-    skipped = skip_locked = 0;
     i = 0;
     iter = total_iter = 0;
     min_level = max_level = 0;
@@ -1187,23 +1268,6 @@ __evict_get_ref(
     if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
 
-#if 0
-    /* Eviction threads only evict clean pages when checkpoint is running */
-    if (checkpoint_running) {
-        if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
-            goto done;
-        }
-        if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
-            min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
-            max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-        }
-        if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
-            if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-                min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
-            max_level = WT_EVICT_LEVEL_UPDATES_LEAF;
-        }
-    }
-#endif
 
     /* Sum items across all eligible bucketsets. */
     total_items = 0;
@@ -1317,98 +1381,89 @@ __evict_get_ref(
                 break;
             bucket = &bucketset->buckets[j];
 
+			  /*
+             * Dirty leaf buckets hold one queue per tree, in a hashtable. Walk each hash chain
+             * under its own lock. Skipping a syncing tree costs a single check for the whole tree,
+             * rather than one check per page as it would in a flat queue.
+             */
+            if (__evict_level_is_dirty_leaf(i)) {
+                WT_ASSERT(session, bucket->pertree_hashtable != NULL);
+
+                for (slot = 0; slot < evict->dhandle_hash_size; slot++) {
+                    hash_entry = &bucket->pertree_hashtable[slot];
+
+                    if (__wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY) {
+                        WT_STAT_CONN_INCR(session, eviction_skip_locked_hashchain);
+                        continue;
+                    }
+
+                    TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq) {
+                        if (TAILQ_EMPTY(&subq->evict_queue))
+                            continue;
+                        if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle)) {
+                            WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
+                            continue;
+                        }
+
+                        /*
+                         * Hand over hand: take the subqueue lock, then drop the chain lock, so
+                         * other threads can work on other trees in this bucket while we scan.
+                         */
+                        __wt_spin_lock(session, &subq->evict_queue_lock);
+                        __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+
+                        ref = __evict_scan_queue(session, &subq->evict_queue, i, true, btreep,
+                          &previous_state);
+                        if (ref != NULL) {
+                            TAILQ_REMOVE(&subq->evict_queue, ref->page, evict_data.evict_q);
+                            ref->page->evict_data.bucket = NULL;
+                            __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
+                        }
+                        __wt_spin_unlock(session, &subq->evict_queue_lock);
+
+						/*
+						 * After releasing the subqueue lock never re-acquire the subqueue lock
+						 * without going through the hash bucket. The sub-queue could be
+						 * destroyed while we are not holding the lock.
+						 */
+
+                        if (ref != NULL)
+                            goto done;
+
+                        /*
+                         * We released the chain lock, so this chain's cursor is stale: a closing
+                         * dhandle may have unlinked and freed a subqueue. Do not follow
+                         * subq->dhandle_subq.tqe_next. Move to the next hash slot instead.
+                         */
+                        goto next_slot;
+                    }
+                    __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+next_slot:
+                    continue;
+                }
+                continue; /* Next bucket. */
+            }
+
+            /* All other levels keep a single flat queue per bucket. */
             if (__wt_spin_trylock(session, &bucket->evict_queue_lock) == EBUSY) {
                 skip_locked++;
                 WT_STAT_CONN_INCR(session, eviction_skip_page_locked_bucket);
                 continue;
             }
+
 #if LRU_FOR_READS
-            if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
-                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, bucketset->bucket_last_considered + iter);
+			if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
+				__wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, bucketset->bucket_last_considered + iter);
 #endif
+
             if (TAILQ_EMPTY(&bucket->evict_queue))
                 WT_STAT_CONN_INCR(session, eviction_skip_empty_bucket);
 
-            /* Iterate over the pages in the bucket until we find one that's available. */
-            TAILQ_FOREACH (page, &bucket->evict_queue, evict_data.evict_q) {
-                if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
-                    break;
-                ref = page->ref;
-                WT_ASSERT(session, ref != NULL);
-                /*
-                 * Pages created during splits may end up in the eviction data structures before
-                 * their home gets set. This is the same check as we make for the root page. Skip
-                 * them until their home gets set or if this is a true root. Keep this check here,
-                 * because split pages spend a small window of time without a home, which makes them
-                 * look like a root page. This condition is temporary as the home gets set quickly
-                 * after.
-                 */
-                if (__wt_ref_is_root(ref)) {
-                    ref = NULL;
-                    continue;
-                }
-
-                /*
-                 * We have the bucket locked. Even if someone is looking at the page they cannot be
-                 * removing it from the bucket and hence from the tree. So we can access its dhandle
-                 * attribute.
-                 */
-                if (__evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle))
-                {
-                    ref = NULL;
-                    continue;
-                }
-
-                /* Try to lock the reference. If it's already locked, skip it. */
-                previous_state = WT_REF_GET_STATE(ref);
-                WT_ASSERT(session, previous_state == WT_REF_LOCKED || previous_state == WT_REF_MEM);
-                if (previous_state == WT_REF_LOCKED) {
-                    WT_STAT_CONN_INCR(session, eviction_skip_page_locked);
-                    ref = NULL;
-                    continue;
-                } else if (previous_state == WT_REF_MEM) {
-                    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
-                        WT_STAT_CONN_INCR(session, eviction_skip_page_locked);
-                        ref = NULL;
-                        continue;
-                    }
-                }
-
-                /*
-                 * If we are here, we have a ref and it is locked. Make sure we unlock it if we
-                 * decide to skip.
-                 */
-                (void)__wt_atomic_add_int32(&page->evict_data.dhandle->session_inuse, 1);
-                WT_WITH_DHANDLE(session, page->evict_data.dhandle,
-                  skip_page = __evict_skip_page(session, ref, (int)i));
-                if (skip_page) {
-                    skipped++;
-                    WT_REF_UNLOCK(ref, previous_state);
-                    ref = NULL;
-                    (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
-                    continue;
-                } else {
-                    /*
-                     * We are almost ready to take this reference for eviciton. Check that eviction
-                     * hasn't been disabled while we were checking it.
-                     */
-                    *btreep = ref->page->evict_data.dhandle->handle;
-                    (void)__wt_atomic_add_uint32_v(&((*btreep)->evict_data.evict_busy), 1);
-                    if (__wt_atomic_load_int32_relaxed(&(*btreep)->evict_data.evict_disabled) > 0) {
-                        WT_REF_UNLOCK(ref, previous_state);
-                        ref = NULL;
-                        (void)__wt_atomic_sub_uint32_v(&((*btreep)->evict_data.evict_busy), 1);
-                        (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
-                        continue;
-                    } else
-                        goto unlock_bucket_and_done;
-                }
-            }
-unlock_bucket_and_done:
+            ref = __evict_scan_queue(
+              session, &bucket->evict_queue, i, false, btreep, &previous_state);
             if (ref != NULL) {
-                TAILQ_REMOVE(&bucket->evict_queue, page, evict_data.evict_q);
-                page->evict_data.bucket = NULL;
-                /* Decrement items in the bucketset where the page came from */
+                TAILQ_REMOVE(&bucket->evict_queue, ref->page, evict_data.evict_q);
+                ref->page->evict_data.bucket = NULL;
                 __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
             }
             __wt_spin_unlock(session, &bucket->evict_queue_lock);
@@ -1417,12 +1472,12 @@ unlock_bucket_and_done:
                 goto done;
         }
     }
-done:
+  done:
     if (ref != NULL) {
         *previous_statep = previous_state;
         *refp = ref;
 
-        (void)__wt_atomic_sub_int32(&page->evict_data.dhandle->session_inuse, 1);
+        (void)__wt_atomic_sub_int32(&ref->page->evict_data.dhandle->session_inuse, 1);
 
         WT_STAT_CONN_INCR(session, eviction_get_ref_success);
     } else {
@@ -1716,6 +1771,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 void
 __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 {
+	WT_EVICT_BUCKETSET *bucketset;
     WT_PAGE *page;
     WT_REF_STATE previous_state;
     bool must_unlock_ref;
@@ -1738,44 +1794,49 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 
     /* Now that we have locked the page, re-check that it's still in data structures */
     if (WT_EVICT_PAGE_CLEARED(page))
-        return;
+		goto done;
+
+	bucketset = page->evict_data.bucket->bucketset;
 
     /*
-     * If the page is syncing it will be in a per-dhandle sub-queue.
-     * If the page is not syncing, it will be in a regular bucket queue.
+	 * If the page is in one of the dirty leaf buckets, it would have to be
+	 * removed from its tree's subqueue.
      */
-    if (page->evict_data.syncing) {
+    if (bucketset->level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF ||
+		bucketset->level == WT_EVICT_LEVEL_DIRTY_LEAF) {
         WT_EVICT *evict;
         WT_EVICT_BUCKET *bucket;
-        WT_EVICT_BUCKETSET *bucketset;
-        WT_EVICT_DHANLDE_SUBQUEUE *dhandle_subqueue;
+        WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;
         WT_EVICT_DHANDLE_HASH_ENTRY *dhandle_hashentry;
         bool removed;
-        int hash_slot, bucket_id;
+        int hash_slot;
 
         evict = S2C(session)->evict;
-        bucketset = &evict->evict_bucketset[WT_EVICT_DIRTY_SYNCING];
         hash_slot =
-            page->evict_data.dhandle->name_hash % evict->dhandle_hash_size;
-        bucket_id = page->evict_data.bucket->id;
-        bucket = bucketset->buckets[bucket_id];
+            (int)(page->evict_data.dhandle->name_hash % evict->dhandle_hash_size);
+        bucket = page->evict_data.bucket;
         removed = false;
 
-        WT_ASSERT(bucket->bucketset == bucketset);
-        WT_ASSERT(bucket->pertree_hashtable != NULL);
+        WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
-        /* Lock the bucket to prevent the sub-queue being moved under us */
-        __wt_spin_lock(session, &bucket->evict_queue_lock);
-        dhandle_hashentry = bucket->pertree_hashtable[hash_slot];
+		/*
+		 * Hashtable buckets are allocated on cache initialization. They do not
+		 * disappear, so we don't need to lock the hashtable. We only need
+		 * to lock individual hashchains.
+		 */
+        dhandle_hashentry = &bucket->pertree_hashtable[hash_slot];
+
+		/* Lock the hash chain so we can safely iterate the queues */
         __wt_spin_lock(session, &dhandle_hashentry->evict_hashchain_lock);
 
-        /* Now it's safe to unlock the bucket */
-        __wt_spin_unlock(session, &bucket->evict_queue_lock);
+
         /* Find the subqueue for our dhandle */
         TAILQ_FOREACH
-            (dhandle_subqueue, dhandle_hashentry->dhandle_hashchain, dhanlde_subq) {
+            (dhandle_subqueue, &dhandle_hashentry->dhandle_hashchain, dhandle_subq) {
             if (dhandle_subqueue->dhandle == page->evict_data.dhandle) {
-                TAILQ_REMOVE(dhandle_subqueue->evict_queue, page, evict_data.evict_q);
+				__wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
+                TAILQ_REMOVE(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
+				__wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
                 removed = true;
                 break;
             }
@@ -1787,12 +1848,13 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
         TAILQ_REMOVE(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
         __wt_spin_unlock(session, &page->evict_data.bucket->evict_queue_lock);
 
-        bucketset = &page->evict_data.bucket->bucketset;
+        bucketset = page->evict_data.bucket->bucketset;
     }
-    __wt_atomic_sub_uint64(bucketset->bucketset_num_items, 1);
+    __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
     page->evict_data.bucket = NULL;
     if (destroying)
         page->evict_data.destroying = true; /* sticky flag, once set can't unset */
+ done:
     if (must_unlock_ref)
         WT_REF_UNLOCK(ref, previous_state);
 }
@@ -1852,10 +1914,90 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Get the right bucketset for this page */
     bucketset = bucket->bucketset;
 
-    __wt_spin_lock(session, &bucket->evict_queue_lock);
-    TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
-    __wt_spin_unlock(session, &bucket->evict_queue_lock);
+	/*
+	 * If the page is in one of the dirty leaf buckets, it would have to be
+	 * added to its tree's subqueue.
+     */
+    if (bucketset->level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF ||
+		bucketset->level == WT_EVICT_LEVEL_DIRTY_LEAF) {
+		WT_EVICT *evict;
+        WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;
+        WT_EVICT_DHANDLE_HASH_ENTRY *dhandle_hashentry;
+		bool found_queue;
+		int hash_slot;
 
+		evict = S2C(session)->evict;
+		found_queue = false;
+        hash_slot =
+            (int)(page->evict_data.dhandle->name_hash % evict->dhandle_hash_size);
+
+		WT_ASSERT(session, bucket->pertree_hashtable != NULL);
+
+		/*
+		 * Hashtable buckets are allocated on cache initialization. They do not
+		 * disappear, so we don't need to lock the hashtable. We only need
+		 * to lock individual hashchains.
+		 */
+        dhandle_hashentry = &bucket->pertree_hashtable[hash_slot];
+
+		/* Lock the hash chain so we can safely iterate the queues */
+        __wt_spin_lock(session, &dhandle_hashentry->evict_hashchain_lock);
+
+        /* Find the subqueue for our dhandle */
+        TAILQ_FOREACH
+            (dhandle_subqueue, &dhandle_hashentry->dhandle_hashchain, dhandle_subq) {
+            if (dhandle_subqueue->dhandle == page->evict_data.dhandle) {
+				found_queue = true;
+				break;
+			}
+
+        }
+		/* There is no queue for this dhandle. Let's allocate it */
+		if (!found_queue) {
+            if(__wt_calloc_one(session, &dhandle_subqueue) != 0) {
+				__wt_spin_unlock(session, &dhandle_hashentry->evict_hashchain_lock);
+                if (must_unlock_ref)
+                    WT_REF_UNLOCK(ref, previous_state);
+
+				/*
+				 * Dirty page will not be enqueued. This is undesirable, but not fatal;
+				 * it'll be picked up by the next checkpoint. If we are running out of
+				 * memory, we will probably crash elsewhere anyway.
+				 */
+				WT_STAT_CONN_INCR(session, eviction_pages_unqueued_out_of_memory);
+                return;
+			}
+            dhandle_subqueue->dhandle = page->evict_data.dhandle;
+            TAILQ_INIT(&dhandle_subqueue->evict_queue);
+            if(__wt_spin_init(session, &dhandle_subqueue->evict_queue_lock, "evict subqueue") != 0) {
+				__wt_free(session, dhandle_subqueue);
+				__wt_spin_unlock(session, &dhandle_hashentry->evict_hashchain_lock);
+				if (must_unlock_ref)
+					WT_REF_UNLOCK(ref, previous_state);
+
+				/*
+				 * Dirty page will not be enqueued. This is undesirable, but not fatal;
+				 * it'll be picked up by the next checkpoint. If we are running out of
+				 * memory, we will probably crash elsewhere anyway.
+				 */
+				WT_STAT_CONN_INCR(session, eviction_pages_unqueued_out_of_memory);
+				return;
+			}
+            TAILQ_INSERT_HEAD(&dhandle_hashentry->dhandle_hashchain, dhandle_subqueue, dhandle_subq);
+		}
+
+		__wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
+		TAILQ_INSERT_TAIL(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
+		__wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
+
+        __wt_spin_unlock(session, &dhandle_hashentry->evict_hashchain_lock);
+
+
+	} else {
+		__wt_spin_lock(session, &bucket->evict_queue_lock);
+		TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
+		__wt_spin_unlock(session, &bucket->evict_queue_lock);
+	}
     page->evict_data.bucket = bucket;
     __wt_atomic_add_uint64(&bucketset->bucketset_num_items, 1);
 

@@ -9,7 +9,7 @@
 #pragma once
 
 struct __wt_evict_bucketset;
-struct __wt_evict_pertree_hash_entry;
+struct __wt_evict_dhandle_hash_entry;
 
 struct __wt_evict_bucket {
     WT_SPINLOCK evict_queue_lock;
@@ -18,7 +18,7 @@ struct __wt_evict_bucket {
     struct __wt_evict_bucketset *bucketset;
 
     /* Buckets in dirty leaf bucketsets contain per-tree queues in a hashtable */
-    struct __wt_evict_pertree_hash_entry *pertree_hashtable;
+    struct __wt_evict_dhandle_hash_entry *pertree_hashtable;
 };
 
 /*
@@ -102,7 +102,6 @@ struct __wt_evict_page_data {
  * Data handle evict data
  */
 struct __wt_evict_handle_data {
-    bool initialized;
     uint64_t evict_priority;                /* Relative priority of cached pages */
     wt_shared int32_t evict_disabled;       /* Eviction disabled count */
     bool evict_disabled_open;               /* Eviction disabled on open */
@@ -118,15 +117,16 @@ struct __wt_evict_handle_data {
 struct __wt_evict_dhandle_subqueue {
     struct __wt_data_handle *dhandle; /* Dhandle owning this queue */
     TAILQ_ENTRY(__wt_evict_dhandle_subqueue) dhandle_subq;
+	WT_SPINLOCK evict_queue_lock;
     TAILQ_HEAD(__wt_evictbucket_qh, __wt_page) evict_queue; /* Pages in this queue */
 };
 
 /*
  * Hash table entry used for dirty syncing bucket.
  */
-struct __wt_evict_pertree_hash_entry {
-    WT_SPINLOCK evict_hashchain_lock; /* Locks the entire hash chain */
-    /* Array of per-tree queues to resolve hash collisions */
+struct __wt_evict_dhandle_hash_entry {
+	/* Locks the entire hash chain. Must be acquired before the subqueue lock. */
+    WT_SPINLOCK evict_hashchain_lock;
+    /* List of per-tree queues to resolve hash collisions */
     TAILQ_HEAD(__wt_hashchain_dhandle_qh,  __wt_evict_dhandle_subqueue) dhandle_hashchain;
-
 };

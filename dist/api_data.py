@@ -747,6 +747,12 @@ connection_runtime_config = [
                 We never go below 23 or above 10,000. But this might need revision for highly
                 threaded workloads.''',
                 min=23, max=9200),
+			Config('evict_dhandle_hash_size', '16', r'''
+                number of hash chains per dirty-leaf eviction bucket, used to locate a tree's
+                per-tree page subqueue. Larger values reduce chain-scan length when many trees
+                have dirty pages in the same bucket, at the cost of memory proportional to the
+                number of buckets. Cannot be changed after the connection is opened''',
+                min=1, max=1024),
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each

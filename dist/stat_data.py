@@ -435,6 +435,7 @@ conn_stats = [
     EvictStat('eviction_min_bucket_wont_need_clean_leaf', 'eviction starting bucket won\'t need clean leaf bucket', 'no_clear,no_scale'),
     EvictStat('eviction_min_bucket_wont_need_dirty_leaf', 'eviction starting bucket won\'t need dirty leaf bucket', 'no_clear,no_scale'),
     EvictStat('eviction_min_bucket_wont_need_internal', 'eviction starting bucket won\'t need internal bucket', 'no_clear,no_scale'),
+	EvictStat('eviction_pages_unqueued_out_of_memory', 'pages left unqueued because a per-tree subqueue allocation failed'),
     EvictStat('eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     EvictStat('eviction_pages_set_clean', 'pages transitioned from dirty to clean'),
     EvictStat('eviction_reconcile_cannot_evict', 'eviction found page ineligible for eviction in reconciliation'),

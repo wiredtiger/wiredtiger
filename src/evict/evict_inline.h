@@ -1140,3 +1140,13 @@ __evict_page_updates_candidate(WT_PAGE *page)
      */
     return (page->modify->bytes_updates != 0);
 }
+
+/*
+ * __evict_bucket_is_dirty_leaf --
+ *     Return true if this bucketset level keeps per-tree subqueues.
+ */
+static WT_INLINE bool
+__evict_level_is_dirty_leaf(int level)
+{
+    return (level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF || level == WT_EVICT_LEVEL_DIRTY_LEAF);
+}

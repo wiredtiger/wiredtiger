@@ -282,7 +282,25 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     /* Retrieve the number of buckets in each bucketset */
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_num_buckets", &cval));
-    evict->evict_num_buckets = (uint32_t)cval.val;
+	if (reconfig) {
+		if ((uint32_t)cval.val != evict->evict_num_buckets)
+            WT_RET_MSG(session, EINVAL,
+			  "eviction.evict_num_buckets cannot be changed after the connection is open "
+              "(currently %" PRIu32 ", requested %" PRId64 ")",
+              evict->evict_num_buckets, cval.val);
+    } else
+		evict->evict_num_buckets = (uint32_t)cval.val;
+
+	/* Retrieve the number of hash chains per dirty-leaf bucket. */
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_dhandle_hash_size", &cval));
+    if (reconfig) {
+        if ((uint32_t)cval.val != evict->dhandle_hash_size)
+            WT_RET_MSG(session, EINVAL,
+              "eviction.evict_dhandle_hash_size cannot be changed after the connection is open "
+              "(currently %" PRIu32 ", requested %" PRId64 ")",
+              evict->dhandle_hash_size, cval.val);
+    } else
+        evict->dhandle_hash_size = (uint32_t)cval.val;
 
     /*
      * Resize the thread group if reconfiguring, otherwise the thread group will be initialized as
@@ -337,7 +355,6 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_cond_auto_alloc(
       session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_server_cond));
-    WT_RET(__wt_spin_init(session, &conn->evict->evict_exclusive_lock, "evict-exclusive"));
     WT_RET(__wt_spin_init(session, &conn->evict->evict_housekeeping_lock, "evict-housekeeping"));
 
     /*
@@ -352,6 +369,9 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     evict->evict_num_buckets = WT_MIN(evict->evict_num_buckets, 9200);
     evict->evict_num_buckets = WT_MAX(evict->evict_num_buckets, 23);
+
+	if (evict->dhandle_hash_size == 0)
+        evict->dhandle_hash_size = 16;
 
     /*
      * Allocate the eviction buckets.
@@ -373,8 +393,27 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
             bucket->id = (uint64_t)j;
             WT_RET(__wt_spin_init(session, &bucket->evict_queue_lock, "evict bucket queue lock"));
             TAILQ_INIT(&bucket->evict_queue);
+
+            /*
+			 * Dirty leaf buckets hold per-tree subqueues in a hashtable, so that eviction can skip
+			 * an entire syncing tree instead of walking past its pages one at a time. The chains
+			 * are allocated once here and never freed until connection close, so the hot paths only
+			 * lock individual chains, never the table.
+			 */
+			if (!__evict_level_is_dirty_leaf(i))
+				continue;
+
+			WT_RET(__wt_calloc(session, evict->dhandle_hash_size,
+							   sizeof(WT_EVICT_DHANDLE_HASH_ENTRY), &bucket->pertree_hashtable));
+
+			for (int k = 0; k < (int)evict->dhandle_hash_size; k++) {
+				WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry = &bucket->pertree_hashtable[k];
+				WT_RET(__wt_spin_init(
+						   session, &hash_entry->evict_hashchain_lock, "evict dhandle hashchain lock"));
+				TAILQ_INIT(&hash_entry->dhandle_hashchain);
+			}
         }
-    }
+	}
 
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
@@ -394,6 +433,11 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_BUCKETSET *bucketset;
+    WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
+    WT_EVICT_DHANDLE_SUBQUEUE *subq;
+    int i, j, k;
 
     conn = S2C(session);
     evict = conn->evict;
@@ -401,7 +445,35 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     if (evict == NULL)
         return (0);
 
-    __wt_spin_destroy(session, &evict->evict_exclusive_lock);
+    for (i = 0; i < WT_EVICT_LEVELS; i++) {
+        bucketset = &evict->evict_bucketset[i];
+        if (bucketset->buckets == NULL)
+            continue;
+
+        for (j = 0; j < (int)bucketset->num_buckets; j++) {
+            bucket = &bucketset->buckets[j];
+
+            if (bucket->pertree_hashtable != NULL) {
+                for (k = 0; k < (int)evict->dhandle_hash_size; k++) {
+                    hash_entry = &bucket->pertree_hashtable[k];
+
+                    /* All dhandles are closed by now; chains must be empty. */
+                    while ((subq = TAILQ_FIRST(&hash_entry->dhandle_hashchain)) != NULL) {
+                        WT_ASSERT(session, TAILQ_EMPTY(&subq->evict_queue));
+                        TAILQ_REMOVE(&hash_entry->dhandle_hashchain, subq, dhandle_subq);
+                        __wt_spin_destroy(session, &subq->evict_queue_lock);
+                        __wt_free(session, subq);
+                    }
+                    __wt_spin_destroy(session, &hash_entry->evict_hashchain_lock);
+                }
+                __wt_free(session, bucket->pertree_hashtable);
+            }
+            __wt_spin_destroy(session, &bucket->evict_queue_lock);
+        }
+        __wt_free(session, bucketset->buckets);
+    }
+
+	__wt_spin_destroy(session, &evict->evict_housekeeping_lock);
     __wt_free(session, conn->evict);
     return (0);
 }
@@ -503,4 +575,61 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
 
     /* Update eviction threshold stats. */
     __wt_evict_stats_update(session);
+}
+
+/*
+ * __wt_evict_dhandle_subqueues_destroy --
+ *     Remove and free this tree's subqueues from every dirty-leaf bucket. Called when the dhandle
+ *     is closed, after its pages have been discarded.
+ */
+int
+__wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+{
+    WT_EVICT *evict;
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_BUCKETSET *bucketset;
+    WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
+    WT_EVICT_DHANDLE_SUBQUEUE *subq;
+    uint32_t hash_slot;
+    int i, j;
+
+	if (dhandle->type != WT_DHANDLE_TYPE_BTREE)
+		return (0);
+
+    evict = S2C(session)->evict;
+    hash_slot = (uint32_t)(dhandle->name_hash % evict->dhandle_hash_size);
+
+    for (i = 0; i < WT_EVICT_LEVELS; i++) {
+        if (!__evict_level_is_dirty_leaf(i))
+            continue;
+        bucketset = &evict->evict_bucketset[i];
+
+        for (j = 0; j < (int)bucketset->num_buckets; j++) {
+            bucket = &bucketset->buckets[j];
+            hash_entry = &bucket->pertree_hashtable[hash_slot];
+
+            __wt_spin_lock(session, &hash_entry->evict_hashchain_lock);
+            TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq) {
+                if (subq->dhandle != dhandle)
+                    continue;
+
+                /*
+                 * Take the subqueue lock while still holding the chain lock. A walker can only be
+                 * inside this queue if it holds the subqueue lock, and it can only have reached the
+                 * subqueue lock through the chain lock, which we hold. So once we own both, nobody
+                 * is in the queue and nobody can enter it.
+                 */
+                __wt_spin_lock(session, &subq->evict_queue_lock);
+                WT_ASSERT(session, TAILQ_EMPTY(&subq->evict_queue));
+                TAILQ_REMOVE(&hash_entry->dhandle_hashchain, subq, dhandle_subq);
+                __wt_spin_unlock(session, &subq->evict_queue_lock);
+
+                __wt_spin_destroy(session, &subq->evict_queue_lock);
+                __wt_free(session, subq);
+                break;
+            }
+            __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+        }
+    }
+    return (0);
 }
