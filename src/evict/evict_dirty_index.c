@@ -112,7 +112,8 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
 
     evict = S2C(session)->evict;
     if (!__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index) ||
-      !F_ISSET(ref, WT_REF_FLAG_LEAF) || (page = ref->page) == NULL || page->modify == NULL ||
+      !F_ISSET(ref, WT_REF_FLAG_LEAF) || WT_REF_GET_STATE(ref) != WT_REF_MEM ||
+      (page = __wt_atomic_load_ptr_acquire(&ref->page)) == NULL || page->modify == NULL ||
       (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return (false);
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
@@ -153,7 +154,8 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     }
 
     __wt_atomic_store_ptr_release(&slotp->ref, ref);
-    if (__wt_atomic_load_uint32_acquire(&page->dirty_index_slot) != slot + 1) {
+    if (__wt_atomic_load_uint32_acquire(&page->dirty_index_slot) != slot + 1 ||
+      __wt_atomic_load_ptr_acquire(&ref->page) != page || WT_REF_GET_STATE(ref) != WT_REF_MEM) {
         (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
         __wt_atomic_store_uint64_release(&slotp->sequence, pos + 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_contended);
@@ -183,6 +185,34 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
         return;
 
     slotp = &idx->slots[WTI_DIRTY_BP_SLOT(bp)];
-    (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
-    (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, 0);
+    /* Only clear the page back-pointer if this ref still owns the slot. */
+    if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
+        (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, 0);
+}
+
+/*
+ * __wt_dirty_index_clear_ref --
+ *     Remove a ref that is about to be freed from any active ring slot. Splits replace a WT_REF
+ *     while retaining its page, so the page back-pointer may no longer identify the old ref.
+ */
+void
+__wt_dirty_index_clear_ref(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
+{
+    WTI_DIRTY_INDEX *idx;
+    WTI_DIRTY_INDEX_SLOT *slotp;
+    uint64_t head, pos, tail;
+    uint32_t slot;
+
+    WT_UNUSED(session);
+    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
+        return;
+
+    tail = __wt_atomic_load_uint64_acquire(&idx->tail);
+    head = __wt_atomic_load_uint64_acquire(&idx->head);
+    for (pos = tail; pos < head && pos - tail < idx->capacity; ++pos) {
+        slot = (uint32_t)pos & idx->mask;
+        slotp = &idx->slots[slot];
+        if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL) && page != NULL)
+            (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, slot + 1, 0);
+    }
 }

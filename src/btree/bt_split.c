@@ -602,6 +602,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
 {
     WT_DECL_RET;
     WT_IKEY *ikey;
+    WT_PAGE *page;
     size_t size;
 
     /*
@@ -623,7 +624,8 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     }
 
     /* Free any backing fast-truncate memory. */
-    __wt_dirty_index_clear_page(session, S2BT(session), ref, ref->page);
+    page = ref->page;
+    __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
@@ -645,6 +647,9 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      * chance.
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
+
+    /* Catch an insertion that raced with publishing the replacement ref. */
+    __wt_dirty_index_clear_ref(session, S2BT(session), ref, page);
 
     WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);

@@ -6775,10 +6775,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CLEAN_PRESSURE	1135
 /*! cache: dirty index inserts */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT	1136
-/*!
- * cache: dirty index inserts abandoned because a concurrent producer won
- * the slot
- */
+/*! cache: dirty index inserts abandoned after a page back-pointer race */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_CONTENDED	1137
 /*! cache: dirty index inserts dropped due to full ring */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL	1138
@@ -9498,10 +9495,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_SKIPPED_CLEAN_PRESSURE	2089
 /*! cache: dirty index inserts */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT	2090
-/*!
- * cache: dirty index inserts abandoned because a concurrent producer won
- * the slot
- */
+/*! cache: dirty index inserts abandoned after a page back-pointer race */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT_CONTENDED	2091
 /*! cache: dirty index inserts dropped due to full ring */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_INSERT_RING_FULL	2092

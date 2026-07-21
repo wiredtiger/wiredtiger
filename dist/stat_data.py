@@ -1273,7 +1273,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty_index_drain_skipped_stable_lag', 'dirty index drain passes skipped because the pinned stable timestamp lags the midpoint of the blocked commit timestamp range'),
     CacheStat('cache_eviction_dirty_index_drain_stale', 'dirty index slots dropped by drain because the page was clean or already queued'),
     CacheStat('cache_eviction_dirty_index_insert', 'dirty index inserts'),
-    CacheStat('cache_eviction_dirty_index_insert_contended', 'dirty index inserts abandoned because a concurrent producer won the slot'),
+    CacheStat('cache_eviction_dirty_index_insert_contended', 'dirty index inserts abandoned after a page back-pointer race'),
     CacheStat('cache_eviction_dirty_index_insert_ring_full', 'dirty index inserts dropped due to full ring'),
     CacheStat('cache_eviction_dirty_index_trim_reinserted', 'dirty index slots reinserted after the LRU sort trimmed them'),
     CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window by eviction'),
