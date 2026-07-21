@@ -252,7 +252,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT, "subq SYNC_START tree=%s",
+        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT, "subq SYNC_START tree=%s",
           btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
 
         /*
@@ -402,7 +402,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
+        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
           "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
           " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
           syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages, leaf_bytes,
@@ -439,7 +439,7 @@ err:
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
         __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
 
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT, "subq SYNC_END   tree=%s",
+        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT, "subq SYNC_END   tree=%s",
           btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
     }
 

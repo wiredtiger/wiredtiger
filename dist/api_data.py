@@ -747,7 +747,7 @@ connection_runtime_config = [
                 We never go below 23 or above 10,000. But this might need revision for highly
                 threaded workloads.''',
                 min=23, max=9200),
-			Config('evict_dhandle_hash_size', '16', r'''
+            Config('evict_dhandle_hash_size', '16', r'''
                 number of hash chains per dirty-leaf eviction bucket, used to locate a tree's
                 per-tree page subqueue. Larger values reduce chain-scan length when many trees
                 have dirty pages in the same bucket, at the cost of memory proportional to the

@@ -2262,25 +2262,27 @@ struct __wt_connection {
      * @config{error_prefix, prefix string for error messages., a string; default empty.}
      * @config{eviction = (, eviction configuration options., a set of related configuration options
      * defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_num_buckets, The number of buckets
-     * in each bucketset.  When set to zero\, the cache will compute the number of buckets
-     * dynamically\, based on a heuristic of 230 buckets for each gigabyte of cache.  This number
-     * has been determined experimentally.  We never go below 23 or above 10\,000. But this might
-     * need revision for highly threaded workloads., an integer between \c 23 and \c 9200; default
-     * \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on
-     * the root page\, attempt to locate a random in-memory page by examining all entries on the
-     * root page., a boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * prefer_scrub_eviction, Change the eviction strategy to scrub eviction when the cache usage is
-     * under half way between the target limit to the trigger limit., a boolean flag; default \c
-     * false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for
-     * obsolete updates whenever an update operation is performed., a boolean flag; default \c
-     * false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger
-     * will start to help evict pages from cache.  The number of threads started will vary depending
-     * on the current eviction load.  Each eviction worker thread uses a session from the configured
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_dhandle_hash_size, number of hash
+     * chains per dirty-leaf eviction bucket\, used to locate a tree's per-tree page subqueue.
+     * Larger values reduce chain-scan length when many trees have dirty pages in the same bucket\,
+     * at the cost of memory proportional to the number of buckets.  Cannot be changed after the
+     * connection is opened., an integer between \c 1 and \c 1024; default \c 16.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_num_buckets, The number of buckets in each bucketset.
+     * When set to zero\, the cache will compute the number of buckets dynamically\, based on a
+     * heuristic of 230 buckets for each gigabyte of cache.  This number has been determined
+     * experimentally.  We never go below 23 or above 10\,000. But this might need revision for
+     * highly threaded workloads., an integer between \c 23 and \c 9200; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
+     * page\, attempt to locate a random in-memory page by examining all entries on the root page.,
+     * a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;prefer_scrub_eviction,
+     * Change the eviction strategy to scrub eviction when the cache usage is under half way between
+     * the target limit to the trigger limit., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for obsolete
+     * updates whenever an update operation is performed., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will start
+     * to help evict pages from cache.  The number of threads started will vary depending on the
+     * current eviction load.  Each eviction worker thread uses a session from the configured
      * session_max., an integer between \c 1 and \c 128; default \c 8.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start
      * to help evict pages from cache.  The number of threads currently running will vary depending
@@ -3187,28 +3189,33 @@ struct __wt_connection {
  * @config{error_prefix, prefix string for error messages., a string; default empty.}
  * @config{eviction = (, eviction configuration options., a set of related configuration options
  * defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_num_buckets, The number of buckets in
- * each bucketset.  When set to zero\, the cache will compute the number of buckets dynamically\,
- * based on a heuristic of 230 buckets for each gigabyte of cache.  This number has been determined
- * experimentally.  We never go below 23 or above 10\,000. But this might need revision for highly
- * threaded workloads., an integer between \c 23 and \c 9200; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
- * page\, attempt to locate a random in-memory page by examining all entries on the root page., a
- * boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prefer_scrub_eviction, Change the
- * eviction strategy to scrub eviction when the cache usage is under half way between the target
- * limit to the trigger limit., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_dhandle_hash_size, number of hash
+ * chains per dirty-leaf eviction bucket\, used to locate a tree's per-tree page subqueue.  Larger
+ * values reduce chain-scan length when many trees have dirty pages in the same bucket\, at the cost
+ * of memory proportional to the number of buckets.  Cannot be changed after the connection is
+ * opened., an integer between \c 1 and \c 1024; default \c 16.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * skip_update_obsolete_check, Skip checking for obsolete updates whenever an update operation is
- * performed., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max,
- * maximum number of threads WiredTiger will start to help evict pages from cache.  The number of
- * threads started will vary depending on the current eviction load.  Each eviction worker thread
- * uses a session from the configured session_max., an integer between \c 1 and \c 128; default \c
- * 8.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start
- * to help evict pages from cache.  The number of threads currently running will vary depending on
- * the current eviction load., an integer between \c 1 and \c 128; default \c 1.}
+ * evict_num_buckets, The number of buckets in each bucketset.  When set to zero\, the cache will
+ * compute the number of buckets dynamically\, based on a heuristic of 230 buckets for each gigabyte
+ * of cache.  This number has been determined experimentally.  We never go below 23 or above
+ * 10\,000. But this might need revision for highly threaded workloads., an integer between \c 23
+ * and \c 9200; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory
+ * ref is found on the root page\, attempt to locate a random in-memory page by examining all
+ * entries on the root page., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+ * prefer_scrub_eviction, Change the eviction strategy to scrub eviction when the cache usage is
+ * under half way between the target limit to the trigger limit., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for obsolete updates
+ * whenever an update operation is performed., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will start to
+ * help evict pages from cache.  The number of threads started will vary depending on the current
+ * eviction load.  Each eviction worker thread uses a session from the configured session_max., an
+ * integer between \c 1 and \c 128; default \c 8.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min,
+ * minimum number of threads WiredTiger will start to help evict pages from cache.  The number of
+ * threads currently running will vary depending on the current eviction load., an integer between
+ * \c 1 and \c 128; default \c 1.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is

@@ -174,7 +174,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         break;
     }
 
-    __wt_verbose_debug2(session, WT_VERB_EVICTION, "subq DHANDLE_DESTROY tree=%s",
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "subq DHANDLE_DESTROY tree=%s",
       dhandle->name != NULL ? dhandle->name : "(null)");
 
     __wt_evict_dhandle_subqueues_destroy(session, dhandle);
