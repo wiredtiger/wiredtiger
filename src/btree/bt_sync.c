@@ -175,7 +175,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     txn = session->txn;
     mod = ref->page->modify;
     if (txn->snapshot_data.snap_max >= __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn)) {
-        if (!__sync_evict_reconciled_under_ckpt_snapshot(session, mod))
+        if (!__sync_evict_reconciled_under_ckpt_snapshot(session, ref))
             return (false);
         skipped_evict_reconciled = true;
     }
