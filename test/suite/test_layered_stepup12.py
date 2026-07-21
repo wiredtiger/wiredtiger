@@ -42,7 +42,7 @@
 #
 #   FIXME-WT-17880: Remove this test once we have asynchronous step-up/step-down.
 
-import signal, threading, time, wiredtiger, wttest
+import signal, threading, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -113,18 +113,13 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             target=lambda: conn.reconfigure(f'disaggregated=(role={self.target_role})'),
             daemon=True)
 
-        def role_transition_in_progress():
-            stat_cursor = session.open_cursor('statistics:', None, None)
-            value = stat_cursor[wiredtiger.stat.conn.disagg_role_transition_in_progress][2]
-            stat_cursor.close()
-            return value != 0
+        transition_stat = wiredtiger.stat.conn.disagg_step_up_in_progress \
+            if self.target_role == 'leader' else wiredtiger.stat.conn.disagg_step_down_in_progress
 
         # Wait until the role transition has begun before initiating the schema op.
         t.start()
-        deadline = time.time() + 10
-        while not role_transition_in_progress():
-            self.assertLess(time.time(), deadline, 'role transition did not start')
-            time.sleep(0.01)
+        self.assertStatGreaterSoon(transition_stat, 0, session=session, timeout=10,
+            msg='role transition did not start')
 
         match self.op:
             case 'drop':
