@@ -141,10 +141,8 @@ __sync_page_rec_flags(
 static WT_INLINE bool
 __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TXN *txn;
-    u_int i;
     bool skipped_evict_reconciled;
 
     skipped_evict_reconciled = false;
@@ -183,19 +181,17 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * The problematic case is when a page was evicted but when there were unresolved updates and
-     * not every block associated with the page has a disk address. We can't skip such pages because
-     * we need a checkpoint write with valid addresses.
+     * We can only skip writing the page if its current content is already durable on disk. A page
+     * evicted with unresolved updates, or re-instantiated from an image that was never written, has
+     * content that only exists in memory; checkpoint must write it with valid addresses.
      *
      * The page's modification information can change underfoot if the page is being reconciled, so
      * we'd normally serialize with reconciliation before reviewing page-modification information.
      * However, checkpoint is the only valid writer of dirty leaf pages at this point, we skip the
      * lock.
      */
-    if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
-            if (multi->addr.block_cookie == NULL)
-                return (false);
+    if (!__sync_page_image_durable(ref))
+        return (false);
 
     /* RTS, recovery or shutdown should not leave anything dirty behind. */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
