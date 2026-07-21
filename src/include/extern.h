@@ -2489,6 +2489,8 @@ static WT_INLINE uint16_t __wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL
   uint8_t cell_type, uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta,
   bool is_prepared_fast_truncate, size_t data_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE uint32_t __wt_rec_scrub_image_size(WT_PAGE_MODIFY *mod)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
@@ -2598,6 +2600,8 @@ static WT_INLINE void __wt_cache_page_inmem_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_inmem_incr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update);
+static WT_INLINE void __wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size);
+static WT_INLINE void __wt_cache_scrub_image_incr(WT_SESSION_IMPL *session, uint32_t image_size);
 static WT_INLINE void __wt_cache_shared_dsk_inmem_decr(
   WT_SESSION_IMPL *session, uint8_t image_type, size_t size);
 static WT_INLINE void __wt_cache_shared_dsk_inmem_incr(
@@ -2647,6 +2651,7 @@ static WT_INLINE void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *
 static WT_INLINE void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
+static WT_INLINE void __wt_rec_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod);
 static WT_INLINE void __wt_ref_ascend(
   WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp);
 static WT_INLINE void __wt_ref_index_slot(

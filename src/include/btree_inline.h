@@ -135,9 +135,9 @@ __wt_page_evict_swap(WT_PAGE *page)
     WT_PAGE_MODIFY *mod;
 
     /*
-     * Don't use the more obvious page is modified check, this code has ordering expectations
-     * on the reads between page_state and rec_result/mod_disk_image that need a stronger
-     * load semantic when reading page_state.
+     * Don't use the more obvious page is modified check, this code has ordering expectations on the
+     * reads between page_state and rec_result/mod_disk_image that need a stronger load semantic
+     * when reading page_state.
      */
     return (!WT_PAGE_IS_INTERNAL(page) && (mod = page->modify) != NULL &&
       __wt_atomic_load_uint32_acquire(&mod->page_state) == WT_PAGE_CLEAN && mod->rec_result != 0 &&
@@ -466,6 +466,66 @@ __wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v,
 #ifdef HAVE_DIAGNOSTIC
     __wt_abort(session);
 #endif
+}
+
+/*
+ * __wt_cache_scrub_image_incr --
+ *     Account for a clean re-instantiation image retained in cache by checkpoint scrub.
+ */
+static WT_INLINE void
+__wt_cache_scrub_image_incr(WT_SESSION_IMPL *session, uint32_t image_size)
+{
+    WT_CACHE *cache;
+
+    cache = S2C(session)->cache;
+    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_scrub_image, (uint64_t)image_size);
+    (void)__wt_atomic_add_uint64_relaxed(&cache->pages_scrub_image, 1);
+}
+
+/*
+ * __wt_cache_scrub_image_decr --
+ *     Release accounting for a checkpoint-scrub image no longer retained in cache, guarding from
+ *     underflow.
+ */
+static WT_INLINE void
+__wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size)
+{
+    WT_CACHE *cache;
+
+    cache = S2C(session)->cache;
+    __wt_cache_decr_check_uint64(
+      session, &cache->bytes_scrub_image, (uint64_t)image_size, "WT_CACHE.bytes_scrub_image");
+    __wt_cache_decr_check_uint64(
+      session, &cache->pages_scrub_image, 1, "WT_CACHE.pages_scrub_image");
+}
+
+/*
+ * __wt_rec_scrub_image_size --
+ *     Return the size of a page's retained checkpoint-scrub image, or zero if it isn't tracked.
+ */
+static WT_INLINE uint32_t
+__wt_rec_scrub_image_size(WT_PAGE_MODIFY *mod)
+{
+    if (mod->mod_disk_image == NULL || mod->rec_image_state != WT_REC_IMAGE_SCRUB_CLEAN)
+        return (0);
+    return (((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size);
+}
+
+/*
+ * __wt_rec_image_discard --
+ *     Free a page's retained re-instantiation image, releasing scrub accounting if it was tracked.
+ */
+static WT_INLINE void
+__wt_rec_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
+{
+    WT_PAGE_HEADER *dsk;
+
+    if (mod->mod_disk_image != NULL && mod->rec_image_state == WT_REC_IMAGE_SCRUB_CLEAN) {
+        dsk = (WT_PAGE_HEADER *)mod->mod_disk_image;
+        __wt_cache_scrub_image_decr(session, dsk->mem_size);
+        mod->rec_image_state = WT_REC_IMAGE_NONE;
+    }
+    __wt_free(session, mod->mod_disk_image);
 }
 
 /*

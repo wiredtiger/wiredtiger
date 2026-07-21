@@ -128,6 +128,9 @@ struct __wt_cache {
     wt_shared uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */
     wt_shared uint64_t bytes_image_leaf_ingest;
     wt_shared uint64_t bytes_image_leaf_stable;
+    /* Clean re-instantiation images retained in cache by checkpoint scrub. */
+    wt_shared uint64_t bytes_scrub_image;
+    wt_shared uint64_t pages_scrub_image;
     /* Shared disk image bytes charged to more than one btree's in-memory total. */
     wt_shared uint64_t bytes_shared_dsk_duplicate;
     wt_shared uint64_t bytes_inmem; /* Bytes/pages in memory */

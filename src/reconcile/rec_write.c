@@ -27,62 +27,25 @@ static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
- * __rec_scrub_eligible --
- *     Return true if this reconciliation call should retain a disk image for scrub eviction.
- */
-static WT_INLINE bool
-__rec_scrub_eligible(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    /* Skip during recovery or checkpoint shutdown: the scrubbed image would never be consumed. */
-    if (F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
-        return (false);
-
-    /*
-     * Requirements shared regardless of feature configuration: the swap-eviction path only works
-     * with a row-store leaf image produced by a checkpoint reconciliation that is not a connection
-     * close.
-     */
-    if (page->type != WT_PAGE_ROW_LEAF || !LF_ISSET(WT_REC_CHECKPOINT) ||
-      LF_ISSET(WT_REC_EVICT_CALL_CLOSING))
-        return (false);
-
-    switch (__wt_atomic_load_uint8_relaxed(
-      &conn->cache->cache_eviction_controls.checkpoint_scrub_eviction)) {
-    case WT_CACHE_CHECKPOINT_SCRUB_EVICT_OFF:
-        return (false);
-    case WT_CACHE_CHECKPOINT_SCRUB_EVICT_ON:
-        return (true);
-    default: /* WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO */
-        return (
-          F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
-    }
-}
-
-/*
  * __rec_save_disk_image --
  *     Return true if reconciliation should save a disk image for in-memory re-instantiation.
  */
 static WT_INLINE bool
 __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
 {
-    /* The disk image needs to be saved if reconciliation saved updates that need to be restored */
-    if (F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
+    /*
+     * Save the image if configured to always do that, or reconciliation saved updates that will
+     * need to be restored on a new image.
+     */
+    if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS) || F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return (true);
 
-    if (!F_ISSET(r, WT_REC_SCRUB))
+    if (!F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN))
         return (false);
 
-    /* All eviction driven (non-checkpoint) reconciliations obey the scrub flag. */
-    if (!F_ISSET(r, WT_REC_CHECKPOINT))
-        return (true);
-
     /*
-     * Skip the image if reconciliation could not write all updates: the page will remain dirty and
-     * the swap eviction path requires WT_PAGE_CLEAN, so the image would never be used.
+     * Best-effort save: skip the image if the page will be left dirty. The swap eviction path
+     * requires WT_PAGE_CLEAN, so a dirty page's image would never be used.
      */
     if (r->leave_dirty) {
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_dirty);
@@ -90,6 +53,21 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
     }
 
     return (true);
+}
+
+/*
+ * __rec_track_saved_image --
+ *     Record that a clean checkpoint-scrub image is now retained on the page and account for its
+ *     memory. Eviction-mandated (WT_REC_SAVE_IMAGE_ALWAYS) images are consumed by the eviction that
+ *     reconciled the page, so they are not tracked here.
+ */
+static WT_INLINE void
+__rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_MODIFY *mod)
+{
+    if (F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN) && mod->mod_disk_image != NULL) {
+        mod->rec_image_state = WT_REC_IMAGE_SCRUB_CLEAN;
+        __wt_cache_scrub_image_incr(session, __wt_rec_scrub_image_size(mod));
+    }
 }
 
 /*
@@ -107,10 +85,13 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
-    if (__rec_scrub_eligible(session, page, flags)) {
-        LF_SET(WT_REC_SCRUB);
+    /* The swap-eviction path only works with a row-store leaf image, so clear the request here. */
+    if (page->type != WT_PAGE_ROW_LEAF)
+        LF_CLR(WT_REC_SAVE_IMAGE_CLEAN);
+
+    /* The caller decides whether to retain a clean image for scrub eviction. */
+    if (LF_ISSET(WT_REC_SAVE_IMAGE_CLEAN))
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_checkpoint);
-    }
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -278,7 +259,7 @@ __reconcile_post_wrapup(
         WT_STAT_CONN_DSRC_INCR(session, cache_write_hs);
     if (r->cache_write_restore_invisible)
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_invisible);
-    else if (F_ISSET(r, WT_REC_SCRUB))
+    else if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS | WT_REC_SAVE_IMAGE_CLEAN))
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub);
     if (!WT_IS_HS(btree->dhandle)) {
         if (r->rec_page_cell_with_txn_id)
@@ -3218,7 +3199,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
-        __wt_free(session, mod->mod_disk_image);
+        __wt_rec_image_discard(session, mod);
         break;
     default:
         return (__wt_illegal_value(session, mod->rec_result));
@@ -3301,6 +3282,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
+                __rec_track_saved_image(session, r, mod);
                 if (page->disagg_info != NULL)
                     page->disagg_info->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
@@ -3309,13 +3291,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 WT_ASSERT(session, F_ISSET(r->multi, WT_MULTI_SKIP_WRITE));
                 /*
                  * Skip-write with no cookie: the previous reconciliation reset rec_result to 0, so
-                 * no prior cookie was copied. Under scrub, carry the disk image forward so the page
+                 * no prior cookie was copied. When saving the image, carry it forward so the page
                  * is re-instantiated in cache rather than discarded ahead of the materialization
                  * frontier.
                  */
-                if (F_ISSET(r, WT_REC_SCRUB)) {
+                if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS | WT_REC_SAVE_IMAGE_CLEAN)) {
                     mod->mod_disk_image = r->multi->disk_image;
                     r->multi->disk_image = NULL;
+                    __rec_track_saved_image(session, r, mod);
                 } else
                     WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT));
             }
@@ -3480,7 +3463,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.cumulative_size = 0;
         __wt_free(session, page->modify->mod_replace.block_cookie);
         page->modify->mod_replace.block_cookie_size = 0;
-        __wt_free(session, page->modify->mod_disk_image);
+        __wt_rec_image_discard(session, page->modify);
         /*
          * ref->addr still carries a cookie for the now-dead page id; a later wrapup that tries to
          * free it would produce a second discard in the chain and fail. Clear the stale reference
