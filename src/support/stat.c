@@ -2447,7 +2447,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: checkpoints skipped because database was clean",
   "checkpoint: create and remove metadata operation pairs canceled during disaggregated checkpoint "
-  "because the remove was not covered",
+  "because the remove was never published",
   "checkpoint: fsync calls after allocating the transaction ID",
   "checkpoint: fsync duration after allocating the transaction ID (usecs)",
   "checkpoint: generation",

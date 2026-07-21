@@ -7528,7 +7528,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHECKPOINT_SKIPPED			1408
 /*!
  * checkpoint: create and remove metadata operation pairs canceled during
- * disaggregated checkpoint because the remove was not covered
+ * disaggregated checkpoint because the remove was never published
  */
 #define	WT_STAT_CONN_CHECKPOINT_DISAGG_METADATA_PAIR_CANCELED	1409
 /*! checkpoint: fsync calls after allocating the transaction ID */

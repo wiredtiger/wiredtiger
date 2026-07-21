@@ -165,7 +165,7 @@ class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # the pair must be canceled instead of resurrecting the table in shared
         # metadata.
         self.set_stable_epoch(20)
-        with self.expectedStderrPattern('canceling both operations'):
+        with self.expectedStderrPattern('canceling the queued create and drop'):
             self.leader_checkpoint(60)
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
         self.assertEqual(self.pair_canceled_count(), 1)

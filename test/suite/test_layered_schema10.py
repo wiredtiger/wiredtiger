@@ -34,11 +34,11 @@
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
-from wiredtiger import stat
+from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema10(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
@@ -274,13 +274,8 @@ class test_layered_schema10(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
-    def test_create_drop_split_epochs(self):
-        """
-        Publishing CREATE and DROP at different epochs, with a checkpoint whose stable epoch
-        falls in between, is a tolerated contract violation: the checkpoint cancels the queued
-        create/remove pair with an error message and a statistic instead of publishing a
-        dropped table that no node can serve.
-        """
+    def subprocess_create_drop_split_epochs(self):
+        """Subprocess body for the split-epochs panic test; expected to panic/abort."""
         self.setup_leader_with_epoch()
 
         conn_follow, session_follow = self.open_follower()
@@ -303,31 +298,32 @@ class test_layered_schema10(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
 
         # Checkpoint at epoch=20: the stable epoch falls between CREATE (epoch=20) and
-        # DROP (epoch=30). Rather than publish a dropped table no node can serve, the
-        # checkpoint cancels the pair and reports it.
+        # DROP (epoch=30), so the table must be visible in shared metadata at this checkpoint.
+        # But the stable constituent was never created, so WiredTiger panics.
         self.set_stable_epoch(20, conn_follow)
         conn_follow.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(2) +
             ',oldest_timestamp=' + self.timestamp_str(1))
         session_ck = conn_follow.open_session('')
-        with self.expectedStderrPattern('canceling both operations'):
-            session_ck.checkpoint()
+        session_ck.checkpoint()  # Expected to panic.
 
-        # The pair nets out: nothing in shared metadata, and the cancellation is counted.
-        self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
-        stat_cursor = session_ck.open_cursor('statistics:')
-        self.assertEqual(
-            stat_cursor[stat.conn.checkpoint_disagg_metadata_pair_canceled][2], 1)
-        stat_cursor.close()
+    def test_create_drop_split_epochs(self):
+        """
+        Publishing CREATE and DROP at different epochs is an API violation that panics.
 
-        # A later checkpoint covering the epoch of the canceled REMOVE stays clean.
-        self.set_stable_epoch(30, conn_follow)
-        conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(3))
-        session_ck.checkpoint()
-        self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
-        session_ck.close()
-
-        conn_follow.close('debug=(skip_checkpoint=true)')
+        The stable epoch falls between CREATE (epoch=20) and DROP (epoch=30), so this checkpoint
+        must include the table in shared metadata. But the table was dropped and its stable
+        constituent was never created, so we have no data to write. WiredTiger detects this and
+        panics.
+        """
+        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
+        # in a subprocess so that the panic/abort does not kill the test runner.
+        self.setup_leader_with_epoch()
+        subdir = 'SUBPROCESS_create_drop_split_epochs'
+        [returncode, _] = self.run_subprocess_function(subdir,
+            f'{self.test_name}.{self.test_name}.subprocess_create_drop_split_epochs',
+            silent=True)
+        self.assertNotEqual(returncode, 0)
 
     def test_unpublished_create_not_flushed(self):
         """

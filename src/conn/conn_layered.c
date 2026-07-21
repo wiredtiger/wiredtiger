@@ -326,7 +326,7 @@ err:
  *     can ever be covered by a checkpoint and the entries net out. (A create through the table:
  *     prefix enqueues two CREATE entries, hence the loop.) Any other shape must stay queued --
  *     a published CREATE may be covered by a later checkpoint (the checkpoint-time cancellation in
- *     __wt_disagg_shared_metadata_queue_process handles a REMOVE deferring past it), and this
+ *     __wt_disagg_shared_metadata_queue_process pairs it with an unpublished REMOVE), and this
  *     REMOVE may be published later.
  */
 static bool
@@ -766,7 +766,8 @@ __wt_disagg_shared_metadata_queue_process(
     struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *remove_entry, *skipped, *tmp;
+    WT_DISAGG_METADATA_OP *entry, *group, *group_next, *remove_entry, *skipped, *tmp;
+    bool last;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -803,30 +804,46 @@ __wt_disagg_shared_metadata_queue_process(
         }
 
         /*
-         * A covered CREATE whose first following REMOVE defers past this checkpoint means the table
-         * was dropped locally but the drop is not yet published. Applying the CREATE alone would
-         * advertise a table in shared metadata that no node can serve, so cancel both entries: the
-         * pair nets out because no checkpoint covering only the CREATE has been taken. In legacy
-         * mode nothing defers by epoch, so there is nothing to check.
+         * A covered CREATE whose first following REMOVE can never be published (its epoch is
+         * unpublished) means the table was dropped locally and no checkpoint will ever cover the
+         * drop. Applying the CREATE would advertise a table in shared metadata that no node can
+         * serve, so cancel the whole group: every CREATE for the URI ahead of the REMOVE (a create
+         * through the table: prefix enqueues two) together with the REMOVE, so no duplicate CREATE
+         * survives to republish the dropped table. A REMOVE published at a later epoch is the
+         * two-phase drop instead: this checkpoint applies the CREATE and a later covering
+         * checkpoint applies the REMOVE. In legacy mode nothing defers by epoch, so there is
+         * nothing to check.
          */
         if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE &&
           entry->metadata_op == WT_SHARED_METADATA_CREATE &&
           (remove_entry =
-              __layered_create_following_remove(session, conn, entry, cur_schema_epoch)) != NULL) {
+              __layered_create_following_remove(session, conn, entry, cur_schema_epoch)) != NULL &&
+          remove_entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
             __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Table \"%s\" was created at epoch %" PRIu64
               " covered by this checkpoint (schema epoch %" PRIu64
-              "), but its drop at epoch %" PRIu64
-              " was not: canceling both operations so the dropped table is not published to "
-              "shared metadata.",
-              entry->table_name, entry->schema_epoch, cur_schema_epoch, remove_entry->schema_epoch);
+              "), but was dropped without the drop being published: canceling the queued create "
+              "and drop so the dropped table is not published to shared metadata.",
+              entry->table_name, entry->schema_epoch, cur_schema_epoch);
             WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_pair_canceled);
 
-            /* The canceled REMOVE may be the loop's saved next entry; step past it. */
-            if (remove_entry == tmp)
-                tmp = TAILQ_NEXT(tmp, q);
-            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, remove_entry, q);
-            __disagg_shared_metadata_queue_free(session, &remove_entry);
+            for (group = TAILQ_NEXT(entry, q); group != NULL; group = group_next) {
+                group_next = TAILQ_NEXT(group, q);
+                last = group == remove_entry;
+                if (!last &&
+                  (group->metadata_op != WT_SHARED_METADATA_CREATE ||
+                    strcmp(group->stable_uri, entry->stable_uri) != 0))
+                    continue;
+                /* Both CREATE entries of a table: create were published together. */
+                WT_ASSERT(session, last || group->schema_epoch == entry->schema_epoch);
+                /* A canceled entry may be the loop's saved next entry; step past it. */
+                if (group == tmp)
+                    tmp = group_next;
+                TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, group, q);
+                __disagg_shared_metadata_queue_free(session, &group);
+                if (last)
+                    break;
+            }
 
             TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
             __disagg_shared_metadata_queue_free(session, &entry);
@@ -855,10 +872,10 @@ __wt_disagg_shared_metadata_queue_process(
 
     /*
      * Any unmatched parked CREATE entry is an API violation: it is covered by this checkpoint, its
-     * stable constituent was never created so there is no data to write, and no REMOVE for the same
-     * URI remains queued to explain it -- a REMOVE deferring past this checkpoint was canceled
-     * together with its CREATE above, and a covered REMOVE cancels the parked CREATE when
-     * processed.
+     * stable constituent was never created so there is no data to write, yet nothing nets it out.
+     * An unpublished REMOVE was canceled together with the URI's CREATE entries above and a covered
+     * REMOVE cancels the parked CREATE when processed, so what remains is a drop published at an
+     * epoch past this checkpoint: the checkpoint must include a table for which no data exists.
      */
     if (!TAILQ_EMPTY(&skipped_creates)) {
         TAILQ_FOREACH (skipped, &skipped_creates, q)
