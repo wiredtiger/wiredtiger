@@ -161,7 +161,9 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
 {
     WT_DECL_RET;
     WT_REF *ref;
+    WTI_DIRTY_INDEX_SLOT *di_slot;
     wt_timestamp_t pinned_stable, ts;
+    uint64_t pos, seq;
     uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
     uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
     bool busy, precise_ckpt, queued, urgent_queued;
@@ -189,20 +191,20 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
      */
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
+    pos = __wt_atomic_load_uint64_relaxed(&idx->tail);
     while (*slotp < max_entries) {
-        if (__wt_spin_trylock(session, &idx->lock) != 0)
+        slot = (uint32_t)pos & idx->mask;
+        di_slot = &idx->slots[slot];
+        seq = __wt_atomic_load_uint64_acquire(&di_slot->sequence);
+        if (seq != pos + 1)
             break;
-        if (idx->tail == idx->head) {
-            __wt_spin_unlock(session, &idx->lock);
-            break;
-        }
-        slot = idx->tail++ & idx->mask;
-        ref = idx->slots[slot];
-        idx->slots[slot] = NULL;
-        __wt_spin_unlock(session, &idx->lock);
+        ref = __wt_atomic_load_ptr_acquire(&di_slot->ref);
         ++scanned;
-        if (ref == NULL)
+        if (ref == NULL) {
+            __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
+            __wt_atomic_store_uint64_release(&idx->tail, ++pos);
             continue;
+        }
 
         /* Hazard pointer protects the page from concurrent teardown for the rest of the iteration.
          */
@@ -226,9 +228,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * letting the producer re-insert when the page is next dirtied.
          */
         if (ref->page->modify == NULL) {
-            __wt_spin_lock(session, &idx->lock);
-            ref->page->dirty_index_slot = 0;
-            __wt_spin_unlock(session, &idx->lock);
+            (void)__wt_atomic_cas_uint32(&ref->page->dirty_index_slot, slot + 1, 0);
             ++seen_clean;
             ++stale_total;
             goto release;
@@ -243,9 +243,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * the next modify is guaranteed to see the slot already cleared, never a transient
          * double-reference.
          */
-        __wt_spin_lock(session, &idx->lock);
-        ref->page->dirty_index_slot = 0;
-        __wt_spin_unlock(session, &idx->lock);
+        (void)__wt_atomic_cas_uint32(&ref->page->dirty_index_slot, slot + 1, 0);
 
         /* Already on the eviction queue; the existing entry will drive eviction. */
         if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU) ||
@@ -298,6 +296,9 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
         }
 
 release:
+        __wt_atomic_store_ptr_release(&di_slot->ref, NULL);
+        __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
+        __wt_atomic_store_uint64_release(&idx->tail, ++pos);
         WT_IGNORE_RET(__wt_hazard_clear(session, ref));
     }
 

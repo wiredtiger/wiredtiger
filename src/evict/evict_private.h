@@ -72,13 +72,17 @@ struct __wti_evict_entry {
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
 
+typedef struct {
+    wt_shared WT_REF *ref;
+    wt_shared uint64_t sequence;
+} WTI_DIRTY_INDEX_SLOT;
+
 struct __wti_dirty_index {
-    WT_SPINLOCK lock;
-    WT_REF **slots;    /* Circular buffer of ref pointers */
-    uint32_t capacity; /* Slot count (power of two) */
-    uint32_t mask;     /* capacity - 1 */
-    uint32_t head;     /* Next slot to be filled */
-    uint32_t tail;     /* Next slot to be drained */
+    WTI_DIRTY_INDEX_SLOT *slots; /* Circular buffer of published ref pointers */
+    uint32_t capacity;           /* Slot count (power of two) */
+    uint32_t mask;               /* capacity - 1 */
+    wt_shared uint64_t head;     /* Next slot to reserve */
+    wt_shared uint64_t tail;     /* Next slot to drain */
 };
 
 /*
