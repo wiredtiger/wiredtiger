@@ -361,34 +361,23 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_follow.close('debug=(skip_checkpoint=true)')
 
     def test_stepup_no_prior_follower_checkpoint(self):
-        """
-        A published table is not lost when the follower steps up without a completed checkpoint.
-
-        The follower picks up a no-epoch leader checkpoint
-        (last_ckpt_disaggregated_schema_epoch == NONE), then publishes a CREATE at a real epoch.
-        The step-up must take the epoch-aware path; the legacy path would clear the queue,
-        re-enqueue at WT_SCHEMA_EPOCH_UNPUBLISHED, and defer the CREATE on every subsequent
-        checkpoint.
-        """
-        # Leader checkpoint with no schema epoch: schema_epoch == 0 (NONE) in the checkpoint.
+        """A table published on a follower is accessible after step-up when the follower has no completed checkpoint."""
+        # Leader checkpoint carries schema_epoch == 0 (no epoch set).
         self.leader_checkpoint(1)
 
         conn_follow, session_follow = self.open_follower()
-        # Follower picked up a no-epoch checkpoint, so last_ckpt_disaggregated_schema_epoch == NONE.
 
         session_follow.create(self.uri, self.table_config)
         self.publish(self.uri, 20, session_follow)
         session_follow.close()
 
         # Pre-swap state:
-        # Follower: uri layered table present; metadata queue holds CREATE uri at epoch 20.
-        # last_ckpt_disaggregated_schema_epoch == NONE on the follower (no follower checkpoint,
-        # and the picked-up checkpoint carried schema_epoch == 0).
+        # Follower: uri layered table present; metadata queue holds CREATE uri at epoch 20;
+        #   no follower checkpoint completed, so last_ckpt_disaggregated_schema_epoch == NONE.
         self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
         self.swap_roles(conn_follow)
 
-        # After step-up: the epoch-aware path must detect the real-epoch queue entry and create
-        # the stable constituent.  The legacy path would have lost it.
+        # After step-up: uri stable constituent created locally.
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
 
         self.checkpoint_and_advance(15, 2, conn_follow)
