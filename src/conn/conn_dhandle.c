@@ -477,16 +477,13 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          */
         if (!discard && !marked_dead) {
             /*
-             * Discard an unpublished tree that cannot be published yet: with a stable schema epoch
-             * set it holds only unstable data, like an in-memory tree. Without one, the next
-             * checkpoint publishes it, so checkpoint it here like a normal dirty tree.
+             * An unpublished disaggregated tree stays in memory and holds only unstable data, so
+             * discard it at close like an in-memory tree rather than trying to checkpoint it.
              */
-            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
-                discard = true;
-            else if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
-              __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE) {
+            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || __wt_btree_stays_in_memory(btree)) {
                 WT_ASSERT_ALWAYS(session,
-                  btree->min_unpublished_durable_ts == WT_TS_NONE ||
+                  !F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) ||
+                    btree->min_unpublished_durable_ts == WT_TS_NONE ||
                     btree->min_unpublished_durable_ts > conn->txn_global.stable_timestamp,
                   "stable data present in unpublished disaggregated table \"%s\"", dhandle->name);
                 discard = true;
