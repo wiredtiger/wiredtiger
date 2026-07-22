@@ -379,11 +379,11 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
 
         self.checkpoint_and_advance(15, 2, conn_follow)
-        # After checkpoint at epoch=15: CREATE (epoch=20) deferred and uri absent from self.conn.
+        # Stable epoch 15 has not reached the publish epoch so CREATE is still pending.
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
 
         self.checkpoint_and_advance(20, 3, conn_follow)
-        # After checkpoint at epoch=20: CREATE flushed and uri visible to self.conn.
+        # Stable epoch 20 matches the publish epoch so CREATE is flushed and uri is visible.
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
