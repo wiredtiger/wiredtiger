@@ -357,8 +357,8 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         fsession.close()
         conn_follow.close()
 
-    # WT-17763: without a read timestamp the snapshot is the only visibility gate; the id wipe
-    # at checkpoint pickup must not break repeatable read on the follower.
+    # Without a read timestamp the snapshot is the only visibility gate; the id wipe at checkpoint
+    # pickup must not break repeatable read on the follower.
     def test_follower_repeatable_read_no_read_ts_across_pickup(self):
         self.follower_reader_across_pickup(None)
 
