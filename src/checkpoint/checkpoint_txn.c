@@ -487,10 +487,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     btree = S2BT(session);
 
     /*
-     * A disaggregated btree carries WT_BTREE_AWAITS_PUBLISH when it was created while a stable
-     * schema epoch was set and is waiting to be published. Clear the flag if the btree is ready to
-     * participate in this checkpoint; its pages are dirty (nothing was written while it awaited
-     * publication) and are reconciled and written normally once the flag is clear.
+     * A disaggregated btree carries WT_BTREE_AWAITS_PUBLISH when it is new and waiting to be
+     * published. Clear the flag if the btree is ready to participate in this checkpoint; its pages
+     * are dirty (nothing was written while it awaited publication) and are reconciled and written
+     * normally once the flag is clear.
      */
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
         WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
