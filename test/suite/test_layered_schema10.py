@@ -371,9 +371,7 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.publish(self.uri, 20, session_follow)
         session_follow.close()
 
-        # Pre-swap state:
-        # Follower: uri layered table present; metadata queue holds CREATE uri at epoch 20;
-        #   no follower checkpoint completed, so last_ckpt_disaggregated_schema_epoch == NONE.
+        # Follower queue holds CREATE uri at epoch 20. No follower checkpoint has completed.
         self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
         self.swap_roles(conn_follow)
 
@@ -381,11 +379,11 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
 
         self.checkpoint_and_advance(15, 2, conn_follow)
-        # After checkpoint at epoch=15: CREATE (epoch=20) deferred; uri absent from self.conn.
+        # After checkpoint at epoch=15: CREATE (epoch=20) deferred and uri absent from self.conn.
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
 
         self.checkpoint_and_advance(20, 3, conn_follow)
-        # After checkpoint at epoch=20: CREATE flushed; uri visible to self.conn.
+        # After checkpoint at epoch=20: CREATE flushed and uri visible to self.conn.
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
