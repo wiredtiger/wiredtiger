@@ -256,6 +256,22 @@ struct __wt_btree {
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
     /*
+     * Follower selective checkpoint pickup: ingest bytes_updates recorded when this table's stable
+     * checkpoint was last advanced. The reclaim a pickup would buy is the growth since this
+     * baseline.
+     */
+    uint64_t bytes_updates_at_pickup;
+
+    /*
+     * Follower selective checkpoint pickup: the timestamp of the stable checkpoint this follower
+     * actually holds for the table (recorded on the ingest btree when its stable is advanced).
+     * Under selective pickup a deferred table holds an older checkpoint than the connection's
+     * global last_checkpoint_timestamp, so ingest garbage collection must bound pruning to this
+     * per-table value.
+     */
+    wt_timestamp_t held_stable_timestamp;
+
+    /*
      * Approximate average number of K/V pairs per row-store leaf page. Maintained as an EWMA
      * updated at page fault-in (for cold pages) and at reconciliation (for modified pages). Not
      * authoritative: use WT_STAT_TYPE_TREE_WALK for exact counts.

@@ -463,6 +463,16 @@ __layered_copy_ingest_table(
     WT_RET(__wt_scr_alloc(session, 0, &stable_uri_buf));
     WT_ERR(__layered_derive_stable_uri(session, ingest_uri, stable_uri_buf));
 
+    /*
+     * Draining ingest into stable only runs when we are becoming the leader -- at step-up or on the
+     * leader; a steady-state follower never drains. This makes the global last_checkpoint_timestamp
+     * safe to use here even under selective checkpoint pickup: step-up performs a full,
+     * non-deferred pickup of every table before draining, so at drain time each table's stable is
+     * at the global checkpoint and skipping ingest content at or below it correctly skips only
+     * content already durable in stable. A deferring follower would instead hold older stables, and
+     * skipping to the global would drop a deferred table's un-drained ingest -- but such a follower
+     * does not drain.
+     */
     last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_ERR(__wt_open_cursor(session, stable_uri_buf->data, NULL, open_cfg, &stable_cursor));
@@ -1143,8 +1153,28 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     btree = (WT_BTREE *)session->dhandle->handle;
 
+    /*
+     * Selective checkpoint pickup: bound pruning to the stable checkpoint this table actually
+     * holds, not the global pickup timestamp used above. A deferred table holds an older stable,
+     * and its ingest content above that held stable is not yet durable in stable -- pruning to the
+     * global timestamp would discard it and corrupt the follower. held_stable_timestamp is zero
+     * until the table is first advanced in this process; until then we conservatively do not prune.
+     * (When deferral is disabled every table always tracks the global checkpoint, so no bound is
+     * needed.)
+     */
+    if (S2C(session)->disaggregated_storage.checkpoint_pickup_defer_period != 0)
+        prune_timestamp = WT_MIN(prune_timestamp, btree->held_stable_timestamp);
+
     btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-    WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
+
+    /* The held-stable bound may leave nothing new to prune; the prune timestamp only increases. */
+    if (prune_timestamp <= btree_prune_timestamp) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: prune timestamp bounded to held stable %" PRIu64 " (no advance from %" PRIu64 ")",
+          layered_table->iface.name, prune_timestamp, btree_prune_timestamp);
+        WT_ERR(__wt_session_release_dhandle(session));
+        goto err;
+    }
 
     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
       "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64

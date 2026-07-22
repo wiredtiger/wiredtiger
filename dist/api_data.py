@@ -140,6 +140,23 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('checkpoint_pickup_defer_budget_pct', '0', r'''
+        on a follower, the aggregate memory allowed to be pinned in ingest tables by deferred
+        checkpoint pickups, as a percentage of the cache. When deferral would exceed this budget,
+        the layered tables with the most reclaimable ingest are picked up first until the pinned
+        total falls under budget. Zero disables the budget cap''',
+        min='0', max='100', type='int', undoc=True),
+    Config('checkpoint_pickup_defer_min_kb', '64', r'''
+        on a follower, a layered table whose ingest table has accumulated more than this many
+        kilobytes of updates since its last pickup is always picked up at a checkpoint, overriding
+        checkpoint_pickup_defer_period''',
+        min='0', max='1048576', type='int', undoc=True),
+    Config('checkpoint_pickup_defer_period', '0', r'''
+        on a follower, defer picking up a layered table's newer stable checkpoint across multiple
+        checkpoints, forcing a pickup at least once every this many checkpoints. This staggers the
+        checkpoint pickup load across the many tables of workloads with many active tables. Zero
+        disables deferral, picking up every table at every checkpoint''',
+        min='0', max='1024', type='int', undoc=True),
     Config('drain_threads', '8', r'''The number of threads used to drain the ingest tables on
         step up.''', min='1', max='256', type='int', undoc=True),
     Config('last_materialized_lsn', '', r'''

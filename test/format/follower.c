@@ -182,6 +182,7 @@ follower(void *arg)
     WT_SESSION *session;
     const char *disagg_page_log;
     u_int period;
+    char defer_cfg[128];
 
     (void)(arg); /* Unused parameter */
     conn = g.wts_conn;
@@ -191,6 +192,19 @@ follower(void *arg)
 
     wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     testutil_check(conn->get_page_log(conn, disagg_page_log, &page_log));
+
+    /*
+     * Enable selective checkpoint pickup on the follower before it adopts any checkpoint, if
+     * configured. This must be its own reconfigure: a checkpoint_meta pickup reads the deferral
+     * setting before the common settings are parsed, so folding it into the pickup would not take
+     * effect for that pickup.
+     */
+    if (GV(DISAGG_CHECKPOINT_PICKUP_DEFER_PERIOD) != 0) {
+        testutil_snprintf(defer_cfg, sizeof(defer_cfg),
+          "disaggregated=(checkpoint_pickup_defer_period=%" PRIu32 ")",
+          (uint32_t)GV(DISAGG_CHECKPOINT_PICKUP_DEFER_PERIOD));
+        testutil_check(conn->reconfigure(conn, defer_cfg));
+    }
 
     while (!g.workers_finished) {
         /*

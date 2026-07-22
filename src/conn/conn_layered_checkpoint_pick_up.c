@@ -9,6 +9,278 @@
 #include "wt_internal.h"
 
 /*
+ * Selective checkpoint pickup: on a follower, advancing a layered table's stable checkpoint forces
+ *     every open cursor on it to re-target the new checkpoint and repopulate from shared storage.
+ *     On a dhandle-dense workload a materialization-frontier jump does this for thousands of tables
+ *     at once, flooding storage. When checkpoint_pickup_defer_period (P) is set, we advance only
+ *     the tables that need it this checkpoint and defer the rest, keeping their resident stable and
+ *     un-pruned ingest --
+ *     correctness-safe, since a reader still sees old-stable plus full ingest.
+ *
+ * A table must advance if any of: - it is this table's staggered turn, (pickup_count % P) ==
+ *     (ingest btree id % P), so every table advances at least once per P pickups, spread across P
+ *     to avoid a synchronized burst; - its ingest has grown past checkpoint_pickup_defer_min_kb
+ *     since its last advance (deferring a hot table pins too much); - the ingest pinned by deferral
+ *     would exceed checkpoint_pickup_defer_budget_pct of cache --
+ *     then the tables with the most reclaimable ingest advance first until the pinned total fits.
+ *
+ * The reclaim a pickup buys is the ingest growth since the table's last advance, not its absolute
+ *     resident bytes: advancing only unlocks pruning of content above the currently-held stable,
+ *     while content below it is already prunable and drained by eviction independently. So we rank
+ *     on the marginal (bytes_updates minus the snapshot taken at the last advance), not
+ *     bytes_updates.
+ */
+
+/* Length-preserving suffix swap maps an ingest file name to its stable counterpart, and back. */
+#define WT_INGEST_SUFFIX ".wt_ingest"
+#define WT_STABLE_SUFFIX ".wt_stable"
+
+/* A discretionary pickup candidate, used only when an aggregate budget is enforced. */
+typedef struct {
+    uint64_t marginal;
+    char *stable_uri;
+} WT_DISAGG_DEFER_CANDIDATE;
+
+/*
+ * __disagg_defer_candidate_cmp --
+ *     Order discretionary candidates by ascending reclaimable ingest, so the smallest are deferred
+ *     first under the aggregate budget.
+ */
+static int WT_CDECL
+__disagg_defer_candidate_cmp(const void *a, const void *b)
+{
+    uint64_t ma, mb;
+
+    ma = ((const WT_DISAGG_DEFER_CANDIDATE *)a)->marginal;
+    mb = ((const WT_DISAGG_DEFER_CANDIDATE *)b)->marginal;
+    return (ma < mb ? -1 : (ma > mb ? 1 : 0));
+}
+
+/*
+ * __disagg_ingest_marginal --
+ *     The reclaimable ingest of a layered table: the growth in the ingest btree's update bytes
+ *     since its stable checkpoint was last advanced.
+ */
+static uint64_t
+__disagg_ingest_marginal(WT_BTREE *btree)
+{
+    uint64_t now, snapshot;
+
+    now = __wt_atomic_load_uint64_relaxed(&btree->bytes_updates);
+    snapshot = btree->bytes_updates_at_pickup;
+    return (now > snapshot ? now - snapshot : 0);
+}
+
+/*
+ * __disagg_defer_insert --
+ *     Add a table's stable file key to the defer set. Best-effort: insertion failures leave the
+ *     table to be picked up, which is always safe.
+ */
+static void
+__disagg_defer_insert(WT_SESSION_IMPL *session, WT_HASH_MAP *defer_map, const char *stable_uri)
+{
+    void *v;
+
+    WT_IGNORE_RET(__wt_hash_map_get(
+      session, defer_map, stable_uri, strlen(stable_uri) + 1, &v, NULL, true, false));
+}
+
+/*
+ * __disagg_build_defer_set --
+ *     Build a lock-free set (keyed by stable file name) of layered tables to defer this pickup. One
+ *     handle-list pass, done before the schema-locked apply, so the per-table check in the apply is
+ *     a plain map lookup. The ingest update-byte count is maintained continuously by cache
+ *     accounting, so reading it here is not synchronized with checkpoint.
+ */
+static int
+__disagg_build_defer_set(WT_SESSION_IMPL *session, uint64_t pickup_count, WT_HASH_MAP **defer_mapp)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_DISAGG_DEFER_CANDIDATE *candidates;
+    size_t candidate_alloc, ncandidates;
+    size_t i, nlen, suffix_len;
+    uint64_t budget, deferred_bytes, marginal, min_bytes;
+    uint32_t budget_pct, period;
+    bool use_budget;
+
+    *defer_mapp = NULL;
+    conn = S2C(session);
+    candidates = NULL;
+    candidate_alloc = ncandidates = 0;
+
+    /* Deferral is disabled unless a period is configured; then every table is picked up. */
+    period = conn->disaggregated_storage.checkpoint_pickup_defer_period;
+    if (period == 0)
+        return (0);
+    min_bytes = (uint64_t)conn->disaggregated_storage.checkpoint_pickup_defer_min_kb * WT_KILOBYTE;
+    budget_pct = conn->disaggregated_storage.checkpoint_pickup_defer_budget_pct;
+    use_budget = budget_pct > 0;
+    budget = use_budget ? (uint64_t)conn->cache_size / 100 * (uint64_t)budget_pct : 0;
+    suffix_len = strlen(WT_INGEST_SUFFIX);
+
+    WT_RET(__wt_hash_map_init(session, defer_mapp, 16 * 1024));
+    (*defer_mapp)->value_size = 1; /* Presence set. */
+
+    /*
+     * One pass over open handles. For each ingest btree not forced to advance (staggered turn or a
+     * per-table growth cap), derive its stable file key (a length-preserving suffix swap). Without
+     * an aggregate budget, defer it now; with one, collect it so we can defer the smallest-reclaim
+     * tables first up to the budget.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+            char stable_uri[512];
+
+            if (!WT_DHANDLE_BTREE(dhandle) || dhandle->name == NULL ||
+              !WT_URI_IS_INGEST(dhandle->name))
+                continue;
+            btree = dhandle->handle;
+            if (btree == NULL)
+                continue;
+            if (pickup_count % period == btree->id % period)
+                continue;
+            marginal = __disagg_ingest_marginal(btree);
+            if (marginal > min_bytes)
+                continue;
+            nlen = strlen(dhandle->name);
+            if (nlen < suffix_len || nlen >= sizeof(stable_uri))
+                continue;
+            memcpy(stable_uri, dhandle->name, nlen + 1);
+            memcpy(stable_uri + (nlen - suffix_len), WT_STABLE_SUFFIX, suffix_len);
+
+            if (!use_budget) {
+        __disagg_defer_insert(session, *defer_mapp, stable_uri);
+        continue;
+            }
+            WT_ERR(__wt_realloc_def(session, &candidate_alloc, ncandidates + 1, &candidates));
+            WT_ERR(__wt_strdup(session, stable_uri, &candidates[ncandidates].stable_uri));
+            candidates[ncandidates].marginal = marginal;
+            ++ncandidates;
+}
+});
+
+/*
+ * With a budget, defer the smallest-reclaim tables first and keep adding until the pinned total
+ * would exceed the budget; the remaining (largest-reclaim) tables are picked up.
+ */
+if (use_budget) {
+    __wt_qsort(candidates, ncandidates, sizeof(candidates[0]), __disagg_defer_candidate_cmp);
+    deferred_bytes = 0;
+    for (i = 0; i < ncandidates; ++i) {
+        if (deferred_bytes + candidates[i].marginal > budget)
+            break;
+        deferred_bytes += candidates[i].marginal;
+        __disagg_defer_insert(session, *defer_mapp, candidates[i].stable_uri);
+    }
+}
+
+err : if (candidates != NULL)
+{
+    for (i = 0; i < ncandidates; ++i)
+        __wt_free(session, candidates[i].stable_uri);
+    __wt_free(session, candidates);
+}
+if (ret != 0)
+    __wt_hash_map_destroy(session, defer_mapp);
+return (ret);
+}
+
+/*
+ * __disagg_stable_to_ingest_uri --
+ *     Derive a layered table's ingest file name from its stable file name (length-preserving suffix
+ *     swap). Returns false if the name does not fit or lacks the stable suffix.
+ */
+static bool
+__disagg_stable_to_ingest_uri(const char *stable_uri, char *ingest_uri, size_t ingest_uri_size)
+{
+    size_t nlen, suffix_len;
+
+    suffix_len = strlen(WT_STABLE_SUFFIX);
+    nlen = strlen(stable_uri);
+    if (nlen < suffix_len || nlen >= ingest_uri_size)
+        return (false);
+    memcpy(ingest_uri, stable_uri, nlen + 1);
+    memcpy(ingest_uri + (nlen - suffix_len), WT_INGEST_SUFFIX, suffix_len);
+    return (true);
+}
+
+/*
+ * __disagg_ingest_should_defer --
+ *     Decide inline (no defer set, budget disabled) whether to defer a changed layered table this
+ *     pickup: defer unless it is the table's staggered turn or its ingest has grown past the
+ *     per-table cap. A table whose ingest dhandle is not open has no cursors to disrupt, so it is
+ *     never deferred. One O(1) handle lookup under the read lock (kept off the hot short-circuit
+ *     path --
+ *     only reached for tables whose checkpoint actually advanced).
+ */
+static bool
+__disagg_ingest_should_defer(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *saved_dhandle;
+    uint64_t min_bytes, pickup_count;
+    uint32_t period;
+    char ingest_uri[512];
+    bool deferred;
+
+    conn = S2C(session);
+    deferred = false;
+    period = conn->disaggregated_storage.checkpoint_pickup_defer_period;
+    min_bytes = (uint64_t)conn->disaggregated_storage.checkpoint_pickup_defer_min_kb * WT_KILOBYTE;
+    pickup_count = conn->disaggregated_storage.follower_pickup_count;
+    if (!__disagg_stable_to_ingest_uri(stable_uri, ingest_uri, sizeof(ingest_uri)))
+        return (false);
+
+    saved_dhandle = session->dhandle;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        if (__wt_conn_dhandle_find(session, ingest_uri, NULL) == 0 &&
+          WT_DHANDLE_BTREE(session->dhandle)) {
+            btree = session->dhandle->handle;
+            if (pickup_count % period != btree->id % period &&
+              __disagg_ingest_marginal(btree) <= min_bytes)
+                deferred = true;
+        }
+    });
+    session->dhandle = saved_dhandle;
+    return (deferred);
+}
+
+/*
+ * __disagg_snapshot_ingest --
+ *     Record per-ingest-btree state when this table's stable checkpoint is advanced: re-baseline
+ *     the reclaim measurement (current update bytes) and record the held stable checkpoint
+ *     timestamp so ingest garbage collection prunes only up to the stable this table actually
+ *     holds. O(1) handle lookup under the read lock, which keeps the ingest btree alive for the
+ *     field writes. A no-op if the ingest dhandle is not open.
+ */
+static void
+__disagg_snapshot_ingest(
+  WT_SESSION_IMPL *session, const char *stable_uri, wt_timestamp_t checkpoint_timestamp)
+{
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *saved_dhandle;
+    char ingest_uri[512];
+
+    if (!__disagg_stable_to_ingest_uri(stable_uri, ingest_uri, sizeof(ingest_uri)))
+        return;
+
+    saved_dhandle = session->dhandle;
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, {
+        if (__wt_conn_dhandle_find(session, ingest_uri, NULL) == 0 &&
+          WT_DHANDLE_BTREE(session->dhandle)) {
+            btree = session->dhandle->handle;
+            btree->bytes_updates_at_pickup = __wt_atomic_load_uint64_relaxed(&btree->bytes_updates);
+            btree->held_stable_timestamp = checkpoint_timestamp;
+        }
+    });
+    session->dhandle = saved_dhandle;
+}
+
+/*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
  */
@@ -353,13 +625,65 @@ err:
 }
 
 /*
+ * __disagg_meta_changed_beyond_checkpoint --
+ *     Report whether the shared file metadata differs from the local metadata in any field that is
+ *     not part of a routine checkpoint advance. A checkpoint rewrites "checkpoint" and its recovery
+ *     "checkpoint_lsn"; the follower merges only the former and leaves checkpoint_lsn at its local
+ *     sentinel, so that field always differs and must be ignored here. Any other change (schema
+ *     epoch, config, app_metadata, an added or removed field) must be applied promptly, so we must
+ *     not defer across it --
+ *     the "old stable plus full ingest" safety argument only covers a new checkpoint on an
+ *     otherwise-unchanged file. The comparison is field-by-field, so metadata key ordering does not
+ *     matter.
+ */
+static int
+__disagg_meta_changed_beyond_checkpoint(
+  WT_SESSION_IMPL *session, const char *local_value, const char *shared_value, bool *changedp)
+{
+    WT_CONFIG parser;
+    WT_CONFIG_ITEM k, other, v;
+    WT_DECL_RET;
+
+    *changedp = false;
+
+    /* Every field in the shared metadata other than the checkpoint fields must be equal locally. */
+    __wt_config_init(session, &parser, shared_value);
+    while ((ret = __wt_config_next(&parser, &k, &v)) == 0) {
+        if (WT_CONFIG_LIT_MATCH("checkpoint", k) || WT_CONFIG_LIT_MATCH("checkpoint_lsn", k))
+            continue;
+        WT_RET_NOTFOUND_OK(ret = __wt_config_getone(session, local_value, &k, &other));
+        if (ret == WT_NOTFOUND || __wt_string_slice_cmp(other.str, other.len, v.str, v.len) != 0) {
+            *changedp = true;
+            return (0);
+        }
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    /* And the local metadata must not carry a non-checkpoint field the shared metadata dropped. */
+    __wt_config_init(session, &parser, local_value);
+    while ((ret = __wt_config_next(&parser, &k, &v)) == 0) {
+        if (WT_CONFIG_LIT_MATCH("checkpoint", k) || WT_CONFIG_LIT_MATCH("checkpoint_lsn", k))
+            continue;
+        WT_RET_NOTFOUND_OK(ret = __wt_config_getone(session, shared_value, &k, &other));
+        if (ret == WT_NOTFOUND) {
+            *changedp = true;
+            return (0);
+        }
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
+}
+
+/*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated.
  */
 static int
-__disagg_update_file_meta(
-  WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
+__disagg_update_file_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor,
+  WT_CURSOR *md_file_cursor, WT_HASH_MAP *defer_map, bool inline_defer,
+  wt_timestamp_t checkpoint_timestamp)
 {
     WT_CONFIG_ITEM cval, cval_cur;
     WT_DECL_ITEM(metadata_cfg);
@@ -368,7 +692,8 @@ __disagg_update_file_meta(
     char *cfg_ret, *current_value_copy;
     const char *cfg[3], *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
-    bool discard;
+    bool beyond, deferred, discard;
+    void *v;
 
     cfg_ret = current_value_copy = NULL;
     checkpoint_name = NULL;
@@ -398,6 +723,33 @@ __disagg_update_file_meta(
     if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
         goto err;
 
+    /*
+     * Selective pickup: keep the resident old checkpoint for a deferred table -- skip the metadata
+     * update and the dhandle out-of-date marking. Safe: not advancing means not reclaiming ingest,
+     * so a reader (old stable plus full ingest) misses nothing. The budget path decides globally in
+     * a pre-pass (defer_map); otherwise the decision is made inline with an O(1) ingest lookup.
+     */
+    deferred = false;
+    if (defer_map != NULL)
+        deferred = __wt_hash_map_get(session, defer_map, sh_file_key, strlen(sh_file_key) + 1, &v,
+                     NULL, false, false) == 0;
+    else if (inline_defer)
+        deferred = __disagg_ingest_should_defer(session, sh_file_key);
+    /*
+     * Only a pure checkpoint advance may be deferred. If the shared metadata changed in any other
+     * field, pick it up now regardless of the deferral decision.
+     */
+    if (deferred) {
+        WT_ERR(__disagg_meta_changed_beyond_checkpoint(
+          session, current_value_copy, metadata_value, &beyond));
+        if (beyond)
+            deferred = false;
+    }
+    if (deferred) {
+        WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_deferred);
+        goto err;
+    }
+
     /* Overwrite the checkpoint field in the local metadata with the one from shared storage. */
     cfg[0] = current_value_copy;
     cfg[1] = metadata_cfg->data;
@@ -408,6 +760,10 @@ __disagg_update_file_meta(
     WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
       "Failed to update metadata for key \"%s\"", sh_file_key);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_updated);
+
+    /* Re-baseline this table's reclaim measurement from the point it advanced. */
+    if (defer_map != NULL || inline_defer)
+        __disagg_snapshot_ingest(session, sh_file_key, checkpoint_timestamp);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"", sh_file_key,
@@ -454,8 +810,8 @@ err:
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_apply_checkpoint_meta(
-  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, bool is_startup)
+__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  bool is_startup, WT_HASH_MAP *defer_map, bool inline_defer, wt_timestamp_t checkpoint_timestamp)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
@@ -631,8 +987,9 @@ __disagg_apply_checkpoint_meta(
                  * The file already exists in the local metadata, so we just pick up its latest
                  * checkpoint without changing its other metadata.
                  */
-                WT_ERR(__disagg_update_file_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
+                WT_ERR(__disagg_update_file_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
+                  md_cursors[WT_DISAGG_CURSOR_FILE], defer_map, inline_defer,
+                  checkpoint_timestamp));
             else
                 /*
                  * We already have the layered table in the local metadata; we are just picking up
@@ -769,8 +1126,9 @@ __disagg_apply_checkpoint_meta(
                  * local metadata with any new checkpoint information from the shared metadata, and
                  * mark any old checkpoints as discarded.
                  */
-                WT_ERR(__disagg_update_file_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
+                WT_ERR(__disagg_update_file_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
+                  md_cursors[WT_DISAGG_CURSOR_FILE], defer_map, inline_defer,
+                  checkpoint_timestamp));
                 ++existing_tables;
             } else if (!sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE])
                 /*
@@ -884,18 +1242,23 @@ err:
  *     Pick up a new checkpoint.
  */
 static int
-__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_pick_up_checkpoint(
+  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, bool force_full)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
+    WT_HASH_MAP *defer_map;
     WT_ITEM metadata_buf;
     WT_TIMER pickup_timer;
     uint64_t current_meta_lsn, pickup_elapsed_ms;
+    uint32_t period;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool is_startup;
+    bool inline_defer, is_startup;
 
     conn = S2C(session);
+    defer_map = NULL;
+    inline_defer = false;
 
     WT_CLEAR(ts_string);
     WT_CLEAR(metadata_buf);
@@ -921,9 +1284,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
 
     /*
      * Warn if we are picking up the same checkpoint again. There's nothing else to do here, goto
-     * err for cleanup.
+     * err for cleanup. A forced full pickup (step-up) still re-applies the same checkpoint: a
+     * follower that deferred tables holds older stable checkpoints for them even at this metadata
+     * LSN, and they must be caught up before draining ingest onto them.
      */
-    if (ckpt_meta->metadata_lsn == current_meta_lsn) {
+    if (!force_full && ckpt_meta->metadata_lsn == current_meta_lsn) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
           "Picking up the same checkpoint again: metadata LSN = %" PRIu64, ckpt_meta->metadata_lsn);
         /* Keep previous ret value to avoid overlapping error message */
@@ -979,9 +1344,26 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 2: Apply the metadata for other tables from the shared metadata table.
      */
 
-    /* Apply the metadata from the checkpoint. */
-    WT_WITH_SCHEMA_LOCK(
-      session, ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, is_startup));
+    /*
+     * Apply the metadata from the checkpoint. When deferral is active (a period is set, this is a
+     * follower, and no full pickup is forced), choose how the per-table defer decision is made:
+     * with an aggregate budget it needs a global view, so build the defer set up front in one
+     * handle-list pass (outside the schema lock); without a budget the decision is local, made
+     * inline during the apply with an O(1) ingest lookup per changed table -- no extra scan of the
+     * handle list.
+     */
+    period = conn->disaggregated_storage.checkpoint_pickup_defer_period;
+    if (!force_full && !conn->layered_table_manager.leader && period != 0) {
+        ++conn->disaggregated_storage.follower_pickup_count;
+        if (conn->disaggregated_storage.checkpoint_pickup_defer_budget_pct > 0)
+            WT_ERR(__disagg_build_defer_set(
+              session, conn->disaggregated_storage.follower_pickup_count, &defer_map));
+        else
+            inline_defer = true;
+    }
+    WT_WITH_SCHEMA_LOCK(session,
+      ret = __disagg_apply_checkpoint_meta(
+        session, ckpt_meta, is_startup, defer_map, inline_defer, metadata.checkpoint_timestamp));
     WT_ERR(ret);
 
     /*
@@ -1012,6 +1394,7 @@ err:
     }
 
     __wt_buf_free(session, &metadata_buf);
+    __wt_hash_map_destroy(session, &defer_map);
 
     return (ret);
 }
@@ -1073,7 +1456,7 @@ err:
  */
 int
 __wti_disagg_pick_up_checkpoint_meta(
-  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size)
+  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool force_full)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -1119,8 +1502,8 @@ __wti_disagg_pick_up_checkpoint_meta(
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     /* Now actually pick up the checkpoint. */
-    WT_WITH_CHECKPOINT_LOCK(
-      internal_session, ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta));
+    WT_WITH_CHECKPOINT_LOCK(internal_session,
+      ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta, force_full));
     WT_ERR(ret);
 
 err:
@@ -1152,5 +1535,12 @@ __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const cha
     *out_compatible_version = ckpt_meta.compatible_version;
 
     return (0);
+}
+
+int
+__ut_disagg_meta_changed_beyond_checkpoint(
+  WT_SESSION_IMPL *session, const char *local_value, const char *shared_value, bool *changedp)
+{
+    return (__disagg_meta_changed_beyond_checkpoint(session, local_value, shared_value, changedp));
 }
 #endif

@@ -1237,15 +1237,38 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              * configuration as it may have an obsolete configuration in its base config when it is
              * still a follower.
              */
-            if (!leader) {
+            if (!was_leader) {
+                bool stepping_up;
+
+                /*
+                 * A step-up reconfigure carries both the new role and the checkpoint to adopt.
+                 * Force a full (non-deferred) pickup so every table a follower had deferred
+                 * advances to the current stable before step-up drains ingest onto it; draining
+                 * onto a stale stable would build the new checkpoint on an outdated base.
+                 */
+                WT_ERR(__wt_disagg_config_get_role(session, cfg, &stepping_up));
                 WT_ERR_MSG_CHK(session,
-                  __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+                  __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len, stepping_up),
                   "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             }
         }
     }
 
     /* Common settings between initial connection config and reconfig. */
+
+    /* Get the follower selective checkpoint-pickup deferral settings. */
+    WT_ERR(
+      __wt_config_gets(session, cfg, "disaggregated.checkpoint_pickup_defer_budget_pct", &cval));
+    if (cval.len > 0 && cval.val >= 0)
+        conn->disaggregated_storage.checkpoint_pickup_defer_budget_pct = (uint32_t)cval.val;
+
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_pickup_defer_min_kb", &cval));
+    if (cval.len > 0 && cval.val >= 0)
+        conn->disaggregated_storage.checkpoint_pickup_defer_min_kb = (uint32_t)cval.val;
+
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_pickup_defer_period", &cval));
+    if (cval.len > 0 && cval.val >= 0)
+        conn->disaggregated_storage.checkpoint_pickup_defer_period = (uint32_t)cval.val;
 
     /* Get the last materialized LSN. */
     /* FIXME-WT-15447 Consider deprecating this. */
@@ -1334,7 +1357,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
           __wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval), true);
         if (ret == 0 && cval.len > 0) {
             WT_ERR_MSG_CHK(session,
-              __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+              __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len, false),
               "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             picked_up = true;
         }
@@ -1347,7 +1370,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             if (ret == 0) {
                 /* Pick up the checkpoint we just found. */
                 ret = __wti_disagg_pick_up_checkpoint_meta(
-                  session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
+                  session, complete_checkpoint_meta.data, complete_checkpoint_meta.size, false);
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");

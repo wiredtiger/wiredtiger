@@ -205,6 +205,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0, WT_VERBOSE_DEBUG_5}
 
+{"disagg.checkpoint_pickup_defer_period", "on a follower, defer a layered table's stable checkpoint pickup, forcing a pickup at least once every N checkpoints (0 disables)", C_IGNORE, 0, 0, 1024}
+
 {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256}
 
 {"disagg.preserve", "preserve layered table constituents after data mismatches", C_IGNORE | C_BOOL, 100, 1, 0}

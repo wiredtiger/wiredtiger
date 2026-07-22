@@ -845,10 +845,26 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (F_ISSET(session, WT_SESSION_IMPORT))
         btree->modified = true;
 
+    /*
+     * Record the disaggregated checkpoint this btree was opened at. Note the meaning under
+     * selective checkpoint pickup: this is the newest checkpoint the follower has adopted
+     * somewhere, NOT necessarily the checkpoint this table holds -- a deferred table holds an older
+     * one. Consumers needing this table's true held stable must use the per-table
+     * WT_BTREE.held_stable_timestamp; ingest garbage collection does (see
+     * __layered_update_ingest_table_prune_timestamp).
+     */
     btree->checkpoint_timestamp =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
-    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, btree->checkpoint_timestamp);
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+        /*
+         * Only ingest btrees garbage-collect, and ingest btrees are in-memory, so they are empty at
+         * open with nothing to prune yet. Start with pruning disabled rather than seeding it from
+         * the global checkpoint timestamp: the correct per-table prune bound is established at the
+         * next checkpoint pickup.
+         */
+        WT_ASSERT(session, F_ISSET(btree, WT_BTREE_IN_MEMORY));
+        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, WT_TS_NONE);
+    }
 
     return (0);
 }

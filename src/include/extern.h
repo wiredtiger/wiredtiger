@@ -1567,7 +1567,7 @@ extern int __wti_disagg_parse_crypt_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata, uint64_t *page_idp, uint64_t *lsnp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
-  size_t meta_data_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  size_t meta_data_size, bool force_full) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_crypt_key(WT_KEY_PROVIDER *kp, WT_SESSION *wt_session,
   const WT_CRYPT_KEYS *crypt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
@@ -2724,6 +2724,9 @@ extern int __ut_block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MODS *blk_mod,
   wt_off_t offset, wt_off_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_disagg_meta_changed_beyond_checkpoint(
+  WT_SESSION_IMPL *session, const char *local_value, const char *shared_value, bool *changedp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_parse_version_and_check(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
   WT_DISAGG_METADATA *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session,

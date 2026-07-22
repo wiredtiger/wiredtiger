@@ -307,6 +307,16 @@ struct __wt_disaggregated_storage {
      */
     uint64_t last_key_provider_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
 
+    /*
+     * Follower selective checkpoint pickup settings and the running count of pickups used to
+     * stagger the round-robin forced advance.
+     */
+    uint32_t
+      checkpoint_pickup_defer_budget_pct;    /* Aggregate pinned-ingest cap, percent of cache. */
+    uint32_t checkpoint_pickup_defer_min_kb; /* Per-table growth that forces a pickup. */
+    uint32_t checkpoint_pickup_defer_period; /* Force a deferred table's pickup every N pickups. */
+    uint64_t follower_pickup_count;          /* Pickups applied; drives the round-robin turn. */
+
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */

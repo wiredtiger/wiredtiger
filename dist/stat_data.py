@@ -610,6 +610,7 @@ conn_stats = [
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
+    DisaggStat('disagg_pick_up_file_meta_deferred', 'existing file metadata entries deferred for selective checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
     DisaggStat('disagg_role_leader', 'role leader'),
