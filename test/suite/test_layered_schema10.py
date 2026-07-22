@@ -360,6 +360,47 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
+    def test_stepup_no_prior_follower_checkpoint(self):
+        """
+        A published table is not lost when the follower steps up without a completed checkpoint.
+
+        The follower picks up a no-epoch leader checkpoint
+        (last_ckpt_disaggregated_schema_epoch == NONE), then publishes a CREATE at a real epoch.
+        The step-up must take the epoch-aware path; the legacy path would clear the queue,
+        re-enqueue at WT_SCHEMA_EPOCH_UNPUBLISHED, and defer the CREATE on every subsequent
+        checkpoint.
+        """
+        # Leader checkpoint with no schema epoch: schema_epoch == 0 (NONE) in the checkpoint.
+        self.leader_checkpoint(1)
+
+        conn_follow, session_follow = self.open_follower()
+        # Follower picked up a no-epoch checkpoint, so last_ckpt_disaggregated_schema_epoch == NONE.
+
+        session_follow.create(self.uri, self.table_config)
+        self.publish(self.uri, 20, session_follow)
+        session_follow.close()
+
+        # Pre-swap state:
+        # Follower: uri layered table present; metadata queue holds CREATE uri at epoch 20.
+        # last_ckpt_disaggregated_schema_epoch == NONE on the follower (no follower checkpoint,
+        # and the picked-up checkpoint carried schema_epoch == 0).
+        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.swap_roles(conn_follow)
+
+        # After step-up: the epoch-aware path must detect the real-epoch queue entry and create
+        # the stable constituent.  The legacy path would have lost it.
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+
+        self.checkpoint_and_advance(15, 2, conn_follow)
+        # After checkpoint at epoch=15: CREATE (epoch=20) deferred; uri absent from self.conn.
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+
+        self.checkpoint_and_advance(20, 3, conn_follow)
+        # After checkpoint at epoch=20: CREATE flushed; uri visible to self.conn.
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
     def test_epoch_advance_alone_prevents_checkpoint_skip(self):
         """
         A checkpoint must not be skipped when only the stable schema epoch advances.

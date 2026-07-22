@@ -147,6 +147,33 @@ __layered_create_has_following_remove(
 }
 
 /*
+ * __layered_queue_has_published_entry --
+ *     Return true if the shared metadata queue holds an entry at a real schema epoch, indicating
+ *     the database uses schema epochs.
+ */
+static bool
+__layered_queue_has_published_entry(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    bool found;
+
+    conn = S2C(session);
+    found = false;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->schema_epoch != WT_SCHEMA_EPOCH_NONE &&
+          entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED) {
+            found = true;
+            break;
+        }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (found);
+}
+
+/*
  * __layered_create_missing_stable_tables_helper --
  *     Create missing stable tables.
  */
@@ -165,7 +192,8 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     /* If we don't use schema epochs, fall back to the legacy method. */
     stable_schema_epoch =
       __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE)
+    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
+      !__layered_queue_has_published_entry(session))
         return (__layered_create_missing_stable_tables_legacy(session));
 
     /* Create missing stable tables for new layered tables in the shared metadata queue. */
