@@ -489,8 +489,8 @@ open:
     }
 
     /*
-     * Disaggregated storage exposes data through a page log rather than local files. Reject
-     * subcommands that only apply to the classic block-manager path before touching any data.
+     * Disaggregated storage exposes data through a page log rather than local files. Reject any
+     * subcommand that only applies to the classic block-manager path before touching any data.
      */
     if (util_conn_is_disagg(conn) && func != NULL && util_func_disallowed_disagg(func)) {
         fprintf(
