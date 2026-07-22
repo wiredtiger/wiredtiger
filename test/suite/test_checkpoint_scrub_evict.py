@@ -318,6 +318,12 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
             # decrement to run cleanly: the gauge must not grow past its peak and
             # must stay non-negative, i.e. it never underflows to a huge value.
             peak_pages, peak_bytes = pages, nbytes
+
+            # Eviction restores the scrubbed pages as dirty in-memory images,
+            # so the table can hold dirty data by the time we drop it.
+            # Under precise_checkpoint the drop's close-checkpoint refuses dirty
+            # data (WT_DIRTY_DATA). Checkpoint first so the drop closes cleanly.
+            self.session.checkpoint()
             self.session.drop(self.uri)
             pages = self.get_stat(stat.conn.cache_scrub_image_pages)
             nbytes = self.get_stat(stat.conn.cache_scrub_image_bytes)
