@@ -487,12 +487,10 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
               __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE) {
                 WT_ASSERT_ALWAYS(session,
                   btree->min_unpublished_durable_ts == WT_TS_NONE ||
-                    btree->min_unpublished_durable_ts > S2C(session)->txn_global.stable_timestamp,
-                  "stable data present in unpublished disaggregated table \"%s\"",
-                  dhandle->name);
+                    btree->min_unpublished_durable_ts > conn->txn_global.stable_timestamp,
+                  "stable data present in unpublished disaggregated table \"%s\"", dhandle->name);
                 discard = true;
-            }
-            else {
+            } else {
                 WT_TRET(__wt_checkpoint_close(session, final));
                 if (!final && ret == EBUSY)
                     WT_ERR(ret);
