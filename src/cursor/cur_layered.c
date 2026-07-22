@@ -118,7 +118,7 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value)
 
     if (__clayered_value_in_tombstone_namespace(value, false /* decode */)) {
         /* Encoding only ever appends the tombstone byte, so that is the byte being stripped. */
-        /* FIXME-WT-18057: assert the byte being stripped is the tombstone byte. */
+        /* FIXME-WT-18154: assert the byte being stripped is the tombstone byte. */
         --value->size;
     }
 }
