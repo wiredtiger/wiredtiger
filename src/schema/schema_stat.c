@@ -65,12 +65,13 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, colconf, cval;
-    WT_DECL_ITEM(file_uri);
     WT_DECL_RET;
+    WT_ITEM namebuf;
     int64_t size;
     char *tableconf;
     const char *table_name;
 
+    WT_CLEAR(namebuf);
     size = 0;
     table_name = uri + strlen("table:");
     *was_fast = false;
@@ -88,21 +89,18 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
         goto err;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &file_uri));
-
     /* Only probe for a stable file on a connection that can create one. */
     if (__wt_conn_is_disagg(session)) {
-        WT_ERR(__wt_buf_fmt(session, file_uri, "file:%s.wt_stable", table_name));
-        WT_ERR(__wt_curstat_file_size(session, file_uri->data, was_fast, &size));
+        WT_ERR(__wt_buf_fmt(session, &namebuf, "file:%s.wt_stable", table_name));
+        WT_ERR(__wt_curstat_size_disagg(session, namebuf.data, was_fast, &size));
     }
 
     /*
-     * At this point, disagg or not, we should check the default non-layered source. It is local on
-     * a classic connection and may be local or shared on a disaggregated connection.
+     * At this point, disagg or not, fall back to the local non-layered file.
      */
     if (!*was_fast) {
-        WT_ERR(__wt_buf_fmt(session, file_uri, "file:%s.wt", table_name));
-        WT_ERR(__wt_curstat_file_size(session, file_uri->data, was_fast, &size));
+        WT_ERR(__wt_buf_fmt(session, &namebuf, "%s.wt", table_name));
+        WT_ERR(__wt_curstat_size_local(session, namebuf.data, was_fast, &size));
     }
 
     if (*was_fast) {
@@ -113,7 +111,7 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
 
 err:
     __wt_free(session, tableconf);
-    __wt_scr_free(session, &file_uri);
+    __wt_buf_free(session, &namebuf);
 
     return (ret);
 }

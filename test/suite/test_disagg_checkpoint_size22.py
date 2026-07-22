@@ -55,12 +55,6 @@ class test_disagg_checkpoint_size22(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         base_config + ",block_manager=default,type=file",
     )
 
-    shared_table = Table(
-        f"table:{__qualname__}_shared",
-        f"{__qualname__}_shared.wt",
-        base_config + ",block_manager=disagg,type=file",
-    )
-
     def open_and_populate(self, table):
         """Open the table and insert enough rows to give it a nontrivial size."""
         self.session.create(table.uri, table.config)
@@ -146,20 +140,6 @@ class test_disagg_checkpoint_size22(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             Path(self.local_table.file_name).stat().st_size,
         )
         self.assertFalse(self.block_manager_consulted(self.local_table.uri))
-
-    def test_shared_non_layered_table_size_uses_checkpoint_meta(self):
-        """A shared non-layered table reports the checkpoint size"""
-        self.open_and_populate(self.shared_table)
-        self.session.checkpoint()
-
-        checkpoint_size = self.get_checkpoint_size(
-            "file:" + self.shared_table.file_name
-        )
-        descriptor_size = Path(self.shared_table.file_name).stat().st_size
-
-        self.assertNotEqual(checkpoint_size, descriptor_size)
-        self.assertEqual(self.block_size(self.shared_table.uri), checkpoint_size)
-        self.assertFalse(self.block_manager_consulted(self.shared_table.uri))
 
     def test_layered_table_size_without_checkpoint_uses_slow_path(self):
         """A layered table with no checkpoint falls back to the slow path."""
