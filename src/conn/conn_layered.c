@@ -148,8 +148,7 @@ __layered_create_has_following_remove(
 
 /*
  * __layered_queue_has_published_entry --
- *     Return true if the shared metadata queue holds an entry at a real schema epoch, indicating
- *     the database uses schema epochs.
+ *     Return true if the shared metadata queue holds a published entry.
  */
 static bool
 __layered_queue_has_published_entry(WT_SESSION_IMPL *session)
