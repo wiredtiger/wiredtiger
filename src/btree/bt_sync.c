@@ -206,11 +206,12 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * same checkpoint snapshot and pinned stable timestamp; in that case the on-disk image is
      * identical to what checkpoint would produce and we can skip re-reconciliation.
      */
-    if (!__sync_evict_reconciled_under_ckpt_snapshot(session, ref))
-        return (false);
+    if (__sync_evict_reconciled_under_ckpt_snapshot(session, ref)) {
+        WT_STAT_CONN_INCR(session, checkpoint_pages_reconciliation_skipped_evict_snapshot);
+        return (true);
+    }
 
-    WT_STAT_CONN_INCR(session, checkpoint_pages_reconciliation_skipped_evict_snapshot);
-    return (true);
+    return (false);
 }
 
 /*
