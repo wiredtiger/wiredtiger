@@ -145,6 +145,30 @@ util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
 }
 
 /*
+ * util_conn_is_disagg --
+ *     Report whether the connection is configured for disaggregated storage.
+ */
+static bool
+util_conn_is_disagg(WT_CONNECTION *conn)
+{
+    return (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL);
+}
+
+/*
+ * util_func_disallowed_disagg --
+ *     Whether a wt subcommand is disallowed in disaggregated storage mode. These are writer-side or
+ *     local-block/log operations with no meaningful semantics against a page-log-backed store.
+ */
+static bool
+util_func_disallowed_disagg(int (*func)(WT_SESSION *, int, char *[]))
+{
+    return (func == util_alter || func == util_backup || func == util_compact ||
+      func == util_create || func == util_downgrade || func == util_drop || func == util_load ||
+      func == util_loadtext || func == util_printlog || func == util_salvage ||
+      func == util_truncate || func == util_write);
+}
+
+/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -461,6 +485,16 @@ open:
           "Note: this issue typically arises from running wt util in an incorrect directory or not "
           "specifying one. Ensure you execute wt within a WiredTiger directory, or use the -h flag "
           "to direct it to one.\n");
+        goto err;
+    }
+
+    /*
+     * Disaggregated storage exposes data through a page log rather than local files. Reject
+     * subcommands that only apply to the classic block-manager path before touching any data.
+     */
+    if (util_conn_is_disagg(conn) && func != NULL && util_func_disallowed_disagg(func)) {
+        fprintf(
+          stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
         goto err;
     }
 
