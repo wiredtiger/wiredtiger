@@ -385,13 +385,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_PAGE *page;
     uint64_t page_size;
     uint8_t stats_flags;
-    bool evict_clean, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
+    bool evict_clean, closing, ebusy_only, inmem_split, is_dirty, stat_dirty, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    evict_clean = ebusy_only = is_dirty = false;
+    evict_clean = ebusy_only = is_dirty = stat_dirty = false;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -467,6 +467,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto done;
     }
 
+    if (__wt_page_is_modified(page))
+        is_dirty = stat_dirty = true;
+
     /*
      * Pages on an outdated disaggregated read-only btree can never be written to shared storage.
      * While the previous generation's readers still hold the handle, keep the page resident so a
@@ -479,11 +482,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
             ret = __wt_set_return(session, EBUSY);
             goto err;
         }
-        __wt_page_modify_clear(session, page);
-    }
 
-    if (__wt_page_is_modified(page))
-        is_dirty = true;
+        /*
+         * Force the page clean so eviction discards it rather than routing it through a dirty
+         * split. The dirty statistic still reflects the original state captured above, so a page
+         * carrying a leader-era reconciliation result is sized against the dirty statistic even
+         * though it is discarded as clean.
+         */
+        __wt_page_modify_clear(session, page);
+        is_dirty = false;
+    }
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
@@ -492,7 +500,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      */
     page_size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
 
-    if (!is_dirty)
+    if (!stat_dirty)
         /* Clean page */
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_clean_page_size_per_checkpoint, page_size);
