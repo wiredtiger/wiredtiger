@@ -126,7 +126,6 @@ Cygwin
 DENABLE
 DESC
 DEST
-DEVPROD
 DHANDLE
 DHAVE
 DISAGG
@@ -1508,6 +1507,7 @@ perf
 pfx
 pid
 pindexp
+pipefail
 plh
 pluggable
 pmem
