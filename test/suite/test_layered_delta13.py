@@ -55,6 +55,11 @@ class test_layered_delta13(wttest.WiredTigerTestCase):
 
     def test_uncommit_eviction(self):
         self.session.create(self.uri, self.session_create_config())
+
+        # Publish the table while empty so the data written below stays dirty and is written out on
+        # eviction. An unpublished disaggregated btree stays in memory and is never evicted.
+        self.session.checkpoint()
+
         with WiredTigerCursor(self.session, statistic_uri(self.uri)) as stat_cursor:
             cache_put_before = stat_cursor[stat.dsrc.cache_write][2]
         self.session.begin_transaction()

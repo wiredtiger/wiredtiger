@@ -427,8 +427,11 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_ASSERT(session, dhandle->handle == btree);
 
     ckpt_epoch = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_disagg_schema_epoch);
-    if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
+    if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE) {
+        /* No schema epoch means the publish API is unused, so publish unpublished tables here. */
+        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
         return (0);
+    }
 
     published = false;
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);

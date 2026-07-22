@@ -618,16 +618,17 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     }
 
     /*
-     * Check if we expect the btree to be published in the future, which happens if (1) the btree is
-     * newly created, (2) it is disaggregated, and (3) the disaggregated stable schema epoch is set.
-     * Ignore the "system" tables, such as the shared history store and the shared metadata table.
+     * Disaggregated btrees start in memory until they are published, because we cannot write any
+     * pages for them until we can record the btree metadata in the shared metadata. A caller
+     * publishes a btree via the WT_SESSION::publish API; the btree then becomes published after its
+     * disaggregated schema epoch becomes stable. If the caller does not use the publish API,
+     * WiredTiger will implicitly publish all unpublished btrees at the next checkpoint.
      *
-     * If we use schema epochs in disaggregated storage, the btree starts in memory, so that we
-     * cannot write any pages until the table is published - not even an empty root page.
+     * Ignore the "system" tables, such as the shared history store and the shared metadata table,
+     * which are published implicitly as soon as they are created.
      */
     awaits_publish = ckpt->raw.size == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      !WT_IS_URI_HS(btree->dhandle->name) && !WT_IS_URI_METADATA(btree->dhandle->name) &&
-      (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
+      !WT_IS_URI_HS(btree->dhandle->name) && !WT_IS_URI_METADATA(btree->dhandle->name);
 
     if (awaits_publish)
         F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);

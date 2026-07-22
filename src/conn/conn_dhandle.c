@@ -476,7 +476,14 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          *
          */
         if (!discard && !marked_dead) {
-            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || __wt_btree_stays_in_memory(btree))
+            /*
+             * Discard an unpublished tree that cannot be published yet: with a stable schema epoch
+             * set it holds only unstable data, like an in-memory tree. Without one, the next
+             * checkpoint publishes it, so checkpoint it here like a normal dirty tree.
+             */
+            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+              (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+                __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE))
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));
