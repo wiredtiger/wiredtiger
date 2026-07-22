@@ -588,6 +588,11 @@ __wti_evict_push_candidate(
     uint16_t new_flags, orig_flags;
     u_int slot;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->evict_queue_lock);
+
+    if (WT_REF_GET_STATE(ref) != WT_REF_MEM)
+        return (false);
+
     /*
      * Threads can race to queue a page (e.g., an ordinary LRU walk can race with a page being
      * queued for urgent eviction).
@@ -1100,7 +1105,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     WT_PAGE *page;
-    bool evict_clean, evict_dirty, evict_updates, modified, should_evict_page;
+    bool evict_clean, evict_dirty, evict_updates, modified, pushed, should_evict_page;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -1218,7 +1223,10 @@ fast:
         return;
 
     WT_ASSERT(session, evict_entry->ref == NULL);
-    if (!__wti_evict_push_candidate(session, queue, evict_entry, ref))
+    __wt_spin_lock(session, &evict->evict_queue_lock);
+    pushed = __wti_evict_push_candidate(session, queue, evict_entry, ref);
+    __wt_spin_unlock(session, &evict->evict_queue_lock);
+    if (!pushed)
         return;
 
     *queuedp = true;
