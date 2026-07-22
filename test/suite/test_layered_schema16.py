@@ -26,93 +26,161 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A disaggregated table dropped at or below the stable schema epoch and recreated above it must not
-# become durable or reappear after recovery. The recreated table is above the stable schema epoch,
-# so it is unpublished: its stable constituent must not reach the shared metadata, and a recovered
-# node must not resurrect it. The last durable schema operation at or below the stable epoch is the
-# drop, so the table must be absent.
+# Leader drop/recreate of a layered table within a single checkpoint pickup window.
 #
-# Without the fix, the recreated table's btree is opened without arming the unpublished guard (no
-# stable schema epoch was set when it was created), so its stable constituent is checkpointed into
-# the shared metadata and recovery resurrects it.
+# A follower can skip any number of leader checkpoints, so it may see a drop and a recreate of
+# the same table in one pickup: the table is then present in both the local and the shared
+# metadata, but with different btree IDs. The pickup must detect the ID change, discard the
+# follower's state for the old incarnation and pick the table up as a new one. Also covers
+# repeated drop/recreate cycles before a single pickup and a plain drop with no recreate.
 
 import wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
+from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggConfigMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+class test_layered_schema16(wttest.WiredTigerTestCase, DisaggConfigMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     uri = f'layered:{test_name}'
+    stable = f'file:{test_name}.wt_stable'
     table_config = 'key_format=i,value_format=S'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def simulate_crash_recovery(self):
-        """
-        Simulate a leader crash and recovery.
+    def read_all(self, session):
+        """Return the follower's view of the table as a key to value dict."""
+        cursor = session.open_cursor(self.uri)
+        result = {}
+        while cursor.next() == 0:
+            result[cursor.get_key()] = cursor.get_value()
+        cursor.close()
+        return result
 
-        A real leader recovers by reopening with lose_all_my_data=true (see
-        test/csuite/schema_disagg_abort), which discards local files and rebuilds
-        from the shared checkpoint. Closing with skip_checkpoint mimics a SIGKILL
-        by suppressing the shutdown checkpoint, so the last durable state is the
-        last explicit checkpoint.
-        """
-        self.close_conn('debug=(skip_checkpoint=true)')
-        self.ignoreStdoutPattern('WT_VERB_METADATA')
-        self.open_conn()
-
-        # Recovery with lose_all_my_data resets the timestamps. Set a stable timestamp so the
-        # recovered connection can take its shutdown checkpoint (precise checkpoint requires one).
-        self.conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(10) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-
-    def test_recreate_above_stable_epoch_not_resurrected(self):
-        """
-        A table dropped at or below the stable schema epoch and recreated above it must stay
-        unpublished: its stable constituent must not reach the shared metadata, and it must be
-        absent after recovery.
-        """
-        self.conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(1) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-
-        # Create and publish the table at epoch 2, checkpoint so it is durable.
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 2)
-        self.leader_checkpoint(2)
-
-        # Drop and publish the drop at epoch 3, checkpoint so the removal is durable.
-        self.session.drop(self.uri)
-        self.publish(self.uri, 3)
-        self.leader_checkpoint(3)
-
-        # Recreate at epoch 9 (above the stable epoch set below) and write an unstable row (commit
-        # above the checkpoint stable timestamp), so the table stays unpublished.
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 9)
+    def write_all(self, value, commit_ts):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        cursor[1] = 'value'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+        for i in range(10):
+            cursor[i] = value
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
-        # Advance the stable schema epoch to 5, between the drop (3) and the recreate (9).
-        self.set_stable_epoch(5)
+    def leader_checkpoint(self, stable_ts):
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable_ts) +
+                                ',oldest_timestamp=' + self.timestamp_str(1))
+        self.session.checkpoint()
+
+    def uri_in_local_metadata(self, conn):
+        session = conn.open_session('')
+        exists = True
+        try:
+            c = session.open_cursor(self.stable)
+            c.close()
+        except wiredtiger.WiredTigerError:
+            exists = False
+        session.close()
+        return exists
+
+    def open_follower(self):
+        conn = self.wiredtiger_open(
+            'follower', self.extensionsConfig() + ',create,' + self.conn_config_follower)
+        self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+        self.disagg_advance_checkpoint(conn)
+        return conn, conn.open_session('')
+
+    def test_drop_recreate_single_pickup(self):
+        # Leader creates the table, writes the first generation of data, and checkpoints.
+        self.session.create(self.uri, self.table_config)
+        self.write_all('aaa', 10)
         self.leader_checkpoint(10)
 
-        # The recreate is above the stable schema epoch, so its stable constituent must not have
-        # leaked into the shared metadata.
-        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri),
-            'an unpublished above-epoch table leaked into the shared metadata')
+        # Follower picks up the checkpoint and sees the first generation.
+        conn_follow, session_follow = self.open_follower()
+        self.assertEqual(self.read_all(session_follow), {i: 'aaa' for i in range(10)})
 
-        self.simulate_crash_recovery()
+        # Leader drops and recreates the table under the same name, all before its next
+        # checkpoint. The recreated table gets a fresh btree ID. (A drop may transiently EBUSY and
+        # retry with a checkpoint; the follower skips any intermediate checkpoints anyway.)
+        self.dropUntilSuccess(self.session, self.uri)
+        self.session.create(self.uri, self.table_config)
+        self.write_all('bbb', 20)
+        self.leader_checkpoint(30)
 
-        # The last schema operation at or below the durable epoch (5) is the drop at epoch 3, so the
-        # table must be absent. Before the fix it is resurrected.
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        # Follower picks up a single checkpoint spanning the drop and the recreate: the table is
+        # present on both sides but with different btree IDs. The pickup must replace the old
+        # incarnation and the follower must read back the recreated data.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertEqual(self.read_all(session_follow), {i: 'bbb' for i in range(10)})
+
+        # Leader runs several drop/recreate cycles, checkpointing each one (a drop needs the
+        # previous incarnation's data to be checkpointed), while the follower does not pick up any
+        # of the intermediate checkpoints.
+        for value, commit_ts in [('ccc', 40), ('ddd', 50)]:
+            self.dropUntilSuccess(self.session, self.uri)
+            self.session.create(self.uri, self.table_config)
+            self.write_all(value, commit_ts)
+            self.leader_checkpoint(commit_ts)
+
+        # Follower catches up in one pickup and must see the last incarnation's data.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertEqual(self.read_all(session_follow), {i: 'ddd' for i in range(10)})
+
+        # Leader drops the table for good and checkpoints.
+        self.dropUntilSuccess(self.session, self.uri)
+        self.leader_checkpoint(60)
+
+        # Follower picks up the drop: the table must disappear from its local metadata and must no
+        # longer be readable.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertFalse(self.uri_in_local_metadata(conn_follow))
+        self.assertRaises(wiredtiger.WiredTigerError,
+                          lambda: session_follow.open_cursor(self.uri))
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_pickup_ebusy_retry(self):
+        # Leader creates the table, writes data, and checkpoints; follower picks it up.
+        self.session.create(self.uri, self.table_config)
+        self.write_all('aaa', 10)
+        self.leader_checkpoint(10)
+        conn_follow, session_follow = self.open_follower()
+        self.assertEqual(self.read_all(session_follow), {i: 'aaa' for i in range(10)})
+
+        # Keep a positioned cursor open on the follower: positioning opens the constituent
+        # cursors, so the ingest and stable data handles stay pinned.
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor.next(), 0)
+
+        # Leader drops the table and checkpoints.
+        self.dropUntilSuccess(self.session, self.uri)
+        self.leader_checkpoint(20)
+
+        # The pickup must fail with EBUSY: the busy handles abort the discard of the dropped
+        # table before the follower advances to the new checkpoint.
+        self.assertRaises(wiredtiger.WiredTigerError,
+                          lambda: self.disagg_advance_checkpoint(conn_follow))
+        self.ignoreStderrPatternIfExists('Failed to pick up disaggregated storage checkpoint')
+
+        # The failed pickup must leave the table intact on the follower: still present in the
+        # local metadata and still readable through the open cursor.
+        self.assertTrue(self.uri_in_local_metadata(conn_follow))
+        cursor.reset()
+        result = {}
+        while cursor.next() == 0:
+            result[cursor.get_key()] = cursor.get_value()
+        self.assertEqual(result, {i: 'aaa' for i in range(10)})
+        cursor.close()
+
+        # With the cursor closed, retrying the pickup must succeed and discard the table.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertFalse(self.uri_in_local_metadata(conn_follow))
+        self.assertRaises(wiredtiger.WiredTigerError,
+                          lambda: session_follow.open_cursor(self.uri))
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
