@@ -52,14 +52,6 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def in_local_metadata(self, uri):
-        """Return True if uri has an entry in the local WiredTiger.wt metadata table."""
-        cursor = self.session.open_cursor('metadata:')
-        cursor.set_key(uri)
-        found = cursor.search() == 0
-        cursor.close()
-        return found
-
     def simulate_crash_recovery(self):
         """
         Simulate a leader crash and recovery.
@@ -123,5 +115,4 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # The last schema operation at or below the durable epoch (5) is the drop at epoch 3, so the
         # table must be absent. Before the fix it is resurrected.
-        resurrected = self.in_local_metadata(self.uri)
-        self.assertFalse(resurrected)
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
