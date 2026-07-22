@@ -147,29 +147,36 @@ __layered_create_has_following_remove(
 }
 
 /*
+ * __is_published_entry --
+ *     Return true if the queue entry is published.
+ */
+static bool
+__is_published_entry(WT_DISAGG_METADATA_OP *entry)
+{
+    return (entry->schema_epoch != WT_SCHEMA_EPOCH_NONE &&
+      entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED);
+}
+
+/*
  * __layered_queue_has_published_entry --
- *     Return true if the shared metadata queue holds a published entry.
+ *     Return true if the shared metadata queue holds a published entry. Caller must hold the queue
+ *     lock.
  */
 static bool
 __layered_queue_has_published_entry(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry;
-    bool found;
 
     conn = S2C(session);
-    found = false;
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->schema_epoch != WT_SCHEMA_EPOCH_NONE &&
-          entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED) {
-            found = true;
-            break;
-        }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+        if (__is_published_entry(entry))
+            return (true);
 
-    return (found);
+    return (false);
 }
 
 /*
@@ -188,19 +195,27 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    /* If we don't use schema epochs, fall back to the legacy method. */
     stable_schema_epoch =
       __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
-      !__layered_queue_has_published_entry(session))
-        return (__layered_create_missing_stable_tables_legacy(session));
 
-    /* Create missing stable tables for new layered tables in the shared metadata queue. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    /*
+     * Without a stable schema epoch and no published queue entry, fall back to the legacy method. A
+     * published entry means epoch tracking has started locally but the first epoch checkpoint has
+     * not landed yet.
+     */
+    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
+      !__layered_queue_has_published_entry(session)) {
+        __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+        return (__layered_create_missing_stable_tables_legacy(session));
+    }
+
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
 
-        /* Assert that older entries have been already pruned. */
-        WT_ASSERT(session, entry->schema_epoch > stable_schema_epoch);
+        /* When the stable epoch is known, entries older than it should have been pruned. */
+        WT_ASSERT(session,
+          entry->schema_epoch > stable_schema_epoch || stable_schema_epoch == WT_SCHEMA_EPOCH_NONE);
 
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
@@ -459,13 +474,16 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        /*
-         * When EPOCH_NONE is passed (legacy step-up path that doesn't use schema epochs), prune
-         * everything unconditionally. The legacy path rebuilds stable constituents directly from
-         * local metadata rather than replaying queue entries, so the queue is no longer needed.
-         */
-        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
-            continue;
+        if (cur_schema_epoch == WT_SCHEMA_EPOCH_NONE) {
+            /* The checkpoint carries no schema epoch: keep step-up published entries, drop the
+             * rest. */
+            if (__is_published_entry(entry))
+                continue;
+        } else {
+            /* The checkpoint carries a schema epoch: keep entries newer than it. */
+            if (entry->schema_epoch > cur_schema_epoch)
+                continue;
+        }
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
     }
