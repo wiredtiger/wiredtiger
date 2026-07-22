@@ -145,6 +145,16 @@ util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
 }
 
 /*
+ * util_conn_is_disagg --
+ *     Report whether the connection is configured for disaggregated storage.
+ */
+static bool
+util_conn_is_disagg(WT_CONNECTION *conn)
+{
+    return (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL);
+}
+
+/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -197,7 +207,8 @@ main(int argc, char *argv[])
     char *p, *secretkey;
     const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *rec_config,
       *session_config;
-    bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
+    bool backward_compatible, disable_prefetch, had_secretkey, logoff, meta_verify, readonly,
+      recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -225,8 +236,8 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
-      false;
+    backward_compatible = disable_prefetch = had_secretkey = logoff = meta_verify = readonly =
+      recover = salvage = false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
     while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)
@@ -245,6 +256,7 @@ main(int argc, char *argv[])
                 (void)util_err(NULL, errno, NULL);
                 goto err;
             }
+            had_secretkey = true;
             wt_explicit_zero(__wt_optarg, strlen(__wt_optarg));
             break;
         case 'h': /* home directory */
@@ -462,6 +474,34 @@ open:
           "specifying one. Ensure you execute wt within a WiredTiger directory, or use the -h flag "
           "to direct it to one.\n");
         goto err;
+    }
+
+    /*
+     * Disaggregated storage exposes data through a page log rather than local files. Reject global
+     * flags that only apply to the classic block-manager or local-log path before touching any
+     * data.
+     */
+    if (util_conn_is_disagg(conn)) {
+        const char *bad_flag = NULL;
+        if (backward_compatible)
+            bad_flag = "-B (log-file backward compatibility)";
+        else if (had_secretkey)
+            bad_flag = "-E (encryption secret key)";
+        else if (logoff)
+            bad_flag = "-L (disable logging)";
+        else if (live_restore_path != NULL)
+            bad_flag = "-l (live restore)";
+        else if (recover)
+            bad_flag = "-R (run recovery)";
+        else if (salvage)
+            bad_flag = "-S (run salvage recovery)";
+        if (bad_flag != NULL) {
+            fprintf(stderr, "%s: %s is not supported in disaggregated storage mode\n", progname,
+              bad_flag);
+            /* Skip the backward-compatibility reconfigure at close for the -B case. */
+            backward_compatible = false;
+            goto err;
+        }
     }
 
     if (secretkey != NULL) {
