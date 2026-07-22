@@ -143,11 +143,11 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE_MODIFY *mod;
     WT_TXN *txn;
-    bool skipped_evict_reconciled;
-
-    skipped_evict_reconciled = false;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
+
+    txn = session->txn;
+    mod = ref->page->modify;
 
     /*
      * If we got to this point and we are dealing with an internal page, this means at least one of
@@ -166,33 +166,6 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     if (WT_IS_DISAGG_META(session->dhandle))
         return (false);
 
-    /*
-     * The checkpoint's snapshot includes the first dirty update on the page, so there is content to
-     * write, unless eviction already reconciled the page under this same checkpoint snapshot and
-     * pinned stable timestamp; in that case the on-disk image is identical to what checkpoint would
-     * produce and we can skip re-reconciliation.
-     */
-    txn = session->txn;
-    mod = ref->page->modify;
-    if (txn->snapshot_data.snap_max >= __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn)) {
-        if (!__sync_evict_reconciled_under_ckpt_snapshot(session, ref))
-            return (false);
-        skipped_evict_reconciled = true;
-    }
-
-    /*
-     * We can only skip writing the page if its current content is already durable on disk. A page
-     * evicted with unresolved updates, or re-instantiated from an image that was never written, has
-     * content that only exists in memory; checkpoint must write it with valid addresses.
-     *
-     * The page's modification information can change underfoot if the page is being reconciled, so
-     * we'd normally serialize with reconciliation before reviewing page-modification information.
-     * However, checkpoint is the only valid writer of dirty leaf pages at this point, we skip the
-     * lock.
-     */
-    if (!__sync_page_image_durable(ref))
-        return (false);
-
     /* RTS, recovery or shutdown should not leave anything dirty behind. */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
         return (false);
@@ -208,9 +181,35 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
 
-    if (skipped_evict_reconciled)
-        WT_STAT_CONN_INCR(session, checkpoint_pages_reconciliation_skipped_evict_snapshot);
+    /*
+     * We can only skip writing the page if its current content is already durable on disk. A page
+     * evicted with unresolved updates, or re-instantiated from an image that was never written, has
+     * content that only exists in memory; checkpoint must write it with valid addresses.
+     *
+     * The page's modification information can change underfoot if the page is being reconciled, so
+     * we'd normally serialize with reconciliation before reviewing page-modification information.
+     * However, checkpoint is the only valid writer of dirty leaf pages at this point, we skip the
+     * lock.
+     */
+    if (!__sync_page_image_durable(session, ref))
+        return (false);
 
+    /*
+     * If the checkpoint's snapshot does not include the first dirty update on the page, there is no
+     * content for this checkpoint to write and we can skip it.
+     */
+    if (txn->snapshot_data.snap_max < __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn))
+        return (true);
+
+    /*
+     * Otherwise there is content to write, unless eviction already reconciled the page under this
+     * same checkpoint snapshot and pinned stable timestamp; in that case the on-disk image is
+     * identical to what checkpoint would produce and we can skip re-reconciliation.
+     */
+    if (!__sync_evict_reconciled_under_ckpt_snapshot(session, ref))
+        return (false);
+
+    WT_STAT_CONN_INCR(session, checkpoint_pages_reconciliation_skipped_evict_snapshot);
     return (true);
 }
 

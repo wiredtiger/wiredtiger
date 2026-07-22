@@ -1480,9 +1480,9 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
     mod->rec_prune_timestamp = orig_modify->rec_prune_timestamp;
 
     /*
-     * Inherit the checkpoint snapshot stamp so checkpoint can skip re-reconciling a product that
-     * eviction already reconciled under the checkpoint snapshot. Checkpoint verifies the product
-     * has a durable on-disk image before skipping it.
+     * Inherit the checkpoint snapshot stamp so checkpoint can skip re-reconciling a page that
+     * eviction already reconciled under the checkpoint snapshot. Checkpoint verifies the page has a
+     * durable on-disk image before skipping it.
      */
     mod->rec_ckpt_snap_gen = orig_modify->rec_ckpt_snap_gen;
 }
