@@ -1860,8 +1860,7 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
      * If the page is in one of the dirty leaf buckets, it would have to be
      * removed from its tree's subqueue.
      */
-    if (bucketset->level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF ||
-        bucketset->level == WT_EVICT_LEVEL_DIRTY_LEAF) {
+    if (__evict_level_is_dirty((int)bucketset->level)) {
         WT_EVICT *evict;
         WT_EVICT_BUCKET *bucket;
         WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;

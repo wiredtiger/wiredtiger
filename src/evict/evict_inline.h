@@ -107,6 +107,14 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
     if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON ||
       (bucketset->level != WT_EVICT_LEVEL_CLEAN_LEAF &&
         bucketset->level != WT_EVICT_LEVEL_CLEAN_INTERNAL)) {
+        /*
+         * If the page is already in a bucket at this level, we return the same
+         * bucket. We don't want to trigger re-bucketing at levels where we place
+         * pages into random buckets.
+         */
+        if (!WT_EVICT_PAGE_CLEARED(page) &&
+            page->evict_data.bucket->bucketset->level == bucketset->level)
+            return page->evict_data.bucket->id;
         return (uint64_t)__wt_random(&session->rnd_random) % num_buckets;
     }
 
