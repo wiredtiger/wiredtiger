@@ -19,6 +19,12 @@
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
 
+/*
+ * How much preference we give to leaf vs internal dirty pages upon eviction.
+ * A higher value means more preference to leaf vs internal pages.
+ */
+#define WT_EVICT_INTERNAL_WEIGHT_DIVISOR 64
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,

@@ -400,7 +400,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
              * are allocated once here and never freed until connection close, so the hot paths only
              * lock individual chains, never the table.
              */
-            if (!__evict_level_is_dirty_leaf((uint32_t)i))
+            if (!__evict_level_is_dirty(i))
                 continue;
 
             WT_RET(__wt_calloc(session, evict->dhandle_hash_size,
@@ -600,7 +600,7 @@ __wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *d
     hash_slot = (uint32_t)(dhandle->name_hash % evict->dhandle_hash_size);
 
     for (i = 0; i < WT_EVICT_LEVELS; i++) {
-        if (!__evict_level_is_dirty_leaf((uint32_t)i))
+        if (!__evict_level_is_dirty(i))
             continue;
         bucketset = &evict->evict_bucketset[i];
 

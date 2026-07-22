@@ -1142,11 +1142,25 @@ __evict_page_updates_candidate(WT_PAGE *page)
 }
 
 /*
- * __evict_bucket_is_dirty_leaf --
- *     Return true if this bucketset level keeps per-tree subqueues.
+ * __evict_level_is_dirty --
+ *     Return true if this bucketset level keeps dirty pages.
  */
 static WT_INLINE bool
-__evict_level_is_dirty_leaf(uint32_t level)
+__evict_level_is_dirty(int level)
 {
-    return (level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF || level == WT_EVICT_LEVEL_DIRTY_LEAF);
+    return (level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF || level == WT_EVICT_LEVEL_DIRTY_LEAF
+            || level == WT_EVICT_LEVEL_DIRTY_INTERNAL);
+}
+
+/*
+ * __evict_level_is_internal --
+ *     Return true if this bucketset level holds internal pages. Evicting an internal page forces a
+ *     re-read of it before anything in its subtree can be reached again, so callers weight these
+ *     levels down rather than selecting them in proportion to the pages they hold.
+ */
+static WT_INLINE bool
+__evict_level_is_internal(int level)
+{
+    return (level == WT_EVICT_LEVEL_DIRTY_INTERNAL || level == WT_EVICT_LEVEL_WONT_NEED_INTERNAL ||
+      level == WT_EVICT_LEVEL_UPDATES_INTERNAL || level == WT_EVICT_LEVEL_CLEAN_INTERNAL);
 }

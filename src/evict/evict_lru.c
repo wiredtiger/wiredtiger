@@ -1201,6 +1201,42 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
     return (NULL);
 }
 
+
+/*
+ * __evict_eligible_levels --
+ *     Build the set of bucketset levels eligible for eviction given the current pressure flags.
+ */
+static WT_INLINE u_int
+__evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
+{
+    u_int n;
+
+    n = 0;
+    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
+        levels[n++] = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
+        levels[n++] = WT_EVICT_LEVEL_DIRTY_LEAF;
+        if (checkpoint_running)
+            levels[n++] = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+    }
+    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+        levels[n++] = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
+        levels[n++] = WT_EVICT_LEVEL_CLEAN_LEAF;
+        if (checkpoint_running)
+            levels[n++] = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+    }
+    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
+        levels[n++] = WT_EVICT_LEVEL_UPDATES_LEAF;
+        if (checkpoint_running)
+            levels[n++] = WT_EVICT_LEVEL_UPDATES_INTERNAL;
+    }
+    /*
+     * Won't-need pages are never scheduled for eviction.
+     * Forced eviction takes care of them and forced eviction doesn't go through this path */
+
+    return (n);
+}
+
+
 /*
  * __evict_get_ref --
  *     Get a page for eviction. The returned page is locked. It will be unlocked by the function
@@ -1221,8 +1257,9 @@ __evict_get_ref(
     WT_REF_STATE previous_state;
     WT_TXN *txn;
     bool checkpoint_running;
-    uint32_t i, iter, j, min_level, max_level, num_buckets, total_iter;
-    uint64_t cumulative, rand_val, total_items;
+    u_int eligible[WT_EVICT_LEVELS], k, n_eligible, start;
+    uint32_t i, iter, j, num_buckets, total_iter;
+    uint64_t cumulative, rand_val, total_items, weights[WT_EVICT_LEVELS];
 
     *btreep = NULL;
     bucketset = NULL;
@@ -1230,10 +1267,7 @@ __evict_get_ref(
     checkpoint_running =
         __wt_atomic_load_bool_v_relaxed(&(&(S2C(session))->txn_global)->checkpoint_running);
     evict = conn->evict;
-    i = 0;
-    iter = total_iter = 0;
-    min_level = max_level = 0;
-    previous_state = 0;
+    i = iter = previous_state = total_iter = 0;
     txn = session->txn;
 
     /*
@@ -1246,61 +1280,58 @@ __evict_get_ref(
     if (!F_ISSET(evict, WT_EVICT_CACHE_ANY))
         goto done;
 
+#if 1
     /* Application threads don't help when the checkpoint is running */
     if (!F_ISSET(session, WT_SESSION_INTERNAL) && checkpoint_running) {
         WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
         goto done;
     }
+#else
+    (void)checkpoint_running;
+#endif
 
-    min_level = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
-    max_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+    /* Find eligible eviction levels depending on flags set */
+    n_eligible = __evict_eligible_levels(evict, eligible, checkpoint_running);
 
-    /* Determine the range of eligible levels based on flags. */
-    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
-        max_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
-        max_level = WT_EVICT_LEVEL_UPDATES_LEAF;
-
-    if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
-        min_level = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
-    if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        min_level = WT_EVICT_LEVEL_UPDATES_LEAF;
-
-
-    /* Sum items across all eligible bucketsets. */
-    total_items = 0;
-    for (i = min_level; i <= max_level; i++) {
-        total_items += evict->evict_bucketset[i].bucketset_num_items;
+    /*
+     * Application threads only evict clean leaf pages unless we are struggling: reconciling a dirty
+     * page on an application thread adds latency to the operation.
+     */
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
+      !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)) {
+        eligible[0] = WT_EVICT_LEVEL_CLEAN_LEAF;
+        n_eligible = 1;
     }
 
-    /* If no items in any eligible bucket, nothing to evict. */
+    /* Choose the starting level in proportion to how many pages each level holds. */
+    total_items = 0;
+    for (k = 0; k < n_eligible; k++) {
+        weights[k] = __wt_atomic_load_uint64_v_relaxed(
+          &evict->evict_bucketset[eligible[k]].bucketset_num_items);
+        if (__evict_level_is_internal((int)eligible[k])) {
+            if (weights[k] != 0 && weights[k] < WT_EVICT_INTERNAL_WEIGHT_DIVISOR)
+                weights[k] = 1;
+            else
+                weights[k] /= WT_EVICT_INTERNAL_WEIGHT_DIVISOR;
+        }
+        total_items += weights[k];
+    }
+
     if (total_items == 0)
         goto done;
 
-    /* Pick a random point in [0, total_items) and find the corresponding bucket. */
     rand_val = __wt_random(&session->rnd_random) % total_items;
     cumulative = 0;
-    for (i = min_level; i <= max_level; i++) {
-        cumulative += evict->evict_bucketset[i].bucketset_num_items;
-        if (rand_val < cumulative) {
-            min_level = i;
+    for (start = 0; start < n_eligible; start++) {
+        cumulative += weights[start];
+        if (rand_val < cumulative)
             break;
-        }
     }
 
-#if 1
-    /* Application threads evict only clean pages, unless we are struggling */
-    if (!F_ISSET(session,  WT_SESSION_INTERNAL) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN)
-        && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD) &&
-        !F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD)) {
-        min_level = max_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-    }
-#endif
+    WT_ASSERT(session, start < n_eligible);
 
     /* Keep track of the starting bucket where we look for pages to evict */
-    switch (min_level) {
+    switch (eligible[start]) {
     case WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF:
         WT_STAT_CONN_INCR(session, eviction_min_bucket_wont_need_clean_leaf);
         break;
@@ -1341,12 +1372,14 @@ __evict_get_ref(
         F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD))
         __wt_txn_bump_snapshot(session);
 
-    for (i = min_level; i <= max_level; i++) {
+    for (k = 0; k < n_eligible; k++) {
         if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
             break;
 
+        i = eligible[(start + k) % n_eligible];
         bucketset = &evict->evict_bucketset[i];
-        if (bucketset->bucketset_num_items == 0)
+
+        if (__wt_atomic_load_uint64_v_relaxed(&bucketset->bucketset_num_items) == 0)
             continue;
 
         num_buckets = bucketset->num_buckets;
@@ -1386,7 +1419,7 @@ __evict_get_ref(
              * under its own lock. Skipping a syncing tree costs a single check for the whole tree,
              * rather than one check per page as it would in a flat queue.
              */
-            if (__evict_level_is_dirty_leaf(i)) {
+            if (__evict_level_is_dirty((int)i)) {
                 WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
                 WT_EVICT_DHANDLE_SUBQUEUE *subq;
                 const char *subq_name;
@@ -1943,8 +1976,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * If the page is in one of the dirty leaf buckets, it would have to be
      * added to its tree's subqueue.
      */
-    if (bucketset->level == WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF ||
-        bucketset->level == WT_EVICT_LEVEL_DIRTY_LEAF) {
+    if (__evict_level_is_dirty((int)bucketset->level)) {
         WT_EVICT *evict;
         WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;
         WT_EVICT_DHANDLE_HASH_ENTRY *dhandle_hashentry;
