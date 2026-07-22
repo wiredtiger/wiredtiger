@@ -321,13 +321,13 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Update the bytes in-memory to reflect the eviction. */
     __wt_cache_decr_check_uint64(
       session, &btree->bytes_inmem, btree_footprint, "WT_BTREE.bytes_inmem");
-    WT_CACHE_DISAGG_DECR(session, is_disagg, btree, cache, bytes_inmem, memory_footprint);
+    WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, memory_footprint);
 
     /* Update the bytes_internal value to reflect the eviction */
     if (WT_PAGE_IS_INTERNAL(page)) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_internal, btree_footprint, "WT_BTREE.bytes_internal");
-        WT_CACHE_DISAGG_DECR(session, is_disagg, btree, cache, bytes_internal, memory_footprint);
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, memory_footprint);
     }
 
     /* Update the cache's dirty-byte count. */
@@ -335,13 +335,11 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_PAGE_IS_INTERNAL(page)) {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
-            WT_CACHE_DISAGG_DECR(
-              session, is_disagg, btree, cache, bytes_dirty_intl, modify->bytes_dirty);
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_intl, modify->bytes_dirty);
         } else {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
-            WT_CACHE_DISAGG_DECR(
-              session, is_disagg, btree, cache, bytes_dirty_leaf, modify->bytes_dirty);
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_leaf, modify->bytes_dirty);
         }
     }
 
@@ -349,8 +347,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (modify != NULL) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
-        WT_CACHE_DISAGG_DECR(
-          session, is_disagg, btree, cache, bytes_updates, modify->bytes_updates);
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_updates, modify->bytes_updates);
     }
 
     /* Update bytes and pages evicted. */

@@ -204,7 +204,7 @@ struct __wt_cache {
  * one place. The field argument is the base member name, and we build the variant names by token
  * pasting, so all three members need to follow the base/_ingest/_stable naming.
  */
-#define WT_CACHE_DISAGG_INCR(is_disagg, btree, cache, field, size)                      \
+#define WT_CACHE_INCR(is_disagg, btree, cache, field, size)                             \
     do {                                                                                \
         (void)__wt_atomic_add_uint64_relaxed(&(cache)->field, (size));                  \
         if (is_disagg) {                                                                \
@@ -215,7 +215,7 @@ struct __wt_cache {
         }                                                                               \
     } while (0)
 
-#define WT_CACHE_DISAGG_DECR(session, is_disagg, btree, cache, field, size)                 \
+#define WT_CACHE_DECR(session, is_disagg, btree, cache, field, size)                        \
     do {                                                                                    \
         __wt_cache_decr_check_uint64(session, &(cache)->field, (size), "WT_CACHE." #field); \
         if (is_disagg) {                                                                    \
