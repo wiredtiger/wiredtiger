@@ -428,13 +428,8 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
     ckpt_epoch = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_disagg_schema_epoch);
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE) {
-        /*
-         * No schema epoch means the publish API is unused. Implicitly publish unpublished tables,
-         * but only on the leader: followers skip checkpointing disaggregated tables, so clearing
-         * the flag on a follower would allow eviction to write pages that are never checkpointed.
-         */
-        if (conn->layered_table_manager.leader)
-            F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+        /* No schema epoch means the publish API is unused, so publish unpublished tables here. */
+        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
         return (0);
     }
 
