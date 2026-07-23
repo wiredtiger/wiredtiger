@@ -92,6 +92,28 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
+if(ENABLE_PALITE AND WT_POSIX)
+    # FIXME-WT-18112: Build the binary but register no ctest test, so it never runs in
+    # "make check" or csuite-tests-fast while the follower step-up data-loss bug is open.
+    # The wiredtiger-disagg project invokes the binary directly.
+    create_test_executable(test_schema_disagg_abort
+        SOURCES
+            schema_disagg_abort/main.c
+            schema_disagg_abort/workload.c
+            schema_disagg_abort/verify.c
+        ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/schema_disagg_abort
+    )
+    # Use C++ linker for building this target.
+    # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+    # to link against the C++ sanitizer runtimes.
+    # Some extensions (PALite, tiered storage) require C++ runtime to be linked
+    # for sanitizers to work correctly.
+    if(TARGET test_schema_disagg_abort)
+        set_target_properties(test_schema_disagg_abort PROPERTIES LINKER_LANGUAGE CXX)
+    endif()
+endif()
+
 define_c_test(
     TARGET test_scope
     SOURCES scope/main.c

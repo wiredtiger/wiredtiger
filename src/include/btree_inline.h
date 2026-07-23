@@ -37,6 +37,17 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_is_stale_disagg --
+ *     Return whether the current btree belongs to an outdated disaggregated generation.
+ */
+static WT_INLINE bool
+__wt_btree_is_stale_disagg(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED | WT_BTREE_READONLY) &&
+      F_ISSET(session->dhandle, WT_DHANDLE_OUTDATED));
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -2301,6 +2312,29 @@ __wt_btree_advance_ingest_max(WT_BTREE *btree, wt_timestamp_t durable_ts)
 }
 
 /*
+ * __wt_btree_update_unpublished_min --
+ *     Update an unpublished btree's lower bound on the durable timestamps it holds. We use this to
+ *     detect if the btree holds any stable data while the btree is still unpublished, which would
+ *     be an API violation.
+ */
+static WT_INLINE void
+__wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts)
+{
+    wt_timestamp_t cur, target;
+
+    if (durable_ts == WT_TS_NONE)
+        return;
+
+    target = durable_ts;
+    cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    while (cur == WT_TS_NONE || cur > target) {
+        if (__wt_atomic_cas_uint64(&btree->min_unpublished_durable_ts, cur, target))
+            break;
+        cur = __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts);
+    }
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
@@ -3072,7 +3106,8 @@ __wt_cache_shared_dsk_inmem_decr(WT_SESSION_IMPL *session, uint8_t image_type, s
  * __wt_btree_row_leaf_entries_update --
  *     Update the per-btree EWMA of row-store leaf page K/V pair count with a new sample. Uses
  *     alpha=1/16: new_ewma = (15 * old + sample) / 16. Races between threads are tolerated since
- *     the result is approximate.
+ *     the result is approximate. Left untouched at WT_LEAF_STATS_UNKNOWN until a corrective
+ *     WT_STAT_TYPE_TREE_WALK sets a real starting value.
  */
 static WT_INLINE void
 __wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample)
@@ -3080,6 +3115,8 @@ __wt_btree_row_leaf_entries_update(WT_BTREE *btree, uint64_t sample)
     uint64_t old;
 
     old = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
+    if (old == WT_LEAF_STATS_UNKNOWN)
+        return;
     __wt_atomic_store_uint64_relaxed(
       &btree->leaf_entry_ewma, old == 0 ? sample : (15 * old + sample) / 16);
 }

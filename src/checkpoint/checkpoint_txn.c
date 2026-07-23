@@ -35,6 +35,7 @@ typedef struct {
 
 typedef struct {
     bool can_skip;
+    bool database_size_fix;
     bool force;
     bool flush_tier_enabled;
     bool flush_tier_force;
@@ -403,6 +404,56 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_disagg_maybe_publish --
+ *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
+ *     schema epoch covers the table's CREATE entry. If so, clear WT_BTREE_AWAITS_PUBLISH so the
+ *     btree is written out and included in this checkpoint. If not, verify the btree has no stable
+ *     updates: having stable data in an unpublished table violates the API contract that a table
+ *     must be published before the checkpoint that includes its data.
+ */
+static int
+__checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DISAGG_METADATA_OP *entry;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
+    bool published;
+
+    conn = S2C(session);
+    dhandle = session->dhandle;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+    WT_ASSERT(session, dhandle->handle == btree);
+
+    ckpt_epoch = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_disagg_schema_epoch);
+    if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
+        return (0);
+
+    published = false;
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+          strcmp(entry->stable_uri, dhandle->name) == 0 && entry->schema_epoch <= ckpt_epoch) {
+            published = true;
+            break;
+        }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    if (!published) {
+        ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
+        if (btree->min_unpublished_durable_ts != WT_TS_NONE &&
+          btree->min_unpublished_durable_ts <= ckpt_timestamp)
+            WT_RET_MSG(session, EINVAL, "stable data checkpointed for unpublished table \"%s\"",
+              dhandle->name);
+    }
+
+    if (published)
+        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    return (0);
+}
+
+/*
  * __wt_checkpoint_get_handles --
  *     Get a list of handles to flush.
  */
@@ -432,9 +483,18 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
+    /*
+     * A disaggregated btree carries WT_BTREE_AWAITS_PUBLISH when it was created while a stable
+     * schema epoch was set and is waiting to be published. Clear the flag if the btree is ready to
+     * participate in this checkpoint; its pages are dirty (nothing was written while it awaited
+     * publication) and are reconciled and written normally once the flag is clear.
+     */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
+
     /* Skip the history store file as it is checkpointed manually later. */
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY | WT_BTREE_READONLY) ||
-      WT_IS_HS(btree->dhandle))
+      F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) || WT_IS_HS(btree->dhandle))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
@@ -837,8 +897,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Output a verbose progress message for long running checkpoints. */
-    if (conn->ckpt.progress.msg_count > 0)
-        __checkpoint_progress(session, true);
+    __checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
@@ -882,15 +941,19 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  * __checkpoint_update_disagg_database_size --
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
-static void
-__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop_size)
+static int
+__checkpoint_update_disagg_database_size(
+  WT_SESSION_IMPL *session, uint64_t drop_size, bool database_size_fix)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t recomputed_size;
+    bool recomputed;
 
     conn = S2C(session);
 
     if (!__wt_conn_is_disagg(session))
-        return;
+        return (0);
 
     /*
      * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
@@ -902,12 +965,34 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     /*
-     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
-     * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
-     * occur when data is removed reducing the total storage footprint. Guard against
-     * overflow/underflow in both cases.
+     * The repair database flow asks us to recompute the database size from the metadata from
+     * scratch, superseding the incremental delta below, since the metadata already reflects this
+     * checkpoint's own sizes. A recompute error fails the checkpoint instead of falling back, since
+     * the caller explicitly asked for this recompute and needs to know.
      */
-    if (session->ckpt.ckpt_size_delta != 0) {
+    recomputed = false;
+    if (database_size_fix) {
+        if ((ret = __wt_disagg_get_database_size(session, &recomputed_size)) != 0) {
+            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "disagg database size fix: failed to recompute database size: %s",
+              __wt_strerror(session, ret, NULL, 0));
+            return (ret);
+        }
+
+        recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+        __wt_disagg_set_database_size(session, recomputed_size);
+        __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
+        recomputed = true;
+    }
+
+    /*
+     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
+     * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
+     * added during the checkpoint. Negative deltas occur when data is removed reducing the total
+     * storage footprint. Guard against overflow/underflow in both cases.
+     */
+    if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
         uint64_t db;
         int64_t delta;
 
@@ -930,6 +1015,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, uint64_t drop
      */
     WT_ASSERT(
       session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+    return (0);
 }
 
 /*
@@ -1317,6 +1403,13 @@ __checkpoint_parse_config(
 
     WT_RET(__wt_config_gets(session, cfg, "drop", &cval));
     ckpt_cfg->drop = cval.len != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "debug.database_size_fix", &cval));
+    ckpt_cfg->database_size_fix = cval.val != 0;
+    if (ckpt_cfg->database_size_fix &&
+      !(__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader))
+        WT_RET_MSG(
+          session, ENOTSUP, "database_size_fix requires a disaggregated leader connection");
 
     return (0);
 }
@@ -1708,9 +1801,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__checkpoint_db_debug_crash_points(session, cfg));
 
-    /* Log the final checkpoint prepare progress message if needed. */
-    if (conn->ckpt.progress.msg_count > 0)
-        __checkpoint_prepare_progress(session, true);
+    /* Log the final checkpoint prepare progress message. */
+    __checkpoint_prepare_progress(session, true);
 
     /*
      * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
@@ -1909,7 +2001,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Disaggregated storage database size accounting. */
-    __checkpoint_update_disagg_database_size(session, drop_size);
+    WT_ERR(
+      __checkpoint_update_disagg_database_size(session, drop_size, ckpt_cfg.database_size_fix));
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 

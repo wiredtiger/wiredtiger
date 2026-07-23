@@ -186,6 +186,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
             __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%s]: Clearing slot %" PRIu32, lsn_str, index);
             /* This is the result of a force stop, clear the entry. */
+            __wt_free(session, blk->id_str);
             WT_CLEAR(*blk);
         }
     } else
@@ -946,6 +947,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
           "cannot remove incomplete table '%s' (%s, %s) in readonly mode", uri, colgroup_msg,
           file_msg);
+        ret = 0;
         goto done;
     }
 
