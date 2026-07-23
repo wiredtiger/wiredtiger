@@ -1,36 +1,20 @@
 /*-
- * Public Domain 2014-present MongoDB, Inc.
- * Public Domain 2008-2014 WiredTiger, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
  *
- * This is free and unencumbered software released into the public domain.
- *
- * Anyone is free to copy, modify, publish, use, compile, sell, or
- * distribute this software, either in source code form or as a compiled
- * binary, for any purpose, commercial or non-commercial, and by any
- * means.
- *
- * In jurisdictions that recognize copyright laws, the author or authors
- * of this software dedicate any and all copyright interest in the
- * software to the public domain. We make this dedication for the benefit
- * of the public at large and to the detriment of our heirs and
- * successors. We intend this dedication to be an overt act of
- * relinquishment in perpetuity of all present and future rights to this
- * software under copyright law.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
+ * See the file LICENSE for redistribution information.
  */
 
 /*
- * Parent role: orchestrator and verifier. Spawns the leader (and, in multi-node mode, the
- * follower), monitors their health during the timed run, kills them per the configured mode with
- * strict exit-status checks, then reopens the surviving state and verifies it against the record
- * files. The parent never opens WiredTiger while children are running.
+ * Parent role: orchestrator and verifier. Spawns one or two symmetric nodes per the -r topology,
+ * then drives a one-second-tick timeline: a role switch every -s seconds (directed through the
+ * switch-request sentinel and confirmed through the numbered switch-done sentinel), SIGKILLs at the
+ * -k times (targeting whichever node currently holds the role), and a graceful stop at the -t
+ * timeout. Children dying at any other point fail the test.
+ *
+ * Afterwards the parent reopens the surviving state and verifies it against the record files. It
+ * never opens WiredTiger while children are running.
  */
 
 #include "schema_disagg_abort.h"
@@ -42,59 +26,65 @@
 static void die_on_child_status(const SUBPROC *proc, SUBPROC_STATUS status, int code)
   WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
+/* The spawned children, so that a failing parent can take them down with it. */
+static SUBPROC *live_children = NULL;
+
+/*
+ * kill_children --
+ *     Kill whatever is still running when the test fails. Without this a failure leaves the
+ *     surviving node behind: nothing else ever reaps it, and it runs on for as long as the machine
+ *     is up, competing with later runs.
+ */
+static void
+kill_children(void)
+{
+    if (live_children == NULL)
+        return;
+
+    for (size_t i = 0; i < SUBPROC_SLOTS; ++i)
+        if (live_children[i].who != NULL && !live_children[i].reaped)
+            (void)kill(live_children[i].pid, SIGKILL);
+}
+
 /*
  * create_test_dirs --
  *     Create the directory structure needed for a fresh test run.
  */
 static void
-create_test_dirs(const TEST_CONFIG *cfg)
+create_test_dirs(const TEST_CONFIG *cfg, uint32_t nnodes)
 {
     char buf[PATH_MAX];
 
     testutil_recreate_dir(cfg->home);
     testutil_snprintf(buf, sizeof(buf), "%s/%s", cfg->home, RECORDS_DIR);
     testutil_mkdir(buf);
-    testutil_snprintf(buf, sizeof(buf), "%s/%s", cfg->home, WT_HOME_DIR);
+    testutil_snprintf(buf, sizeof(buf), "%s/%s", cfg->home, PAGE_LOG_DIR);
     testutil_mkdir(buf);
-    if (cfg->kill_mode != KILL_NONE) {
-        testutil_snprintf(buf, sizeof(buf), "%s/%s", cfg->home, FOLLOWER_HOME_DIR);
+    for (uint32_t id = 0; id < nnodes; id++) {
+        testutil_snprintf(buf, sizeof(buf), "%s/" NODE_HOME_FMT, cfg->home, id);
         testutil_mkdir(buf);
     }
 }
 
 /*
- * kill_mode_option --
- *     Return the -k option value for a kill mode.
- */
-static const char *
-kill_mode_option(KILL_MODE mode)
-{
-    switch (mode) {
-    case KILL_LEADER:
-        return ("l");
-    case KILL_FOLLOWER:
-        return ("f");
-    case KILL_BOTH:
-        return ("b");
-    case KILL_NONE:
-        break;
-    }
-    return (NULL);
-}
-
-/*
- * spawn_role --
- *     Spawn this binary again in a child role, passing the full configuration on the command line.
- *     The role name doubles as the child's diagnostic name.
+ * spawn_node --
+ *     Spawn this binary again as a node, passing the full configuration on the command line. The
+ *     node inherits only its own two pipe ends; the peer's ends are closed in the child so pipe EOF
+ *     still signals the peer's death.
  */
 static void
-spawn_role(const TEST_CONFIG *cfg, const char *self_path, const char *role, SUBPROC *proc)
+spawn_node(const TEST_CONFIG *cfg, const char *self_path, uint32_t node_id, bool leader,
+  int read_fd, int write_fd, const int *close_fds, size_t nclose, SUBPROC *proc)
 {
-    char nth_arg[16], pool_arg[16], rfd_arg[16], wfd_arg[16], seed_arg[80];
+    static const char *const node_names[SUBPROC_SLOTS] = {"node0", "node1"};
+    testutil_assert(node_id < SUBPROC_SLOTS);
+
+    char id_arg[16], nth_arg[16], pool_arg[16], rfd_arg[16], wfd_arg[16], seed_arg[80];
+    testutil_snprintf(id_arg, sizeof(id_arg), "%" PRIu32, node_id);
     testutil_snprintf(nth_arg, sizeof(nth_arg), "%" PRIu32, cfg->nth);
     testutil_snprintf(pool_arg, sizeof(pool_arg), "%" PRIu32, cfg->pool_size);
-    testutil_snprintf(rfd_arg, sizeof(rfd_arg), "%d", cfg->pipe_read_fd);
-    testutil_snprintf(wfd_arg, sizeof(wfd_arg), "%d", cfg->pipe_write_fd);
+    testutil_snprintf(rfd_arg, sizeof(rfd_arg), "%d", read_fd);
+    testutil_snprintf(wfd_arg, sizeof(wfd_arg), "%d", write_fd);
     testutil_snprintf(seed_arg, sizeof(seed_arg), TESTUTIL_SEED_FORMAT, cfg->opts->data_seed,
       cfg->opts->extra_seed);
 
@@ -102,7 +92,11 @@ spawn_role(const TEST_CONFIG *cfg, const char *self_path, const char *role, SUBP
     size_t n = 0;
     argv[n++] = self_path;
     argv[n++] = "-r";
-    argv[n++] = role;
+    argv[n++] = "node";
+    argv[n++] = "-i";
+    argv[n++] = id_arg;
+    argv[n++] = "-A";
+    argv[n++] = leader ? "l" : "f";
     argv[n++] = "-h";
     argv[n++] = cfg->opts->home;
     if (cfg->opts->build_dir != NULL) {
@@ -111,13 +105,9 @@ spawn_role(const TEST_CONFIG *cfg, const char *self_path, const char *role, SUBP
     }
     argv[n++] = "-T";
     argv[n++] = nth_arg;
-    argv[n++] = "-s";
+    argv[n++] = "-u";
     argv[n++] = pool_arg;
-    if (cfg->switch_mode)
-        argv[n++] = "-m";
-    if (cfg->kill_mode != KILL_NONE) {
-        argv[n++] = "-k";
-        argv[n++] = kill_mode_option(cfg->kill_mode);
+    if (read_fd >= 0) {
         argv[n++] = "-R";
         argv[n++] = rfd_arg;
         argv[n++] = "-W";
@@ -126,7 +116,7 @@ spawn_role(const TEST_CONFIG *cfg, const char *self_path, const char *role, SUBP
     argv[n++] = seed_arg;
     argv[n] = NULL;
 
-    subproc_spawn(proc, role, self_path, (char *const *)argv);
+    subproc_spawn(proc, node_names[node_id], self_path, (char *const *)argv, close_fds, nclose);
 }
 
 /*
@@ -141,80 +131,64 @@ die_on_child_status(const SUBPROC *proc, SUBPROC_STATUS status, int code)
 }
 
 /*
+ * child_alive --
+ *     Report whether a slot holds a spawned, still-running child.
+ */
+static bool
+child_alive(SUBPROC *proc)
+{
+    if (proc->who == NULL || proc->reaped)
+        return (false);
+
+    int code;
+    const SUBPROC_STATUS status = subproc_poll(proc, &code);
+    if (status != SUBPROC_RUNNING)
+        die_on_child_status(proc, status, code); /* Dying on its own fails the test. */
+    return (true);
+}
+
+/*
+ * children_poll --
+ *     Health-check every spawned child, failing the test if one died on its own; reports how many
+ *     are still running.
+ */
+static uint32_t
+children_poll(SUBPROC children[SUBPROC_SLOTS])
+{
+    uint32_t alive = 0;
+    for (size_t i = 0; i < SUBPROC_SLOTS; ++i)
+        if (child_alive(&children[i]))
+            ++alive;
+    return (alive);
+}
+
+/*
  * wait_for_sentinel --
- *     Wait up to the given number of seconds for a child to create a sentinel file, failing if the
- *     child dies or times out first.
+ *     Wait up to the given number of seconds for the children to create a sentinel file, failing if
+ *     a child dies or the wait times out first.
  */
 static void
-wait_for_sentinel(const TEST_CONFIG *cfg, SUBPROC *proc, const char *sentinel, uint32_t max_wait)
+wait_for_sentinel(
+  const TEST_CONFIG *cfg, SUBPROC children[SUBPROC_SLOTS], const char *sentinel, uint32_t max_wait)
 {
     for (uint32_t waited = 0; !testutil_exists(cfg->home, sentinel); ++waited) {
-        int code;
-        const SUBPROC_STATUS status = subproc_poll(proc, &code);
-        if (status != SUBPROC_RUNNING)
-            die_on_child_status(proc, status, code);
+        if (children_poll(children) == 0)
+            testutil_die(EINVAL, "no live children while waiting for %s", sentinel);
         if (waited >= max_wait)
-            testutil_die(ETIMEDOUT, "%s did not create %s within %" PRIu32 " seconds", proc->who,
-              sentinel, max_wait);
+            testutil_die(
+              ETIMEDOUT, "%s was not created within %" PRIu32 " seconds", sentinel, max_wait);
         sleep(1);
     }
 }
 
 /*
- * timed_run --
- *     Let the workload run for the configured timeout, failing fast if a child dies early. Slots
- *     that were never spawned (NULL who) are skipped.
+ * reap_child --
+ *     Wait for a child to terminate and assert it ended the expected way: SIGKILLed on our signal,
+ *     or a clean exit after the stop sentinel. A child that outlives the wait is killed and the
+ *     test failed.
  */
 static void
-timed_run(SUBPROC children[SUBPROC_SLOTS], uint32_t timeout)
-{
-    for (uint32_t elapsed = 0; elapsed < timeout; ++elapsed) {
-        for (size_t i = 0; i < SUBPROC_SLOTS; ++i) {
-            SUBPROC *const proc = &children[i];
-
-            if (proc->who == NULL)
-                continue;
-
-            int code;
-            const SUBPROC_STATUS status = subproc_poll(proc, &code);
-            if (status != SUBPROC_RUNNING)
-                die_on_child_status(proc, status, code);
-        }
-        sleep(1);
-    }
-}
-
-/*
- * reap_killed --
- *     Reap a killed child and assert it died from our signal, not on its own.
- */
-static void
-reap_killed(SUBPROC *proc)
-{
-    int code;
-    const SUBPROC_STATUS status = subproc_wait(proc, &code);
-    if (status != SUBPROC_KILLED || code != SIGKILL)
-        die_on_child_status(proc, status, code);
-}
-
-/*
- * kill_and_reap --
- *     Kill a child abruptly and assert it died from our signal.
- */
-static void
-kill_and_reap(SUBPROC *proc)
-{
-    subproc_kill(proc);
-    reap_killed(proc);
-}
-
-/*
- * reap_stepped_up_follower --
- *     Wait for the follower to step up and exit on its own, then assert it exited cleanly and left
- *     the stepped-up sentinel.
- */
-static void
-reap_stepped_up_follower(const TEST_CONFIG *cfg, SUBPROC *proc)
+reap_child(SUBPROC *proc, SUBPROC_STATUS want_status, int want_code)
 {
     int code;
     SUBPROC_STATUS status;
@@ -223,100 +197,156 @@ reap_stepped_up_follower(const TEST_CONFIG *cfg, SUBPROC *proc)
         if (waited >= MAX_STARTUP) {
             subproc_kill(proc);
             (void)subproc_wait(proc, &code);
-            testutil_die(ETIMEDOUT, "%s did not step up within %d seconds", proc->who, MAX_STARTUP);
+            testutil_die(
+              ETIMEDOUT, "%s did not terminate within %d seconds", proc->who, MAX_STARTUP);
         }
         sleep(1);
     }
 
-    if (status != SUBPROC_EXITED || code != EXIT_SUCCESS)
+    if (status != want_status || code != want_code)
         die_on_child_status(proc, status, code);
-    testutil_assert(testutil_exists(cfg->home, FOLLOWER_STEPPED_UP_FILE));
 }
 
 /*
- * run_and_kill_children --
- *     Run the crash scenario: spawn the children, let them work, then kill per the configured mode.
+ * direct_switch --
+ *     Direct one role switch and wait for its completion: the current leader steps down and hands
+ *     over to a live peer, or a lone survivor flips its role by itself. Updates the parent's view
+ *     of who holds which role. Skipped when no child is left to act.
  */
 static void
-run_and_kill_children(TEST_CONFIG *cfg, const char *self_path)
+direct_switch(const TEST_CONFIG *cfg, SUBPROC children[SUBPROC_SLOTS], int *cur_leaderp,
+  int *cur_followerp, uint32_t *genp)
 {
-    const bool multi_node = cfg->kill_mode != KILL_NONE;
+    const int leader = *cur_leaderp, follower = *cur_followerp;
+    const bool leader_alive = leader >= 0 && child_alive(&children[leader]);
+    const bool follower_alive = follower >= 0 && child_alive(&children[follower]);
 
-    SUBPROC children[SUBPROC_SLOTS];
-    WT_CLEAR(children);
-    SUBPROC *const leader = &children[SUBPROC_LEADER];
-    SUBPROC *const follower = &children[SUBPROC_FOLLOWER];
-
-    if (multi_node) {
-        int fds[2];
-        subproc_pipe(fds);
-        cfg->pipe_read_fd = fds[0];
-        cfg->pipe_write_fd = fds[1];
+    if (!leader_alive && !follower_alive) {
+        println("Parent: skipping switch, no live children");
+        return;
     }
 
-    spawn_role(cfg, self_path, "leader", leader);
+    const uint32_t gen = ++*genp;
+    println("Parent: directing switch %" PRIu32, gen);
+    testutil_sentinel(cfg->home, SWITCH_REQUEST_FILE);
 
-    if (multi_node) {
-        spawn_role(cfg, self_path, "follower", follower);
+    char done_name[64];
+    testutil_snprintf(done_name, sizeof(done_name), SWITCH_DONE_FMT, gen);
+    wait_for_sentinel(cfg, children, done_name, 4 * MAX_STARTUP);
 
-        /* The children own the pipe now; the follower must see EOF once the leader dies. */
-        close(cfg->pipe_read_fd);
-        close(cfg->pipe_write_fd);
-        cfg->pipe_read_fd = cfg->pipe_write_fd = -1;
+    /* Live nodes swapped roles; a dead slot leaves its new role vacant. */
+    *cur_leaderp = follower_alive ? follower : -1;
+    *cur_followerp = leader_alive ? leader : -1;
+}
+
+/*
+ * run_children --
+ *     Run the scenario: spawn the node(s) per the topology, then drive the timeline of switches,
+ *     kills, and the final graceful stop.
+ */
+static void
+run_children(TEST_CONFIG *cfg, const char *self_path)
+{
+    const uint32_t nnodes = (cfg->with_leader ? 1u : 0u) + (cfg->with_follower ? 1u : 0u);
+    static SUBPROC children[SUBPROC_SLOTS];
+    WT_CLEAR(children);
+
+    /* Any failure from here on kills the children before it aborts the process. */
+    live_children = children;
+    custom_die = kill_children;
+
+    create_test_dirs(cfg, nnodes);
+
+    if (nnodes == 1)
+        spawn_node(cfg, self_path, 0, cfg->with_leader, -1, -1, NULL, 0, &children[0]);
+    else {
+        /* One pipe per direction; a node writes while leading and reads while following. */
+        int p01[2], p10[2];
+        subproc_pipe(p01);
+        subproc_pipe(p10);
+
+        const int close0[] = {p01[0], p10[1]}; /* node0 keeps p01 write, p10 read */
+        spawn_node(
+          cfg, self_path, 0, true, p10[0], p01[1], close0, WT_ELEMENTS(close0), &children[0]);
+        const int close1[] = {p01[1], p10[0]}; /* node1 keeps p01 read, p10 write */
+        spawn_node(
+          cfg, self_path, 1, false, p01[0], p10[1], close1, WT_ELEMENTS(close1), &children[1]);
+
+        /* The children own the pipes now; each pipe's ends live only in its two users. */
+        close(p01[0]);
+        close(p01[1]);
+        close(p10[0]);
+        close(p10[1]);
     }
 
     /*
-     * Wait until the crash window has opened before starting the timer. In switch mode the crash
-     * must land in phase 2, so wait for the switch sentinel. Otherwise wait for the leader's ready
-     * sentinel, which follows its first checkpoint. Both can run long under heavy schema churn
-     * (many workers, large URI pools): give them a much wider window than the follower, whose first
-     * pickup follows promptly once a checkpoint exists.
+     * Start the clock only once the workload is productive: a leader's first checkpoint can run
+     * long under heavy schema churn, so give it a much wider window than the follower, whose first
+     * pickup follows promptly once a checkpoint exists. A lone follower has nothing to wait for.
      */
-    wait_for_sentinel(
-      cfg, leader, cfg->switch_mode ? SWITCH_DONE_FILE : LEADER_READY_FILE, 4 * MAX_STARTUP);
-    if (multi_node)
-        wait_for_sentinel(cfg, follower, FOLLOWER_READY_FILE, MAX_STARTUP);
+    if (cfg->with_leader)
+        wait_for_sentinel(cfg, children, LEADER_READY_FILE, 4 * MAX_STARTUP);
+    if (nnodes == 2)
+        wait_for_sentinel(cfg, children, FOLLOWER_READY_FILE, MAX_STARTUP);
 
-    timed_run(children, cfg->timeout);
+    int cur_leader = cfg->with_leader ? 0 : -1;
+    int cur_follower = nnodes == 2 ? 1 : (cfg->with_follower ? 0 : -1);
+    uint32_t switch_gen = 0;
+    uint32_t next_switch = cfg->switch_interval;
 
-    printf("Kill: %s\n", multi_node ? kill_mode_option(cfg->kill_mode) : "leader (single-node)");
-    fflush(stdout);
+    for (uint32_t elapsed = 1; elapsed <= cfg->total_time; ++elapsed) {
+        (void)children_poll(children); /* Dying on its own fails the test. */
+        sleep(1);
 
-    switch (cfg->kill_mode) {
-    case KILL_NONE:
-        kill_and_reap(leader);
-        break;
-    case KILL_LEADER:
-        /* The pipe EOF makes the follower step up, checkpoint, and exit on its own. */
-        kill_and_reap(leader);
-        reap_stepped_up_follower(cfg, follower);
-        break;
-    case KILL_FOLLOWER:
-        kill_and_reap(follower);
-        kill_and_reap(leader);
-        break;
-    case KILL_BOTH:
-        /* Kill both before reaping either, so the deaths overlap as much as possible. */
-        subproc_kill(follower);
-        subproc_kill(leader);
-        reap_killed(follower);
-        reap_killed(leader);
-        break;
+        /* Kills first: overlapping a kill with a same-tick switch is the interesting order. */
+        SUBPROC *targets[KILL_TARGETS];
+        size_t ntargets = 0;
+        for (int k = 0; k < KILL_TARGETS; ++k) {
+            if (cfg->kill_time[k] != elapsed)
+                continue;
+            /* The lone node lives in slot 0; role targets follow the parent's tracking. */
+            const int slot = k == KILL_LONE ? 0 : (k == KILL_LEADER ? cur_leader : cur_follower);
+            if (slot < 0 || !child_alive(&children[slot]))
+                continue;
+            targets[ntargets++] = &children[slot];
+            if (cur_leader == slot)
+                cur_leader = -1;
+            if (cur_follower == slot)
+                cur_follower = -1;
+        }
+        /* Kill before reaping so simultaneous deaths overlap as much as possible. */
+        for (size_t i = 0; i < ntargets; ++i) {
+            println("Parent: killing %s at %" PRIu32 "s", targets[i]->who, elapsed);
+            subproc_kill(targets[i]);
+        }
+        for (size_t i = 0; i < ntargets; ++i)
+            reap_child(targets[i], SUBPROC_KILLED, SIGKILL);
+
+        if (cfg->switch_interval != 0 && elapsed == next_switch) {
+            next_switch += cfg->switch_interval;
+            direct_switch(cfg, children, &cur_leader, &cur_follower, &switch_gen);
+        }
     }
+
+    println("Parent: directing graceful stop");
+    testutil_sentinel(cfg->home, STOP_FILE);
+    for (size_t i = 0; i < SUBPROC_SLOTS; ++i)
+        if (children[i].who != NULL && !children[i].reaped)
+            reap_child(&children[i], SUBPROC_EXITED, EXIT_SUCCESS);
 }
 
 /*
  * open_for_recovery --
- *     Open the given home as a disaggregated leader to trigger recovery.
+ *     Open the given node home as a disaggregated leader to trigger recovery.
  */
 static void
-open_for_recovery(const TEST_CONFIG *cfg, const char *home_dir, WT_CONNECTION **connp)
+open_for_recovery(const TEST_CONFIG *cfg, uint32_t node_id, WT_CONNECTION **connp)
 {
-    cfg->opts->disagg.is_enabled = true;
+    char home_dir[32];
+    testutil_snprintf(home_dir, sizeof(home_dir), NODE_HOME_FMT, node_id);
+
+    disagg_opts_init(cfg);
     cfg->opts->disagg.mode = "leader";
-    cfg->opts->disagg.page_log = "palite";
-    cfg->opts->disagg.page_log_home = cfg->page_log_home;
-    cfg->opts->disagg.drain_threads = 1;
 
     testutil_wiredtiger_open(cfg->opts, home_dir, "create,disaggregated=(lose_all_my_data=true)",
       NULL, connp, true, false);
@@ -324,38 +354,33 @@ open_for_recovery(const TEST_CONFIG *cfg, const char *home_dir, WT_CONNECTION **
 
 /*
  * verify_homes --
- *     Reopen and verify the surviving state: the leader home always, the follower home in
- *     multi-node mode.
+ *     Reopen and verify the surviving state of every node home that exists against the union of the
+ *     nodes' records, then check the relay's integrity.
  */
 static void
 verify_homes(const TEST_CONFIG *cfg)
 {
-    printf("Open leader database, run recovery and verify content\n");
+    for (uint32_t id = 0; id < MAX_NODES; id++) {
+        char home_dir[32];
+        testutil_snprintf(home_dir, sizeof(home_dir), NODE_HOME_FMT, id);
+        if (!testutil_exists(NULL, home_dir))
+            continue;
 
-    WT_CONNECTION *conn;
-    open_for_recovery(cfg, WT_HOME_DIR, &conn);
-    verify_schema_state(conn, cfg, SCHEMA_RECORDS_BASE);
-    testutil_check(conn->close(conn, "debug=(skip_checkpoint=true)"));
+        println("Parent: Open node%" PRIu32 " database, run recovery and verify content", id);
 
-    if (cfg->kill_mode != KILL_NONE) {
-        /*
-         * In kill-leader mode the follower's own records are complete up to its stepped-up
-         * checkpoint. In the other modes the reopened follower converges to the leader's last
-         * complete checkpoint, so the leader's records are the sound reference.
-         */
-        printf("Open follower database, run recovery and verify content\n");
-
-        open_for_recovery(cfg, FOLLOWER_HOME_DIR, &conn);
-        verify_schema_state(
-          conn, cfg, cfg->kill_mode == KILL_LEADER ? FOLLOWER_RECORDS_BASE : SCHEMA_RECORDS_BASE);
+        WT_CONNECTION *conn;
+        open_for_recovery(cfg, id, &conn);
+        verify_schema_state(conn, cfg);
         testutil_check(conn->close(conn, "debug=(skip_checkpoint=true)"));
     }
+
+    verify_relay_prefix(cfg);
 }
 
 /*
  * parent_main --
- *     Parent role entry point: run the crash scenario, then verify the outcome. Any failure aborts
- *     the process, so returning at all means success.
+ *     Parent role entry point: run the scenario, then verify the outcome. Any failure aborts the
+ *     process, so returning at all means success.
  */
 void
 parent_main(TEST_CONFIG *cfg, const char *self_path)
@@ -363,10 +388,8 @@ parent_main(TEST_CONFIG *cfg, const char *self_path)
     char cwd_start[PATH_MAX];
     testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
 
-    if (!cfg->verify_only) {
-        create_test_dirs(cfg);
-        run_and_kill_children(cfg, self_path);
-    }
+    if (!cfg->verify_only)
+        run_children(cfg, self_path);
 
     if (chdir(cfg->home) != 0)
         testutil_die(errno, "parent chdir: %s", cfg->home);
@@ -376,7 +399,7 @@ parent_main(TEST_CONFIG *cfg, const char *self_path)
 
     if (cfg->page_log_home[0] == '\0')
         testutil_snprintf(cfg->page_log_home, sizeof(cfg->page_log_home), "%s/%s/%s", cwd_start,
-          cfg->home, WT_HOME_DIR);
+          cfg->home, PAGE_LOG_DIR);
 
     verify_homes(cfg);
 

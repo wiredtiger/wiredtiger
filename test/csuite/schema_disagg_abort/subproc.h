@@ -1,29 +1,9 @@
 /*-
- * Public Domain 2014-present MongoDB, Inc.
- * Public Domain 2008-2014 WiredTiger, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
  *
- * This is free and unencumbered software released into the public domain.
- *
- * Anyone is free to copy, modify, publish, use, compile, sell, or
- * distribute this software, either in source code form or as a compiled
- * binary, for any purpose, commercial or non-commercial, and by any
- * means.
- *
- * In jurisdictions that recognize copyright laws, the author or authors
- * of this software dedicate any and all copyright interest in the
- * software to the public domain. We make this dedication for the benefit
- * of the public at large and to the detriment of our heirs and
- * successors. We intend this dedication to be an overt act of
- * relinquishment in perpetuity of all present and future rights to this
- * software under copyright law.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
+ * See the file LICENSE for redistribution information.
  */
 
 /*
@@ -44,9 +24,7 @@ typedef struct {
     int status; /* Raw wait status, valid once reaped. */
 } SUBPROC;
 
-/* Fixed slots for the children a test run can have. */
-#define SUBPROC_LEADER 0
-#define SUBPROC_FOLLOWER 1
+/* Fixed slots for the children a test run can have, indexed by node id. */
 #define SUBPROC_SLOTS 2
 
 typedef enum {
@@ -61,8 +39,12 @@ void subproc_pipe(int fds[2]);
 /* Resolve the running binary's path for re-spawning; argv0 is used as a fallback. */
 void subproc_self_path(const char *argv0, char *buf, size_t buf_size);
 
-/* Start a child process running the given binary; the child inherits open descriptors. */
-void subproc_spawn(SUBPROC *proc, const char *who, const char *path, char *const argv[]);
+/*
+ * Start a child process running the given binary. The child inherits open descriptors except those
+ * in close_fds (length nclose), which are closed in the child before it starts.
+ */
+void subproc_spawn(SUBPROC *proc, const char *who, const char *path, char *const argv[],
+  const int *close_fds, size_t nclose);
 
 /* Terminate a child abruptly, with no chance for cleanup. */
 void subproc_kill(SUBPROC *proc);

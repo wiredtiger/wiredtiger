@@ -1,29 +1,9 @@
 /*-
- * Public Domain 2014-present MongoDB, Inc.
- * Public Domain 2008-2014 WiredTiger, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
  *
- * This is free and unencumbered software released into the public domain.
- *
- * Anyone is free to copy, modify, publish, use, compile, sell, or
- * distribute this software, either in source code form or as a compiled
- * binary, for any purpose, commercial or non-commercial, and by any
- * means.
- *
- * In jurisdictions that recognize copyright laws, the author or authors
- * of this software dedicate any and all copyright interest in the
- * software to the public domain. We make this dedication for the benefit
- * of the public at large and to the detriment of our heirs and
- * successors. We intend this dedication to be an overt act of
- * relinquishment in perpetuity of all present and future rights to this
- * software under copyright law.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
+ * See the file LICENSE for redistribution information.
  */
 
 #include "test_util.h"
@@ -66,15 +46,22 @@ subproc_self_path(const char *argv0, char *buf, size_t buf_size)
 
 /*
  * subproc_spawn --
- *     Start a child process running the given binary.
+ *     Start a child process running the given binary, closing the given descriptors in the child.
  */
 void
-subproc_spawn(SUBPROC *proc, const char *who, const char *path, char *const argv[])
+subproc_spawn(SUBPROC *proc, const char *who, const char *path, char *const argv[],
+  const int *close_fds, size_t nclose)
 {
     memset(proc, 0, sizeof(*proc));
     proc->who = who;
 
-    const int ret = posix_spawn(&proc->pid, path, NULL, NULL, argv, environ);
+    posix_spawn_file_actions_t actions;
+    testutil_assert(posix_spawn_file_actions_init(&actions) == 0);
+    for (size_t i = 0; i < nclose; i++)
+        testutil_assert(posix_spawn_file_actions_addclose(&actions, close_fds[i]) == 0);
+
+    const int ret = posix_spawn(&proc->pid, path, &actions, NULL, argv, environ);
+    testutil_assert(posix_spawn_file_actions_destroy(&actions) == 0);
     if (ret != 0)
         testutil_die(ret, "posix_spawn %s: %s", who, path);
 }
@@ -108,15 +95,15 @@ subproc_decode(int status, int *codep)
 }
 
 /*
- * subproc_poll --
- *     Non-blocking status probe.
+ * subproc_reap --
+ *     Collect a child's termination status, optionally blocking until it terminates.
  */
-SUBPROC_STATUS
-subproc_poll(SUBPROC *proc, int *codep)
+static SUBPROC_STATUS
+subproc_reap(SUBPROC *proc, int *codep, bool block)
 {
     if (!proc->reaped) {
         int status;
-        const pid_t got = waitpid(proc->pid, &status, WNOHANG);
+        const pid_t got = waitpid(proc->pid, &status, block ? 0 : WNOHANG);
         testutil_assert_errno(got != -1);
         if (got == 0)
             return (SUBPROC_RUNNING);
@@ -127,17 +114,21 @@ subproc_poll(SUBPROC *proc, int *codep)
 }
 
 /*
+ * subproc_poll --
+ *     Non-blocking status probe.
+ */
+SUBPROC_STATUS
+subproc_poll(SUBPROC *proc, int *codep)
+{
+    return (subproc_reap(proc, codep, false));
+}
+
+/*
  * subproc_wait --
  *     Blocking wait for termination.
  */
 SUBPROC_STATUS
 subproc_wait(SUBPROC *proc, int *codep)
 {
-    if (!proc->reaped) {
-        int status;
-        testutil_assert_errno(waitpid(proc->pid, &status, 0) != -1);
-        proc->reaped = true;
-        proc->status = status;
-    }
-    return (subproc_decode(proc->status, codep));
+    return (subproc_reap(proc, codep, true));
 }

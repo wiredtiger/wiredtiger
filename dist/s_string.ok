@@ -167,6 +167,7 @@ ENOSPC
 ENOTSUP
 ENUM
 EOF
+EPIPE
 EQ
 ERANGE
 ETIME
@@ -367,6 +368,7 @@ Og
 Optane
 Outfmt
 PALI
+PALITE
 PALite
 PDEATHSIG
 PFX
@@ -407,6 +409,7 @@ Py
 QQQS
 QSQ
 Qsort
+Quiesce
 RCPC
 RCpc
 RDNOLOCK
@@ -451,6 +454,8 @@ SDK
 SIGABRT
 SIGBUS
 SIGKILL
+SIGKILLed
+SIGKILLs
 SIGPIPE
 SIGSEGV
 SIMD
@@ -646,6 +651,7 @@ ajn
 al
 alloc
 allocator
+allocator's
 allocators
 allocfile
 allocsize
@@ -679,6 +685,7 @@ bInheritHandle
 backends
 backlink
 backoff
+backpressures
 badsize
 bal
 basecfg
@@ -808,6 +815,7 @@ collatorp
 collist
 columngroup
 commandline
+commit's
 committime
 compactUntilSuccess
 comparator
@@ -916,6 +924,8 @@ deflateEnd
 deflateInit
 del
 deletable
+demuxes
+demuxing
 dequeued
 der
 deref
@@ -958,6 +968,7 @@ dmb
 dmsg
 drealloc
 dropUntilSuccess
+droppable
 dryrun
 ds
 dsb
@@ -1016,6 +1027,7 @@ ev
 evd
 eventv
 evictable
+evq
 ewma
 exactp
 exc
@@ -1026,6 +1038,7 @@ extern
 extlist
 extlists
 extraconfig
+fN
 fadvise
 fahrenheit
 failover
@@ -1252,6 +1265,7 @@ kp
 kv
 kvraw
 kvs
+lN
 lang
 las
 latin
@@ -1394,6 +1408,7 @@ namespace
 namespaced
 namespaces
 nbits
+nclose
 nclr
 nd
 needkey
@@ -1553,6 +1568,7 @@ presync
 prev
 prevlsn
 printf
+println
 printlog
 priv
 probabilistically
@@ -1835,6 +1851,7 @@ tombstoned
 toml
 toolchain
 toolchains
+topologies
 totalsec
 tp
 traceapi
@@ -1892,6 +1909,7 @@ unesc
 unescape
 unescaped
 unflatten
+ungated
 unhandled
 unicode
 uninstantiated
@@ -1920,6 +1938,8 @@ unsynchronised
 unterminated
 untyped
 unvisited
+unwedge
+up's
 upd
 uri
 uri's
@@ -1967,6 +1987,7 @@ vpmsumd
 vprintf
 vsize
 vsnprintf
+vtable
 vthread
 vunpack
 vxr
