@@ -1928,6 +1928,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: application eviction worker: page eviction succeeded",
   "cache: application eviction worker: rollback due to cache overflow timeout",
   "cache: application requested eviction interrupt",
+  "cache: application thread time evicting (usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
   "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
   "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
@@ -2135,6 +2136,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: number of internal pages read that had deltas attached",
   "cache: number of leaf pages read that had deltas attached",
   "cache: number of times dirty trigger was reached",
+  "cache: number of times eviction allocated per-tree queues during runtime",
   "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
   "cache: number of times when cas update the btree max_lsn failed",
@@ -3023,6 +3025,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing app_evict_worker_evict_success */
     /* not clearing app_evict_worker_exit_rollback_cache_overflow */
     stats->eviction_interupted_by_app = 0;
+    stats->app_evict_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
     stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
@@ -3210,6 +3213,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_internal_delta = 0;
     stats->cache_read_leaf_delta = 0;
     stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->eviction_per_dhandle_queue_allocations = 0;
     stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_cas_btree_max_lsn_race = 0;
@@ -4099,6 +4103,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->app_evict_worker_exit_rollback_cache_overflow +=
       WT_STAT_CONN_READ(from, app_evict_worker_exit_rollback_cache_overflow);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
+    to->app_evict_time += WT_STAT_CONN_READ(from, app_evict_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
     to->cache_eviction_app_threads_fill_ratio_25_50 +=
@@ -4373,6 +4378,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_leaf_delta += WT_STAT_CONN_READ(from, cache_read_leaf_delta);
     to->cache_eviction_trigger_dirty_reached +=
       WT_STAT_CONN_READ(from, cache_eviction_trigger_dirty_reached);
+    to->eviction_per_dhandle_queue_allocations +=
+      WT_STAT_CONN_READ(from, eviction_per_dhandle_queue_allocations);
     to->cache_eviction_trigger_reached += WT_STAT_CONN_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_CONN_READ(from, cache_eviction_trigger_updates_reached);

@@ -364,6 +364,7 @@ conn_stats = [
     EvictStat('app_evict_refused_server_not_running', 'application eviction skipped: server not running', 'no_clear'),
     EvictStat('app_evict_refused_user_not_ok', 'application eviction skipped: user or interruptible check failed', 'no_clear'),
     #
+    EvictStat('app_evict_time', 'application thread time evicting (usecs)'),
     EvictStat('app_evict_worker_entered', 'application eviction worker: entered work loop', 'no_clear'),
     EvictStat('app_evict_worker_evict_attempt', 'application eviction worker: page eviction attempted', 'no_clear'),
     EvictStat('app_evict_worker_evict_busy', 'application eviction worker: page eviction returned EBUSY', 'no_clear'),
@@ -438,6 +439,7 @@ conn_stats = [
     EvictStat('eviction_pages_unqueued_out_of_memory', 'pages left unqueued because a per-tree subqueue allocation failed'),
     EvictStat('eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     EvictStat('eviction_pages_set_clean', 'pages transitioned from dirty to clean'),
+    EvictStat('eviction_per_dhandle_queue_allocations', 'number of times eviction allocated per-tree queues during runtime'),
     EvictStat('eviction_reconcile_cannot_evict', 'eviction found page ineligible for eviction in reconciliation'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
     EvictStat('eviction_server_race_reconfigure_disagg', 'eviction server races with the reconfigure API call in disagg'),

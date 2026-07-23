@@ -1282,9 +1282,15 @@ __evict_get_ref(
 
 #if 1
     /* Application threads don't help when the checkpoint is running */
-    if (!F_ISSET(session, WT_SESSION_INTERNAL) && checkpoint_running) {
-        WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
-        goto done;
+      if (!F_ISSET(session, WT_SESSION_INTERNAL) && checkpoint_running) {
+        uint32_t divisor, session_cnt;
+
+        WT_READ_ONCE(session_cnt, conn->session_array.cnt);
+        divisor = session_cnt /  WT_EVICT_EXPECTED_CONTENTION;
+        if (divisor > 1 && (session->id % divisor) != 0) {
+            WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
+            goto done;
+        }
     }
 #else
     (void)checkpoint_running;
@@ -1429,6 +1435,11 @@ __evict_get_ref(
 
                 for (slot = 0; slot < evict->dhandle_hash_size; slot++) {
                     hash_entry = &bucket->pertree_hashtable[slot];
+
+                    /* Unlocked hint: an empty chain has nothing to evict. Racy but safe — a
+                     * concurrent insert just means we miss this chain on this pass. */
+                    if (TAILQ_EMPTY(&hash_entry->dhandle_hashchain))
+                        continue;
 
                     if (__wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY) {
                         WT_STAT_CONN_INCR(session, eviction_skip_locked_hashchain);
@@ -2023,6 +2034,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_STAT_CONN_INCR(session, eviction_pages_unqueued_out_of_memory);
                 return;
             }
+            WT_STAT_CONN_INCR(session, eviction_per_dhandle_queue_allocations);
             dhandle_subqueue->dhandle = page->evict_data.dhandle;
             TAILQ_INIT(&dhandle_subqueue->evict_queue);
             if(__wt_spin_init(session, &dhandle_subqueue->evict_queue_lock, "evict subqueue") != 0) {
@@ -2344,61 +2356,6 @@ __evict_internal_page_has_cached_children(WT_SESSION_IMPL *session, WT_REF *ref)
     return (has_cached_children);
 }
 
-#if 0
-/* !!!
- * __wt_evict_check_if_blocking
- *    Check if this session is blocking eviction.
- */
-int
-__wt_evict_check_if_blocking(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_EVICT *evict = conn->evict;
-#define APP_HELP 0
-#if APP_HELP
-    double pct_full;
-#endif
-    /*
-     * If eviction is stuck, check if this thread is likely causing problems and should be
-     * rolled back. Ignore if in recovery, those transactions can't be rolled back.
-     */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
-        ret = __wt_txn_is_blocking(session);
-        if (ret == EBUSY)
-            ret = 0;
-        if (ret == WT_ROLLBACK) {
-            __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
-            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                                    session->err_info.err_msg);
-        }
-    }
-    if (ret != 0) {
-        printf("Transaction blocking eviction\n");
-        WT_STAT_CONN_INCR(session, eviction_transaction_blocking);
-    }
-
-#if APP_HELP
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
-        __wt_evict_needed(session, false, false /*FIX*/, &pct_full)
-        && pct_full > 90) {
-        uint32_t factor, session_cnt;
-        WT_READ_ONCE(session_cnt, conn->session_array.cnt);
-
-        /* If factor is low or zero there is little contention */
-        factor = session_cnt / WT_EVICT_EXPECTED_CONTENTION / 2;
-        if (factor != 0 && (session->id % factor) == 0) {
-            ret = __evict_page(session);
-            if (ret == EBUSY) ret = 0;
-            if (ret == WT_NOTFOUND) ret = 0;
-        }
-    }
-#endif
-    return ret;
-}
-#endif
-
 /*
  * __wti_evict_app_assist_worker --
  *     Worker function for __wt_evict_app_assist_worker_check: evict pages if the cache crosses
@@ -2517,6 +2474,11 @@ __wti_evict_app_assist_worker(
         /* Evict a page. */
         WT_STAT_CONN_INCR(session, app_evict_worker_evict_attempt);
         ret = __evict_page(session);
+        if (time_start != 0) {
+            uint64_t time_stop = __wt_clock(session);
+            uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_INCRV(session, app_evict_time, elapsed);
+        }
         if (ret == 0) {
             WT_STAT_CONN_INCR(session, app_evict_worker_evict_success);
             /* If the caller holds resources, we can stop after a successful eviction. */
