@@ -1244,8 +1244,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
     if (metadata.max_write_gen != 0) {
         WT_ASSERT_ALWAYS(session,
-          __wt_atomic_load_uint64_relaxed(&conn->base_write_gen) <=
-            __wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
+          __wt_atomic_load_uint64_relaxed(&conn->base_write_gen) <= metadata.max_write_gen,
           "base_write_gen exceeds max_write_gen");
         __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
           WT_MAX(
