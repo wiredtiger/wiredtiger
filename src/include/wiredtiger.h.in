@@ -6406,14 +6406,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_APPLICATION_CHECK_EVICT		1097
 /*! cache: application eviction accepted: proceeding to evict */
 #define	WT_STAT_CONN_APP_EVICT_ACCEPTED			1098
+/*! cache: application eviction skipped to avoid lock contention */
+#define	WT_STAT_CONN_APP_EVICT_REFUSED_CONTENTION	1099
 /*! cache: application eviction skipped: busy and cache below target */
-#define	WT_STAT_CONN_APP_EVICT_REFUSED_BUSY_BELOW_TARGET	1099
+#define	WT_STAT_CONN_APP_EVICT_REFUSED_BUSY_BELOW_TARGET	1100
 /*! cache: application eviction skipped: cache-resident tree or metadata */
-#define	WT_STAT_CONN_APP_EVICT_REFUSED_NO_EVICT_OR_METADATA	1100
+#define	WT_STAT_CONN_APP_EVICT_REFUSED_NO_EVICT_OR_METADATA	1101
 /*! cache: application eviction skipped: checkpoint cursor transaction */
-#define	WT_STAT_CONN_APP_EVICT_REFUSED_CHECKPOINT_TXN	1101
-/*! cache: application eviction skipped: checkpoint running */
-#define	WT_STAT_CONN_APP_EVICT_REFUSED_CHECKPOINT	1102
+#define	WT_STAT_CONN_APP_EVICT_REFUSED_CHECKPOINT_TXN	1102
 /*!
  * cache: application eviction skipped: eviction disabled via
  * cache_max_wait_us

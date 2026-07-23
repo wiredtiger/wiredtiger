@@ -1281,14 +1281,14 @@ __evict_get_ref(
         goto done;
 
 #if 1
-    /* Application threads don't help when the checkpoint is running */
-      if (!F_ISSET(session, WT_SESSION_INTERNAL) && checkpoint_running) {
+    /* Don't admit more application helpers than estimated CPU cores to avoid contention */
+    if (!F_ISSET(session, WT_SESSION_INTERNAL)){
         uint32_t divisor, session_cnt;
 
         WT_READ_ONCE(session_cnt, conn->session_array.cnt);
         divisor = session_cnt /  WT_EVICT_EXPECTED_CONTENTION;
         if (divisor > 1 && (session->id % divisor) != 0) {
-            WT_STAT_CONN_INCR(session, app_evict_refused_checkpoint);
+            WT_STAT_CONN_INCR(session, app_evict_refused_contention);
             goto done;
         }
     }

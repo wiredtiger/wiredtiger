@@ -1900,10 +1900,10 @@ static const char *const __stats_connection_desc[] = {
   "allocation",
   "cache: application checked if eviction is needed",
   "cache: application eviction accepted: proceeding to evict",
+  "cache: application eviction skipped to avoid lock contention",
   "cache: application eviction skipped: busy and cache below target",
   "cache: application eviction skipped: cache-resident tree or metadata",
   "cache: application eviction skipped: checkpoint cursor transaction",
-  "cache: application eviction skipped: checkpoint running",
   "cache: application eviction skipped: eviction disabled via cache_max_wait_us",
   "cache: application eviction skipped: eviction not needed",
   "cache: application eviction skipped: holding locks or ignoring cache size",
@@ -2997,10 +2997,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing block_first_srch_walk_time */
     /* not clearing application_check_evict */
     /* not clearing app_evict_accepted */
+    /* not clearing app_evict_refused_contention */
     /* not clearing app_evict_refused_busy_below_target */
     /* not clearing app_evict_refused_no_evict_or_metadata */
     /* not clearing app_evict_refused_checkpoint_txn */
-    /* not clearing app_evict_refused_checkpoint */
     /* not clearing app_evict_refused_max_wait_disabled */
     /* not clearing app_evict_refused_not_needed */
     /* not clearing app_evict_refused_locks_or_ignore_cache */
@@ -4060,13 +4060,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_first_srch_walk_time += WT_STAT_CONN_READ(from, block_first_srch_walk_time);
     to->application_check_evict += WT_STAT_CONN_READ(from, application_check_evict);
     to->app_evict_accepted += WT_STAT_CONN_READ(from, app_evict_accepted);
+    to->app_evict_refused_contention += WT_STAT_CONN_READ(from, app_evict_refused_contention);
     to->app_evict_refused_busy_below_target +=
       WT_STAT_CONN_READ(from, app_evict_refused_busy_below_target);
     to->app_evict_refused_no_evict_or_metadata +=
       WT_STAT_CONN_READ(from, app_evict_refused_no_evict_or_metadata);
     to->app_evict_refused_checkpoint_txn +=
       WT_STAT_CONN_READ(from, app_evict_refused_checkpoint_txn);
-    to->app_evict_refused_checkpoint += WT_STAT_CONN_READ(from, app_evict_refused_checkpoint);
     to->app_evict_refused_max_wait_disabled +=
       WT_STAT_CONN_READ(from, app_evict_refused_max_wait_disabled);
     to->app_evict_refused_not_needed += WT_STAT_CONN_READ(from, app_evict_refused_not_needed);
