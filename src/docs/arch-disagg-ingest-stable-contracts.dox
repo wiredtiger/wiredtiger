@@ -61,43 +61,40 @@ Follower (Standby):
 
 The contracts in this document are grouped into:
 
-- Timestamp rules
-- Leader-follower transition rules
-- Table creation and schema rules
-- Checkpoint rules
-- Insertion and visibility rules
-- Garbage collection rules
-- Durability and consistency considerations
+- @ref layered-contract-timestamps "Timestamp rules"
+- @ref layered-contract-leader-follower "Leader-follower transition rules"
+- @ref layered-contract-schema "Table creation and schema rules"
+- @ref layered-contract-checkpoint "Checkpoint rules"
+- @ref layered-contract-visibility "Insertion and visibility rules"
+- @ref layered-contract-gc "Garbage collection rules"
+- @ref layered-contract-durability "Durability and consistency considerations"
 
 Rule blocks use the following structure:
 - Rule
 - Rationale
 - Violation Consequence
-- Optional implementation references, e.g. [TS.01]
+- Optional implementation references, e.g. \ref layered-contract-TS01 "[TS.01]"
 
 @section layered-contract-timestamps Timestamp rules
 
 @subsection layered-contract-ts-ordering Timestamp ordering
 
-Rule: For any key K, if K appears in both the ingest table with timestamp T1 and in the stable table
-with timestamp T2, then T1 >= T2. Ingest must never hold updates that are older than the corresponding
-updates in stable. Duplicate keys across ingest and stable are only valid if the ingest version is newer
-or equal to the stable table version.
-
-"If we have a K,V at timestamp T1 in the ingest table, and the same key is available at timestamp T2 in
-the stable table, I never expect T1 < T2."
+Rule: For any key K, ingest may retain several versions, but its latest version must carry a timestamp
+greater than or equal to the version of K in the stable table. Ingest must never hold a latest version
+older than the corresponding stable version. Duplicate keys across ingest and stable are only valid when
+the ingest version is newer than or equal to the stable version.
 
 Rationale:
-On the follower, the stable table stores checkpointed, durable data retrieved from the Shared Log Service
-(SLS). The ingest table handles newer, non-checkpointed updates. This ordering ensures:
+On the follower, the stable table stores checkpointed, durable data retrieved from shared storage. The
+ingest table handles newer, non-checkpointed updates. This ordering ensures:
 - Ingest always contains the most recent visible version for any key
 - Duplicate keys are permitted when ingest holds a newer version
 - Oplog application can safely insert into ingest while stable retains the previous version until checkpoint
 
-Movement from ingest to stable occurs during the draining process, when a follower steps up to be leader.
-During draining, only ingest entries with timestamps newer than the last checkpoint timestamp are moved to
-stable. In all other cases, the stable table receives newer content through checkpoint pickup from SLS (not
-by copying from ingest tables).
+Movement from ingest to stable happens only during step-up draining (see @ref layered-contract-step-up-drain);
+entries already obsolete with respect to the node's oldest timestamp are not moved. In all other cases the
+stable table receives newer content through checkpoint pickup from shared storage, not by copying from ingest
+tables.
 
 This ensures that the stable table always reflects the latest persisted state, and ingest holds the more
 recent data.
@@ -113,8 +110,8 @@ If ingest contains an update with a timestamp older than what is in stable:
 
 @subsection layered-contract-ts-configs Timestamp configs (logging disabled)
 
-Rule: Both ingest and stable tables must be created with write-ahead-logging disabled
-(log=(enabled=false)) [TS.01].
+Rule: Both ingest and stable tables are created with write-ahead logging disabled (log=(enabled=false)).
+WiredTiger enforces this internally; the user does not configure it \ref layered-contract-TS01 "[TS.01]".
 
 Rationale:
 WiredTiger skips assigning timestamps on updates when logging is enabled, as it treats durability as
@@ -146,7 +143,7 @@ storage (i.e. the page service).
 
 Rule: When a follower node is promoted to leader, it must transfer all qualifying updates from its in-memory
 ingest table to the stable table. Only updates with timestamps newer than the last checkpoint can be
-transferred during this draining process [SU.01].
+transferred during this draining process \ref layered-contract-SU01 "[SU.01]".
 
 Rationale:
 During step-up, the new leader becomes responsible for durability. It must move any post-checkpoint updates
@@ -162,7 +159,7 @@ If the ingest table is not drained:
 @subsection layered-contract-step-up-empty-ingest Step-up states: ingest should always be empty on the leader
 
 Rule: An ingest table is always empty on the leader node. After step-up and a successful ingest drain, the
-new leader's ingest table must be empty [SU.03].
+new leader's ingest table must be empty \ref layered-contract-SU03 "[SU.03]".
 
 Rationale:
 The ingest table holds recent, un-checkpointed updates. When transitioning from follower to leader, it migrates
@@ -184,9 +181,7 @@ Followers are generally expected to stay close to recent checkpoints, but they a
 the latest one as followers. A follower can operate on an older checkpoint and rely on its ingest table to
 layer in more recent updates until reconfiguration advances its state.
 
-A checkpoint is considered complete once dirty data in the stable table has been reconciled, the stable table
-is flushed to the page/log service, and the corresponding metadata entry is persisted to the shared metadata
-file.
+See @ref layered-contract-ckpt-complete for what makes a checkpoint complete.
 
 Rationale:
 The new leader must start from the same durable state that all nodes can reference. Using the latest complete
@@ -194,7 +189,8 @@ checkpoint ensures the new leader is aligned with the previous leader's final co
 
 Violation Consequence:
 If a new leader does not pick up the latest complete checkpoint:
-- It risks diverging and losing data, breaking replication correctness and corrupting recovery.
+- Provided the node still holds the full oplog, the data remains complete and the main risk is a longer
+  recovery. Divergence and data loss become a concern only when oplog coverage is incomplete.
 - Failing to pick up the latest checkpoint results in a shutdown.
 
 @subsection layered-contract-role-isolation Role transition isolation
@@ -203,11 +199,11 @@ Rule: During step-up or step-down, no concurrent user operations can run on laye
 layered cursors to be closed and any active transactions to be aborted before the state transition begins.
 Multiple ingest tables can be drained concurrently, and writes to disk through I/O operations (such as
 eviction or checkpointing) can still occur in parallel. Any other threads calling reconfigure are blocked
-until the transition is complete [SU.02].
+until the transition is complete \ref layered-contract-SU02 "[SU.02]".
 
 Rationale:
-Role transitions modify layered table state (e.g. draining ingest into stable during step-up [SU.01], stopping
-writes during step-down [SD.02]). To ensure a correct transition, user operations must be isolated from
+Role transitions modify layered table state (e.g. draining ingest into stable during step-up \ref layered-contract-SU01 "[SU.01]", stopping
+writes during step-down \ref layered-contract-SD02 "[SD.02]"). To ensure a correct transition, user operations must be isolated from
 these transitions. Cursor closure guarantees no conflicting read/write operations, while exclusivity ensures
 updates are applied consistently and in order.
 
@@ -218,13 +214,13 @@ Step-up:
   corrupted stable state.
 
 Step-down:
-- If user operations continue after step-down, they may attempt writes after losing leader status, triggering
-  forced rollbacks and potential corruption on layered tables.
+- If user operations continue after step-down, they may attempt writes after losing leader status. These
+  writes are rejected through forced rollback and are lost, but they do not corrupt the layered table.
 
 @subsection layered-contract-step-down-queue Step-down abandoning checkpoints: clearing the metadata queue
 
 Rule: When a leader steps down to a follower, it must clear its metadata copy queue as part of abandoning
-checkpoint responsibilities [SD.01].
+checkpoint responsibilities \ref layered-contract-SD01 "[SD.01]".
 
 Rationale:
 The metadata copy queue tracks metadata entries that need to be written to the shared metadata store during
@@ -247,14 +243,14 @@ layered table normally and when discovering a new layered table through shared m
 - Oplog application: when a follower encounters schema operations (e.g. table creation or deletion) when the
   oplog is applied to its ingest table
 
-Leader nodes may omit ingest tables, but if an ingest table is present, it must be valid [MT.01]. Missing ingest
+Leader nodes may omit ingest tables, but if an ingest table is present, it must be valid \ref layered-contract-MT01 "[MT.01]". Missing ingest
 tables on leaders are eventually created.
 
 Rationale:
 Follower nodes depend on ingest tables to contain recent, non-checkpointed updates that have not yet been
 reflected in the stable table. Leader nodes write directly to the stable table. While stable tables do not
 strictly require ingest table presence prior to opening a layered table, missing ingest tables on leaders
-complicate role transitions (during step-down or restart) [MT.02].
+complicate role transitions (during step-down or restart) \ref layered-contract-MT02 "[MT.02]".
 
 Violation Consequence:
 If the ingest table is missing:
@@ -272,16 +268,18 @@ operate with only the ingest table (e.g. after applying a create from the oplog)
 must eventually include a stable constituent. Since followers cannot create stable tables, the stable
 constituent is created either by the leader during checkpointing or by the node itself during step-up.
 Enforcing the presence of a stable table ensures follower nodes can transition to leader without additional
-setup [MT.03].
+setup \ref layered-contract-MT03 "[MT.03]".
 
 A layered table may exist without a stable table temporarily in these scenarios:
+- Before first checkpoint pickup:
+  - A follower has no stable constituent until it picks up its first checkpoint from the leader.
 - Oplog application:
   - Follower applying a create operation from the oplog. The follower creates only the ingest table, since only
     leaders can create stable tables. The follower does not see the stable constituent until it picks up a
     checkpoint from the leader.
 - Leader crash:
   - If the leader crashes after the create operation but before checkpointing, a follower may step up holding
-    only an ingest table. The step-up process resolves this by creating the missing stable table [MT.04].
+    only an ingest table. The step-up process resolves this by creating the missing stable table \ref layered-contract-MT04 "[MT.04]".
 - Partial create failure:
   - If a layered table create fails partway, metadata may be left with only the ingest constituent. This should
     be treated as a temporary, incomplete state and cleaned up where possible.
@@ -294,7 +292,7 @@ If a promoted node does not create stable tables:
 
 @subsection layered-contract-schema-namespaces Schema namespaces
 
-Rule: Ingest and stable tables must be assigned the correct namespace based on their btree ID [SR.01].
+Rule: Ingest and stable tables must be assigned the correct namespace based on their btree ID \ref layered-contract-SR01 "[SR.01]".
 
 Rationale:
 Namespaces ensure that leader nodes can allocate IDs for shared btrees independently, without risk of clashing
@@ -319,7 +317,8 @@ Rule: A checkpoint is considered complete when:
 - The stable table has been flushed to the page/log service
 - The local metadata entry has been stored in the shared metadata file
 
-Checkpoints are designed to be atomic [CP.01].
+A checkpoint becomes durable and available to other nodes only once all of the above steps complete; a
+partially written checkpoint is never picked up \ref layered-contract-CP01 "[CP.01]".
 
 Rationale:
 The stable table contains the durable, checkpointed state of the layered table, and the shared metadata file
@@ -340,15 +339,16 @@ If we wait on local files to define when a checkpoint is complete:
 @subsection layered-contract-ckpt-ingest Ingest table and checkpoints
 
 Rule: The ingest table does not get checkpointed and is not persisted across restarts. Content in the ingest
-table that has not been drained to the stable table will be lost on restart [CP.02].
+table that has not been drained to the stable table will be lost on restart \ref layered-contract-CP02 "[CP.02]".
 
 Rationale:
 The ingest table is a short-term, in-memory table. Its role is to buffer updates not yet in the stable table
 and serve reads with the most recent updates.
 
 Violation Consequence:
-Persisting the ingest table or checkpointing it:
-- Violates the core architecture of layered tables, which separates short-term and durable data.
+Treating the ingest table as durable, by checkpointing it or relying on it surviving restart:
+- Violates the layered-table separation of short-term and durable data. Persisting ingest to local node
+  storage is acceptable in principle; the contract is only that ingest is neither durable nor checkpointed.
 - Breaks checkpoint semantics that assume ingest tables are drained and cleared.
 - Detrimentally impacts leader-follower syncs and recovery.
 
@@ -357,7 +357,7 @@ Persisting the ingest table or checkpointing it:
 @subsection layered-contract-dup-identical Duplicates: same-version pairs must be bitwise identical
 
 Rule: At any given timestamp, WiredTiger must only return one visible version of a key. If the same version
-exists in both ingest and stable tables, they must be bitwise identical [DP.01].
+exists in both ingest and stable tables, they must be bitwise identical \ref layered-contract-DP01 "[DP.01]".
 
 Rationale:
 The layered cursor merges results from the ingest and stable cursors. If both point to the same key-version,
@@ -365,14 +365,14 @@ they must agree exactly, or risk inconsistent read behavior.
 
 Violation Consequence:
 If the versions differ:
-- Snapshot isolation may break.
+- A reader can see different values for the same key-version across reads, breaking repeatable reads.
 - Readers may see inconsistent or invalid data.
 - Causes correctness issues in replication and recovery.
 
 @subsection layered-contract-dup-insert Duplicates: insert ops must check both ingest and stable tables
 
 Rule: When inserting a key with overwrite=false, it is essential to check for duplicates in both the ingest and
-stable tables [DP.02].
+stable tables \ref layered-contract-DP02 "[DP.02]".
 
 Rationale:
 If the same key exists in either ingest or stable, and the insert is not allowed to overwrite, then the insert
@@ -387,7 +387,7 @@ If only one table is checked:
 @subsection layered-contract-read-prefer-ingest Duplicates: reads prefer ingest cursor
 
 Rule: If both the ingest and stable cursors are positioned on the same key, the ingest cursor is selected when
-returning results to the application [DP.03].
+returning results to the application \ref layered-contract-DP03 "[DP.03]".
 
 Rationale:
 During cursor traversal, the layered cursor tracks overlapping positions to ensure that the ingest cursor is
@@ -404,7 +404,7 @@ Returning the stable cursor instead:
 @subsection layered-contract-gc-ingest-only GC: only the ingest table is garbage collected
 
 Rule: GC applies to the ingest table only. Once data is available in the stable table, it is no longer needed
-by active readers, and the corresponding ingest entries must be removed [GC.01]. GC is achieved through
+by active readers, and the corresponding ingest entries must be removed \ref layered-contract-GC01 "[GC.01]". GC is achieved through
 reconciliation by compacting pages (dropping obsolete entries) and re-instantiating the new page image in
 memory. Eviction is then able to reclaim the cache space. The stable table is not GCed.
 
@@ -419,19 +419,20 @@ GC happens naturally during reconciliation:
 - Obsolete entries are removed.
 - The new page is written in memory (overwriting the previous image).
 
-Stable tables do not accumulate unbounded amounts of data. Each stable table has its own cache limit. If the
-cache does not contain the page needed, it is retrieved from the shared storage service.
+Stable tables do not accumulate unbounded amounts of data. Each stable table has its own cache limit, and any
+page not resident in cache is fetched on demand from shared storage.
 
 Violation Consequence:
 If ingest GC fails to remove obsolete data:
 - Ingest will grow unbounded, filling cache and blocking forward progress.
 - Reads may be slowed by deep version chains.
-- Role transitions become inconsistent due to stale data lingering in the ingest table.
+- Role transitions become inconsistent: stale ingest entries that were never pruned can be re-drained into
+  the stable table on step-up, reintroducing obsolete versions.
 
 @section layered-contract-durability Durability and consistency
 
-In DSC, durability is provided by checkpoints, unlike classic WiredTiger where durability is provided by the
-write-ahead-log (WAL).
+In DSC, durability is provided by checkpoints together with the oplog. This differs from classic WiredTiger,
+where durability comes from checkpoints and, when enabled, the write-ahead log (WAL).
 
 Stable table checkpoints:
 - Once we've checkpointed, shared storage is used to persist data.
@@ -445,48 +446,25 @@ they pick it up (visibility is coordinated at the replication layer, not by Wire
 
 To maintain replica consistency:
 - All nodes use the same URI for each layered table.
-- For the same key, all nodes store the same value and timestamp (identical byte-wise) in the stable table.
+- Only the leader writes the stable table, so for any key all nodes store the same value and timestamp
+  (byte-identical).
 - Updates to the all Durable timestamp result in all replicas generating the same content (keys and values).
-
-Further reading at the Layered Table API contract.
-
-@section layered-contract-questions Questions
-
-@subsection layered-contract-q-stable-shared Q: Is the stable table the shared table? Why?
-
-A: A shared table is a table that is backed by a block manager that uses shared storage, and supports having
-multiple different WiredTiger nodes share the same underlying data structure. It will be common that the
-stable constituent in a layered table will be a shared table.
-
-@subsection layered-contract-q-layered-scope Q: Is a layered table shared across the cluster? Or is a layered table associated with only one node?
-
-A: The stable portion of the layered table is shared, and the metadata entry for the layered table is present on
-all nodes. The ingest portion of the layered table is specific to a particular node.
-
-@subsection layered-contract-q-manager Q: What is the role of WT_LAYERED_TABLE_MANAGER?
-
-A: There is no usage for WT_LAYERED_TABLE_MANAGER, it is just a data structure holding all the opened layered
-tables.
-
-The entries stored in the manager struct correspond to layered tables and refer to open layered tables.
-
-@subsection layered-contract-q-stable-gc Q: Is the stable table garbage collected?
-
-A: No, stable tables are not GCed. Stable tables do not accumulate unbounded amounts of data. Each stable table
-has its own cache limit. If the cache does not contain the page needed, it is retrieved from the shared
-storage service.
 
 @section layered-contract-impl-references References to WT implementation
 
 @subsection layered-contract-impl-ts Timestamps
 
-[TS.01]
+\anchor layered-contract-TS01
+\ref layered-contract-ts-configs "[TS.01]"
 During layered table creation in schema_create.c, the ingest and stable tables are created with logging
-explicitly disabled via log=(enabled=false). This is to ensure timestamps are retained for updates.
+explicitly disabled via log=(enabled=false). This is to ensure timestamps are retained for updates. In DSC
+there is also no local storage backing the write-ahead log, so logging could not provide durability for these
+tables in any case.
 
 @subsection layered-contract-impl-leader Leader-follower transitions
 
-[SU.01]
+\anchor layered-contract-SU01
+\ref layered-contract-step-up-drain "[SU.01]"
 Draining logic is implemented in conn_layered.c. During step-up in __layered_drain_ingest_tables, WiredTiger
 iterates through all layered tables and calls __layered_copy_ingest_table on them, filtering for entries with
 durable_start_ts > last_checkpoint_timestamp.
@@ -494,48 +472,55 @@ durable_start_ts > last_checkpoint_timestamp.
 During the step-up process, WiredTiger acquires a spinlock on WT_LAYERED_TABLE_MANAGER to prevent concurrent
 user operations. Draining is performed under internal sessions to guarantee isolation.
 
-[SU.02]
+\anchor layered-contract-SU02
+\ref layered-contract-role-isolation "[SU.02]"
 Since all reconfigurations are serialized (via reconfig_lock and the WT_CONN_RECONFIGURING flag — a general
 WiredTiger rule, not specific to layered tables), role transitions (step-up/step-down) inherit this
 serialization because they are performed through the reconfig path. As a result, other reconfiguration attempts
 are blocked until the transition completes.
 
-[SU.03]
+\anchor layered-contract-SU03
+\ref layered-contract-step-up-empty-ingest "[SU.03]"
 Layered table architecture is not yet set in stone. One open consideration is whether to delete the ingest
 table after draining, in addition to clearing its contents. A deleted ingest table is by definition empty and
 would satisfy the empty-ingest-on-leader rule.
 
-[SD.01]
+\anchor layered-contract-SD01
+\ref layered-contract-step-down-queue "[SD.01]"
 The copy_metadata_qh is a queue of metadata entries awaiting copy from the local metadata table to the shared
 metadata table in DSC. On leader step-down, queue clearing is performed by __disagg_copy_metadata_clear and
 triggered by __wti_disagg_conn_config.
 
-[SD.02]
-On step-down, the system checks update and session->txn->mod_count to detect uncommitted changes, issuing a
-WT_ROLLBACK to prevent writes after the leader steps down. Cursor state is then reset through
-__clayered_adjust_state, which reopens cursors as needed. This reopening logic also considers read timestamps
-and snapshots to ensure cursors match the node's new role.
+\anchor layered-contract-SD02
+\ref layered-contract-role-isolation "[SD.02]"
+On step-down, uncommitted changes are detected via session->txn->mod_count and rejected with WT_ROLLBACK, so no
+writes land after the leader steps down. Cursor state is then reset through __clayered_adjust_state, which
+reopens cursors against the node's new role, accounting for read timestamps and snapshots.
 
 @subsection layered-contract-impl-schema Table creation and schema rules
 
-[MT.01]
-The ingest table is created either when a checkpoint is picked up or on the first open after a restart.
-__schema_open_layered_ingest opens the ingest table and extracts the btree_id to store in the WT_LAYERED_TABLE
-structure.
+\anchor layered-contract-MT01
+\ref layered-contract-schema-ingest-required "[MT.01]"
+The ingest table is created when a checkpoint is picked up, on the first open after a restart, or when an
+applied oplog entry references it. __schema_open_layered_ingest opens the ingest table and extracts the
+btree_id to store in the WT_LAYERED_TABLE structure.
 
-[MT.02]
+\anchor layered-contract-MT02
+\ref layered-contract-schema-ingest-required "[MT.02]"
 During role transitions for a leader node, such as step-down or restart followed by role reassignment, the
 newly demoted or restarted node would need to dynamically create ingest tables for all layered tables it
 manages if they do not already exist, which can be prohibitively expensive, especially under memory pressure
 or with many layered tables. Maintaining ingest tables proactively avoids this cost and ensures smoother
 transitions.
 
-[MT.03]
+\anchor layered-contract-MT03
+\ref layered-contract-schema-stable-required "[MT.03]"
 If a follower creates a layered table from an oplog entry, only the ingest table is created (since only the
 leader can create a stable table). If the leader crashes before checkpointing, and the follower steps up, it
 must call __layered_create_missing_stable_tables to ensure a stable table exists.
 
-[MT.04]
+\anchor layered-contract-MT04
+\ref layered-contract-schema-stable-required "[MT.04]"
 Creation and recovery of missing components is handled by:
 - __layered_create_missing_ingest_table – creates an ingest table when it does not exist locally.
 - __layered_create_missing_stable_table – creates a stable table when needed, such as during step-up or
@@ -546,62 +531,48 @@ Potential future design:
   longer needed. This would reduce the memory and management overhead of maintaining ingest tables for layered
   tables that are not actively receiving updates (see WT-15176).
 
-[SR.01]
+\anchor layered-contract-SR01
+\ref layered-contract-schema-namespaces "[SR.01]"
 The namespace is encoded in the last few bits of the btree ID using the namespace manipulation macros.
 Ingest tables must have namespace 0 (non-shared), and stable tables must have namespace 1 (shared).
 
 @subsection layered-contract-impl-ckpt Checkpoint
 
-[CP.01]
+\anchor layered-contract-CP01
+\ref layered-contract-ckpt-complete "[CP.01]"
 In DSC, local files are treated as disposable. This includes files like WiredTiger.wt, metadata tables, and any
 local-only content. On crash or restart, they are rebuilt from WiredTigerShared.wt and the stable tables.
 
-[CP.02]
-Ingest tables are created with in_memory=true and log=(enabled=false), so they are only in memory and excluded
-from write-ahead-logging.
+\anchor layered-contract-CP02
+\ref layered-contract-ckpt-ingest "[CP.02]"
+Ingest tables are created with in_memory=true, so they live only in memory and are never persisted or
+checkpointed (logging is disabled as described in \ref layered-contract-TS01 "[TS.01]").
 
 @subsection layered-contract-impl-visibility Insertion and visibility
 
-[DP.01]
+\anchor layered-contract-DP01
+\ref layered-contract-dup-identical "[DP.01]"
 The WT_CLAYERED_MULTIPLE flag tracks when cursors have values for the same key-version, ensuring that only one
 version is returned (conn_layered.c).
 
-[DP.02]
+\anchor layered-contract-DP02
+\ref layered-contract-dup-insert "[DP.02]"
 WiredTiger has duplicate key detection across both the ingest and stable tables. In __clayered_insert, without
 the overwrite flag (overwrite=false), __clayered_lookup searches both ingest and stable, and returns
 WT_DUPLICATE_KEY if the key is in either table.
 
-[DP.03]
+\anchor layered-contract-DP03
+\ref layered-contract-read-prefer-ingest "[DP.03]"
 The layered cursor tracks overlapping positions using WT_CLAYERED_MULTIPLE.
 
 @subsection layered-contract-impl-gc Garbage collection
 
-[GC.01]
+\anchor layered-contract-GC01
+\ref layered-contract-gc-ingest-only "[GC.01]"
 Ingest entries are garbage collected once their durable timestamp is less than or equal to the prune timestamp,
 meaning they have been included in a checkpoint with no active cursors depending on them. This guarantee is
 enforced by __layered_update_gc_ingest_tables_prune_timestamps, which advances prune timestamps during
 checkpoint pickup and ensures they are monotonically increasing. This mechanism safely discards obsolete ingest
 updates after the stable table has persisted them.
-
-@section layered-contract-glossary Glossary
-
-Stable table:
-- A shared table containing checkpointed, durable data, that is shared cluster-wide. Only the leader is allowed
-  to write to it, with followers only granted read privileges.
-
-Ingest table:
-- A short-term, node-local table that stores recent, non-checkpointed updates. It is layered over the stable
-  table so reads check it first for the most recent data before falling back to the stable table.
-
-Layered table creation:
-- The act of defining the table (including its constituent ingest and stable tables) in metadata, typically
-  during checkpoint pickup or schema application.
-
-@section layered-contract-resources Relevant resources
-
-- Storage Engines work for Disaggregated Storage
-- Layered Table API contract
-- Dropping Layered Tables
-- Engineering Proposal – Disaggregated Storage
 
 */
