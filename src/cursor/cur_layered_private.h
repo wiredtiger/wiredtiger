@@ -50,7 +50,8 @@ struct __wti_cursor_layered {
  *	The kind of layered-table operation.
  */
 typedef enum {
-    WTI_CLAYERED_MODE_SEARCH,         /* search, search_near */
+    WTI_CLAYERED_MODE_SEARCH,         /* search_near */
+    WTI_CLAYERED_MODE_SEARCH_EXACT,   /* search */
     WTI_CLAYERED_MODE_ITERATE,        /* next, prev */
     WTI_CLAYERED_MODE_RANDOM,         /* next_random */
     WTI_CLAYERED_MODE_SCAN,           /* largest_key */
@@ -68,4 +69,5 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
+    bool lazy_stable; /* stable open was deferred, open it on demand. */
 };

@@ -1293,6 +1293,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
           "Step down completed in %" PRIu64 " milliseconds",
           WT_CLOCKDIFF_MS(time_stop, time_start));
     }
+
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lazy_stable_open", &cval));
+    conn->disaggregated_storage.lazy_stable_open = cval.val != 0;
+
     /* Connection init settings only. */
 
     if (reconfig)

@@ -10,7 +10,7 @@
 #include "cur_layered_private.h"
 
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
-static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
+static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
 static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
@@ -225,10 +225,11 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x1u  /* Follower writing without reading stable. */
+#define CLAYERED_ENTER_ITERATION 0x2u    /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x4u        /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x8u  /* Leader/follower role changed since last access. */
+#define CLAYERED_ENTER_LAZY_STABLE 0x10u /* Defer the follower stable open until needed. */
 
 /*
  * __clayered_enter_flags --
@@ -241,7 +242,7 @@ __clayered_enter_flags(
     WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
 
-    if (mode == WTI_CLAYERED_MODE_SEARCH)
+    if (mode == WTI_CLAYERED_MODE_SEARCH || mode == WTI_CLAYERED_MODE_SEARCH_EXACT)
         LF_SET(CLAYERED_ENTER_RESET);
     if (mode == WTI_CLAYERED_MODE_ITERATE || mode == WTI_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
@@ -254,6 +255,14 @@ __clayered_enter_flags(
     if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
       !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
+
+    /*
+     * On the follower, open the stable table lazily when we can. This includes exact searches
+     * (search_near must merge constituents) and writes.
+     */
+    if ((mode == WTI_CLAYERED_MODE_SEARCH_EXACT || mode == WTI_CLAYERED_MODE_WRITE) &&
+      role == WTI_CLAYERED_ROLE_FOLLOWER && S2C(session)->disaggregated_storage.lazy_stable_open)
+        LF_SET(CLAYERED_ENTER_LAZY_STABLE);
 
     if (role != clayered->last_role)
         LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
@@ -277,6 +286,7 @@ __clayered_op_init(
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
+    op->lazy_stable = LF_ISSET(CLAYERED_ENTER_LAZY_STABLE);
 }
 
 /*
@@ -310,7 +320,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     }
 
     /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
-    WT_RET(__clayered_update_ingest(clayered, flags));
+    WT_RET(__clayered_update_ingest(clayered, flags, role));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
@@ -743,11 +753,11 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
  *     while a follower, so close it on the role change.
  */
 static int
-__clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
+__clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
 
-    if (S2C(session)->layered_table_manager.leader) {
+    if (role == WTI_CLAYERED_ROLE_LEADER) {
         if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
             WT_CURSOR *ingest = clayered->ingest_cursor;
             if (clayered->current_cursor == ingest)
@@ -760,6 +770,24 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
         WT_RET(__clayered_copy_bounds(clayered));
     }
 
+    return (0);
+}
+
+/*
+ * __clayered_open_stable_first --
+ *     Open the stable constituent for the first time and record its checkpoint LSN.
+ */
+static int
+__clayered_open_stable_first(
+  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role, uint64_t conn_lsn)
+{
+    WT_SESSION_IMPL *const session = CUR2S(clayered);
+
+    F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
+    WT_RET(__clayered_open_stable(clayered, false, role));
+    WT_RET(__clayered_copy_bounds(clayered));
+    clayered->stable_checkpoint_meta_lsn = conn_lsn;
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
     return (0);
 }
 
@@ -782,13 +810,10 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
         /* Open stable the first time if needed. */
         bool follower_open_stable =
           (!FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
-        if (role == WTI_CLAYERED_ROLE_LEADER || follower_open_stable) {
-            F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-            WT_RET(__clayered_open_stable(clayered, false, role));
-            WT_RET(__clayered_copy_bounds(clayered));
-            clayered->stable_checkpoint_meta_lsn = conn_lsn;
-            WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
-        }
+        if (FLD_ISSET(flags, CLAYERED_ENTER_LAZY_STABLE))
+            return (0);
+        if (role == WTI_CLAYERED_ROLE_LEADER || follower_open_stable)
+            WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(
         clayered, conn_lsn, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
@@ -1965,6 +1990,22 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(session, op->stable != NULL);
 
+    /* If the ingest lookup misses, open the stable constituent now if we're doing lazy opens. */
+    if (!found && op->lazy_stable && op->stable == NULL) {
+        uint64_t conn_lsn = __wt_atomic_load_uint64_acquire(
+          &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
+        if (clayered->stable_cursor == NULL && conn_lsn != WT_DISAGG_LSN_NONE) {
+            WT_ERR(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER, conn_lsn));
+            /*
+             * A successful open sets ret to zero, but that is not a lookup result. A table with no
+             * checkpoint leaves the stable cursor NULL and skips the search below, so keep the
+             * return as not found.
+             */
+            ret = WT_NOTFOUND;
+        }
+        op->stable = clayered->stable_cursor;
+    }
+
     /* If the key didn't exist in ingest and the cursor is setup for reading, check stable. */
     if (!found && op->stable != NULL)
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value), true);
@@ -1999,7 +2040,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SEARCH, &op));
+    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SEARCH_EXACT, &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2783,7 +2824,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
     ret = __clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_INSERT);
     if (ret == WT_DUPLICATE_KEY) {
-        WT_ASSERT(session, op.ingest == NULL);
+        WT_ASSERT(session, op.ingest == NULL && op.stable != NULL);
         /*
          * The btree cursor already holds a local copy of the existing value from duplicate
          * detection. Copy it directly without a second search.
