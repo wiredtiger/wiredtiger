@@ -10,7 +10,7 @@
 
 static int __disagg_accumulate_drop_size(
   WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
-static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session, bool updates_only);
+static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
  * __layered_create_missing_stable_table --
@@ -62,7 +62,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
      * on the follower when the stable constituent did not yet exist) must be cleared before new
      * entries are added below.
      */
-    __disagg_shared_metadata_queue_clear(session, false);
+    __disagg_shared_metadata_queue_clear(session);
 
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
@@ -121,10 +121,13 @@ err:
  *     return the REMOVE only if it defers past a checkpoint at that schema epoch.
  */
 static WT_DISAGG_METADATA_OP *
-__layered_create_following_remove(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
-  WT_DISAGG_METADATA_OP *create_entry, wt_timestamp_t cur_schema_epoch)
+__layered_create_following_remove(
+  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *create_entry, wt_timestamp_t cur_schema_epoch)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *tmp;
+
+    conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -193,7 +196,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
         WT_ASSERT(session, WT_PREFIX_MATCH(entry->stable_uri, "file:"));
 
         /* Check if the table was dropped. */
-        if (__layered_create_following_remove(session, conn, entry, WT_SCHEMA_EPOCH_NONE) != NULL) {
+        if (__layered_create_following_remove(session, entry, WT_SCHEMA_EPOCH_NONE) != NULL) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Skip creating missing stable table \"%s\" with schema epoch %" PRIu64
               " from layered config \"%s\" since it is being dropped",
@@ -468,48 +471,63 @@ err:
 
 /*
  * __disagg_shared_metadata_queue_clear --
- *     Clear the shared metadata queue. If updates_only is set, keep CREATE and REMOVE entries: they
- *     are schema intents not yet covered by a checkpoint and remain valid across a role change.
+ *     Clear the update metadata list.
  */
 static void
-__disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session, bool updates_only)
+__disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *tmp;
-#ifdef HAVE_DIAGNOSTIC
-    wt_timestamp_t stable_schema_epoch;
-#endif
 
     conn = S2C(session);
-#ifdef HAVE_DIAGNOSTIC
-    stable_schema_epoch =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-#endif
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
+    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        if (updates_only && entry->metadata_op != WT_SHARED_METADATA_UPDATE) {
-            WT_ASSERT(session,
-              entry->metadata_op == WT_SHARED_METADATA_CREATE ||
-                entry->metadata_op == WT_SHARED_METADATA_REMOVE);
-            /*
-             * A surviving entry is an intent not yet covered by a checkpoint, so its epoch must be
-             * above the last checkpoint's, except in legacy mode where epochs are not in use.
-             */
-            WT_ASSERT(session,
-              stable_schema_epoch == WT_SCHEMA_EPOCH_NONE ||
-                entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
-                entry->schema_epoch > stable_schema_epoch);
-            continue;
-        }
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
+    }
+    WT_TAILQ_SAFE_REMOVE_END
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+}
+
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __disagg_shared_metadata_queue_verify --
+ *     Assert the queue holds only CREATE and REMOVE intents not yet covered by a checkpoint.
+ */
+static void
+__disagg_shared_metadata_queue_verify(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    wt_timestamp_t stable_schema_epoch;
+
+    conn = S2C(session);
+    stable_schema_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        WT_ASSERT(session,
+          entry->metadata_op == WT_SHARED_METADATA_CREATE ||
+            entry->metadata_op == WT_SHARED_METADATA_REMOVE);
+        /*
+         * An entry is an intent not yet covered by a checkpoint, so its epoch must be above the
+         * last checkpoint's, except in legacy mode where epochs are not in use.
+         */
+        WT_ASSERT(session,
+          stable_schema_epoch == WT_SCHEMA_EPOCH_NONE ||
+            entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
+            entry->schema_epoch > stable_schema_epoch);
     }
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
+#endif
 
 /*
  * __wti_disagg_shared_metadata_queue_prune --
@@ -719,6 +737,66 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 }
 
 /*
+ * __disagg_cancel_unpublished_drop_group --
+ *     Cancel a covered CREATE whose first following REMOVE can never be published (its epoch is
+ *     unpublished), returning true if both were canceled (caller should continue). The table was
+ *     dropped locally and no checkpoint will ever cover the drop, so applying the CREATE would
+ *     advertise a table in shared metadata that no node can serve. Cancel the whole group: every
+ *     CREATE for the URI ahead of the REMOVE (a create through the table: prefix enqueues two)
+ *     together with the REMOVE, so no duplicate CREATE survives to republish the dropped table. A
+ *     REMOVE published at a later epoch is the two-phase drop instead: this checkpoint applies the
+ *     CREATE and a later covering checkpoint applies the REMOVE. In legacy mode nothing defers by
+ *     epoch, so there is nothing to check.
+ */
+static bool
+__disagg_cancel_unpublished_drop_group(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry,
+  wt_timestamp_t cur_schema_epoch, WT_DISAGG_METADATA_OP **nextp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *group, *group_next, *remove_entry;
+    bool last;
+
+    conn = S2C(session);
+
+    if (cur_schema_epoch == WT_SCHEMA_EPOCH_NONE || entry->metadata_op != WT_SHARED_METADATA_CREATE)
+        return (false);
+    remove_entry = __layered_create_following_remove(session, entry, cur_schema_epoch);
+    if (remove_entry == NULL || remove_entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED)
+        return (false);
+
+    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Table \"%s\" was created at epoch %" PRIu64
+      " covered by this checkpoint (schema epoch "
+      "%" PRIu64
+      "), but was dropped without the drop being published: canceling the queued create "
+      "and drop so the dropped table is not published to shared metadata.",
+      entry->table_name, entry->schema_epoch, cur_schema_epoch);
+    WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_pair_canceled);
+
+    for (group = TAILQ_NEXT(entry, q); group != NULL; group = group_next) {
+        group_next = TAILQ_NEXT(group, q);
+        last = group == remove_entry;
+        if (!last &&
+          (group->metadata_op != WT_SHARED_METADATA_CREATE ||
+            strcmp(group->stable_uri, entry->stable_uri) != 0))
+            continue;
+        /* Both CREATE entries of a table: create were published together. */
+        WT_ASSERT(session, last || group->schema_epoch == entry->schema_epoch);
+        /* A canceled entry may be the caller's saved next entry; step past it. */
+        if (group == *nextp)
+            *nextp = group_next;
+        TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, group, q);
+        __disagg_shared_metadata_queue_free(session, &group);
+        if (last)
+            break;
+    }
+
+    TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
+    __disagg_shared_metadata_queue_free(session, &entry);
+    return (true);
+}
+
+/*
  * __disagg_accumulate_drop_size --
  *     Accumulate the drop size if the entry represents a table drop operation.
  */
@@ -766,8 +844,7 @@ __wt_disagg_shared_metadata_queue_process(
     struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *group, *group_next, *remove_entry, *skipped, *tmp;
-    bool last;
+    WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -803,52 +880,9 @@ __wt_disagg_shared_metadata_queue_process(
             continue;
         }
 
-        /*
-         * A covered CREATE whose first following REMOVE can never be published (its epoch is
-         * unpublished) means the table was dropped locally and no checkpoint will ever cover the
-         * drop. Applying the CREATE would advertise a table in shared metadata that no node can
-         * serve, so cancel the whole group: every CREATE for the URI ahead of the REMOVE (a create
-         * through the table: prefix enqueues two) together with the REMOVE, so no duplicate CREATE
-         * survives to republish the dropped table. A REMOVE published at a later epoch is the
-         * two-phase drop instead: this checkpoint applies the CREATE and a later covering
-         * checkpoint applies the REMOVE. In legacy mode nothing defers by epoch, so there is
-         * nothing to check.
-         */
-        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE &&
-          entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-          (remove_entry =
-              __layered_create_following_remove(session, conn, entry, cur_schema_epoch)) != NULL &&
-          remove_entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Table \"%s\" was created at epoch %" PRIu64
-              " covered by this checkpoint (schema epoch %" PRIu64
-              "), but was dropped without the drop being published: canceling the queued create "
-              "and drop so the dropped table is not published to shared metadata.",
-              entry->table_name, entry->schema_epoch, cur_schema_epoch);
-            WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_pair_canceled);
-
-            for (group = TAILQ_NEXT(entry, q); group != NULL; group = group_next) {
-                group_next = TAILQ_NEXT(group, q);
-                last = group == remove_entry;
-                if (!last &&
-                  (group->metadata_op != WT_SHARED_METADATA_CREATE ||
-                    strcmp(group->stable_uri, entry->stable_uri) != 0))
-                    continue;
-                /* Both CREATE entries of a table: create were published together. */
-                WT_ASSERT(session, last || group->schema_epoch == entry->schema_epoch);
-                /* A canceled entry may be the loop's saved next entry; step past it. */
-                if (group == tmp)
-                    tmp = group_next;
-                TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, group, q);
-                __disagg_shared_metadata_queue_free(session, &group);
-                if (last)
-                    break;
-            }
-
-            TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
-            __disagg_shared_metadata_queue_free(session, &entry);
+        /* Cancel a covered CREATE group whose drop can never be published. */
+        if (__disagg_cancel_unpublished_drop_group(session, entry, cur_schema_epoch, &tmp))
             continue;
-        }
 
         /* Park CREATE entries with no stable_value; cancel them if a matching REMOVE follows. */
         if (__disagg_handle_create_remove_pairing(session, conn, entry, &skipped_creates))
@@ -1299,13 +1333,15 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     WT_ERR(ret);
 
     /*
-     * We are abandoning the current leader checkpoint, so drop the UPDATE entries: they are
-     * block-manager bookkeeping for that checkpoint. CREATE and REMOVE entries are intents not yet
-     * covered by any checkpoint and remain valid for the follower era, so they survive with their
-     * schema epochs and stable values intact. No UPDATE can be enqueued concurrently: we hold the
-     * checkpoint lock and UPDATE entries are only enqueued during a checkpoint.
+     * The shared metadata queue survives the role change: its entries are schema intents not yet
+     * covered by any checkpoint and remain valid for the follower era. No UPDATE entry can exist
+     * here: UPDATE entries live only within a running leader checkpoint, which either consumed them
+     * or panicked on failure, followers never enqueue them, and the checkpoint lock we hold keeps a
+     * checkpoint from being in flight.
      */
-    __disagg_shared_metadata_queue_clear(session, true);
+#ifdef HAVE_DIAGNOSTIC
+    __disagg_shared_metadata_queue_verify(session);
+#endif
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
@@ -1784,7 +1820,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     disagg = &conn->disaggregated_storage;
 
     /* Remove the list of URIs for which we still need to update metadata entries. */
-    __disagg_shared_metadata_queue_clear(session, false);
+    __disagg_shared_metadata_queue_clear(session);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {
