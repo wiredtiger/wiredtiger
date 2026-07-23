@@ -2823,6 +2823,11 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
     } while (
       !__wt_atomic_cas_uint64(&S2C(session)->max_write_gen, max_write_gen, btree->write_gen));
 
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->base_write_gen) <=
+        __wt_atomic_load_uint64_relaxed(&S2C(session)->max_write_gen),
+      "base_write_gen exceeds max_write_gen");
+
     /*
      * During RTS, recovery, or shutdown reset the maximum timestamp used for reconciliation to a
      * value that is the same as the maximum between the start and stop durable timestamps. In those
