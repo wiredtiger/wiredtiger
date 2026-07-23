@@ -49,15 +49,18 @@ schema_worker_open(THREAD_DATA *td, SCHEMA_WORKER_CTX *ctx)
     uint32_t i;
     char fname[128];
 
+    /* Append so a later phase preserves the earlier phase's records for the post-crash verifier. */
     testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, td->info);
-    testutil_assert_errno((ctx->schema_fp = fopen(fname, "w")) != NULL);
+    testutil_assert_errno((ctx->schema_fp = fopen(fname, "a")) != NULL);
     /* Flush the record file per line so entries survive the SIGKILL crash. */
     __wt_stream_set_line_buffer(ctx->schema_fp);
 
-    for (i = 0; i < td->cfg->pool_size; i++) {
+    for (i = 0; i < td->cfg->pool_size; i++)
         testutil_snprintf(ctx->uris[i], sizeof(ctx->uris[i]), SCHEMA_TABLE_FMT, td->info, i);
-        ctx->table_exists[i] = false;
-    }
+
+    /* Resume from the carried-over table state so a role switch continues where phase 1 left off.
+     */
+    memcpy(ctx->table_exists, td->table_exists, sizeof(ctx->table_exists));
 
     ctx->rnd = &td->rnd;
     ctx->state = td->state;
@@ -233,6 +236,14 @@ thread_schema_run(void *arg)
 
     WT_CLEAR(queue);
     for (;;) {
+        if (td->state->stop_phase) {
+            /* Carry the final table state back so the next phase resumes from it. */
+            memcpy(td->table_exists, ctx.table_exists, sizeof(td->table_exists));
+            testutil_check(fclose(ctx.schema_fp));
+            testutil_check(ctx.session->close(ctx.session, NULL));
+            return (WT_THREAD_RET_VALUE);
+        }
+
         /*
          * Release queued inserts whose table epoch every thread has now published. Until then their
          * data stays unstable, exercising unpublished tables that hold unstable data.
@@ -274,7 +285,7 @@ thread_schema_run(void *arg)
 /*
  * thread_ts_run --
  *     Advances the oldest and stable timestamps and the stable schema epoch, keeping stable data on
- *     published tables only.
+ *     published tables only. Runs in both roles so a follower phase also advances the epoch.
  */
 static WT_THREAD_RET
 thread_ts_run(void *arg)
@@ -285,6 +296,8 @@ thread_ts_run(void *arg)
 
     td = (THREAD_DATA *)arg;
     for (;;) {
+        if (td->state->stop_phase)
+            return (WT_THREAD_RET_VALUE);
         /*
          * Read the stable timestamp minimum before the epoch minimum, so the epoch covers every
          * commit included in the timestamp. Order matters: the reverse could make data stable on an
@@ -311,8 +324,8 @@ thread_ts_run(void *arg)
 
 /*
  * thread_ckpt_run --
- *     Checkpoints periodically, then writes the ready sentinel after the first checkpoint that
- *     includes a schema operation.
+ *     Checkpoints periodically in a leader phase, then writes the ready sentinel after the first
+ *     checkpoint that includes a schema operation. A follower phase runs no checkpoint.
  */
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
@@ -325,12 +338,15 @@ thread_ckpt_run(void *arg)
     bool created_ready;
 
     td = (THREAD_DATA *)arg;
-    (void)unlink(READY_FILE);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     created_ready = false;
 
     __wt_epoch(NULL, &start);
     for (i = 1;; ++i) {
+        if (td->state->stop_phase) {
+            testutil_check(session->close(session, NULL));
+            return (WT_THREAD_RET_VALUE);
+        }
         if (!td->state->stable_set) {
             __wt_epoch(NULL, &now);
             diff_sec = WT_TIMEDIFF_SEC(now, start);
@@ -342,6 +358,14 @@ thread_ckpt_run(void *arg)
 
         sleep_time = __wt_random(&td->rnd) % MAX_CKPT_INVL;
         __wt_sleep(sleep_time, 0);
+        if (td->state->stop_phase) {
+            testutil_check(session->close(session, NULL));
+            return (WT_THREAD_RET_VALUE);
+        }
+
+        /* A follower phase advances the schema epoch only through the timestamp thread. */
+        if (!td->state->ckpt_enabled)
+            continue;
 
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
@@ -360,11 +384,11 @@ thread_ckpt_run(void *arg)
 /*
  * workload_threads_start --
  *     Allocate and start all worker threads: N schema threads plus one checkpoint thread and one
- *     timestamp thread.
+ *     timestamp thread. Each schema thread is seeded with the carried-over table state.
  */
 static void
 workload_threads_start(TEST_CONFIG *cfg, WT_CONNECTION *conn, WORKLOAD_STATE *state,
-  wt_thread_t **thr_out, THREAD_DATA **td_out)
+  bool (*table_exists)[MAX_POOL_SIZE], wt_thread_t **thr_out, THREAD_DATA **td_out)
 {
     THREAD_DATA *td;
     wt_thread_t *thr;
@@ -387,8 +411,11 @@ workload_threads_start(TEST_CONFIG *cfg, WT_CONNECTION *conn, WORKLOAD_STATE *st
 
     testutil_check(__wt_thread_create(NULL, &thr[cfg->nth], thread_ckpt_run, &td[cfg->nth]));
     testutil_check(__wt_thread_create(NULL, &thr[cfg->nth + 1], thread_ts_run, &td[cfg->nth + 1]));
-    for (i = 0; i < cfg->nth; ++i)
+    for (i = 0; i < cfg->nth; ++i) {
+        /* Seed each schema thread with the carried-over table-exists row. */
+        memcpy(td[i].table_exists, table_exists[i], sizeof(td[i].table_exists));
         testutil_check(__wt_thread_create(NULL, &thr[i], thread_schema_run, &td[i]));
+    }
 
     *thr_out = thr;
     *td_out = td;
@@ -408,18 +435,62 @@ workload_threads_join(TEST_CONFIG *cfg, wt_thread_t *thr)
 }
 
 /*
+ * workload_run_phase --
+ *     Start the worker threads for one phase and run them for the given duration. A duration of
+ *     zero runs until the parent sends SIGKILL. A leader phase checkpoints; a follower phase only
+ *     advances the schema epoch. The threads are quiesced and joined before returning, carrying the
+ *     table state back for the next phase.
+ */
+static void
+workload_run_phase(TEST_CONFIG *cfg, WT_CONNECTION *conn, WORKLOAD_STATE *state,
+  bool (*table_exists)[MAX_POOL_SIZE], bool leader_phase, uint32_t seconds)
+{
+    THREAD_DATA *td;
+    wt_thread_t *thr;
+    uint32_t i;
+
+    state->stop_phase = false;
+    state->ckpt_enabled = leader_phase;
+    workload_threads_start(cfg, conn, state, table_exists, &thr, &td);
+    fflush(stdout);
+
+    if (seconds == 0)
+        workload_threads_join(cfg, thr); /* Blocks until SIGKILL from parent. */
+    else {
+        /* A leader phase writes READY_FILE from its checkpoint thread. Wait for it before timing.
+         */
+        if (leader_phase)
+            while (access(READY_FILE, F_OK) != 0)
+                __wt_sleep(1, 0);
+        __wt_sleep(seconds, 0);
+        state->stop_phase = true;
+        workload_threads_join(cfg, thr);
+    }
+
+    /* Copy the threads' final table state back so the next phase resumes from it. */
+    for (i = 0; i < cfg->nth; i++)
+        memcpy(table_exists[i], td[i].table_exists, sizeof(td[i].table_exists));
+
+    free(thr);
+    free(td);
+}
+
+/*
  * run_workload --
- *     Leader child: opens the database as a disaggregated leader and runs schema worker threads, a
- *     checkpoint thread, and a timestamp thread until the parent sends SIGKILL.
+ *     Child process: opens the database and runs schema worker threads, a checkpoint thread, and a
+ *     timestamp thread until the parent sends SIGKILL. In switch mode the child randomly starts as
+ *     leader or follower, runs a first schema phase, switches roles, then resumes the schema
+ *     workload under the new role until the crash.
  */
 void
 run_workload(TEST_CONFIG *cfg)
 {
     WORKLOAD_STATE state;
     WT_CONNECTION *conn;
-    THREAD_DATA *td;
-    wt_thread_t *thr;
-    uint32_t i;
+    FILE *switch_fp;
+    bool start_as_leader;
+    bool table_exists[MAX_TH][MAX_POOL_SIZE];
+    uint32_t i, phase1_time;
     char fname[128];
 
     if (chdir(cfg->home) != 0)
@@ -431,21 +502,65 @@ run_workload(TEST_CONFIG *cfg)
         (void)unlink(fname);
     }
 
+    /* Remove the ready sentinel once here so a later phase's checkpoint thread cannot delete it. */
+    (void)unlink(READY_FILE);
+
     WT_CLEAR(state);
+    memset(table_exists, 0, sizeof(table_exists));
 
     cfg->opts->disagg.is_enabled = true;
-    cfg->opts->disagg.mode = "leader";
     cfg->opts->disagg.page_log = "palite";
     cfg->opts->disagg.page_log_home = cfg->page_log_home;
     cfg->opts->disagg.drain_threads = 1;
 
+    /* The starting role is leader unless switch mode randomly picks follower. */
+    start_as_leader = !cfg->switch_mode || (__wt_random(&cfg->opts->data_rnd) & 1) != 0;
+    cfg->opts->disagg.mode = start_as_leader ? "leader" : "follower";
     testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, ENV_CONFIG_DEF, NULL, &conn, false, false);
 
-    workload_threads_start(cfg, conn, &state, &thr, &td);
-    fflush(stdout);
-    workload_threads_join(cfg, thr); /* Blocks until SIGKILL from parent. */
+    if (!cfg->switch_mode) {
+        /* Run the leader workload until the parent sends SIGKILL. */
+        workload_run_phase(cfg, conn, &state, table_exists, true, 0);
+        _exit(EXIT_SUCCESS);
+    }
 
-    free(thr);
-    free(td);
+    printf("Switch mode: starting as %s\n", start_as_leader ? "leader" : "follower");
+    fflush(stdout);
+
+    /* Phase 1: run the schema workload for a bounded interval under the starting role. */
+    phase1_time = MIN_TIME + __wt_random(&cfg->opts->extra_rnd) % MIN_TIME;
+    printf("Switch mode: %s phase 1 for %" PRIu32 " seconds\n",
+      start_as_leader ? "leader" : "follower", phase1_time);
+    fflush(stdout);
+    workload_run_phase(cfg, conn, &state, table_exists, start_as_leader, phase1_time);
+
+    /*
+     * Switch roles. Step up with a reconfigure; step down by closing and reopening because graceful
+     * step-down is not yet supported.
+     */
+    if (start_as_leader) {
+        testutil_check(conn->close(conn, NULL));
+        cfg->opts->disagg.mode = "follower";
+        testutil_wiredtiger_open(cfg->opts, WT_HOME_DIR, ENV_CONFIG_DEF, NULL, &conn, false, false);
+        printf("Switch mode: stepped down to follower\n");
+    } else {
+        testutil_check(conn->reconfigure(conn, "disaggregated=(role=leader)"));
+        cfg->opts->disagg.mode = "leader";
+        printf("Switch mode: stepped up to leader\n");
+    }
+    fflush(stdout);
+
+    /*
+     * Record the role switch so the parent knows phase 1 has finished and can start its crash timer
+     * only once phase 2 is under way. The verifier skips this marker because it carries no URI.
+     */
+    testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, (uint32_t)0);
+    testutil_assert_errno((switch_fp = fopen(fname, "a")) != NULL);
+    if (fprintf(switch_fp, "SWITCH %" PRIu64 "\n", state.next_epoch) < 0)
+        testutil_die(EIO, "fprintf switch record");
+    testutil_check(fclose(switch_fp));
+
+    /* Phase 2: resume the schema workload under the new role until the parent sends SIGKILL. */
+    workload_run_phase(cfg, conn, &state, table_exists, !start_as_leader, 0);
     _exit(EXIT_SUCCESS);
 }

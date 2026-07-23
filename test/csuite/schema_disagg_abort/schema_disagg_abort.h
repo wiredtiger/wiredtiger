@@ -60,6 +60,7 @@ typedef struct {
     char page_log_home[PATH_MAX];
     uint32_t nth;
     uint32_t pool_size;
+    bool switch_mode; /* enable role-switch phase */
 } TEST_CONFIG;
 
 /* Forward declaration: WORKLOAD_STATE holds a pointer into the THREAD_DATA array. */
@@ -68,6 +69,9 @@ typedef struct __thread_data THREAD_DATA;
 /* Global state shared by all workload threads. */
 typedef struct {
     volatile bool stable_set; /* set once the stable timestamp is first advanced */
+    volatile bool stop_phase; /* set to quiesce all worker threads cleanly between phases */
+    volatile bool
+      ckpt_enabled; /* leader phase checkpoints; follower phase only advances the epoch */
     /*
      * Monotonic allocators. Every publish and commit must draw a value above the global stable
      * epoch and timestamp, so these only ever increase.
@@ -92,6 +96,8 @@ struct __thread_data {
      */
     uint64_t published_epoch;
     uint64_t stable_ready_ts;
+    /* Seeded from the caller and copied back so a role switch carries table state across phases. */
+    bool table_exists[MAX_POOL_SIZE];
 };
 
 /* workload.c */
