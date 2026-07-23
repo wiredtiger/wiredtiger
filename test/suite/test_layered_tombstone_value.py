@@ -39,7 +39,7 @@
 #   unescaped data on disk, so this test cannot produce them.
 
 import wttest
-from wiredtiger import stat
+from wiredtiger import Modify, stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -52,10 +52,18 @@ class test_layered_tombstone_value(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(disagg_storages)
 
     # Application value -> stored (encoded) form -> category it is counted under.
-    normal = b'hello'       # unchanged                  -> not in the namespace
-    tomb = b'\x14\x14'      # \x14\x14\x14                -> three tombstone bytes
+    normal = b'hello'         # unchanged                 -> not in the namespace
+    tomb = b'\x14\x14'        # \x14\x14\x14              -> three tombstone bytes
     triple = b'\x14\x14\x14'  # \x14\x14\x14\x14          -> suffix (trailing tombstone byte)
-    mixed = b'\x14\x14ab'   # \x14\x14ab\x14              -> suffix (trailing appended byte)
+    mixed = b'\x14\x14ab'     # \x14\x14ab\x14            -> suffix (trailing appended byte)
+
+    # Application value -> modify operation -> resulting application value.
+    # The first two results enter the namespace; the last result leaves it.
+    modify_cases = (
+        (b'ab', [Modify(b'\x14\x14', 0, 2)], b'\x14\x14'),      # \x14\x14\x14
+        (b'abcd', [Modify(b'\x14\x14', 0, 2)], b'\x14\x14cd'),  # \x14\x14cd\x14
+        (b'\x14\x14ab', [Modify(b'a', 0, 1)], b'a\x14ab'),      # a\x14ab, not in the namespace
+    )
 
     def conn_config(self):
         return self.extensionsConfig() + \
@@ -127,3 +135,32 @@ class test_layered_tombstone_value(wttest.WiredTigerTestCase):
         self.session.verify(self.uri)
         after = self.category_counts()
         self.assertEqual(tuple(a - b for a, b in zip(after, before)), (0, 1, 2, 0))
+
+    def check_modify_namespace_transitions(self, cursor):
+        self.session.begin_transaction()
+        for key, (value, _mods, _result) in enumerate(self.modify_cases, 1):
+            cursor[key] = value
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+
+        # Exercise modify operations that enter or leave the tombstone namespace.
+        self.session.begin_transaction()
+        for key, (_value, mods, _result) in enumerate(self.modify_cases, 1):
+            cursor.set_key(key)
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+
+        # Verify that both namespace transitions return the expected application value.
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        for key, (_value, _mods, result) in enumerate(self.modify_cases, 1):
+            cursor.set_key(key)
+            self.assertEqual(cursor.search(), 0)
+            self.assertEqual(cursor.get_value(), result)
+        self.session.rollback_transaction()
+
+    def test_stable_modify_into_namespace(self):
+        self.check_modify_namespace_transitions(self.session.open_cursor(self.uri))
+
+    def test_ingest_modify_into_namespace(self):
+        self.session.checkpoint()
+        self.reopen_disagg_conn('disaggregated=(role="follower"),')
+        self.check_modify_namespace_transitions(self.session.open_cursor(self.uri))
