@@ -500,7 +500,11 @@ open:
               bad_flag);
             /* Skip the backward-compatibility reconfigure at close for the -B case. */
             backward_compatible = false;
-            goto err;
+            /*
+             * Treat the flag as a no-op rather than an error so scripts that probe flag
+             * availability aren't broken; the message on stderr is enough signal.
+             */
+            goto done;
         }
     }
 
