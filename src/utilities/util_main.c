@@ -156,9 +156,7 @@ util_conn_is_disagg(WT_CONNECTION *conn)
 
 /*
  * util_func_allowed_disagg --
- *     Whether a wt subcommand is allowed in disaggregated storage mode. Allowlisted rather than
- *     denylisted so new subcommands default to rejected until they've been reviewed for disagg
- *     semantics.
+ *     Whether a wt subcommand is allowed in disaggregated storage mode.
  */
 static bool
 util_func_allowed_disagg(int (*func)(WT_SESSION *, int, char *[]))
@@ -488,10 +486,8 @@ open:
     }
 
     /*
-     * Disaggregated storage exposes data through a page log rather than local files. Only an
-     * allowlisted set of subcommands has been vetted against a page-log-backed store; anything
-     * outside that set is a no-op (message, success exit) rather than an error, so scripts that
-     * probe subcommand availability aren't broken.
+     * Disaggregated storage exposes data through a page log rather than local files. Reject
+     * commands that are not supported in disaggregated storage mode.
      */
     if (util_conn_is_disagg(conn) && func != NULL && !util_func_allowed_disagg(func)) {
         fprintf(
