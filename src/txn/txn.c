@@ -2987,11 +2987,4 @@ __ut_txn_mod_compare(const void *a, const void *b)
 {
     return (__txn_mod_compare(a, b));
 }
-
-void
-__ut_txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last_runningp,
-  uint64_t *metadata_pinnedp, WT_SESSION_IMPL **oldest_sessionp)
-{
-    __txn_oldest_scan(session, oldest_idp, last_runningp, metadata_pinnedp, oldest_sessionp);
-}
 #endif
