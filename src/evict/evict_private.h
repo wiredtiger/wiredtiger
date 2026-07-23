@@ -77,6 +77,12 @@ typedef struct {
     wt_shared uint64_t sequence;
 } WTI_DIRTY_INDEX_SLOT;
 
+/*
+ * head is CAS-hot for every producer, tail is written only by the single-consumer drain, and
+ * slots/capacity/mask are read by every producer on every insert. The padding keeps those three
+ * groups on separate cache lines so the drain's tail update can't bounce the lines producers are
+ * spinning on or reading.
+ */
 struct __wti_dirty_index {
     wt_shared uint64_t head; /* Next slot to reserve */
     uint8_t head_padding[WT_CACHE_LINE_ALIGNMENT - sizeof(uint64_t)];
