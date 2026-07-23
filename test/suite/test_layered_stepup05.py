@@ -165,11 +165,10 @@ class test_layered_stepup05(wttest.WiredTigerTestCase):
         # Advance the follower to ckpt2 so it sees the full dataset.
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Step down before closing the leader, so close does not write a shutdown
-        # checkpoint that would leave the follower behind again, then step up the follower.
-        self.conn.reconfigure('disaggregated=(role="follower")')
+        # Skip the close-time checkpoint on the leader, so it does not leave the follower
+        # behind again, then step up the follower.
         self.session.close()
-        self.close_conn()
+        self.close_conn(config='debug=(skip_checkpoint=true)')
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # Run the cursor operation (with optional transaction) and verify

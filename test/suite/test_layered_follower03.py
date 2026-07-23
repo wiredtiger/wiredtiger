@@ -111,10 +111,10 @@ class test_layered_follower03(wttest.WiredTigerTestCase):
 
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
-        # Step down to avoid a shutdown checkpoint on close, which would leave the
-        # checkpoint_meta captured above stale by the time it is picked up again below.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.reopen_conn()
+        # Skip the close-time checkpoint, which would leave the checkpoint_meta captured
+        # above stale by the time it is picked up again below.
+        self.close_conn(config='debug=(skip_checkpoint=true)')
+        self.open_conn()
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
 

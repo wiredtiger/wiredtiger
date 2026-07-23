@@ -101,13 +101,12 @@ class test_layered_stepup13(wttest.WiredTigerTestCase, suite_subprocess):
 
         self._write_and_checkpoint('b', 'ckpt2_b')
 
-        # Catch up to ckpt2, then step down before closing: leaving the connection in the
-        # leader role would write one more (shutdown) checkpoint on close, putting the
-        # follower behind again.
+        # Catch up to ckpt2, then skip the close-time checkpoint: otherwise closing the
+        # connection would write one more (shutdown) checkpoint, putting the follower
+        # behind again.
         self.disagg_advance_checkpoint(conn_follow)
-        self.conn.reconfigure('disaggregated=(role="follower")')
         self.session.close()
-        self.close_conn()
+        self.close_conn(config='debug=(skip_checkpoint=true)')
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         session_follow = conn_follow.open_session('')
