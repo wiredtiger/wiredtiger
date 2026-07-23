@@ -1480,6 +1480,8 @@ __evict_get_ref(
                         if (ref != NULL) {
                             TAILQ_REMOVE(&subq->evict_queue, ref->page, evict_data.evict_q);
                             ref->page->evict_data.bucket = NULL;
+                            /* The page is leaving the subqueue: drop the cached pointer. */
+                            ref->page->evict_data.subq = NULL;
                             __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
                         }
                         __wt_spin_unlock(session, &subq->evict_queue_lock);
@@ -1531,6 +1533,8 @@ next_slot:
             if (ref != NULL) {
                 TAILQ_REMOVE(&bucket->evict_queue, ref->page, evict_data.evict_q);
                 ref->page->evict_data.bucket = NULL;
+                /* A page in a flat bucket queue is never in a subqueue. */
+                WT_ASSERT(session, ref->page->evict_data.subq == NULL);
                 __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
             }
             __wt_spin_unlock(session, &bucket->evict_queue_lock);
@@ -1870,46 +1874,28 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
      * removed from its tree's subqueue.
      */
     if (__evict_level_is_dirty((int)bucketset->level)) {
-        WT_EVICT *evict;
-        WT_EVICT_BUCKET *bucket;
         WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;
-        WT_EVICT_DHANDLE_HASH_ENTRY *dhandle_hashentry;
-        bool removed;
-        int hash_slot;
-
-        evict = S2C(session)->evict;
-        hash_slot =
-            (int)(page->evict_data.dhandle->name_hash % evict->dhandle_hash_size);
-        bucket = page->evict_data.bucket;
-        removed = false;
-
-        WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
         /*
-         * Hashtable buckets are allocated on cache initialization. They do not
-         * disappear, so we don't need to lock the hashtable. We only need
-         * to lock individual hashchains.
+         * The page caches the subqueue it was enqueued into, so we go straight to it: no hash
+         * computation, no chain walk, and no hash chain lock.
+         *
+         * This is safe because we hold the ref locked, so nobody else can be removing this page
+         * concurrently, and the subqueue cannot be freed while a page is still linked into it (see
+         * the comment on evict_data.subq).
          */
-        dhandle_hashentry = &bucket->pertree_hashtable[hash_slot];
+        dhandle_subqueue = page->evict_data.subq;
+        WT_ASSERT(session, dhandle_subqueue != NULL);
+        WT_ASSERT(session, dhandle_subqueue->dhandle == page->evict_data.dhandle);
 
-        /* Lock the hash chain so we can safely iterate the queues */
-        __wt_spin_lock(session, &dhandle_hashentry->evict_hashchain_lock);
-
-
-        /* Find the subqueue for our dhandle */
-        TAILQ_FOREACH
-            (dhandle_subqueue, &dhandle_hashentry->dhandle_hashchain, dhandle_subq) {
-            if (dhandle_subqueue->dhandle == page->evict_data.dhandle) {
-                __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
-                TAILQ_REMOVE(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
-                __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
-                removed = true;
-                break;
-            }
-        }
-        __wt_spin_unlock(session, &bucket->pertree_hashtable[hash_slot].evict_hashchain_lock);
-        WT_ASSERT(session, removed);
+        __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
+        TAILQ_REMOVE(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
+        page->evict_data.subq = NULL;
+        __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
     } else {
+        /* A page in a flat bucket queue is never in a subqueue. */
+        WT_ASSERT(session, page->evict_data.subq == NULL);
+
         __wt_spin_lock(session, &page->evict_data.bucket->evict_queue_lock);
         TAILQ_REMOVE(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
         __wt_spin_unlock(session, &page->evict_data.bucket->evict_queue_lock);
@@ -2062,6 +2048,11 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
         __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
         TAILQ_INSERT_TAIL(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
+        /*
+         * Cache the subqueue on the page under the same lock that protects the linkage, so removal
+         * can find it without walking the hash chain.
+         */
+        page->evict_data.subq = dhandle_subqueue;
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
 
         __wt_spin_unlock(session, &dhandle_hashentry->evict_hashchain_lock);
@@ -2075,6 +2066,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     } else {
         __wt_spin_lock(session, &bucket->evict_queue_lock);
         TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
+        /* Levels without subqueues use the flat bucket queue: the page is in no subqueue. */
+        page->evict_data.subq = NULL;
         __wt_spin_unlock(session, &bucket->evict_queue_lock);
     }
     page->evict_data.bucket = bucket;

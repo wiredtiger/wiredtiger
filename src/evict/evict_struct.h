@@ -10,6 +10,7 @@
 
 struct __wt_evict_bucketset;
 struct __wt_evict_dhandle_hash_entry;
+struct __wt_evict_dhandle_subqueue;
 
 struct __wt_evict_bucket {
     WT_SPINLOCK evict_queue_lock;
@@ -70,6 +71,25 @@ struct __wt_evict_page_data {
     TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
     struct __wt_data_handle *dhandle;
     struct __wt_evict_bucket *bucket; /* Bucket containing this page */
+    /*
+     * The per-tree subqueue containing this page, or NULL if the page is not in a subqueue (it is
+     * either unqueued, or queued in a flat bucket at a level that does not use subqueues).
+     *
+     * This is a cache of the subqueue that would otherwise be located by hashing the dhandle and
+     * walking the bucket's hash chain. It lets a caller holding the page go straight to the
+     * subqueue lock, without computing the hash, walking the chain, or acquiring the hash chain
+     * lock at all.
+     *
+     * Invariant: subq is non-NULL exactly when the page is linked into that subqueue. Both the
+     * pointer and the TAILQ linkage are updated while holding the subqueue lock, so a reader sees
+     * either "in the queue with a valid pointer" or "not in the queue with NULL".
+     *
+     * Lifetime: a subqueue is only freed when its dhandle is closed, and the close path discards
+     * every page of the tree first (each discard removes the page from its queue and clears this
+     * pointer). A non-NULL subq therefore always refers to a live subqueue. If subqueues ever
+     * become reclaimable while the dhandle is open, this cache is no longer safe.
+     */
+    struct __wt_evict_dhandle_subqueue *subq;
     /*
      * The page's read generation acts as an LRU value for each page in the
      * tree; it is used by the eviction server thread to select pages to be
