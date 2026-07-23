@@ -1280,7 +1280,7 @@ __evict_get_ref(
     if (!F_ISSET(evict, WT_EVICT_CACHE_ANY))
         goto done;
 
-#if 1
+#if 0
     /* Don't admit more application helpers than estimated CPU cores to avoid contention */
     if (!F_ISSET(session, WT_SESSION_INTERNAL)){
         uint32_t divisor, session_cnt;
@@ -1292,8 +1292,6 @@ __evict_get_ref(
             goto done;
         }
     }
-#else
-    (void)checkpoint_running;
 #endif
 
     /* Find eligible eviction levels depending on flags set */
@@ -2374,12 +2372,31 @@ __wti_evict_app_assist_worker(
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_EVICT *evict = conn->evict;
+    bool may_evict;
     uint64_t time_start = 0;
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
 
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
+
+    /*
+     * Limit how many application threads participate in eviction. Threads colliding on the eviction
+     * data structures accomplish less in aggregate than a smaller number with uncontended access.
+     *
+     * The admitted subset must be STABLE for the life of this call: a thread admitted only
+     * intermittently cannot sustain an eviction loop, because every refusal costs a 10ms condition
+     * wait below. Selecting by session ID (rather than randomly) guarantees that.
+     */
+    may_evict = true;
+    if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+        uint32_t divisor, session_cnt;
+
+        WT_READ_ONCE(session_cnt, conn->session_array.cnt);
+        divisor = session_cnt / WT_EVICT_EXPECTED_CONTENTION;
+        if (divisor > 1 && (session->id % divisor) != 0)
+            may_evict = false;
+    }
 
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
@@ -2472,8 +2489,13 @@ __wti_evict_app_assist_worker(
         }
 
         /* Evict a page. */
-        WT_STAT_CONN_INCR(session, app_evict_worker_evict_attempt);
-        ret = __evict_page(session);
+        if (may_evict) {
+            WT_STAT_CONN_INCR(session, app_evict_worker_evict_attempt);
+            ret = __evict_page(session);
+        } else {
+            WT_STAT_CONN_INCR(session, app_evict_refused_contention);
+            ret = WT_NOTFOUND;
+        }
         if (time_start != 0) {
             uint64_t time_stop = __wt_clock(session);
             uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
