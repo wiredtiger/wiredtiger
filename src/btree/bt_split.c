@@ -638,11 +638,6 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
 
     /*
-     * The dirty-index ring entry was cleared when the page was freed (the back-pointer and the
-     * matching slot are set to NULL up front); the ring no longer references this ref.
-     */
-
-    /*
      * Set the WT_REF state. It may be possible to immediately free the WT_REF, so this is our last
      * chance.
      */
