@@ -417,6 +417,7 @@ REALLOC
 RECNO
 REF's
 REFs
+REPAIR
 REPO
 RET
 RETRYABLE
@@ -448,6 +449,7 @@ SCons
 SDK
 SIGABRT
 SIGBUS
+SIGKILL
 SIGSEGV
 SIMD
 SLS
@@ -510,6 +512,7 @@ TieredConfigMixin
 Timespec
 Tput
 TryCV
+Tunables
 TypeError
 Typedefs
 UBSAN
@@ -643,6 +646,7 @@ allocator
 allocators
 allocfile
 allocsize
+analytics
 aor
 ap
 api
@@ -658,6 +662,7 @@ assertGreater
 assertTrue
 assertfmt
 asymptote
+async
 atomicity
 atomics
 atou
@@ -795,6 +800,7 @@ colcheck
 colgap
 colgroup
 colgroups
+collHash
 collatorp
 collist
 columngroup
@@ -910,6 +916,7 @@ dequeued
 der
 deref
 dereference
+dereferences
 dereferencing
 desc
 designator
@@ -929,6 +936,7 @@ difftime
 dir
 directio
 dirlist
+dirs
 dirstore
 disagg
 disaggregated
@@ -1120,6 +1128,7 @@ groupd
 gte
 handleops
 handlep
+handoff
 hardcoded
 hashmap
 hashq
@@ -1223,6 +1232,7 @@ jsondump
 k'th
 kB
 kbits
+kek
 key'd
 keycmp
 keyedness
@@ -1353,6 +1363,7 @@ mongod
 mongodb
 mongodbtoolchain
 moreinit
+mpP
 mrs
 msecs
 msg
@@ -1476,6 +1487,7 @@ overcount
 oversized
 ovfl
 ownp
+pP
 pR
 pT
 packv
@@ -1495,6 +1507,7 @@ perf
 pfx
 pid
 pindexp
+pipefail
 plh
 pluggable
 pmem
@@ -1563,6 +1576,7 @@ queueable
 queueing
 queuer
 quiesce
+quiesced
 qup
 rN
 rS
@@ -1704,6 +1718,7 @@ stderr
 stdin
 stdout
 stepback
+stepdown
 stepp
 stepup
 stlr
@@ -1861,6 +1876,7 @@ undeleted
 underflowed
 underflowing
 underflows
+underfull
 unencoded
 unencrypted
 unesc

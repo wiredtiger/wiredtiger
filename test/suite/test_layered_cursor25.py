@@ -25,160 +25,114 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# A follower's read-timestamped walk can be parked on a key that lives only in
-# the stable constituent. If the leader later removes that key and its
-# tombstone becomes obsolete from the *leader's own* perspective (its own
-# oldest_timestamp passes the tombstone's commit timestamp), the leader's
-# next checkpoint physically drops the row. That checkpoint can still be
-# fully valid for the follower's reader -- its oldest_timestamp need not
-# exceed the reader's pinned read_timestamp at all, since obsolescence is a
-# purely leader-local decision that never consults any follower's readers.
-# When the still-open reader's cursor tries to carry its position forward
-# into that checkpoint, the row is genuinely gone.
-#
-# The leader and follower advance their oldest/stable timestamps in lockstep
-# throughout, and an ordinary insert and an ordinary delete are each replicated
-# into the follower's ingest table like any live write, to show that ordinary
-# replication and checkpoint-only delivery of the leader's obsolescence
-# decision coexist without conflict.
-#
-# No concurrency is required to hit this: the whole sequence is driven
-# synchronously by one script, one step at a time.
 
+# A follower cursor may be positioned on a key that only exists in an older
+# checkpoint. When the follower moves to a newer checkpoint that no longer
+# contains that key, continuing to iterate under a read timestamp must proceed
+# safely rather than lose the cursor position. This holds whether or not the
+# follower has already locally applied the delete: a reader at an older read
+# timestamp does not see a newer delete, so it stays positioned on the stable
+# value regardless.
+
+import wiredtiger
 import wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
+
 
 @disagg_test_class
 class test_layered_cursor25(wttest.WiredTigerTestCase):
-
     test_name = __qualname__
-    uri = 'layered:' + test_name
-
-    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    tablename = test_name
+    uri = 'layered:' + tablename
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+    conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-    def setUp(self):
-        super().setUp()
-        self.conn_follow = self.wiredtiger_open(
+    def _run(self, oplog_applied_delete):
+        # Leader writes three keys and takes a checkpoint.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        c[1] = 'value_1'
+        c[2] = 'value_2'
+        c[3] = 'value_3'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        self.session.checkpoint()
+
+        # A follower picks up that checkpoint and can read all three keys.
+        conn_f = self.wiredtiger_open(
             'follower',
-            self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        self.session_follow = self.conn_follow.open_session('')
+            self.extensionsConfig() + ',create,' + self.conn_config_follower)
+        self.disagg_advance_checkpoint(conn_f)
 
-    def commit(self, session, key, value, ts):
-        c = session.open_cursor(self.uri)
-        session.begin_transaction()
-        c[key] = value
-        session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        c.close()
+        # Start iterating on the follower and stop while positioned on the first key.
+        session_r = conn_f.open_session()
+        cursor_r = session_r.open_cursor(self.uri)
+        session_r.begin_transaction('read_timestamp=' + self.timestamp_str(20))
+        self.assertEqual(cursor_r.next(), 0)
+        self.assertEqual(cursor_r.get_key(), 1)
 
-    def remove(self, session, key, ts):
-        c = session.open_cursor(self.uri)
-        session.begin_transaction()
-        c.set_key(key)
+        # The leader removes the positioned key and ages it out beyond the reader's
+        # timestamp, so the next checkpoint no longer contains it.
+        self.session.begin_transaction()
+        c.set_key(1)
         self.assertEqual(c.remove(), 0)
-        session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-        c.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
 
-    # Advance oldest_timestamp on both the leader and the follower together, keeping
-    # their retention in lockstep like a follower whose own tracking keeps pace with
-    # the leader's.
-    def advance_oldest(self, ts):
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts))
-        self.conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts))
-
-    # Reproduces the "upgrading a positioned stable cursor" assertion in
-    # __clayered_reopen_stable via a legitimate, panic-free sequence: the
-    # checkpoint the follower adopts never violates the reader's pin.
-    def test_reopen_stable_key_pruned_by_leader_local_obsolescence(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.session_follow.create(self.uri, 'key_format=S,value_format=S')
-
-        self.advance_oldest(1)
-
-        # Checkpoint A: keys a, m, z committed at ts=10, checkpointed at stable=100.
-        # 'a' is old enough that on the follower it will only ever live in stable,
-        # never touched on the follower's ingest side.
-        for k in ('a', 'm', 'z'):
-            self.commit(self.session, k, 'v-' + k, 10)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100))
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
-
-        # Ordinary replication continues past checkpoint A. The leader commits 'n' at
-        # ts=120 first.
-        self.commit(self.session, 'n', 'v-n', 120)
-
-        # The follower then separately replicates it: apply the same modification to its
-        # own ingest table, and commit it there at the same timestamp. This happens well
-        # before any reader opens, which is the common case this fix doesn't change.
-        c = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction()
-        c['n'] = 'v-n'
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
-        c.close()
-
-        # Ordinary replicated deletes work the same way: the leader removes 'z' (part of
-        # checkpoint A) at ts=125 first.
-        self.remove(self.session, 'z', 125)
-
-        # The follower then separately replicates the remove into its own ingest table, at
-        # the same timestamp, again well before any reader opens.
-        c = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction()
-        c.set_key('z')
-        self.assertEqual(c.remove(), 0)
-        self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(125))
-        c.close()
-
-        # Follower reader: read_timestamp=150. 'n' is visible via ingest replication; 'a'
-        # comes from stable, since it predates any ingest activity and was never
-        # replicated. Parks on 'a' first.
-        cursor = self.session_follow.open_cursor(self.uri)
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(150))
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'a')
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'm')
-        self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), 'n')
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), 'm')
-        self.assertEqual(cursor.prev(), 0)
-        self.assertEqual(cursor.get_key(), 'a')
-
-        # Leader removes 'a' at commit_ts=140 (< reader's read_timestamp=150). Unlike 'n'
-        # above, this op is deliberately NOT replicated into the follower's ingest table --
-        # it can't be, since the reader is already pinned at 150 on that connection, and in
-        # any case this is exactly the kind of materialization lag disaggregated followers
-        # are expected to tolerate. The leader then advances oldest_timestamp to 145 (>=
-        # 140, so the tombstone is fully obsolete for the leader's own reconciliation --
-        # nothing to do with the follower's reader) on both connections together, and
-        # checkpoints again at stable=300.
-        self.remove(self.session, 'a', 140)
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(300))
-        self.advance_oldest(145)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(30))
         self.session.checkpoint()
 
-        # The follower's own pinned timestamp is min(its own oldest_timestamp, every
-        # active reader's read_timestamp) = min(145, 150) = 145, which does not exceed
-        # the checkpoint's oldest_timestamp (145), so picking it up does not trip the
-        # checkpoint-pickup pinned-timestamp panic.
-        self.disagg_advance_checkpoint(self.conn_follow)
+        # Reflecting the mongo ordering, the follower locally applies the delete before
+        # picking up the checkpoint that reflects it. This is the way an oplog-apply
+        # cursor does it: an overwrite remove on a long-lived cursor that has already
+        # read stable. The reader is pinned to an older timestamp, so the delete is
+        # invisible to it and it stays positioned on the stable value.
+        if oplog_applied_delete:
+            session_a = conn_f.open_session()
+            cursor_a = session_a.open_cursor(self.uri, None, 'overwrite=true')
+            # Read stable once so the overwrite remove can assume the key lives there.
+            self.assertEqual(cursor_a.next(), 0)
+            cursor_a.reset()
+            session_a.begin_transaction()
+            cursor_a.set_key(1)
+            self.assertEqual(cursor_a.remove(), 0)
+            session_a.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
+            cursor_a.close()
+            session_a.close()
 
-        # The still-open reader continues its walk. Its cursor is still parked on 'a' in
-        # the old checkpoint; carrying that position into the new checkpoint fails because
-        # the row is genuinely gone there, unrelated to this reader's own pin or to the
-        # ordinary replication of 'n'.
-        try:
-            ret = cursor.next()
-            self.pr('cursor.next() after checkpoint pickup returned ' + str(ret))
-        finally:
-            self.session_follow.rollback_transaction()
-            cursor.close()
+        # The follower moves to the newer checkpoint while the cursor stays positioned.
+        self.disagg_advance_checkpoint(conn_f)
+
+        # Continuing the iteration must not lose the position or crash. The remaining
+        # keys are still returned in order.
+        self.assertEqual(cursor_r.next(), 0)
+        self.assertEqual(cursor_r.get_key(), 2)
+        self.assertEqual(cursor_r.get_value(), 'value_2')
+
+        self.assertEqual(cursor_r.next(), 0)
+        self.assertEqual(cursor_r.get_key(), 3)
+        self.assertEqual(cursor_r.get_value(), 'value_3')
+
+        self.assertEqual(cursor_r.next(), wiredtiger.WT_NOTFOUND)
+
+        session_r.rollback_transaction()
+        cursor_r.close()
+        session_r.close()
+        conn_f.close()
+
+    def test_iterate_across_checkpoint_dropping_positioned_key(self):
+        self._run(oplog_applied_delete=False)
+
+    def test_iterate_when_delete_already_applied_on_follower(self):
+        self._run(oplog_applied_delete=True)

@@ -141,8 +141,13 @@ functions:
               EXTRA_ARGS="--download-url https://mongodbtoolchain.build.10gen.cc/toolchain/rhel80-zseries/x86_64/mongodbtoolchain-${MDB_TOOLCHAIN_REV}.tar.gz"
           fi
 
+          # The pinned toolchain tarball sources a script that it does not contain.
+          # pipefail preserves the installer's real exit status.
+          # FIXME-WT-18153: Remove this filter once the toolchain has been fixed.
+          set -o pipefail
           curl -fsSL https://s3.amazonaws.com/mongodbtoolchain.build.10gen.cc/installer.sh \
-              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV" $EXTRA_ARGS
+              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV" $EXTRA_ARGS 2>&1 \
+              | sed -E '/scripts\/installer\.sh: No such file or directory/d; /return: can only .return. from a function or sourced script/d'
 
   # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
   # additional credentials need to be setup to maintain efficient compilation speed.
@@ -1759,7 +1764,7 @@ variables:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch runs.timer=5:10
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
@@ -1774,7 +1779,7 @@ variables:
       - func: "compile wiredtiger"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
@@ -6177,6 +6182,30 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_workload_update_trigger.py
+
+    ##################################################
+    # Performance Tests for disagg follower startup  #
+    ##################################################
+
+  - name: perf-disagg-many-tables-follower-startup
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: disagg_many_tables_follower_startup_perf.py
+          maxruns: 1
+          wtarg: -ops ['"wiredtiger_open_no_pickup", "reconfigure_pickup"'] -args '["--num-tables", "500000"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
 
     ###########################################
     # Performance Tests for log consolidation #
