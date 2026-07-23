@@ -30,11 +30,12 @@
 #   A follower that steps up must be sitting on the truly latest completed checkpoint, not
 #   merely the latest one it happens to know about. Otherwise it would start writing new
 #   checkpoints whose history omits a checkpoint that another node already advanced past,
-#   corrupting the checkpoint chain. Any step-up failure already aborts the process (see
-#   the panic from __wti_disagg_conn_config on step-up failure), so the negative case runs
-#   in a subprocess to catch the abort without killing the test runner.
+#   corrupting the checkpoint chain. Any step-up failure already panics the connection (see
+#   the panic from __wti_disagg_conn_config on step-up failure), which aborts the process on
+#   diagnostic builds but only returns an error on non-diagnostic builds, so the negative case
+#   runs in a subprocess and only checks for a non-zero exit, not a specific signal.
 
-import os, signal, wiredtiger, wttest
+import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -72,9 +73,14 @@ class test_layered_stepup13(wttest.WiredTigerTestCase, suite_subprocess):
         # the follower knowing about it.
         self._write_and_checkpoint('b', 'ckpt2_b')
 
-        # The follower is still pinned to ckpt1. Stepping up now must be refused (and, per
-        # the existing step-up failure handling, aborts this process).
-        conn_follow.reconfigure('disaggregated=(role="leader")')
+        # The follower is still pinned to ckpt1. Stepping up now must be refused, which panics
+        # the connection. On non-diagnostic builds the panic is returned as an error rather than
+        # aborting the process, so catch it and exit explicitly to avoid hanging in tearDown
+        # when closing a panicked connection.
+        try:
+            conn_follow.reconfigure('disaggregated=(role="leader")')
+        except wiredtiger.WiredTigerError:
+            os._exit(1)
 
     def subprocess_stale_stepup(self):
         self._stale_stepup_scenario()
@@ -84,8 +90,8 @@ class test_layered_stepup13(wttest.WiredTigerTestCase, suite_subprocess):
             'SUBPROCESS',
             'test_layered_stepup13.test_layered_stepup13.subprocess_stale_stepup',
             silent=True)
-        self.assertEqual(rc, -signal.SIGABRT,
-            f'expected process to abort (rc={-signal.SIGABRT}) but got rc={rc}')
+        self.assertNotEqual(rc, 0,
+            f'expected the subprocess to fail stepping up on a stale checkpoint, got rc={rc}')
         with open(os.path.join(new_home_dir, 'stderr.txt')) as f:
             err = f.read()
         self.assertIn('Refusing to step up to the leader role', err,
