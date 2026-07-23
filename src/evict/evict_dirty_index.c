@@ -96,8 +96,15 @@ __wt_dirty_index_destroy(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __wt_dirty_index_insert --
- *     Publish a leaf ref without waiting. A producer abandons the fast path when the bounded ring
- *     is full or another producer wins the page back-pointer.
+ *     Publish a leaf ref into the per-btree ring without blocking. Producers reserve a position by
+ *     CAS-advancing head, but only once the target slot's sequence counter confirms the previous
+ *     occupant has already been drained; a sequence lagging the reserved position means the ring is
+ *     full, one ahead of it means another producer just took this position, and either way this
+ *     producer retries or bails rather than wait. Winning the head CAS still isn't ownership: the
+ *     producer must also win the page's one-owner back-pointer CAS, then recheck the ref/page/state
+ *     did not change underneath it while doing so. Losing any of these races abandons the slot
+ *     instead of blocking, since the ring is best-effort and the eviction walker remains the source
+ *     of truth.
  */
 bool
 __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
