@@ -1510,6 +1510,7 @@ perf
 pfx
 pid
 pindexp
+pipefail
 plh
 pluggable
 pmem
