@@ -170,7 +170,13 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
 
 /*
  * __wt_dirty_index_clear_page --
- *     Invalidate a page's published entry without waiting for the eviction consumer.
+ *     Invalidate a page's published entry without waiting for the eviction consumer. Idempotent and
+ *     safe to call more than once for the same page: a page never has two simultaneously-live ring
+ *     entries (the back-pointer names at most one slot), so a second call after the first has
+ *     already cleared it is a no-op. That makes it safe to call again after a ref is replaced but
+ *     the page is retained (splits), to catch a producer that raced in a fresh ring entry for the
+ *     old ref between the first call and the ref's state change to non-WT_REF_MEM --
+ *     the caller is expected to bracket that race window with two calls in exactly this way.
  */
 void
 __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
@@ -191,21 +197,4 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     /* Only clear the page back-pointer if this ref still owns the slot. */
     if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
         (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, 0);
-}
-
-/*
- * __wt_dirty_index_clear_ref --
- *     Remove a ref that is about to be freed from its ring slot, if any. Splits replace a WT_REF
- *     while retaining its page, so by the time this runs the page back-pointer may no longer
- *     identify the ref the caller is discarding. The caller's ordering (clear_page for the old ref,
- *     then WT_REF_SET_STATE to a non-WT_REF_MEM state, then this call) guarantees no producer can
- *     insert the old ref afterward, so a page never has two simultaneously-live ring entries --
- *     the back-pointer, if still nonzero at this point, can only name the one slot that could still
- *     reference it. That is exactly what clear_page checks, so delegate to it rather than scanning
- *     the ring.
- */
-void
-__wt_dirty_index_clear_ref(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
-{
-    __wt_dirty_index_clear_page(session, btree, ref, page);
 }

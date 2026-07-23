@@ -643,8 +643,11 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
-    /* Catch an insertion that raced with publishing the replacement ref. */
-    __wt_dirty_index_clear_ref(session, S2BT(session), ref, page);
+    /*
+     * Call clear_page again: it is idempotent, and this second call catches a producer that raced
+     * an insertion for the old ref between the first call above and the state change just made.
+     */
+    __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
 
     WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
