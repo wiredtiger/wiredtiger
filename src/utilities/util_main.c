@@ -155,17 +155,16 @@ util_conn_is_disagg(WT_CONNECTION *conn)
 }
 
 /*
- * util_func_disallowed_disagg --
- *     Whether a wt subcommand is disallowed in disaggregated storage mode. These are writer-side or
- *     local-block/log operations with no meaningful semantics against a page-log-backed store.
+ * util_func_allowed_disagg --
+ *     Whether a wt subcommand is allowed in disaggregated storage mode. Allowlisted rather than
+ *     denylisted so new subcommands default to rejected until they've been reviewed for disagg
+ *     semantics.
  */
 static bool
-util_func_disallowed_disagg(int (*func)(WT_SESSION *, int, char *[]))
+util_func_allowed_disagg(int (*func)(WT_SESSION *, int, char *[]))
 {
-    return (func == util_alter || func == util_backup || func == util_compact ||
-      func == util_create || func == util_downgrade || func == util_drop || func == util_load ||
-      func == util_loadtext || func == util_printlog || func == util_salvage ||
-      func == util_truncate || func == util_write);
+    return (func == util_dump || func == util_list || func == util_page || func == util_read ||
+      func == util_stat || func == util_turtle || func == util_verify);
 }
 
 /*
@@ -489,13 +488,15 @@ open:
     }
 
     /*
-     * Disaggregated storage exposes data through a page log rather than local files. Reject any
-     * subcommand that only applies to the classic block-manager path before touching any data.
+     * Disaggregated storage exposes data through a page log rather than local files. Only an
+     * allowlisted set of subcommands has been vetted against a page-log-backed store; anything
+     * outside that set is a no-op (message, success exit) rather than an error, so scripts that
+     * probe subcommand availability aren't broken.
      */
-    if (util_conn_is_disagg(conn) && func != NULL && util_func_disallowed_disagg(func)) {
+    if (util_conn_is_disagg(conn) && func != NULL && !util_func_allowed_disagg(func)) {
         fprintf(
           stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
-        goto err;
+        goto done;
     }
 
     if (secretkey != NULL) {
