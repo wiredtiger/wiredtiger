@@ -2557,10 +2557,10 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     new->ref_recno = ref->ref_recno;
 
     /*
-     * The producer skips refs without WT_REF_FLAG_LEAF, so this scratch ref will not be inserted
-     * into the ring during the cursor operations performed by the in-memory split helper. The drain
-     * cannot safely dereference scratch refs after they are freed, which is exactly why we must
-     * keep them out of the ring.
+     * This scratch ref has no WT_REF_FLAG_LEAF set, so the dirty-index ring's insert path will
+     * reject it if the cursor operations performed by the in-memory split helper try to modify it.
+     * That gate is required: the ring's drain cannot safely dereference a scratch ref after it is
+     * freed here, so it must never be inserted in the first place.
      */
     WT_ERR(__split_multi_inmem(session, page, multi, new));
 
