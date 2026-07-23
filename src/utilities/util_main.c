@@ -145,16 +145,6 @@ util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
 }
 
 /*
- * util_conn_is_disagg --
- *     Report whether the connection is configured for disaggregated storage.
- */
-static bool
-util_conn_is_disagg(WT_CONNECTION *conn)
-{
-    return (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL);
-}
-
-/*
  * util_func_allowed_disagg --
  *     Whether a wt subcommand is allowed in disaggregated storage mode.
  */
@@ -486,10 +476,10 @@ open:
     }
 
     /*
-     * Disaggregated storage exposes data through a page log rather than local files. Reject
-     * commands that are not supported in disaggregated storage mode.
+     * Reject commands that are not supported in disaggregated storage mode.
      */
-    if (util_conn_is_disagg(conn) && func != NULL && !util_func_allowed_disagg(func)) {
+    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL && func != NULL &&
+      !util_func_allowed_disagg(func)) {
         fprintf(
           stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
         goto done;
