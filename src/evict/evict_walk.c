@@ -502,6 +502,15 @@ retry:
         }
 
         /*
+         * A btree awaiting publication is kept in memory, so reconciling its pages now would leave
+         * them without a disk address. Skip it until it is published and the btree is checkpointed.
+         */
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH)) {
+            __evict_disagg_btree_skip_count(session, btree);
+            continue;
+        }
+
+        /*
          * For in-memory btrees, if we are not evicting dirty pages or pages with active updates,
          * walking them serves no purpose. Such pages are not eligible for clean eviction, making
          * the operation unnecessary.

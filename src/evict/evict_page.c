@@ -1105,6 +1105,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     modified = __wt_page_is_modified(page);
 
     /*
+     * A btree awaiting publication cannot write pages, so keep its pages in cache until it is
+     * published. Eviction during close will discard the pages.
+     */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) && !closing)
+        return (__wt_set_return(session, EBUSY));
+
+    /*
      * Clean pages can't be evicted from in memory btrees. This should be uncommon - we don't add
      * clean pages to the queue.
      */
