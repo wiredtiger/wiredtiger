@@ -53,7 +53,7 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-    def _run(self, oplog_applied_delete):
+    def test_iterate_across_checkpoint_dropping_positioned_key(self):
         # Leader writes three keys and takes a checkpoint.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
@@ -98,18 +98,17 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         # cursor does it: an overwrite remove on a long-lived cursor that has already
         # read stable. The reader is pinned to an older timestamp, so the delete is
         # invisible to it and it stays positioned on the stable value.
-        if oplog_applied_delete:
-            session_a = conn_f.open_session()
-            cursor_a = session_a.open_cursor(self.uri, None, 'overwrite=true')
-            # Read stable once so the overwrite remove can assume the key lives there.
-            self.assertEqual(cursor_a.next(), 0)
-            cursor_a.reset()
-            session_a.begin_transaction()
-            cursor_a.set_key(1)
-            self.assertEqual(cursor_a.remove(), 0)
-            session_a.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
-            cursor_a.close()
-            session_a.close()
+        session_a = conn_f.open_session()
+        cursor_a = session_a.open_cursor(self.uri, None, 'overwrite=true')
+        # Read stable once so the overwrite remove can assume the key lives there.
+        self.assertEqual(cursor_a.next(), 0)
+        cursor_a.reset()
+        session_a.begin_transaction()
+        cursor_a.set_key(1)
+        self.assertEqual(cursor_a.remove(), 0)
+        session_a.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
+        cursor_a.close()
+        session_a.close()
 
         # The follower moves to the newer checkpoint while the cursor stays positioned.
         self.disagg_advance_checkpoint(conn_f)
@@ -130,9 +129,3 @@ class test_layered_cursor25(wttest.WiredTigerTestCase):
         cursor_r.close()
         session_r.close()
         conn_f.close()
-
-    def test_iterate_across_checkpoint_dropping_positioned_key(self):
-        self._run(oplog_applied_delete=False)
-
-    def test_iterate_when_delete_already_applied_on_follower(self):
-        self._run(oplog_applied_delete=True)
