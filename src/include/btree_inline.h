@@ -373,11 +373,14 @@ __wt_btree_shared_base_name(
 }
 
 /*
- * __wt_cache_page_inmem_incr --
- *     Increment a page's memory footprint in the cache.
+ * __cache_page_inmem_incr --
+ *     Increment a page's memory footprint in the cache. When track_updates is false the bytes are
+ *     kept out of the updates target (but still counted as dirty if the page is dirty), used for
+ *     memory that is not application update data.
  */
 static WT_INLINE void
-__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
+__cache_page_inmem_incr(
+  WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update, bool track_updates)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -413,7 +416,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
 
     if (__wt_tsan_suppress_load_wt_page_modify_ptr(&page->modify) != NULL) {
         __txn_incr_bytes_dirty(session, size, new_update);
-        if (!WT_PAGE_IS_INTERNAL(page)) {
+        if (track_updates && !WT_PAGE_IS_INTERNAL(page)) {
             (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates, size);
             if (is_disagg) {
                 if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
@@ -447,6 +450,27 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, size);
         }
     }
+}
+
+/*
+ * __wt_cache_page_inmem_incr --
+ *     Increment a page's memory footprint in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
+{
+    __cache_page_inmem_incr(session, page, size, new_update, true);
+}
+
+/*
+ * __wt_cache_page_inmem_incr_no_update_target --
+ *     Increment a page's memory footprint in the cache without counting the bytes against the
+ *     updates target. The bytes are still counted as dirty when the page is dirty.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_incr_no_update_target(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    __cache_page_inmem_incr(session, page, size, false, false);
 }
 
 /*
@@ -677,11 +701,12 @@ __wt_cache_page_byte_updates_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_
 }
 
 /*
- * __wt_cache_page_inmem_decr --
- *     Decrement a page's memory footprint in the cache.
+ * __cache_page_inmem_decr --
+ *     Decrement a page's memory footprint in the cache. When track_updates is false the bytes are
+ *     kept out of the updates target, mirroring __cache_page_inmem_incr.
  */
 static WT_INLINE void
-__wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+__cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool track_updates)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -704,7 +729,7 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
             __wt_cache_decr_check_uint64(
               session, &cache->bytes_inmem_stable, size, "WT_CACHE.bytes_inmem_stable");
     }
-    if (page->modify != NULL && !WT_PAGE_IS_INTERNAL(page))
+    if (track_updates && page->modify != NULL && !WT_PAGE_IS_INTERNAL(page))
         __wt_cache_page_byte_updates_decr(session, page, size);
     if (__wt_page_is_modified(page)) {
         __wt_cache_page_byte_dirty_decr(session, page, size);
@@ -724,6 +749,27 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
                   session, &cache->bytes_internal_stable, size, "WT_CACHE.bytes_internal_stable");
         }
     }
+}
+
+/*
+ * __wt_cache_page_inmem_decr --
+ *     Decrement a page's memory footprint in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    __cache_page_inmem_decr(session, page, size, true);
+}
+
+/*
+ * __wt_cache_page_inmem_decr_no_update_target --
+ *     Decrement a page's memory footprint in the cache without touching the updates target,
+ *     reversing __wt_cache_page_inmem_incr_no_update_target.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_decr_no_update_target(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    __cache_page_inmem_decr(session, page, size, false);
 }
 
 /*

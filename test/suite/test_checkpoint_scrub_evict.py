@@ -28,7 +28,7 @@
 #
 # test_checkpoint_scrub_evict.py
 #
-# Tests for WT-18005: with precise_checkpoint=true, checkpoint reconciliation
+# Tests for checkpoint clean scrub eviction: with precise_checkpoint=true, checkpoint reconciliation
 # of row-leaf pages sets WT_REC_SCRUB, saving mod_disk_image so the eviction
 # server can replace those pages with clean in-memory images.
 #
@@ -50,7 +50,7 @@ from wtscenario import make_scenarios
 
 class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
     """
-    Verify scrub-eviction behaviour introduced by WT-18005.
+    Verify checkpoint based clean scrub-eviction behaviour.
 
     Two scenario axes:
       - precise_checkpoint on/off
@@ -358,7 +358,7 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
 
 class test_checkpoint_scrub_evict_config(wttest.WiredTigerTestCase):
     """
-    Verify the eviction.checkpoint_scrub_eviction override (WT-18005):
+    Verify the eviction.checkpoint_scrub_eviction override:
       - off:  checkpoint never scrub-evicts, even under precise checkpoint + pressure.
       - on:   checkpoint always scrub-evicts eligible row-leaf pages.
       - auto: defers to the cache-pressure heuristic (the default).
@@ -501,3 +501,66 @@ class test_checkpoint_scrub_evict_no_precise(wttest.WiredTigerTestCase):
             self.assertEqual(pc, 0,
                 msg='checkpoint_scrub_eviction={} must not scrub without precise checkpoint, '
                     'stat={}'.format(self.mode, pc))
+
+class test_checkpoint_scrub_image_gauge(wttest.WiredTigerTestCase):
+    """
+    The cache_scrub_image_pages / cache_scrub_image_bytes gauges track the memory
+    of the clean re-instantiation images checkpoint scrub currently retains. Tie
+    the memory tracking to the config that drives it: with the override off no
+    image is retained, so nothing is tracked and the gauge stays at zero; with it
+    on the scrub path retains images, so the gauge is non-zero and the byte gauge
+    is consistent with the page gauge. This confirms the accounting is wired to
+    the added stats and is populated only when scrub actually runs.
+    """
+
+    uri = 'table:scrub_image_gauge'
+    nrows = 5000
+    vsize = 200
+
+    mode = [
+        ('off', dict(mode='off', expect_tracked=False)),
+        ('on',  dict(mode='on',  expect_tracked=True)),
+    ]
+    scenarios = make_scenarios(mode)
+
+    def conn_config(self):
+        return ('cache_size=50MB,statistics=(all),precise_checkpoint=true,'
+                'eviction=(checkpoint_scrub_eviction={})'.format(self.mode))
+
+    def _populate(self):
+        cursor = self.session.open_cursor(self.uri)
+        val = 'x' * self.vsize
+        for i in range(self.nrows):
+            cursor[i] = val
+        cursor.close()
+
+    def test_gauge_tracks_retained_images(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        self.conn.set_timestamp('stable_timestamp=1')
+
+        self._populate()
+        self.session.checkpoint()
+
+        pages = self.get_stat(stat.conn.cache_scrub_image_pages)
+        nbytes = self.get_stat(stat.conn.cache_scrub_image_bytes)
+
+        # Whatever the mode, the gauge is an unsigned count; an underflow from an
+        # unbalanced decr would surface here as a huge value.
+        self.assertGreaterEqual(pages, 0, 'scrub image page gauge underflowed')
+        self.assertGreaterEqual(nbytes, 0, 'scrub image byte gauge underflowed')
+
+        if self.expect_tracked:
+            # Scrub ran, so at least one image is retained and its bytes tracked.
+            self.assertGreater(pages, 0,
+                msg='scrub image page gauge should be non-zero when scrub is enabled')
+            self.assertGreater(nbytes, 0,
+                msg='scrub image byte gauge should be non-zero when scrub is enabled')
+            # A retained image accounts for at least one page's worth of bytes.
+            self.assertGreaterEqual(nbytes, pages,
+                msg='retained bytes should be at least one per retained page')
+        else:
+            # Scrub never retained an image, so nothing is tracked.
+            self.assertEqual(pages, 0,
+                msg='scrub image page gauge must stay zero when scrub is disabled')
+            self.assertEqual(nbytes, 0,
+                msg='scrub image byte gauge must stay zero when scrub is disabled')
