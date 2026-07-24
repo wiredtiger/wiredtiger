@@ -140,8 +140,6 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
 
     new_ckpt.str = metadata->checkpoint;
     new_ckpt.len = metadata->checkpoint_len;
-    if (new_ckpt.len > 0 && new_ckpt.str[0] == '(')
-        new_ckpt.type = WT_CONFIG_ITEM_STRUCT;
     WT_ERR(__wt_config_replace(session, cfg_current_copy, "checkpoint", &new_ckpt, &cfg_new));
 
     /* Put in our new config. */
