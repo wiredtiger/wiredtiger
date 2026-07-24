@@ -486,8 +486,8 @@ retry:
          * If the cache walk flags have changed since the prior eviction pass on this tree then
          * reset the walk effectiveness tracking. Imagine a case where only dirty content has been
          * looked for and this tree doesn't have much dirty content. Then eviction starts looking
-         * for clean content - this tree might be a cornucopia of good clean candidate pages.
-         * This is particularly important for disaggregated connections, where we are using
+         * for clean content - this tree might be a cornucopia of good clean candidate pages. This
+         * is particularly important for disaggregated connections, where we are using
          * WT_EVICT_MODIFY_COUNT_MIN and WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD values to change the
          * priority for this heuristic.
          */
