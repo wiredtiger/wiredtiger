@@ -10,6 +10,7 @@
 
 #include "wiredtiger.h"
 #include "wt_internal.h"
+#include "../wrappers/mock_session.h"
 
 /*
  * Unit tests for config-related functions.
@@ -148,4 +149,32 @@ TEST_CASE("Parse integer", "[config][parse_int]")
         REQUIRE(negz_val == 0);
         REQUIRE(endptr_negz == negz_s + strlen(negz_s));
     }
+}
+
+TEST_CASE("Config replace substitutes one key", "[config][replace]")
+{
+    std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
+    WT_SESSION_IMPL *s = session_mock->get_wt_session_impl();
+
+    const char *base = "a=1,checkpoint=(old=1),b=2";
+    WT_CONFIG_ITEM new_ckpt;
+    char *replaced = nullptr;
+    char *missing = nullptr;
+
+    WT_CLEAR(new_ckpt);
+    new_ckpt.str = "(new=2)";
+    new_ckpt.len = strlen(new_ckpt.str);
+    new_ckpt.type = WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT;
+
+    REQUIRE(__wt_config_replace(s, base, "checkpoint", &new_ckpt, &replaced) == 0);
+    REQUIRE(strstr(replaced, "checkpoint=(new=2)") != nullptr);
+    REQUIRE(strstr(replaced, "a=1") != nullptr);
+    REQUIRE(strstr(replaced, "b=2") != nullptr);
+    REQUIRE(strstr(replaced, "(old=1)") == nullptr);
+
+    /* Missing key is not invented. */
+    REQUIRE(__wt_config_replace(s, "a=1,b=2", "checkpoint", &new_ckpt, &missing) == WT_NOTFOUND);
+    REQUIRE(missing == nullptr);
+
+    __wt_free(s, replaced);
 }

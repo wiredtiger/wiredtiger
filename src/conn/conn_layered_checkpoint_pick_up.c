@@ -353,62 +353,6 @@ err:
 }
 
 /*
- * __disagg_replace_checkpoint --
- *     Rebuild a file metadata string, replacing only the checkpoint= value. Single pass over the
- *     local config (no per-key __wti_config_get re-search as in __wt_config_collapse).
- */
-static int
-__disagg_replace_checkpoint(WT_SESSION_IMPL *session, const char *current_value,
-  const WT_CONFIG_ITEM *new_ckpt, char **resultp)
-{
-    WT_CONFIG cparser;
-    WT_CONFIG_ITEM k, v;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    size_t len;
-    bool saw_checkpoint;
-
-    *resultp = NULL;
-    saw_checkpoint = false;
-    len = strlen(current_value) + new_ckpt->len + 32;
-    WT_RET(__wt_scr_alloc(session, len, &tmp));
-
-    __wt_config_init(session, &cparser, current_value);
-    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
-        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len,
-              k.str);
-        if (WT_CONFIG_LIT_MATCH("checkpoint", k)) {
-            WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)new_ckpt->len,
-              new_ckpt->str));
-            saw_checkpoint = true;
-            continue;
-        }
-        if (k.type == WT_CONFIG_ITEM_STRING)
-            WT_CONFIG_PRESERVE_QUOTES(session, &k);
-        if (v.type == WT_CONFIG_ITEM_STRING)
-            WT_CONFIG_PRESERVE_QUOTES(session, &v);
-        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-    if (!saw_checkpoint)
-        WT_ERR(__wt_buf_catfmt(
-          session, tmp, "checkpoint=%.*s,", (int)new_ckpt->len, new_ckpt->str));
-
-    /*
-     * Match __wt_config_collapse: if we have a trailing comma it's OK — metadata accepts it. Strip
-     * it for cleanliness when present.
-     */
-    if (tmp->size > 0 && ((char *)tmp->data)[tmp->size - 1] == ',')
-        --tmp->size;
-    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, resultp));
-
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated.
@@ -452,10 +396,9 @@ __disagg_update_file_meta(
         goto err;
 
     /*
-     * Only the checkpoint field changes on this path (see FIXME-WT-14730). Rewrite the config in
-     * one pass instead of __wt_config_collapse (which re-searches every key).
+     * Only the checkpoint field changes on this path (see FIXME-WT-14730).
      */
-    WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &new_ckpt, &cfg_ret));
+    WT_ERR(__wt_config_replace(session, current_value_copy, "checkpoint", &new_ckpt, &cfg_ret));
 
     md_file_cursor->set_value(md_file_cursor, cfg_ret);
     WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),

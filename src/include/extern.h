@@ -406,6 +406,8 @@ extern int __wt_config_merge(WT_SESSION_IMPL *session, const char **cfg, const c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_config_replace(WT_SESSION_IMPL *session, const char *base, const char *key,
+  const WT_CONFIG_ITEM *value, char **config_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_subget_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_subgetraw(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, WT_CONFIG_ITEM *key,
