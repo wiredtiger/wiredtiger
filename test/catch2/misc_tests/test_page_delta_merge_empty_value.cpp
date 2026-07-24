@@ -94,7 +94,7 @@ struct merge_empty_value_fixture {
         WT_BTREE *btree = S2BT(session);
         btree->collator = nullptr;
         btree->prefix_compression = false;
-        btree->block_header = 0;
+        btree->block_header = WT_BLOCK_HEADER_SIZE;
         btree->base_write_gen = 1;
     }
 
@@ -166,7 +166,8 @@ TEST_CASE_METHOD(merge_empty_value_fixture,
      * and dropped it too, leaving zero entries.
      */
     REQUIRE(((WT_PAGE_HEADER *)new_image.mem)->u.entries == 1);
-    REQUIRE(!image_has_key(&new_image, "aaa", 3)); /* the dropped key is gone */
+    REQUIRE(image_has_key(&new_image, "zzz", 3));  /* live empty-value last key survived */
+    REQUIRE(!image_has_key(&new_image, "aaa", 3)); /* globally visible stop was dropped */
 
     __wt_buf_free(session, &base);
     __wt_buf_free(session, &delta);
