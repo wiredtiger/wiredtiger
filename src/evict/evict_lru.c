@@ -1471,8 +1471,20 @@ __evict_get_ref(
                         /*
                          * Hand over hand: take the subqueue lock, then drop the chain lock, so
                          * other threads can work on other trees in this bucket while we scan.
+                         *
+                         * Use a trylock, as we do for the hash chain and the flat bucket queue: if
+                         * another thread is already scanning this tree's subqueue there is nothing
+                         * to be gained by waiting behind it. Because the trylock failure path does
+                         * not drop the chain lock, our chain cursor is still valid and we can move
+                         * directly to the next tree in this chain.
                          */
-                        __wt_spin_lock(session, &subq->evict_queue_lock);
+                        if (__wt_spin_trylock(session, &subq->evict_queue_lock) == EBUSY) {
+                            WT_STAT_CONN_INCR(session, eviction_skip_locked_subqueue);
+                            __wt_verbose_debug1(session, WT_VERB_EVICTION,
+                              "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u SUBQ_BUSY",
+                              subq_name, bucket->id, slot);
+                            continue;
+                        }
                         __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
 
                         ref = __evict_scan_queue(session, &subq->evict_queue, i, true, btreep,
