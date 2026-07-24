@@ -22,7 +22,7 @@ TEST_CASE("Verify progress reports are gated on elapsed time", "[verify_progress
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
     WT_SESSION_IMPL *session = session_mock->get_wt_session_impl();
 
-    uint64_t interval_ms = 30 * WT_THOUSAND;
+    uint64_t interval_ms = (uint64_t)WT_PROGRESS_MSG_PERIOD * WT_THOUSAND;
     WT_TIMER timer;
     __wt_timer_start(session, &timer);
 

@@ -8,9 +8,6 @@
 
 #include "wt_internal.h"
 
-/* Minimum interval between verify progress reports. */
-#define WT_VERIFY_PROGRESS_INTERVAL_MS (30 * WT_THOUSAND)
-
 /*
  * There's a bunch of stuff we pass around during verification, group it together to make the code
  * prettier.
@@ -607,9 +604,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Announce the object being verified. Emitted at the info level: suppressed by stock
-     * WiredTiger's default verbosity, but shown when the verify category is enabled, as MongoDB
-     * does by default.
+     * Announce the object being verified. Info-level verbose is off in stock WiredTiger; MongoDB's
+     * default generateWTVerboseConfiguration() maps the wtVerify LOGV2 component to verify at
+     * WT_VERBOSE_INFO, so this line appears in mongod logs without extra configuration.
      */
     __wt_verbose_info(session, WT_VERB_VERIFY, "verify: starting on %s", name);
 
@@ -942,7 +939,8 @@ __verify_tree(
      * per-page verification work.
      */
     ++vs->fcnt;
-    if (__wt_verify_progress_due(session, &vs->progress_timer, WT_VERIFY_PROGRESS_INTERVAL_MS))
+    if (__wt_verify_progress_due(
+          session, &vs->progress_timer, (uint64_t)WT_PROGRESS_MSG_PERIOD * WT_THOUSAND))
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
 #ifdef HAVE_DIAGNOSTIC
