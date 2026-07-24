@@ -1381,6 +1381,7 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_evict_checkpoint_snapshot;
     int64_t application_cache_ops;
     int64_t application_cache_interruptible_ops;
     int64_t application_cache_uninterruptible_ops;

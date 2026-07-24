@@ -3025,6 +3025,7 @@ static const char *const __stats_connection_desc[] = {
   "thread-state: active filesystem fsync calls",
   "thread-state: active filesystem read calls",
   "thread-state: active filesystem write calls",
+  "thread-yield: application thread eviction used the published checkpoint snapshot for visibility",
   "thread-yield: application thread operations waiting for cache",
   "thread-yield: application thread operations waiting for interruptible cache eviction",
   "thread-yield: application thread operations waiting for mandatory cache eviction",
@@ -4136,6 +4137,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_fsync_active */
     /* not clearing thread_read_active */
     /* not clearing thread_write_active */
+    stats->application_evict_checkpoint_snapshot = 0;
     stats->application_cache_ops = 0;
     stats->application_cache_interruptible_ops = 0;
     stats->application_cache_uninterruptible_ops = 0;
@@ -5499,6 +5501,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->thread_fsync_active += WT_STAT_CONN_READ(from, thread_fsync_active);
     to->thread_read_active += WT_STAT_CONN_READ(from, thread_read_active);
     to->thread_write_active += WT_STAT_CONN_READ(from, thread_write_active);
+    to->application_evict_checkpoint_snapshot +=
+      WT_STAT_CONN_READ(from, application_evict_checkpoint_snapshot);
     to->application_cache_ops += WT_STAT_CONN_READ(from, application_cache_ops);
     to->application_cache_interruptible_ops +=
       WT_STAT_CONN_READ(from, application_cache_interruptible_ops);
