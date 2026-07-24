@@ -53,8 +53,10 @@ struct __wti_evict_entry {
 #define WTI_DIRTY_INDEX_MAX_CAPACITY (256 * 1024u)
 
 /*
- * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot. Producers
- * and page teardown coordinate ownership with atomic compare-and-swap operations.
+ * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot: zero means
+ * the page is not in the ring. WTI_DIRTY_BP_MAKE encodes a zero-based slot index into that
+ * back-pointer value; WTI_DIRTY_BP_SLOT recovers the slot index from it. Producers and page
+ * teardown coordinate ownership of the back-pointer with atomic compare-and-swap operations.
  */
 #define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
 #define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
