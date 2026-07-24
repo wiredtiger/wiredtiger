@@ -353,58 +353,93 @@ err:
 }
 
 /*
+ * __disagg_checkpoint_value_end --
+ *     Return a pointer just past the end of a config value starting at value_start. Handles nested
+ *     parentheses for struct values and empty values (checkpoint=,).
+ */
+static const char *
+__disagg_checkpoint_value_end(const char *value_start, const char *end)
+{
+    const char *p;
+    int depth;
+
+    if (value_start >= end || *value_start == ',' || *value_start == '\0')
+        return (value_start);
+
+    if (*value_start != '(') {
+        for (p = value_start; p < end && *p != ','; ++p)
+            ;
+        return (p);
+    }
+
+    depth = 0;
+    for (p = value_start; p < end; ++p) {
+        if (*p == '(')
+            ++depth;
+        else if (*p == ')') {
+            if (--depth == 0)
+                return (p + 1);
+        }
+    }
+    return (end);
+}
+
+/*
  * __disagg_replace_checkpoint --
- *     Rebuild a file metadata string, replacing only the checkpoint= value. Single pass over the
- *     local config (no per-key __wti_config_get re-search as in __wt_config_collapse).
+ *     Replace the checkpoint= value in a file metadata string by splicing: copy through
+ *     "checkpoint=", write the new value, copy the tail after the old value.
  */
 static int
 __disagg_replace_checkpoint(WT_SESSION_IMPL *session, const char *current_value,
-  const WT_CONFIG_ITEM *new_ckpt, char **resultp)
+  size_t current_len, const WT_CONFIG_ITEM *new_ckpt, char **resultp)
 {
-    WT_CONFIG cparser;
-    WT_CONFIG_ITEM k, v;
-    WT_DECL_ITEM(tmp);
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    size_t len;
-    bool saw_checkpoint;
+    size_t key_len, prefix_len, suffix_len, size;
+    const char *end, *key, *p, *suffix, *value_start;
 
     *resultp = NULL;
-    saw_checkpoint = false;
-    len = strlen(current_value) + new_ckpt->len + 32;
-    WT_RET(__wt_scr_alloc(session, len, &tmp));
+    end = current_value + current_len;
+    key_len = strlen("checkpoint=");
 
-    __wt_config_init(session, &cparser, current_value);
-    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
-        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len,
-              k.str);
-        if (WT_CONFIG_LIT_MATCH("checkpoint", k)) {
-            WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)new_ckpt->len,
-              new_ckpt->str));
-            saw_checkpoint = true;
+    /* Find a top-level checkpoint= key (start of string or after a comma). */
+    key = NULL;
+    for (p = current_value; p + key_len <= end; ++p) {
+        if (memcmp(p, "checkpoint=", key_len) != 0)
             continue;
-        }
-        if (k.type == WT_CONFIG_ITEM_STRING)
-            WT_CONFIG_PRESERVE_QUOTES(session, &k);
-        if (v.type == WT_CONFIG_ITEM_STRING)
-            WT_CONFIG_PRESERVE_QUOTES(session, &v);
-        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+        if (p != current_value && p[-1] != ',')
+            continue;
+        key = p;
+        break;
     }
-    WT_ERR_NOTFOUND_OK(ret, false);
-    if (!saw_checkpoint)
-        WT_ERR(__wt_buf_catfmt(
-          session, tmp, "checkpoint=%.*s,", (int)new_ckpt->len, new_ckpt->str));
 
-    /*
-     * Match __wt_config_collapse: if we have a trailing comma it's OK — metadata accepts it. Strip
-     * it for cleanliness when present.
-     */
-    if (tmp->size > 0 && ((char *)tmp->data)[tmp->size - 1] == ',')
-        --tmp->size;
-    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, resultp));
+    if (key == NULL) {
+        /* No checkpoint field yet: append one. */
+        size = current_len + key_len + new_ckpt->len + 2;
+        WT_RET(__wt_scr_alloc(session, size, &buf));
+        if (current_len > 0 && current_value[current_len - 1] != ',')
+            WT_ERR(__wt_buf_fmt(session, buf, "%.*s,checkpoint=%.*s", (int)current_len,
+              current_value, (int)new_ckpt->len, new_ckpt->str));
+        else
+            WT_ERR(__wt_buf_fmt(session, buf, "%.*scheckpoint=%.*s", (int)current_len,
+              current_value, (int)new_ckpt->len, new_ckpt->str));
+        WT_ERR(__wt_strndup(session, buf->data, buf->size, resultp));
+        goto err;
+    }
+
+    value_start = key + key_len;
+    suffix = __disagg_checkpoint_value_end(value_start, end);
+    prefix_len = WT_PTRDIFF(value_start, current_value);
+    suffix_len = WT_PTRDIFF(end, suffix);
+    size = prefix_len + new_ckpt->len + suffix_len;
+
+    WT_RET(__wt_scr_alloc(session, size + 1, &buf));
+    WT_ERR(__wt_buf_fmt(session, buf, "%.*s%.*s%.*s", (int)prefix_len, current_value,
+      (int)new_ckpt->len, new_ckpt->str, (int)suffix_len, suffix));
+    WT_ERR(__wt_strndup(session, buf->data, buf->size, resultp));
 
 err:
-    __wt_scr_free(session, &tmp);
+    __wt_scr_free(session, &buf);
     return (ret);
 }
 
@@ -413,6 +448,15 @@ err:
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated.
  */
+/* Temporary pickup profiling (ns). Remove after WT-18174 investigation. */
+static uint64_t __disagg_prof_read_cmp_ns;
+static uint64_t __disagg_prof_splice_ns;
+static uint64_t __disagg_prof_md_update_ns;
+static uint64_t __disagg_prof_discard_ns;
+static uint64_t __disagg_prof_outdated_ns;
+static uint64_t __disagg_prof_merge_ns;
+static uint64_t __disagg_prof_update_calls;
+
 static int
 __disagg_update_file_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
@@ -423,13 +467,18 @@ __disagg_update_file_meta(
     char *cfg_ret, *current_value_copy, *new_ckpt_copy;
     const char *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
+    size_t current_len;
+    uint64_t t0, t1;
     bool discard;
 
     cfg_ret = current_value_copy = new_ckpt_copy = NULL;
     checkpoint_name = NULL;
     discard = false;
+    current_len = 0;
     WT_CLEAR(new_ckpt);
+    ++__disagg_prof_update_calls;
 
+    t0 = __wt_clock(session);
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
     WT_ERR(sh_file_cursor->get_key(sh_file_cursor, &sh_file_key));
     WT_ERR(sh_file_cursor->get_value(sh_file_cursor, &metadata_value));
@@ -447,20 +496,32 @@ __disagg_update_file_meta(
     WT_ERR(md_file_cursor->get_value(md_file_cursor, &current_value));
     /* Copy before further cursor ops; also used as discard-check input. */
     WT_ERR(__wt_strdup(session, current_value, &current_value_copy));
+    current_len = strlen(current_value_copy);
     WT_ERR(__wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur));
-    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, new_ckpt.str, new_ckpt.len) == 0)
+    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, new_ckpt.str, new_ckpt.len) == 0) {
+        __disagg_prof_read_cmp_ns += WT_CLOCKDIFF_NS(__wt_clock(session), t0);
         goto err;
+    }
+    t1 = __wt_clock(session);
+    __disagg_prof_read_cmp_ns += WT_CLOCKDIFF_NS(t1, t0);
 
     /*
-     * Only the checkpoint field changes on this path (see FIXME-WT-14730). Rewrite the config in
-     * one pass instead of __wt_config_collapse (which re-searches every key).
+     * Only the checkpoint field changes on this path (see FIXME-WT-14730). Splice the new value
+     * over the old checkpoint= span instead of collapsing the entire file configuration.
      */
-    WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &new_ckpt, &cfg_ret));
+    t0 = t1;
+    WT_ERR(__disagg_replace_checkpoint(
+      session, current_value_copy, current_len, &new_ckpt, &cfg_ret));
+    t1 = __wt_clock(session);
+    __disagg_prof_splice_ns += WT_CLOCKDIFF_NS(t1, t0);
 
+    t0 = t1;
     md_file_cursor->set_value(md_file_cursor, cfg_ret);
     WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
       "Failed to update metadata for key \"%s\"", sh_file_key);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_updated);
+    t1 = __wt_clock(session);
+    __disagg_prof_md_update_ns += WT_CLOCKDIFF_NS(t1, t0);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"", sh_file_key,
@@ -475,6 +536,7 @@ __disagg_update_file_meta(
      * FIXME-WT-16494: How to decide two checkpoints are different if they are written by different
      * nodes?
      */
+    t0 = t1;
     WT_ERR(__disagg_discard_old_checkpoint_check(
       session, current_value_copy, cfg_ret, &checkpoint_name, &discard));
     if (discard) {
@@ -483,6 +545,8 @@ __disagg_update_file_meta(
         WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"",
           (const char *)old_uri_buf->data);
     }
+    t1 = __wt_clock(session);
+    __disagg_prof_discard_ns += WT_CLOCKDIFF_NS(t1, t0);
 
     /*
      * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live btrees
@@ -490,8 +554,10 @@ __disagg_update_file_meta(
      *
      * FIXME-WT-17772: This is better done at step-up or step-down to force close all live btrees.
      */
+    t0 = t1;
     WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, sh_file_key));
     WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"", sh_file_key);
+    __disagg_prof_outdated_ns += WT_CLOCKDIFF_NS(__wt_clock(session), t0);
 
 err:
     __wt_scr_free(session, &old_uri_buf);
@@ -519,7 +585,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
-    uint64_t apply_elapsed_ms;
+    uint64_t apply_elapsed_ms, t0, open_ns, close_ns, other_ns;
     uint32_t existing_tables, new_tables, new_ingest;
     size_t current_len;
     int i;
@@ -536,6 +602,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     layered_ingest_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
+    open_ns = close_ns = other_ns = 0;
+    apply_elapsed_ms = 0;
+    __disagg_prof_read_cmp_ns = __disagg_prof_splice_ns = __disagg_prof_md_update_ns = 0;
+    __disagg_prof_discard_ns = __disagg_prof_outdated_ns = __disagg_prof_merge_ns = 0;
+    __disagg_prof_update_calls = 0;
 
     /* Whether to check that the local and shared metadata contain the same layered tables. */
     strict = F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
@@ -575,6 +646,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      */
 
     /* Open the metadata cursors on the local metadata table. */
+    t0 = __wt_clock(session);
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_metadata_cursor(session, &md_cursors[i]));
     WT_ERR(__wt_metadata_cursor(session, &md_write_cursor));
@@ -605,8 +677,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         md_has[i] = sh_has[i] = true;
         md_keys[i] = sh_keys[i] = NULL;
     }
+    open_ns = WT_CLOCKDIFF_NS(__wt_clock(session), t0);
 
     for (;;) {
+        t0 = __wt_clock(session);
 
         /* Advance the cursors that are positioned at the current table name. */
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
@@ -631,8 +705,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
 
         /* All cursors are exhausted. */
-        if (current == NULL)
+        if (current == NULL) {
+            __disagg_prof_merge_ns += WT_CLOCKDIFF_NS(__wt_clock(session), t0);
             break;
+        }
 
         /* Copy and zero-terminate the table name. */
         WT_ERR(__wt_buf_set(session, current_buf, current, current_len + 1));
@@ -644,6 +720,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             md_has[i] = __disagg_key_at_table(md_keys[i], i, current, current_len);
             sh_has[i] = __disagg_key_at_table(sh_keys[i], i, current, current_len);
         }
+        __disagg_prof_merge_ns += WT_CLOCKDIFF_NS(__wt_clock(session), t0);
 
         /* Log the reconciliation state for this table across all URI schemes. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_2)) {
@@ -873,6 +950,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
 done:
 err:
+    t0 = __wt_clock(session);
     __wt_free(session, metadata_checkpoint_name);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &current_buf);
@@ -883,6 +961,25 @@ err:
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursors[i]));
         if (sh_cursors[i] != NULL)
             WT_TRET(sh_cursors[i]->close(sh_cursors[i]));
+    }
+    close_ns = WT_CLOCKDIFF_NS(__wt_clock(session), t0);
+
+    other_ns = 0;
+    if (apply_elapsed_ms > 0) {
+        uint64_t accounted_ns = open_ns + close_ns + __disagg_prof_merge_ns +
+          __disagg_prof_read_cmp_ns + __disagg_prof_splice_ns + __disagg_prof_md_update_ns +
+          __disagg_prof_discard_ns + __disagg_prof_outdated_ns;
+        uint64_t total_ns = apply_elapsed_ms * WT_MILLION;
+        other_ns = total_ns > accounted_ns ? total_ns - accounted_ns : 0;
+        fprintf(stderr,
+          "PERF apply_breakdown_ms: total=%" PRIu64 " open=%.1f merge=%.1f "
+          "read_cmp=%.1f splice=%.1f md_update=%.1f discard=%.1f outdated=%.1f close=%.1f "
+          "other=%.1f updates=%" PRIu64 "\n",
+          apply_elapsed_ms, open_ns / 1e6, __disagg_prof_merge_ns / 1e6,
+          __disagg_prof_read_cmp_ns / 1e6, __disagg_prof_splice_ns / 1e6,
+          __disagg_prof_md_update_ns / 1e6, __disagg_prof_discard_ns / 1e6,
+          __disagg_prof_outdated_ns / 1e6, close_ns / 1e6, other_ns / 1e6,
+          __disagg_prof_update_calls);
     }
 
     return (ret);
