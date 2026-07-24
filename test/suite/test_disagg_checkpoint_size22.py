@@ -26,10 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import errno
+import os
 from collections import namedtuple
 from contextlib import closing
 from pathlib import Path
 from helper_disagg import DisaggSizeTestMixin, disagg_test_class
+import wiredtiger
 from wiredtiger import stat
 import wttest
 
@@ -80,7 +83,7 @@ class test_disagg_checkpoint_size22(DisaggSizeTestMixin, wttest.WiredTigerTestCa
             return cursor[key][2]
 
     def block_size(self, uri=None, session=None):
-        """Return the block size reported for a table."""
+        """Return the reported block size."""
         return self.size_stat(stat.dsrc.block_size, uri, session)
 
     def block_manager_consulted(self, uri=None, session=None):
@@ -141,12 +144,105 @@ class test_disagg_checkpoint_size22(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         )
         self.assertFalse(self.block_manager_consulted(self.local_table.uri))
 
-    def test_layered_table_size_without_checkpoint_uses_slow_path(self):
-        """A layered table with no checkpoint falls back to the slow path."""
+    def test_local_file_size_on_disagg_uses_filesystem(self):
+        """A local file on a disagg connection reports its filesystem size."""
+        self.session.create(self.local_table.uri, self.local_table.config)
+        file_uri = "file:" + self.local_table.file_name
+
+        self.assertEqual(
+            self.block_size(file_uri), Path(self.local_table.file_name).stat().st_size
+        )
+        self.assertFalse(self.block_manager_consulted(file_uri))
+
+    def test_layered_table_before_first_checkpoint_uses_fast_path(self):
+        """A layered table reports zero through the fast path before its first checkpoint."""
         self.open_and_populate(self.layered_table)
 
-        # No checkpoint has occurred, so we expect the slow path to be taken.
-        self.assertTrue(self.block_manager_consulted())
+        self.assertEqual(self.block_size(), 0)
+        self.assertFalse(self.block_manager_consulted())
+
+    def test_layered_table_empty_checkpoint_uses_checkpoint_meta(self):
+        """An empty checkpoint reports zero through the fast path."""
+        self.session.create(self.layered_table.uri, self.layered_table.config)
+        self.session.checkpoint()
+
+        expected_size = self.get_checkpoint_size("file:" + self.layered_table.file_name)
+        self.assertEqual(expected_size, 0)
+
+        self.assertEqual(self.block_size(), expected_size)
+        self.assertFalse(self.block_manager_consulted())
+
+    def test_layered_table_empty_root_checkpoint_uses_checkpoint_meta(self):
+        """An empty root after a real checkpoint reports zero through the fast path."""
+        self.session.create(self.layered_table.uri, self.layered_table.config)
+        with wttest.open_cursor(self.session, self.layered_table.uri) as cursor:
+            cursor["key"] = "value"
+        self.session.checkpoint()
+
+        stable_uri = "file:" + self.layered_table.file_name
+        self.assertGreater(self.get_checkpoint_size(stable_uri), 0)
+
+        with wttest.open_cursor(self.session, self.layered_table.uri) as cursor:
+            cursor.set_key("key")
+            self.assertEqual(cursor.remove(), 0)
+        self.session.checkpoint()
+
+        self.assertEqual(self.get_checkpoint_size(stable_uri), 0)
+        self.assertEqual(self.block_size(), 0)
+        self.assertFalse(self.block_manager_consulted())
+
+    def test_stable_file_empty_checkpoint_uses_checkpoint_meta(self):
+        """A direct stable-file query reports zero through the fast path for an empty checkpoint."""
+        self.session.create(self.layered_table.uri, self.layered_table.config)
+        self.session.checkpoint()
+
+        stable_uri = "file:" + self.layered_table.file_name
+        self.assertEqual(self.get_checkpoint_size(stable_uri), 0)
+
+        self.assertEqual(self.block_size(stable_uri), 0)
+        self.assertFalse(self.block_manager_consulted(stable_uri))
+
+    def test_stable_file_before_first_checkpoint_uses_fast_path(self):
+        """A direct stable-file query reports zero through the fast path before its first checkpoint."""
+        self.session.create(self.layered_table.uri, self.layered_table.config)
+
+        stable_uri = "file:" + self.layered_table.file_name
+        self.assertEqual(self.block_size(stable_uri), 0)
+        self.assertFalse(self.block_manager_consulted(stable_uri))
+
+    def test_stable_file_size_uses_checkpoint_meta(self):
+        """A direct stable-file query reports a nonzero checkpoint size without opening dhandles."""
+        expected_size = self.open_layered_table()
+        stable_uri = "file:" + self.layered_table.file_name
+
+        # Reopen to drop the cached dhandles.
+        with self.expectedStdoutPattern("Removing local file"):
+            self.reopen_conn()
+
+        dhandles_before = self.dhandle_count()
+        self.assertEqual(self.block_size(stable_uri), expected_size)
+        self.assertFalse(self.block_manager_consulted(stable_uri))
+        self.assertEqual(self.dhandle_count(), dhandles_before)
+
+    def test_missing_local_file_returns_enoent(self):
+        """A missing local file returns ENOENT."""
+        self.assertRaisesException(
+            wiredtiger.WiredTigerError,
+            lambda: self.block_size(f"file:{self.__class__.__name__}_missing.wt"),
+            os.strerror(errno.ENOENT),
+        )
+
+    def test_missing_stable_file_returns_enoent(self):
+        """A missing stable URI returns ENOENT without adding a connection dhandle."""
+        dhandles_before = self.dhandle_count()
+        self.assertRaisesException(
+            wiredtiger.WiredTigerError,
+            lambda: self.block_size(
+                f"file:{self.__class__.__name__}_missing.wt_stable"
+            ),
+            os.strerror(errno.ENOENT),
+        )
+        self.assertEqual(self.dhandle_count(), dhandles_before)
 
 
 if __name__ == "__main__":

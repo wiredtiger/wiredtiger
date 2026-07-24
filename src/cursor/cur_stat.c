@@ -441,7 +441,7 @@ retry:
          */
         if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
             uint64_t ckpt_size = 0;
-            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+            WT_ERR_NOTFOUND_OK(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size), false);
             cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
             goto done;
         }
@@ -505,64 +505,73 @@ err:
 
 /*
  * __wt_curstat_size_local --
- *     Fast-path size retrieval for a local file. If the file exists, set *existp and return the
- *     size via *sizep. A non-existent file is not an error; *existp will be false.
+ *     Fast-path size retrieval for a local file. Return WT_NOTFOUND if the file does not exist.
  */
 int
-__wt_curstat_size_local(
-  WT_SESSION_IMPL *session, const char *filename, bool *existp, int64_t *sizep)
+__wt_curstat_size_local(WT_SESSION_IMPL *session, const char *filename, int64_t *sizep)
 {
-    wt_off_t size;
+    bool exist = false;
+    wt_off_t size = 0;
+    *sizep = 0;
 
-    WT_RET(__wt_fs_exist(session, filename, existp));
-    if (*existp) {
-        WT_RET(__wt_block_manager_named_size(session, filename, &size));
-        *sizep = (int64_t)size;
-    }
+    WT_RET(__wt_fs_exist(session, filename, &exist));
+    if (!exist)
+        return (WT_NOTFOUND);
 
+    WT_RET(__wt_block_manager_named_size(session, filename, &size));
+    *sizep = (int64_t)size;
     return (0);
 }
 
 /*
  * __wt_curstat_size_disagg --
  *     Fast-path size retrieval for a disaggregated table. There is no local file on disk, so the
- *     size comes from the last checkpoint entry in the metadata. If found, set *existp and return
- *     the size via *sizep. A missing metadata entry is not an error; *existp will be false.
+ *     size comes from the last checkpoint entry in the metadata. Return WT_NOTFOUND if the metadata
+ *     entry does not exist.
  */
 int
-__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, int64_t *sizep)
+__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, int64_t *sizep)
 {
-    uint64_t ckpt_size;
-
-    *existp = false;
+    uint64_t ckpt_size = 0;
     WT_RET(__wt_block_disagg_ckpt_size(session, uri, &ckpt_size));
-    if (ckpt_size > 0) {
-        *sizep = (int64_t)ckpt_size;
-        *existp = true;
-    }
-
+    *sizep = (int64_t)ckpt_size;
     return (0);
 }
 
 /*
  * __curstat_file_size --
- *     Fast-path size retrieval for a file: URI. Try to determine the size without opening the
- *     dhandle: first check for a local file on disk, then fall back to reading the checkpoint size
- *     from the metadata (for disaggregated storage). If neither succeeds, *existp is false and the
- *     caller should fall through to the slow path.
+ *     Fast-path size retrieval for a file.
  */
 static int
-__curstat_file_size(
-  WT_SESSION_IMPL *session, const char *uri, const char *filename, bool *existp, int64_t *sizep)
+__curstat_file_size(WT_SESSION_IMPL *session, const char *uri, int64_t *sizep)
 {
-    /* Try the local file first. */
-    WT_RET(__wt_curstat_size_local(session, filename, existp, sizep));
-    if (*existp)
-        return (0);
+    const char *filename = uri;
+    WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
-    /* No local file; check the metadata for a disagg checkpoint size. */
-    WT_RET(__wt_curstat_size_disagg(session, uri, existp, sizep));
-    return (0);
+    *sizep = 0;
+
+    /* Only a disagg connection can have a stable file. */
+    if (!__wt_conn_is_disagg(session) || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
+        return (__wt_curstat_size_local(session, filename, sizep));
+
+    const int ret = __wt_curstat_size_disagg(session, uri, sizep);
+
+    /* If the metadata entry does not exist, deferring to the slow path will not help. */
+    if (ret == WT_NOTFOUND)
+        return (__wt_set_return(session, ENOENT));
+    return (ret);
+}
+
+/*
+ * __wt_curstat_set_block_size --
+ *     Populate a size-only statistics cursor from a block size value.
+ */
+void
+__wt_curstat_set_block_size(WT_CURSOR_STAT *cst, const int64_t size)
+{
+    __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+    cst->u.dsrc_stats.block_size = size;
+    __wt_curstat_dsrc_final(cst);
 }
 
 /*
@@ -575,9 +584,6 @@ __curstat_file_init(
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    int64_t size;
-    const char *filename;
-    bool exist;
 
     /*
      * If we are only getting the size of the file, try to avoid opening the dhandle. This only
@@ -585,21 +591,14 @@ __curstat_file_init(
      * determine a size, fall through to the slow path below.
      */
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
-        filename = uri;
-        WT_PREFIX_SKIP(filename, "file:");
-
-        size = 0;
-        WT_RET(__curstat_file_size(session, uri, filename, &exist, &size));
-        if (exist) {
-            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-            cst->u.dsrc_stats.block_size = size;
-            __wt_curstat_dsrc_final(cst);
+        int64_t size = 0;
+        ret = __curstat_file_size(session, uri, &size);
+        if (ret == 0) {
+            __wt_curstat_set_block_size(cst, size);
             return (0);
         }
-        /*
-         * Neither the local file nor the disagg metadata entry was found; fall through to the slow
-         * path which opens the dhandle.
-         */
+        /* The local file was not found; fall through to the slow path which opens the dhandle. */
+        WT_RET_NOTFOUND_OK(ret);
     }
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));

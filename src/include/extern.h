@@ -535,10 +535,10 @@ extern int __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const ch
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp,
-  int64_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curstat_size_local(WT_SESSION_IMPL *session, const char *filename, bool *existp,
-  int64_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, int64_t *sizep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curstat_size_local(WT_SESSION_IMPL *session, const char *filename, int64_t *sizep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curstat_table_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
@@ -1806,6 +1806,7 @@ extern void __wt_cursor_set_raw_key(WT_CURSOR *cursor, WT_ITEM *key);
 extern void __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value);
 extern void __wt_cursor_set_value(WT_CURSOR *cursor, ...);
 extern void __wt_curstat_dsrc_final(WT_CURSOR_STAT *cst);
+extern void __wt_curstat_set_block_size(WT_CURSOR_STAT *cst, const int64_t size);
 extern void __wt_debug_crash(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_dhandle_clear_add(
