@@ -239,7 +239,8 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * letting the producer re-insert when the page is next dirtied.
          */
         if (ref->page->modify == NULL) {
-            (void)__wt_atomic_cas_uint32(&ref->page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), 0);
+            (void)__wt_atomic_cas_uint32(
+              &ref->page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
             ++seen_clean;
             ++stale_total;
             goto release;
@@ -254,7 +255,8 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * the next modify is guaranteed to see the slot already cleared, never a transient
          * double-reference.
          */
-        (void)__wt_atomic_cas_uint32(&ref->page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), 0);
+        (void)__wt_atomic_cas_uint32(
+          &ref->page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
 
         /* Already on the eviction queue; the existing entry will drive eviction. */
         if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU) ||

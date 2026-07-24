@@ -65,6 +65,12 @@ __wt_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
     idx->capacity = capacity;
     idx->mask = capacity - 1;
     WT_ERR(__wt_calloc_def(session, capacity, &idx->slots));
+    /*
+     * Seed each slot's sequence with its own index, a one-time O(capacity) cost paid once per btree
+     * open, not on the insert/drain hot path. Without it a fresh (zeroed) slot array would let a
+     * producer claim slot 0 immediately but block every other slot until the drain first visited
+     * it.
+     */
     for (i = 0; i < capacity; ++i)
         __wt_atomic_store_uint64_release(&idx->slots[i].sequence, i);
     __wt_atomic_store_ptr_release(&btree->dirty_index, idx);
@@ -126,7 +132,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
       !__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index_disagg))
         return (false);
-    if (__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != 0)
+    if (__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)
         return (false);
 
     pos = __wt_atomic_load_uint64_relaxed(&idx->head);
@@ -153,8 +159,19 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     }
 
     slot = (uint32_t)pos & idx->mask;
-    if (!__wt_atomic_cas_uint32(&page->dirty_index_slot, 0, WTI_DIRTY_BP_MAKE(slot))) {
+    /*
+     * Winning the head CAS makes this slot exclusively ours: no other producer can reach position
+     * pos again until the drain consumes it and the ring wraps a full lap. It does not make the
+     * page ours -- another producer or page teardown may already own the page's back-pointer, so
+     * the CAS below can still lose even though the slot itself was never contended.
+     */
+    if (!__wt_atomic_cas_uint32(
+          &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_MAKE(slot))) {
         __wt_atomic_store_ptr_release(&slotp->ref, NULL);
+        /*
+         * Publish the slot as consumed even though it stayed empty: the drain only advances tail
+         * once it sees sequence == pos + 1, so leaving it at pos would wedge the ring here.
+         */
         __wt_atomic_store_uint64_release(&slotp->sequence, pos + 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_contended);
         return (false);
@@ -164,9 +181,11 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     if (__wt_atomic_load_uint32_acquire(&page->dirty_index_slot) != WTI_DIRTY_BP_MAKE(slot) ||
       __wt_atomic_load_ptr_acquire(&ref->page) != page || WT_REF_GET_STATE(ref) != WT_REF_MEM) {
         (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
+        /* Same wedge-avoidance publish as the back-pointer CAS failure above. */
         __wt_atomic_store_uint64_release(&slotp->sequence, pos + 1);
         /* Release ownership of the back-pointer; a no-op if it was already cleared elsewhere. */
-        (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), 0);
+        (void)__wt_atomic_cas_uint32(
+          &page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_contended);
         return (false);
     }
@@ -194,7 +213,8 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 
     WT_UNUSED(session);
     /* Check the page's own back-pointer first: zero means it never entered the ring. */
-    if (page == NULL || (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == 0)
+    if (page == NULL ||
+      (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == WTI_DIRTY_BP_NONE)
         return;
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
@@ -203,5 +223,5 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     slotp = &idx->slots[WTI_DIRTY_BP_SLOT(bp)];
     /* Only clear the page back-pointer if this ref still owns the slot. */
     if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
-        (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, 0);
+        (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_NONE);
 }

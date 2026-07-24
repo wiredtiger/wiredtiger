@@ -53,11 +53,13 @@ struct __wti_evict_entry {
 #define WTI_DIRTY_INDEX_MAX_CAPACITY (256 * 1024u)
 
 /*
- * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot: zero means
- * the page is not in the ring. WTI_DIRTY_BP_MAKE encodes a zero-based slot index into that
- * back-pointer value; WTI_DIRTY_BP_SLOT recovers the slot index from it. Producers and page
- * teardown coordinate ownership of the back-pointer with atomic compare-and-swap operations.
+ * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot;
+ * WTI_DIRTY_BP_NONE means the page is not in the ring. WTI_DIRTY_BP_MAKE encodes a zero-based slot
+ * index into that back-pointer value; WTI_DIRTY_BP_SLOT recovers the slot index from it. Producers
+ * and page teardown coordinate ownership of the back-pointer with atomic compare-and-swap
+ * operations.
  */
+#define WTI_DIRTY_BP_NONE 0u
 #define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
 #define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
 
@@ -83,7 +85,8 @@ typedef struct {
  * head is CAS-hot for every producer, tail is written only by the single-consumer drain, and
  * slots/capacity/mask are read by every producer on every insert. The padding keeps those three
  * groups on separate cache lines so the drain's tail update can't bounce the lines producers are
- * spinning on or reading.
+ * spinning on or reading. Two padding arrays, not one: merging them would put head and tail back on
+ * the same line, the exact false sharing this is avoiding.
  */
 struct __wti_dirty_index {
     wt_shared uint64_t head; /* Next slot to reserve */
