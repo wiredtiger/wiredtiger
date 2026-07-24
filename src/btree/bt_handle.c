@@ -625,8 +625,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * If we use schema epochs in disaggregated storage, the btree starts in memory, so that we
      * cannot write any pages until the table is published - not even an empty root page.
      */
-    awaits_publish = ckpt->raw.size == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      !WT_IS_URI_HS(btree->dhandle->name) && !WT_IS_URI_METADATA(btree->dhandle->name) &&
+    awaits_publish = F_ISSET(session, WT_SESSION_CREATE_BTREE) &&
+      F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_IS_URI_HS(btree->dhandle->name) &&
+      !WT_IS_URI_METADATA(btree->dhandle->name) &&
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
 
     if (awaits_publish)
