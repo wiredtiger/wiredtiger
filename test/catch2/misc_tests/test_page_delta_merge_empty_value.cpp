@@ -162,8 +162,8 @@ TEST_CASE_METHOD(merge_empty_value_fixture,
     /*
      * Exactly one entry must survive: "aaa" (globally visible stop) is dropped, and the empty-value
      * last key "zzz" is kept. Because "aaa" is gone and one entry remains, that entry is "zzz". The
-     * buggy version consulted the empty-value cell's stale time window (the adjacent "aaa" stop) and
-     * dropped it too, leaving zero entries.
+     * buggy version consulted the empty-value cell's stale time window (the adjacent "aaa" stop)
+     * and dropped it too, leaving zero entries.
      */
     REQUIRE(((WT_PAGE_HEADER *)new_image.mem)->u.entries == 1);
     REQUIRE(!image_has_key(&new_image, "aaa", 3)); /* the dropped key is gone */
