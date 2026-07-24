@@ -23,7 +23,7 @@
  * How much preference we give to leaf vs internal dirty pages upon eviction.
  * A higher value means more preference to leaf vs internal pages.
  */
-#define WT_EVICT_INTERNAL_WEIGHT_DIVISOR 64
+#define WT_EVICT_INTERNAL_WEIGHT_DIVISOR 256
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 

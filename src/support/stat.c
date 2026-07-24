@@ -2024,7 +2024,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction skips a page, because we could not evict it before",
   "cache: eviction skips dirty pages during a running checkpoint",
   "cache: eviction skips ingest btrees in disagg",
-  "cache: eviction skips locked per-dhandle hash chains in dirty buckets",
+  "cache: eviction skips locked dhandle hash chains in dirty buckets",
+  "cache: eviction skips locked per-dhandle sub-queues in dirty buckets",
   "cache: eviction skips metadata pages with history",
   "cache: eviction skips pages that are written with transactions greater than the last running",
   "cache: eviction skips pages that previously failed eviction and likely will again",
@@ -3112,6 +3113,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_skip_dirty_pages_during_checkpoint = 0;
     stats->eviction_skip_ingest_trees = 0;
     stats->eviction_skip_locked_hashchain = 0;
+    stats->eviction_skip_locked_subqueue = 0;
     stats->eviction_skip_metatdata_with_history = 0;
     stats->eviction_skip_page_last_running = 0;
     stats->eviction_skip_pages_retry = 0;
@@ -4235,6 +4237,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_skip_dirty_pages_during_checkpoint);
     to->eviction_skip_ingest_trees += WT_STAT_CONN_READ(from, eviction_skip_ingest_trees);
     to->eviction_skip_locked_hashchain += WT_STAT_CONN_READ(from, eviction_skip_locked_hashchain);
+    to->eviction_skip_locked_subqueue += WT_STAT_CONN_READ(from, eviction_skip_locked_subqueue);
     to->eviction_skip_metatdata_with_history +=
       WT_STAT_CONN_READ(from, eviction_skip_metatdata_with_history);
     to->eviction_skip_page_last_running += WT_STAT_CONN_READ(from, eviction_skip_page_last_running);

@@ -636,6 +636,7 @@ struct __wt_connection_stats {
     int64_t eviction_skip_dirty_pages_during_checkpoint;
     int64_t eviction_skip_ingest_trees;
     int64_t eviction_skip_locked_hashchain;
+    int64_t eviction_skip_locked_subqueue;
     int64_t eviction_skip_metatdata_with_history;
     int64_t eviction_skip_page_last_running;
     int64_t eviction_skip_pages_retry;
