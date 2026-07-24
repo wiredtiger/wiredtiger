@@ -28,21 +28,21 @@ TEST_CASE("Verify progress reports are gated on elapsed time", "[verify_progress
 
     SECTION("No report is due immediately after the timer starts")
     {
-        REQUIRE(__wt_verify_progress_due(session, &timer, interval_ms) == false);
+        REQUIRE(__wti_verify_progress_due(session, &timer, interval_ms) == false);
     }
 
     SECTION("A report is due once the interval elapses, then the timer resets")
     {
         /* Backdate the last-report time so more than the interval has elapsed. */
         timer.tv_sec -= (time_t)(interval_ms / WT_THOUSAND + 1);
-        REQUIRE(__wt_verify_progress_due(session, &timer, interval_ms) == true);
+        REQUIRE(__wti_verify_progress_due(session, &timer, interval_ms) == true);
 
         /* Reporting restarts the timer, so a back-to-back call is not yet due again. */
-        REQUIRE(__wt_verify_progress_due(session, &timer, interval_ms) == false);
+        REQUIRE(__wti_verify_progress_due(session, &timer, interval_ms) == false);
     }
 
     SECTION("A zero interval always reports")
     {
-        REQUIRE(__wt_verify_progress_due(session, &timer, 0) == true);
+        REQUIRE(__wti_verify_progress_due(session, &timer, 0) == true);
     }
 }
