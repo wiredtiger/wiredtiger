@@ -162,8 +162,11 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     /*
      * Winning the head CAS makes this slot exclusively ours: no other producer can reach position
      * pos again until the drain consumes it and the ring wraps a full lap. It does not make the
-     * page ours -- another producer or page teardown may already own the page's back-pointer, so
-     * the CAS below can still lose even though the slot itself was never contended.
+     * page ours -- another producer racing to insert the same page, or the drain re-inserting it
+     * after a filtered pop, may already own the page's back-pointer, so the CAS below can still
+     * lose even though the slot itself was never contended. A hazard pointer rules out concurrent
+     * teardown, but not this kind of race: it grants shared access, not exclusive ownership of the
+     * back-pointer.
      */
     if (!__wt_atomic_cas_uint32(
           &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_MAKE(slot))) {
