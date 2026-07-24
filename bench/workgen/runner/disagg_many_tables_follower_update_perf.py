@@ -40,9 +40,8 @@
 #                           stable, checkpoint (meta2; dirties shared file:
 #                           checkpoint cookies).
 #     Phase 4 (follower):   reconfigure(checkpoint_meta=meta2) timed; report
-#                           wall-clock pick-up plus
-#                           disagg_apply_checkpoint_meta_time and
-#                           disagg_pick_up_file_meta_updated.
+#                           wall-clock pick-up and disagg_apply_checkpoint_meta_time
+#                           (both in milliseconds).
 #
 #   Leader and follower use separate WT homes that share one PALI store:
 #     <home>/                 leader
@@ -181,7 +180,6 @@ t0 = time.time()
 follower_conn.reconfigure(f'disaggregated=(checkpoint_meta="{ckpt_meta1}")')
 setup_pickup_elapsed = time.time() - t0
 print(f"  setup pick-up took {setup_pickup_elapsed:.2f}s")
-print(f"PERF reconfigure_setup_pickup_secs: {setup_pickup_elapsed:.4f}")
 
 # ----------------------------------------------------------------------
 # Phase 3: leader dirties every table and checkpoints (meta2).
@@ -222,13 +220,13 @@ print("  reconfiguring with checkpoint_meta (meta2, timed)")
 pickup_t0 = time.time()
 follower_conn.reconfigure(f'disaggregated=(checkpoint_meta="{ckpt_meta2}")')
 pickup_elapsed = time.time() - pickup_t0
+pickup_ms = int(round(pickup_elapsed * 1000))
 print(f"  RECONFIGURE (update pick-up) took {pickup_elapsed:.2f}s")
-print(f"PERF reconfigure_update_pickup_secs: {pickup_elapsed:.4f}")
+print(f"PERF reconfigure_update_pickup_ms: {pickup_ms}")
 
 apply_meta_ms = get_conn_stat(follower_conn, stat.conn.disagg_apply_checkpoint_meta_time)
 file_meta_updated = get_conn_stat(follower_conn, stat.conn.disagg_pick_up_file_meta_updated)
 print(f"PERF disagg_apply_checkpoint_meta_ms: {apply_meta_ms}")
-print(f"PERF disagg_pick_up_file_meta_updated: {file_meta_updated}")
 
 if file_meta_updated < NUM_TABLES:
     raise RuntimeError(
@@ -245,7 +243,7 @@ print("SUMMARY")
 print("=" * 70)
 print(f"  num_tables                         = {NUM_TABLES}")
 print(f"  follower setup pick-up (meta1)     = {setup_pickup_elapsed:.2f}s")
-print(f"  follower update pick-up (meta2)    = {pickup_elapsed:.2f}s")
+print(f"  follower update pick-up (meta2)    = {pickup_ms} ms")
 print(f"  disagg_apply_checkpoint_meta_time  = {apply_meta_ms} ms")
 print(f"  disagg_pick_up_file_meta_updated   = {file_meta_updated}")
 print(f"  artifacts under                    = {home}")

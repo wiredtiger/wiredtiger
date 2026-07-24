@@ -6209,7 +6209,7 @@ tasks:
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: disagg_many_tables_follower_update_perf.py
           maxruns: 1
-          wtarg: -ops ['"reconfigure_update_pickup", "disagg_apply_checkpoint_meta_ms"'] -args '["--num-tables", "10000"]'
+          wtarg: -ops ['"reconfigure_update_pickup_ms", "disagg_apply_checkpoint_meta_ms"'] -args '["--num-tables", "10000"]'
       - func: "upload stats to atlas"
         vars:
           test-name: disagg_many_tables_follower_update_perf.py
