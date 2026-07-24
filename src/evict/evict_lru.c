@@ -1210,7 +1210,7 @@ static WT_INLINE u_int
 __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
 {
     u_int n;
-
+    (void) checkpoint_running;
     n = 0;
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         levels[n++] = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
@@ -1221,17 +1221,15 @@ __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         levels[n++] = WT_EVICT_LEVEL_WONT_NEED_CLEAN_LEAF;
         levels[n++] = WT_EVICT_LEVEL_CLEAN_LEAF;
-        if (checkpoint_running)
-            levels[n++] = WT_EVICT_LEVEL_CLEAN_INTERNAL;
     }
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         levels[n++] = WT_EVICT_LEVEL_UPDATES_LEAF;
-        if (checkpoint_running)
-            levels[n++] = WT_EVICT_LEVEL_UPDATES_INTERNAL;
     }
     /*
-     * Won't-need pages are never scheduled for eviction.
-     * Forced eviction takes care of them and forced eviction doesn't go through this path */
+     * Internal pages are never scheduled for eviction. They don't contribute to cache
+     * pressure counts and evicting them does not alleviate the pressure or unblock workers.
+     * Checkpoint or forced eviction will take care of them if needed.
+     */
 
     return (n);
 }
@@ -1279,20 +1277,6 @@ __evict_get_ref(
 
     if (!F_ISSET(evict, WT_EVICT_CACHE_ANY))
         goto done;
-
-#if 0
-    /* Don't admit more application helpers than estimated CPU cores to avoid contention */
-    if (!F_ISSET(session, WT_SESSION_INTERNAL)){
-        uint32_t divisor, session_cnt;
-
-        WT_READ_ONCE(session_cnt, conn->session_array.cnt);
-        divisor = session_cnt /  WT_EVICT_EXPECTED_CONTENTION;
-        if (divisor > 1 && (session->id % divisor) != 0) {
-            WT_STAT_CONN_INCR(session, app_evict_refused_contention);
-            goto done;
-        }
-    }
-#endif
 
     /* Find eligible eviction levels depending on flags set */
     n_eligible = __evict_eligible_levels(evict, eligible, checkpoint_running);
@@ -1451,10 +1435,10 @@ __evict_get_ref(
                             continue;
                         if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
-                            __wt_verbose_debug1(session, WT_VERB_EVICTION,
-                              "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u SKIP_SYNCING",
+                            __wt_verbose_debug2(session, WT_VERB_EVICTION,
+                              "subq WALK   tree=%s level=%d bucket_id=%" PRIu64 " slot=%u SKIP_SYNCING",
                               subq->dhandle->name != NULL ? subq->dhandle->name : "(null)",
-                              bucket->id, slot);
+                              (int) i, bucket->id, slot);
                             continue;
                         }
 
@@ -1464,7 +1448,7 @@ __evict_get_ref(
                          * must not dereference it (or its dhandle) for the result trace.
                          */
                         subq_name = subq->dhandle->name != NULL ? subq->dhandle->name : "(null)";
-                        __wt_verbose_debug1(session, WT_VERB_EVICTION,
+                        __wt_verbose_debug2(session, WT_VERB_EVICTION,
                           "subq WALK   tree=%s bucket_id=%" PRIu64 " slot=%u SCAN", subq_name,
                           bucket->id, slot);
 
