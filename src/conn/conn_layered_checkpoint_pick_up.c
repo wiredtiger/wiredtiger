@@ -353,6 +353,62 @@ err:
 }
 
 /*
+ * __disagg_replace_checkpoint --
+ *     Rebuild a file metadata string, replacing only the checkpoint= value. Single pass over the
+ *     local config (no per-key __wti_config_get re-search as in __wt_config_collapse).
+ */
+static int
+__disagg_replace_checkpoint(WT_SESSION_IMPL *session, const char *current_value,
+  const WT_CONFIG_ITEM *new_ckpt, char **resultp)
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    size_t len;
+    bool saw_checkpoint;
+
+    *resultp = NULL;
+    saw_checkpoint = false;
+    len = strlen(current_value) + new_ckpt->len + 32;
+    WT_RET(__wt_scr_alloc(session, len, &tmp));
+
+    __wt_config_init(session, &cparser, current_value);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len,
+              k.str);
+        if (WT_CONFIG_LIT_MATCH("checkpoint", k)) {
+            WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)new_ckpt->len,
+              new_ckpt->str));
+            saw_checkpoint = true;
+            continue;
+        }
+        if (k.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &k);
+        if (v.type == WT_CONFIG_ITEM_STRING)
+            WT_CONFIG_PRESERVE_QUOTES(session, &v);
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+    if (!saw_checkpoint)
+        WT_ERR(__wt_buf_catfmt(
+          session, tmp, "checkpoint=%.*s,", (int)new_ckpt->len, new_ckpt->str));
+
+    /*
+     * Match __wt_config_collapse: if we have a trailing comma it's OK — metadata accepts it. Strip
+     * it for cleanliness when present.
+     */
+    if (tmp->size > 0 && ((char *)tmp->data)[tmp->size - 1] == ',')
+        --tmp->size;
+    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, resultp));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
  * __disagg_update_file_meta --
  *     Update an existing file: entry in the local metadata table with checkpoint information from
  *     the shared metadata, then mark stale data handles as outdated.
@@ -361,48 +417,45 @@ static int
 __disagg_update_file_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
 {
-    WT_CONFIG_ITEM cval, cval_cur;
-    WT_DECL_ITEM(metadata_cfg);
+    WT_CONFIG_ITEM cval, cval_cur, new_ckpt;
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    char *cfg_ret, *current_value_copy;
-    const char *cfg[3], *checkpoint_name, *current_value;
+    char *cfg_ret, *current_value_copy, *new_ckpt_copy;
+    const char *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
     bool discard;
 
-    cfg_ret = current_value_copy = NULL;
+    cfg_ret = current_value_copy = new_ckpt_copy = NULL;
     checkpoint_name = NULL;
     discard = false;
+    WT_CLEAR(new_ckpt);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
     WT_ERR(sh_file_cursor->get_key(sh_file_cursor, &sh_file_key));
     WT_ERR(sh_file_cursor->get_value(sh_file_cursor, &metadata_value));
     WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
-    WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)cval.len, cval.str));
+    /* Own shared checkpoint bytes before any other cursor get_value can invalidate them. */
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &new_ckpt_copy));
+    new_ckpt.str = new_ckpt_copy;
+    new_ckpt.len = cval.len;
+    new_ckpt.type = cval.type;
 
     /* Check that the local metadata cursor is positioned at the same key. */
     WT_ERR(md_file_cursor->get_key(md_file_cursor, &md_file_key));
     WT_ASSERT(session, strcmp(md_file_key, sh_file_key) == 0);
 
-    /* Merge the new checkpoint metadata into the current table metadata. */
     WT_ERR(md_file_cursor->get_value(md_file_cursor, &current_value));
-    /* Copy the value since we don't own the memory after calling get_value(). */
+    /* Copy before further cursor ops; also used as discard-check input. */
     WT_ERR(__wt_strdup(session, current_value, &current_value_copy));
-
-    /*
-     * Extract the checkpoint information from the current value and compare it to the new
-     * checkpoint. If they are the same, there is no need to proceed further.
-     */
-    WT_ERR(__wt_config_getones(session, current_value, "checkpoint", &cval_cur));
-    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
+    WT_ERR(__wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur));
+    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, new_ckpt.str, new_ckpt.len) == 0)
         goto err;
 
-    /* Overwrite the checkpoint field in the local metadata with the one from shared storage. */
-    cfg[0] = current_value_copy;
-    cfg[1] = metadata_cfg->data;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+    /*
+     * Only the checkpoint field changes on this path (see FIXME-WT-14730). Rewrite the config in
+     * one pass instead of __wt_config_collapse (which re-searches every key).
+     */
+    WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &new_ckpt, &cfg_ret));
 
     md_file_cursor->set_value(md_file_cursor, cfg_ret);
     WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
@@ -411,7 +464,7 @@ __disagg_update_file_meta(
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"", sh_file_key,
-      (int)cval.len, cval.str);
+      (int)new_ckpt.len, new_ckpt.str);
 
     /*
      * Mark any matching data handles associated with the previous checkpoint to be out of date. Any
@@ -441,9 +494,9 @@ __disagg_update_file_meta(
     WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"", sh_file_key);
 
 err:
-    __wt_scr_free(session, &metadata_cfg);
     __wt_scr_free(session, &old_uri_buf);
     __wt_free(session, current_value_copy);
+    __wt_free(session, new_ckpt_copy);
     __wt_free(session, cfg_ret);
     __wt_free(session, checkpoint_name);
     return (ret);
