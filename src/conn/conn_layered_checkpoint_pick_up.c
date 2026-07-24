@@ -386,6 +386,7 @@ __disagg_update_file_meta(
     /* Copy before further cursor ops; also used as discard-check input. */
     WT_ERR(__wt_strdup(session, current_value, &current_value_copy));
     WT_ERR(__wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur));
+    /* Nothing to do if the local checkpoint already matches the shared one. */
     if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, new_ckpt.str, new_ckpt.len) == 0)
         goto err;
 
