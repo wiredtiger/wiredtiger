@@ -47,12 +47,13 @@ class test_eviction06(wttest.WiredTigerTestCase):
         cursor.close()
 
         for _ in range(10):
-            cursor = self.session.open_cursor(self.uri)
-            self.session.begin_transaction()
-            for i in range(0, 20000, 2):
-                cursor[i] = value
-            self.session.commit_transaction()
-            cursor.close()
+            for start in range(0, 20000, 1000):
+                cursor = self.session.open_cursor(self.uri)
+                self.session.begin_transaction()
+                for i in range(start, start + 1000, 2):
+                    cursor[i] = value
+                self.session.commit_transaction()
+                cursor.close()
 
         self.assertStatGreaterSoon(
             wiredtiger.stat.conn.eviction_server_walk_dominating_cache, 0)
