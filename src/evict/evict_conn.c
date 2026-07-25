@@ -391,18 +391,15 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
             bucket = &bucketset->buckets[j];
             bucket->bucketset = bucketset;
             bucket->id = (uint64_t)j;
-            WT_RET(__wt_spin_init(session, &bucket->evict_queue_lock, "evict bucket queue lock"));
-            TAILQ_INIT(&bucket->evict_queue);
 
             /*
-             * Dirty leaf buckets hold per-tree subqueues in a hashtable, so that eviction can skip
-             * an entire syncing tree instead of walking past its pages one at a time. The chains
-             * are allocated once here and never freed until connection close, so the hot paths only
-             * lock individual chains, never the table.
+             * Every bucket, at every level, holds per-tree subqueues in a hashtable, so that
+             * eviction can skip an entire syncing tree instead of walking past its pages one at a
+             * time, and so that a thread holding a page can remove it via its tree's subqueue lock
+             * without ever contending on a shared bucket lock. The chains are allocated once here
+             * and never freed until connection close, so the hot paths only lock individual chains,
+             * never the table.
              */
-            if (!__evict_level_is_dirty(i))
-                continue;
-
             WT_RET(__wt_calloc(session, evict->dhandle_hash_size,
                                sizeof(WT_EVICT_DHANDLE_HASH_ENTRY), &bucket->pertree_hashtable));
 
@@ -468,7 +465,6 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
                 }
                 __wt_free(session, bucket->pertree_hashtable);
             }
-            __wt_spin_destroy(session, &bucket->evict_queue_lock);
         }
         __wt_free(session, bucketset->buckets);
     }
@@ -600,8 +596,6 @@ __wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *d
     hash_slot = (uint32_t)(dhandle->name_hash % evict->dhandle_hash_size);
 
     for (i = 0; i < WT_EVICT_LEVELS; i++) {
-        if (!__evict_level_is_dirty(i))
-            continue;
         bucketset = &evict->evict_bucketset[i];
 
         for (j = 0; j < (int)bucketset->num_buckets; j++) {

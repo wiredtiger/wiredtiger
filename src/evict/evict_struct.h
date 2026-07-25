@@ -20,12 +20,10 @@ struct __wt_evict_dhandle_subqueue;
 TAILQ_HEAD(__wt_evictbucket_qh, __wt_page);
 
 struct __wt_evict_bucket {
-    WT_SPINLOCK evict_queue_lock;
-    struct __wt_evictbucket_qh evict_queue;
     uint64_t id; /* index in the bucket set */
     struct __wt_evict_bucketset *bucketset;
 
-    /* Buckets in dirty leaf bucketsets contain per-tree queues in a hashtable */
+    /* Every bucket, at every level, holds per-tree queues in a hashtable. */
     struct __wt_evict_dhandle_hash_entry *pertree_hashtable;
 };
 
@@ -79,8 +77,8 @@ struct __wt_evict_page_data {
     struct __wt_data_handle *dhandle;
     struct __wt_evict_bucket *bucket; /* Bucket containing this page */
     /*
-     * The per-tree subqueue containing this page, or NULL if the page is not in a subqueue (it is
-     * either unqueued, or queued in a flat bucket at a level that does not use subqueues).
+     * The per-tree subqueue containing this page, or NULL if the page is not currently queued.
+     * Every level uses subqueues now, so a queued page is always in one.
      *
      * This is a cache of the subqueue that would otherwise be located by hashing the dhandle and
      * walking the bucket's hash chain. It lets a caller holding the page go straight to the

@@ -1409,12 +1409,12 @@ __evict_get_ref(
                 break;
             bucket = &bucketset->buckets[j];
 
-              /*
-             * Dirty leaf buckets hold one queue per tree, in a hashtable. Walk each hash chain
-             * under its own lock. Skipping a syncing tree costs a single check for the whole tree,
-             * rather than one check per page as it would in a flat queue.
+            /*
+             * Every bucket holds one queue per tree, in a hashtable. Walk each hash chain under
+             * its own lock. Skipping a syncing tree costs a single check for the whole tree, rather
+             * than one check per page as it would in a flat queue.
              */
-            if (__evict_level_is_dirty((int)i)) {
+            {
                 WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
                 WT_EVICT_DHANDLE_SUBQUEUE *subq;
                 const char *subq_name;
@@ -1438,8 +1438,10 @@ __evict_get_ref(
                     }
 
                     TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq) {
-                        if (TAILQ_EMPTY(&subq->evict_queue))
+                        if (TAILQ_EMPTY(&subq->evict_queue)) {
+							WT_STAT_CONN_INCR(session, eviction_empty_subqueue);
                             continue;
+						}
                         if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
                             __wt_verbose_debug2(session, WT_VERB_EVICTION,
@@ -1514,36 +1516,7 @@ __evict_get_ref(
 next_slot:
                     continue;
                 }
-                continue; /* Next bucket. */
             }
-
-            /* All other levels keep a single flat queue per bucket. */
-            if (__wt_spin_trylock(session, &bucket->evict_queue_lock) == EBUSY) {
-                WT_STAT_CONN_INCR(session, eviction_skip_page_locked_bucket);
-                continue;
-            }
-
-#if LRU_FOR_READS
-            if (iter > 0 && i == WT_EVICT_LEVEL_CLEAN_LEAF)
-                __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, bucketset->bucket_last_considered + iter);
-#endif
-
-            if (TAILQ_EMPTY(&bucket->evict_queue))
-                WT_STAT_CONN_INCR(session, eviction_skip_empty_bucket);
-
-            ref = __evict_scan_queue(
-              session, &bucket->evict_queue, i, false, btreep, &previous_state);
-            if (ref != NULL) {
-                TAILQ_REMOVE(&bucket->evict_queue, ref->page, evict_data.evict_q);
-                ref->page->evict_data.bucket = NULL;
-                /* A page in a flat bucket queue is never in a subqueue. */
-                WT_ASSERT(session, ref->page->evict_data.subq == NULL);
-                __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
-            }
-            __wt_spin_unlock(session, &bucket->evict_queue_lock);
-
-            if (ref != NULL)
-                goto done;
         }
     }
   done:
@@ -1873,20 +1846,16 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
     bucketset = page->evict_data.bucket->bucketset;
 
     /*
-     * If the page is in one of the dirty leaf buckets, it would have to be
-     * removed from its tree's subqueue.
+     * Every level uses per-tree subqueues. The page caches the subqueue it was enqueued into, so
+     * we go straight to it: no hash computation, no chain walk, and no hash chain lock.
+     *
+     * This is safe because we hold the ref locked, so nobody else can be removing this page
+     * concurrently, and the subqueue cannot be freed while a page is still linked into it (see the
+     * comment on evict_data.subq).
      */
-    if (__evict_level_is_dirty((int)bucketset->level)) {
+    {
         WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;
 
-        /*
-         * The page caches the subqueue it was enqueued into, so we go straight to it: no hash
-         * computation, no chain walk, and no hash chain lock.
-         *
-         * This is safe because we hold the ref locked, so nobody else can be removing this page
-         * concurrently, and the subqueue cannot be freed while a page is still linked into it (see
-         * the comment on evict_data.subq).
-         */
         dhandle_subqueue = page->evict_data.subq;
         WT_ASSERT(session, dhandle_subqueue != NULL);
         WT_ASSERT(session, dhandle_subqueue->dhandle == page->evict_data.dhandle);
@@ -1895,15 +1864,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
         TAILQ_REMOVE(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
         page->evict_data.subq = NULL;
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
-    } else {
-        /* A page in a flat bucket queue is never in a subqueue. */
-        WT_ASSERT(session, page->evict_data.subq == NULL);
-
-        __wt_spin_lock(session, &page->evict_data.bucket->evict_queue_lock);
-        TAILQ_REMOVE(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
-        __wt_spin_unlock(session, &page->evict_data.bucket->evict_queue_lock);
-
-        bucketset = page->evict_data.bucket->bucketset;
     }
     __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
     page->evict_data.bucket = NULL;
@@ -1969,11 +1929,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Get the right bucketset for this page */
     bucketset = bucket->bucketset;
 
-    /*
-     * If the page is in one of the dirty leaf buckets, it would have to be
-     * added to its tree's subqueue.
-     */
-    if (__evict_level_is_dirty((int)bucketset->level)) {
+    /* Every level uses per-tree subqueues, so add the page to its tree's subqueue. */
+    {
         WT_EVICT *evict;
         WT_EVICT_DHANDLE_SUBQUEUE *dhandle_subqueue;
         WT_EVICT_DHANDLE_HASH_ENTRY *dhandle_hashentry;
@@ -2064,14 +2021,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
           "subq ENQ    tree=%s bucket_id=%" PRIu64 " slot=%d level=%d",
           page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
                             bucket->id, hash_slot, (int)bucketset->level);
-
-
-    } else {
-        __wt_spin_lock(session, &bucket->evict_queue_lock);
-        TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
-        /* Levels without subqueues use the flat bucket queue: the page is in no subqueue. */
-        page->evict_data.subq = NULL;
-        __wt_spin_unlock(session, &bucket->evict_queue_lock);
     }
     page->evict_data.bucket = bucket;
     __wt_atomic_add_uint64(&bucketset->bucketset_num_items, 1);
