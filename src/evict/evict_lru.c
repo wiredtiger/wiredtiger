@@ -1210,11 +1210,23 @@ static WT_INLINE u_int
 __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
 {
     u_int n;
-    (void) checkpoint_running;
     n = 0;
+
+    /*
+     * Internal pages are normally not scheduled for eviction, with the exception of dirty pages
+     * during checkpoint (see above). Internal pages don't contribute to cache resident bytes counts
+     * used for computing thresholds and evicting them does not alleviate the pressure or unblock
+     * application workers. Checkpoint or forced eviction will take care of them if needed.
+     */
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         levels[n++] = WT_EVICT_LEVEL_WONT_NEED_DIRTY_LEAF;
         levels[n++] = WT_EVICT_LEVEL_DIRTY_LEAF;
+        /*
+         * When the checkpoint is running we allow limited eviction
+         * of internal pages, because this shortens the checkpoint.
+         * We help the checkpoint reconcile internal pages, even though
+         * evicting internal pages does not reduce dirty bytes count.
+         */
         if (checkpoint_running)
             levels[n++] = WT_EVICT_LEVEL_DIRTY_INTERNAL;
     }
@@ -1225,11 +1237,6 @@ __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         levels[n++] = WT_EVICT_LEVEL_UPDATES_LEAF;
     }
-    /*
-     * Internal pages are never scheduled for eviction. They don't contribute to cache
-     * pressure counts and evicting them does not alleviate the pressure or unblock workers.
-     * Checkpoint or forced eviction will take care of them if needed.
-     */
 
     return (n);
 }
