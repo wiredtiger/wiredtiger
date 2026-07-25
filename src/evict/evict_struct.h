@@ -12,9 +12,16 @@ struct __wt_evict_bucketset;
 struct __wt_evict_dhandle_hash_entry;
 struct __wt_evict_dhandle_subqueue;
 
+/*
+ * Head type for a queue of pages held in an eviction bucket or a per-tree subqueue. Defined once
+ * here so that both __wt_evict_bucket and __wt_evict_dhandle_subqueue can share the same type
+ * (both are passed to __evict_scan_queue()).
+ */
+TAILQ_HEAD(__wt_evictbucket_qh, __wt_page);
+
 struct __wt_evict_bucket {
     WT_SPINLOCK evict_queue_lock;
-    TAILQ_HEAD(__wt_evictbucket_qh, __wt_page) evict_queue;
+    struct __wt_evictbucket_qh evict_queue;
     uint64_t id; /* index in the bucket set */
     struct __wt_evict_bucketset *bucketset;
 
@@ -138,7 +145,7 @@ struct __wt_evict_dhandle_subqueue {
     struct __wt_data_handle *dhandle; /* Dhandle owning this queue */
     TAILQ_ENTRY(__wt_evict_dhandle_subqueue) dhandle_subq;
 	WT_SPINLOCK evict_queue_lock;
-    TAILQ_HEAD(__wt_evictbucket_qh, __wt_page) evict_queue; /* Pages in this queue */
+    struct __wt_evictbucket_qh evict_queue; /* Pages in this queue */
 };
 
 /*
