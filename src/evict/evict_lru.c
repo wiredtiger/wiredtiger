@@ -1243,6 +1243,27 @@ __evict_eligible_levels(WT_EVICT *evict, u_int *levels, bool checkpoint_running)
 
 
 /*
+ * __evict_hashchain_next --
+ *     Advance to the next subqueue in a bucket's hash chain, wrapping once at the tail, so that a
+ *     walk which started in the middle of the chain still visits every entry exactly once. Returns
+ *     NULL when the walk arrives back at its starting point. The chain lock must be held across the
+ *     whole walk, including this call.
+ */
+static WT_INLINE WT_EVICT_DHANDLE_SUBQUEUE *
+__evict_hashchain_next(WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry, WT_EVICT_DHANDLE_SUBQUEUE *subq,
+  WT_EVICT_DHANDLE_SUBQUEUE *start, bool *wrappedp)
+{
+    subq = TAILQ_NEXT(subq, dhandle_subq);
+    if (subq == NULL) {
+        if (*wrappedp)
+            return (NULL);
+        *wrappedp = true;
+        subq = TAILQ_FIRST(&hash_entry->dhandle_hashchain);
+    }
+    return (subq == start ? NULL : subq);
+}
+
+/*
  * __evict_get_ref --
  *     Get a page for eviction. The returned page is locked. It will be unlocked by the function
  *     that tries to evict it from memory if eviction fails. The ref remains in its evict bucket. It
@@ -1416,13 +1437,23 @@ __evict_get_ref(
              */
             {
                 WT_EVICT_DHANDLE_HASH_ENTRY *hash_entry;
-                WT_EVICT_DHANDLE_SUBQUEUE *subq;
+                WT_EVICT_DHANDLE_SUBQUEUE *subq, *subq_start;
                 const char *subq_name;
-                uint32_t slot;
+                uint32_t chain_len, chain_skip, slot, slot_iter, slot_start;
+                bool wrapped;
 
                 WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
-                for (slot = 0; slot < evict->dhandle_hash_size; slot++) {
+                /*
+                 * Start the sweep at a random slot. A tree lives in the slot its name hashes to, so
+                 * sweeping from slot zero examines trees in a fixed order in every bucket, on every
+                 * pass, by every thread: whichever tree occupies the lowest populated slot is
+                 * drained first and the others are only reached when it has nothing to give. That
+                 * is a per-tree bias, not a per-page one, and it does not average out.
+                 */
+                slot_start = __wt_random(&session->rnd_random) % evict->dhandle_hash_size;
+                for (slot_iter = 0; slot_iter < evict->dhandle_hash_size; slot_iter++) {
+                    slot = (slot_start + slot_iter) % evict->dhandle_hash_size;
                     hash_entry = &bucket->pertree_hashtable[slot];
 
                     /* Unlocked hint: an empty chain has nothing to evict. Racy but safe — a
@@ -1437,7 +1468,31 @@ __evict_get_ref(
                         continue;
                     }
 
-                    TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq) {
+                    /*
+                     * Trees that collide in a slot share a chain, and the chain is in insert order,
+                     * so the head would otherwise be scanned first every time. Enter the chain at a
+                     * uniformly random offset instead; the walk below wraps, so every tree in the
+                     * chain is still considered. A chain holds one entry per open tree that hashed
+                     * to this slot, so measuring it is a short pointer chase.
+                     *
+                     * The chain can also have emptied between the unlocked hint above and taking
+                     * the lock, if a closing dhandle unlinked its subqueue.
+                     */
+                    chain_len = 0;
+                    TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq)
+                        ++chain_len;
+                    if (chain_len == 0) {
+                        __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
+                        continue;
+                    }
+
+                    subq_start = TAILQ_FIRST(&hash_entry->dhandle_hashchain);
+                    for (chain_skip = __wt_random(&session->rnd_random) % chain_len; chain_skip > 0;
+                         chain_skip--)
+                        subq_start = TAILQ_NEXT(subq_start, dhandle_subq);
+
+                    for (subq = subq_start, wrapped = false; subq != NULL;
+                         subq = __evict_hashchain_next(hash_entry, subq, subq_start, &wrapped)) {
                         if (TAILQ_EMPTY(&subq->evict_queue)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_empty_subqueue);
                             continue;
