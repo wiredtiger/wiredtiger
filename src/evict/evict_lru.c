@@ -1439,9 +1439,9 @@ __evict_get_ref(
 
                     TAILQ_FOREACH (subq, &hash_entry->dhandle_hashchain, dhandle_subq) {
                         if (TAILQ_EMPTY(&subq->evict_queue)) {
-							WT_STAT_CONN_INCR(session, eviction_empty_subqueue);
+                            WT_STAT_CONN_INCR(session, eviction_skip_empty_subqueue);
                             continue;
-						}
+                        }
                         if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
                             __wt_verbose_debug2(session, WT_VERB_EVICTION,
