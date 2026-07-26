@@ -138,4 +138,4 @@ class test_disagg_fast_truncate02(wttest.WiredTigerTestCase):
         ts = self.timestamp_str(self.visible_ts)
         self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
 
-        self.verifyUntilSuccess(self.session, self.uri, config=None)
+        self.verifyUntilSuccess(self.session, self.uri)
