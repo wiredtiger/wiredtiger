@@ -1211,12 +1211,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     return (0);
 }
 
-/*
- * The snapshot eviction set up for reconciliation to read under, and how it must be torn down once
- * reconciliation is done.
- */
+/* The snapshot eviction set up for reconciliation to read under. */
 typedef struct {
-    bool release;        /* Drop the snapshot: eviction acquired or borrowed it. */
+    bool release;        /* Drop the snapshot when done: eviction acquired or copied it. */
     bool restore;        /* Restore the application thread's own saved snapshot. */
     bool read_committed; /* Reconcile under read-committed isolation. */
 } WT_EVICT_SNAPSHOT;
@@ -1267,8 +1264,10 @@ static void
 __evict_snapshot_teardown(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *snap)
 {
     /*
-     * Restoring the application thread's saved snapshot overwrites whatever snapshot eviction read
-     * under, so there is nothing left to release in that case.
+     * A refreshed application-thread snapshot is restored to the original; an eviction worker's
+     * snapshot or a copied checkpoint snapshot is dropped. Restoring the application thread's saved
+     * snapshot overwrites whatever snapshot eviction read under, so there is nothing left to
+     * release in that case.
      */
     if (snap->restore)
         __wt_txn_snapshot_release_and_restore(session);
@@ -1279,8 +1278,8 @@ __evict_snapshot_teardown(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *snap)
 
 /*
  * __evict_snapshot_setup --
- *     Set up the visibility snapshot reconciliation will use for this eviction, adding the
- *     appropriate reconciliation flags and recording how the snapshot must be torn down.
+ *     Set up the visibility snapshot reconciliation will use for this eviction, using
+ *     reconciliation flags to record how the snapshot must be torn down.
  */
 static int
 __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAPSHOT *snap)
@@ -1303,7 +1302,7 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
 
     /*
      * The published checkpoint snapshot is only a valid visibility bound for trees the checkpoint
-     * hasn't visited yet; a tree it has already written must not gain newer content.
+     * hasn't visited yet. A tree it has already written must not gain newer content.
      */
     unvisited_by_ckpt = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen) <
       __wt_gen(session, WT_GEN_CHECKPOINT);
@@ -1347,8 +1346,8 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
         snap->read_committed = true;
     } else if (app_thread_eviction && ckpt_snap_usable) {
         /*
-         * Under precise checkpoint, borrow the published checkpoint snapshot as the visibility
-         * bound so checkpoint can skip re-reconciling the page later. Only do so for a read-only
+         * Under precise checkpoint, copy the published checkpoint snapshot as the visibility bound
+         * so checkpoint can skip re-reconciling the page later. Only do so for a read-only
          * transaction: reconciling under the checkpoint snapshot would treat the thread's own
          * uncommitted updates as invisible and write the update chain out, corrupting a later
          * commit or rollback.
@@ -1487,6 +1486,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (ret != 0)
         WT_STAT_CONN_INCR(session, eviction_fail_in_reconciliation);
 
+    /* Tear down the snapshot we set up. */
     __evict_snapshot_teardown(session, &snap);
 
     WT_RET(ret);
