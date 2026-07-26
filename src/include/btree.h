@@ -350,6 +350,7 @@ struct __wt_btree {
     wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;
     uint32_t last_evict_walk_flags; /* A copy of the cache flags from the prior walk */
+    bool evict_walk_dominating;     /* Current walk overrode the walk period */
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;

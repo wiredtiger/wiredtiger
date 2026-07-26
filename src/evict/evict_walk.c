@@ -333,7 +333,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
-    uint32_t evict_walk_period;
+    uint32_t evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool aggressive, dhandle_list_locked;
@@ -490,30 +490,41 @@ retry:
          * is particularly important for disaggregated connections, where we are using
          * WT_EVICT_MODIFY_COUNT_MIN and WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD values to change the
          * priority for this heuristic.
+         *
+         * Compare only the dimensions being evicted. The remaining flags track pressure levels and
+         * the urgent queue, which turn over almost every pass, and resetting on those would leave
+         * no effectiveness history at all.
          */
-        if (btree->last_evict_walk_flags != evict->flags) {
+        evict_walk_flags = evict->flags & WT_EVICT_CACHE_ALL;
+        if (btree->last_evict_walk_flags != evict_walk_flags) {
             __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, 0);
-            btree->last_evict_walk_flags = evict->flags;
+            btree->last_evict_walk_flags = evict_walk_flags;
         }
 
         /*
          * If we are filling the queue, skip files that haven't been useful in the past. The walk
          * period only records that previous walks found few candidates, not what the tree holds
          * now: if the tree dominates the cache usage for a dimension eviction is currently
-         * targeting, skipping it can stall eviction entirely, so walk it regardless. Exclude the
-         * dirty dimension: a dirty-dominating tree being checkpointed cannot queue modified pages,
-         * so re-walking it would spin without progress.
+         * targeting, skipping it can stall eviction entirely, so walk it regardless.
+         *
+         * Two restrictions keep that override from becoming a treadmill on a tree that cannot give
+         * up pages. The dirty dimension is excluded because a dirty-dominating tree is usually the
+         * one being checkpointed, and every modified page in a syncing tree is rejected. A
+         * saturated walk period is excluded because it means many consecutive walks of this tree
+         * came up short, so the tree's size is not translating into candidates.
          */
         evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
+        btree->evict_walk_dominating = false;
         if (evict_walk_period != 0 && btree->evict_walk_skips++ < evict_walk_period) {
-            if (__evict_btree_dominating_cache(
-                  session, btree, evict->flags & (WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)))
-                WT_STAT_CONN_INCR(session, eviction_server_walk_dominating_cache);
-            else {
+            if (evict_walk_period >= WTI_EVICT_WALK_PERIOD_MAX ||
+              !__evict_btree_dominating_cache(session, btree,
+                evict_walk_flags & (WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES))) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
                 __evict_disagg_btree_skip_count(session, btree);
                 continue;
             }
+            btree->evict_walk_dominating = true;
+            WT_STAT_CONN_INCR(session, eviction_server_walk_dominating_cache);
         }
 
         /*
@@ -1419,11 +1430,18 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
       "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
       target_pages, pages_seen, pages_queued);
 
+    /*
+     * A walk that only happened because the tree dominates the cache and queued nothing is the cost
+     * of that override, so track it separately.
+     */
+    if (btree->evict_walk_dominating && pages_queued == 0)
+        WT_STAT_CONN_INCR(session, eviction_server_walk_dominating_cache_unproductive);
+
     /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
     evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
     if (pages_queued < target_pages / 2 && !urgent_queued)
-        __wt_atomic_store_uint32_relaxed(
-          &btree->evict_walk_period, WT_MIN(WT_MAX(1, 2 * evict_walk_period), 100));
+        __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period,
+          WT_MIN(WT_MAX(1, 2 * evict_walk_period), WTI_EVICT_WALK_PERIOD_MAX));
     else if (pages_queued == target_pages) {
         __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, 0);
         /*
