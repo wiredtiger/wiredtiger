@@ -87,7 +87,7 @@ __curstat_table_size(WT_SESSION_IMPL *session, const char *uri, int64_t *sizep)
      */
     WT_ERR(__wt_config_getones(session, tableconf, "columns", &colconf));
     __wt_config_subinit(session, &cparser, &colconf);
-    if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+    if (__wt_config_next(&cparser, &ckey, &cval) == 0) {
         ret = WT_NOTFOUND;
         goto err;
     }
