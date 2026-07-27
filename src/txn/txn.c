@@ -213,7 +213,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t current_id, id, pinned_checkpoint_lsn, pinned_id, prev_oldest_id, snapshot_gen;
     uint32_t i, n, session_cnt;
-    bool pin_checkpoint;
+    bool pin_checkpoint, record_disagg;
 
     conn = S2C(session);
     txn = session->txn;
@@ -235,32 +235,44 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
     /*
-     * Record the newest adopted checkpoint before building the snapshot, and validate it
-     * afterwards, retrying the build if a pickup landed in between: the retried snapshot postdates
-     * the adoption, so the transaction reads consistently instead of being refused at its first
-     * stable open. Loading before and validating after brackets the snapshot, so it can never pin a
-     * checkpoint adopted after it was built. Timestamped readers are excluded: they stay consistent
+     * Record the disaggregated state the snapshot is consistent with before building it, and
+     * validate it afterwards, retrying the build on a change: the retried snapshot postdates the
+     * change, so the transaction reads consistently instead of being refused at its first stable
+     * open. Loading before and validating after brackets the snapshot, so it can never pin state
+     * that changed after it was built. Timestamped readers are excluded: they stay consistent
      * through the history store regardless of which checkpoint they read.
      */
-    pin_checkpoint = update_shared_state && __wt_conn_is_disagg(session) &&
+    record_disagg = update_shared_state && __wt_conn_is_disagg(session) &&
       txn_shared->read_timestamp == WT_TS_NONE;
 
 retry:
     n = 0;
-    if (pin_checkpoint) {
+    pin_checkpoint = false;
+    if (record_disagg) {
         txn->disagg_role_gen =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
         /*
+         * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
+         * stable table is written with local transaction ids and needs no pin, and its own
+         * checkpoints advance the published LSN, so pinning would rebuild every snapshot that
+         * overlaps a checkpoint completion. A snapshot from before a step-down is left unpinned and
+         * refused if it binds checkpoint content afterwards.
+         *
          * Pin the newest checkpoint received, even if its adoption is still in progress: arrival
          * implies its content is already replayed into the ingest tables, so this snapshot covers
          * it. Until the adoption completes, the pin is simply newer than anything the stable can
          * bind, which is always safe.
          */
-        pinned_checkpoint_lsn = WT_MAX(
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
-          __wt_atomic_load_uint64_acquire(
-            &conn->disaggregated_storage.pending_checkpoint_meta_lsn));
-        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, pinned_checkpoint_lsn + 1);
+        pin_checkpoint = !conn->layered_table_manager.leader;
+        if (pin_checkpoint) {
+            pinned_checkpoint_lsn = WT_MAX(__wt_atomic_load_uint64_acquire(
+                                             &conn->disaggregated_storage.last_checkpoint_meta_lsn),
+              __wt_atomic_load_uint64_acquire(
+                &conn->disaggregated_storage.pending_checkpoint_meta_lsn));
+            __wt_atomic_store_uint64_release(
+              &txn_shared->disagg_pinned_lsn, pinned_checkpoint_lsn + 1);
+        } else
+            __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, 0);
     }
 
     /* We're going to scan the table: wait for the lock. */
@@ -357,13 +369,15 @@ done:
      * to releasing the snapshot and acquiring a new one before anything was read under it, and the
      * published pinned id and checkpoint pin only ever move forward.
      */
-    if (pin_checkpoint &&
-      (WT_MAX(
-         __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
-         __wt_atomic_load_uint64_acquire(
-           &conn->disaggregated_storage.pending_checkpoint_meta_lsn)) != pinned_checkpoint_lsn ||
-        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
-          txn->disagg_role_gen)) {
+    if (record_disagg &&
+      (__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
+          txn->disagg_role_gen ||
+        (pin_checkpoint &&
+          WT_MAX(
+            __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
+            __wt_atomic_load_uint64_acquire(
+              &conn->disaggregated_storage.pending_checkpoint_meta_lsn)) !=
+            pinned_checkpoint_lsn))) {
         WT_STAT_CONN_INCR(session, disagg_snapshot_pin_retry);
         goto retry;
     }
