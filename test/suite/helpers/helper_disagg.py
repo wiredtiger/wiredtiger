@@ -808,6 +808,11 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         return 'file:' + tablename + '.wt_stable'
 
+    def ingest_uri(self, uri):
+        """Return the ingest component URI for a given layered table URI."""
+        tablename = uri[len('layered:'):]
+        return 'file:' + tablename + '.wt_ingest'
+
     def uri_in_shared_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in the shared metadata table."""
         session = conn.open_session('')
@@ -819,14 +824,16 @@ class DisaggSchemaEpochMixin:
         return found
 
     def uri_in_local_metadata(self, conn, uri):
-        """Return True if uri is present in conn's local metadata."""
+        """Return True if uri's ingest constituent is present in conn's local metadata."""
         session = conn.open_session('')
-        cursor = session.open_cursor('metadata:')
-        cursor.set_key(uri)
-        found = cursor.search() == 0
-        cursor.close()
+        exists = True
+        try:
+            c = session.open_cursor(self.ingest_uri(uri))
+            c.close()
+        except wiredtiger.WiredTigerError:
+            exists = False
         session.close()
-        return found
+        return exists
 
     def open_follower(self):
         """Open a follower, pick up the latest leader checkpoint, and open a session on it."""
