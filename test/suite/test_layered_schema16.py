@@ -26,21 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A table created and dropped at or below the stable schema epoch and recreated above it stays
-# unpublished until the stable schema epoch reaches the recreate. Writing stable data to the
-# recreate and checkpointing before then is an API violation: the checkpoint would include the
-# stable constituent of an unpublished table. Publication is decided from the table's latest
-# create/remove, so the stale earlier create no longer publishes the recreate, and the checkpoint
-# panics with the protocol violation instead of silently leaking the table into shared metadata.
+# Publication of a disaggregated table is decided from its latest create/remove. These tests
+# exercise that decision across create, drop, and recreate sequences.
 
-import os
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
-from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema16(wttest.WiredTigerTestCase, suite_subprocess, DisaggSchemaEpochMixin):
+class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
@@ -51,56 +45,109 @@ class test_layered_schema16(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def subprocess_recreate_above_stable_epoch_panics(self):
-        """
-        Subprocess body: run the create/drop/recreate-above-epoch sequence and checkpoint the
-        recreate's stable data while it is still unpublished. This must panic.
-        """
-        self.conn.set_timestamp(
-            'stable_timestamp=' + self.timestamp_str(1) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(1)
-
-        # Create and publish the table at epoch 2, checkpoint so it is durable.
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 2)
-        self.leader_checkpoint(2)
-
-        # Drop and publish the drop at epoch 3, checkpoint so the removal is durable.
-        self.session.drop(self.uri)
-        self.publish(self.uri, 3)
-        self.leader_checkpoint(3)
-
-        # Recreate at epoch 9 (above the stable schema epoch set below) and write a row.
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 9)
+    def write_unstable_row(self):
+        """Write a row at timestamp 10, above the stable timestamp used by these tests."""
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cursor[1] = 'value'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         cursor.close()
 
-        # Advance the stable schema epoch to 5, between the drop (3) and the recreate (9), then
-        # checkpoint. The recreate is still unpublished at epoch 5, so checkpointing its stable
-        # data is a protocol violation and panics.
-        self.set_stable_epoch(5)
-        self.leader_checkpoint(10)
-
-    def test_recreate_above_stable_epoch_panics(self):
+    def test_recreate_above_stable_epoch_not_resurrected(self):
         """
-        Checkpointing stable data for a recreate that is still unpublished at the stable schema
-        epoch panics rather than silently leaking the table into shared metadata.
+        A table dropped at or below the stable schema epoch and recreated above it must not survive
+        recovery. The recreate stays unpublished, so its stable constituent is never written to
+        shared metadata and the dropped table stays absent.
         """
-        # The parent connection does no work here, but precise checkpoint requires a stable
-        # timestamp for its shutdown checkpoint to succeed.
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
 
-        [returncode, home] = self.run_subprocess_function(
-            'SUBPROCESS_recreate_above_stable_epoch_panics',
-            f'{self.test_name}.{self.test_name}.subprocess_recreate_above_stable_epoch_panics',
-            silent=True)
-        self.assertNotEqual(returncode, 0)
-        self.check_file_contains(os.path.join(home, 'stderr.txt'),
-            'stable data checkpointed for unpublished table')
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 2)
+        self.session.drop(self.uri)
+        self.publish(self.uri, 3)
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 9)
+        self.write_unstable_row()
+
+        # The recreate is above the stable schema epoch and its data is unstable, so the checkpoint
+        # holds it in memory rather than writing it to shared metadata.
+        self.set_stable_epoch(5)
+        self.leader_checkpoint(5)
+        self.restart_without_local_files(step_up=True)
+
+        # A recovered leader re-establishes its stable timestamp before it can checkpoint again.
+        self.conn.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(5) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+
+        # The latest schema operation at or below the durable epoch (5) is the drop at epoch 3, so
+        # the table must be absent. Before the fix the recreate leaked into shared and returned.
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+
+    def test_unpublished_table_holds_unstable_data(self):
+        """
+        An unpublished table may legitimately hold unstable data. The checkpoint keeps it in memory
+        rather than writing it to shared metadata, and does not raise the unpublished-table
+        violation.
+        """
+        self.conn.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+
+        # Publish at epoch 9, above the stable schema epoch, so the table stays unpublished.
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 9)
+        self.write_unstable_row()
+
+        self.leader_checkpoint(5)
+
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+
+    def test_create_then_drop_not_published(self):
+        """
+        A table created and dropped at or below the stable schema epoch nets out to dropped: its
+        latest operation is a remove, so it is not written to shared metadata.
+        """
+        self.conn.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 2)
+        self.session.drop(self.uri)
+        self.publish(self.uri, 3)
+
+        self.set_stable_epoch(5)
+        self.leader_checkpoint(5)
+
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+
+    def test_recreate_publishes_latest_create(self):
+        """
+        A table created, dropped, and recreated publishes on the latest create once the stable
+        schema epoch reaches it. The stale earlier create does not interfere.
+        """
+        self.conn.set_timestamp(
+            'stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 2)
+        self.session.drop(self.uri)
+        self.publish(self.uri, 3)
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 9)
+        self.write_unstable_row()
+
+        # The stable schema epoch now reaches the recreate (9) and the stable timestamp covers its
+        # data, so the recreate is published to shared metadata.
+        self.set_stable_epoch(9)
+        self.leader_checkpoint(10)
+
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
