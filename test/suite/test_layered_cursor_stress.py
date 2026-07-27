@@ -440,7 +440,8 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
         # reads: reconciliation drops entries below the prune timestamp (already in stable) and keeps
         # fresher ones. This is the production lifecycle that drives the follower to read from stable.
         ingest_uri = 'file:' + node.dsc_uri[len('layered:'):] + '.wt_ingest'
-        evict_cursor = node.session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
+        debug_session = node.conn.open_session('debug=(allow_internal_access=true)')
+        evict_cursor = debug_session.open_cursor(ingest_uri, None, 'debug=(release_evict)')
         try:
             for key in list(self.state.py_table):
                 evict_cursor.set_key(key)
@@ -448,6 +449,7 @@ class test_layered_cursor_stress(wttest.WiredTigerTestCase):
                     evict_cursor.reset()
         finally:
             evict_cursor.close()
+            debug_session.close()
 
     # --- read application + comparison -----------------------------------
 

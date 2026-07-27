@@ -68,11 +68,13 @@ class test_layered_schema08(checkpoint_util):
         return uris
 
     def check_shared_metadata(self, expect_contains=None, expect_missing=None):
-        cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
         metadata = {}
         while cursor.next() == 0:
             metadata[cursor.get_key()] = cursor.get_value()
         cursor.close()
+        debug_session.close()
         for uri in (expect_contains or []):
             self.assertIn(uri, metadata)
         for uri in (expect_missing or []):

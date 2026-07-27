@@ -85,9 +85,11 @@ class test_disagg_checkpoint_size17(DisaggSizeTestMixin, wttest.WiredTigerTestCa
         # Opening a checkpoint cursor on the stable file routes through the
         # btree open path. That path must NOT store the historical ckpt.size
         # into the block state shared with the live writer.
-        ckpt_c = self.session.open_cursor(self.stable_uri, None,
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        ckpt_c = debug_session.open_cursor(self.stable_uri, None,
                                           'checkpoint=WiredTigerCheckpoint')
         ckpt_c.close()
+        debug_session.close()
 
         # Force evictions that subtract cookie bytes via the post-reconciliation
         # chain discard. If the running total had been clobbered by the

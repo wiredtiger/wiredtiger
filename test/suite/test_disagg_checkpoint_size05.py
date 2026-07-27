@@ -59,16 +59,20 @@ class test_disagg_checkpoint_size05(wttest.WiredTigerTestCase):
 
     # Read block_size from a statistics cursor using the slow path that opens the dhandle.
     def get_block_size_slow(self):
-        cstat = self.session.open_cursor('statistics:' + self.stable_uri, None, 'statistics=(all)')
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cstat = debug_session.open_cursor('statistics:' + self.stable_uri, None, 'statistics=(all)')
         sz = cstat[stat.dsrc.block_size][2]
         cstat.close()
+        debug_session.close()
         return sz
 
     # Read block_size via statistics=(size) using the fast path that reads directly from metadata.
     def get_block_size_fast(self):
-        cstat = self.session.open_cursor('statistics:' + self.stable_uri, None, 'statistics=(size)')
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cstat = debug_session.open_cursor('statistics:' + self.stable_uri, None, 'statistics=(size)')
         sz = cstat[stat.dsrc.block_size][2]
         cstat.close()
+        debug_session.close()
         return sz
 
     # Read the checkpoint size out of the raw metadata string (ground truth).

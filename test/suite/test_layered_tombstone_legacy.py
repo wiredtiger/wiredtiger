@@ -64,11 +64,13 @@ class test_layered_tombstone_legacy(wttest.WiredTigerTestCase):
 
         # Write the raw tombstone bytes straight into the stable constituent, bypassing the layered
         # encoding a normal write would apply.
-        c = self.session.open_cursor(self.stable_uri)
-        self.session.begin_transaction()
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        c = debug_session.open_cursor(self.stable_uri)
+        debug_session.begin_transaction()
         c['k'] = b'\x14\x14'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        debug_session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         c.close()
+        debug_session.close()
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()

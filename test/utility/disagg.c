@@ -145,7 +145,8 @@ testutil_disagg_preserve(WT_CONNECTION *conn, const char *subdir, uint64_t read_
      * transactions on a separate session: beginning a transaction on a session that still has the
      * metadata cursor positioned trips an assertion in __wt_session_copy_values.
      */
-    testutil_check(conn->open_session(conn, NULL, NULL, &read_session));
+    testutil_check(
+      conn->open_session(conn, NULL, "debug=(allow_internal_access=true)", &read_session));
     WT_CLEAR(dest_dir);
     WT_CLEAR(from_uri);
     WT_CLEAR(to_uri);
