@@ -226,7 +226,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    pinned_checkpoint_lsn = 0;
+    pinned_checkpoint_lsn = WT_DISAGG_LSN_NONE;
 
     /* Fast path if we already have the current snapshot. */
     if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {

@@ -929,7 +929,7 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
         return;
     __wt_free(session, disagg->deferred_checkpoint_meta);
     disagg->deferred_checkpoint_meta = NULL;
-    disagg->deferred_checkpoint_lsn = 0;
+    disagg->deferred_checkpoint_lsn = WT_DISAGG_LSN_NONE;
     disagg->deferred_checkpoint_time_ms = 0;
 }
 

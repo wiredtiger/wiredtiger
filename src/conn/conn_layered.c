@@ -1033,7 +1033,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     /* A leader never adopts checkpoints: discard a pending deferred pickup. */
     __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
-    __wt_atomic_store_uint64_release(&conn->disaggregated_storage.pending_checkpoint_meta_lsn, 0);
+    __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.pending_checkpoint_meta_lsn, WT_DISAGG_LSN_NONE);
 
     /*
      * If the newest picked-up checkpoint predates the write generation high-water mark in the
