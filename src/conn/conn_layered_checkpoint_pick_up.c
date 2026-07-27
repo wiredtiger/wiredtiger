@@ -1026,8 +1026,10 @@ __wti_disagg_deferred_pickup_server_create(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_open_internal_session(
       conn, "disagg-pickup-server", false, 0, 0, &disagg->deferred_pickup_session));
-    WT_RET(__wt_cond_alloc(
-      disagg->deferred_pickup_session, "disagg deferred pickup", &disagg->deferred_pickup_cond));
+    /* The condition variable survives a server stop: see the comment in the destroy function. */
+    if (disagg->deferred_pickup_cond == NULL)
+        WT_RET(__wt_cond_alloc(disagg->deferred_pickup_session, "disagg deferred pickup",
+          &disagg->deferred_pickup_cond));
     WT_RET(__wt_thread_create(disagg->deferred_pickup_session, &disagg->deferred_pickup_tid,
       __disagg_deferred_pickup_server, disagg->deferred_pickup_session));
     disagg->deferred_pickup_tid_set = true;
@@ -1051,7 +1053,12 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
         WT_TRET(__wt_thread_join(session, &disagg->deferred_pickup_tid));
         disagg->deferred_pickup_tid_set = false;
     }
-    __wt_cond_destroy(session, &disagg->deferred_pickup_cond);
+    /*
+     * Do not destroy the condition variable: a step-up stops the server on a live system, and any
+     * session releasing a pinned snapshot may be signalling it concurrently. Signalling with no
+     * waiter is harmless, so the condition variable lives until the connection tears down
+     * disaggregated storage single-threaded.
+     */
     if (disagg->deferred_pickup_session != NULL) {
         WT_TRET(__wt_session_close_internal(disagg->deferred_pickup_session));
         disagg->deferred_pickup_session = NULL;
