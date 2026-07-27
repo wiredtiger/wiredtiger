@@ -2085,13 +2085,16 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     /*
      * Record whether the step-down timestamp was set when this transaction started; the commit-time
-     * check rolls back write transactions that started before it was set. Read it after taking the
-     * snapshot: the timestamp is set under the txn_global rwlock write lock and the snapshot scan
-     * holds the read lock, so a snapshot including any commit made after the timestamp was set
-     * reads it as set here. Read it under the step-down lock: the commit-time check runs under the
-     * same lock, so reading the timestamp as set also makes the writes of transactions that
-     * committed before it was set visible. Reading it as clear while it is being set is safe: the
-     * transaction counts as started before the timestamp and rolls back at its first write.
+     * check rolls back write transactions that started before it was set.
+     *
+     * Read it after taking the snapshot: it is also used to determine whether cursors should access
+     * the ingest table. Since snapshots are synchronized, reading a snapshot that contains ingest
+     * changes made after the step-down timestamp was set guarantees the timestamp is observed as
+     * set here as well.
+     *
+     * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
+     * the timestamp as set also makes the writes of transactions that committed before it was set
+     * visible.
      */
     if (__wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
