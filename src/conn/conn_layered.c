@@ -1313,10 +1313,16 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
          * shared checkpoint lineage from an older ancestor. A step-up must not fail back to the
-         * caller, so retry until the adoption succeeds: the checkpoint was already parsed and
-         * validated when it was deferred, leaving only transient failures.
+         * caller, so retry failures that can succeed on retry (the checkpoint was already parsed
+         * and validated when it was deferred, so what remains is mostly page log I/O), and treat
+         * the rest as fatal: the node can neither become the leader without the adoption nor
+         * report the failure, and a panic hands leadership to another node.
          */
         while ((ret = __wti_disagg_deferred_pickup_retry(session, true)) != 0) {
+            if (ret == EINVAL || ret == ENOTSUP || ret == ENOMEM || ret == WT_PANIC ||
+              ret == WT_RUN_RECOVERY)
+                WT_ERR(
+                  __wt_panic(session, ret, "failed to adopt a deferred checkpoint before step-up"));
             __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Failed to adopt a deferred checkpoint before step-up (%s), retrying",
               __wt_strerror(session, ret, NULL, 0));
