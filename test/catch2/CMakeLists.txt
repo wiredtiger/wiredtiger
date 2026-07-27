@@ -21,6 +21,7 @@ else()
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_page_delta_merge_empty_value.cpp
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
