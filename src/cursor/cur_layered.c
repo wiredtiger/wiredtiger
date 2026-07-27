@@ -10,7 +10,7 @@
 #include "cur_layered_private.h"
 
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
-static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
+static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
 static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
@@ -271,7 +271,8 @@ __clayered_enter_flags(
      * a newer transaction put in ingest would hand out colliding IDs. On a leader without the
      * step-down timestamp set, the ingest table is empty and the answer is unchanged.
      */
-    if (session->txn->stepdown_ts_set || mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
+      mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
@@ -282,15 +283,12 @@ __clayered_enter_flags(
  *     Populate the per-operation state.
  */
 static WT_INLINE void
-__clayered_op_init(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, WTI_CLAYERED_ROLE role, uint32_t flags)
+__clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t flags)
 {
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     op->clayered = clayered;
-    op->ingest = (role == WTI_CLAYERED_ROLE_FOLLOWER || LF_ISSET(CLAYERED_ENTER_OPEN_INGEST)) ?
-      clayered->ingest_cursor :
-      NULL;
+    op->ingest = LF_ISSET(CLAYERED_ENTER_OPEN_INGEST) ? clayered->ingest_cursor : NULL;
     /* NULL the stable slot when skipped: the persistent cursor may still be open from before. */
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
@@ -318,10 +316,10 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      * matches the step-down checkpoint. A step-up drains ingest under the position, so both require
      * an unpositioned cursor.
      */
-    if (FLD_ISSET(flags, CLAYERED_ENTER_STEP_UP))
+    if (LF_ISSET(CLAYERED_ENTER_STEP_UP))
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
           "All the cursors should be left unpositioned before a step-up.");
-    else if (FLD_ISSET(flags, CLAYERED_ENTER_STEP_DOWN))
+    else if (LF_ISSET(CLAYERED_ENTER_STEP_DOWN))
         WT_ASSERT_ALWAYS(session,
           !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) ||
             (mode != WTI_CLAYERED_MODE_WRITE && mode != WTI_CLAYERED_MODE_WRITE_OVERWRITE),
@@ -340,7 +338,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     }
 
     /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
-    WT_RET(__clayered_update_ingest(clayered, flags, role));
+    WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
@@ -348,7 +346,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
 
-    __clayered_op_init(clayered, op, role, flags);
+    __clayered_op_init(clayered, op, flags);
 
     if (!F_ISSET(clayered, WTI_CLAYERED_ACTIVE)) {
         /*
@@ -781,20 +779,16 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
  *     change.
  */
 static int
-__clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
+__clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
-    bool want_ingest;
 
-    want_ingest =
-      role == WTI_CLAYERED_ROLE_FOLLOWER || FLD_ISSET(flags, CLAYERED_ENTER_OPEN_INGEST);
-
-    if (want_ingest) {
+    if (LF_ISSET(CLAYERED_ENTER_OPEN_INGEST)) {
         if (clayered->ingest_cursor == NULL) {
             WT_RET(__clayered_open_ingest(session, clayered, &clayered->ingest_cursor));
             WT_RET(__clayered_copy_bounds(clayered));
         }
-    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+    } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
         WT_CURSOR *ingest = clayered->ingest_cursor;
         if (clayered->current_cursor == ingest)
             clayered->current_cursor = NULL;
@@ -823,7 +817,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed. */
         bool follower_open_stable =
-          (!FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
+          (!LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
         if (role == WTI_CLAYERED_ROLE_LEADER || follower_open_stable) {
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
             WT_RET(__clayered_open_stable(clayered, false, role));
@@ -831,9 +825,8 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
             clayered->stable_checkpoint_meta_lsn = conn_lsn;
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
         }
-    } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
-      __clayered_can_advance_stable(
-        clayered, conn_lsn, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION), role)) {
+    } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
+      __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
         /*
          * Reopen the cursor.
          *
