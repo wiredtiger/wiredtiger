@@ -267,9 +267,7 @@ __clayered_enter_flags(
      * and writes the ingest constituent over the still-live stable table.
      *
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
-     * by contract and the application uses it to allocate record IDs, so missing a larger key that
-     * a newer transaction put in ingest would hand out colliding IDs. On a leader without the
-     * step-down timestamp set, the ingest table is empty and the answer is unchanged.
+     * by contract.
      */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
       mode == WTI_CLAYERED_MODE_LARGEST_KEY)
@@ -770,13 +768,8 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
 
 /*
  * __clayered_update_ingest --
- *     Manage the ingest cursor lifecycle. A follower opens it on first use and never reopens it
- *     during normal operation. A leader with a step-down timestamp set also uses ingest (writes
- *     route there and reads consult it first), so it opens the cursor too. An unarmed leader keeps
- *     it closed: the ingest table is empty for reads and unused for writes, so an open ingest
- *     cursor only adds the per-operation cache/reopen and dhandle rwlock overhead. A step-up can
- *     leave behind an ingest cursor that is no longer wanted, so close it on the role or arm
- *     change.
+ *     Manage the ingest cursor lifecycle: open it when the operation uses the ingest constituent,
+ *     close a leftover cursor after a role change.
  */
 static int
 __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
@@ -789,6 +782,11 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
             WT_RET(__clayered_copy_bounds(clayered));
         }
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
+        /*
+         * A step-up leaves behind an ingest cursor the leader no longer uses: its ingest table is
+         * empty for reads and unused for writes, and keeping the cursor open only adds
+         * per-operation cache/reopen and dhandle rwlock overhead.
+         */
         WT_CURSOR *ingest = clayered->ingest_cursor;
         if (clayered->current_cursor == ingest)
             clayered->current_cursor = NULL;

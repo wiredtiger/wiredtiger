@@ -429,9 +429,9 @@ struct __wt_txn {
     wt_timestamp_t first_commit_timestamp;
 
     /*
-     * True if the step-down timestamp was set when this transaction began. Used to detect a
-     * "straddler": a transaction that started before the step-down timestamp was set and is still
-     * writing afterwards.
+     * True if the step-down timestamp was set when this transaction began. Used to redirect the
+     * transaction's writes to the ingest constituent, and to detect a "straddler": a transaction
+     * that started before the step-down timestamp was set and is still writing afterwards.
      */
     bool stepdown_ts_set;
 
