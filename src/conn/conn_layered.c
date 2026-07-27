@@ -563,10 +563,11 @@ err:
 
 /*
  * __disagg_handle_create_remove_pairing --
- *     Handle CREATE/REMOVE pairing detection during queue processing. If the entry is a CREATE with
- *     no stable value, park it in the skipped list and return true (caller should continue). If the
- *     entry is a REMOVE that cancels a parked CREATE, free both and return true. Otherwise return
- *     false.
+ *     Resolve a follower-side CREATE/REMOVE pair during queue processing. A CREATE with no stable
+ *     value is follower-side: the stable constituent is built only on step-up, so a leader CREATE
+ *     always has a stable value and is written normally. Park such a follower CREATE and return
+ *     true (caller should continue); when its matching REMOVE arrives, free both and return true.
+ *     Otherwise return false.
  */
 static bool
 __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,

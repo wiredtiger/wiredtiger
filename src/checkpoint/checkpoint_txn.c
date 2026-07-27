@@ -404,7 +404,7 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __checkpoint_disagg_maybe_publish --
+ * __checkpoint_disagg_publish --
  *     If a disaggregated btree is awaiting publication, check whether the checkpoint's stable
  *     schema epoch covers the table's CREATE entry. If so, clear WT_BTREE_AWAITS_PUBLISH so the
  *     btree is written out and included in this checkpoint. If not, verify the btree has no stable
@@ -412,12 +412,13 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
  *     must be published before the checkpoint that includes its data.
  */
 static int
-__checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__checkpoint_disagg_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
+    WT_SHARED_METADATA_OP latest_op;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp, latest_epoch;
     bool published;
 
     conn = S2C(session);
@@ -430,15 +431,22 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    published = false;
+    /*
+     * Publish only when the table's latest create/remove is a CREATE at or below the checkpoint's
+     * schema epoch.
+     */
+    latest_op = WT_SHARED_METADATA_NONE;
+    latest_epoch = WT_SCHEMA_EPOCH_NONE;
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-          strcmp(entry->stable_uri, dhandle->name) == 0 && entry->schema_epoch <= ckpt_epoch) {
-            published = true;
-            break;
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->stable_uri, dhandle->name) == 0) {
+            latest_op = entry->metadata_op;
+            latest_epoch = entry->schema_epoch;
         }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    published = latest_op == WT_SHARED_METADATA_CREATE && latest_epoch <= ckpt_epoch;
 
     if (!published) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
@@ -490,7 +498,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * publication) and are reconciled and written normally once the flag is clear.
      */
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
-        WT_RET(__checkpoint_disagg_maybe_publish(session, btree));
+        WT_RET(__checkpoint_disagg_publish(session, btree));
 
     /* Skip the history store file as it is checkpointed manually later. */
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY | WT_BTREE_READONLY) ||
