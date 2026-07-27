@@ -446,37 +446,53 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
 }
 
 /*
+ * __clayered_stable_bind_check_needed --
+ *     Return whether binding a stable cursor needs the snapshot check: only a transactional
+ *     snapshot without a read timestamp constrains which stable content is consistent.
+ */
+static WT_INLINE bool
+__clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
+{
+    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    return (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && txn_shared != NULL &&
+      txn_shared->read_timestamp == WT_TS_NONE);
+}
+
+/*
  * __clayered_stable_bind_check --
  *     Fail with WT_SNAPSHOT_STALE if binding a stable cursor would break the session's
  *     transactional snapshot. Content adopted from a checkpoint carries no local transaction ids,
  *     so a snapshot established before the adoption cannot exclude it: the only lever is refusing
  *     the binding. A role change swaps what the stable content is (an adopted checkpoint or the
- *     live btree), so a snapshot established under another role is refused outright. Readers with a
- *     read timestamp stay consistent through the history store and always pass. The transaction
- *     survives the refusal: the application may refresh its snapshot and retry, or roll back.
+ *     live btree), so a snapshot established under another role is refused outright. The
+ *     transaction survives the refusal: the application may refresh its snapshot and retry, or roll
+ *     back.
+ *
+ * Called only for binds the snapshot constrains, under the checkpoint lock: role changes and
+ *     pickups mutate the state read here (and the metadata a follower bind resolves the checkpoint
+ *     name from) under that lock.
  */
 static int
-__clayered_stable_bind_check(WT_SESSION_IMPL *session, bool follower)
+__clayered_stable_bind_check(WT_SESSION_IMPL *session, bool binds_checkpoint)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     uint64_t conn_lsn, pinned_lsn;
 
-    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
-        return (0);
-    if (txn_shared == NULL || txn_shared->read_timestamp != WT_TS_NONE)
-        return (0);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT(session, __clayered_stable_bind_check_needed(session));
 
     if (session->txn->disagg_role_gen !=
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen))
         goto refuse;
 
     /*
-     * A follower binds checkpoint content: the snapshot must have been established at (or after)
-     * the newest published checkpoint. A leader with an unchanged role binds the live stable table,
-     * whose transaction ids are local and valid under any snapshot.
+     * Binding checkpoint content requires the snapshot to have been established at (or after) the
+     * newest published checkpoint. A leader with an unchanged role binds the live stable table
+     * instead, whose transaction ids are local and valid under any snapshot.
      */
-    if (follower) {
+    if (binds_checkpoint) {
         conn_lsn =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
         if (conn_lsn == WT_DISAGG_LSN_NONE)
@@ -493,20 +509,6 @@ refuse:
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
     WT_RET_SUB(session, WT_SNAPSHOT_STALE, WT_NONE,
       "the stable content is newer than the transaction snapshot");
-}
-
-/*
- * __clayered_stable_bind_check_needed --
- *     Return whether binding a stable cursor needs the snapshot check: only a transactional
- *     snapshot without a read timestamp constrains which stable content is consistent.
- */
-static WT_INLINE bool
-__clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
-{
-    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    return (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && txn_shared != NULL &&
-      txn_shared->read_timestamp == WT_TS_NONE);
 }
 
 /*
