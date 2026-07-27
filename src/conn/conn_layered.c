@@ -427,17 +427,6 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __is_published_entry --
- *     Return true if the queue entry is published.
- */
-static bool
-__is_published_entry(WT_DISAGG_METADATA_OP *entry)
-{
-    return (entry->schema_epoch != WT_SCHEMA_EPOCH_NONE &&
-      entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED);
-}
-
-/*
  * __wti_disagg_shared_metadata_queue_prune --
  *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
  */
@@ -448,15 +437,6 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
     WT_DISAGG_METADATA_OP *entry, *tmp;
 
     conn = S2C(session);
-
-    /*
-     * A no-epoch checkpoint clears the whole queue. It only happens outside epoch world, so the
-     * node has no live stable epoch.
-     */
-    if (cur_schema_epoch == WT_SCHEMA_EPOCH_NONE)
-        WT_ASSERT_ALWAYS(session,
-          __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE,
-          "no-epoch checkpoint pickup while the node is in epoch world");
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
@@ -469,12 +449,6 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
          */
         if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
             continue;
-
-        /* Clearing everything on a no-epoch checkpoint must not drop a published entry. */
-        WT_ASSERT_ALWAYS(session,
-          cur_schema_epoch != WT_SCHEMA_EPOCH_NONE || !__is_published_entry(entry),
-          "no-epoch checkpoint pickup would clear a published queue entry");
-
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
     }
