@@ -1098,12 +1098,6 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
       __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) >= deferred_lsn)
         ret = 0;
 
-    /*
-     * A conflict with an in-flight transaction is the same condition as any other in-flight work
-     * blocking the adoption: it clears on its own, and callers retry EBUSY.
-     */
-    if (ret == WT_ROLLBACK)
-        ret = EBUSY;
     __wt_free(session, meta_copy);
     return (ret);
 }
@@ -1280,8 +1274,23 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
 
+    /*
+     * From here the pickup mutates local state, one metadata update at a time. A failure would
+     * leave a partially adopted checkpoint: tables already merged resolve to the new checkpoint
+     * while the published LSN still admits only the old one, and a stable cursor bound in that
+     * window reads content its transaction snapshot cannot exclude. There is no compensation short
+     * of completing the adoption, so a failure is fatal; the restarted node deletes its local
+     * state and picks the checkpoint up from scratch.
+     *
+     * FIXME-WT-18156: apply the local metadata updates in a single transaction, so that a failure
+     * rolls back to a clean state and a conflict with a concurrent metadata writer becomes
+     * retriable instead of fatal.
+     */
+
     /* Update our local metadata with the new checkpoint entry. */
-    WT_ERR(__disagg_save_checkpoint_meta_local(session, &metadata));
+    if ((ret = __disagg_save_checkpoint_meta_local(session, &metadata)) != 0)
+        WT_ERR(
+          __wt_panic(session, ret, "failed to adopt a checkpoint after mutating local metadata"));
 
     /*
      * Part 2: Apply the metadata for other tables from the shared metadata table.
@@ -1290,14 +1299,18 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /* Apply the metadata from the checkpoint. */
     WT_WITH_SCHEMA_LOCK(session,
       ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, metadata.schema_epoch, is_startup));
-    WT_ERR(ret);
+    if (ret != 0)
+        WT_ERR(
+          __wt_panic(session, ret, "failed to adopt a checkpoint after mutating local metadata"));
 
     /*
      * Part 3: Do the bookkeeping.
      */
 
     __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
-    WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
+    if ((ret = __disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata)) != 0)
+        WT_ERR(
+          __wt_panic(session, ret, "failed to adopt a checkpoint after mutating local metadata"));
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);
