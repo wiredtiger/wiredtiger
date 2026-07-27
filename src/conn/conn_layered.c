@@ -1312,12 +1312,16 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
-         * shared checkpoint lineage from an older ancestor. A failure here fails the reconfigure
-         * rather than panicking: nothing has changed yet, the node is still a consistent follower
-         * and the caller can retry the step-up.
+         * shared checkpoint lineage from an older ancestor. A step-up must not fail back to the
+         * caller, so retry until the adoption succeeds: the checkpoint was already parsed and
+         * validated when it was deferred, leaving only transient failures.
          */
-        WT_ERR_MSG_CHK(session, __wti_disagg_deferred_pickup_retry(session, true),
-          "Failed to adopt a deferred checkpoint before step-up");
+        while ((ret = __wti_disagg_deferred_pickup_retry(session, true)) != 0) {
+            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Failed to adopt a deferred checkpoint before step-up (%s), retrying",
+              __wt_strerror(session, ret, NULL, 0));
+            __wt_sleep(0, 100 * WT_THOUSAND);
+        }
 
         /* Follower step-up. */
         time_start = __wt_clock(session);
