@@ -587,10 +587,6 @@ err:
 }
 
 /*
- * __clayered_open_stable --
- *     Open the stable cursor for the current role.
- */
-/*
  * __clayered_open_stable_leader --
  *     Open the stable table cursor on the live stable table.
  */
@@ -618,6 +614,10 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
     return (__clayered_open_stable_int(clayered, layered->stable_uri));
 }
 
+/*
+ * __clayered_open_stable --
+ *     Open the stable cursor for the current role.
+ */
 static int
 __clayered_open_stable(
   WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role)
