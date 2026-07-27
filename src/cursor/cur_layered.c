@@ -581,9 +581,9 @@ __clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected,
      * normally safe under any snapshot. The exception is a snapshot from before a role change: the
      * adopted content in the live tree has no local ids, and becoming the leader must not launder
      * it into visibility. Check under the checkpoint lock: role changes run under it, so the role
-     * and the role-change generation are only guaranteed mutually consistent inside it. Without
-     * the lock, a bind racing a step-up can observe the new role with the old generation and bind
-     * the live stable table mid-transition.
+     * and the role-change generation are only guaranteed mutually consistent inside it. Without the
+     * lock, a bind racing a step-up can observe the new role with the old generation and bind the
+     * live stable table mid-transition.
      */
     if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot) {
         WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session, false));
