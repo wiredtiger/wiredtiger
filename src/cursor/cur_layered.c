@@ -262,9 +262,9 @@ __clayered_enter_flags(
      * transaction needs the stable cursor up front because __clayered_modify_check() probes it for
      * a write conflict, and that probe silently passes on a NULL cursor.
      */
-    if ((mode == WTI_CLAYERED_MODE_SEARCH_EXACT ||
-          (mode == WTI_CLAYERED_MODE_WRITE && !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))) &&
-      role == WTI_CLAYERED_ROLE_FOLLOWER)
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER &&
+      (mode == WTI_CLAYERED_MODE_SEARCH_EXACT ||
+        (mode == WTI_CLAYERED_MODE_WRITE && !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))))
         LF_SET(CLAYERED_ENTER_LAZY_STABLE);
 
     if (role != clayered->last_role)
@@ -783,7 +783,10 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 
 /*
  * __clayered_open_stable_first --
- *     Open the stable constituent for the first time and record its checkpoint LSN.
+ *     Open the stable constituent for the first time and record its checkpoint LSN. The caller
+ *     reads the connection's LSN before the open, so a checkpoint picked up in between makes the
+ *     recorded LSN older than the checkpoint actually opened: that only costs a later reopen, it
+ *     never claims a newer checkpoint than the cursor holds.
  */
 static int
 __clayered_open_stable_first(
