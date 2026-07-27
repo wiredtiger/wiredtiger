@@ -360,8 +360,8 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.conn.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
         self.disagg_advance_checkpoint(self.conn, conn_lead)
 
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri2))
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri2, leader=True))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri2))
 
         conn_lead.close('debug=(skip_checkpoint=true)')

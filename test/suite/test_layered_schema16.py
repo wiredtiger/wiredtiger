@@ -83,7 +83,7 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             ',oldest_timestamp=' + self.timestamp_str(1))
 
         # After recovery, the drop is the latest visible operation; the table must be absent.
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri, leader=True))
 
     def test_unpublished_table_holds_unstable_data(self):
         """
