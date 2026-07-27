@@ -428,8 +428,7 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 
 /*
  * __wti_disagg_shared_metadata_queue_prune --
- *     Prune the shared metadata queue after picking up a checkpoint that carries a schema epoch,
- *     dropping entries the checkpoint has already captured.
+ *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
  */
 void
 __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
@@ -439,14 +438,16 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 
     conn = S2C(session);
 
-    WT_ASSERT(session, cur_schema_epoch != WT_SCHEMA_EPOCH_NONE);
-
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        /* Keep entries newer than the checkpoint. */
-        if (entry->schema_epoch > cur_schema_epoch)
+        /*
+         * When EPOCH_NONE is passed (a checkpoint that doesn't use schema epochs), prune everything
+         * unconditionally. The legacy path rebuilds stable constituents directly from local
+         * metadata rather than replaying queue entries, so the queue is no longer needed.
+         */
+        if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch)
             continue;
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
