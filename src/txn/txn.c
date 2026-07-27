@@ -211,14 +211,15 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
-    uint64_t current_id, id, pinned_id, prev_oldest_id, snapshot_gen;
+    uint64_t current_id, id, pinned_checkpoint_lsn, pinned_id, prev_oldest_id, snapshot_gen;
     uint32_t i, n, session_cnt;
+    bool pin_checkpoint;
 
     conn = S2C(session);
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    n = 0;
+    pinned_checkpoint_lsn = 0;
 
     /* Fast path if we already have the current snapshot. */
     if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
@@ -234,19 +235,24 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
     /*
-     * Record the newest adopted checkpoint before building the snapshot. In the other order a
-     * checkpoint pickup could land between the two reads and the snapshot would pin the new
-     * checkpoint while predating its adoption; this order resolves that race to a spurious
-     * (retryable) rollback instead. Timestamped readers are excluded: they stay consistent through
-     * the history store regardless of which checkpoint they read.
+     * Record the newest adopted checkpoint before building the snapshot, and validate it
+     * afterwards, retrying the build if a pickup landed in between: the retried snapshot postdates
+     * the adoption, so the transaction reads consistently instead of being refused at its first
+     * stable open. Loading before and validating after brackets the snapshot, so it can never pin
+     * a checkpoint adopted after it was built. Timestamped readers are excluded: they stay
+     * consistent through the history store regardless of which checkpoint they read.
      */
-    if (update_shared_state && __wt_conn_is_disagg(session) &&
-      txn_shared->read_timestamp == WT_TS_NONE) {
+    pin_checkpoint = update_shared_state && __wt_conn_is_disagg(session) &&
+      txn_shared->read_timestamp == WT_TS_NONE;
+
+retry:
+    n = 0;
+    if (pin_checkpoint) {
         txn->disagg_role_gen =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
-        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn,
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) +
-            1);
+        pinned_checkpoint_lsn =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, pinned_checkpoint_lsn + 1);
     }
 
     /* We're going to scan the table: wait for the lock. */
@@ -335,6 +341,22 @@ done:
         __wt_atomic_store_uint64_v_relaxed(&txn_shared->pinned_id, pinned_id);
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
+
+    /*
+     * Validate the pinned checkpoint against the snapshot. A pickup (or role change) that landed
+     * during the build cannot repeat indefinitely: each retry requires another adoption during the
+     * microseconds of a snapshot build, and adoptions are seconds apart. Rebuilding is equivalent
+     * to releasing the snapshot and acquiring a new one before anything was read under it, and the
+     * published pinned id and checkpoint pin only ever move forward.
+     */
+    if (pin_checkpoint &&
+      (__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) !=
+          pinned_checkpoint_lsn ||
+        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
+          txn->disagg_role_gen)) {
+        WT_STAT_CONN_INCR(session, disagg_snapshot_pin_retry);
+        goto retry;
+    }
 }
 
 /*
