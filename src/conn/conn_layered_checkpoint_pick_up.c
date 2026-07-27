@@ -1072,7 +1072,7 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
     uint64_t deferred_lsn;
     char *meta_copy = NULL;
 
-    deferred_lsn = 0;
+    deferred_lsn = WT_DISAGG_LSN_NONE;
 
     /* Unlocked pre-check: deferral state changes only on this cold path. */
     if (disagg->deferred_checkpoint_meta == NULL)
