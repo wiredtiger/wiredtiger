@@ -1245,9 +1245,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
     uint64_t time_start, time_stop;
-    bool leader, picked_up, was_leader;
+    bool leader, picked_up, role_change_started, was_leader;
 
     conn = S2C(session);
+    role_change_started = false;
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
@@ -1310,13 +1311,16 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
-         * shared checkpoint lineage from an older ancestor.
+         * shared checkpoint lineage from an older ancestor. A failure here fails the reconfigure
+         * rather than panicking: nothing has changed yet, the node is still a consistent follower
+         * and the caller can retry the step-up.
          */
         WT_ERR_MSG_CHK(session, __wti_disagg_deferred_pickup_retry(session, true),
           "Failed to adopt a deferred checkpoint before step-up");
 
         /* Follower step-up. */
         time_start = __wt_clock(session);
+        role_change_started = true;
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
@@ -1326,6 +1330,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     } else if (was_leader && !leader) {
         /* Leader step-down. */
         time_start = __wt_clock(session);
+        role_change_started = true;
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_down(session));
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
@@ -1472,9 +1477,14 @@ err:
     if (ret != 0)
         __wt_error_log_to_handler(session);
 
-    if (ret != 0 && reconfig && !was_leader && leader)
+    /*
+     * A failure once the role transition has started leaves the node in an inconsistent
+     * half-transitioned state; a failure before that returns normally, with the node still fully
+     * in its old role.
+     */
+    if (ret != 0 && role_change_started && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
-    if (ret != 0 && reconfig && was_leader && !leader)
+    if (ret != 0 && role_change_started && was_leader && !leader)
         return (__wt_panic(session, ret, "failed to step-down as primary"));
     return (ret);
 }
