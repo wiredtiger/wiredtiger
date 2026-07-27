@@ -528,8 +528,7 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
  *     uninitialized.
  */
 static int
-__clayered_open_stable_follower(
-  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, bool check_snapshot)
+__clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected)
 {
     WT_DECL_ITEM(last_ckpt_uri);
     WT_DECL_RET;
@@ -552,7 +551,7 @@ retry:
      * other reader is consistent at whichever checkpoint the resolution returns, and a mismatched
      * history store checkpoint fails the open and retries.
      */
-    if (check_snapshot && __clayered_stable_bind_check_needed(session))
+    if (__clayered_stable_bind_check_needed(session))
         WT_WITH_CHECKPOINT_LOCK(
           session, ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name));
     else
@@ -590,8 +589,8 @@ err:
  *     Open the stable cursor for the current role.
  */
 static int
-__clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected,
-  WTI_CLAYERED_ROLE role, bool check_snapshot)
+__clayered_open_stable(
+  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role)
 {
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
@@ -606,15 +605,14 @@ __clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected,
      * lock, a bind racing a step-up can observe the new role with the old generation and bind the
      * live stable table mid-transition.
      */
-    if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot &&
-      __clayered_stable_bind_check_needed(session)) {
+    if (role == WTI_CLAYERED_ROLE_LEADER && __clayered_stable_bind_check_needed(session)) {
         WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session, false));
         WT_RET(ret);
     }
 
     return (role == WTI_CLAYERED_ROLE_LEADER ?
         __clayered_open_stable_int(clayered, layered->stable_uri) :
-        __clayered_open_stable_follower(clayered, checkpoint_expected, check_snapshot));
+        __clayered_open_stable_follower(clayered, checkpoint_expected));
 }
 
 /*
@@ -726,7 +724,7 @@ __clayered_reopen_stable(
      * advance because the snapshot changed, while the new snapshot still predates the newest
      * adoption.
      */
-    WT_ERR(__clayered_open_stable(clayered, true, role, true));
+    WT_ERR(__clayered_open_stable(clayered, true, role));
 
     /*
      * If the old cursor has a position, copy it to the newly opened cursor. Prepared updates are
@@ -904,7 +902,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
           (!FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
         if (role == WTI_CLAYERED_ROLE_LEADER || follower_open_stable) {
             F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-            WT_RET(__clayered_open_stable(clayered, false, role, true));
+            WT_RET(__clayered_open_stable(clayered, false, role));
             WT_RET(__clayered_copy_bounds(clayered));
             clayered->stable_checkpoint_meta_lsn = conn_lsn;
             WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
