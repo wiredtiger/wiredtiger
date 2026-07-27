@@ -186,9 +186,9 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         __wt_spin_unlock(session, &evict->evict_housekeeping_lock);
         WT_ERR(ret);
 
-        /* Pause. The wait period is shorter if the server did work */
-//        __wt_cond_auto_wait(session, evict->evict_server_cond, did_work, NULL);
-//        __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
+        /* Pause. The wait period is shorter if the server did work. */
+        __wt_cond_auto_wait(session, evict->evict_server_cond, did_work, NULL);
+        __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
     } else {
         WT_ERR(__evict_lru_pages(session, false));
     }
@@ -328,8 +328,18 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
+ * Number of pages an eviction worker evicts between re-evaluating cache occupancy. Draining a
+ * bounded batch keeps the expensive occupancy recompute (__evict_update_work walks the history
+ * store trees) off the per-page path, and gives hysteresis: a single application-thread eviction
+ * that grazes the target no longer parks the worker immediately, so the workers carry a fair share
+ * of eviction instead of leaving it all to application threads. Over-eviction is bounded by one
+ * batch below target; tune this if pages are large or the overshoot matters.
+ */
+#define WT_EVICT_WORKER_BATCH 100
+
+/*
  * __evict_lru_pages --
- *     Get pages from the LRU queue to evict.
+ *     Evict pages while the cache is over target, draining a bounded batch between occupancy checks.
  */
 static int
 __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
@@ -337,18 +347,34 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
+    u_int i;
     bool eviction_needed;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
+    eviction_needed = false;
 
     while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
       F_ISSET(conn->evict, WT_EVICT_CACHE_ANY) && ret == 0) {
+        /*
+         * Recompute the eviction state once per batch, not once per page: it is expensive and
+         * occupancy does not change meaningfully between consecutive evictions. This also refreshes
+         * evict->flags that gates the loop.
+         */
         WT_RET(__evict_update_work(session, &eviction_needed));
         if (!eviction_needed)
             break;
-        if ((ret = __evict_page(session)) == EBUSY)
-            ret = 0;
+
+        /*
+         * The server evicts a single page per call and returns to its own loop; a worker drains a
+         * bounded batch before re-checking occupancy.
+         */
+        for (i = 0; i < WT_EVICT_WORKER_BATCH; i++) {
+            if ((ret = __evict_page(session)) == EBUSY)
+                ret = 0;
+            if (ret != 0 || is_server)
+                break;
+        }
         if (is_server)
             break;
     }
@@ -356,10 +382,17 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
 
-    /* If a worker thread is here, there is no work to do; pause.  */
-    if (ret == WT_NOTFOUND && !is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION)) {
+    /*
+     * A worker gets here when the cache has fallen back under target (WT_EVICT_CACHE_ANY cleared) or
+     * when no evictable page was found (WT_NOTFOUND). In the bucket design the buckets index every
+     * resident page and are effectively never empty, so "nothing to do" is an occupancy decision,
+     * not an emptiness one -- and returning here would otherwise be re-invoked immediately in a
+     * tight spin. Pause instead; an application thread or the server signals evict_threads.wait_cond
+     * when the cache climbs back over the trigger, and the timeout bounds how long we stay parked.
+     */
+    if (!is_server && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
+      (ret == WT_NOTFOUND || !F_ISSET(conn->evict, WT_EVICT_CACHE_ANY)))
         __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
-    }
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
