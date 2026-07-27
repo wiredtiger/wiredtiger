@@ -846,6 +846,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
     }
 
+    /* Fail the merge on the failpoint to exercise the unroll and retry paths. */
+    if (__wt_failpoint(
+          session, WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY, 10 * WT_THOUSAND))
+        WT_ERR(EBUSY);
+
     __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
     WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
