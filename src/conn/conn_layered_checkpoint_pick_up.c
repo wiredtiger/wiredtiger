@@ -1249,7 +1249,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 3: Do the bookkeeping.
      */
 
-    __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
+    /*
+     * A checkpoint that carries no schema epoch cannot have captured any operation this node
+     * queued, so keep the entire queue and prune only when the checkpoint advanced a schema epoch.
+     */
+    if (metadata.schema_epoch != WT_SCHEMA_EPOCH_NONE)
+        __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
     WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
 
     /* Log the completion of the checkpoint pick-up. */

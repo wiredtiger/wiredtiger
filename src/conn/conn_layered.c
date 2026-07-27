@@ -147,39 +147,6 @@ __layered_create_has_following_remove(
 }
 
 /*
- * __is_published_entry --
- *     Return true if the queue entry is published.
- */
-static bool
-__is_published_entry(WT_DISAGG_METADATA_OP *entry)
-{
-    return (entry->schema_epoch != WT_SCHEMA_EPOCH_NONE &&
-      entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED);
-}
-
-/*
- * __layered_queue_has_published_entry --
- *     Return true if the shared metadata queue holds a published entry. Caller must hold the queue
- *     lock.
- */
-static bool
-__layered_queue_has_published_entry(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_METADATA_OP *entry;
-
-    conn = S2C(session);
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (__is_published_entry(entry))
-            return (true);
-
-    return (false);
-}
-
-/*
  * __layered_create_missing_stable_tables_helper --
  *     Create missing stable tables.
  */
@@ -201,12 +168,13 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /*
-     * Without a stable schema epoch and no published queue entry, fall back to the legacy method. A
-     * published entry means epoch tracking has started locally but the first epoch checkpoint has
-     * not landed yet.
+     * Without a stable checkpoint epoch and no live stable epoch, fall back to the legacy method.
+     * If the live epoch is set, this connection is in epoch world and must use epoch-aware recovery
+     * even when no epoch checkpoint has completed yet. WT-18176 guarantees that publish requires
+     * the live epoch, so a non-NONE live epoch reliably signals epoch world.
      */
     if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
-      !__layered_queue_has_published_entry(session)) {
+      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE) {
         __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
         return (__layered_create_missing_stable_tables_legacy(session));
     }
@@ -460,7 +428,8 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 
 /*
  * __wti_disagg_shared_metadata_queue_prune --
- *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
+ *     Prune the shared metadata queue after picking up a checkpoint that carries a schema epoch,
+ *     dropping entries the checkpoint has already captured.
  */
 void
 __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
@@ -470,20 +439,15 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 
     conn = S2C(session);
 
+    WT_ASSERT(session, cur_schema_epoch != WT_SCHEMA_EPOCH_NONE);
+
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        if (cur_schema_epoch == WT_SCHEMA_EPOCH_NONE) {
-            /* The checkpoint carries no schema epoch: keep step-up published entries, drop the
-             * rest. */
-            if (__is_published_entry(entry))
-                continue;
-        } else {
-            /* The checkpoint carries a schema epoch: keep entries newer than it. */
-            if (entry->schema_epoch > cur_schema_epoch)
-                continue;
-        }
+        /* Keep entries newer than the checkpoint. */
+        if (entry->schema_epoch > cur_schema_epoch)
+            continue;
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
     }
