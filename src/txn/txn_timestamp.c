@@ -714,7 +714,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
          */
         step_down_ts =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        if (step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts && txn->stepdown_ts_set)
+        if (txn->stepdown_ts_set && commit_ts <= step_down_ts)
             WT_RET_MSG(session, EINVAL,
               "commit timestamp %s must be after the step down timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
