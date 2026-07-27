@@ -943,21 +943,34 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 {
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    uint64_t deferred_lsn;
     char *meta_copy = NULL;
+
+    deferred_lsn = 0;
 
     /* Unlocked pre-check: deferral state changes only on this cold path. */
     if (disagg->deferred_checkpoint_meta == NULL)
         return (0);
 
-    WT_WITH_CHECKPOINT_LOCK(session,
-      ret = disagg->deferred_checkpoint_meta == NULL ?
-        0 :
-        __wt_strdup(session, disagg->deferred_checkpoint_meta, &meta_copy));
+    WT_WITH_CHECKPOINT_LOCK(
+      session, if (disagg->deferred_checkpoint_meta != NULL) {
+          deferred_lsn = disagg->deferred_checkpoint_lsn;
+          ret = __wt_strdup(session, disagg->deferred_checkpoint_meta, &meta_copy);
+      });
     WT_RET(ret);
     if (meta_copy == NULL)
         return (0);
 
     ret = __wti_disagg_pick_up_checkpoint_meta(session, meta_copy, strlen(meta_copy), force);
+
+    /*
+     * A concurrent pickup may have adopted this checkpoint, or a newer one, between the copy above
+     * and the adoption; the deferred pickup is then satisfied regardless of what the adoption
+     * returned.
+     */
+    if (ret != 0 &&
+      __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) >= deferred_lsn)
+        ret = 0;
     __wt_free(session, meta_copy);
     return (ret);
 }
@@ -1285,8 +1298,8 @@ __wti_disagg_pick_up_checkpoint_meta(
      * Publish the incoming checkpoint before doing anything else: a snapshot established from here
      * on may pin it even though the adoption has not completed, because the arrival of checkpoint
      * metadata implies the content is already replayed into the ingest tables. This keeps such
-     * snapshots from being refused at their first stable open once the adoption completes, and
-     * from blocking a deferred adoption. Only ever move it forward.
+     * snapshots from being refused at their first stable open once the adoption completes, and from
+     * blocking a deferred adoption. Only ever move it forward.
      */
     disagg = &S2C(session)->disaggregated_storage;
     for (;;) {
