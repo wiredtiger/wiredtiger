@@ -4508,7 +4508,7 @@ const char *wiredtiger_repair(WT_CONNECTION *connection, const char *config)
  */
 #define	WT_CONFLICT_DISAGG	(-32014)
 /*!
- * Transaction started before the step-down timestamp was set.
+ * Write-transaction started before the step-down timestamp was set.
  * This sub-level error indicates that a transaction was rolled back because it
  * was in flight when the step-down timestamp was set.
  */
