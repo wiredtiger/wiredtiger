@@ -818,7 +818,7 @@ class DisaggSchemaEpochMixin:
         session.close()
         return found
 
-    def uri_stable_in_local_metadata(self, conn, uri):
+    def uri_has_stable_constituent(self, conn, uri):
         """Return True if uri's stable constituent is present in conn's local metadata."""
         session = conn.open_session('')
         exists = True
