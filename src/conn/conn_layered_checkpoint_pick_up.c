@@ -971,6 +971,13 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
     if (ret != 0 &&
       __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) >= deferred_lsn)
         ret = 0;
+
+    /*
+     * A conflict with an in-flight transaction is the same condition as any other in-flight work
+     * blocking the adoption: it clears on its own, and callers retry EBUSY.
+     */
+    if (ret == WT_ROLLBACK)
+        ret = EBUSY;
     __wt_free(session, meta_copy);
     return (ret);
 }
