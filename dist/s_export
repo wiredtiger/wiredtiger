@@ -17,7 +17,7 @@ Darwin)
         echo "$0 skipped: GNU nm not found"
         exit 0
     }
-    NM='nm --extern-only --defined-only --print-file-name $f | grep -E -v "__bss_start|_edata|_end|_fini|_init|__gcov|mangle_path"'
+    NM='nm --extern-only --defined-only --print-file-name $f | grep -E -v "__bss_start|_edata|_end|_fini|_init"'
     ;;
 esac
 
