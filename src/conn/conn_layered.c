@@ -1312,8 +1312,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     } else if (!was_leader && leader) {
         /*
          * Stop the deferred pickup server first: a leader has no use for it, and stopping it here
-         * waits out at most one in-flight adoption, leaving the adoption below a single
-         * uncontended actor instead of a competitor behind the checkpoint lock.
+         * waits out at most one in-flight adoption, leaving the adoption below a single uncontended
+         * actor instead of a competitor behind the checkpoint lock.
          */
         WT_ERR(__wti_disagg_deferred_pickup_server_destroy(session));
 

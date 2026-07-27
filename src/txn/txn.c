@@ -138,7 +138,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
      * server after the pin is cleared, so its scan observes the release.
      */
     if (__wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn) != 0) {
-        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, 0);
+        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
         __wt_disagg_deferred_pickup_signal(session);
     }
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
@@ -279,7 +279,7 @@ retry:
             __wt_atomic_store_uint64_release(
               &txn_shared->disagg_pinned_lsn, pinned_checkpoint_lsn + 1);
         } else
-            __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, 0);
+            __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
     }
 
     /* We're going to scan the table: wait for the lock. */

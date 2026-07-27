@@ -872,7 +872,7 @@ __disagg_snapshot_predates_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
     for (i = 0, s = conn->txn_global.txn_shared_list; i < session_cnt; i++, s++) {
         /* The pin is the LSN plus one; zero means no pinned snapshot. */
         pinned_lsn = __wt_atomic_load_uint64_acquire(&s->disagg_pinned_lsn);
-        if (pinned_lsn != 0 && pinned_lsn - 1 < lsn)
+        if (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 < lsn)
             return (true);
     }
     return (false);
@@ -1279,12 +1279,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * leave a partially adopted checkpoint: tables already merged resolve to the new checkpoint
      * while the published LSN still admits only the old one, and a stable cursor bound in that
      * window reads content its transaction snapshot cannot exclude. There is no compensation short
-     * of completing the adoption, so a failure is fatal; the restarted node deletes its local
-     * state and picks the checkpoint up from scratch.
+     * of completing the adoption, so a failure is fatal; the restarted node deletes its local state
+     * and picks the checkpoint up from scratch.
      *
      * FIXME-WT-18156: apply the local metadata updates in a single transaction, so that a failure
      * rolls back to a clean state and a conflict with a concurrent metadata writer becomes
-     * retriable instead of fatal.
+     * retryable instead of fatal.
      */
 
     /* Update our local metadata with the new checkpoint entry. */

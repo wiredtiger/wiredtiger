@@ -484,7 +484,7 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session, bool follower)
 
         /* The pin is the LSN plus one; a snapshot with no pin is conservatively refused. */
         pinned_lsn = __wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn);
-        if (pinned_lsn != 0 && pinned_lsn - 1 >= conn_lsn)
+        if (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn)
             return (0);
     } else
         return (0);
@@ -496,16 +496,28 @@ refuse:
 }
 
 /*
+ * __clayered_stable_bind_check_needed --
+ *     Return whether binding a stable cursor needs the snapshot check: only a transactional
+ *     snapshot without a read timestamp constrains which stable content is consistent.
+ */
+static WT_INLINE bool
+__clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
+{
+    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    return (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && txn_shared != NULL &&
+      txn_shared->read_timestamp == WT_TS_NONE);
+}
+
+/*
  * __clayered_stable_last_name --
  *     Check the snapshot against the newest checkpoint and resolve that checkpoint's name. Called
  *     under the checkpoint lock so the two refer to the same adoption.
  */
 static int
-__clayered_stable_last_name(
-  WT_SESSION_IMPL *session, bool check_snapshot, const char *stable_uri, const char **namep)
+__clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, const char **namep)
 {
-    if (check_snapshot)
-        WT_RET(__clayered_stable_bind_check(session, true));
+    WT_RET(__clayered_stable_bind_check(session, true));
     return (__wt_meta_checkpoint_last_name(session, stable_uri, namep, NULL, NULL));
 }
 
@@ -535,9 +547,16 @@ retry:
      * section guarantees they belong to the same adoption. The open itself runs outside the lock:
      * if a pickup lands in between and the named checkpoint is gone, the open fails and the retry
      * re-runs the check, which then refuses the moved checkpoint.
+     *
+     * Only a transactional snapshot without a read timestamp needs the check, and so the lock: any
+     * other reader is consistent at whichever checkpoint the resolution returns, and a mismatched
+     * history store checkpoint fails the open and retries.
      */
-    WT_WITH_CHECKPOINT_LOCK(session,
-      ret = __clayered_stable_last_name(session, check_snapshot, stable_uri, &checkpoint_name));
+    if (check_snapshot && __clayered_stable_bind_check_needed(session))
+        WT_WITH_CHECKPOINT_LOCK(
+          session, ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name));
+    else
+        ret = __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL);
     if (!checkpoint_expected && ret == WT_NOTFOUND) {
         ret = 0;
         goto err;
@@ -587,7 +606,8 @@ __clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected,
      * lock, a bind racing a step-up can observe the new role with the old generation and bind the
      * live stable table mid-transition.
      */
-    if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot) {
+    if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot &&
+      __clayered_stable_bind_check_needed(session)) {
         WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session, false));
         WT_RET(ret);
     }
