@@ -72,6 +72,13 @@ parse_checkpoint_meta(
         metap->compatible_version = (uint32_t)cval.val;
     }
 
+    /* Absent means the legacy escaped format. */
+    metap->stable_tombstone_encoding = true;
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getones(session, meta_str, "stable_tombstone_encoding", &cval), true);
+    if (ret == 0 && cval.len != 0)
+        metap->stable_tombstone_encoding = WT_CONFIG_LIT_MATCH("true", cval);
+
     ret = 0;
 
 err:

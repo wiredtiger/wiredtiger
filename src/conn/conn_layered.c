@@ -1235,6 +1235,31 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             F_CLR(&conn->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
     }
 
+    /*
+     * Stable-table tombstone encoding is chosen when the connection opens and is preserved across
+     * reconfigure calls that do not name it. It must not be changed by reconfigure: flipping it on
+     * a running node would mix escaped and unescaped values in the same data set, which corrupts
+     * reads. Switching modes requires opening a fresh, empty data set in the new mode. A
+     * reconfigure that names the same value is a harmless no-op.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.stable_tombstone_encoding", &cval), true);
+    if (ret == 0 && cval.len > 0) {
+        bool want_encoding = WT_CONFIG_LIT_MATCH("true", cval);
+        if (reconfig &&
+          want_encoding !=
+            F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING))
+            WT_ERR_MSG(session, EINVAL,
+              "disaggregated.stable_tombstone_encoding cannot be changed by reconfigure; the mode "
+              "is fixed when the connection opens and switching it requires wiping the data");
+        if (want_encoding)
+            F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        else
+            F_CLR(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    } else if (!reconfig)
+        F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    ret = 0;
+
     /* Reconfigure-only settings. */
     if (reconfig) {
         WT_STAT_CONN_INCR(session, disagg_conn_reconfig);
@@ -1695,15 +1720,26 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     if (ckpt_success) {
         /*
+         * Record the stable tombstone encoding mode and, when it is off, raise the minimum reader
+         * version so a node that would still strip the escape byte refuses this checkpoint.
+         */
+        bool stable_encoding =
+          F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        int compatible_version = stable_encoding ?
+          WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION :
+          WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION_STABLE_UNENCODED;
+
+        /*
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
         WT_ERR_MSG_CHK(session,
           __wt_buf_fmt(session, meta,
             "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
-            ",version=%d,compatible_version=%d",
+            ",version=%d,compatible_version=%d,stable_tombstone_encoding=%s",
             meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
-            WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION),
+            WT_DISAGG_CHECKPOINT_META_VERSION, compatible_version,
+            stable_encoding ? "true" : "false"),
           "Failed to format checkpoint metadata");
 
         complete_args.checkpoint_id = 0;

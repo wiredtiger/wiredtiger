@@ -155,8 +155,14 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 2
 #define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+/*
+ * A checkpoint whose stable tables omit tombstone encoding cannot be read by a node that still
+ * strips the escape byte; such readers are version 2 or newer. Checkpoints that keep the encoding
+ * stay compatible with every reader.
+ */
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION_STABLE_UNENCODED 2
 
 /*
  * Turtle/checkpoint metadata version constants:
@@ -253,6 +259,7 @@ typedef struct __wt_disagg_checkpoint_meta {
     uint32_t version;       /* The version of the checkpoint_meta. */
     uint32_t
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
+    bool stable_tombstone_encoding; /* Whether stable-table values are tombstone-escaped on disk. */
 } WT_DISAGG_CHECKPOINT_META;
 
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
@@ -344,7 +351,8 @@ struct __wt_disaggregated_storage {
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
-#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x2u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING 0x2u
+#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };

@@ -1783,6 +1783,10 @@ extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
 extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
 extern void __wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session);
+extern void __wt_clayered_assert_stable_drain_value(
+  WT_SESSION_IMPL *session, size_t ingest_value_size, const WT_ITEM *stable_value);
+extern void __wt_clayered_ingest_to_stable_update(WT_SESSION_IMPL *session, WT_UPDATE *upd);
+extern void __wt_clayered_ingest_to_stable_value(WT_SESSION_IMPL *session, WT_ITEM *value);
 extern void __wt_clayered_stable_value_stat(
   WT_SESSION_IMPL *session, const void *data, size_t size);
 extern void __wt_cond_auto_wait(

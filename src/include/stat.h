@@ -1004,6 +1004,7 @@ struct __wt_connection_stats {
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
+    int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;

@@ -58,20 +58,36 @@ typedef enum {
  * namespace), decode and classification are exclusive (encoding only ever appends, so a stored
  * escaped value is always longer than the tombstone).
  *
- * The stable table has no tombstone marker (deletes there are real removes) and need not escape,
- * but the same encoding is applied to both constituents so a value decodes identically whichever
- * served it. FIXME-WT-17933: that persists the escape byte on disk and locks it into the on-disk
- * format; limit encoding to the ingest table only.
+ * The stable table has no tombstone marker (deletes there are real removes) and need not escape.
+ * Escaping it anyway persists the escape byte on disk and locks it into the on-disk format, so the
+ * stable table only escapes while the connection has stable tombstone encoding enabled (the
+ * default, matching legacy on-disk data). Both the encode and decode paths consult the same switch
+ * via __clayered_stable_tombstone_encoding, so a stable value round-trips consistently: with the
+ * switch off nothing is escaped and nothing is stripped, and a value byte-identical to the
+ * tombstone survives on the stable table unchanged. The ingest table always encodes.
  */
+
+/*
+ * __clayered_stable_tombstone_encoding --
+ *     Whether values bound for, or read from, the stable table participate in tombstone encoding.
+ *     The single switch that both the encode and decode paths consult for stable-served values.
+ */
+static WT_INLINE bool
+__clayered_stable_tombstone_encoding(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING));
+}
+
+typedef enum { WTI_TOMBSTONE_ENCODE, WTI_TOMBSTONE_DECODE } WTI_TOMBSTONE_OP;
 
 /*
  * __clayered_value_in_tombstone_namespace --
  *     Boundary test shared by the tombstone encode and decode paths.
  */
 static WT_INLINE bool
-__clayered_value_in_tombstone_namespace(const WT_ITEM *value, bool encode)
+__clayered_value_in_tombstone_namespace(const WT_ITEM *value, WTI_TOMBSTONE_OP op)
 {
-    size_t bound = encode ? __wt_tombstone.size : __wt_tombstone.size + 1;
+    size_t bound = op == WTI_TOMBSTONE_ENCODE ? __wt_tombstone.size : __wt_tombstone.size + 1;
 
     return (
       value->size >= bound && memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
@@ -82,16 +98,18 @@ __clayered_value_in_tombstone_namespace(const WT_ITEM *value, bool encode)
  *     Encode values that are in the encoded name space.
  */
 static WT_INLINE int
-__clayered_deleted_encode(
-  WT_SESSION_IMPL *session, const WT_ITEM *value, WT_ITEM *final_value, WT_ITEM **tmpp)
+__clayered_deleted_encode(WT_SESSION_IMPL *session, const WT_ITEM *value, bool to_stable,
+  WT_ITEM *final_value, WT_ITEM **tmpp)
 {
     WT_ITEM *tmp;
 
     /*
      * If value requires encoding, get a scratch buffer of the right size and create a copy of the
-     * data with the first byte of the tombstone appended.
+     * data with the first byte of the tombstone appended. A stable-bound value is only escaped
+     * while stable tombstone encoding is enabled; the ingest table always escapes.
      */
-    if (__clayered_value_in_tombstone_namespace(value, true /* encode */)) {
+    if ((!to_stable || __clayered_stable_tombstone_encoding(session)) &&
+      __clayered_value_in_tombstone_namespace(value, WTI_TOMBSTONE_ENCODE)) {
         WT_RET(__wt_scr_alloc(session, value->size + 1, tmpp));
         tmp = *tmpp;
 
@@ -112,11 +130,13 @@ __clayered_deleted_encode(
  *     Decode values that start with the tombstone.
  */
 static WT_INLINE void
-__clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value)
+__clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value, bool from_stable)
 {
-    WT_UNUSED(session);
+    /* A stable-served value is only decoded while stable tombstone encoding is enabled. */
+    if (from_stable && !__clayered_stable_tombstone_encoding(session))
+        return;
 
-    if (__clayered_value_in_tombstone_namespace(value, false /* decode */)) {
+    if (__clayered_value_in_tombstone_namespace(value, WTI_TOMBSTONE_DECODE)) {
         /* Encoding only ever appends the tombstone byte, so that is the byte being stripped. */
         /* FIXME-WT-18154: assert the byte being stripped is the tombstone byte. */
         --value->size;
@@ -124,12 +144,92 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value)
 }
 
 /*
+ * __clayered_decode_current --
+ *     Decode the value from the layered cursor's current constituent.
+ */
+static WT_INLINE void
+__clayered_decode_current(WTI_CURSOR_LAYERED *clayered, WT_ITEM *value)
+{
+    __clayered_deleted_decode(
+      CUR2S(clayered), value, clayered->current_cursor == clayered->stable_cursor);
+}
+
+/*
+ * __wt_clayered_ingest_to_stable_value --
+ *     Convert an ingest value into its stable form during drain, dropping the escape byte when the
+ *     stable table does not escape so the encoding never reaches the stable on-disk image. A real
+ *     tombstone is a delete, never a value, and must not be passed here.
+ */
+void
+__wt_clayered_ingest_to_stable_value(WT_SESSION_IMPL *session, WT_ITEM *value)
+{
+    size_t size_before;
+
+    WT_ASSERT(session, !__wt_clayered_deleted(value));
+
+    if (__clayered_stable_tombstone_encoding(session))
+        return;
+
+    size_before = value->size;
+    __clayered_deleted_decode(session, value, false);
+    if (value->size != size_before)
+        WT_STAT_CONN_INCR(session, disagg_ingest_stable_tombstone_stripped);
+}
+
+/*
+ * __wt_clayered_ingest_to_stable_update --
+ *     Convert an in-memory ingest update redirected onto the stable btree into its stable form,
+ *     dropping the escape byte when the stable table does not escape so the encoding never reaches
+ *     the stable on-disk image. A real tombstone is a delete, never a value, and is left alone.
+ */
+void
+__wt_clayered_ingest_to_stable_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+    WT_ITEM value;
+
+    if (__clayered_stable_tombstone_encoding(session))
+        return;
+    if (upd->type != WT_UPDATE_STANDARD)
+        return;
+
+    value.data = upd->data;
+    value.size = upd->size;
+    if (__clayered_value_in_tombstone_namespace(&value, WTI_TOMBSTONE_DECODE)) {
+        --upd->size;
+        WT_STAT_CONN_INCR(session, disagg_ingest_stable_tombstone_stripped);
+    }
+}
+
+/*
+ * __wt_clayered_assert_stable_drain_value --
+ *     Diagnostic catching a drain path that lands a pre-escaped value on the stable table: with
+ *     stable tombstone encoding off, a value colliding with the marker must lose exactly the escape
+ *     byte and every other value is unchanged. Real deletes become stable tombstones, never here.
+ */
+void
+__wt_clayered_assert_stable_drain_value(
+  WT_SESSION_IMPL *session, size_t ingest_value_size, const WT_ITEM *stable_value)
+{
+    WT_ITEM ingest_value;
+
+    ingest_value.data = stable_value->data;
+    ingest_value.size = ingest_value_size;
+
+    if (!__clayered_stable_tombstone_encoding(session) &&
+      __clayered_value_in_tombstone_namespace(&ingest_value, WTI_TOMBSTONE_DECODE))
+        WT_ASSERT(session, stable_value->size == ingest_value_size - 1);
+    else
+        WT_ASSERT(session, stable_value->size == ingest_value_size);
+}
+
+/*
  * __wt_clayered_stable_value_stat --
- *     Count and warn about a stable-table value that shares the tombstone's encoded namespace. Such
- *     values begin with the two tombstone bytes and are escaped like on the ingest table (see
- *     __clayered_deleted_encode); they are expected to be extremely rare. The stored form is
- *     classified by its length and trailing byte; a bare two-byte tombstone can only come from
- *     legacy unescaped data on disk. The raw bytes may carry application data, so the log records
+ *     Count a stable-table value that shares the tombstone's encoded namespace, classified by its
+ *     length and trailing byte. While stable tombstone encoding is enabled such a value is escaped
+ *     (see __clayered_deleted_encode), or legacy unescaped data written before the encoding
+ *     existed, and is warned about as it is expected to be extremely rare. With encoding off the
+ *     stable table stores raw values, so a value in the namespace is an ordinary application value
+ *     and the warning is suppressed. The raw bytes may carry application data, so the log records
  *     only the size and a content hash to fingerprint recurring values. This takes raw bytes so
  *     both the layered cursor and the verify page walk can share it.
  *
@@ -163,10 +263,15 @@ __wt_clayered_stable_value_stat(WT_SESSION_IMPL *session, const void *data, size
         what = "ending with a non-tombstone byte";
     }
 
-    __wt_verbose_warning(session, WT_VERB_LAYERED,
-      "stable table value in the tombstone namespace (%s), size 0x%" PRIx64
-      ", content hash 0x%016" PRIx64,
-      what, (uint64_t)size, __wt_hash_city64(data, size));
+    /*
+     * A namespace value is an anomaly worth flagging only while stable tombstone encoding is
+     * enabled; with encoding off it is a normal raw value, so suppress the warning.
+     */
+    if (__clayered_stable_tombstone_encoding(session))
+        __wt_verbose_warning(session, WT_VERB_LAYERED,
+          "stable table value in the tombstone namespace (%s), size 0x%" PRIx64
+          ", content hash 0x%016" PRIx64,
+          what, (uint64_t)size, __wt_hash_city64(data, size));
 }
 
 /*
@@ -1520,7 +1625,7 @@ __clayered_iterate(WTI_CURSOR_LAYERED *clayered, uint32_t iter_flag)
     WT_ITEM_SET(iface->key, clayered->current_cursor->key);
     WT_ITEM_SET(iface->value, clayered->current_cursor->value);
     __clayered_stable_read_value_stat(clayered, &iface->value);
-    __clayered_deleted_decode(CUR2S(clayered), &iface->value);
+    __clayered_decode_current(clayered, &iface->value);
     F_CLR(iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     F_SET(iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
@@ -2012,7 +2117,7 @@ err:
     __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_stable_read_value_stat(clayered, &cursor->value);
-        __clayered_deleted_decode(session, &cursor->value);
+        __clayered_decode_current(clayered, &cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
@@ -2379,7 +2484,7 @@ err:
     __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_stable_read_value_stat(clayered, &cursor->value);
-        __clayered_deleted_decode(session, &cursor->value);
+        __clayered_decode_current(clayered, &cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
@@ -2707,6 +2812,7 @@ __clayered_copy_duplicate_kv(WTI_CLAYERED_OP *op)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    __clayered_decode_current(clayered, &cursor->value);
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     WT_RET(__wt_cursor_localkey(cursor));
     WT_RET(__cursor_localvalue(cursor));
@@ -2779,8 +2885,8 @@ __clayered_insert(WT_CURSOR *cursor)
 
     WT_ERR(__clayered_modify_check(session, clayered, &cursor->key));
 
-    /* FIXME-WT-17933: on the leader this encodes into the stable table. */
-    WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
+    /* On the leader the destination is the stable table (op.ingest is NULL). */
+    WT_ERR(__clayered_deleted_encode(session, &cursor->value, op.ingest == NULL, &value, &buf));
     ret = __clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_INSERT);
     if (ret == WT_DUPLICATE_KEY) {
         WT_ASSERT(session, op.ingest == NULL);
@@ -2790,6 +2896,7 @@ __clayered_insert(WT_CURSOR *cursor)
          */
         F_CLR(cursor, WT_CURSTD_VALUE_SET);
         WT_ITEM_SET(cursor->value, op.stable->value);
+        __clayered_deleted_decode(session, &cursor->value, true);
         F_SET(cursor, WT_CURSTD_VALUE_INT);
         WT_ERR(__cursor_localvalue(cursor));
         WT_ERR(WT_DUPLICATE_KEY);
@@ -2857,8 +2964,8 @@ __clayered_update(WT_CURSOR *cursor)
         WT_ERR(__cursor_needkey(cursor));
     }
 
-    /* FIXME-WT-17933: on the leader this encodes into the stable table. */
-    WT_ERR(__clayered_deleted_encode(session, &cursor->value, &value, &buf));
+    /* On the leader the destination is the stable table (op.ingest is NULL). */
+    WT_ERR(__clayered_deleted_encode(session, &cursor->value, op.ingest == NULL, &value, &buf));
     WT_ERR(__clayered_put(&op, &cursor->key, &value, WTI_CLAYERED_PUT_UPDATE));
 
     /*
@@ -2867,6 +2974,7 @@ __clayered_update(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    __clayered_decode_current(clayered, &cursor->value);
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     WT_ASSERT(
       session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
@@ -3215,7 +3323,7 @@ err:
     __clayered_leave(clayered);
     if (ret == 0) {
         __clayered_stable_read_value_stat(clayered, &cursor->value);
-        __clayered_deleted_decode(session, &cursor->value);
+        __clayered_decode_current(clayered, &cursor->value);
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else {
@@ -3246,13 +3354,15 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     /*
      * Similarly, a delete-encoded value alters the original value and also cannot serve as the base
-     * value for a modify. In these cases, perform a full update instead.
+     * value for a modify. In these cases, perform a full update instead. This only arises while
+     * stable tombstone encoding is enabled; with it off the stored value is the raw value and a
+     * plain modify applies directly.
      */
-    if (ret == 0 && __clayered_value_in_tombstone_namespace(&c_stable->value, false /* decode */)) {
-        __clayered_deleted_decode(session, &c_stable->value);
+    if (ret == 0 && __clayered_stable_tombstone_encoding(session) &&
+      __clayered_value_in_tombstone_namespace(&c_stable->value, WTI_TOMBSTONE_DECODE)) {
+        __clayered_deleted_decode(session, &c_stable->value, true);
         WT_ERR(__wt_modify_apply_api(c_stable, entries, nentries));
-        /* FIXME-WT-17933: this encodes into the stable table. */
-        WT_ERR(__clayered_deleted_encode(session, &c_stable->value, &c_stable->value, &buf));
+        WT_ERR(__clayered_deleted_encode(session, &c_stable->value, true, &c_stable->value, &buf));
         __wt_clayered_stable_value_stat(session, c_stable->value.data, c_stable->value.size);
         F_SET(c_stable, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_stable->update(c_stable));
@@ -3298,10 +3408,10 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
          * table.
          */
         c_ingest->set_key(c_ingest, &cursor->key);
-        __clayered_deleted_decode(session, &value);
+        __clayered_decode_current(clayered, &value);
         WT_ITEM_SET(c_ingest->value, value);
         WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
-        WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
+        WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, false, &c_ingest->value, &buf));
         F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_ingest->update(c_ingest));
     } else {
@@ -3312,10 +3422,11 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
          * instead.
          */
         if (__wt_clayered_deleted(&c_ingest->value) ||
-          __clayered_value_in_tombstone_namespace(&c_ingest->value, false /* decode */)) {
-            __clayered_deleted_decode(session, &c_ingest->value);
+          __clayered_value_in_tombstone_namespace(&c_ingest->value, WTI_TOMBSTONE_DECODE)) {
+            __clayered_deleted_decode(session, &c_ingest->value, false);
             WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
-            WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
+            WT_ERR(
+              __clayered_deleted_encode(session, &c_ingest->value, false, &c_ingest->value, &buf));
             F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
             WT_ERR(c_ingest->update(c_ingest));
         } else
@@ -3399,7 +3510,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      */
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
-    __clayered_deleted_decode(session, &cursor->value);
+    __clayered_decode_current(clayered, &cursor->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT);
 

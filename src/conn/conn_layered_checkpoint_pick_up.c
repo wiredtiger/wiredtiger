@@ -1140,6 +1140,29 @@ __wti_disagg_pick_up_checkpoint_meta(
     /* Parse and validate version and compatible_version fields. */
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
+    /*
+     * Extract the stable tombstone encoding mode; a checkpoint written before this field existed
+     * used the escaped format, so treat its absence as encoding on. The configured mode must match
+     * the mode the data on disk was written with: mixing the two silently corrupts reads, so refuse
+     * to pick up the checkpoint. Switching modes requires wiping the data first.
+     */
+    ckpt_meta.stable_tombstone_encoding = true;
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getones(session, meta_str, "stable_tombstone_encoding", &cval), true);
+    if (ret == 0 && cval.len != 0)
+        ckpt_meta.stable_tombstone_encoding = WT_CONFIG_LIT_MATCH("true", cval);
+    ret = 0;
+    if (ckpt_meta.stable_tombstone_encoding !=
+      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING))
+        WT_ERR_MSG(session, EINVAL,
+          "checkpoint was written with stable tombstone encoding %s but this connection is "
+          "configured %s; the data must be wiped before changing the stable tombstone encoding "
+          "mode",
+          ckpt_meta.stable_tombstone_encoding ? "on" : "off",
+          F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING) ?
+            "on" :
+            "off");
+
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     /* Now actually pick up the checkpoint. */

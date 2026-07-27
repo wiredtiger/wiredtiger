@@ -330,6 +330,15 @@ __layered_fix_prepared_transaction_callback(
         op->btree = cookie->stable_btree;
 
         /*
+         * The redirected update was written on the ingest table, where a value colliding with the
+         * tombstone marker is escaped. Convert it to the stable table's form so the escape byte
+         * does not reach an unescaped stable on-disk image when this transaction later commits and
+         * stable reconciles. Modifying the value in place is safe under this function's
+         * no-concurrent-commit/rollback assumption.
+         */
+        __wt_clayered_ingest_to_stable_update(session, op->u.op_upd);
+
+        /*
          * Transfer the session_inuse reference from the ingest btree to the stable btree. The
          * ingest btree's session_inuse was incremented when this operation was recorded in the
          * transaction, and op->btree's (now the stable btree) session_inuse will be decremented
@@ -616,8 +625,16 @@ __layered_copy_ingest_table(
                  */
                 if (__wt_clayered_deleted(value))
                     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                else
+                else {
+                    /*
+                     * The ingest value is tombstone-escaped; store it in the stable table's form so
+                     * an unescaped stable table does not inherit the encoding on disk.
+                     */
+                    size_t ingest_value_size = value->size;
+                    __wt_clayered_ingest_to_stable_value(session, value);
+                    __wt_clayered_assert_stable_drain_value(session, ingest_value_size, value);
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+                }
                 /*
                  * If the prepared update is aborted, move the aborted update to the stable table
                  * because we may write a prepared update to the disk in a future reconciliation.

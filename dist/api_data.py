@@ -155,6 +155,13 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
+    Config('stable_tombstone_encoding', '', r'''
+        whether values written to the stable table that collide with the reserved ingest
+        tombstone marker are escaped on disk. Required while the on-disk format still contains
+        legacy escaped values; can be turned off once such data has been wiped. Ingest-table
+        encoding is unaffected. Preserved across calls to reconfigure that do not name it, and
+        defaults to on''',
+        choices=['false', 'true'], undoc=True),
     Config('strict_checkpoint_metadata', '', r'''
         validate at checkpoint pickup that the local and shared metadata contain the same
         layered tables, panicking on any difference that is not explained by a pending
