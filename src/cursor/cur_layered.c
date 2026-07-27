@@ -1194,6 +1194,10 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_ASSERT(session, trunc_info->start != NULL);
     WT_ASSERT(session, trunc_info->stop != NULL);
 
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE,
+      "truncate is not supported while the step-down timestamp is set");
+
     /*
      * On leader mode, we can directly perform truncate operation on the stable table. On follower
      * mode, we need to perform truncate on the ingest table and add an entry inside the truncate

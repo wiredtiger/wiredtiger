@@ -1964,6 +1964,17 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
     /*
+     * The step-down rollback below cannot apply to a prepared transaction: failing a prepared
+     * commit fails the system. Catch a transaction that prepared before the timestamp was set with
+     * a clear message instead.
+     */
+    WT_ASSERT_ALWAYS(session,
+      !F_ISSET(txn, WT_TXN_PREPARE) ||
+        __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
+          WT_TS_NONE,
+      "prepared transactions are not supported while the step-down timestamp is set");
+
+    /*
      * A write transaction that started before the step-down timestamp was set must not commit after
      * it is set. One whose writes all happened before the timestamp was set never does another
      * cursor operation for the write-time check to catch, so check at commit. Run the check under
