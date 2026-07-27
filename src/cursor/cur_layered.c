@@ -572,16 +572,23 @@ static int
 __clayered_open_stable(WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected,
   WTI_CLAYERED_ROLE role, bool check_snapshot)
 {
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
 
     /*
      * A leader's stable table is written locally with this node's transaction ids, so it is
-     * normally safe under any snapshot. The exception is a snapshot that raced a checkpoint pickup
-     * before a step-up: the adopted content has no local ids, and becoming the leader must not
-     * launder it into visibility.
+     * normally safe under any snapshot. The exception is a snapshot from before a role change: the
+     * adopted content in the live tree has no local ids, and becoming the leader must not launder
+     * it into visibility. Check under the checkpoint lock: role changes run under it, so the role
+     * and the role-change generation are only guaranteed mutually consistent inside it. Without
+     * the lock, a bind racing a step-up can observe the new role with the old generation and bind
+     * the live stable table mid-transition.
      */
-    if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot)
-        WT_RET(__clayered_stable_bind_check(CUR2S(clayered), false));
+    if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot) {
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session, false));
+        WT_RET(ret);
+    }
 
     return (role == WTI_CLAYERED_ROLE_LEADER ?
         __clayered_open_stable_int(clayered, layered->stable_uri) :
