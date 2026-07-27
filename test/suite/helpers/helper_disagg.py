@@ -818,6 +818,18 @@ class DisaggSchemaEpochMixin:
         session.close()
         return found
 
+    def uri_stable_in_local_metadata(self, conn, uri):
+        """Return True if uri's stable constituent is present in conn's local metadata."""
+        session = conn.open_session('')
+        exists = True
+        try:
+            c = session.open_cursor(self.stable_uri(uri))
+            c.close()
+        except wiredtiger.WiredTigerError:
+            exists = False
+        session.close()
+        return exists
+
     def uri_in_local_metadata(self, conn, uri, leader=False):
         """
         Return True if uri is present in conn's local metadata.

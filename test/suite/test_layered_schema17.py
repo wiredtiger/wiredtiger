@@ -112,14 +112,14 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session_follow.close()
 
         # The startup pickup created uri locally, so the next pickup sees matched sets.
-        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertTrue(self.uri_stable_in_local_metadata(conn_follow, self.uri))
 
         self.leader_checkpoint_at_epoch(21, 2)
         # The advance passes only checkpoint_meta, so strict mode must remain on (sticky).
         self.disagg_advance_checkpoint(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
-        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertTrue(self.uri_stable_in_local_metadata(conn_follow, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
@@ -182,7 +182,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
-        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertFalse(self.uri_stable_in_local_metadata(conn_follow, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
@@ -387,7 +387,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri2))
-        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
+        self.assertTrue(self.uri_stable_in_local_metadata(conn_follow, self.uri2))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
@@ -410,6 +410,6 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri2))
-        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
+        self.assertTrue(self.uri_stable_in_local_metadata(conn_follow, self.uri2))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
