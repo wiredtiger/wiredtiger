@@ -1479,8 +1479,8 @@ err:
 
     /*
      * A failure once the role transition has started leaves the node in an inconsistent
-     * half-transitioned state; a failure before that returns normally, with the node still fully
-     * in its old role.
+     * half-transitioned state; a failure before that returns normally, with the node still fully in
+     * its old role.
      */
     if (ret != 0 && role_change_started && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
