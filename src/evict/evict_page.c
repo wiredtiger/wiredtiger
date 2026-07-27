@@ -1225,6 +1225,21 @@ typedef struct {
  *     running checkpoint has not published a snapshot.
  */
 static bool
+__evict_ckpt_snapshot_published(WT_SESSION_IMPL *session)
+{
+    bool published;
+
+    WT_ACQUIRE_READ_WITH_BARRIER(published, S2C(session)->ckpt_eviction_snap_published);
+
+    return (published);
+}
+
+/*
+ * __evict_ckpt_snapshot_copy --
+ *     Copy the published checkpoint snapshot into the session's transaction snapshot so that
+ *     reconciliation can use it for precise checkpoint eviction visibility.
+ */
+static void
 __evict_ckpt_snapshot_copy(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *state)
 {
     WT_TXN_SNAPSHOT *snap;
@@ -1287,7 +1302,7 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     uint32_t flags;
-    bool app_thread_eviction, ckpt_snap_usable, precise_ckpt, unvisited_by_ckpt;
+    bool app_ckpt_snap_usable, app_thread_eviction, ckpt_snap_bound, ckpt_snap_usable, precise_ckpt;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -1301,14 +1316,20 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
       precise_ckpt && !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle);
 
     /*
-     * The published checkpoint snapshot is only a valid visibility bound for trees the checkpoint
-     * hasn't visited yet. A tree it has already written must not gain newer content.
+     * The published checkpoint snapshot is a valid visibility bound for trees the checkpoint hasn't
+     * visited yet. Disaggregated storage: nothing newer than the checkpoint may be evicted until
+     * the checkpoint completes.
      */
-    unvisited_by_ckpt = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen) <
-      __wt_gen(session, WT_GEN_CHECKPOINT);
+    ckpt_snap_bound = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen) <
+        __wt_gen(session, WT_GEN_CHECKPOINT) ||
+      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+        __wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running));
 
     app_thread_eviction = !F_ISSET(session, WT_SESSION_EVICTION) &&
       !F_ISSET(session, WT_SESSION_INTERNAL) && !WT_IS_METADATA(session->dhandle);
+
+    /* Application threads only use the checkpoint snapshot on disaggregated storage for now. */
+    app_ckpt_snap_usable = ckpt_snap_usable && F_ISSET(btree, WT_BTREE_DISAGGREGATED);
 
     if (F_ISSET(session, WT_SESSION_EVICTION)) {
         /*
@@ -1317,13 +1338,14 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        if (!precise_ckpt || !unvisited_by_ckpt) {
+        if (!precise_ckpt || !ckpt_snap_bound) {
             __wt_txn_bump_snapshot(session);
             snap->release = true;
             snap->read_committed = true;
-        } else if (ckpt_snap_usable && __evict_ckpt_snapshot_copy(session, snap))
+        } else if (ckpt_snap_usable && __evict_ckpt_snapshot_published(session)) {
+            __evict_ckpt_snapshot_copy(session, snap);
             snap->read_committed = true;
-        else
+        } else
             FLD_SET(flags, WT_REC_VISIBLE_NO_SNAPSHOT);
     } else if (app_thread_eviction && !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
@@ -1344,27 +1366,21 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
 
         FLD_SET(flags, WT_REC_APP_EVICTION_SNAPSHOT);
         snap->read_committed = true;
-    } else if (app_thread_eviction && ckpt_snap_usable) {
+    } else if (app_thread_eviction && app_ckpt_snap_usable) {
         /*
          * Under precise checkpoint, copy the published checkpoint snapshot as the visibility bound
-         * so checkpoint can skip re-reconciling the page later. Only do so for a read-only
-         * transaction: reconciling under the checkpoint snapshot would treat the thread's own
-         * uncommitted updates as invisible and write the update chain out, corrupting a later
-         * commit or rollback.
+         * so checkpoint can skip re-reconciling the page later.
          */
-        if (unvisited_by_ckpt && session->txn->mod_count == 0) {
-            /* Preserve the application's own snapshot while we borrow the checkpoint's. */
+        if (ckpt_snap_bound && __evict_ckpt_snapshot_published(session)) {
+            /* Preserve the application's own snapshot while we use the checkpoint's. */
             if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
-                WT_RET(__wt_txn_snapshot_save_and_refresh(session));
+                WT_RET(__wt_txn_snapshot_save(session));
                 snap->restore = true;
             }
-            if (__evict_ckpt_snapshot_copy(session, snap)) {
-                snap->read_committed = true;
-                WT_STAT_CONN_INCR(session, application_evict_checkpoint_snapshot);
-            } else {
-                __evict_snapshot_teardown(session, snap);
-                FLD_SET(flags, WT_REC_VISIBLE_NO_SNAPSHOT);
-            }
+            __evict_ckpt_snapshot_copy(session, snap);
+            FLD_SET(flags, WT_REC_APP_EVICTION_CKPT_SNAPSHOT);
+            snap->read_committed = true;
+            WT_STAT_CONN_INCR(session, application_evict_checkpoint_snapshot);
         } else
             FLD_SET(flags, WT_REC_VISIBLE_NO_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))

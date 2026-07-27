@@ -47,10 +47,7 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
 static WT_INLINE bool
 __sync_page_image_durable(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
-    u_int i;
-
     mod = ref->page->modify;
 
     /* A re-instantiated page keeps its written address on the ref. */

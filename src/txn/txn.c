@@ -472,11 +472,12 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_snapshot_save_and_refresh --
- *     Save the existing snapshot and allocate a new snapshot.
+ * __wt_txn_snapshot_save --
+ *     Save the existing snapshot, leaving the transaction with a snapshot buffer of its own for the
+ *     caller to populate.
  */
 int
-__wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+__wt_txn_snapshot_save(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TXN *txn;
@@ -495,9 +496,6 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
 
-    /* Get the snapshot without publishing the shared ids. */
-    __wt_txn_bump_snapshot(session);
-
 err:
     /* Free the backup_snapshot_data if the memory allocation of the underlying snapshot has failed.
      */
@@ -505,6 +503,21 @@ err:
         __wt_free(session, txn->backup_snapshot_data);
 
     return (ret);
+}
+
+/*
+ * __wt_txn_snapshot_save_and_refresh --
+ *     Save the existing snapshot and allocate a new snapshot.
+ */
+int
+__wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+{
+    WT_RET(__wt_txn_snapshot_save(session));
+
+    /* Get the snapshot without publishing the shared ids. */
+    __wt_txn_bump_snapshot(session);
+
+    return (0);
 }
 
 /*
