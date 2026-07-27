@@ -1340,8 +1340,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         goto err;
 
     /* Get the checkpoint deferral timeout. */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_deferral_timeout_ms", &cval));
-    conn->disaggregated_storage.checkpoint_deferral_timeout_ms = (uint64_t)cval.val;
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.checkpoint_deferral_timeout_ms", &cval), true);
+    if (ret == 0)
+        conn->disaggregated_storage.checkpoint_deferral_timeout_ms = (uint64_t)cval.val;
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
