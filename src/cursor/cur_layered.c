@@ -474,7 +474,7 @@ __clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
  *     name from) under that lock.
  */
 static int
-__clayered_stable_bind_check(WT_SESSION_IMPL *session, bool binds_checkpoint)
+__clayered_stable_bind_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
@@ -488,21 +488,26 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session, bool binds_checkpoint)
         goto refuse;
 
     /*
-     * Binding checkpoint content requires the snapshot to have been established at (or after) the
-     * newest published checkpoint. A leader with an unchanged role binds the live stable table
-     * instead, whose transaction ids are local and valid under any snapshot.
+     * Only checkpoint content is constrained by the published LSN, and role changes run under the
+     * checkpoint lock held here, so the role read below is the one the generation above vouched
+     * for. A leader with an unchanged role binds the live stable table, whose transaction ids are
+     * local and valid under any snapshot.
      */
-    if (binds_checkpoint) {
-        conn_lsn =
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-        if (conn_lsn == WT_DISAGG_LSN_NONE)
-            return (0);
+    if (conn->layered_table_manager.leader)
+        return (0);
 
-        /* The pin is the LSN plus one; a snapshot with no pin is conservatively refused. */
-        pinned_lsn = __wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn);
-        if (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn)
-            return (0);
-    } else
+    /*
+     * Binding checkpoint content requires the snapshot to have been established at (or after) the
+     * newest published checkpoint.
+     */
+    conn_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    if (conn_lsn == WT_DISAGG_LSN_NONE)
+        return (0);
+
+    /* The pin is the LSN plus one; a snapshot with no pin is conservatively refused. */
+    pinned_lsn = __wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn);
+    if (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn)
         return (0);
 
 refuse:
@@ -519,7 +524,7 @@ refuse:
 static int
 __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, const char **namep)
 {
-    WT_RET(__clayered_stable_bind_check(session, true));
+    WT_RET(__clayered_stable_bind_check(session));
     return (__wt_meta_checkpoint_last_name(session, stable_uri, namep, NULL, NULL));
 }
 
@@ -607,7 +612,7 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
      * live stable table mid-transition.
      */
     if (__clayered_stable_bind_check_needed(session)) {
-        WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session, false));
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session));
         WT_RET(ret);
     }
 
