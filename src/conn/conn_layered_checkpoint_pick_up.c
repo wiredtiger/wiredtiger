@@ -868,7 +868,7 @@ __disagg_snapshot_predates_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
     uint64_t pinned_lsn;
     uint32_t i, session_cnt;
 
-    WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
+    session_cnt = __wt_atomic_load_uint32_acquire(&conn->session_array.cnt);
     for (i = 0, s = conn->txn_global.txn_shared_list; i < session_cnt; i++, s++) {
         /* The pin is the LSN plus one; zero means no pinned snapshot. */
         pinned_lsn = __wt_atomic_load_uint64_acquire(&s->disagg_pinned_lsn);
