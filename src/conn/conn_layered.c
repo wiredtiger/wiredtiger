@@ -168,10 +168,8 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /*
-     * Without a stable checkpoint epoch and no live stable epoch, fall back to the legacy method.
-     * If the live epoch is set, this connection is in epoch world and must use epoch-aware recovery
-     * even when no epoch checkpoint has completed yet. WT-18176 guarantees that publish requires
-     * the live epoch, so a non-NONE live epoch reliably signals epoch world.
+     * Use the legacy method only when this node was never in epoch world. Either a completed epoch
+     * checkpoint or a live stable epoch means epoch-aware recovery is required.
      */
     if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
       __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE) {
