@@ -1732,7 +1732,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     disagg = &conn->disaggregated_storage;
 
     WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
-    /* Single-threaded teardown: no session can be signalling the server any longer. */
+    /* Single-threaded teardown: no session can be signaling the server any longer. */
     __wt_cond_destroy(session, &disagg->deferred_pickup_cond);
 
     /* Remove the list of URIs for which we still need to update metadata entries. */
