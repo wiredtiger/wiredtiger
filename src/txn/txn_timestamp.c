@@ -404,7 +404,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         if (!S2C(session)->layered_table_manager.leader)
             WT_RET_MSG(session, EINVAL,
               "set_timestamp: step down timestamp can only be set on a disaggregated leader");
-        if (__wt_atomic_load_uint64_acquire(&txn_global->step_down_timestamp) != WT_TS_NONE)
+        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE)
             WT_RET_MSG(session, EINVAL, "set_timestamp: step down timestamp is already set");
     }
 
@@ -419,7 +419,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     last_stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
     last_stable_disagg_epoch =
       __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch);
-    current_step_down_ts = __wt_atomic_load_uint64_acquire(&txn_global->step_down_timestamp);
+    current_step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
 
     /*
      * It is an invalid call to set the oldest or stable timestamps or the stable disaggregated
@@ -581,7 +581,9 @@ set:
      * setting it, which clears it, so it is only valid on a leader and cannot be changed while set.
      */
     if (has_step_down) {
+        __wt_writelock(session, &txn_global->step_down_lock);
         __wt_atomic_store_uint64_release(&txn_global->step_down_timestamp, step_down_ts);
+        __wt_writeunlock(session, &txn_global->step_down_lock);
         WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 1);
         __wt_verbose_timestamp(session, step_down_ts, "Updated global step down timestamp");
     }
@@ -711,7 +713,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
          * the boundary.
          */
         step_down_ts =
-          __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
         if (step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts && txn->stepdown_ts_set)
             WT_RET_MSG(session, EINVAL,
               "commit timestamp %s must be after the step down timestamp %s",

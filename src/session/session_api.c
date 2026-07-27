@@ -1964,13 +1964,20 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
     /*
-     * Straddler guard: a write transaction that started before the step-down timestamp was set must
-     * not commit after it is set. A straddler whose writes all happened before the timestamp was
-     * set never does another cursor operation for the write-time check to catch, so catch it here.
-     * Read-only transactions are unaffected.
+     * A write transaction that started before the step-down timestamp was set must not commit after
+     * it is set. One whose writes all happened before the timestamp was set never does another
+     * cursor operation for the write-time check to catch, so check at commit. Run the check under
+     * the step-down lock: either it observes the timestamp and the transaction rolls back, or the
+     * transaction's writes happen before the timestamp store and are visible to every transaction
+     * that begins with the timestamp set. Read-only transactions and transactions that began with
+     * the timestamp set are exempt.
      */
-    if (txn->mod_count != 0)
-        WT_ERR(__wt_txn_stepdown_straddler_check(session));
+    if (txn->mod_count != 0 && !txn->stepdown_ts_set && __wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        ret = __wt_txn_stepdown_straddler_check(session);
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+        WT_ERR(ret);
+    }
 
 err:
     /*

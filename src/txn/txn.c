@@ -1539,7 +1539,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
-    step_down_ts = __wt_atomic_load_uint64_acquire(&txn_global->step_down_timestamp);
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
     wrote_ingest = wrote_stable = false;
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
@@ -2547,6 +2547,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
+    WT_RET(__wt_rwlock_init(session, &txn_global->step_down_lock));
 
     WT_RET(__wt_calloc_def(session, conn->session_array.size, &txn_global->txn_shared_list));
 
@@ -2580,6 +2581,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 
     __wt_rwlock_destroy(session, &txn_global->rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
+    __wt_rwlock_destroy(session, &txn_global->step_down_lock);
     __wt_free(session, txn_global->txn_shared_list);
 }
 

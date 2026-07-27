@@ -1027,7 +1027,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * way it clears, so finding it set here means the role state machine was violated.
      */
     WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp) == WT_TS_NONE,
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) == WT_TS_NONE,
       "stepping up while the step-down timestamp is set");
 
     /*
@@ -1213,7 +1213,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * boundary than the one writes were split on; advancing stable is the application's
      * responsibility, so treat a mismatch as a fatal protocol violation.
      */
-    step_down_ts = __wt_atomic_load_uint64_acquire(&conn->txn_global.step_down_timestamp);
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
     if (step_down_ts != WT_TS_NONE) {
         stable_ts = __wt_get_stable_timestamp(session);
         WT_ASSERT_ALWAYS(session, stable_ts == step_down_ts,
@@ -1222,8 +1222,14 @@ __disagg_step_down(WT_SESSION_IMPL *session)
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
     }
 
-    /* Clear the step-down timestamp after stepping down. */
+    /*
+     * Clear the step-down timestamp now that the step-down is complete. No transaction can be
+     * writing across the reconfigure, so the lock is not required for correctness; take it so that
+     * every store of the timestamp is made under it.
+     */
+    __wt_writelock(session, &conn->txn_global.step_down_lock);
     __wt_atomic_store_uint64_release(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
+    __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
 
 err:

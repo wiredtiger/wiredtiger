@@ -217,6 +217,14 @@ struct __wt_txn_global {
     WT_RWLOCK visibility_rwlock;
 
     /*
+     * Protects the step-down timestamp: writers set or clear it, readers sample it at transaction
+     * begin and check it when a write transaction commits. A committing write transaction either
+     * observes the timestamp and rolls back, or its writes happen before the timestamp store and
+     * are visible to every transaction that begins with the timestamp set.
+     */
+    WT_RWLOCK step_down_lock;
+
+    /*
      * Track information about the running checkpoint. The transaction snapshot used when
      * checkpointing are special. Checkpoints can run for a long time so we keep them out of regular
      * visibility checks. Eviction and checkpoint operations know when they need to be aware of

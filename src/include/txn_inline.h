@@ -2083,16 +2083,21 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
     /*
-     * Record whether the step-down timestamp was already set when this transaction started; the
-     * straddler check uses it to roll back write transactions that started before the timestamp was
-     * set. Read it after taking the snapshot: the timestamp is set under the txn_global rwlock
-     * write lock and the snapshot scan holds the read lock, so a snapshot that includes any commit
-     * made after the timestamp was set is guaranteed to read it as set here. If this read races the
-     * timestamp being set, it reads false, the transaction counts as in-flight, and it rolls back
-     * at its first write, which is the safe direction.
+     * Record whether the step-down timestamp was set when this transaction started; the commit-time
+     * check rolls back write transactions that started before it was set. Read it after taking the
+     * snapshot: the timestamp is set under the txn_global rwlock write lock and the snapshot scan
+     * holds the read lock, so a snapshot including any commit made after the timestamp was set
+     * reads it as set here. Read it under the step-down lock: the commit-time check runs under the
+     * same lock, so reading the timestamp as set also makes the writes of transactions that
+     * committed before it was set visible. Reading it as clear while it is being set is safe: the
+     * transaction counts as started before the timestamp and rolls back at its first write.
      */
-    txn->stepdown_ts_set =
-      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
+    if (__wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        txn->stepdown_ts_set = __wt_atomic_load_uint64_acquire(
+                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+    }
 
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
