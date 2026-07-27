@@ -280,8 +280,6 @@ struct __wt_repair {
 struct __wt_disaggregated_storage {
     char *page_log;
 
-    bool lazy_stable_open; /* Follower: open stable lazily on an exact search's ingest miss. */
-
     /* Updates are protected by the checkpoint lock. */
     char *last_checkpoint_root;             /* The root config of the last checkpoint. */
     uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */

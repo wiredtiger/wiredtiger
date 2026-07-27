@@ -261,7 +261,7 @@ __clayered_enter_flags(
      * (search_near must merge constituents) and writes.
      */
     if ((mode == WTI_CLAYERED_MODE_SEARCH_EXACT || mode == WTI_CLAYERED_MODE_WRITE) &&
-      role == WTI_CLAYERED_ROLE_FOLLOWER && S2C(session)->disaggregated_storage.lazy_stable_open)
+      role == WTI_CLAYERED_ROLE_FOLLOWER)
         LF_SET(CLAYERED_ENTER_LAZY_STABLE);
 
     if (role != clayered->last_role)

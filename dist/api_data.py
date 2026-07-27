@@ -145,10 +145,6 @@ connection_disaggregated_config_common = [
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
-    Config('lazy_stable_open', 'false', r'''
-        on a follower, defer opening a layered table's stable constituent for an exact search until
-        the ingest lookup misses. Most oplog-apply reads are satisfied by the ingest table, so the
-        stable open (and its cold read) is usually wasted''', type='boolean', undoc=True),
     Config('local_files_action', 'delete', r'''
         what should be done to the local files in disaggregated mode upon startup.''',
         choices=['delete', 'fail', 'ignore'], undoc=True),
