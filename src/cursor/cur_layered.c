@@ -590,9 +590,12 @@ err:
  * __clayered_open_stable --
  *     Open the stable cursor for the current role.
  */
+/*
+ * __clayered_open_stable_leader --
+ *     Open the stable table cursor on the live stable table.
+ */
 static int
-__clayered_open_stable(
-  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role)
+__clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
 {
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
@@ -607,13 +610,20 @@ __clayered_open_stable(
      * lock, a bind racing a step-up can observe the new role with the old generation and bind the
      * live stable table mid-transition.
      */
-    if (role == WTI_CLAYERED_ROLE_LEADER && __clayered_stable_bind_check_needed(session)) {
+    if (__clayered_stable_bind_check_needed(session)) {
         WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session, false));
         WT_RET(ret);
     }
 
+    return (__clayered_open_stable_int(clayered, layered->stable_uri));
+}
+
+static int
+__clayered_open_stable(
+  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role)
+{
     return (role == WTI_CLAYERED_ROLE_LEADER ?
-        __clayered_open_stable_int(clayered, layered->stable_uri) :
+        __clayered_open_stable_leader(clayered) :
         __clayered_open_stable_follower(clayered, checkpoint_expected));
 }
 
