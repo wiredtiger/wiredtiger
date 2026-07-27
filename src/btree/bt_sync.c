@@ -41,25 +41,25 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
 
 /*
  * __sync_page_image_durable --
- *     Return true if every reconciliation product of the page is backed by a written block address,
- *     so checkpoint can leave the existing on-disk image in place instead of rewriting it.
+ *     Return true if the page's current content is backed by a written block address, so checkpoint
+ *     can leave the existing on-disk image in place instead of rewriting it.
  */
 static WT_INLINE bool
 __sync_page_image_durable(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
-    mod = ref->page->modify;
+    u_int i;
 
-    /* A re-instantiated page keeps its written address on the ref. */
-    if (mod->rec_result == 0)
-        return (__wt_atomic_load_ptr_relaxed(&ref->addr) != NULL);
+    mod = ref->page->modify;
 
     /*
      * Disaggregated storage reconciliation never leaves a page's content in memory without an
-     * on-disk image. The current image is always durable.
+     * on-disk image, but a page re-instantiated in memory carries its written address on the ref
+     * rather than a reconciliation result.
      */
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        return (true);
+        return (mod->rec_result != 0 || __wt_atomic_load_ptr_relaxed(&ref->addr) != NULL);
 
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:
@@ -180,8 +180,8 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * We can only skip writing the page if its current content is already durable on disk. A page
-     * evicted with unresolved updates, or re-instantiated from an image that was never written, has
-     * content that only exists in memory; checkpoint must write it with valid addresses.
+     * evicted with unresolved updates has content that only exists in memory; checkpoint must write
+     * it with valid addresses.
      *
      * The page's modification information can change underfoot if the page is being reconciled, so
      * we'd normally serialize with reconciliation before reviewing page-modification information.
