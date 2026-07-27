@@ -1815,7 +1815,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     if ((uint64_t)num_pages_found_in_pali != list.count) {
         __wt_verbose_error(session, WT_VERB_VERIFY,
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
-          " Btree walk %" PRIu64,
+          " Btree walk %" WT_SIZET_FMT,
           (uint64_t)num_pages_found_in_pali, list.count);
         WT_TRET(EINVAL);
     }
