@@ -1310,6 +1310,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /*
+         * Stop the deferred pickup server first: a leader has no use for it, and stopping it here
+         * waits out at most one in-flight adoption, leaving the adoption below a single
+         * uncontended actor instead of a competitor behind the checkpoint lock.
+         */
+        WT_ERR(__wti_disagg_deferred_pickup_server_destroy(session));
+
+        /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
          * shared checkpoint lineage from an older ancestor. A step-up must not fail back to the
@@ -1343,6 +1350,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_down(session));
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
+
+        /* A follower with deferral configured needs the deferred pickup server again. */
+        if (conn->disaggregated_storage.checkpoint_deferral_timeout_ms != 0)
+            WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
+
         WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Step down completed in %" PRIu64 " milliseconds",
@@ -1480,8 +1492,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         if (cval.len > 0 && cval.val >= 0)
             conn->layered_drain_data.thread_count = (uint32_t)cval.val;
 
-        /* With deferral configured, start the server adopting deferred checkpoints. */
-        if (conn->disaggregated_storage.checkpoint_deferral_timeout_ms != 0)
+        /* A follower with deferral configured gets a server adopting deferred checkpoints. */
+        if (!leader && conn->disaggregated_storage.checkpoint_deferral_timeout_ms != 0)
             WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
     }
 
