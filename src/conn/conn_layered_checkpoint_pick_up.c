@@ -1151,7 +1151,6 @@ __wti_disagg_pick_up_checkpoint_meta(
       __wt_config_getones(session, meta_str, "stable_tombstone_encoding", &cval), true);
     if (ret == 0 && cval.len != 0)
         ckpt_meta.stable_tombstone_encoding = WT_CONFIG_LIT_MATCH("true", cval);
-    ret = 0;
     if (ckpt_meta.stable_tombstone_encoding !=
       F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING))
         WT_ERR_MSG(session, EINVAL,
