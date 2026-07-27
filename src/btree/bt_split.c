@@ -356,7 +356,9 @@ __split_ref_prepare(
     alloc = cnt = 0;
     for (i = skip_first ? 1 : 0; i < pindex->entries; ++i) {
         ref = pindex->index[i];
+		WT_ASSERT_ALWAYS(session, WT_REF_GET_STATE(ref) == WT_REF_MEM, "ref is not in mem");
         child = ref->page;
+		WT_ASSERT_ALWAYS(session, child != NULL, "split child ref has no page");
 
         /* Track the locked pages for cleanup. */
         WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));

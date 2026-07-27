@@ -1700,13 +1700,14 @@ execute_populate(WTPERF *wtperf)
     start_idle_table_cycle(wtperf, &idle_table_cycle_thread);
 
     wtperf->index_max_multiplier = 1;
-    wtperf->insert_key = 0;
+    __wt_atomic_store_uint64(&wtperf->insert_key, 0);
 
     wtperf->popthreads = dcalloc(opts->populate_threads, sizeof(WTPERF_THREAD));
     start_threads(wtperf, NULL, wtperf->popthreads, opts->populate_threads, populate_thread);
 
     start = __wt_clock(NULL);
-    for (elapsed = 0, interval = 0, last_ops = 0; wtperf->insert_key < max_key && !wtperf->error;) {
+    for (elapsed = 0, interval = 0, last_ops = 0;
+         __wt_atomic_load_uint64(&wtperf->insert_key) < max_key && !wtperf->error;) {
         /*
          * Sleep for 100th of a second, report_interval is in second granularity, each 100th
          * increment of elapsed is a single increment of interval.
@@ -1843,7 +1844,7 @@ execute_workload(WTPERF *wtperf)
 
     opts = wtperf->opts;
 
-    wtperf->insert_key = 0;
+    __wt_atomic_store_uint64(&wtperf->insert_key, 0);
     wtperf->insert_ops = wtperf->read_ops = wtperf->truncate_ops = 0;
     wtperf->modify_ops = wtperf->update_ops = 0;
 
@@ -2990,7 +2991,7 @@ static uint64_t
 wtperf_value_range(WTPERF *wtperf)
 {
     CONFIG_OPTS *opts;
-    uint64_t total_icount;
+    uint64_t insert_key, total_icount;
 
     opts = wtperf->opts;
     total_icount = (uint64_t)opts->scan_icount + (uint64_t)opts->icount;
@@ -2999,11 +3000,13 @@ wtperf_value_range(WTPERF *wtperf)
         return (total_icount + opts->random_range);
     /*
      * It is legal to configure a zero size populate phase, hide that from other code by pretending
-     * the range is 1 in that case.
+     * the range is 1 in that case. Snapshot insert_key once: worker threads bump it atomically
+     * while we read it here.
      */
-    if (total_icount + wtperf->insert_key == 0)
+    insert_key = __wt_atomic_load_uint64(&wtperf->insert_key);
+    if (total_icount + insert_key == 0)
         return (1);
-    return (total_icount + wtperf->insert_key - (u_int)(wtperf->workers_cnt + 1));
+    return (total_icount + insert_key - (u_int)(wtperf->workers_cnt + 1));
 }
 
 static uint64_t
@@ -3062,6 +3065,9 @@ wtperf_rand(WTPERF_THREAD *thread)
      * that are read.
      */
     if (opts->select_latest) {
+        /* Snapshot insert_key once: worker threads bump it atomically as we select a key. */
+        uint64_t insert_key = __wt_atomic_load_uint64(&wtperf->insert_key);
+
         /*
          * If we have 128-bit integers, we can use a fancy method described below. If not, we use a
          * simple one.
@@ -3093,7 +3099,7 @@ wtperf_rand(WTPERF_THREAD *thread)
          * Now we limit the random value to be within the range of square of the latest insert key
          * and take a square root of that value.
          */
-        rval128 = (rval128 % (wtperf->insert_key * wtperf->insert_key));
+        rval128 = (rval128 % (insert_key * insert_key));
         rval = (uint64_t)(double)sqrtl((long double)rval128);
 
 #else
@@ -3102,9 +3108,8 @@ wtperf_rand(WTPERF_THREAD *thread)
          * recently inserted records.
          */
         (void)i;
-        range =
-          (SELECT_LATEST_RANGE < wtperf->insert_key) ? SELECT_LATEST_RANGE : wtperf->insert_key;
-        start_range = wtperf->insert_key - range;
+        range = (SELECT_LATEST_RANGE < insert_key) ? SELECT_LATEST_RANGE : insert_key;
+        start_range = insert_key - range;
 #endif
     }
 

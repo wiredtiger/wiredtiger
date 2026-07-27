@@ -65,7 +65,7 @@ void *ping_pong(void *arg) {
 
         message[pos % MESSAGE_SIZE] = 'a' + ((char)(pos / MESSAGE_SIZE) % (255 - 'a'));
         ++pos;
-        printf("%lu: %s\n", pos % MESSAGE_SIZE, message);
+        printf("%llu: %s\n", pos % MESSAGE_SIZE, message);
 
         atomic_store_release(&count, value + 1);
     } while (value < num_iters);

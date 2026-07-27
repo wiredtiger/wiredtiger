@@ -3,7 +3,8 @@ conn_config="cache_size=18GB,eviction=(threads_min=4,threads_max=4),checkpoint=(
 table_config="type=file"
 table_count=2
 index=true
-icount=87040000
+#icount=87040000
+icount=20040000
 report_interval=5
 run_time=10
 populate_threads=100
