@@ -238,9 +238,9 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      * Record the newest adopted checkpoint before building the snapshot, and validate it
      * afterwards, retrying the build if a pickup landed in between: the retried snapshot postdates
      * the adoption, so the transaction reads consistently instead of being refused at its first
-     * stable open. Loading before and validating after brackets the snapshot, so it can never pin
-     * a checkpoint adopted after it was built. Timestamped readers are excluded: they stay
-     * consistent through the history store regardless of which checkpoint they read.
+     * stable open. Loading before and validating after brackets the snapshot, so it can never pin a
+     * checkpoint adopted after it was built. Timestamped readers are excluded: they stay consistent
+     * through the history store regardless of which checkpoint they read.
      */
     pin_checkpoint = update_shared_state && __wt_conn_is_disagg(session) &&
       txn_shared->read_timestamp == WT_TS_NONE;
