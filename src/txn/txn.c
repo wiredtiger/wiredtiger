@@ -250,8 +250,16 @@ retry:
     if (pin_checkpoint) {
         txn->disagg_role_gen =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
-        pinned_checkpoint_lsn =
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+        /*
+         * Pin the newest checkpoint received, even if its adoption is still in progress: arrival
+         * implies its content is already replayed into the ingest tables, so this snapshot covers
+         * it. Until the adoption completes, the pin is simply newer than anything the stable can
+         * bind, which is always safe.
+         */
+        pinned_checkpoint_lsn = WT_MAX(
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
+          __wt_atomic_load_uint64_acquire(
+            &conn->disaggregated_storage.pending_checkpoint_meta_lsn));
         __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, pinned_checkpoint_lsn + 1);
     }
 
@@ -350,8 +358,10 @@ done:
      * published pinned id and checkpoint pin only ever move forward.
      */
     if (pin_checkpoint &&
-      (__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) !=
-          pinned_checkpoint_lsn ||
+      (WT_MAX(
+         __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
+         __wt_atomic_load_uint64_acquire(
+           &conn->disaggregated_storage.pending_checkpoint_meta_lsn)) != pinned_checkpoint_lsn ||
         __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
           txn->disagg_role_gen)) {
         WT_STAT_CONN_INCR(session, disagg_snapshot_pin_retry);

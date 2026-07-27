@@ -295,6 +295,14 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t role_change_gen;
 
     /*
+     * The LSN of the newest checkpoint received, published before its adoption begins. A snapshot
+     * established after a checkpoint's arrival may pin it even though the adoption has not
+     * completed: arrival implies the checkpoint's content is already replayed into the ingest
+     * tables, so such a snapshot covers it. Only ever moves forward.
+     */
+    wt_shared uint64_t pending_checkpoint_meta_lsn;
+
+    /*
      * A checkpoint whose adoption is deferred while transactional snapshots that predate it are
      * active. Protected by the checkpoint lock; the timeout is set at configuration time.
      */

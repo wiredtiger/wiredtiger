@@ -1242,7 +1242,7 @@ __wti_disagg_pick_up_checkpoint_meta(
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
     WT_SESSION_IMPL *internal_session;
-    uint64_t metadata_checksum;
+    uint64_t metadata_checksum, pending_lsn;
     char *meta_str;
     bool deferred;
 
@@ -1282,12 +1282,27 @@ __wti_disagg_pick_up_checkpoint_meta(
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
     /*
+     * Publish the incoming checkpoint before doing anything else: a snapshot established from here
+     * on may pin it even though the adoption has not completed, because the arrival of checkpoint
+     * metadata implies the content is already replayed into the ingest tables. This keeps such
+     * snapshots from being refused at their first stable open once the adoption completes, and
+     * from blocking a deferred adoption. Only ever move it forward.
+     */
+    disagg = &S2C(session)->disaggregated_storage;
+    for (;;) {
+        pending_lsn = __wt_atomic_load_uint64_acquire(&disagg->pending_checkpoint_meta_lsn);
+        if (ckpt_meta.metadata_lsn <= pending_lsn ||
+          __wt_atomic_cas_uint64(
+            &disagg->pending_checkpoint_meta_lsn, pending_lsn, ckpt_meta.metadata_lsn))
+            break;
+    }
+
+    /*
      * Optionally defer adopting a newer checkpoint while transactional snapshots that predate it
      * are active, so those readers keep opening stable cursors instead of being refused. On timeout
      * the checkpoint is adopted anyway and any remaining such readers are refused at their next
      * stable first open. Forced pickups (startup, step-up) are never deferred.
      */
-    disagg = &S2C(session)->disaggregated_storage;
     if (!force && disagg->checkpoint_deferral_timeout_ms != 0 &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
       __disagg_snapshot_predates_lsn(session, ckpt_meta.metadata_lsn)) {
