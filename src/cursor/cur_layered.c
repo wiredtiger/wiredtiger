@@ -446,7 +446,7 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
 }
 
 /*
- * __clayered_first_open_check --
+ * __clayered_stable_bind_check --
  *     Fail with WT_ROLLBACK if binding a stable cursor would break the session's transactional
  *     snapshot. Content adopted from a checkpoint carries no local transaction ids, so a snapshot
  *     established before the adoption cannot exclude it: the only lever is refusing the binding. A
@@ -455,7 +455,7 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
  *     stay consistent through the history store and always pass.
  */
 static int
-__clayered_first_open_check(WT_SESSION_IMPL *session, bool follower)
+__clayered_stable_bind_check(WT_SESSION_IMPL *session, bool follower)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
@@ -500,10 +500,10 @@ refuse:
  */
 static int
 __clayered_stable_last_name(
-  WT_SESSION_IMPL *session, bool first_open, const char *stable_uri, const char **namep)
+  WT_SESSION_IMPL *session, bool check_snapshot, const char *stable_uri, const char **namep)
 {
-    if (first_open)
-        WT_RET(__clayered_first_open_check(session, true));
+    if (check_snapshot)
+        WT_RET(__clayered_stable_bind_check(session, true));
     return (__wt_meta_checkpoint_last_name(session, stable_uri, namep, NULL, NULL));
 }
 
@@ -515,7 +515,7 @@ __clayered_stable_last_name(
  */
 static int
 __clayered_open_stable_follower(
-  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, bool first_open)
+  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, bool check_snapshot)
 {
     WT_DECL_ITEM(last_ckpt_uri);
     WT_DECL_RET;
@@ -535,7 +535,7 @@ retry:
      * re-runs the check, which then refuses the moved checkpoint.
      */
     WT_WITH_CHECKPOINT_LOCK(session,
-      ret = __clayered_stable_last_name(session, first_open, stable_uri, &checkpoint_name));
+      ret = __clayered_stable_last_name(session, check_snapshot, stable_uri, &checkpoint_name));
     if (!checkpoint_expected && ret == WT_NOTFOUND) {
         ret = 0;
         goto err;
@@ -570,7 +570,7 @@ err:
  */
 static int
 __clayered_open_stable(
-  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role, bool first_open)
+  WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role, bool check_snapshot)
 {
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
@@ -580,12 +580,12 @@ __clayered_open_stable(
      * before a step-up: the adopted content has no local ids, and becoming the leader must not
      * launder it into visibility.
      */
-    if (role == WTI_CLAYERED_ROLE_LEADER && first_open)
-        WT_RET(__clayered_first_open_check(CUR2S(clayered), false));
+    if (role == WTI_CLAYERED_ROLE_LEADER && check_snapshot)
+        WT_RET(__clayered_stable_bind_check(CUR2S(clayered), false));
 
     return (role == WTI_CLAYERED_ROLE_LEADER ?
         __clayered_open_stable_int(clayered, layered->stable_uri) :
-        __clayered_open_stable_follower(clayered, checkpoint_expected, first_open));
+        __clayered_open_stable_follower(clayered, checkpoint_expected, check_snapshot));
 }
 
 /*
@@ -690,7 +690,14 @@ __clayered_reopen_stable(
     old_stable = clayered->stable_cursor;
     clayered->stable_cursor = NULL;
 
-    WT_ERR(__clayered_open_stable(clayered, true, role, false));
+    /*
+     * A reopen re-binds the stable cursor to different content — a newer checkpoint on an advance,
+     * the live stable table or an adopted checkpoint on a role change — so it needs the same
+     * snapshot check as a first open. In particular, a cursor inherited from an earlier
+     * transaction may advance because the snapshot changed, while the new snapshot still predates
+     * the newest adoption.
+     */
+    WT_ERR(__clayered_open_stable(clayered, true, role, true));
 
     /*
      * If the old cursor has a position, copy it to the newly opened cursor. Prepared updates are
@@ -876,13 +883,6 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
     } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(
         clayered, conn_lsn, FLD_ISSET(flags, CLAYERED_ENTER_ITERATION))) {
-        /*
-         * A role-change reopen re-binds the stable cursor to different content (the adopted
-         * checkpoint on a step-down, the live stable table on a step-up), so it needs the same
-         * snapshot check as a first open; the advance path performs its own snapshot checks.
-         */
-        if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE))
-            WT_RET(__clayered_first_open_check(session, false));
         /*
          * Reopen the cursor.
          *

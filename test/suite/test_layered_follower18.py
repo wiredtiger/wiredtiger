@@ -634,6 +634,44 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
         aux_cursor.close()
         conn_follow.close()
 
+    def test_inherited_cursor_across_transactions(self):
+        # A cursor kept open across transactions. Its stable view was
+        # established under the previous transaction's snapshot, so its first
+        # use in a new transaction may advance to the newest checkpoint - but
+        # not to one adopted after the new transaction's snapshot.
+        conn_follow, session_follow = self.setup_with_first_checkpoint()
+
+        cursor = session_follow.open_cursor(self.uri)
+        session_follow.begin_transaction()
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
+        session_follow.commit_transaction()
+
+        # A write commit between the transactions, so the inherited cursor
+        # sees a changed snapshot and becomes eligible to advance.
+        writes = {'key_between': 'between value'}
+        self.put(self.session, self.uri, writes, 15)
+        session_replay = conn_follow.open_session('')
+        self.put(session_replay, self.uri, writes, 15)
+        session_replay.close()
+
+        # The next transaction establishes its snapshot before the pickup.
+        session_follow.begin_transaction()
+        aux_cursor = session_follow.open_cursor(self.aux_uri)
+        aux_cursor.set_key('anchor')
+        self.assertEqual(aux_cursor.search(), 0)
+
+        self.commit_post_snapshot_writes(conn_follow)
+
+        state = self.search(cursor, 'key_inserted')
+        if state[0] != 'rollback':
+            self.assertEqual(state, ('notfound', None),
+                'a cursor inherited from an earlier transaction advanced past the snapshot')
+            self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
+        session_follow.rollback_transaction()
+        cursor.close()
+        aux_cursor.close()
+        conn_follow.close()
+
     def test_step_down_mid_transaction(self):
         # The leader steps down while a transaction at snapshot isolation
         # without a read timestamp is open. The stepped-down node serves reads
