@@ -10,7 +10,7 @@
 #include "cur_layered_private.h"
 
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
-static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
+static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
 static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
@@ -320,7 +320,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     }
 
     /* Manage the ingest cursor: a follower opens it on first use; the leader keeps it closed. */
-    WT_RET(__clayered_update_ingest(clayered, flags, role));
+    WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
@@ -758,11 +758,11 @@ __clayered_open_ingest(WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, W
  *     while a follower, so close it on the role change.
  */
 static int
-__clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
+__clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
 
-    if (role == WTI_CLAYERED_ROLE_LEADER) {
+    if (S2C(session)->layered_table_manager.leader) {
         if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) && clayered->ingest_cursor != NULL) {
             WT_CURSOR *ingest = clayered->ingest_cursor;
             if (clayered->current_cursor == ingest)
