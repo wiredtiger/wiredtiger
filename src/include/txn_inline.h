@@ -1997,28 +1997,29 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
  *     A "straddler" is a transaction that began before the step-down timestamp was set and is still
  *     writing or committing afterwards; its writes can land on the wrong layered constituent
  *     (stable content that belongs in ingest), which cannot be moved. Mark such a transaction for
- *     rollback and return WT_ROLLBACK, otherwise return 0.
+ *     rollback and return WT_ROLLBACK, otherwise return 0. For read operations (is_writer false)
+ *     only the assertion applies.
  */
 static WT_INLINE int
-__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session)
+__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
 {
     WT_TXN *txn = session->txn;
     wt_timestamp_t stepdown_ts =
       __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
 
     /*
-     * While the step-down timestamp is set, writes must run in explicit snapshot transactions: an
-     * implicit (autocommit) transaction only begins inside the constituent operation, after this
-     * check and the write routing have made their decisions, so it would evade both. This must come
-     * before the early return below, whose running-transaction test is exactly the hole an implicit
-     * transaction slips through.
+     * While the step-down timestamp is set, layered operations must run in explicit snapshot
+     * transactions: an implicit (autocommit) transaction only begins inside the constituent
+     * operation, after this check and the constituent routing have made their decisions, so it
+     * would evade both. The assertion comes before the early return so it also covers read
+     * operations.
      */
     WT_ASSERT(session,
       stepdown_ts == WT_TS_NONE ||
         (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
           txn->isolation == WT_ISO_SNAPSHOT));
 
-    if (stepdown_ts == WT_TS_NONE || !F_ISSET(txn, WT_TXN_RUNNING) || txn->stepdown_ts_set)
+    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->stepdown_ts_set)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,

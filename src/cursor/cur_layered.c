@@ -306,8 +306,8 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
       conn->layered_table_manager.leader ? WTI_CLAYERED_ROLE_LEADER : WTI_CLAYERED_ROLE_FOLLOWER;
     uint32_t flags = __clayered_enter_flags(clayered, mode, role);
 
-    if (mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE)
-        WT_RET(__wt_txn_stepdown_straddler_check(session));
+    WT_RET(__wt_txn_stepdown_straddler_check(
+      session, mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE));
 
     /*
      * Reads may stay positioned across a planned step-down: the stable tree after the step-down
