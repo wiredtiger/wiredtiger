@@ -389,9 +389,8 @@ __create_file(
      * Turn off bulk-load for imported files.
      *
      * Mark the session so the btree layer can tell this open is a genuine create rather than a
-     * reopen; a disaggregated table uses this to arm itself to await publication exactly once.
-     * Import brings in existing data and is not a from-scratch create. The flag is cleared at the
-     * end of the function so it never leaks into a later open on this reused session.
+     * reopen. Import brings in existing data and is not a from-scratch create. The flag is cleared
+     * at the end of the function so it never leaks into a later open on this reused session.
      */
     if (!import)
         F_SET(session, WT_SESSION_CREATE_BTREE);
