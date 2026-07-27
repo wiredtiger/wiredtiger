@@ -88,9 +88,9 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
 
     SECTION("forward compatibility error - incompatible version")
     {
-        /* Version requires reader version 2 but we only have version 1 */
+        /* Requires a reader newer than this build (version 2). */
         const char *meta_str =
-          "metadata_lsn=111111,metadata_checksum=0xCAFEBABE,version=2,compatible_version=2";
+          "metadata_lsn=111111,metadata_checksum=0xCAFEBABE,version=3,compatible_version=3";
 
         ret = __ut_disagg_validate_checkpoint_meta_version(
           session, meta_str, &version, &compatible_version);
@@ -125,5 +125,41 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
               session, incompatible_configs[i], &version, &compatible_version);
             REQUIRE(ret == ENOTSUP);
         }
+    }
+
+    SECTION("checkpoint at compatible_version 1 is accepted")
+    {
+        /*
+         * An escaped stable-tombstone checkpoint stamps compatible_version 1 (readable by every
+         * reader). The parser only enforces the version gate; the encoding->compatible_version
+         * mapping is exercised writer-side by test_layered_tombstone_version_gate.py.
+         */
+        const char *meta_str = "metadata_lsn=4242,version=1,compatible_version=1";
+
+        ret = __ut_disagg_validate_checkpoint_meta_version(
+          session, meta_str, &version, &compatible_version);
+
+        REQUIRE(ret == 0);
+        REQUIRE(version == 1);
+        REQUIRE(compatible_version == WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION);
+    }
+
+    SECTION("checkpoint at this build's maximum reader version is accepted")
+    {
+        /*
+         * An unescaped stable-tombstone checkpoint raises the minimum reader version to the
+         * stable-unencoded compatible version, which equals this build's maximum reader version
+         * WT_DISAGG_CHECKPOINT_META_VERSION -- the accept side of the version gate. The reject side
+         * (compatible_version one greater) is covered by the incompatible-version sections above.
+         */
+        const char *meta_str = "metadata_lsn=4243,version=2,compatible_version=2";
+
+        ret = __ut_disagg_validate_checkpoint_meta_version(
+          session, meta_str, &version, &compatible_version);
+
+        REQUIRE(ret == 0);
+        REQUIRE(version == 2);
+        REQUIRE(
+          compatible_version == WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION_STABLE_UNENCODED);
     }
 }
