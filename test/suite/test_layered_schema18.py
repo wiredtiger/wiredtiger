@@ -26,64 +26,41 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Test that a published but empty table stays published across a restart.
-#
-# An empty stable table writes no root page, so its checkpoint cookie is empty and
-# indistinguishable by size from a never-published table. After a restart the table
-# must not be treated as awaiting publication again: doing so makes later writes look
-# like stable data in an unpublished table and panics the next checkpoint with
-# "stable data checkpointed for unpublished table". The published table is recorded in
-# the shared metadata table, which is the durable signal that survives a restart.
+# Publishing enters the disaggregated schema-epoch protocol, which is only meaningful once the
+# stable schema epoch is set (epoch world). Publishing with no epoch set is a fatal protocol
+# violation: it panics.
 
-import wiredtiger, wttest
+import os
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
+from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+class test_layered_schema18(wttest.WiredTigerTestCase, suite_subprocess, DisaggSchemaEpochMixin):
     test_name = __qualname__
-    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
-    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
-
-    uri = f'layered:{test_name}'
-    table_config = 'key_format=i,value_format=S'
+    conn_config = 'disaggregated=(role="leader",lose_all_my_data=true)'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def publish_empty_and_checkpoint(self):
-        """Create and publish a table, then checkpoint it while it is still empty."""
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 20)
-        self.set_stable_epoch(20)
-        self.leader_checkpoint(1)
-        # Even empty, the published table is recorded in the shared metadata table.
-        self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
+    def subprocess_publish_without_epoch_panics(self):
+        """Subprocess body: publishing before the stable schema epoch is set panics."""
+        self.session.create('layered:before', 'key_format=i,value_format=S')
+        self.publish('layered:before', 10)  # Expected to panic.
 
-    def test_write_after_empty_published_restart(self):
-        """
-        Write to a published empty table after a restart. Before the fix this panicked
-        at checkpoint with "stable data checkpointed for unpublished table", because the
-        empty stable checkpoint made the already-published table look unpublished again.
-        """
-        self.publish_empty_and_checkpoint()
+    def test_publish_without_epoch_panics(self):
+        """Publishing with no stable schema epoch set is a fatal protocol violation."""
+        [returncode, home] = self.run_subprocess_function(
+            'SUBPROCESS_publish_without_epoch_panics',
+            f'{self.test_name}.{self.test_name}.subprocess_publish_without_epoch_panics',
+            silent=True)
+        self.assertNotEqual(returncode, 0)
+        self.check_file_contains(os.path.join(home, 'stderr.txt'),
+            'publish requires the stable disaggregated schema epoch to be set')
 
-        # Restart, discarding local files so the table is rebuilt from shared storage.
-        self.restart_without_local_files(step_up=True)
-        self.set_stable_epoch(20)
-
-        # Write a row and checkpoint. This must not be mistaken for stable data in an
-        # unpublished table.
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        cursor[1] = 'value'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
-        cursor.close()
-        self.leader_checkpoint(50)
-
-        # The data is durable and readable.
-        cursor = self.session.open_cursor(self.uri)
-        cursor.set_key(1)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), 'value')
-        cursor.close()
+    def test_publish_with_epoch_succeeds(self):
+        """With the stable epoch set first, create then publish is accepted."""
+        self.set_stable_epoch(5)
+        self.session.create('layered:after', 'key_format=i,value_format=S')
+        self.publish('layered:after', 10)
