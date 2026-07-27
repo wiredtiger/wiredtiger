@@ -26,8 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Publication of a disaggregated table is decided from its latest create/remove. These tests
-# exercise that decision across create, drop, and recreate sequences.
+# Test disaggregated table publication across create, drop, and recreate sequences.
+#
+# A table's publish status is decided from its latest create/remove entry in the metadata queue.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
@@ -56,8 +57,7 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     def test_recreate_above_stable_epoch_not_resurrected(self):
         """
         A table dropped at or below the stable schema epoch and recreated above it must not survive
-        recovery. The recreate stays unpublished, so its stable constituent is never written to
-        shared metadata and the dropped table stays absent.
+        recovery. The recreate stays unpublished at that epoch and is absent after recovery.
         """
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
@@ -72,8 +72,7 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.publish(self.uri, 9)
         self.write_unstable_row()
 
-        # The recreate is above the stable schema epoch and its data is unstable, so the checkpoint
-        # holds it in memory rather than writing it to shared metadata.
+        # Checkpoint with the epoch below the recreate; the recreate stays unpublished.
         self.set_stable_epoch(5)
         self.leader_checkpoint(5)
         self.restart_without_local_files(step_up=True)
@@ -83,22 +82,20 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             'stable_timestamp=' + self.timestamp_str(5) +
             ',oldest_timestamp=' + self.timestamp_str(1))
 
-        # The latest schema operation at or below the durable epoch (5) is the drop at epoch 3, so
-        # the table must be absent. Before the fix the recreate leaked into shared and returned.
+        # After recovery, the drop is the latest visible operation; the table must be absent.
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
 
     def test_unpublished_table_holds_unstable_data(self):
         """
-        An unpublished table may legitimately hold unstable data. The checkpoint keeps it in memory
-        rather than writing it to shared metadata, and does not raise the unpublished-table
-        violation.
+        An unpublished table may legitimately hold unstable data. The checkpoint skips it without
+        raising a violation.
         """
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
         self.set_stable_epoch(1)
 
-        # Publish at epoch 9, above the stable schema epoch, so the table stays unpublished.
+        # Epoch 9 is above the stable schema epoch, so the table stays unpublished.
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 9)
         self.write_unstable_row()
@@ -109,8 +106,8 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     def test_create_then_drop_not_published(self):
         """
-        A table created and dropped at or below the stable schema epoch nets out to dropped: its
-        latest operation is a remove, so it is not written to shared metadata.
+        A table created and dropped at or below the stable schema epoch is absent from shared
+        metadata.
         """
         self.conn.set_timestamp(
             'stable_timestamp=' + self.timestamp_str(1) +
@@ -145,8 +142,7 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.publish(self.uri, 9)
         self.write_unstable_row()
 
-        # The stable schema epoch now reaches the recreate (9) and the stable timestamp covers its
-        # data, so the recreate is published to shared metadata.
+        # The epoch and stable timestamp now cover the recreate, so it publishes.
         self.set_stable_epoch(9)
         self.leader_checkpoint(10)
 
