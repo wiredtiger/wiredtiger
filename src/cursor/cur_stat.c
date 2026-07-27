@@ -441,7 +441,7 @@ retry:
          */
         if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
             uint64_t ckpt_size = 0;
-            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+            WT_ERR_NOTFOUND_OK(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size), false);
             cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
             goto done;
         }
@@ -526,21 +526,15 @@ __wt_curstat_size_local(
 /*
  * __wt_curstat_size_disagg --
  *     Fast-path size retrieval for a disaggregated table. There is no local file on disk, so the
- *     size comes from the last checkpoint entry in the metadata. If found, set *existp and return
- *     the size via *sizep. A missing metadata entry is not an error; *existp will be false.
+ *     size comes from the last checkpoint entry in the metadata. Return WT_NOTFOUND if the metadata
+ *     entry does not exist.
  */
 int
-__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, int64_t *sizep)
+__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, int64_t *sizep)
 {
-    uint64_t ckpt_size;
-
-    *existp = false;
+    uint64_t ckpt_size = 0;
     WT_RET(__wt_block_disagg_ckpt_size(session, uri, &ckpt_size));
-    if (ckpt_size > 0) {
-        *sizep = (int64_t)ckpt_size;
-        *existp = true;
-    }
-
+    *sizep = (int64_t)ckpt_size;
     return (0);
 }
 
@@ -555,13 +549,25 @@ static int
 __curstat_file_size(
   WT_SESSION_IMPL *session, const char *uri, const char *filename, bool *existp, int64_t *sizep)
 {
+    WT_DECL_RET;
+
     /* Try the local file first. */
     WT_RET(__wt_curstat_size_local(session, filename, existp, sizep));
     if (*existp)
         return (0);
 
+    if (!__wt_conn_is_disagg(session) || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
+        return (0);
+
     /* No local file; check the metadata for a disagg checkpoint size. */
-    WT_RET(__wt_curstat_size_disagg(session, uri, existp, sizep));
+    ret = __wt_curstat_size_disagg(session, uri, sizep);
+
+    /* The slow path repeats the metadata lookup, so we should instead return an error. */
+    if (ret == WT_NOTFOUND)
+        return (__wt_set_return(session, ENOENT));
+
+    WT_RET(ret);
+    *existp = true;
     return (0);
 }
 

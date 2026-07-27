@@ -92,7 +92,9 @@ __curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, W
     /* Only probe for a stable file on a connection that can create one. */
     if (__wt_conn_is_disagg(session)) {
         WT_ERR(__wt_buf_fmt(session, &namebuf, "file:%s.wt_stable", table_name));
-        WT_ERR(__wt_curstat_size_disagg(session, namebuf.data, was_fast, &size));
+        ret = __wt_curstat_size_disagg(session, namebuf.data, &size);
+        *was_fast = ret == 0;
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
 
     /*

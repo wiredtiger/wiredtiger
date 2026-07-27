@@ -165,7 +165,7 @@ __wti_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg
  * __wt_block_disagg_ckpt_size --
  *     Return the size recorded in the most recent checkpoint for the given URIs metadata entry. For
  *     disaggregated storage there is no underlying file, so the checkpoint size in the metadata is
- *     used as the block_size. A missing metadata entry is not an error; *sizep will be zero.
+ *     used as the block_size. Return WT_NOTFOUND if the metadata entry does not exist.
  */
 int
 __wt_block_disagg_ckpt_size(WT_SESSION_IMPL *session, const char *uri, uint64_t *sizep)
@@ -175,12 +175,13 @@ __wt_block_disagg_ckpt_size(WT_SESSION_IMPL *session, const char *uri, uint64_t 
 
     fileconf = NULL;
     *sizep = 0;
+
     /* Reading checkpoint size requires the file's metadata config string, so look it up first. */
-    ret = __wt_metadata_search(session, uri, &fileconf);
-    if (ret == 0) {
-        ret = __wt_ckpt_last_size(session, fileconf, sizep);
-        __wt_free(session, fileconf);
-    }
+    WT_RET(__wt_metadata_search(session, uri, &fileconf));
+    ret = __wt_ckpt_last_size(session, fileconf, sizep);
+    __wt_free(session, fileconf);
+
+    /* An existing metadata entry without a completed checkpoint has size of zero. */
     WT_RET_NOTFOUND_OK(ret);
     return (0);
 }
@@ -200,7 +201,7 @@ __block_disagg_ckpt_size_dhandle(WT_SESSION_IMPL *session, uint64_t *sizep)
 
     uri = session->dhandle->name;
     WT_ERR(__wt_btree_shared_base_name(session, &uri, NULL, &name_buf));
-    WT_ERR(__wt_block_disagg_ckpt_size(session, uri, sizep));
+    WT_ERR_NOTFOUND_OK(__wt_block_disagg_ckpt_size(session, uri, sizep), false);
 
 err:
     __wt_scr_free(session, &name_buf);
