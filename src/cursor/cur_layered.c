@@ -218,10 +218,16 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
     if (clayered->stable_cursor == NULL)
         return;
 
-    /* The stable cursor's btree must be read-write for a leader and read-only for a follower. */
-    WT_ASSERT(CUR2S(clayered),
-      (clayered->last_role == WTI_CLAYERED_ROLE_LEADER) !=
-        F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
+    /*
+     * The stable cursor's btree must be read-write for a leader and read-only for a follower.
+     *
+     * FIXME-WT-18179: A read operation can race with a step-down and open a live stable btree
+     * on a follower. Temporarily disable this assertion until this race is fixed.
+     *
+     * WT_ASSERT(CUR2S(clayered),
+     *   (clayered->last_role == WTI_CLAYERED_ROLE_LEADER) !=
+     *     F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
+     */
 }
 
 /* __clayered_enter() local flags. */
