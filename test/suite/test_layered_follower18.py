@@ -31,11 +31,12 @@
 # a new checkpoint in the middle of the transaction: no data committed after
 # the snapshot appears, and no data visible to the snapshot disappears.
 # A correct implementation may satisfy this either by
-# keeping such reads on the pre-pickup view or by refusing them with
-# WT_ROLLBACK; both outcomes are accepted wherever the transaction raced a
+# keeping such reads on the pre-pickup view or by refusing them (the refusal
+# leaves the transaction usable, so the application may refresh its snapshot
+# and retry); both outcomes are accepted wherever the transaction raced a
 # pickup. Readers with a read timestamp, cursors already reading before the
 # pickup, and transactions that begin after the pickup must keep working
-# without rollbacks.
+# without refusals.
 
 import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -96,7 +97,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
         try:
             ret = cursor.search()
         except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' in str(e):
+            if ('WT_ROLLBACK' in str(e) or 'WT_SNAPSHOT_STALE' in str(e)):
                 return ('rollback', None)
             raise
         if ret == wiredtiger.WT_NOTFOUND:
@@ -272,7 +273,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_key(), 'key_updated',
                 'search_near positioned on a post-snapshot key')
         except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
+            if ('WT_ROLLBACK' not in str(e) and 'WT_SNAPSHOT_STALE' not in str(e)):
                 raise
         session_follow.rollback_transaction()
         cursor.close()
@@ -462,7 +463,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
             self.assertEqual(contents, [],
                 'rows of a table created after the snapshot are visible')
         except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
+            if ('WT_ROLLBACK' not in str(e) and 'WT_SNAPSHOT_STALE' not in str(e)):
                 raise
         session_follow.rollback_transaction()
         cursor.close()
@@ -516,7 +517,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
             self.assertEqual(contents, sorted(keys.keys()),
                 'a range visible to the snapshot disappeared after the pickup')
         except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
+            if ('WT_ROLLBACK' not in str(e) and 'WT_SNAPSHOT_STALE' not in str(e)):
                 raise
         session_follow.rollback_transaction()
         cursor.close()
@@ -550,7 +551,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
                 'random sampling returned a key committed after the snapshot')
         except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
+            if ('WT_ROLLBACK' not in str(e) and 'WT_SNAPSHOT_STALE' not in str(e)):
                 raise
         session_follow.rollback_transaction()
         cursor.close()
@@ -601,7 +602,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
         except wiredtiger.WiredTigerError as e:
             # Refusing the read outright is acceptable: reading below the new
             # oldest timestamp must fail rather than return a wrong result.
-            self.assertTrue('WT_ROLLBACK' in str(e) or 'Invalid argument' in str(e))
+            self.assertTrue(('WT_ROLLBACK' in str(e) or 'WT_SNAPSHOT_STALE' in str(e)) or 'Invalid argument' in str(e))
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -705,6 +706,35 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
         cursor.close()
         aux_cursor.close()
         session_txn.close()
+
+    def test_reset_snapshot_recovers(self):
+        # A refused reader that has not exposed any results may refresh its
+        # snapshot and retry instead of rolling back: the refusal leaves the
+        # transaction usable, and the refreshed snapshot covers the picked-up
+        # checkpoint, so the retried read serves the new content.
+        conn_follow, session_follow = self.setup_with_first_checkpoint()
+
+        session_follow.begin_transaction()
+        aux_cursor = session_follow.open_cursor(self.aux_uri)
+        aux_cursor.set_key('anchor')
+        self.assertEqual(aux_cursor.search(), 0)
+
+        self.commit_post_snapshot_writes(conn_follow)
+
+        cursor = session_follow.open_cursor(self.uri)
+        # Without deferral the read is refused; with deferral it serves the
+        # old view. Either way the transaction remains usable.
+        state = self.search(cursor, 'key_inserted')
+        self.assertIn(state[0], ('rollback', 'notfound'))
+
+        session_follow.reset_snapshot()
+
+        self.assertEqual(self.search(cursor, 'key_inserted'), ('found', 'new value'))
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'new value 2'))
+        session_follow.commit_transaction()
+        cursor.close()
+        aux_cursor.close()
+        conn_follow.close()
 
     def test_timestamped_reader_unaffected(self):
         # A reader with a read timestamp must keep its consistent view across

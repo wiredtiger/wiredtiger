@@ -39,6 +39,8 @@ __wt_wiredtiger_error(int error)
         return ("WT_PREPARE_CONFLICT: conflict with a prepared update");
     case WT_TRY_SALVAGE:
         return ("WT_TRY_SALVAGE: database corruption detected");
+    case WT_SNAPSHOT_STALE:
+        return ("WT_SNAPSHOT_STALE: transaction snapshot is stale for the operation");
     }
 
     /* Check for WiredTiger specific sub-level errors. */

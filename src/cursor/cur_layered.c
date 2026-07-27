@@ -447,12 +447,13 @@ __clayered_open_stable_int(WTI_CURSOR_LAYERED *clayered, const char *stable_uri)
 
 /*
  * __clayered_stable_bind_check --
- *     Fail with WT_ROLLBACK if binding a stable cursor would break the session's transactional
- *     snapshot. Content adopted from a checkpoint carries no local transaction ids, so a snapshot
- *     established before the adoption cannot exclude it: the only lever is refusing the binding. A
- *     role change swaps what the stable content is (an adopted checkpoint or the live btree), so a
- *     snapshot established under another role is refused outright. Readers with a read timestamp
- *     stay consistent through the history store and always pass.
+ *     Fail with WT_SNAPSHOT_STALE if binding a stable cursor would break the session's
+ *     transactional snapshot. Content adopted from a checkpoint carries no local transaction ids,
+ *     so a snapshot established before the adoption cannot exclude it: the only lever is refusing
+ *     the binding. A role change swaps what the stable content is (an adopted checkpoint or the
+ *     live btree), so a snapshot established under another role is refused outright. Readers with a
+ *     read timestamp stay consistent through the history store and always pass. The transaction
+ *     survives the refusal: the application may refresh its snapshot and retry, or roll back.
  */
 static int
 __clayered_stable_bind_check(WT_SESSION_IMPL *session, bool follower)
@@ -490,7 +491,8 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session, bool follower)
 
 refuse:
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
-    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
+    WT_RET_SUB(session, WT_SNAPSHOT_STALE, WT_NONE,
+      "the stable content is newer than the transaction snapshot");
 }
 
 /*

@@ -130,6 +130,16 @@ errors = [
         result of a system crash. The application may choose to salvage the
         file or retry wiredtiger_open with the 'salvage=true' configuration
         setting.'''),
+    Error('WT_SNAPSHOT_STALE', -31810,
+        'transaction snapshot is stale for the operation', '''
+        This error is generated on a node using disaggregated storage when an
+        operation would read content the transaction's snapshot cannot be
+        consistent with, such as a checkpoint adopted, or a role change
+        completed, after the snapshot was established. The transaction remains
+        active: the application may refresh the snapshot with
+        WT_SESSION::reset_snapshot and retry the operation, provided it has
+        not yet acted on results read under the old snapshot, or it may roll
+        the transaction back.'''),
 ]
 
 # To ensure our sub-level error returns do not conflict with any other

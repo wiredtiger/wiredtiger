@@ -178,13 +178,13 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
 
         # After the checkpoint arrives, repeat the same operation. A transaction that survived the
         # pickup has a snapshot that predates it, so an operation that would open the stable table
-        # is refused with WT_ROLLBACK instead of binding the new checkpoint.
+        # is refused with WT_SNAPSHOT_STALE instead of binding the new checkpoint.
         if self.txn_mode == 'survive' and opens_stable:
             try:
                 self.do_op(cursor_follow)
                 self.fail('an operation binding the new checkpoint was not refused')
             except wiredtiger.WiredTigerError as e:
-                self.assertTrue('WT_ROLLBACK' in str(e))
+                self.assertTrue('WT_SNAPSHOT_STALE' in str(e))
             session_follow.rollback_transaction()
             opens_stable = False
         else:
