@@ -257,10 +257,13 @@ __clayered_enter_flags(
         LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
     /*
-     * On the follower, open the stable table lazily when we can. This includes exact searches
-     * (search_near must merge constituents) and writes.
+     * On the follower, open the stable table lazily when we can: exact searches (search_near must
+     * merge constituents), and writes that have no read timestamp. A write in a timestamped
+     * transaction needs the stable cursor up front because __clayered_modify_check() probes it for
+     * a write conflict, and that probe silently passes on a NULL cursor.
      */
-    if ((mode == WTI_CLAYERED_MODE_SEARCH_EXACT || mode == WTI_CLAYERED_MODE_WRITE) &&
+    if ((mode == WTI_CLAYERED_MODE_SEARCH_EXACT ||
+          (mode == WTI_CLAYERED_MODE_WRITE && !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))) &&
       role == WTI_CLAYERED_ROLE_FOLLOWER)
         LF_SET(CLAYERED_ENTER_LAZY_STABLE);
 
