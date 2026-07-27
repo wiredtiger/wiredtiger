@@ -356,7 +356,9 @@ __split_ref_prepare(
     alloc = cnt = 0;
     for (i = skip_first ? 1 : 0; i < pindex->entries; ++i) {
         ref = pindex->index[i];
+		WT_ASSERT_ALWAYS(session, WT_REF_GET_STATE(ref) == WT_REF_MEM, "ref is not in mem");
         child = ref->page;
+		WT_ASSERT_ALWAYS(session, child != NULL, "split child ref has no page");
 
         /* Track the locked pages for cleanup. */
         WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));
@@ -462,7 +464,6 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          * Initialize the page's child reference; we need a copy of the page's key.
          */
         ref = *alloc_refp++;
-        ref->home = root;
         __wt_ref_assign_page(ref, child);
         ref->addr = NULL;
         if (root->type == WT_PAGE_ROW_INT) {
@@ -518,6 +519,24 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     WT_INTL_INDEX_GET_SAFE(root, check_root);
     WT_ASSERT(session, check_root == pindex);
 #endif
+
+    /*
+     * Publish the children's parent pointers immediately before the new index goes live.
+     *
+     * Until this loop ref->home is NULL, which makes these refs indistinguishable from a root ref,
+     * and that is deliberate: __wt_ref_make_visible() has already enrolled them in an eviction
+     * bucket and they are dirty internal pages, so the __wt_ref_is_root() test in the eviction
+     * scanner is the only thing keeping an eviction thread off them. Nothing else does -- neither
+     * WT_PAGE_LOCK nor __wt_page_can_evict() consults the page lock. Assigning home any earlier
+     * defeats that guard and lets eviction lock, reconcile and free a child out from under the
+     * split.
+     *
+     * __split_internal() needs no equivalent: it reaches the parent through __split_parent(), which
+     * assigns home as it builds the parent's index.
+     */
+    for (i = 0; i < alloc_index->entries; ++i)
+        alloc_index->index[i]->home = root;
+
     WT_INTL_INDEX_SET(root, alloc_index);
     alloc_index = NULL;
 
@@ -1026,7 +1045,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          * Initialize the page's child reference; we need a copy of the page's key.
          */
         ref = *alloc_refp++;
-        ref->home = parent;
         __wt_ref_assign_page(ref, child);
         ref->addr = NULL;
         if (page->type == WT_PAGE_ROW_INT) {
