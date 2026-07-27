@@ -44,7 +44,6 @@ class test_layered_schema18(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
-    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     uri = f'layered:{test_name}'
     table_config = 'key_format=i,value_format=S'
