@@ -186,7 +186,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *dhandle_name, *checkpoint;
-    bool creation, forced_salvage, has_ckpt;
+    bool forced_salvage, has_ckpt, no_checkpoint;
 
     btree = S2BT(session);
     dhandle = session->dhandle;
@@ -245,8 +245,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
      * code for a discussion.
      */
-    creation = ckpt.raw.size == 0;
-    if (!creation && F_ISSET(btree, WT_BTREE_BULK))
+    no_checkpoint = ckpt.raw.size == 0;
+    if (!no_checkpoint && F_ISSET(btree, WT_BTREE_BULK))
         WT_ERR_MSG(session, EINVAL, "bulk-load is only supported on newly created objects");
 
     /* Handle salvage configuration. */
@@ -300,8 +300,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
          */
         WT_ERR(bm->checkpoint_load(bm, session, ckpt.raw.data, ckpt.raw.size, root_addr,
           &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
-        if (creation || root_addr_size == 0)
-            WT_ERR(__btree_tree_open_empty(session, creation));
+        if (no_checkpoint || root_addr_size == 0)
+            WT_ERR(__btree_tree_open_empty(session, no_checkpoint));
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
@@ -977,7 +977,7 @@ err:
  *     Create an empty in-memory tree.
  */
 static int
-__btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
+__btree_tree_open_empty(WT_SESSION_IMPL *session, bool no_checkpoint)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -993,7 +993,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
      * Newly created objects can be used for cursor inserts or for bulk loads; set a flag that's
      * cleared when a row is inserted into the tree.
      */
-    if (creation)
+    if (no_checkpoint)
         btree->original = 1;
 
     /*
