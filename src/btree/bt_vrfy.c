@@ -1800,7 +1800,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     checkpoint_lsn = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
     if (checkpoint_lsn == WT_DISAGG_LSN_NONE)
-        checkpoint_lsn = WT_PAGE_LOG_LSN_MAX;
+        /* FIXME WT-18186: should probably be page log LSN max. */
+        checkpoint_lsn = INT_MAX;
 
     /*
      * Get page IDs from PALI. The number of pages is tracked separately because WT_ITEM->size must
