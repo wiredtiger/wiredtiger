@@ -312,6 +312,15 @@ struct __wt_disaggregated_storage {
     uint64_t deferred_checkpoint_time_ms;
     uint64_t checkpoint_deferral_timeout_ms;
 
+    /*
+     * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until
+     * a pinning transaction finishes or a checkpoint is deferred, and owns the deferral deadline.
+     */
+    WT_SESSION_IMPL *deferred_pickup_session;
+    wt_thread_t deferred_pickup_tid;
+    WT_CONDVAR *deferred_pickup_cond;
+    bool deferred_pickup_tid_set;
+
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
@@ -1277,14 +1286,15 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x0004u
 #define WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS 0x0008u
 #define WT_CONN_SERVER_COMPACT 0x0010u
-#define WT_CONN_SERVER_EVICTION 0x0020u
-#define WT_CONN_SERVER_LAYERED 0x0040u
-#define WT_CONN_SERVER_LOG 0x0080u
-#define WT_CONN_SERVER_PREFETCH 0x0100u
-#define WT_CONN_SERVER_RTS 0x0200u
-#define WT_CONN_SERVER_STATISTICS 0x0400u
-#define WT_CONN_SERVER_SWEEP 0x0800u
-#define WT_CONN_SERVER_TIERED 0x1000u
+#define WT_CONN_SERVER_DISAGG_PICKUP 0x0020u
+#define WT_CONN_SERVER_EVICTION 0x0040u
+#define WT_CONN_SERVER_LAYERED 0x0080u
+#define WT_CONN_SERVER_LOG 0x0100u
+#define WT_CONN_SERVER_PREFETCH 0x0200u
+#define WT_CONN_SERVER_RTS 0x0400u
+#define WT_CONN_SERVER_STATISTICS 0x0800u
+#define WT_CONN_SERVER_SWEEP 0x1000u
+#define WT_CONN_SERVER_TIERED 0x2000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

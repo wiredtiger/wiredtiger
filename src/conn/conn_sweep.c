@@ -570,10 +570,6 @@ __sweep_server(void *arg)
             }
         }
 
-        /* On a follower, retry a deferred checkpoint pickup once blocking snapshots have ended. */
-        if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
-            WT_IGNORE_RET(__wti_disagg_deferred_pickup_retry(session, false));
-
         /* Remember the last sweep time. */
         last = now;
     }

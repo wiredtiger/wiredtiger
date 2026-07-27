@@ -133,7 +133,14 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned, WT_TXN_NONE);
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->pinned_id, WT_TXN_NONE);
-    __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, 0);
+    /*
+     * Releasing a snapshot that pinned a checkpoint may unblock a deferred pickup: wake the pickup
+     * server after the pin is cleared, so its scan observes the release.
+     */
+    if (__wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn) != 0) {
+        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, 0);
+        __wt_disagg_deferred_pickup_signal(session);
+    }
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 

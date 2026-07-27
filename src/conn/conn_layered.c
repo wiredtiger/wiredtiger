@@ -1479,6 +1479,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.drain_threads", &cval));
         if (cval.len > 0 && cval.val >= 0)
             conn->layered_drain_data.thread_count = (uint32_t)cval.val;
+
+        /* With deferral configured, start the server adopting deferred checkpoints. */
+        if (conn->disaggregated_storage.checkpoint_deferral_timeout_ms != 0)
+            WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
     }
 
 err:
@@ -1713,6 +1717,8 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+
+    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
 
     /* Remove the list of URIs for which we still need to update metadata entries. */
     __disagg_shared_metadata_queue_clear(session);

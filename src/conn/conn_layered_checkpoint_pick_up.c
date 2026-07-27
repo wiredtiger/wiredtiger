@@ -934,6 +934,132 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
 }
 
 /*
+ * __disagg_deferred_pickup_run_chk --
+ *     Check to decide if the deferred pickup server should continue running.
+ */
+static bool
+__disagg_deferred_pickup_run_chk(WT_SESSION_IMPL *session)
+{
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_DISAGG_PICKUP));
+}
+
+/*
+ * __disagg_deferred_pickup_server --
+ *     Background server adopting a deferred checkpoint once the transactions blocking it end. It
+ *     sleeps until a pinning transaction finishes or a checkpoint is deferred, and owns the
+ *     deferral deadline.
+ */
+static WT_THREAD_RET
+__disagg_deferred_pickup_server(void *arg)
+{
+    struct timespec ts;
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg;
+    WT_SESSION_IMPL *session;
+    uint64_t elapsed_ms, now_ms, wait_usecs;
+
+    session = arg;
+    disagg = &S2C(session)->disaggregated_storage;
+
+    for (;;) {
+        /*
+         * With a checkpoint deferred, wake no later than its adoption deadline; otherwise sleep
+         * until signalled. The deferral state is read without the checkpoint lock: the deadline is
+         * advisory and recomputed on every pass.
+         */
+        wait_usecs = 0;
+        if (disagg->deferred_checkpoint_meta != NULL) {
+            __wt_epoch(session, &ts);
+            now_ms = (uint64_t)ts.tv_sec * WT_THOUSAND + (uint64_t)ts.tv_nsec / WT_MILLION;
+            elapsed_ms = now_ms - disagg->deferred_checkpoint_time_ms;
+            wait_usecs = elapsed_ms >= disagg->checkpoint_deferral_timeout_ms ?
+              1 :
+              (disagg->checkpoint_deferral_timeout_ms - elapsed_ms) * WT_THOUSAND;
+        }
+        __wt_cond_wait(
+          session, disagg->deferred_pickup_cond, wait_usecs, __disagg_deferred_pickup_run_chk);
+
+        if (!__disagg_deferred_pickup_run_chk(session))
+            break;
+        if (disagg->deferred_checkpoint_meta == NULL)
+            continue;
+
+        /* Failures are retried at the next signal or deadline; back off so they are not hot. */
+        if ((ret = __wti_disagg_deferred_pickup_retry(session, false)) != 0) {
+            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "deferred checkpoint pickup failed: %s", __wt_strerror(session, ret, NULL, 0));
+            __wt_sleep(0, 100 * WT_THOUSAND);
+        }
+    }
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * __wt_disagg_deferred_pickup_signal --
+ *     Wake the deferred pickup server: called when a pinning transaction finishes and when a
+ *     checkpoint is deferred.
+ */
+void
+__wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    if (disagg->deferred_pickup_cond != NULL && disagg->deferred_checkpoint_meta != NULL)
+        __wt_cond_signal(session, disagg->deferred_pickup_cond);
+}
+
+/*
+ * __wti_disagg_deferred_pickup_server_create --
+ *     Start the deferred checkpoint pickup server.
+ */
+int
+__wti_disagg_deferred_pickup_server_create(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DISAGGREGATED_STORAGE *disagg = &conn->disaggregated_storage;
+
+    if (disagg->deferred_pickup_session != NULL)
+        return (0);
+
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_DISAGG_PICKUP);
+
+    WT_RET(__wt_open_internal_session(
+      conn, "disagg-pickup-server", false, 0, 0, &disagg->deferred_pickup_session));
+    WT_RET(__wt_cond_alloc(
+      disagg->deferred_pickup_session, "disagg deferred pickup", &disagg->deferred_pickup_cond));
+    WT_RET(__wt_thread_create(disagg->deferred_pickup_session, &disagg->deferred_pickup_tid,
+      __disagg_deferred_pickup_server, disagg->deferred_pickup_session));
+    disagg->deferred_pickup_tid_set = true;
+    return (0);
+}
+
+/*
+ * __wti_disagg_deferred_pickup_server_destroy --
+ *     Stop the deferred checkpoint pickup server.
+ */
+int
+__wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg = &conn->disaggregated_storage;
+
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_DISAGG_PICKUP);
+    if (disagg->deferred_pickup_tid_set) {
+        __wt_cond_signal(session, disagg->deferred_pickup_cond);
+        WT_TRET(__wt_thread_join(session, &disagg->deferred_pickup_tid));
+        disagg->deferred_pickup_tid_set = false;
+    }
+    __wt_cond_destroy(session, &disagg->deferred_pickup_cond);
+    if (disagg->deferred_pickup_session != NULL) {
+        WT_TRET(__wt_session_close_internal(disagg->deferred_pickup_session));
+        disagg->deferred_pickup_session = NULL;
+    }
+    return (ret);
+}
+
+/*
  * __wti_disagg_deferred_pickup_retry --
  *     Retry adopting a checkpoint whose pickup was deferred for active snapshots. Called
  *     periodically so a deferred checkpoint is adopted once the snapshots that blocked it end.
@@ -1331,6 +1457,8 @@ __wti_disagg_pick_up_checkpoint_meta(
         WT_ERR(ret);
         if (deferred) {
             WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
+            /* Arm the pickup server's deferral deadline. */
+            __wt_disagg_deferred_pickup_signal(session);
             goto err;
         }
         WT_STAT_CONN_INCR(session, disagg_checkpoint_defer_timeout);
