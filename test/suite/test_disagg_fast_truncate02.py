@@ -133,8 +133,8 @@ class test_disagg_fast_truncate02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Once the truncate is globally visible, tree walks skip the deleted refs, but their blocks
-        # remain allocated until the parent is reconciled. Verify's page-discard check must still
-        # count these pages.
+        # remain allocated until the parent is reconciled. The page-discard check in verify must
+        # still count these pages.
         ts = self.timestamp_str(self.visible_ts)
         self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
 

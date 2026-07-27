@@ -1827,8 +1827,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     __wt_qsort(list.ids, list.count, sizeof(uint64_t), __verify_compare_page_id);
 
     WT_ERR_MSG_CHK(session,
-      __verify_compare_page_id_lists(session, list.ids, list.count,
-        (const uint64_t *)item->data, num_pages_found_in_pali),
+      __verify_compare_page_id_lists(
+        session, list.ids, list.count, (const uint64_t *)item->data, num_pages_found_in_pali),
       "Page discard verification found mismatches");
 
 err:
