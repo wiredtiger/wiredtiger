@@ -828,10 +828,14 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         session = conn.open_session('')
         cursor = session.open_cursor('metadata:')
-        cursor.set_key('file:' + tablename + '.wt_ingest')
-        found = cursor.search() == 0
-        if found and leader:
+        if leader:
+            cursor.set_key('file:' + tablename + '.wt_ingest')
+            ingest_found = cursor.search() == 0
             cursor.set_key('file:' + tablename + '.wt_stable')
+            stable_found = cursor.search() == 0
+            found = ingest_found and stable_found
+        else:
+            cursor.set_key('file:' + tablename + '.wt_ingest')
             found = cursor.search() == 0
         cursor.close()
         session.close()
