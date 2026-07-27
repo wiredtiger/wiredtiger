@@ -179,7 +179,7 @@ main(int argc, char *argv[])
     READ_SCAN_ARGS scan_args;
     WT_DECL_RET;
     uint64_t now, start;
-    u_int leader_ops_seconds, ops_seconds, reps;
+    u_int leader_ops_seconds, ops_seconds, reps, total_reps;
     int ch;
     const char *config, *home;
     bool is_backup, quiet_flag, verify_only;
@@ -414,9 +414,15 @@ main(int argc, char *argv[])
          */
         leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
 
-        for (reps = 1; reps <= (FORMAT_OPERATION_REPS * 2); ++reps) {
+        /*
+         * With async step-down each rep covers both the leader and follower phases inside
+         * operations(); otherwise a rep runs a single phase, so double the count to alternate.
+         */
+        total_reps =
+          GV(DISAGG_STEPDOWN_ASYNC) ? FORMAT_OPERATION_REPS : (FORMAT_OPERATION_REPS * 2);
+        for (reps = 1; reps <= total_reps; ++reps) {
             ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_SWITCH_FOLLOWER_OPS_SEC;
-            operations(ops_seconds, reps, (FORMAT_OPERATION_REPS * 2));
+            operations(ops_seconds, reps, total_reps);
             disagg_switch_roles();
         }
     }
