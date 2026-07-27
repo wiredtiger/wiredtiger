@@ -808,11 +808,6 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         return 'file:' + tablename + '.wt_stable'
 
-    def ingest_uri(self, uri):
-        """Return the ingest component URI for a given layered table URI."""
-        tablename = uri[len('layered:'):]
-        return 'file:' + tablename + '.wt_ingest'
-
     def uri_in_shared_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in the shared metadata table."""
         session = conn.open_session('')
@@ -827,7 +822,7 @@ class DisaggSchemaEpochMixin:
         """Return True if uri's ingest constituent is present in conn's local metadata."""
         session = conn.open_session('')
         cursor = session.open_cursor('metadata:')
-        cursor.set_key(self.ingest_uri(uri))
+        cursor.set_key('file:' + uri[len('layered:'):] + '.wt_ingest')
         found = cursor.search() == 0
         cursor.close()
         session.close()
