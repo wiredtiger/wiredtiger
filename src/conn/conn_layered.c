@@ -1200,6 +1200,44 @@ __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *le
 }
 
 /*
+ * __disagg_config_stable_tombstone_encoding --
+ *     Apply the stable-table tombstone encoding setting. It is fixed when the connection opens and
+ *     preserved across reconfigure calls that do not name it; reconfigure must not change it, since
+ *     mixing escaped and unescaped values in one data set corrupts reads. Naming the same value is
+ *     a harmless no-op.
+ */
+static int
+__disagg_config_stable_tombstone_encoding(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    bool want_encoding;
+
+    conn = S2C(session);
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.stable_tombstone_encoding", &cval), true);
+    if (ret == 0 && cval.len > 0) {
+        want_encoding = WT_CONFIG_LIT_MATCH("true", cval);
+        if (reconfig &&
+          want_encoding !=
+            F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING))
+            WT_ERR_MSG(session, EINVAL,
+              "disaggregated.stable_tombstone_encoding cannot be changed by reconfigure; the mode "
+              "is fixed when the connection opens and switching it requires wiping the data");
+        if (want_encoding)
+            F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        else
+            F_CLR(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    } else if (!reconfig)
+        F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+
+err:
+    return (ret == WT_NOTFOUND ? 0 : ret);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1235,30 +1273,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             F_CLR(&conn->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
     }
 
-    /*
-     * Stable-table tombstone encoding is chosen when the connection opens and is preserved across
-     * reconfigure calls that do not name it. It must not be changed by reconfigure: flipping it on
-     * a running node would mix escaped and unescaped values in the same data set, which corrupts
-     * reads. Switching modes requires opening a fresh, empty data set in the new mode. A
-     * reconfigure that names the same value is a harmless no-op.
-     */
-    WT_ERR_NOTFOUND_OK(
-      __wt_config_gets(session, cfg, "disaggregated.stable_tombstone_encoding", &cval), true);
-    if (ret == 0 && cval.len > 0) {
-        bool want_encoding = WT_CONFIG_LIT_MATCH("true", cval);
-        if (reconfig &&
-          want_encoding !=
-            F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING))
-            WT_ERR_MSG(session, EINVAL,
-              "disaggregated.stable_tombstone_encoding cannot be changed by reconfigure; the mode "
-              "is fixed when the connection opens and switching it requires wiping the data");
-        if (want_encoding)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-        else
-            F_CLR(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-    } else if (!reconfig)
-        F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
-    ret = 0;
+    /* Stable-table tombstone encoding is fixed at open; reconfigure cannot change it. */
+    WT_ERR(__disagg_config_stable_tombstone_encoding(session, cfg, reconfig));
 
     /* Reconfigure-only settings. */
     if (reconfig) {

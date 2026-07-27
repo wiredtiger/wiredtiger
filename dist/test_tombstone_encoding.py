@@ -34,6 +34,10 @@
 import os
 import sys
 
+# Importing the checker writes dist/__pycache__/s_tombstone_encoding.*.pyc, whose name matches
+# s_whitespace's 's_*' file scan and trips it. Skip bytecode so the run leaves no such file.
+sys.dont_write_bytecode = True
+
 import s_tombstone_encoding as ste
 
 FAILURES = []
