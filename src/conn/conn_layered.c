@@ -1318,14 +1318,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * checkpoint cannot become the leader, cannot report the failure, and a panic hands
          * leadership to another node.
          */
-        while ((ret = __wti_disagg_deferred_pickup_retry(session, true)) != 0) {
-            if (ret != EBUSY)
-                WT_ERR(
-                  __wt_panic(session, ret, "failed to adopt a deferred checkpoint before step-up"));
+        while ((ret = __wti_disagg_deferred_pickup_retry(session, true)) == EBUSY) {
             __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
               "The deferred checkpoint adoption before step-up is blocked, retrying");
             __wt_sleep(0, 100 * WT_THOUSAND);
         }
+        if (ret != 0)
+            WT_ERR(
+              __wt_panic(session, ret, "failed to adopt a deferred checkpoint before step-up"));
 
         /* Follower step-up. */
         time_start = __wt_clock(session);
