@@ -113,7 +113,8 @@ err:
 static int
 __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata)
 {
-    WT_CONFIG_ITEM new_ckpt;
+    WT_CONFIG_ITEM new_ckpt = {
+      metadata->checkpoint, metadata->checkpoint_len, 0, WT_CONFIG_ITEM_STRUCT};
     WT_CURSOR *md_cursor;
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
@@ -126,7 +127,6 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     discard = false;
     md_cursor = NULL;
     metadata_key = WT_DISAGG_METADATA_URI;
-    WT_CLEAR(new_ckpt);
 
     /* Open up a metadata cursor pointing at our table */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
@@ -138,8 +138,6 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     /* Copy the value since we don't own the memory after calling get_value(). */
     WT_ERR(__wt_strdup(session, cfg_current, &cfg_current_copy));
 
-    new_ckpt.str = metadata->checkpoint;
-    new_ckpt.len = metadata->checkpoint_len;
     WT_ERR(__wt_config_replace(session, cfg_current_copy, "checkpoint", &new_ckpt, &cfg_new));
 
     /* Put in our new config. */
