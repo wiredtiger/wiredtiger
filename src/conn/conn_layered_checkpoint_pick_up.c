@@ -1282,7 +1282,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * of completing the adoption, so a failure is fatal; the restarted node deletes its local state
      * and picks the checkpoint up from scratch.
      *
-     * FIXME-WT-18156: apply the local metadata updates in a single transaction, so that a failure
+     * FIXME-WT-18190: apply the local metadata updates in a single transaction, so that a failure
      * rolls back to a clean state and a conflict with a concurrent metadata writer becomes
      * retryable instead of fatal.
      */
