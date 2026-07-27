@@ -83,8 +83,7 @@ __wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
     txn = session->txn;
 
     /*  Ignore standard errors that don't fail the transaction. */
-    if (ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT ||
-      ret == WT_SNAPSHOT_STALE)
+    if (ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT)
         return;
 
     /* Less commonly, it's not a running transaction. */

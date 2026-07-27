@@ -170,9 +170,9 @@ TEST_CASE(
 
     cursor_after->set_key(cursor_after, "key_inserted");
     int ret = cursor_after->search(cursor_after);
-    CHECK((ret == WT_NOTFOUND || ret == WT_SNAPSHOT_STALE));
+    CHECK((ret == WT_NOTFOUND || ret == WT_ROLLBACK));
 
-    if (ret != WT_SNAPSHOT_STALE) {
+    if (ret != WT_ROLLBACK) {
         cursor_after->set_key(cursor_after, "key_updated");
         ret = cursor_after->search(cursor_after);
         if (ret == 0) {
@@ -180,7 +180,7 @@ TEST_CASE(
             REQUIRE(cursor_after->get_value(cursor_after, &value) == 0);
             CHECK(std::string(value) == "old value");
         } else
-            CHECK(ret == WT_SNAPSHOT_STALE);
+            CHECK(ret == WT_ROLLBACK);
     }
 
     REQUIRE(cursor_after->close(cursor_after) == 0);

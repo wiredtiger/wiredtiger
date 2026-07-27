@@ -27,6 +27,8 @@
  */
 #define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "Cache capacity has overflown"
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "Write conflict between concurrent operations"
+#define WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP \
+    "A newer checkpoint was adopted after the transaction snapshot was established"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "Transaction has the oldest pinned transaction ID"
 

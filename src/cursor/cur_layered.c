@@ -461,12 +461,10 @@ __clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
 
 /*
  * __clayered_stable_bind_check_role_change --
- *     Fail with WT_SNAPSHOT_STALE if the session's transactional snapshot was established under a
+ *     Fail with WT_ROLLBACK if the session's transactional snapshot was established under a
  *     different role: a role change swaps what the stable content is (an adopted checkpoint or the
  *     live btree), so no stable binding is consistent for such a snapshot. Called only for binds
- *     the snapshot constrains, under the checkpoint lock, which role changes run under. The
- *     transaction survives the refusal: the application may refresh its snapshot and retry, or roll
- *     back.
+ *     the snapshot constrains, under the checkpoint lock, which role changes run under.
  */
 static WT_INLINE int
 __clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session)
@@ -481,13 +479,12 @@ __clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session)
         return (0);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
-    WT_RET_SUB(session, WT_SNAPSHOT_STALE, WT_NONE,
-      "the stable content is newer than the transaction snapshot");
+    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
 }
 
 /*
  * __clayered_stable_bind_check --
- *     Fail with WT_SNAPSHOT_STALE if binding a stable cursor to checkpoint content would break the
+ *     Fail with WT_ROLLBACK if binding a stable cursor to checkpoint content would break the
  *     session's transactional snapshot: adopted content carries no local transaction ids, so the
  *     snapshot must have been established at (or after) the newest published checkpoint, and under
  *     the current role. Called only for binds the snapshot constrains, under the checkpoint lock:
@@ -514,8 +511,7 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
         return (0);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
-    WT_RET_SUB(session, WT_SNAPSHOT_STALE, WT_NONE,
-      "the stable content is newer than the transaction snapshot");
+    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
 }
 
 /*
