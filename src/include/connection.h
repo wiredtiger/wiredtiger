@@ -287,6 +287,23 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
+    /*
+     * Incremented on every role change. What the stable table is (an adopted checkpoint or the live
+     * btree) changes with the role, so a transactional snapshot established under one role cannot
+     * bind the stable table under another.
+     */
+    wt_shared uint64_t role_change_gen;
+
+    /*
+     * A checkpoint whose adoption is deferred while transactional snapshots that predate it are
+     * active. Protected by the checkpoint lock; the timeout is set at configuration time.
+     */
+    char *deferred_checkpoint_meta;
+    size_t deferred_checkpoint_meta_size;
+    uint64_t deferred_checkpoint_lsn;
+    uint64_t deferred_checkpoint_time_ms;
+    uint64_t checkpoint_deferral_timeout_ms;
+
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */

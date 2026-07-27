@@ -347,6 +347,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor search operations",
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
+  "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
   "layered: Layered table cursor update operations",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
@@ -833,6 +834,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_search = 0;
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
+    stats->layered_curs_open_stable_refused = 0;
     stats->layered_curs_update = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
@@ -1316,6 +1318,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_search += from->layered_curs_search;
     to->layered_curs_search_ingest += from->layered_curs_search_ingest;
     to->layered_curs_search_stable += from->layered_curs_search_stable;
+    to->layered_curs_open_stable_refused += from->layered_curs_open_stable_refused;
     to->layered_curs_update += from->layered_curs_update;
     to->layered_curs_stable_value_tombstone_prefix +=
       from->layered_curs_stable_value_tombstone_prefix;
@@ -1843,6 +1846,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_search += WT_STAT_DSRC_READ(from, layered_curs_search);
     to->layered_curs_search_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_ingest);
     to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
+    to->layered_curs_open_stable_refused +=
+      WT_STAT_DSRC_READ(from, layered_curs_open_stable_refused);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
     to->layered_curs_stable_value_tombstone_prefix +=
       WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_prefix);
@@ -2615,8 +2620,10 @@ static const char *const __stats_connection_desc[] = {
   "disagg: abandon checkpoints failed",
   "disagg: abandon checkpoints succeeded",
   "disagg: apply checkpoint metadata most recent time (msecs)",
+  "disagg: checkpoint pick-ups deferred for active transaction snapshots",
   "disagg: connection reconfiguration",
   "disagg: database size",
+  "disagg: deferred checkpoint pick-ups adopted after the deferral timeout",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
@@ -2642,6 +2649,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations",
   "layered: Layered table cursor search operations from the ingest btrees",
   "layered: Layered table cursor search operations from the stable btrees",
+  "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
   "layered: Layered table cursor update operations",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
@@ -3706,8 +3714,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_abandon_checkpoint_failed = 0;
     stats->disagg_abandon_checkpoint_succeed = 0;
     stats->disagg_apply_checkpoint_meta_time = 0;
+    stats->disagg_checkpoint_defer = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
+    stats->disagg_checkpoint_defer_timeout = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
@@ -3733,6 +3743,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_search = 0;
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
+    stats->layered_curs_open_stable_refused = 0;
     stats->layered_curs_update = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
@@ -4912,8 +4923,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_succeed);
     to->disagg_apply_checkpoint_meta_time +=
       WT_STAT_CONN_READ(from, disagg_apply_checkpoint_meta_time);
+    to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
+    to->disagg_checkpoint_defer_timeout += WT_STAT_CONN_READ(from, disagg_checkpoint_defer_timeout);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
     to->disagg_pick_up_file_meta_inserted +=
@@ -4941,6 +4954,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_search += WT_STAT_CONN_READ(from, layered_curs_search);
     to->layered_curs_search_ingest += WT_STAT_CONN_READ(from, layered_curs_search_ingest);
     to->layered_curs_search_stable += WT_STAT_CONN_READ(from, layered_curs_search_stable);
+    to->layered_curs_open_stable_refused +=
+      WT_STAT_CONN_READ(from, layered_curs_open_stable_refused);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
     to->layered_curs_stable_value_tombstone_prefix +=
       WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone_prefix);

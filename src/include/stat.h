@@ -1001,8 +1001,10 @@ struct __wt_connection_stats {
     int64_t disagg_abandon_checkpoint_failed;
     int64_t disagg_abandon_checkpoint_succeed;
     int64_t disagg_apply_checkpoint_meta_time;
+    int64_t disagg_checkpoint_defer;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
+    int64_t disagg_checkpoint_defer_timeout;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
@@ -1028,6 +1030,7 @@ struct __wt_connection_stats {
     int64_t layered_curs_search;
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
+    int64_t layered_curs_open_stable_refused;
     int64_t layered_curs_update;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;
@@ -1793,6 +1796,7 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search;
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
+    int64_t layered_curs_open_stable_refused;
     int64_t layered_curs_update;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;

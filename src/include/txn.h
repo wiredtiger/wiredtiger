@@ -27,6 +27,8 @@
  */
 #define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "Cache capacity has overflown"
 #define WT_TXN_ROLLBACK_REASON_CONFLICT "Write conflict between concurrent operations"
+#define WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP \
+    "A newer checkpoint was adopted after the transaction snapshot was established"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "Transaction has the oldest pinned transaction ID"
 
@@ -141,6 +143,16 @@ struct __wt_txn_shared {
      * prevents the oldest timestamp moving past this point.
      */
     wt_shared wt_timestamp_t read_timestamp;
+
+    /*
+     * The disaggregated checkpoint this transaction's snapshot is consistent with, stored as the
+     * checkpoint metadata LSN plus one so that zero means no pinned snapshot. Content adopted from
+     * a checkpoint carries no local transaction ids, so a snapshot established before an adoption
+     * must not read the adopted content; a checkpoint pickup uses this field to find such readers.
+     * Only set for snapshots without a read timestamp: timestamped readers stay consistent through
+     * the history store.
+     */
+    wt_shared uint64_t disagg_pinned_lsn;
 
     wt_shared volatile uint8_t is_allocating;
     WT_CACHE_LINE_PAD_END
@@ -403,6 +415,13 @@ struct __wt_txn {
     WT_TXN_ISOLATION isolation;
 
     uint32_t forced_iso; /* Isolation is currently forced. */
+
+    /*
+     * The disaggregated role-change generation observed when the snapshot was established. A
+     * snapshot established under one role must not bind a layered table's stable content under
+     * another.
+     */
+    uint64_t disagg_role_gen;
 
     WT_TXN_LOG txn_log;
 

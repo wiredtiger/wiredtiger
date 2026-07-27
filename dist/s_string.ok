@@ -1281,6 +1281,7 @@ lldb
 llll
 llu
 llvm
+ln
 loadshed
 loadtext
 loc
@@ -1625,6 +1626,7 @@ reproducibility
 requeue
 resizable
 ret
+retryable
 reverify
 revint
 rf

@@ -1028,6 +1028,11 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
+    __wt_atomic_store_uint64_release(&conn->disaggregated_storage.role_change_gen,
+      __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.role_change_gen) + 1);
+
+    /* A leader never adopts checkpoints: discard a pending deferred pickup. */
+    __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
 
     /*
      * If the newest picked-up checkpoint predates the write generation high-water mark in the
@@ -1145,6 +1150,8 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     /* Step down to the follower mode. */
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
+    __wt_atomic_store_uint64_release(&conn->disaggregated_storage.role_change_gen,
+      __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.role_change_gen) + 1);
     return (0);
 }
 
@@ -1276,7 +1283,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              */
             if (!leader) {
                 WT_ERR_MSG_CHK(session,
-                  __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+                  __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len, false),
                   "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             }
         }
@@ -1300,6 +1307,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         conn->layered_table_manager.leader = leader;
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
+        /*
+         * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
+         * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
+         * shared checkpoint lineage from an older ancestor.
+         */
+        WT_ERR_MSG_CHK(session, __wti_disagg_deferred_pickup_retry(session, true),
+          "Failed to adopt a deferred checkpoint before step-up");
+
         /* Follower step-up. */
         time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
@@ -1323,6 +1338,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     if (reconfig)
         goto err;
+
+    /* Get the checkpoint deferral timeout. */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_deferral_timeout_ms", &cval));
+    conn->disaggregated_storage.checkpoint_deferral_timeout_ms = (uint64_t)cval.val;
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -1371,7 +1390,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
           __wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval), true);
         if (ret == 0 && cval.len > 0) {
             WT_ERR_MSG_CHK(session,
-              __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len),
+              __wti_disagg_pick_up_checkpoint_meta(session, cval.str, cval.len, true),
               "Failed to pick up a new checkpoint with config: %.*s", (int)cval.len, cval.str);
             picked_up = true;
         }
@@ -1384,7 +1403,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             if (ret == 0) {
                 /* Pick up the checkpoint we just found. */
                 ret = __wti_disagg_pick_up_checkpoint_meta(
-                  session, complete_checkpoint_meta.data, complete_checkpoint_meta.size);
+                  session, complete_checkpoint_meta.data, complete_checkpoint_meta.size, true);
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
@@ -1691,6 +1710,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_free(session, disagg->last_checkpoint_root);
+    __wt_free(session, disagg->deferred_checkpoint_meta);
     __wt_free(session, disagg->page_log);
     return (ret);
 }

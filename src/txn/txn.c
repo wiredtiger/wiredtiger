@@ -133,6 +133,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned, WT_TXN_NONE);
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->pinned_id, WT_TXN_NONE);
+    __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, 0);
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
@@ -231,6 +232,22 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
         __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
     }
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
+
+    /*
+     * Record the newest adopted checkpoint before building the snapshot. In the other order a
+     * checkpoint pickup could land between the two reads and the snapshot would pin the new
+     * checkpoint while predating its adoption; this order resolves that race to a spurious
+     * (retryable) rollback instead. Timestamped readers are excluded: they stay consistent through
+     * the history store regardless of which checkpoint they read.
+     */
+    if (update_shared_state && __wt_conn_is_disagg(session) &&
+      txn_shared->read_timestamp == WT_TS_NONE) {
+        txn->disagg_role_gen =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
+        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn,
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn) +
+            1);
+    }
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);

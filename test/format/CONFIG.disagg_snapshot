@@ -1,0 +1,42 @@
+############################################
+#  RUN PARAMETERS: V3
+############################################
+# A configuration stressing snapshot isolation on a disaggregated follower.
+# Runs multi-node: the leader forks a follower process that picks up
+# checkpoints while replaying the same operations, so snapshot transactions
+# without a read timestamp race checkpoint pickups. Their reads are verified
+# through freshly opened cursors before commit.
+backup=0
+background_compact=0
+block_cache=0
+# FIXME-WT-14738: Enable reverse collator once it is available for layered tables.
+btree.reverse=0
+checkpoint=on
+precise_checkpoint=1
+disagg.page_log=palite
+disagg.enabled=1
+disagg.layered=1
+disagg.multi=1
+disagg.multi_validation=1
+runs.predictable_replay=1
+runs.source=layered
+runs.type=row-store
+runs.tables=3
+runs.rows=50000:200000
+runs.ops=500000:2000000
+import=0
+ops.alter=0
+ops.compaction=0
+ops.salvage=0
+ops.throttle=0
+# Read-heavy mix: the anomaly is a read observing post-snapshot data.
+ops.pct.delete=10
+ops.pct.insert=15
+ops.pct.modify=0
+ops.pct.read=60
+ops.pct.write=15
+quiet=0
+runs.in_memory=0
+transaction.timestamps=1
+tiered_storage.flush_frequency=0
+tiered_storage.storage_source=off
