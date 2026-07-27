@@ -529,6 +529,14 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
+    if ((ret = __wt_conf_getones(session, conf, Debug.allow_internal_access, &cval)) == 0) {
+        if (cval.val)
+            F_SET(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
+        else
+            F_CLR(session, WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS);
+    }
+    WT_RET_NOTFOUND_OK(ret);
+
     /*
      * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
      * is completed.
@@ -827,6 +835,32 @@ err:
 }
 
 /*
+ * __session_check_internal_uri --
+ *     Refuse direct application access to internal tables, such as the ingest and stable
+ *     constituents of a layered table. Sessions configured with debug=(allow_internal_access) are
+ *     exempt, as are internal sessions.
+ */
+static int
+__session_check_internal_uri(WT_SESSION_IMPL *session, const char *uri)
+{
+    if (uri == NULL || (!WT_URI_IS_INGEST(uri) && !WT_URI_IS_STABLE(uri)))
+        return (0);
+    if (F_ISSET(session, WT_SESSION_INTERNAL | WT_SESSION_DEBUG_ALLOW_INTERNAL_ACCESS))
+        return (0);
+
+    /* Tables in the WiredTiger name space have no layered table to redirect to. */
+    if (strstr(uri, "file:WiredTiger") != NULL)
+        WT_RET_MSG(session, EINVAL,
+          "%s: direct access to an internal table is not allowed; it may be enabled for debugging "
+          "with debug=(allow_internal_access=true)",
+          uri);
+    WT_RET_MSG(session, EINVAL,
+      "%s: direct access to an internal table is not allowed; access the layered table instead or "
+      "configure the session with debug=(allow_internal_access=true)",
+      uri);
+}
+
+/*
  * __session_open_cursor --
  *     WT_SESSION->open_cursor method.
  */
@@ -876,6 +910,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     if ((to_dup == NULL && uri == NULL) || (to_dup != NULL && uri != NULL))
         WT_ERR_MSG(
           session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
+
+    WT_ERR(__session_check_internal_uri(session, uri));
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
@@ -1028,6 +1064,8 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
     cfg[0] = cfg[1];
     cfg[1] = NULL;
 
+    WT_ERR(__session_check_internal_uri(session, uri));
+
     /*
      * Alter table can return EBUSY error when the table is modified in parallel by eviction. Retry
      * the command after performing a system wide checkpoint. Only retry once to avoid potentially
@@ -1123,6 +1161,8 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
+
+    WT_ERR(__session_check_internal_uri(session, uri));
 
     /* Type configuration only applies to tables, column groups and indexes. */
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "index:") &&
@@ -1349,6 +1389,8 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
+
+    WT_ERR(__session_check_internal_uri(session, uri));
 
     WT_ERR(__wt_config_gets_def(session, cfg, "checkpoint_wait", 1, &cval));
     checkpoint_wait = cval.val != 0;
@@ -1778,6 +1820,8 @@ __session_truncate(
     if (uri != NULL) {
         /* Disallow objects in the WiredTiger name space. */
         WT_ERR(__wt_str_name_check(session, uri));
+
+        WT_ERR(__session_check_internal_uri(session, uri));
 
         if (WT_PREFIX_MATCH(uri, "log:")) {
             /*

@@ -73,8 +73,10 @@ class test_layered_follower14(sweep_util):
         cursor.close()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.nrows))
 
-        # Pin the ingest table dhandle, so it doesn't get swept away on purpose.
-        cursor = self.session.open_cursor(f"file:{self.test_name}.wt_ingest")
+        # Pin the ingest table dhandle, so it doesn't get swept away on purpose. The cursor
+        # must stay open across step-up, so keep its session open for the same span.
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor(f"file:{self.test_name}.wt_ingest")
 
         # Wait for the sweep server to run several cycles. If it is not configured
         # to skip layered dhandles, it would mark and close them, causing gaps when
@@ -84,6 +86,7 @@ class test_layered_follower14(sweep_util):
         # Step up to leader.
         self.conn.reconfigure('disaggregated=(role="leader")')
         cursor.close()
+        debug_session.close()
 
         # All rows from both batches must be present with no gaps.
         # Missing rows indicate the layered dhandle was incorrectly swept.

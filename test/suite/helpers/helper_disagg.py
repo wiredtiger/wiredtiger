@@ -810,24 +810,24 @@ class DisaggSchemaEpochMixin:
 
     def uri_in_shared_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in the shared metadata table."""
-        session = conn.open_session('')
-        cursor = session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        debug_session = conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
         cursor.set_key(self.stable_uri(uri))
         found = cursor.search() == 0
         cursor.close()
-        session.close()
+        debug_session.close()
         return found
 
     def uri_in_local_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in conn's local metadata."""
-        session = conn.open_session('')
+        debug_session = conn.open_session('debug=(allow_internal_access=true)')
         exists = True
         try:
-            c = session.open_cursor(self.stable_uri(uri))
+            c = debug_session.open_cursor(self.stable_uri(uri))
             c.close()
         except wiredtiger.WiredTigerError:
             exists = False
-        session.close()
+        debug_session.close()
         return exists
 
     def open_follower(self):
@@ -855,9 +855,12 @@ class DisaggSizeTestMixin:
         return int(sizes[-1])
 
     def get_stat(self, stat_key, uri=None):
-        s = self.session.open_cursor('statistics:' + (uri if uri is not None else self.stable_uri))
+        # The default URI is the stable constituent, which requires internal access.
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        s = debug_session.open_cursor('statistics:' + (uri if uri is not None else self.stable_uri))
         val = s[stat_key][2]
         s.close()
+        debug_session.close()
         return val
 
     def get_conn_stat(self, stat_key):

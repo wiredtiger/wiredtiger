@@ -69,7 +69,8 @@ class test_layered_config14(wttest.WiredTigerTestCase):
 
     # Ensure that the shared metadata has all the expected URIs.
     def check_shared_metadata(self, expect_contains, expect_missing = []):
-        cursor = self.session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
+        debug_session = self.conn.open_session('debug=(allow_internal_access=true)')
+        cursor = debug_session.open_cursor('file:WiredTigerShared.wt_stable', None, None)
         metadata = {}
         while cursor.next() == 0:
             metadata[cursor.get_key()] = cursor.get_value()
@@ -78,6 +79,7 @@ class test_layered_config14(wttest.WiredTigerTestCase):
         for uri in expect_missing:
             self.assertFalse(uri in metadata)
         cursor.close()
+        debug_session.close()
 
     # Test starting without local files.
     def test_layered_config14(self):

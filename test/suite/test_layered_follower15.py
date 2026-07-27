@@ -59,7 +59,7 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
         self.conn_follow = self.wiredtiger_open(
             'follower',
             self.extensionsConfig() + ',create,' + self.conn_config_follower)
-        self.session_follow = self.conn_follow.open_session()
+        self.session_follow = self.conn_follow.open_session('')
         self.session.create(self.uri, self.create_config)
         self.session_follow.create(self.uri, self.create_config)
 
@@ -164,9 +164,10 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
     def test_modify_base_value_not_pruned(self):
         expected = self.setup_single_key_chain('v1', 'v2', make_orphan=True)
 
-        self.session_follow.begin_transaction(
+        debug_session = self.conn_follow.open_session('debug=(allow_internal_access=true)')
+        debug_session.begin_transaction(
             f'read_timestamp={self.timestamp_str(25)}')
-        cursor = self.session_follow.open_cursor(self.ingest_uri)
+        cursor = debug_session.open_cursor(self.ingest_uri)
         # Tests cursor.next()
         self.assertEqual(cursor.next(), 0)
         self.assertEqual(cursor.get_key(), 1)
@@ -180,7 +181,8 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_value(), expected)
 
         cursor.close()
-        self.session_follow.rollback_transaction()
+        debug_session.rollback_transaction()
+        debug_session.close()
 
         self.teardown_follower_and_checkpoint_leader()
 
@@ -232,9 +234,10 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
         expected = self.setup_multi_key_orphan_modify_precondition(
             num_keys=num_keys, target_key=target_key)
 
-        self.session_follow.begin_transaction(
+        debug_session = self.conn_follow.open_session('debug=(allow_internal_access=true)')
+        debug_session.begin_transaction(
             f'read_timestamp={self.timestamp_str(25)}')
-        cursor = self.session_follow.open_cursor(self.ingest_uri)
+        cursor = debug_session.open_cursor(self.ingest_uri)
 
         # Probe a few neighbors first to confirm the page is in the
         # multi-key state the test requires. If neighbors return
@@ -267,7 +270,8 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
         self.assertEqual(actual, expected)
 
         cursor.close()
-        self.session_follow.rollback_transaction()
+        debug_session.rollback_transaction()
+        debug_session.close()
         self.teardown_follower_and_checkpoint_leader()
 
     def test_modify_respects_visibility(self):
@@ -278,34 +282,18 @@ class test_layered_follower15(wttest.WiredTigerTestCase):
         v2 = 'v2'
         modified = self.setup_single_key_chain(v0, v2, make_orphan=False)
 
-        # v0 visible @15.
-        self.session_follow.begin_transaction(
-            f'read_timestamp={self.timestamp_str(15)}')
-        cursor = self.session_follow.open_cursor(self.ingest_uri)
-        cursor.set_key(self.SINGLE_KEY)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), v0)
-        cursor.close()
-        self.session_follow.rollback_transaction()
-
-        # MODIFY visible @25.
-        self.session_follow.begin_transaction(
-            f'read_timestamp={self.timestamp_str(25)}')
-        cursor = self.session_follow.open_cursor(self.ingest_uri)
-        cursor.set_key(self.SINGLE_KEY)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), modified)
-        cursor.close()
-        self.session_follow.rollback_transaction()
-
-        # v2 visible @30.
-        self.session_follow.begin_transaction(
-            f'read_timestamp={self.timestamp_str(30)}')
-        cursor = self.session_follow.open_cursor(self.ingest_uri)
-        cursor.set_key(self.SINGLE_KEY)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), v2)
-        cursor.close()
-        self.session_follow.rollback_transaction()
+        # v0 visible @15, the MODIFY result @25, v2 @30.
+        for read_ts, expected in ((15, v0), (25, modified), (30, v2)):
+            debug_session = self.conn_follow.open_session(
+                'debug=(allow_internal_access=true)')
+            debug_session.begin_transaction(
+                f'read_timestamp={self.timestamp_str(read_ts)}')
+            cursor = debug_session.open_cursor(self.ingest_uri)
+            cursor.set_key(self.SINGLE_KEY)
+            self.assertEqual(cursor.search(), 0)
+            self.assertEqual(cursor.get_value(), expected)
+            cursor.close()
+            debug_session.rollback_transaction()
+            debug_session.close()
 
         self.teardown_follower_and_checkpoint_leader()

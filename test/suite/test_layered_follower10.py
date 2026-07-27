@@ -53,22 +53,26 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
     # Use a debug cursor to reconcile/evict the ingest table.
     # This will GC content when possible.
     def evict_ingest(self, session, ts):
-        # Trigger eviction on the ingest table
-        evict_cursor = session.open_cursor(f"file:{self.test_name}.wt_ingest", None, "debug=(release_evict)")
+        # Trigger eviction on the ingest table, via a dedicated session as the table is internal
+        debug_session = session.connection.open_session('debug=(allow_internal_access=true)')
+        evict_cursor = debug_session.open_cursor(f"file:{self.test_name}.wt_ingest", None, "debug=(release_evict)")
         for i in range(1, self.nitems + 1):
-            session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
+            debug_session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))
             ret = evict_cursor.search()
             self.assertTrue(ret == 0 or ret == wiredtiger.WT_NOTFOUND) # It might not find it
             evict_cursor.reset()
-            session.rollback_transaction()
+            debug_session.rollback_transaction()
         evict_cursor.close()
+        debug_session.close()
 
     # Return the number of data and tombstone items in the ingest table.
     def count_ingest(self, session, ts=None, verbose=False):
+        # Use a dedicated session as the ingest table is internal.
+        debug_session = session.connection.open_session('debug=(allow_internal_access=true)')
         if ts != None:
-            session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
-        cursor = session.open_cursor(self.ingest_uri)
+            debug_session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
+        cursor = debug_session.open_cursor(self.ingest_uri)
         countData = 0
         countTombstone = 0
         for k,v in cursor:
@@ -78,7 +82,8 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
                 countTombstone += 1
         cursor.close()
         if ts != None:
-            session.rollback_transaction()
+            debug_session.rollback_transaction()
+        debug_session.close()
         return (countData, countTombstone)
 
     def setup(self):
