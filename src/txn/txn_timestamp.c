@@ -585,7 +585,8 @@ set:
         __wt_atomic_store_uint64_release(&txn_global->step_down_timestamp, step_down_ts);
         __wt_writeunlock(session, &txn_global->step_down_lock);
         WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 1);
-        __wt_verbose_timestamp(session, step_down_ts, "Updated global step down timestamp");
+        __wt_verbose_info(session, WT_VERB_TIMESTAMP, "Updated global step down timestamp to %s",
+          __wt_timestamp_to_string(step_down_ts, ts_string[0]));
     }
 
     /*
