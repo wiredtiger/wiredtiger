@@ -62,7 +62,7 @@ class test_disagg_fast_truncate02(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_config = 'cache_size=2MB,statistics=(all),debug_mode=(eviction=true),disaggregated=(role="leader"),'
+    conn_config = 'cache_size=50MB,statistics=(all),debug_mode=(eviction=true),disaggregated=(role="leader"),'
 
     def evict_keys(self, keys):
         """Evict the pages holding the given keys."""
@@ -87,6 +87,7 @@ class test_disagg_fast_truncate02(wttest.WiredTigerTestCase):
             "key_format=i,value_format=S,block_manager=disagg,log=(enabled=false),"
             "allocation_size=512,leaf_page_max=512,internal_page_max=512",
         )
+
         with (
             wttest.open_cursor(self.session, self.uri) as cursor,
             self.transaction(commit_timestamp=10),
@@ -138,4 +139,5 @@ class test_disagg_fast_truncate02(wttest.WiredTigerTestCase):
         ts = self.timestamp_str(self.visible_ts)
         self.conn.set_timestamp(f"oldest_timestamp={ts},stable_timestamp={ts}")
 
+        self.conn.reconfigure('cache_size=2MB,debug_mode=(eviction=true)')
         self.verifyUntilSuccess(self.session, self.uri)
