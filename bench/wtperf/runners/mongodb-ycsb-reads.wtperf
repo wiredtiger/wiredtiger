@@ -1,0 +1,14 @@
+# wtperf options file to simulate populating a MongoDB oplog
+conn_config="cache_size=18GB,eviction=(threads_min=4,threads_max=4),checkpoint=(wait=60),verbose=[checkpoint]"
+table_config="type=file"
+table_count=2
+index=true
+icount=87040000
+report_interval=5
+run_time=600
+create=false
+threads=((count=128,reads=1))
+value_sz=1024
+verbose=2
+
+
