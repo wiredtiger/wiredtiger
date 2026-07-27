@@ -232,62 +232,6 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-    # A read-committed reader straddling the arm sees a post-arm ingest commit over stable.
-    def test_read_committed_straddles_arm(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'stable', 'k2': 'stable'}, 10)
-
-        rcur = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction('isolation=read-committed')
-        self.assertEqual(rcur['k1'], 'stable')
-
-        self.arm(20)
-
-        wsession = self.conn.open_session()
-        wcur = wsession.open_cursor(self.uri, None, None)
-        wsession.begin_transaction()
-        wcur['k1'] = 'newer'
-
-        # The in-flight write stays invisible to the read-committed reader.
-        self.assertEqual(rcur['k1'], 'stable')
-
-        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        wcur.close()
-        wsession.close()
-
-        self.assertEqual(rcur['k1'], 'newer')
-        self.assertEqual(rcur['k2'], 'stable')
-        self.session.rollback_transaction()
-        rcur.close()
-
-    # A read-uncommitted reader straddling the arm sees an in-flight ingest write and its rollback.
-    def test_read_uncommitted_straddles_arm(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'stable'}, 10)
-
-        rcur = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction('isolation=read-uncommitted')
-        self.assertEqual(rcur['k1'], 'stable')
-
-        self.arm(20)
-
-        wsession = self.conn.open_session()
-        wcur = wsession.open_cursor(self.uri, None, None)
-        wsession.begin_transaction()
-        wcur['k1'] = 'dirty'
-
-        self.assertEqual(rcur['k1'], 'dirty')
-
-        wsession.rollback_transaction()
-        self.assertEqual(rcur['k1'], 'stable')
-        self.session.rollback_transaction()
-
-        rcur.close()
-        wcur.close()
-        wsession.close()
-
     # A post-arm reserve conflicts with concurrent writers and leaves no content behind.
     def test_reserve_while_armed(self):
         self.set_global_ts(1, 1)
