@@ -460,46 +460,49 @@ __clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
 }
 
 /*
- * __clayered_stable_bind_check --
- *     Fail with WT_SNAPSHOT_STALE if binding a stable cursor would break the session's
- *     transactional snapshot. Content adopted from a checkpoint carries no local transaction ids,
- *     so a snapshot established before the adoption cannot exclude it: the only lever is refusing
- *     the binding. A role change swaps what the stable content is (an adopted checkpoint or the
- *     live btree), so a snapshot established under another role is refused outright. The
+ * __clayered_stable_bind_check_role_change --
+ *     Fail with WT_SNAPSHOT_STALE if the session's transactional snapshot was established under a
+ *     different role: a role change swaps what the stable content is (an adopted checkpoint or the
+ *     live btree), so no stable binding is consistent for such a snapshot. Called only for binds
+ *     the snapshot constrains, under the checkpoint lock, which role changes run under. The
  *     transaction survives the refusal: the application may refresh its snapshot and retry, or roll
  *     back.
- *
- * Called only for binds the snapshot constrains, under the checkpoint lock: role changes and
- *     pickups mutate the state read here (and the metadata a follower bind resolves the checkpoint
- *     name from) under that lock.
  */
-static int
+static WT_INLINE int
+__clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+    WT_ASSERT(session, __clayered_stable_bind_check_needed(session));
+
+    if (session->txn->disagg_role_gen ==
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen))
+        return (0);
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
+    WT_RET_SUB(session, WT_SNAPSHOT_STALE, WT_NONE,
+      "the stable content is newer than the transaction snapshot");
+}
+
+/*
+ * __clayered_stable_bind_check --
+ *     Fail with WT_SNAPSHOT_STALE if binding a stable cursor to checkpoint content would break the
+ *     session's transactional snapshot: adopted content carries no local transaction ids, so the
+ *     snapshot must have been established at (or after) the newest published checkpoint, and under
+ *     the current role. Called only for binds the snapshot constrains, under the checkpoint lock:
+ *     pickups mutate the state read here, and the metadata the checkpoint name is resolved from,
+ *     under that lock.
+ */
+static WT_INLINE int
 __clayered_stable_bind_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     uint64_t conn_lsn, pinned_lsn;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-    WT_ASSERT(session, __clayered_stable_bind_check_needed(session));
+    WT_RET(__clayered_stable_bind_check_role_change(session));
 
-    if (session->txn->disagg_role_gen !=
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen))
-        goto refuse;
-
-    /*
-     * Only checkpoint content is constrained by the published LSN, and role changes run under the
-     * checkpoint lock held here, so the role read below is the one the generation above vouched
-     * for. A leader with an unchanged role binds the live stable table, whose transaction ids are
-     * local and valid under any snapshot.
-     */
-    if (conn->layered_table_manager.leader)
-        return (0);
-
-    /*
-     * Binding checkpoint content requires the snapshot to have been established at (or after) the
-     * newest published checkpoint.
-     */
     conn_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     if (conn_lsn == WT_DISAGG_LSN_NONE)
@@ -510,7 +513,6 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
     if (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn)
         return (0);
 
-refuse:
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
     WT_RET_SUB(session, WT_SNAPSHOT_STALE, WT_NONE,
       "the stable content is newer than the transaction snapshot");
@@ -612,7 +614,7 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
      * live stable table mid-transition.
      */
     if (__clayered_stable_bind_check_needed(session)) {
-        WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check(session));
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __clayered_stable_bind_check_role_change(session));
         WT_RET(ret);
     }
 
