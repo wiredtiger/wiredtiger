@@ -220,8 +220,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         wsession.begin_transaction()
         wcur.set_key('k1')
         wcur.set_value('other')
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: wcur.update(),
-            wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
+        self.expect_conflict_rollback(wcur.update)
         wsession.rollback_transaction()
         wcur.close()
         wsession.close()

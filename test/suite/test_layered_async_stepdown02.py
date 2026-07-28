@@ -392,7 +392,7 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
                 elif k in expected:
                     # Remove an existing key.
                     cursor.set_key(k)
-                    cursor.remove()
+                    self.assertEqual(cursor.remove(), 0)
                     del expected[k]
                 else:
                     # Nothing to modify/remove; make it an insert instead.

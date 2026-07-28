@@ -53,6 +53,14 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         stat_cursor.close()
         return count
 
+    # Open a cursor and assert the layered handle came from the session cursor cache.
+    def open_cached_cursor(self, uri):
+        before = self.cursor_reopen_count()
+        cursor = self.session.open_cursor(uri, None, None)
+        self.assertEqual(self.cursor_reopen_count() - before, 1,
+            'the layered cursor must be served from the session cursor cache')
+        return cursor
+
     # A table created while the timestamp is set routes its writes to ingest, leaves stable empty,
     # and survives the demotion.
     def test_create_while_step_down_ts_set(self):
@@ -101,11 +109,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.set_step_down_ts(20)
 
-        # Prove the reopen is served from the session cursor cache.
-        reopen_count = self.cursor_reopen_count()
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.assertGreater(self.cursor_reopen_count(), reopen_count,
-            'the reopen must be served from the session cursor cache')
+        cursor = self.open_cached_cursor(self.uri)
 
         self.session.begin_transaction()
         cursor['k2'] = 'ingest'
@@ -127,11 +131,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.complete_step_down(20)
 
-        # Prove the reopen is served from the session cursor cache.
-        reopen_count = self.cursor_reopen_count()
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.assertGreater(self.cursor_reopen_count(), reopen_count,
-            'the reopen must be served from the session cursor cache')
+        cursor = self.open_cached_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
         seen = set()
         while cursor.next() == 0:

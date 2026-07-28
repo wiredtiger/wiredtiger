@@ -466,8 +466,11 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'pre': 'stable'}, 10)
 
         self.set_step_down_ts(20)
+        self.assertEqual(self.step_down_ts_is_set(), 1)
         self.complete_step_down(20)
 
+        # The demotion clears the cutoff.
+        self.assertEqual(self.step_down_ts_is_set(), 0)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.set_step_down_ts(30), '/can only be set on a disaggregated leader/')
 

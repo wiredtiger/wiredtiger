@@ -49,7 +49,9 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
     def test_second_step_down_ts_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.assertEqual(self.step_down_ts_is_set(), 0)
         self.set_step_down_ts(20)
+        self.assertEqual(self.step_down_ts_is_set(), 1)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.set_step_down_ts(30), '/step down timestamp is already set/')
 
@@ -94,6 +96,11 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
             '/must not advance past the step down timestamp/')
+
+        # Routing took effect from the same call.
+        self.write_at(self.uri, {'k1': 'v'}, 30)
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
 
     # A cutoff below the current stable must be rejected: stable may never sit past it.
     def test_step_down_ts_below_stable_rejected(self):
