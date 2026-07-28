@@ -516,8 +516,8 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
 
 /*
  * __clayered_stable_last_name --
- *     Check the snapshot against the newest checkpoint and resolve that checkpoint's name. Called
- *     under the checkpoint lock so the two refer to the same adoption.
+ *     Check the snapshot against the newest checkpoint and resolve that checkpoint's name. See the
+ *     caller for when this requires the checkpoint lock.
  */
 static int
 __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, const char **namep)
@@ -546,20 +546,36 @@ __clayered_open_stable_follower(WTI_CURSOR_LAYERED *clayered, bool checkpoint_ex
 
 retry:
     /*
-     * A pickup merges the per-table checkpoint metadata and publishes the new LSN under the
-     * checkpoint lock, so checking the snapshot and resolving the checkpoint name in one locked
-     * section guarantees they belong to the same adoption. The open itself runs outside the lock:
-     * if a pickup lands in between and the named checkpoint is gone, the open fails and the retry
-     * re-runs the check, which then refuses the moved checkpoint.
+     * A pickup merges the per-table checkpoint metadata before it publishes the new LSN, so a bind
+     * racing the merge could resolve the new checkpoint's name while the published LSN still admits
+     * only the old one, and the snapshot check would pass for content the snapshot cannot exclude.
+     * Whether that race exists depends on the deferral mode:
      *
-     * Only a transactional snapshot without a read timestamp needs the check, and so the lock: any
+     * With deferral enabled, no adoption runs while a snapshot predating it is active: a regular
+     * adoption waits for such snapshots to finish, and a step-up bumps the role-change generation
+     * first, so a predating snapshot is refused by the role check before it can resolve anything. A
+     * snapshot established during a merge pins the pending checkpoint and is consistent with either
+     * resolution. The check and the resolution therefore need no atomicity and run without the
+     * lock.
+     *
+     * With deferral disabled, adoptions run over active snapshots, so the check and the resolution
+     * take the checkpoint lock (which the merge runs under) to guarantee they see the same
+     * adoption: the bind lands entirely before the merge and resolves the old checkpoint, or
+     * entirely after and is refused by the published LSN.
+     *
+     * The open itself always runs outside the lock: if a pickup lands in between and the named
+     * checkpoint is gone, the open fails and the retry re-runs the check, which then refuses the
+     * moved checkpoint. Only a transactional snapshot without a read timestamp needs the check: any
      * other reader is consistent at whichever checkpoint the resolution returns, and a mismatched
      * history store checkpoint fails the open and retries.
      */
-    if (__clayered_stable_bind_check_needed(session))
-        WT_WITH_CHECKPOINT_LOCK(
-          session, ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name));
-    else
+    if (__clayered_stable_bind_check_needed(session)) {
+        if (S2C(session)->disaggregated_storage.checkpoint_deferral)
+            ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name);
+        else
+            WT_WITH_CHECKPOINT_LOCK(
+              session, ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name));
+    } else
         ret = __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL);
     if (!checkpoint_expected && ret == WT_NOTFOUND) {
         ret = 0;

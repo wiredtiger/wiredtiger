@@ -1318,6 +1318,19 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wti_disagg_deferred_pickup_server_destroy(session));
 
         /*
+         * Start the role transition before the forced adoption below: bumping the generation here
+         * refuses, at their next stable bind, the snapshots whose pins the forced adoption is about
+         * to adopt over. Those snapshots span the role change and are refused regardless; refusing
+         * them from here on is what lets binds resolve the checkpoint name without the checkpoint
+         * lock while deferral is enabled. Snapshots established after this point pin the pending
+         * checkpoint, so the adoption is consistent for them.
+         */
+        role_change_started = true;
+        WT_WITH_CHECKPOINT_LOCK(session,
+          __wt_atomic_store_uint64_release(&conn->disaggregated_storage.role_change_gen,
+            __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.role_change_gen) + 1));
+
+        /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
          * shared checkpoint lineage from an older ancestor. A step-up must not fail back to the
@@ -1337,7 +1350,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Follower step-up. */
         time_start = __wt_clock(session);
-        role_change_started = true;
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
