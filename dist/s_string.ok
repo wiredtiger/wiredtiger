@@ -796,6 +796,7 @@ cloexec
 closecount
 closedir
 cmake
+cmd
 cmds
 cmp
 cntvct
@@ -1007,6 +1008,7 @@ env
 eof
 eq
 equalp
+errfilename
 errline
 errno
 errx
@@ -1486,6 +1488,7 @@ ori
 origcnt
 os
 ostream
+outfilename
 overcount
 oversized
 ovfl
