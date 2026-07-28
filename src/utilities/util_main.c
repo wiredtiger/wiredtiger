@@ -28,7 +28,7 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define VERIFY_METADATA "verify_metadata=true"
 
 #define UTIL_FUNC int (*func)(WT_SESSION *, int, char *[])
-int (*disagg_supported[])(WT_SESSION *, int, char *[]) = {
+static int (*disagg_supported[])(WT_SESSION *, int, char *[]) = {
   util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
 
 /*
