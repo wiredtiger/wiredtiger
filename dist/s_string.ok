@@ -460,6 +460,7 @@ SSq
 STATP
 STR
 STRUCT
+SUBCOMMANDS
 SVR
 SYMBOLIZER
 SYSCALL
@@ -485,6 +486,7 @@ StoreLoad
 StoreStore
 Strobed
 Su
+Subcommands
 Subdirectory
 Subprocess
 TAILQ
@@ -646,12 +648,14 @@ allocator
 allocators
 allocfile
 allocsize
+allowlist
 analytics
 aor
 ap
 api
 arg
 argc
+argless
 args
 argv
 asan
@@ -1742,6 +1746,7 @@ struct
 structs
 su
 subcommand
+subcommands
 subconfig
 subconfigs
 subconfiguration
