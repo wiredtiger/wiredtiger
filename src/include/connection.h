@@ -320,6 +320,7 @@ struct __wt_disaggregated_storage {
      * the checkpoints newer than its own snapshot. Protected by the checkpoint lock; the timeout is
      * set at configuration time.
      */
+    WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
     WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_oldest;
     WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_newest;
     bool checkpoint_deferral;

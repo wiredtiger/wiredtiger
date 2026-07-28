@@ -885,7 +885,7 @@ __disagg_snapshot_predates_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
 /*
  * __disagg_defer_checkpoint --
  *     Remember a checkpoint whose adoption is deferred while transactional snapshots that predate
- *     it are active. Called with the checkpoint lock.
+ *     it are active. The queue has its own lock, so deliveries never wait behind an adoption.
  */
 static int
 __disagg_defer_checkpoint(
@@ -897,8 +897,11 @@ __disagg_defer_checkpoint(
 
     *deferredp = false;
 
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+
     /* A checkpoint at or behind the newest deferred one carries nothing new. */
     if (disagg->deferred_ckpt_newest != NULL && lsn <= disagg->deferred_ckpt_newest->lsn) {
+        __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
         *deferredp = true;
         return (0);
     }
@@ -909,8 +912,9 @@ __disagg_defer_checkpoint(
      * newest checkpoint its readers permit instead of waiting for all of them to finish. Each entry
      * is adopted no later than its own deadline, which bounds the queue.
      */
-    WT_RET(__wt_calloc_one(session, &entry));
-    if ((ret = __wt_strdup(session, meta_str, &entry->meta)) != 0) {
+    if ((ret = __wt_calloc_one(session, &entry)) != 0 ||
+      (ret = __wt_strdup(session, meta_str, &entry->meta)) != 0) {
+        __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
         __wt_free(session, entry);
         return (ret);
     }
@@ -920,6 +924,7 @@ __disagg_defer_checkpoint(
     else
         disagg->deferred_ckpt_newest->newer = entry;
     disagg->deferred_ckpt_newest = entry;
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     *deferredp = true;
     return (0);
 }
@@ -927,7 +932,7 @@ __disagg_defer_checkpoint(
 /*
  * __wti_disagg_clear_deferred_checkpoint --
  *     Discard the deferred checkpoints covered by the given LSN (pass UINT64_MAX to discard
- *     unconditionally, e.g. on a role change). Called with the checkpoint lock.
+ *     unconditionally, e.g. on a role change).
  */
 void
 __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopted_lsn)
@@ -935,8 +940,7 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
     WT_DISAGG_DEFERRED_CKPT *entry;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
     while ((entry = disagg->deferred_ckpt_oldest) != NULL && entry->lsn <= adopted_lsn) {
         disagg->deferred_ckpt_oldest = entry->newer;
         __wt_free(session, entry->meta);
@@ -944,6 +948,7 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
     }
     if (disagg->deferred_ckpt_oldest == NULL)
         disagg->deferred_ckpt_newest = NULL;
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
 }
 
 /*
@@ -960,7 +965,7 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, char **metap, uint64_t *lsnp)
     WT_DISAGG_DEFERRED_CKPT *entry, *selected;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &disagg->deferred_ckpt_lock);
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
@@ -1107,25 +1112,26 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
  * __disagg_deferred_copy --
  *     Copy out the deferred checkpoint to adopt: the newest one outright when forced (a step-up
  *     must continue from the newest checkpoint), otherwise the newest one the active snapshots
- *     permit. Called with the checkpoint lock.
+ *     permit. The queue has its own lock, so the copy never waits behind an adoption.
  */
 static int
 __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp)
 {
+    WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-
-    if (!force)
-        return (__disagg_deferred_select(session, metap, lsnp));
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
-    if (disagg->deferred_ckpt_newest == NULL)
-        return (0);
 
-    *lsnp = disagg->deferred_ckpt_newest->lsn;
-    return (__wt_strdup(session, disagg->deferred_ckpt_newest->meta, metap));
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    if (!force)
+        ret = __disagg_deferred_select(session, metap, lsnp);
+    else if (disagg->deferred_ckpt_newest != NULL) {
+        *lsnp = disagg->deferred_ckpt_newest->lsn;
+        ret = __wt_strdup(session, disagg->deferred_ckpt_newest->meta, metap);
+    }
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+    return (ret);
 }
 
 /*
@@ -1147,9 +1153,7 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
     if (disagg->deferred_ckpt_oldest == NULL)
         return (0);
 
-    WT_WITH_CHECKPOINT_LOCK(
-      session, ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn));
-    WT_RET(ret);
+    WT_RET(__disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn));
     if (meta_copy == NULL)
         return (0);
 
@@ -1165,8 +1169,15 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
      * returned.
      */
     if (ret != 0 &&
-      __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) >= deferred_lsn)
+      __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) >= deferred_lsn) {
+        /*
+         * Prune the superseded entries: the copy above is not atomic with adoptions, so an entry
+         * covered by a concurrent adoption may linger and would otherwise be selected again.
+         */
+        __wti_disagg_clear_deferred_checkpoint(
+          session, __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn));
         ret = 0;
+    }
 
     __wt_free(session, meta_copy);
     return (ret);
@@ -1551,9 +1562,7 @@ __wti_disagg_pick_up_checkpoint_meta(
     if (!force && disagg->checkpoint_deferral &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
       __disagg_snapshot_predates_lsn(session, ckpt_meta.metadata_lsn)) {
-        WT_WITH_CHECKPOINT_LOCK(session,
-          ret = __disagg_defer_checkpoint(session, meta_str, ckpt_meta.metadata_lsn, &deferred));
-        WT_ERR(ret);
+        WT_ERR(__disagg_defer_checkpoint(session, meta_str, ckpt_meta.metadata_lsn, &deferred));
         WT_ASSERT(session, deferred);
         WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
         /* Arm the pickup server's adoption deadline. */
