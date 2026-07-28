@@ -147,7 +147,7 @@ util_func_supports_read_corrupt(util_func_t util_func)
 {
     return (util_func == util_dump || util_func == util_read || util_func == util_stat);
 }
-    
+
 /*
  * util_func_allowed_disagg --
  *     Whether a wt subcommand is allowed in disaggregated storage mode.
