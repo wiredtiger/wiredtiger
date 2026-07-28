@@ -225,11 +225,10 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 }
 
 /* __clayered_enter() local flags. */
-#define CLAYERED_ENTER_SKIP_STABLE 0x1u  /* Follower writing without reading stable. */
-#define CLAYERED_ENTER_ITERATION 0x2u    /* Cursor is performing iteration. */
-#define CLAYERED_ENTER_RESET 0x4u        /* Reset constituent cursors if needed. */
-#define CLAYERED_ENTER_ROLE_CHANGE 0x8u  /* Leader/follower role changed since last access. */
-#define CLAYERED_ENTER_LAZY_STABLE 0x10u /* Defer the follower stable open until needed. */
+#define CLAYERED_ENTER_SKIP_STABLE 0x1u /* Follower operation not reading stable up front. */
+#define CLAYERED_ENTER_ITERATION 0x2u   /* Cursor is performing iteration. */
+#define CLAYERED_ENTER_RESET 0x4u       /* Reset constituent cursors if needed. */
+#define CLAYERED_ENTER_ROLE_CHANGE 0x8u /* Leader/follower role changed since last access. */
 
 /*
  * __clayered_enter_flags --
@@ -242,30 +241,24 @@ __clayered_enter_flags(
     WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
 
-    if (mode == WTI_CLAYERED_MODE_SEARCH || mode == WTI_CLAYERED_MODE_SEARCH_EXACT)
+    if (mode == WTI_CLAYERED_MODE_SEARCH_NEAR || mode == WTI_CLAYERED_MODE_SEARCH)
         LF_SET(CLAYERED_ENTER_RESET);
     if (mode == WTI_CLAYERED_MODE_ITERATE || mode == WTI_CLAYERED_MODE_RANDOM)
         LF_SET(CLAYERED_ENTER_ITERATION);
 
     /*
-     * Reads (search, search_near, iterate, random, scan) and non-overwrite writes always need the
-     * stable cursor; an overwrite write needs it on the leader, or on a follower with a read
-     * timestamp where the write-conflict check must consult the stable table.
-     */
-    if ((mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) && (role == WTI_CLAYERED_ROLE_FOLLOWER) &&
-      !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
-        LF_SET(CLAYERED_ENTER_SKIP_STABLE);
-
-    /*
-     * On the follower, open the stable table lazily when we can: exact searches (search_near must
-     * merge constituents), and writes that have no read timestamp. A write in a timestamped
-     * transaction needs the stable cursor up front because __clayered_modify_check() probes it for
-     * a write conflict, and that probe silently passes on a NULL cursor.
+     * A follower operation can leave the stable table unopened when it doesn't have to read stable
+     * up front: an overwrite write never reads it, and an exact search or a non-overwrite write
+     * reads it only when the ingest lookup misses, which opens it on demand. search_near, iterate,
+     * random, and scan have to merge the constituents, and a write in a timestamped transaction
+     * needs the stable cursor because __clayered_modify_check() probes it for a write conflict and
+     * that probe silently passes on a NULL cursor. The leader always opens stable.
      */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER &&
-      (mode == WTI_CLAYERED_MODE_SEARCH_EXACT ||
-        (mode == WTI_CLAYERED_MODE_WRITE && !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))))
-        LF_SET(CLAYERED_ENTER_LAZY_STABLE);
+      (mode == WTI_CLAYERED_MODE_SEARCH ||
+        ((mode == WTI_CLAYERED_MODE_WRITE || mode == WTI_CLAYERED_MODE_WRITE_OVERWRITE) &&
+          !F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))))
+        LF_SET(CLAYERED_ENTER_SKIP_STABLE);
 
     if (role != clayered->last_role)
         LF_SET(CLAYERED_ENTER_ROLE_CHANGE);
@@ -289,7 +282,7 @@ __clayered_op_init(
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-    op->lazy_stable = LF_ISSET(CLAYERED_ENTER_LAZY_STABLE);
+    op->lazy_stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -821,8 +814,6 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
         /* Open stable the first time if needed. */
         bool follower_open_stable =
           (!FLD_ISSET(flags, CLAYERED_ENTER_SKIP_STABLE) && conn_lsn != WT_DISAGG_LSN_NONE);
-        if (FLD_ISSET(flags, CLAYERED_ENTER_LAZY_STABLE))
-            return (0);
         if (role == WTI_CLAYERED_ROLE_LEADER || follower_open_stable)
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (FLD_ISSET(flags, CLAYERED_ENTER_ROLE_CHANGE) ||
@@ -2051,7 +2042,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SEARCH_EXACT, &op));
+    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SEARCH, &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
@@ -2416,7 +2407,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SEARCH, &op));
+    WT_ERR(__clayered_enter(clayered, WTI_CLAYERED_MODE_SEARCH_NEAR, &op));
 
     CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
 
