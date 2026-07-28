@@ -143,9 +143,9 @@ done:
  *     read_corrupt.
  */
 static bool
-util_func_supports_read_corrupt(util_func_t func)
+util_func_supports_read_corrupt(util_func_t util_func)
 {
-    return (func == util_dump || func == util_read || func == util_stat);
+    return (util_func == util_dump || util_func == util_read || util_func == util_stat);
 }
     
 /*
@@ -153,10 +153,10 @@ util_func_supports_read_corrupt(util_func_t func)
  *     Whether a wt subcommand is allowed in disaggregated storage mode.
  */
 static bool
-util_func_allowed_disagg(util_func_t func)
+util_func_allowed_disagg(util_func_t util_func)
 {
     for (size_t i = 0; i < WT_ELEMENTS(disagg_supported); i++)
-        if (func == disagg_supported[i])
+        if (util_func == disagg_supported[i])
             return (true);
     return (false);
 }
