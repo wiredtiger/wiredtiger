@@ -2623,7 +2623,6 @@ static const char *const __stats_connection_desc[] = {
   "disagg: checkpoint pick-ups deferred for active transaction snapshots",
   "disagg: connection reconfiguration",
   "disagg: database size",
-  "disagg: deferred checkpoint pick-ups adopted after the deferral timeout",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
@@ -3718,7 +3717,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_checkpoint_defer = 0;
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
-    stats->disagg_checkpoint_defer_timeout = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
@@ -4928,7 +4926,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_checkpoint_defer += WT_STAT_CONN_READ(from, disagg_checkpoint_defer);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
-    to->disagg_checkpoint_defer_timeout += WT_STAT_CONN_READ(from, disagg_checkpoint_defer_timeout);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
     to->disagg_pick_up_file_meta_inserted +=

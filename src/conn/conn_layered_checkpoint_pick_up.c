@@ -892,12 +892,8 @@ __disagg_defer_checkpoint(
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    struct timespec ts;
-    uint64_t now_ms;
 
     *deferredp = false;
-    __wt_epoch(session, &ts);
-    now_ms = (uint64_t)ts.tv_sec * WT_THOUSAND + (uint64_t)ts.tv_nsec / WT_MILLION;
 
     /* A checkpoint at or behind the newest deferred one carries nothing new. */
     if (disagg->deferred_ckpt_newest != NULL && lsn <= disagg->deferred_ckpt_newest->lsn) {
@@ -917,7 +913,6 @@ __disagg_defer_checkpoint(
         return (ret);
     }
     entry->lsn = lsn;
-    entry->arrival_ms = now_ms;
     if (disagg->deferred_ckpt_newest == NULL)
         disagg->deferred_ckpt_oldest = entry;
     else
@@ -962,33 +957,25 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, char **metap, uint64_t *lsnp)
 {
     WT_DISAGG_DEFERRED_CKPT *entry, *selected;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    struct timespec ts;
-    uint64_t now_ms;
-    bool expired;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
 
-    __wt_epoch(session, &ts);
-    now_ms = (uint64_t)ts.tv_sec * WT_THOUSAND + (uint64_t)ts.tv_nsec / WT_MILLION;
-
+    /*
+     * The walk relies on ordering along the oldest-first list: a snapshot predating a checkpoint
+     * predates every newer one, so it stops at the first blocked entry, having remembered the
+     * newest one that passed.
+     */
     selected = NULL;
-    expired = false;
-    for (entry = disagg->deferred_ckpt_oldest; entry != NULL; entry = entry->newer)
-        if (!__disagg_snapshot_predates_lsn(session, entry->lsn))
-            selected = entry;
-    if (selected == NULL)
-        for (entry = disagg->deferred_ckpt_oldest; entry != NULL; entry = entry->newer)
-            if (now_ms - entry->arrival_ms >= disagg->checkpoint_deferral_timeout_ms) {
-                selected = entry;
-                expired = true;
-            }
+    for (entry = disagg->deferred_ckpt_oldest; entry != NULL; entry = entry->newer) {
+        if (__disagg_snapshot_predates_lsn(session, entry->lsn))
+            break;
+        selected = entry;
+    }
     if (selected == NULL)
         return (0);
-    if (expired)
-        WT_STAT_CONN_INCR(session, disagg_checkpoint_defer_timeout);
 
     *lsnp = selected->lsn;
     return (__wt_strdup(session, selected->meta, metap));
@@ -1006,18 +993,15 @@ __disagg_deferred_pickup_run_chk(WT_SESSION_IMPL *session)
 
 /*
  * __disagg_deferred_pickup_server --
- *     Background server adopting a deferred checkpoint once the transactions blocking it end. It
- *     sleeps until a pinning transaction finishes or a checkpoint is deferred, and owns the
- *     deferral deadline.
+ *     Background server adopting deferred checkpoints once the transactions blocking them end. It
+ *     sleeps until a pinning transaction finishes or a checkpoint is deferred.
  */
 static WT_THREAD_RET
 __disagg_deferred_pickup_server(void *arg)
 {
-    struct timespec ts;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_SESSION_IMPL *session;
-    uint64_t elapsed_ms, now_ms, wait_usecs;
 
     session = arg;
     disagg = &S2C(session)->disaggregated_storage;
@@ -1028,17 +1012,7 @@ __disagg_deferred_pickup_server(void *arg)
          * until signalled. The deferral state is read without the checkpoint lock: the deadline is
          * advisory and recomputed on every pass.
          */
-        wait_usecs = 0;
-        if (disagg->deferred_ckpt_oldest != NULL) {
-            __wt_epoch(session, &ts);
-            now_ms = (uint64_t)ts.tv_sec * WT_THOUSAND + (uint64_t)ts.tv_nsec / WT_MILLION;
-            elapsed_ms = now_ms - disagg->deferred_ckpt_oldest->arrival_ms;
-            wait_usecs = elapsed_ms >= disagg->checkpoint_deferral_timeout_ms ?
-              1 :
-              (disagg->checkpoint_deferral_timeout_ms - elapsed_ms) * WT_THOUSAND;
-        }
-        __wt_cond_wait(
-          session, disagg->deferred_pickup_cond, wait_usecs, __disagg_deferred_pickup_run_chk);
+        __wt_cond_wait(session, disagg->deferred_pickup_cond, 0, __disagg_deferred_pickup_run_chk);
 
         if (!__disagg_deferred_pickup_run_chk(session))
             break;
@@ -1556,7 +1530,7 @@ __wti_disagg_pick_up_checkpoint_meta(
      * the checkpoint is adopted anyway and any remaining such readers are refused at their next
      * stable first open. Forced pickups (startup, step-up) are never deferred.
      */
-    if (!force && disagg->checkpoint_deferral_timeout_ms != 0 &&
+    if (!force && disagg->checkpoint_deferral &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
       __disagg_snapshot_predates_lsn(session, ckpt_meta.metadata_lsn)) {
         WT_WITH_CHECKPOINT_LOCK(session,

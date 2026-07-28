@@ -125,7 +125,7 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         # Disable checkpoint deferral: the survive scenarios assert the refusal a racing pickup
         # causes, which deferral is designed to avoid.
         return self.extensionsConfig() + self.conn_base_config + \
-            'disaggregated=(role="follower",checkpoint_deferral_timeout_ms=0)'
+            'disaggregated=(role="follower",checkpoint_deferral=false)'
 
     def insert_keys(self, session, nkeys, ts):
         cursor = session.open_cursor(self.uri)

@@ -56,8 +56,8 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
     # with WT_ROLLBACK; with a long deferral the adoption waits for them, so they keep reading
     # their snapshot. Every test here accepts either outcome.
     deferral = [
-        ('no_deferral', dict(deferral_timeout_ms=0)),
-        ('deferral', dict(deferral_timeout_ms=600000)),
+        ('no_deferral', dict(checkpoint_deferral='false')),
+        ('deferral', dict(checkpoint_deferral='true')),
     ]
     scenarios = make_scenarios(disagg_storages, deferral)
 
@@ -67,7 +67,7 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
     def follower_config(self):
         return self.extensionsConfig() + self.conn_base_config + \
             f'disaggregated=(role="follower",' \
-            f'checkpoint_deferral_timeout_ms={self.deferral_timeout_ms})'
+            f'checkpoint_deferral={self.checkpoint_deferral})'
 
     def put(self, session, uri, kv, ts):
         # Commit a set of key/value pairs in a single transaction.

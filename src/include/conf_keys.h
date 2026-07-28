@@ -104,7 +104,7 @@
 #define WT_CONF_ID_checkpoint_cleanup_obsolete_tw_pages_dirty_max 282ULL
 #define WT_CONF_ID_checkpoint_crash_point 188ULL
 #define WT_CONF_ID_checkpoint_crash_trigger_point 189ULL
-#define WT_CONF_ID_checkpoint_deferral_timeout_ms 75ULL
+#define WT_CONF_ID_checkpoint_deferral 75ULL
 #define WT_CONF_ID_checkpoint_fail_before_turtle_update 325ULL
 #define WT_CONF_ID_checkpoint_lsn 63ULL
 #define WT_CONF_ID_checkpoint_meta 76ULL
@@ -488,7 +488,7 @@ static const struct {
         uint64_t update_restore_evict;
     } Debug_mode;
     struct {
-        uint64_t checkpoint_deferral_timeout_ms;
+        uint64_t checkpoint_deferral;
         uint64_t checkpoint_meta;
         uint64_t drain_threads;
         uint64_t last_materialized_lsn;
@@ -921,7 +921,7 @@ static const struct {
     WT_CONF_ID_Debug_mode | (WT_CONF_ID_update_restore_evict << 16),
   },
   {
-    WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_deferral_timeout_ms << 16),
+    WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_deferral << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_meta << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_drain_threads << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_last_materialized_lsn << 16),

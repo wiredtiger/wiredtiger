@@ -278,9 +278,8 @@ struct __wt_repair {
  *      active.
  */
 struct __wt_disagg_deferred_ckpt {
-    char *meta;          /* Checkpoint metadata configuration */
-    uint64_t lsn;        /* Checkpoint metadata LSN */
-    uint64_t arrival_ms; /* Arrival time, for the adoption deadline */
+    char *meta;   /* Checkpoint metadata configuration */
+    uint64_t lsn; /* Checkpoint metadata LSN */
     WT_DISAGG_DEFERRED_CKPT *newer;
 };
 
@@ -323,7 +322,7 @@ struct __wt_disaggregated_storage {
      */
     WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_oldest;
     WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_newest;
-    uint64_t checkpoint_deferral_timeout_ms;
+    bool checkpoint_deferral;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until

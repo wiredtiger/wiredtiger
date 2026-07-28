@@ -53,7 +53,7 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
         super().setUp()
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.conn_follow = self.wiredtiger_open('follower',
-            self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="follower")')
+            self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="follower",checkpoint_deferral=false)')
         self.session_follow = self.conn_follow.open_session('')
         self.session_follow.create(self.uri, 'key_format=i,value_format=S')
 

@@ -1353,7 +1353,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
 
         /* A follower with deferral configured needs the deferred pickup server again. */
-        if (conn->disaggregated_storage.checkpoint_deferral_timeout_ms != 0)
+        if (conn->disaggregated_storage.checkpoint_deferral)
             WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
 
         WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
@@ -1366,11 +1366,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (reconfig)
         goto err;
 
-    /* Get the checkpoint deferral timeout. */
+    /* Get the checkpoint deferral setting. */
     WT_ERR_NOTFOUND_OK(
-      __wt_config_gets(session, cfg, "disaggregated.checkpoint_deferral_timeout_ms", &cval), true);
+      __wt_config_gets(session, cfg, "disaggregated.checkpoint_deferral", &cval), true);
     if (ret == 0)
-        conn->disaggregated_storage.checkpoint_deferral_timeout_ms = (uint64_t)cval.val;
+        conn->disaggregated_storage.checkpoint_deferral = cval.val != 0;
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -1494,7 +1494,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             conn->layered_drain_data.thread_count = (uint32_t)cval.val;
 
         /* A follower with deferral configured gets a server adopting deferred checkpoints. */
-        if (!leader && conn->disaggregated_storage.checkpoint_deferral_timeout_ms != 0)
+        if (!leader && conn->disaggregated_storage.checkpoint_deferral)
             WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
     }
 

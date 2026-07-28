@@ -130,7 +130,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
             self.session.create(uri, cfg)
 
         # Create the follower
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower",checkpoint_deferral=false)')
         session_follow = conn_follow.open_session('')
 
         self.session_follow = session_follow   # Useful for convenience functions
@@ -284,7 +284,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         #
 
         # Make sure that the follower is a follower again.
-        conn_follow.reconfigure('disaggregated=(role="follower")')
+        conn_follow.reconfigure('disaggregated=(role="follower",checkpoint_deferral=false)')
 
         # Pick up a non-existent checkpoint
         l = lambda: conn_follow.reconfigure('disaggregated=(checkpoint_meta="test")')

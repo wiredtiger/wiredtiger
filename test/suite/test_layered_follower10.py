@@ -91,7 +91,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
         # Create the follower and create its table
         # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower",checkpoint_deferral=false)')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
         return (oplog, t, conn_follow, session_follow)

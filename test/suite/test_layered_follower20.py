@@ -53,10 +53,10 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def follower_config(self):
-        # A long deferral timeout: every adoption in this test must come from
-        # blocking transactions finishing, never from the deadline.
+        # Deferral on: every adoption in this test comes from blocking
+        # transactions finishing.
         return self.extensionsConfig() + self.conn_base_config + \
-            'disaggregated=(role="follower",checkpoint_deferral_timeout_ms=600000)'
+            'disaggregated=(role="follower",checkpoint_deferral=true)'
 
     def put(self, session, uri, kv, ts):
         cursor = session.open_cursor(uri)
