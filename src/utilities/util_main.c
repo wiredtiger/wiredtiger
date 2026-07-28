@@ -27,8 +27,8 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define SALVAGE "salvage=true"
 #define VERIFY_METADATA "verify_metadata=true"
 
-#define UTIL_FUNC int (*func)(WT_SESSION *, int, char *[])
-static int (*disagg_supported[])(WT_SESSION *, int, char *[]) = {
+typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
+static util_func_t disagg_supported[] = {
   util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
 
 /*
@@ -143,17 +143,17 @@ done:
  *     read_corrupt.
  */
 static bool
-util_func_supports_read_corrupt(UTIL_FUNC)
+util_func_supports_read_corrupt(util_func_t func)
 {
     return (func == util_dump || func == util_read || func == util_stat);
 }
-
+    
 /*
  * util_func_allowed_disagg --
  *     Whether a wt subcommand is allowed in disaggregated storage mode.
  */
 static bool
-util_func_allowed_disagg(UTIL_FUNC)
+util_func_allowed_disagg(util_func_t func)
 {
     for (size_t i = 0; i < WT_ELEMENTS(disagg_supported); i++)
         if (func == disagg_supported[i])
