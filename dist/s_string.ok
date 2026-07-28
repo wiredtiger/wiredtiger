@@ -486,7 +486,6 @@ StoreLoad
 StoreStore
 Strobed
 Su
-Subcommands
 Subdirectory
 Subprocess
 TAILQ
@@ -648,14 +647,12 @@ allocator
 allocators
 allocfile
 allocsize
-allowlist
 analytics
 aor
 ap
 api
 arg
 argc
-argless
 args
 argv
 asan
@@ -796,7 +793,6 @@ cloexec
 closecount
 closedir
 cmake
-cmd
 cmds
 cmp
 cntvct
@@ -1008,7 +1004,6 @@ env
 eof
 eq
 equalp
-errfilename
 errline
 errno
 errx
@@ -1488,7 +1483,6 @@ ori
 origcnt
 os
 ostream
-outfilename
 overcount
 oversized
 ovfl
@@ -1601,7 +1595,6 @@ readtime
 readunlock
 realloc
 reallocations
-rebalance
 rebalancing
 recency
 recno

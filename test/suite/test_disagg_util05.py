@@ -33,38 +33,22 @@ from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 # Verify that the wt CLI rejects the disaggregated-storage-unsupported
-# subcommands end-to-end. Framed as a reject list rather than an allowlist:
-# support for existing subcommands is expected to shift more often than the
-# set of subcommands itself, and a subcommand becoming supported means one
-# entry drops from this list rather than a rebalance across both sides.
-
+# subcommands end-to-end.
 @disagg_test_class
 class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
     # Keep in sync with util_func_allowed_disagg() in src/utilities/util_main.c
-    # (this set is that function's complement over the wt subcommand table,
-    # minus the no-storage-access set below).
-    REJECTED_SUBCOMMANDS = frozenset(('alter', 'backup', 'compact', 'create',
-        'downgrade', 'drop', 'load', 'loadtext', 'printlog', 'salvage',
-        'truncate', 'write'))
+    ALLOWED = frozenset(('dump', 'list', 'page', 'read', 'stat', 'turtle', 'verify'))
     NO_STORAGE_ACCESS = frozenset(('copyright',))
 
     REJECT_MSG = 'is not supported in disaggregated storage mode'
 
     conn_config = 'disaggregated=(role="leader")'
 
-    def _disagg_extension_path(self):
-        ext_dir = os.path.join(wt_builddir, 'ext', 'page_log', self.ds_name)
-        candidates = [os.path.join(ext_dir, e) for e in os.listdir(ext_dir) if e.endswith('.so')]
-        self.assertEqual(len(candidates), 1)
-        return candidates[0]
-
-    # Parse the "commands:" section of `wt -?` output for every subcommand the
-    # utility knows about. util_usage() indents each subcommand name with four
-    # spaces and its description with eight.
+    # Parse the "commands:" section of `wt -?` output for every subcommand.
     def _all_subcommands(self, follower_home, follower_config):
         errfile = 'wt-help.err'
         self.runWt(['-h', follower_home, '-C', follower_config, '-?'],
-                   outfilename='wt-help.out', errfilename=errfile, closeconn=False)
+                    outfilename='wt-help.out', errfilename=errfile, closeconn=False)
         subcmds = []
         in_commands = False
         with open(errfile) as f:
@@ -79,35 +63,33 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
                     subcmds.append(m.group(1))
         return subcmds
 
-    # Run `wt <args>` in follower mode against the shared follower home.
-    # Passing outfilename/errfilename suppresses the framework's implicit
-    # empty-file assertions; `[cmd, '-?']` returns 0 for both allowed
-    # (subcommand-level -? handler) and rejected (util_main goto done) paths,
-    # so the default failure=False exit-code check is uniform.
-    def _run_wt_follower(self, follower_home, follower_config, out_tag, wt_args):
-        outfile, errfile = f'{out_tag}.out', f'{out_tag}.err'
+    def _palite_extension_path(self):
+        ext_dir = os.path.join(wt_builddir, 'ext', 'page_log', self.ds_name)
+        candidates = [os.path.join(ext_dir, e) for e in os.listdir(ext_dir) if e.endswith('.so')]
+        self.assertEqual(len(candidates), 1)
+        return candidates[0]
+
+    def _run_wt_follower(self, follower_home, follower_config, wt_args):
         self.runWt(['-h', follower_home, '-C', follower_config] + list(wt_args),
-                   outfilename=outfile, errfilename=errfile, closeconn=False)
-        with open(outfile) as f:
+                   outfilename='wt.out', errfilename='wt.err', closeconn=False)
+        with open('wt.out') as f:
             out = f.read()
-        with open(errfile) as f:
+        with open('wt.err') as f:
             err = f.read()
         return out, err
 
     def test_reject_list(self):
         # A checkpoint is required so the follower can attach.
-        self.session.create('layered:test_disagg_util05',
-            'key_format=S,value_format=S')
+        self.session.create('layered:test_disagg_util05', 'key_format=S,value_format=S')
         self.session.checkpoint()
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
         follower_home = os.path.join(self.home, 'wt-follower')
         os.mkdir(follower_home)
-        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
-            target_is_directory=True)
+        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'), target_is_directory=True)
         follower_config = (
-            f'create,extensions=[{self._disagg_extension_path()}=(config="(verbose=0)")],'
+            f'create,extensions=[{self._palite_extension_path()}],'
             f'disaggregated=(role="follower",page_log={self.page_log()})')
 
         subcmds = self._all_subcommands(follower_home, follower_config)
@@ -116,9 +98,8 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
         for cmd in subcmds:
             if cmd in self.NO_STORAGE_ACCESS:
                 continue
-            _, stderr = self._run_wt_follower(follower_home, follower_config, f'wt-{cmd}',
-                [cmd, '-?'])
-            if cmd in self.REJECTED_SUBCOMMANDS:
-                self.assertIn(self.REJECT_MSG, stderr)
-            else:
+            _, stderr = self._run_wt_follower(follower_home, follower_config, [cmd, '-?'])
+            if cmd in self.ALLOWED:
                 self.assertNotIn(self.REJECT_MSG, stderr)
+            else:
+                self.assertIn(self.REJECT_MSG, stderr)
