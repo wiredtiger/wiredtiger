@@ -273,6 +273,18 @@ struct __wt_repair {
 };
 
 /*
+ * WT_DISAGG_DEFERRED_CKPT --
+ *      A checkpoint whose adoption is deferred while transactional snapshots that predate it are
+ *      active.
+ */
+struct __wt_disagg_deferred_ckpt {
+    char *meta;          /* Checkpoint metadata configuration */
+    uint64_t lsn;        /* Checkpoint metadata LSN */
+    uint64_t arrival_ms; /* Arrival time, for the adoption deadline */
+    WT_DISAGG_DEFERRED_CKPT *newer;
+};
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -303,13 +315,14 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t pending_checkpoint_meta_lsn;
 
     /*
-     * A checkpoint whose adoption is deferred while transactional snapshots that predate it are
-     * active. Protected by the checkpoint lock; the timeout is set at configuration time.
+     * Checkpoints whose adoption is deferred while transactional snapshots that predate them are
+     * active, oldest first. Keeping every checkpoint not yet adopted lets the node adopt
+     * incrementally up to the newest one no active snapshot predates, so a reader only ever blocks
+     * the checkpoints newer than its own snapshot. Protected by the checkpoint lock; the timeout is
+     * set at configuration time.
      */
-    char *deferred_checkpoint_meta;
-    size_t deferred_checkpoint_meta_size;
-    uint64_t deferred_checkpoint_lsn;
-    uint64_t deferred_checkpoint_time_ms;
+    WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_oldest;
+    WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_newest;
     uint64_t checkpoint_deferral_timeout_ms;
 
     /*
