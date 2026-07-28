@@ -258,6 +258,7 @@ retry:
     if (record_disagg) {
         txn->disagg_role_gen =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
+        txn->disagg_role_leader = conn->layered_table_manager.leader;
         /*
          * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
          * stable table is written with local transaction ids and needs no pin, and its own
@@ -379,6 +380,7 @@ done:
     if (record_disagg &&
       (__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
           txn->disagg_role_gen ||
+        conn->layered_table_manager.leader != txn->disagg_role_leader ||
         (pin_checkpoint &&
           WT_MAX(
             __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
