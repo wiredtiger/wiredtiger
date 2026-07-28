@@ -604,9 +604,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Announce the object being verified. Info-level verbose is off in stock WiredTiger; MongoDB's
-     * default generateWTVerboseConfiguration() maps the wtVerify LOGV2 component to verify at
-     * WT_VERBOSE_INFO, so this line appears in mongod logs without extra configuration.
+     * Announce the object being verified. Info-level verify messages are normally disabled in
+     * standalone WiredTiger, but MongoDB enables this category by default so the message appears in
+     * mongod logs without extra configuration.
      */
     __wt_verbose_info(session, WT_VERB_VERIFY, "verify: starting on %s", name);
 
