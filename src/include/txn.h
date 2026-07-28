@@ -30,7 +30,7 @@
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "Transaction has the oldest pinned transaction ID"
 #define WT_TXN_ROLLBACK_REASON_STEP_DOWN \
-    "Transaction started before the step-down timestamp was set"
+    "Write transaction straddled the step-down timestamp setting boundary"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u

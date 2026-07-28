@@ -197,7 +197,7 @@ sub_errors = [
         This sub-level error indicates that an operation or configuration conflicts with
         disaggregated storage.'''),
     Error('WT_STEP_DOWN', -32015,
-        "Write-transaction started before the step-down timestamp was set", '''
+        "Write transaction straddled the step-down timestamp setting boundary", '''
         This sub-level error indicates that a transaction was rolled back because it was in
         flight when the step-down timestamp was set.'''),
 ]
