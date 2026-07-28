@@ -616,6 +616,7 @@ __wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *d
                 __wt_spin_lock(session, &subq->evict_queue_lock);
                 WT_ASSERT(session, TAILQ_EMPTY(&subq->evict_queue));
                 TAILQ_REMOVE(&hash_entry->dhandle_hashchain, subq, dhandle_subq);
+                hash_entry->chain_len--;
                 __wt_spin_unlock(session, &subq->evict_queue_lock);
 
                 __wt_verbose_debug1(session, WT_VERB_EVICTION,

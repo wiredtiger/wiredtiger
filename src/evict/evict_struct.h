@@ -141,6 +141,7 @@ struct __wt_evict_handle_data {
 
 struct __wt_evict_dhandle_subqueue {
     struct __wt_data_handle *dhandle; /* Dhandle owning this queue */
+    struct __wt_evict_dhandle_hash_entry *hash_entry; /* Hash chain this subqueue lives on */
     TAILQ_ENTRY(__wt_evict_dhandle_subqueue) dhandle_subq;
 	WT_SPINLOCK evict_queue_lock;
     struct __wt_evictbucket_qh evict_queue; /* Pages in this queue */
@@ -154,4 +155,14 @@ struct __wt_evict_dhandle_hash_entry {
     WT_SPINLOCK evict_hashchain_lock;
     /* List of per-tree queues to resolve hash collisions */
     TAILQ_HEAD(__wt_hashchain_dhandle_qh,  __wt_evict_dhandle_subqueue) dhandle_hashchain;
+    /* Number of subqueues on the chain. Maintained under evict_hashchain_lock. */
+    uint32_t chain_len;
+    /*
+     * Unlocked hint: number of subqueues on this chain whose evict_queue currently holds a page.
+     * Read without the chain lock so a drained slot can be skipped before locking or walking;
+     * maintained atomically on empty<->non-empty transitions under the subqueue lock. Racy but
+     * safe: a stale zero just misses the slot on this pass, a stale non-zero falls back to the
+     * lock-and-walk below.
+     */
+    wt_shared uint32_t nonempty_subqueues;
 };
