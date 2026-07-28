@@ -2008,15 +2008,23 @@ static WT_INLINE int
 __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
 {
     WT_TXN *txn = session->txn;
+    /*
+     * A relaxed load suffices: for cursor operations rejecting a straddler here is only an
+     * optimization ahead of the commit-time check, and at commit the caller holds the step-down
+     * lock, which orders this read against the timestamp being set.
+     */
     wt_timestamp_t stepdown_ts =
-      __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.step_down_timestamp);
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
 
     /*
      * While the step-down timestamp is set, layered operations must run in explicit snapshot
-     * transactions: an implicit (autocommit) transaction only begins inside the constituent
-     * operation, after this check and the constituent routing have made their decisions, so it
-     * would evade both. The assertion comes before the early return so it also covers read
-     * operations.
+     * transactions. Explicit, because an implicit (autocommit) transaction only begins inside the
+     * constituent operation, after this check and the constituent routing have made their
+     * decisions, so it would evade both. Snapshot, because a transaction decides once, at begin,
+     * whether its reads consult ingest, and that decision only stays correct while it keeps reading
+     * the state it saw at begin: under read-committed or read-uncommitted it would see newer
+     * commits without looking in the table they went to. The assertion comes before the early
+     * return so it also covers read operations.
      */
     WT_ASSERT(session,
       stepdown_ts == WT_TS_NONE ||
@@ -2102,7 +2110,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      */
     if (__wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_acquire(
+        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
                                  &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     }
