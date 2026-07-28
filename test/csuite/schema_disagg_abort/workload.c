@@ -435,6 +435,24 @@ workload_threads_join(TEST_CONFIG *cfg, wt_thread_t *thr)
 }
 
 /*
+ * bootstrap_stable_epoch --
+ *     Put the connection in the epoch world before any worker publishes: publish requires a stable
+ *     schema epoch, and the stable epoch is in-memory only, so every connection open needs it
+ *     again. Reserving an epoch from the shared counter keeps it above everything already published
+ *     and below everything the phase is about to publish.
+ */
+static void
+bootstrap_stable_epoch(WT_CONNECTION *conn, WORKLOAD_STATE *state)
+{
+    uint64_t epoch;
+    char tscfg[64];
+
+    epoch = __wt_atomic_add_uint64(&state->next_epoch, 1);
+    testutil_snprintf(tscfg, sizeof(tscfg), "stable_disaggregated_schema_epoch=%" PRIx64, epoch);
+    testutil_check(conn->set_timestamp(conn, tscfg));
+}
+
+/*
  * workload_run_phase --
  *     Start the worker threads for one phase and run them for the given duration. A duration of
  *     zero runs until the parent sends SIGKILL. A leader phase checkpoints; a follower phase only
@@ -451,6 +469,7 @@ workload_run_phase(TEST_CONFIG *cfg, WT_CONNECTION *conn, WORKLOAD_STATE *state,
 
     state->stop_phase = false;
     state->ckpt_enabled = leader_phase;
+    bootstrap_stable_epoch(conn, state);
     workload_threads_start(cfg, conn, state, table_exists, &thr, &td);
     fflush(stdout);
 
