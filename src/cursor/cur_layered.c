@@ -282,7 +282,6 @@ __clayered_op_init(
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-    op->lazy_stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE);
 }
 
 /*
@@ -1992,8 +1991,8 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(session, op->stable != NULL);
 
-    /* If the ingest lookup misses, open the stable constituent now if we're doing lazy opens. */
-    if (!found && op->lazy_stable && op->stable == NULL) {
+    /* If the ingest lookup misses, open the deferred stable constituent. */
+    if (!found && op->stable == NULL) {
         uint64_t conn_lsn = __wt_atomic_load_uint64_acquire(
           &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
         if (clayered->stable_cursor == NULL && conn_lsn != WT_DISAGG_LSN_NONE) {

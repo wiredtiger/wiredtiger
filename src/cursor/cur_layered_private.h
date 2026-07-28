@@ -69,5 +69,4 @@ struct __wti_clayered_op {
     WT_CURSOR *stable;               /* resolved slot == clayered->stable_cursor (may be NULL) */
     WT_TRUNCATE_LIST *truncate_list; /* the layered table's truncate list */
     WT_COLLATOR *collator;
-    bool lazy_stable; /* stable open was deferred, open it on demand. */
 };
