@@ -234,6 +234,42 @@ public:
         }));
         testutil_check(cursorp->close(cursorp));
         cursorp = nullptr;
+
+        /*
+         * Loop the timer-only measurements for begin/commit/rollback/timestamp_transaction_uint.
+         */
+        constexpr int LOOP_COUNTER = 1000;
+        auto key_count = coll.get_key_count();
+
+        for (int i = 0; i < LOOP_COUNTER / 10; i++) {
+            testutil_check(begin_transaction_timer.track(
+              [&]() -> int { return wt_session->begin_transaction(wt_session, nullptr); }));
+            auto loop_key = tc->pad_string(std::to_string(key_count + i), tc->key_size);
+            if (!tc->insert(cursor, 0, loop_key, "a")) {
+                i--;
+                testutil_check(wt_session->rollback_transaction(wt_session, nullptr));
+                continue;
+            }
+            testutil_check(commit_transaction_timer.track(
+              [&]() -> int { return wt_session->commit_transaction(wt_session, nullptr); }));
+        }
+
+        for (int i = 0; i < LOOP_COUNTER; i++) {
+            testutil_check(begin_transaction_timer.track(
+              [&]() -> int { return wt_session->begin_transaction(wt_session, nullptr); }));
+            testutil_check(rollback_transaction_timer.track(
+              [&]() -> int { return wt_session->rollback_transaction(wt_session, nullptr); }));
+        }
+
+        testutil_check(wt_session->begin_transaction(wt_session, nullptr));
+        for (int i = 0; i < LOOP_COUNTER; i++) {
+            auto timestamp = tc->tsm->get_next_ts();
+            testutil_check(timestamp_transaction_uint_timer.track([&]() -> int {
+                return wt_session->timestamp_transaction_uint(
+                  wt_session, WT_TS_TXN_TYPE_COMMIT, timestamp);
+            }));
+        }
+        testutil_check(wt_session->rollback_transaction(wt_session, nullptr));
     }
 };
 
