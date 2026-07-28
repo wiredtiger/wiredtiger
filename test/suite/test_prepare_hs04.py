@@ -32,16 +32,16 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_prepare_hs04.py
 # Read prepared updates from on-disk with ignore_prepare.
 # Committing or aborting a prepared update when there exists a tombstone for that key already.
 @wttest.skip_for_hook("disagg", "This test relies on RTS, which is not used in disagg.")
 class test_prepare_hs04(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=5MB,statistics=(fast)'
 
     # Create a small table.
-    uri = "table:test_prepare_hs04"
+    uri = f"table:{test_name}"
 
     nsessions = 3
     nkeys = 40
@@ -61,12 +61,6 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
     value_format='u'
 
     scenarios = make_scenarios(commit_values, format_values)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def search_keys_timestamp_and_ignore(self, ds, txn_config, expected_value, conflict=False):
         cursor = self.session.open_cursor(self.uri)
@@ -159,7 +153,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_conflict_msg, True)
 
         # If commit is True then commit the transactions and simulate a crash which would
-        # eventualy rollback transactions.
+        # eventually rollback transactions.
         if self.commit == True:
             # Commit the prepared_transactions with timestamp 30.
             for j in range (0, self.nsessions):
@@ -194,7 +188,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         txn_config = 'read_timestamp=' + self.timestamp_str(20) + ',ignore_prepare=false'
         self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
-        # If commit is true then the commit_tramsactions was called and we will expect prepare_value.
+        # If commit is true then the commit_transactions was called and we will expect prepare_value.
         if self.commit == True:
             txn_config = 'read_timestamp=' + self.timestamp_str(30) + ',ignore_prepare=true'
             # Search keys with timestamp 30, ignore_prepare=true and expect the cursor value to be prepare_value.

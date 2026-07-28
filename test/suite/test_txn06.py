@@ -26,19 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_txn06.py
-#   Transactions: test long-running snapshots
+# Transactions: test long-running snapshots
 
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 import wttest
 from wtscenario import make_scenarios
 
-# FIXME-WT-16455: Re-enable once disaggregated storage works with long-running snapshots.
-@wttest.skip_for_hook("disagg", "Fails with disaggregated storage.")
 class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     conn_config = 'verbose=[transaction]'
-    tablename = 'test_txn06'
+    tablename = test_name
     uri = 'table:' + tablename
     source_uri = 'table:' + tablename + "_src"
     nrows = 100000
@@ -67,3 +65,6 @@ class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We were trying to generate a message matching this pattern.
         self.captureout.checkAdditionalPattern(self, "pinned in session")
+        # The eviction server may continue emitting these messages after the assertion;
+        # ignore any trailing occurrences so teardown does not flag them as unexpected.
+        self.ignoreStdoutPattern("pinned in session")

@@ -9,6 +9,7 @@
 #include <catch2/catch.hpp>
 #include <array>
 #include <utility>
+#include <sstream>
 #include <string_view>
 
 #include "wt_internal.h"
@@ -89,7 +90,8 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(config[CHECKPOINT].second ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
 
-        const uint64_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
+        const wt_timestamp_t expected_timestamp =
+          std::stoull(config[TIMESTAMP].second, nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
 
         REQUIRE(config[KEY_PROVIDER].second ==
@@ -111,7 +113,8 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(config[CHECKPOINT].second ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
 
-        const uint64_t expected_timestamp = std::stoull(config[TIMESTAMP].second, nullptr, 16);
+        const wt_timestamp_t expected_timestamp =
+          std::stoull(config[TIMESTAMP].second, nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
 
         REQUIRE(metadata.key_provider == nullptr);
@@ -164,7 +167,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         REQUIRE(ret == 0);
         REQUIRE(std::string_view("()", 2) ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
         REQUIRE(metadata.key_provider == nullptr);
         REQUIRE(metadata.key_provider_len == 0);
@@ -172,10 +175,11 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
 
     SECTION("Unknown keys ignored if version doesn't match")
     {
-        const std::string metadata_str =
-          "version=2,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,another_"
-          "unknown="
-          "bar,";
+        std::stringstream metadata_stream;
+        metadata_stream << "version=" << WT_DISAGG_CHECKPOINT_TURTLE_VERSION + 1
+                        << ",compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,"
+                           "another_unknown=bar,";
+        const std::string metadata_str = metadata_stream.str();
 
         WT_ITEM metadata_buf{};
         metadata_buf.data = (const void *)metadata_str.data();
@@ -187,14 +191,16 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
 
         REQUIRE(std::string_view("()", 2) ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
     }
 
     SECTION("Unknown keys are an error if version matches")
     {
-        const std::string metadata_str =
-          "version=1,compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,";
+        std::stringstream metadata_stream;
+        metadata_stream << "version=" << WT_DISAGG_CHECKPOINT_TURTLE_VERSION
+                        << "compatible_version=1,unknown_key=foo,checkpoint=(),timestamp=c0ffee12,";
+        const std::string metadata_str = metadata_stream.str();
 
         WT_ITEM metadata_buf{};
         metadata_buf.data = (const void *)metadata_str.data();
@@ -203,6 +209,64 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
 
         const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == EINVAL);
+    }
+
+    SECTION("max_write_gen parsed when present")
+    {
+        std::stringstream metadata_stream;
+        metadata_stream
+          << "version=" << WT_DISAGG_CHECKPOINT_TURTLE_VERSION
+          << ",compatible_version=1,checkpoint=(),timestamp=c0ffee12,max_write_gen=42,";
+        const std::string metadata_str = metadata_stream.str();
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(metadata.max_write_gen == 42);
+    }
+
+    SECTION("max_write_gen defaults to zero when absent")
+    {
+        /* A checkpoint written before the field existed omits it; the reader must default it. */
+        const std::string metadata_str = "checkpoint=(),timestamp=c0ffee12";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(metadata.max_write_gen == 0);
+    }
+
+    SECTION("max_write_gen written at a newer version is skipped by an older reader")
+    {
+        /*
+         * A reader whose current version predates the field sees the checkpoint's version as newer
+         * than its own, so an unknown key it does not recognize is ignored rather than rejected.
+         * The key is spelled as an arbitrary future field name to stand in for the field this
+         * reader does not know; the rest of the metadata must still parse.
+         */
+        std::stringstream metadata_stream;
+        metadata_stream << "version=" << WT_DISAGG_CHECKPOINT_TURTLE_VERSION + 1
+                        << ",compatible_version=1,checkpoint=(),timestamp=c0ffee12,"
+                           "a_field_from_the_future=42,";
+        const std::string metadata_str = metadata_stream.str();
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(std::string_view("()", 2) ==
+          std::string_view(metadata.checkpoint, metadata.checkpoint_len));
     }
 }
 
@@ -270,7 +334,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(checkpoint == std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
         REQUIRE(metadata.key_provider == nullptr);
         REQUIRE(metadata.key_provider_len == 0);
@@ -287,7 +351,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(checkpoint == std::string_view(metadata.checkpoint, metadata.checkpoint_len));
-        const uint64_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
+        const wt_timestamp_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
         REQUIRE(expected_timestamp == metadata.checkpoint_timestamp);
         REQUIRE(metadata.key_provider == nullptr);
         REQUIRE(metadata.key_provider_len == 0);

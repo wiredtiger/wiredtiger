@@ -585,10 +585,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          */
         WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
-        WT_VISIBLE_TYPE visible_type = __wt_txn_tw_stop_visible(session, &cbt->upd_value->tw);
-        /* There is no prepared update in the history store. */
-        WT_ASSERT(session, visible_type != WT_VISIBLE_PREPARE);
-        if (visible_type == WT_VISIBLE_TRUE) {
+        if (__wt_txn_tw_stop_visible(session, &cbt->upd_value->tw)) {
             /*
              * If the stop time point of a record is visible to us, we won't be able to see anything
              * for this entire key.
@@ -601,10 +598,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         }
 
         /* If the start time point is visible to us, let's return that record. */
-        visible_type = __wt_txn_tw_start_visible(session, &cbt->upd_value->tw);
-        /* There is no prepared update in the history store. */
-        WT_ASSERT(session, visible_type != WT_VISIBLE_PREPARE);
-        if (visible_type == WT_VISIBLE_TRUE)
+        if (__wt_txn_tw_start_visible(session, &cbt->upd_value->tw))
             break;
     }
 
@@ -1155,6 +1149,9 @@ __curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type
         WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);
     }
+    WT_ERR(ret);
+    /* We no longer own the update memory, the page does; don't free it under any circumstances. */
+    hs_tombstone = NULL;
 
     if (0) {
 err:
@@ -1276,6 +1273,9 @@ __curhs_update(WT_CURSOR *cursor)
         WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);
     }
+    WT_ERR(ret);
+    /* We no longer own the update memory, the page does; don't free it under any circumstances. */
+    hs_tombstone = hs_upd = NULL;
 
     __curhs_set_key_ptr(cursor, file_cursor);
     __curhs_set_value_ptr(cursor, file_cursor);
@@ -1446,7 +1446,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, uint32_t btree_id, const char *checkpo
  * __wt_curhs_open_ext --
  *     Initialize a history store cursor using a logical history store ID. This does not check
  *     whether the btree ID actually belongs to the selected history store; use 0 to simply ignore
- *     the it.
+ *     it.
  */
 int
 __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,

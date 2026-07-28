@@ -1,4 +1,30 @@
 #!/bin/python3
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
 
 # Common functions that can be shared across dist/ scripts.
 # To call a function `func` from a Python script use:
@@ -15,18 +41,12 @@ import inspect, os, subprocess, sys
 
 
 def last_commit_from_dev():
-    # Find the commit from develop at which point the current branch diverged.
-    # rev-list will show all commits that are present on our current branch but not on develop, and
-    # the oldest of these is our first commit post-divergence. If this commit exists then
-    # we can take its parent. If no such commits exist then we're currently on a commit in the
-    # develop branch and can use HEAD instead
-
-    earliest_commit = subprocess.run( "git rev-list HEAD...develop | tail -n 1",
-        shell=True, capture_output=True, text=True).stdout
-
-    commit_on_dev = f"{earliest_commit}~" if earliest_commit else "HEAD"
-
-    return subprocess.run(f"git rev-parse {commit_on_dev}",
+    # Find the most recent common ancestor between the current branch and origin/develop.
+    # Using git merge-base correctly handles branches that have merged develop multiple
+    # times: it returns the latest develop commit reachable from HEAD, so that
+    # filter_if_fast only sees files changed by the author's own commits rather than
+    # every file touched by develop since the branch was first created.
+    return subprocess.run("git merge-base origin/develop HEAD",
         shell=True, capture_output=True, text=True).stdout.strip()
 
 

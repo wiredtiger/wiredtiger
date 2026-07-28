@@ -34,7 +34,6 @@ from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 import wttest
 
-# test_rollback_to_stable28.py
 # Test the debug mode setting for update_restore_evict during recovery.
 # Force update restore eviction, whenever we evict a page. We want to
 # perform this in recovery to ensure that all the in-memory images have
@@ -141,19 +140,15 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         simulate_crash_restart(self, ".", "RESTART")
 
         # As we've created a new DB connection post-shutdown, the connection-wide
-        # base write gen should eventually initialise from the previous checkpoint's base 'write_gen' during the recovery process
-        # ('write_gen'+1). This should be reflected in the initialisation of the 'run_write_gen' field of the newest
+        # base write gen should eventually initialize from the previous checkpoint's base 'write_gen' during the recovery process
+        # ('write_gen'+1). This should be reflected in the initialization of the 'run_write_gen' field of the newest
         # checkpoint post-recovery. As the recovery/rts process updates our pages, we'd also expect the latest checkpoint's
         # 'write_gen' to again be greater than its 'run_write_gen'.
         recovery_write_gen, recovery_run_write_gen = self.parse_write_gen("file:test_debug_mode10.wt")
         self.assertGreater(recovery_run_write_gen, checkpoint_write_gen)
         self.assertGreater(recovery_write_gen, recovery_run_write_gen)
 
-        # Read the statistics of pages that have been update restored (to check the mechanism was used).
-        stat_cursor = self.session.open_cursor('statistics:')
-        pages_update_restored = stat_cursor[stat.conn.cache_write_restore_scrub][2]
-        stat_cursor.close()
-        self.assertGreater(pages_update_restored, 0)
+        self.assertStatGreaterSoon(stat.conn.cache_write_restore_scrub, 0)
 
         # Check that after recovery, we see the correct data with respect to our previous stable timestamp (40).
         self.check(value_c, uri, nrows, 40)

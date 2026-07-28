@@ -11,10 +11,9 @@ race:src/support/stat.c
 # around usages of these functions.
 race:__wt_tsan_suppress_*
 
-# FIXME-WT-12734 this function copies an 8 byte struct which needs further investigation.
-race:__log_wrlsn_server
-race:__wt_log_force_sync
-race:__compute_min_lognum
+# FIXME-WT-16301 __log_newfile mutates log manager state (log->fileid, alloc_lsn) without synchronizing
+# with concurrent readers such as __compute_min_lognum and __log_fsync_file.
+race:__log_newfile
 
 # FIXME-WT-12611 CONNECTION_API_CALL contains a data race that touches the session array, but the number of macro
 # calls makes diagnosing this very hard. For now suppress the surrounding function and handle this in a separate ticket.
@@ -43,11 +42,11 @@ race:__posix_file_close
 race:__handle_close
 race:__sweep_remove_handles
 race:__stash_discard
-race:__evict_lru_walk
+race:__wti_evict_lru_walk
 race:__tree_walk_internal
 race:__evict_queue_empty
 race:__evict_get_ref
-race:__evict_clear_all_walks
+race:__wti_evict_clear_all_walks_and_saved_tree
 race:__session_clear
 race:__rec_row_leaf_insert
 race:__wt_cache_dirty_decr
@@ -56,7 +55,7 @@ race:__wt_reconcile
 # FIXME-WT-14856 Unresolved warnings for ex_all
 race:__wti_conn_reconfig
 race:__wt_session_cursor_cache_sweep
-race:__wti_txn_update_pinned_timestamp
+race:__wt_txn_update_pinned_timestamp
 race:__capacity_config
 
 # FIXME-WT-15772 Issues caused by lack of atomics synchornization for double-checked locking pattern in the TAILQ implementation.
@@ -99,6 +98,10 @@ race:timestamp_minimum_committed
 race:snap_op_init
 race:snap_track
 race:snap_verify_callback
+race:disagg_key_rotation
+
+# FIXME-WT-16783: Statistic logging flags have concurrent accesses
+race:__statlog_config
 
 # Recently introduced issues.
 # FIXME-WT-16312: Check synchornization for __cell_unpack_window_cleanup_kv

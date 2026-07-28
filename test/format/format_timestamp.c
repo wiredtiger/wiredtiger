@@ -32,11 +32,11 @@
  * timestamp_minimum_committed --
  *     Return the timestamp lesser than the minimum of in-use committed timestamps.
  */
-uint64_t
+wt_timestamp_t
 timestamp_minimum_committed(void)
 {
     TINFO **tlp;
-    uint64_t commit_ts, ts;
+    wt_timestamp_t commit_ts, ts;
 
     if (GV(RUNS_PREDICTABLE_REPLAY))
         return replay_maximum_committed();
@@ -51,8 +51,8 @@ timestamp_minimum_committed(void)
              * last-used commit timestamp, that thread might be about to use a commit timestamp in
              * the range we'd return.
              */
-            if (commit_ts == 0)
-                return (0);
+            if (commit_ts == WT_TS_NONE)
+                return (WT_TS_NONE);
             if (commit_ts < ts)
                 ts = commit_ts;
         }
@@ -62,11 +62,39 @@ timestamp_minimum_committed(void)
 }
 
 /*
+ * timestamp_sync_threads_commit_ts --
+ *     Advance each ops thread's recorded last-used commit timestamp to g.timestamp. Callers must
+ *     ensure ops threads are quiescent (e.g. between operations() runs); this is used during disagg
+ *     role switch so the next timestamp_once advances stable past all in-memory follower commits.
+ */
+void
+timestamp_sync_threads_commit_ts(void)
+{
+    TINFO **tlp;
+    wt_timestamp_t ts;
+
+    /*
+     * Workers committed up to g.timestamp (atomic post-increment, so g.timestamp equals the last
+     * used value). timestamp_minimum_committed() returns g.timestamp-1, which would leave the final
+     * committed timestamp uncovered by stable. Bump by one so stable lands exactly at the last used
+     * timestamp.
+     */
+    __wt_atomic_add_uint64_v(&g.timestamp, 1);
+
+    if (tinfo_list == NULL)
+        return;
+
+    WT_ACQUIRE_READ_WITH_BARRIER(ts, g.timestamp);
+    for (tlp = tinfo_list; *tlp != NULL; ++tlp)
+        WT_RELEASE_WRITE_WITH_BARRIER((*tlp)->commit_ts, ts);
+}
+
+/*
  * timestamp_query --
  *     Query a timestamp.
  */
 int
-timestamp_query(const char *query, uint64_t *tsp)
+timestamp_query(const char *query, wt_timestamp_t *tsp)
 {
     WT_CONNECTION *conn;
     WT_DECL_RET;
@@ -88,7 +116,7 @@ void
 timestamp_init(void)
 {
     testutil_check(timestamp_query("get=recovery", &g.timestamp));
-    if (g.timestamp == 0)
+    if (g.timestamp == WT_TS_NONE)
         g.timestamp = MIN_TIMESTAMP;
 }
 
@@ -102,7 +130,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
-    uint64_t oldest_timestamp, stable_timestamp, stop_timestamp;
+    wt_timestamp_t lag, oldest_timestamp, stable_timestamp, stop_timestamp;
     char buf[WT_TS_HEX_STRING_SIZE * 2 + 64];
 
     /* Ensure timestamps are used. */
@@ -113,7 +141,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 
     /* Get the maximum not-in-use timestamp, noting that it may not be set. */
     oldest_timestamp = stable_timestamp = timestamp_minimum_committed();
-    if (oldest_timestamp == 0)
+    if (oldest_timestamp == WT_TS_NONE)
         return;
 
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
@@ -122,7 +150,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
          * number of operations.
          */
         WT_ACQUIRE_READ_WITH_BARRIER(stop_timestamp, g.stop_timestamp);
-        if (stable_timestamp > stop_timestamp && stop_timestamp != 0)
+        if (stable_timestamp > stop_timestamp && stop_timestamp != WT_TS_NONE)
             stable_timestamp = stop_timestamp;
 
         /*
@@ -140,6 +168,17 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
          */
         if (allow_lag)
             oldest_timestamp -= (oldest_timestamp - g.oldest_timestamp) / 2;
+
+        /*
+         * Under precise checkpoint this thread ticks every few milliseconds and the halving above
+         * converges to a near-zero gap between oldest and stable, so snap_repeat's historical reads
+         * age out almost immediately and repeatable-read verification is silently lost. Trail
+         * oldest behind stable far enough that recorded operations stay readable, never moving
+         * oldest backwards: populate and role-switch callers pin oldest to stable.
+         */
+        lag = snap_repeat_ts_span();
+        if (allow_lag && GV(PRECISE_CHECKPOINT) && stable_timestamp > lag)
+            oldest_timestamp = WT_MAX(stable_timestamp - lag, g.oldest_timestamp);
     }
 
     testutil_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
@@ -182,10 +221,16 @@ timestamp(void *arg)
      * rollback errors, and we don't have the luxury of giving up on an operation that has rolled
      * back.
      */
-    while (!g.workers_finished) {
+    while (!g.workers_finished && !__wt_atomic_load_bool_v_relaxed(&g.timestamp_quit)) {
         if (!GV(RUNS_PREDICTABLE_REPLAY)) {
+            /*
+             * Under precise checkpoint, eviction can only write pages whose updates are at or below
+             * the stable timestamp. A long gap between stable timestamp advances lets dirty pages
+             * accumulate above-stable writes faster than eviction can drain them, increasing the
+             * risk of cache pressure. Sleep 0-9ms to keep the interval short.
+             */
             if (GV(PRECISE_CHECKPOINT))
-                random_sleep(&g.extra_rnd, 1);
+                __wt_sleep(0, rng(&g.extra_rnd) % (10 * WT_THOUSAND));
             else
                 random_sleep(&g.extra_rnd, 15);
         } else {

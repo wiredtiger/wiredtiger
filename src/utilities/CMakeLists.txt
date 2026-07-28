@@ -13,11 +13,13 @@ set(sources
     util_load_json.c
     util_loadtext.c
     util_misc.c
+    util_page.c
     util_printlog.c
     util_read.c
     util_salvage.c
     util_stat.c
     util_truncate.c
+    util_turtle.c
     util_verbose.c
     util_verify.c
     util_write.c

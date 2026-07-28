@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_import11.py
-#    Tests import of tiered tables using backup:export cursor and metadata_file import option.
+# Tests import of tiered tables using backup:export cursor and metadata_file import option.
 #
 
 import glob, os, random, re, shutil, string
@@ -117,12 +116,6 @@ class test_import11(test_import_base):
 
     def conn_config(self):
         return self.tiered_conn_config() + ',statistics=(all)'
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def create_and_populate(self, uri):
         self.session.create(uri, self.create_config)

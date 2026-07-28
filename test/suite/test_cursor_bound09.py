@@ -31,10 +31,10 @@ from wiredtiger import wiredtiger_strerror, WT_PREPARE_CONFLICT, WiredTigerError
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound09.py
-#    Test that cursor API usage generates expected error in prepared state with bounded cursors.
+# Test that cursor API usage generates expected error in prepared state with bounded cursors.
 class test_cursor_bound09(bound_base):
-    file_name = 'test_cursor_bound09'
+    test_name = __qualname__
+    file_name = test_name
     value_format= 'S'
 
     types = [
@@ -123,7 +123,7 @@ class test_cursor_bound09(bound_base):
             cursor2.set_key(self.gen_key(30))
             try:
                 if (self.ignore_prepare):
-                    # Search on the non-inclusive lower bound is not expected to suceed.
+                    # Search on the non-inclusive lower bound is not expected to succeed.
                     if (not self.lower_inclusive and op == cursor2.search):
                         self.assertEqual(op(), wiredtiger.WT_NOTFOUND)
                     else:

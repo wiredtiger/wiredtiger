@@ -93,7 +93,7 @@
  * Align an unsigned value of any type to a specified power-of-2, including the offset result of a
  * pointer subtraction; do the calculation using the largest unsigned integer type available.
  */
-#define WT_ALIGN(n, v) ((((uintmax_t)(n)) + ((v)-1)) & ~(((uintmax_t)(v)) - 1))
+#define WT_ALIGN(n, v) ((((uintmax_t)(n)) + ((v) - 1)) & ~(((uintmax_t)(v)) - 1))
 
 #define WT_ALIGN_NEAREST(n, v) ((((uintmax_t)(n)) + ((v) / 2)) & ~(((uintmax_t)(v)) - 1))
 
@@ -145,9 +145,9 @@
     (((number) * sizeof(**(addr)) <= *(sizep)) ?                                \
         0 :                                                                     \
         __wt_realloc(session, sizep,                                            \
-          (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
+          (FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
             (number) * sizeof(**(addr)) :                                       \
-            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),        \
+            WT_MAX(*(sizep) * 2, WT_MAX(10, (number)) * sizeof(**(addr))),      \
           addr))
 
 /*
@@ -298,26 +298,6 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
         }                                                              \
     } while (0)
 
-/*
- * Binary search for a string key. Note: For the binary search to function correctly, the array
- * should not contain NULL values.
- */
-#define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
-    do {                                                               \
-        uint32_t __base, __indx, __limit;                              \
-        (found) = false;                                               \
-        for (__base = 0, __limit = (n); __limit != 0; __limit >>= 1) { \
-            __indx = __base + (__limit >> 1);                          \
-            if (strcmp((arrayp)[__indx], (key)) < 0) {                 \
-                __base = __indx + 1;                                   \
-                --__limit;                                             \
-            } else if (strcmp((arrayp)[__indx], (key)) == 0) {         \
-                (found) = true;                                        \
-                break;                                                 \
-            }                                                          \
-        }                                                              \
-    } while (0)
-
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 
 /* Check if a string matches a prefix. */
@@ -366,6 +346,21 @@ static WT_INLINE bool
 __wt_string_match(const char *str, const char *bytes, size_t len)
 {
     return (strncmp(str, bytes, len) == 0 && str[len] == '\0');
+}
+
+/*
+ * __wt_string_slice_cmp --
+ *     Compare two length-delimited strings.
+ */
+static WT_INLINE int
+__wt_string_slice_cmp(const char *a, size_t a_len, const char *b, size_t b_len)
+{
+    int cmp;
+
+    cmp = memcmp(a, b, WT_MIN(a_len, b_len));
+    if (cmp == 0)
+        cmp = a_len < b_len ? -1 : a_len > b_len ? 1 : 0;
+    return (cmp);
 }
 
 /*
@@ -508,6 +503,21 @@ __wt_atomic_decrement_if_positive(uint32_t *valuep)
         if (old_value == 0)
             break;
     } while (!__wt_atomic_cas_uint32(valuep, old_value, old_value - 1));
+}
+
+/*
+ * __wt_atomic_decrement_if_positive_uint64 --
+ *     Use compare and swap to atomically decrement a uint64_t value by 1 if it's positive.
+ */
+static WT_INLINE void
+__wt_atomic_decrement_if_positive_uint64(uint64_t *valuep)
+{
+    uint64_t old_value;
+    do {
+        old_value = __wt_atomic_load_uint64_relaxed(valuep);
+        if (old_value == 0)
+            break;
+    } while (!__wt_atomic_cas_uint64(valuep, old_value, old_value - 1));
 }
 
 /*

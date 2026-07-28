@@ -94,6 +94,30 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
 }
 
 /*
+ * __wt_meta_checkpoint_has_prepare --
+ *     Return whether any checkpoint entry in the config string has the prepare flag set.
+ */
+int
+__wt_meta_checkpoint_has_prepare(WT_SESSION_IMPL *session, const char *config, bool *has_prepp)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM cval, key, value;
+    WT_DECL_RET;
+
+    *has_prepp = false;
+
+    WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
+    __wt_config_subinit(session, &ckptconf, &cval);
+    for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
+        ret = __wt_config_subgets(session, &cval, "prepare", &value);
+        if (ret == 0 && value.val)
+            *has_prepp = true;
+        WT_RET_NOTFOUND_OK(ret);
+    }
+    return (0);
+}
+
+/*
  * __wt_meta_checkpoint --
  *     Return a file's checkpoint information.
  */
@@ -254,7 +278,7 @@ __wt_meta_checkpoint_by_name(WT_SESSION_IMPL *session, const char *uri, const ch
             if (a.val > 0)
                 *orderp = a.val;
             WT_ERR(__wt_config_subgets(session, &v, "write_gen", &a));
-            if ((uint64_t)a.val >= conn->base_write_gen) {
+            if ((uint64_t)a.val >= __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)) {
                 WT_ERR(__wt_config_subgets(session, &v, "time", &a));
                 WT_ERR(__ckpt_parse_time(session, &a, timep));
             }
@@ -811,8 +835,8 @@ __assert_ckptlist_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, WT_CKPT
     WT_CKPT *ckpt_new, *ckpt_saved;
 
     for (ckpt_saved = saved_list, ckpt_new = new_list;
-         ckpt_saved != NULL && ckpt_saved->order != 0 && ckpt_new != NULL && ckpt_new->order != 0;
-         ckpt_saved++, ckpt_new++)
+      ckpt_saved != NULL && ckpt_saved->order != 0 && ckpt_new != NULL && ckpt_new->order != 0;
+      ckpt_saved++, ckpt_new++)
         __assert_ckpt_matches(session, ckpt_saved, ckpt_new);
 
     WT_ASSERT(session,
@@ -1064,6 +1088,22 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->next_page_id = (uint64_t)a.val;
 
+    /*
+     * These two postdate the metadata of older tables: a table checkpointed before this tracking
+     * existed has no key at all, and there's no way to tell that apart from a genuinely accurate 0
+     * without a marker. Use WT_LEAF_STATS_UNKNOWN as that marker; a corrective
+     * WT_STAT_TYPE_TREE_WALK replaces it with a real value for both fields together.
+     */
+    ret = __wt_config_subgets(session, v, "leaf_entry_ewma", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->leaf_entry_ewma =
+      ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
+
+    ret = __wt_config_subgets(session, v, "approx_leaf_pages", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->approx_leaf_pages =
+      ret == WT_NOTFOUND || a.len == 0 ? WT_LEAF_STATS_UNKNOWN : (uint64_t)a.val;
+
     return (0);
 }
 
@@ -1083,7 +1123,11 @@ __wt_meta_update_connection(WT_SESSION_IMPL *session, const char *config)
     memset(&ckpt, 0, sizeof(ckpt));
 
     if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
-        conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
+        __wt_atomic_store_uint64_relaxed(&conn->base_write_gen,
+          WT_MAX(ckpt.write_gen + 1, __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
+        __wt_atomic_store_uint64_relaxed(&conn->max_write_gen,
+          WT_MAX(__wt_atomic_load_uint64_relaxed(&conn->max_write_gen),
+            __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
         conn->ckpt.most_recent = WT_MAX(ckpt.sec, conn->ckpt.most_recent);
         __wt_checkpoint_free(session, &ckpt);
     } else
@@ -1106,7 +1150,8 @@ __wt_meta_load_prior_state(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Initialize the base write gen to 1 */
-    conn->base_write_gen = 1;
+    __wt_atomic_store_uint64_relaxed(&conn->base_write_gen, 1);
+    __wt_atomic_store_uint64_relaxed(&conn->max_write_gen, 1);
     /* Initialize most recent checkpoint time with current clock */
     __wt_seconds(session, &conn->ckpt.most_recent);
     /* Retrieve the metadata entry for the metadata file. */
@@ -1194,13 +1239,15 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
           ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
-          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64 ")",
+          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64
+          ",leaf_entry_ewma=%" PRId64 ",approx_leaf_pages=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
-          (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id));
+          (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id, (int64_t)ckpt->leaf_entry_ewma,
+          (int64_t)ckpt->approx_leaf_pages));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 
@@ -1358,13 +1405,15 @@ __wt_meta_ckptlist_set(
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->next_page_id = btree->next_page_id;
+            ckpt->leaf_entry_ewma = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
+            ckpt->approx_leaf_pages = __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages);
             /*
              * For disaggregated storage, save the total bytes to the checkpoint size field. Track
              * the delta between this checkpoint and the previous one, this delta will be applied to
              * the database level size once the checkpoint succeeds.
              */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-                WT_ASSERT(session, ckpt->size == __wt_atomic_load_uint64(&btree->bytes_total));
+                WT_ASSERT(session, ckpt->size == __wt_block_disagg_get_size(session));
                 session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
             }
         } else
@@ -1426,7 +1475,7 @@ __meta_print_snapshot(WT_SESSION_IMPL *session, WT_ITEM *buf)
     WT_RET(__wt_buf_catfmt(session, buf,
       "," WT_SYSTEM_CKPT_SNAPSHOT_TIME "=%" PRIu64 "," WT_SYSTEM_CKPT_SNAPSHOT_WRITE_GEN
       "=%" PRIu64,
-      session->ckpt.current_sec, S2C(session)->base_write_gen));
+      session->ckpt.current_sec, __wt_atomic_load_uint64_relaxed(&S2C(session)->base_write_gen)));
 
     return (0);
 }
@@ -1535,7 +1584,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
         WT_ERR(__wt_buf_fmt(session, valbuf,
           WT_SYSTEM_CKPT_TS "=\"%s\"," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN
                             "=%" PRIu64,
-          hex_timestamp, session->ckpt.current_sec, conn->base_write_gen));
+          hex_timestamp, session->ckpt.current_sec,
+          __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
         WT_ERR(
           __meta_sysinfo_update(session, name, namelen, uribuf, WT_SYSTEM_CKPT_URI, valbuf->data));
     }
@@ -1552,7 +1602,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
         WT_ERR(__wt_buf_fmt(session, valbuf,
           WT_SYSTEM_OLDEST_TS "=\"%s\"," WT_SYSTEM_TS_TIME "=%" PRIu64 "," WT_SYSTEM_TS_WRITE_GEN
                               "=%" PRIu64,
-          hex_timestamp, session->ckpt.current_sec, conn->base_write_gen));
+          hex_timestamp, session->ckpt.current_sec,
+          __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
         WT_ERR(__meta_sysinfo_update(
           session, name, namelen, uribuf, WT_SYSTEM_OLDEST_URI, valbuf->data));
     }
@@ -1573,7 +1624,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
       txn->snapshot_data.snap_min, txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count,
       __wt_timestamp_to_string(oldest_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
-      conn->base_write_gen);
+      __wt_atomic_load_uint64_relaxed(&conn->base_write_gen));
 
     /*
      * Record the base write gen in metadata as part of full checkpoints.
@@ -1582,8 +1633,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
      * explicit list of trees to checkpoint. It is allowed (though currently not sensible) for the
      * user to do that with a named checkpoint, in which case we don't want to make this change.
      */
-    WT_ERR(
-      __wt_buf_fmt(session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));
+    WT_ERR(__wt_buf_fmt(session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64,
+      __wt_atomic_load_uint64_relaxed(&conn->base_write_gen)));
     WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, valbuf->data));
 
 err:

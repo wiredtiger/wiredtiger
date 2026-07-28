@@ -31,6 +31,17 @@ struct __wt_condvar {
 };
 
 /*
+ * Semaphores:
+ *
+ * Use this primitive for signaling between threads when we don't want to use a condition variable,
+ * for example when we want to signal a thread that may not be waiting yet.
+ */
+struct __wt_semaphore {
+    const char *name; /* Semaphore name for debugging */
+    wt_sem_t sem;     /* Semaphore */
+};
+
+/*
  * Read/write locks:
  *
  * WiredTiger uses read/write locks for shared/exclusive access to resources.

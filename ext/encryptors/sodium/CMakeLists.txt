@@ -26,8 +26,8 @@ if(HAVE_BUILTIN_EXTENSION_SODIUM OR ENABLE_SODIUM)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
-            ${HAVE_LIBSODIUM_INCLUDES}
         )
+    target_link_libraries(wiredtiger_sodium PRIVATE wt::sodium)
     target_compile_options(
         wiredtiger_sodium
         PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
@@ -37,7 +37,6 @@ if(HAVE_BUILTIN_EXTENSION_SODIUM OR ENABLE_SODIUM)
 endif()
 
 if(ENABLE_SODIUM)
-    target_link_libraries(wiredtiger_sodium wt::sodium)
     install(TARGETS wiredtiger_sodium
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

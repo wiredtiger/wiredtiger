@@ -32,22 +32,22 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 import wiredtiger
 
-# test_leaf_delta_disagg01.py
 # Test we can build leaf delta disk image from base image and deltas correctly, the test covers
 # different scenarios, where the k/v pair on latest delta should overwrite the same k/v pair for
 # earlier delta, the unpacking during merging process for delta and base image should work properly.
 @disagg_test_class
 class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     prefix_compression = [
         ('enabled', dict(prefix_config='prefix_compression=true', prefix_enabled=True)),
         ('disabled', dict(prefix_config='prefix_compression=false', prefix_enabled=False)),
     ]
     conn_base_config = 'cache_size=32MB,transaction_sync=(enabled,method=fsync),statistics=(all),' \
-    'statistics_log=(wait=1,json=true,on_close=true),page_delta=(delta_pct=100),'
+    'statistics_log=(wait=1,json=true,on_close=true),page_delta=(delta_pct=100,delete_pct=100),'
     conn_delta_config = 'disaggregated=(role="leader"),page_delta=(internal_page_delta=true,leaf_page_delta=true),'
-    disagg_storages = gen_disagg_storages('test_layered54', disagg_only = True)
+    disagg_storages = gen_disagg_storages(disagg_only = True)
 
-    uri='layered:test_leaf_delta_disagg01'
+    uri=f'layered:{test_name}'
     init_key = "abc"
 
     scenarios = make_scenarios(disagg_storages, prefix_compression)
@@ -70,14 +70,6 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
 
     def conn_config(self):
         return self.conn_base_config + self.conn_delta_config
-
-    def get_stat(self, stat, uri = None):
-        if not uri:
-            uri = ''
-        stat_cursor = self.session.open_cursor(f'statistics:{uri}', None, None)
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def insert_or_update(self, ids, vals):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -116,7 +108,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.insert_or_update(self.base_ids, self.base_vals)
         self.session.checkpoint()
         if (self.prefix_enabled):
-            self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
+            self.assertStatGreaterSoon(stat.dsrc.rec_prefix_compression_full, 0, uri=self.uri)
         else:
             self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
         self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 0)
@@ -140,7 +132,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         # There should be 3 deltas generated for the page.
         self.assertEqual(delta_cnt, 3)
         if (self.prefix_enabled):
-            self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
+            self.assertStatGreaterSoon(stat.dsrc.rec_prefix_compression_delta, 0, uri=self.uri)
         else:
             self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
 
@@ -177,7 +169,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.delta3_vals = ["d3"] * 3
         self.verify_leaf_delta()
 
-    # Test deltas having duplicate keys, the latest delta should overwrite all ealier deltas for a
+    # Test deltas having duplicate keys, the latest delta should overwrite all earlier deltas for a
     # given key.
     def test_delta_duplicate_keys(self):
         self.base_ids = [i for i in range(1, 11)]

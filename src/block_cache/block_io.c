@@ -34,7 +34,7 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
     WT_ASSERT(session, ret != 0);
 
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-    if (!F_ISSET(btree, WT_BTREE_VERIFY) && !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
+    if (!F_ISSET(btree, WT_BTREE_VERIFY) && !WT_SESSION_READ_CORRUPT_OK(session)) {
         WT_TRET(bm->corrupt(bm, session, addr, addr_size));
         WT_RET_PANIC(session, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
     }
@@ -137,7 +137,11 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     ip = buf;
     expect_conversion = compressor != NULL || encryptor != NULL;
     if (expect_conversion) {
-        WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
+        /*
+         * Pre-size the scratch buffer to the leaf page max to avoid realloc when reading typical
+         * pages.
+         */
+        WT_RET(__wt_scr_alloc(session, btree->maxleafpage, &tmp));
         ip = tmp;
     }
 
@@ -221,6 +225,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
@@ -509,6 +517,10 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
+        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_internal);
+        else
+            WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf);
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
@@ -782,7 +794,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     encrypted = false;
 
     /* Optionally compress the data. */
-    WT_ERR(__wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
+    WT_ERR_MSG_CHK(session,
+      __wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed),
+      "failed to compress block before writing");
     ip = (ctmp != NULL) ? ctmp : buf;
 
     /*

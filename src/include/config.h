@@ -100,6 +100,31 @@ struct __wt_config_parser_impl {
         }                                               \
     } while (0)
 
+/* Return true if and only if the string lies within another. */
+#define WT_CONFIG_STRING_WITHIN_DEFAULT(str, ref_str) \
+    ((str) >= (ref_str) && (str) <= &(ref_str)[strlen(ref_str)])
+
+/*
+ * To check if string values deviate from the default, we see if the value is within the default
+ * string. If so, that indicates that no later configuration overrode it. This is perhaps slightly
+ * more conservative that it needs to be; the caller's configuration can explicitly set the default
+ * value. But this check is quite fast and works for the cases we care about.
+ */
+#define WT_CONFIG_MATCHES_DEFAULT(session, func, cval) \
+    WT_CONFIG_STRING_WITHIN_DEFAULT((cval).str, WT_CONFIG_BASE(session, func))
+
+/*
+ * __wt_config_empty
+ *     Returns true if the API caller's configuration string is empty or NULL.
+ */
+static WT_INLINE bool
+__wt_config_empty(const char *cfg[])
+{
+    /* If the caller's config string is NULL or "", it is empty */
+    return (
+      cfg == NULL || cfg[0] == NULL || cfg[1] == NULL || (cfg[2] == NULL && cfg[1][0] == '\0'));
+}
+
 #define WT_CONFIG_UNSET (-1)
 /*
  * DO NOT EDIT: automatically built by dist/api_config.py.
@@ -138,30 +163,31 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_SESSION_prepare_transaction 30
 #define WT_CONFIG_ENTRY_WT_SESSION_prepared_id_transaction 31
 #define WT_CONFIG_ENTRY_WT_SESSION_prepared_id_transaction_uint 32
-#define WT_CONFIG_ENTRY_WT_SESSION_query_timestamp 33
-#define WT_CONFIG_ENTRY_WT_SESSION_reconfigure 34
-#define WT_CONFIG_ENTRY_WT_SESSION_reset 35
-#define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 36
-#define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 37
-#define WT_CONFIG_ENTRY_WT_SESSION_salvage 38
-#define WT_CONFIG_ENTRY_WT_SESSION_strerror 39
-#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 40
-#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 41
-#define WT_CONFIG_ENTRY_WT_SESSION_truncate 42
-#define WT_CONFIG_ENTRY_WT_SESSION_verify 43
-#define WT_CONFIG_ENTRY_colgroup_meta 44
-#define WT_CONFIG_ENTRY_file_config 45
-#define WT_CONFIG_ENTRY_file_meta 46
-#define WT_CONFIG_ENTRY_index_meta 47
-#define WT_CONFIG_ENTRY_layered_meta 48
-#define WT_CONFIG_ENTRY_object_meta 49
-#define WT_CONFIG_ENTRY_table_meta 50
-#define WT_CONFIG_ENTRY_tier_meta 51
-#define WT_CONFIG_ENTRY_tiered_meta 52
-#define WT_CONFIG_ENTRY_wiredtiger_open 53
-#define WT_CONFIG_ENTRY_wiredtiger_open_all 54
-#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 55
-#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 56
+#define WT_CONFIG_ENTRY_WT_SESSION_publish 33
+#define WT_CONFIG_ENTRY_WT_SESSION_query_timestamp 34
+#define WT_CONFIG_ENTRY_WT_SESSION_reconfigure 35
+#define WT_CONFIG_ENTRY_WT_SESSION_reset 36
+#define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 37
+#define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 38
+#define WT_CONFIG_ENTRY_WT_SESSION_salvage 39
+#define WT_CONFIG_ENTRY_WT_SESSION_strerror 40
+#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 41
+#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 42
+#define WT_CONFIG_ENTRY_WT_SESSION_truncate 43
+#define WT_CONFIG_ENTRY_WT_SESSION_verify 44
+#define WT_CONFIG_ENTRY_colgroup_meta 45
+#define WT_CONFIG_ENTRY_file_config 46
+#define WT_CONFIG_ENTRY_file_meta 47
+#define WT_CONFIG_ENTRY_index_meta 48
+#define WT_CONFIG_ENTRY_layered_meta 49
+#define WT_CONFIG_ENTRY_object_meta 50
+#define WT_CONFIG_ENTRY_table_meta 51
+#define WT_CONFIG_ENTRY_tier_meta 52
+#define WT_CONFIG_ENTRY_tiered_meta 53
+#define WT_CONFIG_ENTRY_wiredtiger_open 54
+#define WT_CONFIG_ENTRY_wiredtiger_open_all 55
+#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 56
+#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 57
 
 extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */
 extern const char __WT_CONFIG_CHOICE_DRAM[];
@@ -192,7 +218,6 @@ extern const char __WT_CONFIG_CHOICE_checkpoint_progress[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_slow[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_stop[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_validate[];
-extern const char __WT_CONFIG_CHOICE_chunkcache[];
 extern const char __WT_CONFIG_CHOICE_clear[];
 extern const char __WT_CONFIG_CHOICE_cold[];
 extern const char __WT_CONFIG_CHOICE_commit[];
@@ -203,11 +228,13 @@ extern const char __WT_CONFIG_CHOICE_compact_slow[];
 extern const char __WT_CONFIG_CHOICE_compatible[];
 extern const char __WT_CONFIG_CHOICE_configuration[];
 extern const char __WT_CONFIG_CHOICE_conn_close_stress_log_printf[];
+extern const char __WT_CONFIG_CHOICE_cross_checkpoint_cache[];
 extern const char __WT_CONFIG_CHOICE_cursor_check[];
 extern const char __WT_CONFIG_CHOICE_data[];
 extern const char __WT_CONFIG_CHOICE_default[];
 extern const char __WT_CONFIG_CHOICE_delete[];
 extern const char __WT_CONFIG_CHOICE_disagg[];
+extern const char __WT_CONFIG_CHOICE_disagg_role_transition[];
 extern const char __WT_CONFIG_CHOICE_disaggregated_storage[];
 extern const char __WT_CONFIG_CHOICE_disk_validate[];
 extern const char __WT_CONFIG_CHOICE_dsync[];
@@ -219,8 +246,10 @@ extern const char __WT_CONFIG_CHOICE_eviction[];
 extern const char __WT_CONFIG_CHOICE_eviction_check[];
 extern const char __WT_CONFIG_CHOICE_extension[];
 extern const char __WT_CONFIG_CHOICE_fail[];
+extern const char __WT_CONFIG_CHOICE_failpoint_disagg_checkpoint_queue_drain[];
 extern const char __WT_CONFIG_CHOICE_failpoint_eviction_split[];
 extern const char __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts[];
+extern const char __WT_CONFIG_CHOICE_failpoint_page_log_handle_put[];
 extern const char __WT_CONFIG_CHOICE_failpoint_rec_before_wrapup[];
 extern const char __WT_CONFIG_CHOICE_failpoint_rec_split_write[];
 extern const char __WT_CONFIG_CHOICE_false[];
@@ -247,6 +276,7 @@ extern const char __WT_CONFIG_CHOICE_json[];
 extern const char __WT_CONFIG_CHOICE_key_consistent[];
 extern const char __WT_CONFIG_CHOICE_key_out_of_order[];
 extern const char __WT_CONFIG_CHOICE_last_checkpoint[];
+extern const char __WT_CONFIG_CHOICE_last_disaggregated_schema_epoch[];
 extern const char __WT_CONFIG_CHOICE_layered[];
 extern const char __WT_CONFIG_CHOICE_leader[];
 extern const char __WT_CONFIG_CHOICE_live_restore[];
@@ -313,6 +343,7 @@ extern const char __WT_CONFIG_CHOICE_split_6[];
 extern const char __WT_CONFIG_CHOICE_split_7[];
 extern const char __WT_CONFIG_CHOICE_split_8[];
 extern const char __WT_CONFIG_CHOICE_stable[];
+extern const char __WT_CONFIG_CHOICE_stable_disaggregated_schema_epoch[];
 extern const char __WT_CONFIG_CHOICE_stable_timestamp[];
 extern const char __WT_CONFIG_CHOICE_sweep[];
 extern const char __WT_CONFIG_CHOICE_temporary[];

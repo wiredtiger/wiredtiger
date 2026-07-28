@@ -31,6 +31,18 @@
 #define SNAP_LIST_SIZE 512
 
 /*
+ * snap_repeat_ts_span --
+ *     Return the span of global timestamps a thread's snap list covers: one timestamp is allocated
+ *     per operation across all threads, and each thread keeps its last SNAP_LIST_SIZE operations.
+ *     Timestamps within this distance of stable must stay readable for snap_repeat.
+ */
+wt_timestamp_t
+snap_repeat_ts_span(void)
+{
+    return ((wt_timestamp_t)SNAP_LIST_SIZE * GV(RUNS_THREADS));
+}
+
+/*
  * snap_init --
  *     Initialize the repeatable operation tracking.
  */
@@ -106,9 +118,9 @@ snap_clear(TINFO *tinfo)
  *     Initialize the repeatable operation tracking for each new operation.
  */
 void
-snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
+snap_op_init(TINFO *tinfo, wt_timestamp_t read_ts, bool repeatable_reads)
 {
-    uint64_t stable_ts;
+    wt_timestamp_t stable_ts;
 
     ++tinfo->opid;
 
@@ -666,11 +678,11 @@ snap_repeat_single(TINFO *tinfo)
 }
 
 /*
- * snap_repeat_rollback --
+ * snap_repeat_stable --
  *     Repeat all known operations after a rollback.
  */
 void
-snap_repeat_rollback(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
+snap_repeat_stable(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
 {
     SNAP_OPS *snap;
     SNAP_STATE *state;

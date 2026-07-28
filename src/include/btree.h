@@ -171,14 +171,6 @@ struct __wt_btree {
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
-    /* Total size of all blocks in this btree. Tracked for disaggregated storage. */
-    wt_shared uint64_t bytes_total;
-
-    /* Root page size tracking for checkpoint size accounting. */
-    uint64_t current_root_size;  /* Size of current root page */
-    uint64_t previous_root_size; /* Size of previous root page */
-    uint64_t root_size_gen;      /* Checkpoint generation of the last root size update */
-
     /*
      * Reconciliation...
      */
@@ -190,6 +182,12 @@ struct __wt_btree {
     /* FIXME-WT-15633: Combine `prune_timestamp` and `checkpoint_timestamp` into one variable */
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
+
+    /* For an ingest btree, an upper bound on the durable timestamp of any update it holds. */
+    wt_shared wt_timestamp_t max_ingest_write_ts;
+
+    /* For an unpublished btree, the smallest durable timestamp of any update it holds. */
+    wt_shared wt_timestamp_t min_unpublished_durable_ts;
 
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */
@@ -236,9 +234,8 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum transaction seen by reconciliation (clean trees). */
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
-    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
-    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
-    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
+    wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
+    wt_shared WT_BTREE_SYNC syncing;   /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -249,11 +246,10 @@ struct __wt_btree {
  */
 #define WT_BTREE_SYNCING(btree) \
     (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) \
-    (__wt_atomic_load_ptr_acquire(&S2BT(session)->sync_session) == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                                \
-    (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
-      __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC(session) ((session)->syncing && WT_BTREE_SYNCING(S2BT(session)))
+#define WT_SESSION_BTREE_SYNC_SAFE(session) \
+    ((session)->syncing ||                  \
+      __wt_atomic_load_enum_acquire(&S2BT(session)->syncing) != WT_BTREE_SYNC_RUNNING)
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
@@ -261,6 +257,29 @@ struct __wt_btree {
     wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
     wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
     wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
+
+    /*
+     * Reserved marker value for leaf_entry_ewma / approx_leaf_pages meaning "never tracked": the
+     * table's checkpoint metadata predates this tracking and no WT_STAT_TYPE_TREE_WALK correction
+     * has run since. Neither field is updated by ordinary split/reconciliation activity while it
+     * holds this value; both are set together, straight to their exact values, by the first
+     * corrective walk.
+     */
+#define WT_LEAF_STATS_UNKNOWN UINT64_MAX
+
+    /*
+     * Approximate average number of K/V pairs per row-store leaf page. Maintained as an EWMA
+     * updated at page fault-in (for cold pages) and at reconciliation (for modified pages). Not
+     * authoritative: use WT_STAT_TYPE_TREE_WALK for exact counts.
+     */
+    wt_shared uint64_t leaf_entry_ewma;
+
+    /*
+     * Approximate count of row-store leaf pages. Incremented at each leaf split (in-memory or
+     * eviction); decrements for page deletions are not tracked, so the count may overestimate when
+     * many pages are deleted. Persisted through checkpoint metadata.
+     */
+    wt_shared uint64_t approx_leaf_pages;
 
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
@@ -301,9 +320,9 @@ struct __wt_btree {
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
      * To avoid multiple threads flushing at the same time, lock the tree.
      */
-    WT_SPINLOCK flush_lock;          /* Lock to flush the tree's pages */
-    uint64_t flush_most_recent_secs; /* Wall clock time for the most recent flush */
-    uint64_t flush_most_recent_ts;   /* Timestamp of the most recent flush */
+    WT_SPINLOCK flush_lock;              /* Lock to flush the tree's pages */
+    uint64_t flush_most_recent_secs;     /* Wall clock time for the most recent flush */
+    wt_timestamp_t flush_most_recent_ts; /* Timestamp of the most recent flush */
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
@@ -358,6 +377,15 @@ struct __wt_btree {
 #define WT_BTREE_VERIFY 0x1000000u          /* Handle is for verify */
                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+/*
+ * Atomic flags, use F_*_ATOMIC_32. Unlike the flags above, we expect to set and clear these flags
+ * concurrently without locking the btree.
+ */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BTREE_AWAITS_PUBLISH 0x1u /* An unpublished btree, which will be published later */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    wt_shared uint32_t flags_atomic;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
@@ -438,6 +466,20 @@ struct __wti_disk_leaf_merge_state {
     bool key_pfx_compress;
     bool all_empty_value;
     bool any_empty_value;
-    uint8_t *p_ptr;
+    uint8_t *cell_ptr;
     uint32_t entries;
 };
+
+/*
+ * __wt_btree_stays_in_memory --
+ *     Return whether a btree must be kept in memory, i.e. no page may be written to disk. This is
+ *     true for an in-memory configured btree, and for a disaggregated btree that is still awaiting
+ *     publication: such a btree behaves as if in-memory until the flag is cleared, after which it
+ *     is written out and checkpointed normally.
+ */
+static WT_INLINE bool
+__wt_btree_stays_in_memory(WT_BTREE *btree)
+{
+    return (
+      F_ISSET(btree, WT_BTREE_IN_MEMORY) || F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH));
+}

@@ -19,6 +19,7 @@ extern const char *home;         /* Home directory */
 extern const char *progname;     /* Program name */
 extern const char *usage_prefix; /* Global arguments */
 extern bool verbose;             /* Verbose flag */
+extern bool read_corrupt;        /* Global -q: continue past corrupt pages in read-oriented cmds */
 
 extern WT_EVENT_HANDLER *verbose_handler;
 
@@ -44,6 +45,7 @@ int util_flush(WT_SESSION *, const char *);
 int util_list(WT_SESSION *, int, char *[]);
 int util_load(WT_SESSION *, int, char *[]);
 int util_loadtext(WT_SESSION *, int, char *[]);
+int util_page(WT_SESSION *, int, char *[]);
 int util_printlog(WT_SESSION *, int, char *[]);
 int util_read(WT_SESSION *, int, char *[]);
 int util_read_line(WT_SESSION *, ULINE *, bool, bool *);
@@ -51,6 +53,7 @@ int util_salvage(WT_SESSION *, int, char *[]);
 int util_stat(WT_SESSION *, int, char *[]);
 int util_str2num(WT_SESSION *, const char *, bool, uint64_t *);
 int util_truncate(WT_SESSION *, int, char *[]);
+int util_turtle(WT_SESSION *, int, char *[]);
 char *util_uri(WT_SESSION *, const char *, const char *);
 void util_usage(const char *, const char *, const char *[]);
 int util_verify(WT_SESSION *, int, char *[]);

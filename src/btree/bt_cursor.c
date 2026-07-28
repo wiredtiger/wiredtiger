@@ -542,6 +542,34 @@ __cursor_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 }
 
 /*
+ * __cursor_truncate_nontxn --
+ *     Non-transactional remove for truncate: insert a globally visible tombstone.
+ */
+static WT_INLINE int
+__cursor_truncate_nontxn(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
+{
+    WT_BTREE *btree = CUR2BT(cbt);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session = CUR2S(cbt);
+    WT_UPDATE *tombstone;
+
+    WT_UNUSED(value);
+    WT_UNUSED(modify_type);
+    WT_ASSERT(session, modify_type == WT_UPDATE_TOMBSTONE);
+    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
+    if (btree->type == BTREE_COL_VAR)
+        ret =
+          __wt_col_modify(cbt, cbt->iface.recno, NULL, &tombstone, WT_UPDATE_INVALID, false, false);
+    else
+        ret =
+          __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false);
+
+    if (ret != 0)
+        __wt_free(session, tombstone);
+    return (ret);
+}
+
+/*
  * __cursor_restart --
  *     Common cursor restart handling.
  */
@@ -1570,10 +1598,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     size_t max_memsize, new, orig;
-    bool overwrite;
+    uint64_t sleep_usecs, yield_count;
+    bool key_out_of_bounds, leaf_found, overwrite, valid;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
+    yield_count = sleep_usecs = 0;
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
@@ -1602,8 +1632,40 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     if (F_ISSET(session->txn, WT_TXN_AUTOCOMMIT))
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
-        WT_ERR(__wt_btcur_search(cbt));
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
+        WT_ERR(__btcur_bounds_contains_key(
+          session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
+        if (key_out_of_bounds)
+            WT_ERR(WT_NOTFOUND);
+
+        /*
+         * If we have a page pinned, search it before descending from the root. This attempt is made
+         * only on the initial pass: the retry path releases the page, so re-checking would examine
+         * a stale reference.
+         */
+        valid = leaf_found = false;
+        if (__cursor_page_pinned(cbt, true)) {
+            __wt_txn_cursor_op(session);
+            WT_ERR(__cursor_search(cbt, cbt->ref, &leaf_found, false));
+            if (leaf_found && cbt->compare == 0) {
+                WT_ERR(__curfile_update_check(cbt));
+                WT_ERR(__wti_cursor_valid(cbt, &valid, false));
+            }
+        }
+        if (!valid) {
+retry:
+            WT_ERR(__wt_cursor_localkey(cursor));
+            WT_ERR(__wt_cursor_func_init(cbt, true));
+            WT_ERR(__cursor_search(cbt, NULL, NULL, false));
+            if (cbt->compare != 0)
+                WT_ERR(WT_NOTFOUND);
+            WT_ERR(__curfile_update_check(cbt));
+            WT_ERR(__wti_cursor_valid(cbt, &valid, false));
+            if (!valid)
+                WT_ERR(WT_NOTFOUND);
+        }
+        WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
+    }
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
@@ -1643,6 +1705,10 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      */
     if (ret != 0) {
 err:
+        if (ret == WT_RESTART) {
+            __cursor_restart(session, &yield_count, &sleep_usecs);
+            goto retry;
+        }
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
@@ -1656,24 +1722,28 @@ err:
  *     Reserve a record in the tree.
  */
 int
-__wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
+__wt_btcur_reserve(WT_CURSOR_BTREE *cbt, bool overwrite)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool overwrite;
+    bool old_overwrite;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_reserve);
 
-    /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
-    overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
-    F_CLR(cursor, WT_CURSTD_OVERWRITE);
+    /*
+     * WT_CURSOR.reserve uses a special update type. Temporarily configure the overwrite flag (e.g.
+     * followers pass true so that reserve succeeds when the key exists only in the stable table and
+     * we update the ingest one).
+     */
+    old_overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
+    overwrite ? F_SET(cursor, WT_CURSTD_OVERWRITE) : F_CLR(cursor, WT_CURSTD_OVERWRITE);
     ret = __btcur_update(cbt, NULL, WT_UPDATE_RESERVE);
-    if (overwrite)
-        F_SET(cursor, WT_CURSTD_OVERWRITE);
+    old_overwrite ? F_SET(cursor, WT_CURSTD_OVERWRITE) : F_CLR(cursor, WT_CURSTD_OVERWRITE);
+
     return (ret);
 }
 
@@ -1816,12 +1886,10 @@ __wt_cursor_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
   int (*rmfunc)(WT_CURSOR_BTREE *, const WT_ITEM *, u_int))
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    size_t records_truncated;
-    uint64_t sleep_usecs, yield_count;
-
-    session = CUR2S(start);
-    records_truncated = yield_count = sleep_usecs = 0;
+    WT_SESSION_IMPL *session = CUR2S(start);
+    size_t records_truncated = 0;
+    uint64_t sleep_usecs = 0, yield_count = 0;
+    const bool fast_truncate = !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_SLOW_TRUNCATE);
 
 /*
  * First, call the cursor search method to re-position the cursor: we may not have a cursor position
@@ -1851,7 +1919,7 @@ retry:
             return (0);
         }
 
-        if ((ret = __wt_btcur_next(start, true)) == WT_NOTFOUND) {
+        if ((ret = __wt_btcur_next(start, fast_truncate)) == WT_NOTFOUND) {
             WT_STAT_CONN_INCRV(session, cursor_truncate_keys_deleted, records_truncated);
             return (0);
         }
@@ -1909,7 +1977,17 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
      * truncate so we're good to go: if that ever changes, we'd need to do something here to ensure
      * a fully instantiated cursor.
      */
-    WT_ERR(__wt_cursor_truncate(start, stop, __cursor_modify));
+    if (F_ISSET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE)) {
+        /*
+         * A non-transactional truncate writes globally visible tombstones that cannot be rolled
+         * back, so it must not be logged: there would be no in-memory operations to undo on
+         * recovery. It is only allowed for clearing the ingest table during step-up.
+         */
+        WT_ASSERT(session, !logging);
+        WT_ASSERT(session, F_ISSET(CUR2BT(start), WT_BTREE_GARBAGE_COLLECT));
+        WT_ERR(__wt_cursor_truncate(start, stop, __cursor_truncate_nontxn));
+    } else
+        WT_ERR(__wt_cursor_truncate(start, stop, __cursor_modify));
 
 err:
     if (logging)

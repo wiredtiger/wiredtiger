@@ -31,10 +31,10 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_hs03.py
 # Ensure checkpoints don't read too unnecessary history store entries.
 class test_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=50MB,statistics=(fast)'
     format_values = [
         ('column', dict(key_format='r')),
@@ -43,12 +43,6 @@ class test_hs03(wttest.WiredTigerTestCase):
     ]
     value_format='u'
     scenarios = make_scenarios(format_values)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def large_updates(self, session, uri, value, ds, nrows, nops):
         # Update a large number of records, we'll hang if the history store table
@@ -62,7 +56,7 @@ class test_hs03(wttest.WiredTigerTestCase):
 
     def test_checkpoint_hs_reads(self):
         # Create a small table.
-        uri = "table:test_hs03"
+        uri = f"table:{self.test_name}"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format=self.value_format)
         ds.populate()

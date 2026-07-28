@@ -32,7 +32,8 @@ from prepare_util import test_prepare_preserve_prepare_base
 # Test prepare insert rollback to delete the key with a rollback tombstone
 
 class test_prepare42(test_prepare_preserve_prepare_base):
-    uri = 'table:test_prepare42'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     def test_prepare_insert_rollback(self):
         # Setup: Initialize timestamps with stable < prepare timestamp
@@ -51,7 +52,7 @@ class test_prepare42(test_prepare_preserve_prepare_base):
             cursor.insert()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(21))
 
-        # Insret key 20 with a prepared update prepared_id=1
+        # Insert key 20 with a prepared update prepared_id=1
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(self.uri)
         session_prepare.begin_transaction()

@@ -10,6 +10,7 @@ stepback: true
 pre:
   - func: "cleanup"
   - func: "setup environment"
+  - func: "pin mongo toolchain"
 post:
   - func: "dump stacktraces"
   - func: "upload stacktraces"
@@ -57,13 +58,15 @@ functions:
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
             if [[ "${CMAKE_BUILD_TYPE|}" =~ ASan ]]; then
               export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
+              asan_lib=$(clang -print-file-name=libclang_rt.asan.so)
+              [ -f "$asan_lib" ] || { echo "ERROR: libclang_rt.asan.so not found by clang"; exit 1; }
+              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname "$asan_lib")"
               export TESTUTIL_BYPASS_ASAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
-              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export MSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_MSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
-              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS"
               export TESTUTIL_TSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
@@ -108,6 +111,43 @@ functions:
 
             echo "Dump Environment"
             printenv | sort
+
+  "pin mongo toolchain":
+    - command: shell.exec
+      type: setup
+      params:
+        shell: bash
+        script: |
+          set -o errexit
+
+          if [ "${REQUIRE_MDB_TOOLCHAIN|}" != "1" ]; then
+              exit 0
+          fi
+
+          MDB_TOOLCHAIN_REV="93d85cc1a00ca1d53fcc7d4ca790f19a4e5dd542"
+          if readlink /opt/mongodbtoolchain/v5/bin/clang 2>/dev/null | grep -q "$MDB_TOOLCHAIN_REV"; then
+              echo "mongodbtoolchain $MDB_TOOLCHAIN_REV already installed, skipping download."
+              exit 0
+          fi
+
+          echo "mongodbtoolchain $MDB_TOOLCHAIN_REV not installed, downloading..."
+
+          # Work around installer.sh detecting the wrong platform on non-x86 architectures.
+          ARCH=$(uname -m)
+          EXTRA_ARGS=""
+          if [[ "$ARCH" == "ppc64le" ]]; then
+              EXTRA_ARGS="--os-id rhel81"
+          elif [[ "$ARCH" == "s390x" ]]; then
+              EXTRA_ARGS="--download-url https://mongodbtoolchain.build.10gen.cc/toolchain/rhel80-zseries/x86_64/mongodbtoolchain-${MDB_TOOLCHAIN_REV}.tar.gz"
+          fi
+
+          # The pinned toolchain tarball sources a script that it does not contain.
+          # pipefail preserves the installer's real exit status.
+          # FIXME-WT-18153: Remove this filter once the toolchain has been fixed.
+          set -o pipefail
+          curl -fsSL https://s3.amazonaws.com/mongodbtoolchain.build.10gen.cc/installer.sh \
+              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV" $EXTRA_ARGS 2>&1 \
+              | sed -E '/scripts\/installer\.sh: No such file or directory/d; /return: can only .return. from a function or sourced script/d'
 
   # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
   # additional credentials need to be setup to maintain efficient compilation speed.
@@ -256,9 +296,9 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_PATH}
-        virtualenv -p python3 venv
+        virtualenv -p python3.13 venv
         source venv/bin/activate
-        buildscripts/poetry_sync.sh
+        buildscripts/uv_sync.sh
 
         # Without this variable the bazel execution might be stalled for many hours.
         # This is because evergreen is using a go Cmd.Wait and waiting for some file descriptors
@@ -303,7 +343,6 @@ functions:
         # Note that the config flags are resolved prior to changing to cmake_build directory.
         DEFINED_EVERGREEN_CONFIG_FLAGS="${CMAKE_BUILD_TYPE|} \
           ${CMAKE_INSTALL_PREFIX|-DCMAKE_INSTALL_PREFIX=$(pwd)/cmake_build/LOCAL_INSTALL} \
-          ${CMAKE_TOOLCHAIN_FILE|-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake} \
           ${ENABLE_LAZYFS|} \
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
@@ -317,17 +356,7 @@ functions:
           ${CODE_COVERAGE_FLAGS} \
           ${HAVE_DIAGNOSTIC|} \
           ${WORDS_BIGENDIAN|} \
-          ${GNU_C_VERSION|} \
-          ${GNU_CXX_VERSION|} \
-          ${CLANG_C_VERSION|} \
-          ${CLANG_CXX_VERSION|} \
-          ${ENABLE_AZURE|} \
           ${ENABLE_CPPSUITE|} \
-          ${ENABLE_GCP|} \
-          ${ENABLE_S3|} \
-          ${IMPORT_AZURE_SDK|} \
-          ${IMPORT_GCP_SDK|} \
-          ${IMPORT_S3_SDK|} \
           ${SPINLOCK_TYPE|} \
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
           ${CC_OPTIMIZE_LEVEL|}"
@@ -393,6 +422,17 @@ functions:
             /bin/bash test/evergreen/tcmalloc_install_or_build.sh ${build_variant}
           fi
 
+          # Use cmake preset on Linux, defaulting to GCC. Versioned compilers (gcc-9, clang-14, etc.)
+          # clear CMAKE_PRESET to "" to fall through to CC/CXX; non-Linux platforms always use CC/CXX.
+          # The file check guards branches that predate CMakePresets.json (e.g. compile-develop).
+          CMAKE_PRESET_FLAG=""
+          if [[ "$(uname -s)" == "Linux" && -n "${CMAKE_PRESET|linux-gcc}" && -f CMakePresets.json ]]; then
+            CMAKE_PRESET_FLAG="--preset ${CMAKE_PRESET|linux-gcc}"
+          else
+            export CC=${CC|gcc}
+            export CXX=${CXX|g++}
+          fi
+
           # Compiling with CMake.
           echo "Find CMake"
           . test/evergreen/find_cmake.sh
@@ -406,8 +446,8 @@ functions:
           cd cmake_build
 
           echo "Calling CMake with command:"
-          echo $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
-          $CMAKE $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+          echo $CMAKE $CMAKE_PRESET_FLAG $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
+          $CMAKE $CMAKE_PRESET_FLAG $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|} -G "${cmake_generator|Ninja}" ./..
           echo "Completed CMake"
         fi
   "python config check":
@@ -552,45 +592,6 @@ functions:
           ${PREPARE_TEST_ENV}
           ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' ${validation_stress_num_runs|120}
 
-  "run tiered storage test":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build"
-        shell: bash
-        include_expansions_in_env:
-          - aws_sdk_s3_ext_access_key
-          - aws_sdk_s3_ext_secret_key
-        script: |
-          set -o errexit
-          ${PREPARE_TEST_ENV}
-
-          # Set the Azure credentials using config variable.
-          export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-
-          # GCP requires a path to a credentials file for authorization. To not expose the private
-          # information within the file, we use a placeholder private variable which are replaced
-          # in the command line with the evergreen expansion variables and stored in a temporary
-          # file.
-          file=$(mktemp --suffix ".json")
-
-          # Use '|' as the delimiter instead of default behavior because the private key contains
-          # slash characters.
-          sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
-              -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
-              -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
-              -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
-              -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
-              -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
-          export GOOGLE_APPLICATION_CREDENTIALS="$file"
-
-          virtualenv -p python3 venv
-          source venv/bin/activate
-          pip3 install boto3==1.34.144
-          pip3 install azure-storage-blob==12.20.0
-          pip3 install google-cloud-storage==2.17.0
-
-          # Run Python testing for all tiered tests.
-          python3 ../test/suite/run.py ${ignore_stdout} -j $(nproc) ${tiered_storage_test_name}
   "compile wiredtiger docs":
     - command: shell.exec
       params:
@@ -616,27 +617,13 @@ functions:
             echo "Checking out branch $branch ..."
             git checkout $branch
 
-            # Java API is removed in newer branches via WT-6675.
-            if [ $branch == "mongodb-4.2" ]; then
-              pushd build_posix
-              bash reconf
-              ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
-              (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-              (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
-            elif [ $branch == "mongodb-5.0" ] || [ $branch == "mongodb-4.4" ]; then
-              pushd build_posix
-              bash reconf
-              ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
-              (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-            else
-              . test/evergreen/find_cmake.sh
-              if [ -d cmake_build ]; then rm -r cmake_build; fi
-              mkdir -p cmake_build
-              pushd cmake_build
-              # Adding -DENABLE_PYTHON=1 -DENABLE_STRICT=1 as 6.0 does not default these like develop.
-              $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
-              make -C lang/python -j ${num_jobs}
-            fi
+            . test/evergreen/find_cmake.sh
+            if [ -d cmake_build ]; then rm -r cmake_build; fi
+            mkdir -p cmake_build
+            pushd cmake_build
+            # Adding -DENABLE_PYTHON=1 -DENABLE_STRICT=1 as 6.0 does not default these like develop.
+            $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
+            make -C lang/python -j ${num_jobs}
             # Pop to root project directory.
             popd
             # Generate WiredTiger documentation.
@@ -929,6 +916,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
         # no_run will contain a list of files we don't want to run,
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
@@ -971,6 +959,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
         # no_run will contain a list of files we don't want to run,
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
@@ -1132,20 +1121,6 @@ functions:
           if [ ${reopen|true} = true ]; then
             ./t -R $format_args ${extra_args|} || fail
           fi
-        done
-  "timestamp abort disagg":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ${additional_san_vars}
-        for i in $(seq ${times|1}); do
-          echo Iteration $i/${times}
-          ./test_timestamp_abort -G -s
         done
   "many dbs test":
     command: shell.exec
@@ -1502,7 +1477,7 @@ functions:
         ${PREPARE_TEST_ENV}
         # Run format test with disagg leader mode for now, which can be extended later.
         echo "Running format test in ${format_binary_dir} to generate data files ..."
-        ./t -c ${workdir}/${format_config_dir}/CONFIG.disagg disagg.mode=leader runs.timer=1:1
+        ./t -c ${workdir}/${format_config_dir}/CONFIG.disagg disagg.mode=leader disagg.key_provider=1 runs.timer=2:2
 
   "verify wt datafiles with binary":
     command: shell.exec
@@ -1517,17 +1492,6 @@ functions:
         echo "Verifying data files in ${data_dir} using wt binary in ${build_dir} ..."
         WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} list
         WIREDTIGER_CONFIG="$EXT" ./wt -h ${workdir}/${data_dir} verify
-
-  "install gcp dependencies":
-    - command: shell.exec
-      type: setup
-      params:
-        working_dir: "wiredtiger"
-        shell: bash
-        script: |
-          set -o errexit
-          . test/evergreen/find_cmake.sh
-          . test/evergreen/install_gcp_dependencies.sh $CMAKE
 
   "split stress test":
     command: shell.exec
@@ -1591,36 +1555,20 @@ variables:
     ENABLE_SHARED: -DENABLE_SHARED=0
     ENABLE_STATIC: -DENABLE_STATIC=1
 
-  # Configure flags for tiered storage Azure extension.
-  - &configure_flags_tiered_storage_azure
-    ENABLE_AZURE: -DENABLE_AZURE=1
-    IMPORT_AZURE_SDK: -DIMPORT_AZURE_SDK=external
-
-  # Configure flags for tiered storage GCP extension.
-  - &configure_flags_tiered_storage_gcp
-    ENABLE_GCP: -DENABLE_GCP=1
-    IMPORT_GCP_SDK: -DIMPORT_GCP_SDK=external
-
-  # Configure flags for tiered storage S3 extension.
-  - &configure_flags_tiered_storage_s3
-    ENABLE_S3: -DENABLE_S3=1
-    IMPORT_S3_SDK: -DIMPORT_S3_SDK=external
-
   # Configure flags for address sanitizer for stable mongodb toolchain clang (include builtins).
   - &configure_flags_asan_mongodb_stable_clang_with_builtins
     <<: *configure_flags_with_builtins
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: 0
 
   # Template for Mac tests
   - &mac_test_template
     expansions: &mac_test_template_expansions
-      # The cmake toolchain file is set to the mongodb toolchain gcc by default.
-      # Remove that configuration here and let MacOS use the default Xcode toolchain instead.
-      # We'll explicitly use the python3 in /usr/bin, we use the same in configuring cmake.
-      CMAKE_TOOLCHAIN_FILE:
+      # macOS uses Xcode's clang (no mongodb toolchain).
+      CC: clang
+      CXX: clang++
       CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       num_jobs: $(echo $(sysctl -n hw.logicalcpu) / 2 | bc)
       cmake_generator: "Unix Makefiles"
@@ -1696,7 +1644,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
+          format_test_script_args: -t 360 -- debug.realloc_exact=0
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -1720,7 +1668,7 @@ variables:
           CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
         vars:
-          times: 25
+          times: 20
 
   - &workgen-test
     tags: ["workgen-test"]
@@ -1766,6 +1714,25 @@ variables:
           format_args: disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
+  - &format-stress-test-disagg-leader-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.timer=5:10
+          times: 1
+
+  - &s-all-dep
+    - name: s-all
+      variant: ubuntu2004
+      patch_optional: true
+
   - &format-stress-test-disagg-follower
     depends_on:
       - name: compile
@@ -1777,58 +1744,48 @@ variables:
           times: 5
 
   - &format-stress-test-disagg-switch
-    depends_on:
-      - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=switch runs.timer=10:15
+          format_args: disagg.mode=switch runs.timer=5:10
           times: 5
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-test-disagg-switch-data-validation
-    depends_on:
-      - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
           format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
-  - &format-stress-test-disagg-multi
-    depends_on:
-      - name: compile
+  - &format-stress-test-disagg-switch-pull-request
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes.
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=switch runs.rows=10000 runs.ops=50000
       - func: "format test disagg"
         vars:
-          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
-          times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
-
-  - &format-stress-test-disagg-multi-data-validation
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          # Validate data with a non-layered table.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
-          times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
-
-  - &timestamp-abort-test-disagg
-    depends_on:
-        - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "timestamp abort disagg"
-        vars:
-          times: 50
+          format_args: disagg.mode=switch runs.timer=3
+          times: 1
 
 #######################################
 #               Tasks                 #
@@ -1839,6 +1796,7 @@ tasks:
   # Base compile task on posix flavors
   - name: compile
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1846,6 +1804,7 @@ tasks:
       - func: "cleanup"
 
   - name: compile-develop
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger develop"
@@ -1855,6 +1814,7 @@ tasks:
   # production build with --disable-shared
   - name: compile-production-disable-shared
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1866,6 +1826,7 @@ tasks:
   # production build with --disable-static
   - name: compile-production-disable-static
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1876,12 +1837,8 @@ tasks:
 
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
-      - command: expansions.update
-        params:
-          updates:
-          - key: CMAKE_TOOLCHAIN_FILE
-            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -1892,28 +1849,30 @@ tasks:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=7
+          CC: gcc-7
+          CXX: g++
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=8
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=8
+          CC: gcc-8
+          CXX: g++-8
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=9
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
+          CC: gcc-9
+          CXX: g++-9
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=11
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=11
+          CC: gcc-11
+          CXX: g++-11
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - command: expansions.update
         params:
           updates:
-          - key: CMAKE_TOOLCHAIN_FILE
-            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+          - key: CMAKE_PRESET
+            value: linux-clang
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -1924,37 +1883,45 @@ tasks:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Debug
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=7
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=7
+          CMAKE_PRESET: ""
+          CC: clang-7
+          CXX: clang++-7
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=8
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
+          CMAKE_PRESET: ""
+          CC: clang-8
+          CXX: clang++-8
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=9
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=9
+          CMAKE_PRESET: ""
+          CC: clang-9
+          CXX: clang++-9
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=10
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=10
+          CMAKE_PRESET: ""
+          CC: clang-10
+          CXX: clang++-10
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=11
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=12
+          CMAKE_PRESET: ""
+          CC: clang-11
+          CXX: clang++-12
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=13
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=13
+          CMAKE_PRESET: ""
+          CC: clang-13
+          CXX: clang++-13
       - func: "compile wiredtiger"
         vars:
-          CLANG_C_VERSION: -DCLANG_C_VERSION=14
-          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=14
+          CMAKE_PRESET: ""
+          CC: clang-14
+          CXX: clang++-14
 
   # Compile WiredTiger with uncommon build flags to make sure we compile code that
   # is often pre-processed out.
   - name: compile-uncommon-build-flags
     tags: ["pull_request", "pull_request_compilers"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1976,6 +1943,7 @@ tasks:
           HAVE_UNITTEST: -DHAVE_UNITTEST=1
 
   - name: make-check-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1983,6 +1951,7 @@ tasks:
 
   # This task is the same as make-check-test but fits for lower specs by allowing a bigger timeout.
   - name: make-check-test-low-perf
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -1998,6 +1967,7 @@ tasks:
 
   - name: lang-python-test
     tags: ["pull_request", "python"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2007,6 +1977,7 @@ tasks:
 
   - name: examples-c-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2016,6 +1987,7 @@ tasks:
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2027,6 +1999,7 @@ tasks:
 
   - name: examples-c-production-disable-static-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2038,6 +2011,7 @@ tasks:
 
   - name: checkpoint-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2048,6 +2022,7 @@ tasks:
 
   - name: checkpoint-test-disagg-leader
     tags: ["stress-test-disagg"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2057,6 +2032,7 @@ tasks:
           directory: test/checkpoint
 
   - name: checkpoint-test-long-running
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2067,6 +2043,7 @@ tasks:
 
   - name: cursor-order-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2076,6 +2053,7 @@ tasks:
 
   - name: fops-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2085,6 +2063,7 @@ tasks:
 
   - name: format-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2094,6 +2073,7 @@ tasks:
 
   - name: huge-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2103,6 +2083,7 @@ tasks:
 
   - name: manydbs-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2112,6 +2093,7 @@ tasks:
 
   - name: packing-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2121,6 +2103,7 @@ tasks:
 
   - name: readonly-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2130,6 +2113,7 @@ tasks:
 
   - name: salvage-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2139,6 +2123,7 @@ tasks:
 
   - name: thread-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2148,6 +2133,7 @@ tasks:
 
   - name: bench-wtperf-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2157,6 +2143,7 @@ tasks:
 
   - name: catch2-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2174,6 +2161,7 @@ tasks:
 
   - name: catch2-assertions
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2428,6 +2416,7 @@ tasks:
   # Start of csuite test tasks
   - name: csuite-tests-fast
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2436,27 +2425,8 @@ tasks:
           directory: test/csuite
           ctest_extra_args: -LE "long_running|check_disagg" ${ctest_extra_args} -j ${num_jobs}
 
-  - name: csuite-timestamp-abort-test-s3
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_s3
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
-          shell: bash
-          include_expansions_in_env:
-            - aws_sdk_s3_ext_access_key
-            - aws_sdk_s3_ext_secret_key
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-
-            ./test_timestamp_abort -PT -Po s3_store
-
   - name: csuite-random-abort-lazyfs
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2473,6 +2443,7 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-schema-abort-lazyfs
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2489,6 +2460,7 @@ tasks:
             ./smoke_lazyfs.sh
 
   - name: csuite-timestamp-abort-lazyfs
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2527,6 +2499,7 @@ tasks:
   - name: csuite-long-running
     # Set 6 hours timeout (60 * 60 * 6 = 21600)
     exec_timeout_secs: 21600
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2565,7 +2538,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
@@ -2599,7 +2572,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           # FIXME-WT-16228: decrease the timeout when the performance of the disagg leader tests is improved.
@@ -2624,8 +2597,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # Run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/tsan.fail
+          unit_test_parallel_ignore: test/suite/fail_lists/tsan.fail
           unit_test_parallel_args: -v 2 --timeout 300
       - func: "upload artifact"
         vars:
@@ -2640,8 +2616,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # Run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_parallel_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
@@ -2658,8 +2637,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
@@ -2672,8 +2654,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
@@ -2686,8 +2671,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
@@ -2700,8 +2688,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
@@ -2714,8 +2705,11 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/tsan.fail test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
@@ -2744,7 +2738,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,key_provider=true)"
@@ -2758,7 +2752,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
@@ -2772,7 +2766,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
@@ -2786,7 +2780,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
@@ -2800,7 +2794,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
@@ -2814,7 +2808,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
@@ -2828,7 +2822,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 0/5
@@ -2842,7 +2836,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 1/5
@@ -2856,7 +2850,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 2/5
@@ -2870,7 +2864,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 3/5
@@ -2884,7 +2878,7 @@ tasks:
       - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/fail_lists/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 4/5
@@ -2910,6 +2904,270 @@ tasks:
         vars:
           # As follower, run a minimal functionality test
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower,table_prefix=table)" base01
+
+  - name: unit-test-hook-parallel-checkpoint
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-tsan
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test tsan parallel"
+        vars:
+          # FIXME-WT-16313: Disable deadlock detection in TSAN as it causes false positives when
+          # used with parallel checkpoints.
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+          unit_test_parallel_ignore: test/suite/fail_lists/tsan.fail
+          unit_test_parallel_args: -v 2 --timeout 300 --hook "parallel_checkpoint"
+
+  - name: unit-test-hook-parallel-checkpoint-bucket00
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 0/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket01
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 1/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket02
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 2/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket03
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 3/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket04
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 4/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket05
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 5/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket06
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 6/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket07
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 7/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket08
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 8/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket09
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 9/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket10
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 10/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket11
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 11/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket12
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 12/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket13
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 13/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket14
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 14/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket15
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 15/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket16
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 16/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket17
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 17/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket18
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 18/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket19
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 19/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket20
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 20/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket21
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 21/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket22
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 22/24
+
+  - name: unit-test-hook-parallel-checkpoint-bucket23
+    tags: ["python", "unit_test_xsan"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --timeout 1800 --hook "parallel_checkpoint" --batch 23/24
 
   - name: unit-test-hook-timing-stress-log
     tags: ["python"]
@@ -2940,26 +3198,6 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook 'tiered=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=1,delay_ms=10,verbose=1))'
-
-  - name: unit-test-hook-tiered-s3
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_s3
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          include_expansions_in_env:
-            - aws_sdk_s3_ext_access_key
-            - aws_sdk_s3_ext_secret_key
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} --hook tiered=tier_storage_source='s3_store' -j ${num_jobs} 2>&1
 
   - name: unit-test-hook-tiered-timestamp
     tags: ["python"]
@@ -3578,21 +3816,6 @@ tasks:
             cd dist
             bash -x s_all -E 2>&1
 
-  - name: s-outdated-fixmes
-    # Detect any FIXME comments in the codebase tied to closed Jira tickets.
-    # This will send a GET request to JIRA for each FIXME ticket so we don't
-    # want to run it too frequently.
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/dist"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${python_binary|python3} s_outdated_fixmes.py 2>&1
-
   - name: conf-dump-test
     tags: ["pull_request", "python"]
     depends_on:
@@ -3629,25 +3852,6 @@ tasks:
               ./test_fops
             fi
 
-  - name: bench-tiered-push-pull-s3
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_s3
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/bench/tiered"
-          shell: bash
-          include_expansions_in_env:
-            - aws_sdk_s3_ext_access_key
-            - aws_sdk_s3_ext_secret_key
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ./test_push_pull -PT -Po s3_store
-
   - name: bench-tiered-push-pull
     depends_on:
     - name: compile
@@ -3678,13 +3882,6 @@ tasks:
         vars:
           compat_test_args: -n
 
-  - name: compatibility-test-for-older-releases-weekly
-    commands:
-      - func: "get project"
-      - func: "compatibility test"
-        vars:
-          compat_test_args: -o
-
   - name: compatibility-test-upgrade-to-latest-daily
     commands:
       - func: "get project"
@@ -3706,6 +3903,7 @@ tasks:
 
   - name: compatibility-test-suite-daily
     tags: ["python"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3776,6 +3974,7 @@ tasks:
             test/compatibility/compatibility_test_for_releases.sh -i
 
   - name: generate-datafile-little-endian
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3828,6 +4027,7 @@ tasks:
       - func: "verify wt datafiles"
 
   - name: generate-datafile-big-endian
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3881,6 +4081,7 @@ tasks:
 
   - name: clang-analyzer
     tags: ["lint"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - command: shell.exec
@@ -3925,7 +4126,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            env CC=/opt/mongodbtoolchain/v5/bin/gcc CXX=/opt/mongodbtoolchain/v5/bin/g++ PATH=/opt/mongodbtoolchain/v5/bin:/opt/java/jdk11/bin:$PATH bash s_release `date +%Y%m%d`
+            env PATH=/opt/mongodbtoolchain/v5/bin:/opt/java/jdk11/bin:$PATH CC=gcc CXX=g++ bash s_release `date +%Y%m%d`
 
   # Note that the project settings use this task name to compile the documentation during PR
   # testing, keep this in mind if you decide to change it.
@@ -3953,6 +4154,7 @@ tasks:
 
   - name: syscall-linux
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3967,6 +4169,7 @@ tasks:
             WT_BUILDDIR=$(pwd)/../../cmake_build LD_LIBRARY_PATH=$WT_BUILDDIR ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4198,128 +4401,8 @@ tasks:
 
       - func: "code coverage publish report"
 
-  - name: s3-tiered-storage-extensions-test
-    tags: ["python", "pull_request"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_s3
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered
-  - name: s3-tiered-test-small
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_s3
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered06
-  - name: s3-tiered-catch2-unittest-test
-    tags: ["tiered_unittest", "pull_request"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_tiered_storage_s3
-          HAVE_UNITTEST: -DHAVE_UNITTEST=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          include_expansions_in_env:
-            - aws_sdk_s3_ext_access_key
-            - aws_sdk_s3_ext_secret_key
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            # Run S3 extension unit testing.
-            ext/storage_sources/s3_store/test/run_s3_unit_tests
-  - name: azure-gcp-tiered-storage-extensions-test
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered
-  - name: azure-gcp-tiered-catch2-unittest-test
-    tags: ["tiered_unittest"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
-          HAVE_UNITTEST: -DHAVE_UNITTEST=1
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build"
-          shell: bash
-          script: |
-            set -o errexit
-            # Set the Azure credentials using config variable.
-            export AZURE_STORAGE_CONNECTION_STRING="${azure_sdk_ext_access_key}"
-
-            # GCP requires a path to a credentials file for authorization. To not expose the private
-            # information within the file, we use a placeholder private variable which are replaced
-            # in the command line with the evergreen expansion variables and stored in a temporary
-            # file.
-            file=$(mktemp --suffix ".json")
-
-            # Use '|' as the delimiter instead of default behavior because the private key contains
-            # slash characters.
-            sed -e 's|gcp_project_id|${gcp_sdk_ext_project_id}|'                      \
-                -e 's|gcp_private_key|'"${gcp_sdk_ext_private_key}"'|'                \
-                -e 's|gcp_private_id|${gcp_sdk_ext_private_key_id}|'                  \
-                -e 's|gcp_client_email|${gcp_sdk_ext_client_email}|'                  \
-                -e 's|gcp_client_id|${gcp_sdk_ext_client_id}|'                        \
-                -e 's|gcp_client_x509_cert_url|${gcp_sdk_ext_client_x509_cert_url}|'  ../test/evergreen/gcp_auth.json > $file
-            export GOOGLE_APPLICATION_CREDENTIALS="$file"
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-
-            # Run Azure extension unit testing.
-            ext/storage_sources/azure_store/test/run_azure_unit_tests
-
-            # Run GCP extension unit testing.
-            ext/storage_sources/gcp_store/test/run_gcp_unit_tests
-
-  - name: azure-gcp-tiered-test-small
-    tags: ["python"]
-    commands:
-      - func: "get project"
-      - func: "install gcp dependencies"
-      - func: "compile wiredtiger"
-        vars:
-          <<: [*configure_flags_tiered_storage_azure, *configure_flags_tiered_storage_gcp]
-      - func: "run tiered storage test"
-        vars:
-          # Set this in case of a core to get the correct python binary.
-          python_binary: $(pwd)/venv/bin/python3
-          tiered_storage_test_name: tiered06
-
   - name: spinlock-gcc-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4333,6 +4416,7 @@ tasks:
           test_format_extra_args: runs.rows=1000000:2500000
 
   - name: spinlock-pthread-adaptive-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4473,6 +4557,7 @@ tasks:
 
   - name: format-mirror-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4482,6 +4567,7 @@ tasks:
           trace_args: -T all
 
   - name: format-msan-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4492,6 +4578,7 @@ tasks:
 
   - name: format-stress-pull-request-test
     tags: ["pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4501,6 +4588,7 @@ tasks:
           format_test_script_args: -t 10 rows=10000 ops=50000
 
   - name: format-smoke-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4514,6 +4602,7 @@ tasks:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-asan-smoke-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4547,6 +4636,7 @@ tasks:
           times: 3
 
   - name: format-wtperf-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4595,6 +4685,7 @@ tasks:
 
   - name: tsan-playground-test
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4788,10 +4879,10 @@ tasks:
           run_test_checkpoint_args: -e -x -s 7 -C cache_size=1000MB
 
   - name: format-failure-configs-test
-    depends_on:
-    - name: compile
+    depends_on: *s-all-dep
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/test/evergreen"
@@ -4803,6 +4894,7 @@ tasks:
             ./run_format_configs.sh -j ${num_jobs}
 
   - name: static-wt-build-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4835,6 +4927,7 @@ tasks:
   - name: checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4851,6 +4944,7 @@ tasks:
 
   - name: checkpoint-stress-test-tiered
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4868,6 +4962,7 @@ tasks:
   - name: precise-checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4886,6 +4981,7 @@ tasks:
 
   - name: precise-checkpoint-stress-test-tiered
     exec_timeout_secs: 86400
+    depends_on: *s-all-dep
     commands:
       - command: timeout.update
         params:
@@ -4905,6 +5001,7 @@ tasks:
   - name: skiplist-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     exec_timeout_secs: 3600 # 1 hour
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4920,26 +5017,11 @@ tasks:
                 ${python_binary|python3} skiplist_stress.py
             done
 
-  - name: chunkcache-test
-    tags: ["pull_request"]
-    exec_timeout_secs: 1200 # 20 minutes
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/bench/workgen/runner"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ${python_binary|python3} chunkcache_simple.py
-
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
     # Set 5 hours timeout (60 * 60 * 5)
     exec_timeout_secs: 18000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4947,6 +5029,7 @@ tasks:
 
   - name: model-unit-test
     tags: ["pull_request", "model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4962,6 +5045,7 @@ tasks:
 
   - name: model-test-failure-workloads
     tags: ["model_checking", "pull_request"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4977,6 +5061,7 @@ tasks:
 
   - name: model-test-long
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4986,6 +5071,7 @@ tasks:
 
   - name: model-test-long-disagg
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4995,6 +5081,7 @@ tasks:
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5004,6 +5091,7 @@ tasks:
 
   - name: model-test-long-random-config-disagg
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5013,13 +5101,9 @@ tasks:
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
-      - command: expansions.update
-        params:
-          updates:
-          - key: CMAKE_TOOLCHAIN_FILE
-            value: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
       - func: "compile wiredtiger"
         vars:
           CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Coverage
@@ -5053,6 +5137,7 @@ tasks:
     tags: ["stress-test-zseries-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5069,6 +5154,7 @@ tasks:
     tags: ["stress-test-ppc-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5149,6 +5235,12 @@ tasks:
   - <<: *format-stress-test-disagg-leader-data-validation
     name: format-stress-test-disagg-leader-data-validation-2
     tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-1
+    tags: ["pull_request"]
+  - <<: *format-stress-test-disagg-leader-pull-request
+    name: format-stress-test-disagg-leader-pull-request-2
+    tags: ["pull_request"]
 
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-1
@@ -5157,55 +5249,24 @@ tasks:
     name: format-stress-test-disagg-follower-2
     tags: ["stress-test-disagg"]
 
-  # FIXME-WT-16394: Enable disagg switch mode on all platforms once failures have been resolved.
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch
-    name: format-stress-test-disagg-switch-3
-    tags: ["stress-test-disagg-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch-data-validation
     name: format-stress-test-disagg-switch-data-validation-1
-    tags: ["stress-test-disagg-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch-data-validation
     name: format-stress-test-disagg-switch-data-validation-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-switch-data-validation
-    name: format-stress-test-disagg-switch-data-validation-3
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-multi
-    name: format-stress-test-disagg-multi-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
-  - <<: *format-stress-test-disagg-multi
-    name: format-stress-test-disagg-multi-2
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-multi-data-validation
-    name: format-stress-test-disagg-multi-validation-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-test-disagg-multi-data-validation
-    name: format-stress-test-disagg-multi-validation-2
-    tags: ["stress-test-disagg-fail"]
-
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-1
-    tags: ["stress-test-disagg-fail"]
-  - <<: *timestamp-abort-test-disagg
-    name: timestamp-abort-test-disagg-2
-    tags: ["stress-test-disagg-fail"]
-
-  - name: format-stress-test-disagg-leader-pull-request
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-pull-request
+    name: format-stress-test-disagg-switch-pull-request-1
     tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          # run for 10 minutes.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=leader runs.rows=10000 runs.ops=50000
+  - <<: *format-stress-test-disagg-switch-pull-request
+    name: format-stress-test-disagg-switch-pull-request-2
+    tags: ["pull_request"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
@@ -5229,12 +5290,30 @@ tasks:
           # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
           # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
           format_args: disagg.mode=leader runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
-          times: 3
+          times: 2
       - func: "format test disagg"
         vars:
           format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
-          times: 3
+          times: 2
+
+  - name: format-stress-test-disagg-switch-tsan
+    tags: ["pull_request"]
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test disagg"
+        vars:
+          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
+          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
+          format_args: disagg.mode=switch runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
+          times: 2
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=switch runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+          times: 2
 
   - name: format-stress-disagg-leader-long-running
     depends_on:
@@ -5249,12 +5328,13 @@ tasks:
           times: 1
 
   - name: format-abort-recovery-stress-test
+    depends_on: *s-all-dep
     commands:
-      # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
+      # Allow one hour beyond test runtime because recovery under load can cause the test to
       # run longer.
       - command: timeout.update
         params:
-          exec_timeout_secs: 3600
+          exec_timeout_secs: 5400
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -5266,6 +5346,7 @@ tasks:
   - name: format-predictable-test
     # Set 2.5 hour timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5278,6 +5359,7 @@ tasks:
   - name: schema-abort-predictable-test
     # Set 20 minute timeout (60 * 20)
     exec_timeout_secs: 1200
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -5288,6 +5370,7 @@ tasks:
           times: 5
 
   - name: checkpoint-filetypes-predictable-test
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6075,6 +6158,30 @@ tasks:
         vars:
           test-name: cache_workload_update_trigger.py
 
+    ##################################################
+    # Performance Tests for disagg follower startup  #
+    ##################################################
+
+  - name: perf-disagg-many-tables-follower-startup
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: disagg_many_tables_follower_startup_perf.py
+          maxruns: 1
+          wtarg: -ops ['"wiredtiger_open_no_pickup", "reconfigure_pickup"'] -args '["--num-tables", "500000"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: disagg_many_tables_follower_startup_perf.py
+
     ###########################################
     # Performance Tests for log consolidation #
     ###########################################
@@ -6186,46 +6293,6 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: log.wtperf
-
-    #####################################
-    # Performance Tests for chunk cache #
-    #####################################
-
-  - name: perf-test-chunk-cache
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads.wtperf
-
-  - name: perf-test-chunk-cache-base
-    tags: ["chunk-cache-perf"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "run-perf-test"
-        vars:
-          perf-test-name: chunk-cache-reads-base.wtperf
-          maxruns: 1
-          wtarg: -ops ['"read"']
-      - func: "upload stats to atlas"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
-      - func: "upload stats to evergreen"
-        vars:
-          test-name: chunk-cache-reads-base.wtperf
 
     ###########################################
     #        Performance Long Tests           #
@@ -6556,6 +6623,154 @@ tasks:
         vars:
           test-name: microbenchmark_prefetch_on_verify.py
 
+  ##########################
+  # YCSB Performance Tests #
+  ##########################
+
+  - name: perf-test-ycsb-50read50update
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-50read50update.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-50read50update.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-50read50update.wtperf
+
+  - name: perf-test-ycsb-95read5update-mongodb-hvw-like-out-of-cache
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-95read5update-mongodb-hvw-like-out-of-cache.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-95read5update-mongodb-hvw-like-out-of-cache.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-95read5update-mongodb-hvw-like-out-of-cache.wtperf
+
+  - name: perf-test-ycsb-95read5update-mongodb-hvw-like-in-cache
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-95read5update-mongodb-hvw-like-in-cache.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "update_ops", "avg_latency_read", "avg_latency_update"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-95read5update-mongodb-hvw-like-in-cache.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-95read5update-mongodb-hvw-like-in-cache.wtperf
+
+  - name: perf-test-ycsb-100read-mongodb-hvw-like-out-of-cache
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-100read-mongodb-hvw-like-out-of-cache.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "avg_latency_read"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-100read-mongodb-hvw-like-out-of-cache.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-100read-mongodb-hvw-like-out-of-cache.wtperf
+
+  - name: perf-test-ycsb-100read-mongodb-hvw-like-in-cache
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-100read-mongodb-hvw-like-in-cache.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "avg_latency_read"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-100read-mongodb-hvw-like-in-cache.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-100read-mongodb-hvw-like-in-cache.wtperf
+
+  - name: perf-test-ycsb-95readlatest5insert
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-95readlatest5insert.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "insert_ops", "avg_latency_read", "avg_latency_insert"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-95readlatest5insert.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-95readlatest5insert.wtperf
+
+  - name: perf-test-ycsb-95scan5insert
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-95scan5insert.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "insert_ops", "avg_latency_read", "avg_latency_insert"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-95scan5insert.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-95scan5insert.wtperf
+
+  - name: perf-test-ycsb-50read50modify
+    tags: ["ycsb-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: ycsb-50read50modify.wtperf
+          maxruns: 1
+          wtarg: -ops '["read_ops", "modify_ops", "avg_latency_read", "avg_latency_modify"]'
+      - func: "upload stats to atlas"
+        vars:
+          test-name: ycsb-50read50modify.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: ycsb-50read50modify.wtperf
+
   - name: bench-wt2853-perf-test-row
     tags: ["wt2853-perf"]
     depends_on:
@@ -6654,6 +6869,7 @@ tasks:
 
   - name: debug-have-diagnostic
     tags: ["antithesis"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6661,6 +6877,7 @@ tasks:
 
   - name: release-with-debug-have-diagnostic
     tags: ["antithesis"]
+    depends_on: *s-all-dep
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6680,6 +6897,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
@@ -6697,6 +6915,7 @@ buildvariants:
     - name: configure-combinations
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
+    - name: unit-test-hook-parallel-checkpoint
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
@@ -6717,17 +6936,9 @@ buildvariants:
     - name: format-failure-configs-test
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
-    - name: s3-tiered-storage-extensions-test
-    # FIXME-WT-12812 - This test is unstable when run with the new tmalloc install script. Disabled while WT-12812 is under investigation.
-    # - name: azure-gcp-tiered-storage-extensions-test
-    # FIXME-WT-14962 - Added for tiered storage; may help disagg but currently a CI blocker and needs re-evaluation.
-    # - name: csuite-timestamp-abort-test-s3
     - name: bench-tiered-push-pull
-    - name: bench-tiered-push-pull-s3
-    - name: unit-test-hook-tiered-s3
-    - name: chunkcache-test
     - name: ".workgen-test"
-      batchtime: 1440 # 24 hours
+      batchtime: 120 # every 2 hours
     - name: model-unit-test
     - name: model-test-long
       batchtime: 1440 # once a day
@@ -6748,7 +6959,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -6759,13 +6971,13 @@ buildvariants:
     # a separate process. It's worth investigating whether it could lead to hiding some warnings.
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
-    unit_test_ignore: test/suite/asan.fail
+    unit_test_ignore: test/suite/fail_lists/asan.fail
     unit_test_variant_args: --asan
     ctest_extra_args: -E "wt12015_backup_corruption"
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test !format-mirror-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -6791,7 +7003,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -6808,7 +7021,10 @@ buildvariants:
     - name: unit-test-hook-disagg-follower-tsan
       distros: ubuntu2004-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-disagg-leader-tsan
+      distros: ubuntu2004-large
+    - name: format-stress-test-disagg-switch-tsan
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
       distros: ubuntu2004-large
@@ -6827,8 +7043,9 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     # Compile with clang so we test that path for the catch2 unittests.
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_PYTHON=0 -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -6850,7 +7067,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
     # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
     posix_configure_flags: -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -6881,7 +7099,8 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     # Use optimization level -O0 since Clang treats -Og (our default optimization for non-release
     # builds) as -O1, making test binaries more difficult to debug.
@@ -6896,8 +7115,9 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: make-check-test
       distros: ubuntu2004-large
     - name: cppsuite-default-all
@@ -6907,6 +7127,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -6922,7 +7143,7 @@ buildvariants:
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
     - name: ".cppsuite-stress-test"
-      batchtime: 720 # twice a day
+      batchtime: 120 # every 2 hours
       distros: ubuntu2004-medium
 
 - name: ubuntu2004-stress-tests-arm64
@@ -6930,6 +7151,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -6950,6 +7172,8 @@ buildvariants:
   batchtime: 1440 # 1 day
   run_on:
   - ubuntu2004-test
+  expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
   tasks:
     - name: package
 
@@ -6959,9 +7183,9 @@ buildvariants:
   run_on:
   - rhel80-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     cmake_generator: "Unix Makefiles"
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
@@ -6987,8 +7211,7 @@ buildvariants:
   - windows-2022-small
   expansions:
     ENABLE_TCMALLOC: 0
-    # Remove the default configurations for the toolchain, install prefix and number of jobs.
-    CMAKE_TOOLCHAIN_FILE:
+    # Windows uses powershell + vcvars; CMake auto-detects cl.exe.
     CMAKE_INSTALL_PREFIX:
     HAVE_BUILTIN_EXTENSION_KEY_PROVIDER: -DHAVE_BUILTIN_EXTENSION_KEY_PROVIDER=1
     num_jobs:
@@ -7018,6 +7241,7 @@ buildvariants:
   - ubuntu2204-large
   batchtime: 4320 # 3 days
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     # Must disable ZSTD as its not available on the big endian platform (we generate the data files used for those tests here).
     posix_configure_flags: -DENABLE_ZSTD=0
@@ -7034,6 +7258,7 @@ buildvariants:
   - rhel8-zseries-small
   batchtime: 4320 # 3 days
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7049,8 +7274,9 @@ buildvariants:
   - rhel8-power-small
   batchtime: 120 # 2 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     format_test_setting: ulimit -c unlimited
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     # Use quarter of the vCPUs to avoid OOM kill failure and disk issues on this variant.
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 4 | bc)
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
@@ -7071,6 +7297,7 @@ buildvariants:
   - rhel8-zseries-small
   batchtime: 120 # 2 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     # Use half number of vCPU to avoid OOM kill failure
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
@@ -7088,6 +7315,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
@@ -7095,15 +7323,15 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
       distros: ubuntu2004-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: long-test
       distros: ubuntu2004-arm64-large
     - name: make-check-test
@@ -7118,7 +7346,6 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: model-test-long-random-config-disagg
       batchtime: 1440 # once a day
-    - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: ubuntu2004-arm64-large
@@ -7138,9 +7365,10 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ANTITHESIS=1 -DENABLE_STRICT=0
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_PRESET: linux-clang
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".antithesis"
@@ -7153,6 +7381,7 @@ buildvariants:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7172,7 +7401,6 @@ buildvariants:
       distros: ubuntu2004-large
     - name: configure-combinations
     - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
 
 - name: ubuntu2004-release-arm64
   display_name: "! Ubuntu 20.04 ARM64 (Release Build)"
@@ -7180,6 +7408,7 @@ buildvariants:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 0
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7198,7 +7427,6 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: configure-combinations
     - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
 
 - name: ubuntu2004-release-stress-tests
   display_name: "! Ubuntu 20.04 Stress tests (Release Build)"
@@ -7206,6 +7434,7 @@ buildvariants:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7224,6 +7453,7 @@ buildvariants:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7239,6 +7469,7 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7259,6 +7490,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7280,6 +7512,7 @@ buildvariants:
   run_on:
   - ubuntu2004-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7303,6 +7536,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7331,6 +7565,7 @@ buildvariants:
   run_on:
   - ubuntu2004-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7360,6 +7595,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7389,6 +7625,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7418,6 +7655,7 @@ buildvariants:
   - amazon2023.3-arm64-small
   batchtime: 720 # 12 hours
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -7435,29 +7673,28 @@ buildvariants:
     - name: long-test
       distros: amazon2023.3-arm64-large
     - name: format-smoke-test
-    - name: s3-tiered-storage-extensions-test
 
 - name: amazon2023-arm64
   display_name: "! Amazon2023 ARM64"
   run_on:
   - amazon2023.3-arm64-small
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
-    - name: chunkcache-test
     - name: compile
     - name: fops
     - name: format-failure-configs-test
       distros: amazon2023.3-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: long-test
       distros: amazon2023.3-arm64-large
     - name: make-check-test
@@ -7474,7 +7711,6 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: model-test-long-random-config-disagg
       batchtime: 1440 # once a day
-    - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: amazon2023.3-arm64-large
@@ -7496,6 +7732,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
@@ -7517,7 +7754,8 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -7528,12 +7766,12 @@ buildvariants:
     # a separate process. It's worth investigating whether it could lead to hiding some warnings.
     num_jobs: 1
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
-    unit_test_ignore: test/suite/asan.fail
+    unit_test_ignore: test/suite/fail_lists/asan.fail
     unit_test_variant_args: --asan
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7559,7 +7797,8 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
@@ -7577,6 +7816,9 @@ buildvariants:
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
       distros: amazon2023.3-arm64-large
+    - name: format-stress-test-disagg-switch-tsan
+      distros: amazon2023.3-arm64-large
+    - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-tsan
       distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN
@@ -7594,7 +7836,8 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
     # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
     posix_configure_flags: -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
@@ -7628,7 +7871,8 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-small
   expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    REQUIRE_MDB_TOOLCHAIN: "1"
+    CMAKE_PRESET: linux-clang
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
     # Use optimization level -O0 since Clang treats -Og (our default optimization for non-release
     # builds) as -O1, making test binaries more difficult to debug.
@@ -7642,8 +7886,9 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
+    - name: format-stress-test-disagg-leader-pull-request-1
     - name: format-stress-test-disagg-follower-pull-request
+    - name: format-stress-test-disagg-switch-pull-request-1
     - name: make-check-test
       distros: amazon2023.3-arm64-large
     - name: cppsuite-default-all
@@ -7653,6 +7898,7 @@ buildvariants:
   run_on:
   - amazon2023.3-arm64-large
   expansions:
+    REQUIRE_MDB_TOOLCHAIN: "1"
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -7666,35 +7912,3 @@ buildvariants:
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
-
-- name: amazon2023-disagg-stress
-  display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
-  batchtime: 4320 # once every two days
-  run_on:
-  - amazon2023.3-arm64-large
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    disagg_run: true
-  tasks:
-    - name: compile
-    - name: ".stress-test-disagg-fail"
-
-- name: amazon2023-disagg-asan-stress
-  display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
-  batchtime: 4320 # once every three days
-  run_on:
-  - amazon2023.3-arm64-large
-  expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
-    ENABLE_TCMALLOC: 0
-    additional_env_vars: |
-      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    disagg_run: true
-    <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-    additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-  tasks:
-    - name: compile
-    - name: ".stress-test-disagg-san-fail"

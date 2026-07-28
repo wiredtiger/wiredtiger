@@ -30,17 +30,14 @@ import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_hs06.py
 # Verify that triggering history store usage does not cause a spike in memory usage
 # to form an update chain from the history store contents.
 #
 # The required value should be fetched from the history store and then passed straight
 # back to the user without putting together an update chain.
-#
-# TODO: Uncomment the checks after the main portion of the relevant history
-# project work is complete.
 class test_hs06(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = 'cache_size=50MB,statistics=(fast)'
     format_values = [
         ('column', dict(key_format='r')),
@@ -50,12 +47,6 @@ class test_hs06(wttest.WiredTigerTestCase):
     value_format='S'
     scenarios = make_scenarios(format_values)
     nrows = 2000
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def get_non_page_image_memory_usage(self):
         return self.get_stat(stat.conn.cache_bytes_other)
@@ -67,7 +58,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
     def test_hs_reads(self):
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -127,7 +118,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         start_usage = self.get_non_page_image_memory_usage()
 
         # Whenever we request something out of cache of timestamp 2, we should
-        # be reading it straight from the history store without initialising a full
+        # be reading it straight from the history store without initializing a full
         # update chain of every version of the data.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(2))
         for i in range(1, self.nrows):
@@ -143,15 +134,13 @@ class test_hs06(wttest.WiredTigerTestCase):
         #
         # This check could be more aggressive but to avoid potential flakiness,
         # lets just ensure that it hasn't doubled.
-        #
-        # TODO: Uncomment this once the project work is done.
-        # self.assertLessEqual(end_usage, (start_usage * 2))
+        self.assertLessEqual(end_usage, (start_usage * 2))
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
     def test_hs_modify_reads(self):
 
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -227,7 +216,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
     def test_hs_prepare_reads(self):
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -286,7 +275,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
     def test_hs_multiple_updates(self):
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -326,7 +315,7 @@ class test_hs06(wttest.WiredTigerTestCase):
     def test_hs_multiple_modifies(self):
 
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -372,7 +361,7 @@ class test_hs06(wttest.WiredTigerTestCase):
     def test_hs_instantiated_modify(self):
 
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -411,7 +400,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_hs06_extra'
+        uri2 = f'table:{self.test_name}_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -433,7 +422,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
     def test_hs_modify_stable_is_base_update(self):
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -474,7 +463,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_hs06_extra'
+        uri2 = f'table:{self.test_name}_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -497,7 +486,7 @@ class test_hs06(wttest.WiredTigerTestCase):
     def test_hs_rec_modify(self):
 
         # Create a small table.
-        uri = "table:test_hs06"
+        uri = f"table:{self.test_name}"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 

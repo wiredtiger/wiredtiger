@@ -219,10 +219,13 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
     for (;; __wt_yield()) {
         switch (r->tested_ref_state = WT_REF_GET_STATE(ref)) {
         case WT_REF_DISK:
-            /* On disk, not modified by definition. */
+            /*
+             * On disk, not modified by definition. A concurrent fast-truncate can set ref->page_del
+             * immediately after this state is read, so it cannot be asserted NULL here; if that
+             * happens, the truncate simply isn't reflected in this reconciliation and will be
+             * picked up the next time the parent page is reconciled.
+             */
             WT_ASSERT(session, ref->addr != NULL);
-            /* DISK pages do not have fast-truncate info. */
-            WT_ASSERT(session, ref->page_del == NULL);
             goto done;
 
         case WT_REF_DELETED:
@@ -236,7 +239,6 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
 
-            /* FIXME-WT-14879: support delta for fast truncate. */
             if (build_delta != NULL) {
                 *build_delta = false;
                 r->delta.size = 0;
@@ -353,6 +355,17 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                     break;
                 }
 
+                /*
+                 * Force a full base image instead of a delta. Handling the now globally visible
+                 * deletion below can free this leaf's block. A delta keeps the parent's previous
+                 * base image, which still references the freed block through its proxy cell, and
+                 * that resurrects the page. Rebuilding the full image drops the proxy cell and
+                 * frees the block together, so the parent never references a freed block.
+                 */
+                if (build_delta != NULL) {
+                    *build_delta = false;
+                    r->delta.size = 0;
+                }
                 ret = __rec_child_deleted(session, r, ref, cmsp);
                 WT_REF_SET_STATE(ref, WT_REF_MEM);
                 WT_RET(ret);

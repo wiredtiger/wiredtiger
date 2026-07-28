@@ -34,9 +34,9 @@ static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
-static void config_chunk_cache(void);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
+static void config_disagg_key_provider(void);
 static void config_disagg_storage(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
@@ -52,6 +52,7 @@ static void config_obsolete_cleanup(void);
 static void config_off(TABLE *, const char *);
 static void config_off_all(const char *);
 static void config_pct(TABLE *);
+static void config_prefetch(void);
 static void config_run_length(void);
 static void config_statistics(void);
 static void config_tiered_storage(void);
@@ -493,9 +494,10 @@ config_run(void)
     /* Order can be important, don't shuffle without careful consideration. */
     config_tiered_storage();                         /* Tiered storage */
     config_disagg_storage();                         /* Disaggregated storage */
-    config_chunk_cache();                            /* Chunk cache */
+    config_disagg_key_provider();                    /* Disaggregated key provider */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
+    config_prefetch();                               /* Prefetch */
     config_checkpoint();                             /* Checkpoints */
     config_compression(NULL, "logging.compression"); /* Logging compression */
     config_encryption();                             /* Encryption */
@@ -513,6 +515,35 @@ config_run(void)
     config_run_length();
 
     config_random_generators_before_run();
+}
+
+/*
+ * config_prefetch --
+ *     Prefetch configuration.
+ */
+static void
+config_prefetch(void)
+{
+    bool available = GV(PREFETCH) != 0;
+    bool default_on = GV(PREFETCH_DEFAULT) != 0;
+
+    /* Nothing to fix: either prefetch is available (valid), or default is off (no constraint). */
+    if (available || !default_on)
+        return;
+
+    /*
+     * Invalid combination: prefetch.default=true requires prefetch=true (available).
+     * Resolve based on whether the flags came from the user or were randomly generated:
+     * - User explicitly set prefetch.default but left prefetch unset: force prefetch on.
+     * - prefetch.default was randomly turned on: silently turn it off.
+     */
+    bool available_explicit = config_explicit(NULL, "prefetch");
+    bool default_explicit = config_explicit(NULL, "prefetch.default");
+
+    if (default_explicit && !available_explicit)
+        config_single(NULL, "prefetch=1", true);
+    else if (!default_explicit)
+        config_off(NULL, "prefetch.default");
 }
 
 /*
@@ -1047,6 +1078,8 @@ config_in_memory_reset(void)
         config_off(NULL, "precise_checkpoint");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
+    if (!config_explicit(NULL, "prefetch.default"))
+        config_off(NULL, "prefetch.default");
 }
 
 /*
@@ -1366,86 +1399,6 @@ config_statistics(void)
 }
 
 /*
- * config_chunk_cache --
- *     Chunk cache configuration.
- */
-static void
-config_chunk_cache(void)
-{
-    char buf[128];
-    const char *chunkcache_type;
-
-    chunkcache_type = NULL;
-
-    /* Chunk cache does not work unless tiered storage is configured. */
-    if (!g.tiered_storage_config) {
-        if (config_explicit(NULL, "chunk_cache") && GV(CHUNK_CACHE))
-            testutil_die(EINVAL,
-              "%s: chunk cache cannot be enabled unless tiered storage is configured.", progname);
-        return;
-    }
-
-    if (!config_explicit(NULL, "chunk_cache")) {
-        /*
-         * Make sure no configurations related to chunk caching are set if chunk cache is not
-         * enabled.
-         */
-        if (config_explicit(NULL, "chunk_cache.capacity") ||
-          config_explicit(NULL, "chunk_cache.chunk_size") ||
-          config_explicit(NULL, "chunk_cache.type") ||
-          config_explicit(NULL, "chunk_cache.storage_path"))
-            testutil_die(EINVAL,
-              "%s: Enable chunk caching (chunk_cache=on) to allow configuring other chunk cache "
-              "settings",
-              progname);
-
-        /* Enable chunk cache 50% of the time if not explicit set. */
-        testutil_snprintf(
-          buf, sizeof(buf), "chunk_cache=%s", mmrand(&g.data_rnd, 1, 100) <= 50 ? "on" : "off");
-        config_single(NULL, buf, false);
-    }
-
-    if (GV(CHUNK_CACHE)) {
-        if (config_explicit(NULL, "chunk_cache.type")) {
-            chunkcache_type = GVS(CHUNK_CACHE_TYPE);
-            if (strcmp(chunkcache_type, "FILE") != 0 && strcmp(chunkcache_type, "DRAM") != 0)
-                testutil_die(EINVAL, "illegal chunkcache.type configuration: %s", chunkcache_type);
-
-            if (GV(RUNS_IN_MEMORY) && strcmp(chunkcache_type, "FILE") == 0)
-                testutil_die(EINVAL,
-                  "%s: chunk caching cannot be enabled for in-memory runs as chunkcache.type is "
-                  "set to FILE.",
-                  progname);
-        } else {
-            if (GV(RUNS_IN_MEMORY))
-                config_single(NULL, "chunk_cache.type=DRAM", false);
-            else {
-                /*
-                 * Alternate between running chunk cache with the 'File' type and the 'DRAM' type.
-                 */
-                testutil_snprintf(buf, sizeof(buf), "chunk_cache.type=%s",
-                  mmrand(&g.data_rnd, 1, 100) <= 50 ? "DRAM" : "FILE");
-                config_single(NULL, buf, false);
-            }
-        }
-
-        if (strcmp(GVS(CHUNK_CACHE_TYPE), "DRAM") == 0 &&
-          config_explicit(NULL, "chunk_cache.storage_path"))
-            testutil_die(EINVAL,
-              "For chunk_cache.type=%s, passing in the chunk_cache.storage_path=%s is unnecessary.",
-              chunkcache_type, GVS(CHUNK_CACHE_STORAGE_PATH));
-
-        if (!config_explicit(NULL, "chunk_cache.capacity") &&
-          !config_explicit(NULL, "chunk_cache.chunk_size"))
-            if (GV(CHUNK_CACHE_CAPACITY) <= GV(CHUNK_CACHE_CHUNK_SIZE))
-                GV(CHUNK_CACHE_CHUNK_SIZE) = GV(CHUNK_CACHE_CAPACITY) / 10;
-
-        /* Always ensure that capacity greater than chunk_size. */
-        testutil_assert(GV(CHUNK_CACHE_CAPACITY) > GV(CHUNK_CACHE_CHUNK_SIZE));
-    }
-}
-
-/*
  * config_tiered_storage --
  *     Tiered storage configuration.
  */
@@ -1515,18 +1468,21 @@ config_disagg_storage(void)
     if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
         testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
-    if (strcmp(mode, "switch") == 0)
+    if (strcmp(mode, "switch") == 0) {
         /* Randomly assign "leader" or "follower". */
         g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-    else
+        /*
+         * FIXME-WT-17564: Switch mode forces follower-side slow truncate until proper write
+         * conflict detection is implemented on fast truncate.
+         */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
+    } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
-
-    /* FIXME WT-15189 For disagg, random cursors are problematic. */
-    if (config_explicit(NULL, "ops.random_cursor"))
-        WARN("%s",
-          "turning off ops.random_cursor with disagg as they are currently problematic and can "
-          "cause stalls");
-    config_off(NULL, "ops.random_cursor");
+        /* Leader and follower modes always exercise fast truncate. */
+        if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
+            config_single(NULL, "debug.disagg_slow_truncate_follower=off", false);
+    }
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");
@@ -1547,6 +1503,29 @@ config_disagg_storage(void)
 
     /*  Tiered storage is not supported with disagg */
     config_single(NULL, "tiered_storage.storage_source=off", true);
+}
+
+/*
+ * config_disagg_key_provider --
+ *     Disaggregated key provider mode configuration (0=off, 1=pull, 2=push).
+ */
+static void
+config_disagg_key_provider(void)
+{
+    if (!g.disagg_storage_config) {
+        config_single(NULL, "disagg.key_provider=0", false);
+        return;
+    }
+
+    if (!config_explicit(NULL, "disagg.key_provider")) {
+        uint32_t r = mmrand(&g.extra_rnd, 1, 10);
+        if (r <= 5)
+            config_single(NULL, "disagg.key_provider=2", false); /* 50% push */
+        else if (r <= 7)
+            config_single(NULL, "disagg.key_provider=1", false); /* 20% pull */
+        else
+            config_single(NULL, "disagg.key_provider=0", false); /* 30% off */
+    }
 }
 
 /*
@@ -1627,11 +1606,11 @@ config_transaction(void)
         config_off(NULL, "precise_checkpoint");
         config_off(NULL, "preserve_prepared");
     }
-    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    /* FIXME-WT-17277 Write prepared truncate operation to disk. */
     if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
         if (config_explicit(NULL, "ops.truncate"))
             WARN("%s", "turning off ops.truncate to work with ops.prepare and precise checkpoint");
-        config_off(NULL, "ops.truncate");
+        config_off_all("ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */

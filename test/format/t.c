@@ -134,6 +134,7 @@ locks_init(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_init(session, &g.backup_lock);
     lock_init(session, &g.prepare_commit_lock);
+    lock_init(session, &g.timestamp_lock);
     testutil_check(session->close(session, NULL));
 }
 
@@ -149,6 +150,7 @@ locks_destroy(WT_CONNECTION *conn)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     lock_destroy(session, &g.backup_lock);
     lock_destroy(session, &g.prepare_commit_lock);
+    lock_destroy(session, &g.timestamp_lock);
     testutil_check(session->close(session, NULL));
 }
 
@@ -359,6 +361,9 @@ main(int argc, char *argv[])
         trace_init();
         wts_create_database();
         wts_open(g.home, &g.wts_conn, true);
+        /* Follower: seed an initial key before the first step-up checkpoint. */
+        if (!g.disagg_leader)
+            disagg_key_push_initial(g.wts_conn, false);
         timestamp_init();
     }
     wts_prepare_discover(g.wts_conn);
@@ -455,6 +460,8 @@ skip_operations:
 static void
 format_die(void)
 {
+    bool expect_failure;
+
     /* If only checking configuration syntax, no need to message or drop core. */
     if (syntax_check)
         exit(1);
@@ -473,13 +480,19 @@ format_die(void)
      */
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
+    /* Check if we are expecting a failure, e.g., due to fault injection. */
+    expect_failure = __wt_atomic_load_bool_acquire(&g.expect_failure);
+
     /* Write a failure message so format.sh knows we failed. */
-    fprintf(stderr, "\n%s: run FAILED\n", progname);
+    if (!expect_failure)
+        fprintf(stderr, "\n%s: run FAILED\n", progname);
+    else
+        fprintf(stderr, "\n%s: run finished due to an expected failure\n", progname);
     fflush(stderr);
     fflush(stdout);
 
     /* Display the configuration that failed. */
-    if (g.configured)
+    if (g.configured && !expect_failure)
         config_print(true);
 
     /* Now about to close shared resources, give them a chance to empty. */

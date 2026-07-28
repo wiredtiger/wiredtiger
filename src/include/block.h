@@ -140,7 +140,7 @@ typedef struct {
  */
 #define WT_EXT_FOREACH_FROM_OFFSET_INCL(skip, el, start)                        \
     for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL; \
-         (skip) = (skip)->next[0])
+      (skip) = (skip)->next[0])
 
 /*
  * Checkpoint cookie: carries a version number as I don't want to rev the schema
@@ -191,8 +191,9 @@ struct __wt_block_ckpt {
     WT_EXTLIST ckpt_discard; /* Checkpoint archive */
 };
 
-#define WT_BLOCK_INVALID_PAGE_ID 0 /* Invalid page ID, e.g., if it's not allocated. */
-#define WT_BLOCK_MIN_PAGE_ID 100   /* Minimum page ID that can be used for user data. */
+#define WT_BLOCK_INVALID_PAGE_ID 0              /* Invalid page ID, e.g., if it's not allocated. */
+#define WT_BLOCK_INVALID_PAGE_ID_MAX UINT64_MAX /* Sentinel value, not a valid page ID. */
+#define WT_BLOCK_MIN_PAGE_ID 100 /* Minimum page ID that can be used for user data. */
 
 /*
  * WT_BM --
@@ -277,12 +278,23 @@ struct __wt_bm {
  *	Block manager file handle.
  */
 struct __wt_block {
+    /*
+     * The fields up to and including hashq must match the layout of WT_BLOCK_DISAGG exactly. The
+     * shared-prefix invariant is enforced by static_asserts in verify_build.h.
+     *
+     * Ideally we would split this into a public/private structure, similar to session handles, and
+     * customize file and disagg handles as necessary. That's invasive so save the grunt work for
+     * now.
+     */
+
+    /* ===== Begin shared prefix with WT_BLOCK_DISAGG ===== */
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+    /* ===== End shared prefix with WT_BLOCK_DISAGG ===== */
 
     WT_FH *fh;            /* Backing file handle */
     wt_off_t size;        /* Storage size */
@@ -458,21 +470,34 @@ struct __wt_block_header {
  */
 struct __wt_block_disagg {
     /*
-     * The structure needs to exactly match the WT_BLOCK structure, since it can be treated as one
-     * for connection caching and a few other things. For custom fields, see below. Ideally we would
-     * split this into a public/private structure, similar to session handles, and customize file
-     * and disagg handles as necessary. That's invasive so save the grunt work for now.
+     * The fields up to and including hashq must match the layout of WT_BLOCK exactly. The
+     * shared-prefix invariant is enforced by static_asserts in verify_build.h.
+     *
+     * Ideally we would split this into a public/private structure, similar to session handles, and
+     * customize file and disagg handles as necessary. That's invasive so save the grunt work for
+     * now.
      */
+
+    /* ===== Begin shared prefix with WT_BLOCK ===== */
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
+    /* ===== End shared prefix with WT_BLOCK ===== */
 
     /* Custom disaggregated fields. */
     uint64_t tableid;
     WT_PAGE_LOG_HANDLE *plhandle;
+
+    /* Total bytes across all pages. */
+    wt_shared uint64_t size;
+
+    /* Root page size tracking for checkpoint size accounting. */
+    uint64_t current_root_size;  /* Size of current root page */
+    uint64_t previous_root_size; /* Size of previous root page */
+    uint64_t root_size_gen;      /* Checkpoint generation of the last root size update */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLOCK_DISAGG_HS 0x1u

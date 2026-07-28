@@ -30,7 +30,6 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_hs26.py
 # Test that changes overlapping variable-length column store RLE groups don't lose or corrupt data.
 # (The concern doesn't exist for row stores, so while this test could be run for row stores there's
 # little benefit to doing so; thus, no row-store scenarios are generated.)
@@ -41,7 +40,7 @@ from wtscenario import make_scenarios
 #
 # It checks that the immediately written values can be read back, but the interesting part is
 # whether they read back correctly after forcing eviction, which will RLE-encode the duplicates
-# and read them back. There are many opportunities for the interaction betwee RLE groups and
+# and read them back. There are many opportunities for the interaction between RLE groups and
 # history store accesses to go off the rails.
 class test_hs26(wttest.WiredTigerTestCase):
     conn_config = ''

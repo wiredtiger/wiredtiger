@@ -104,51 +104,52 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         if expect_json:
             verbose_config += ",json_output=[message]"
         conn = self.wiredtiger_open(self.home, verbose_config)
-        # Yield the connection resource to the execution context, allowing it to perform any necessary
-        # operations on the connection (for generating the expected verbose output).
-        yield conn
-        # Read the contents of stdout to extract our verbose messages.
-        output = self.readStdout(self.nlines)
-        # Split the output into their individual messages. We want validate the contents of each message
-        # to ensure we've only generated verbose messages for the expected categories.
-        verbose_messages = output.splitlines()
+        try:
+            # Yield the connection resource to the execution context, allowing it to perform any
+            # necessary operations on the connection (for generating the expected verbose output).
+            yield conn
+            # Read the contents of stdout to extract our verbose messages.
+            output = self.readStdout(self.nlines)
+            # Split the output into their individual messages. We want validate the contents of each message
+            # to ensure we've only generated verbose messages for the expected categories.
+            verbose_messages = output.splitlines()
 
-        if expect_output:
-            self.assertGreater(len(verbose_messages), 0)
-        else:
-            self.assertEqual(len(verbose_messages), 0)
+            if expect_output:
+                self.assertGreater(len(verbose_messages), 0)
+            else:
+                self.assertEqual(len(verbose_messages), 0)
 
-        if len(output) >= self.nlines:
-            # If we've read the maximum number of characters, its likely that the last line is truncated ('...'). In this
-            # case, trim the last message as we can't parse it.
-            verbose_messages = verbose_messages[:-1]
+            if len(output) >= self.nlines:
+                # If we've read the maximum number of characters, its likely that the last line is truncated ('...'). In this
+                # case, trim the last message as we can't parse it.
+                verbose_messages = verbose_messages[:-1]
 
-        # Test the contents of each verbose message, ensuring it satisfies the expected pattern.
-        verb_pattern = re.compile('|'.join(patterns))
-        # To avoid truncated messages, slice out the last message string in the
-        for line in verbose_messages:
-            # Check JSON validity
-            if expect_json:
-                try:
-                    json.loads(line)
-                except Exception as e:
-                    self.prout('Unable to parse JSON message: %s' % line)
-                    raise e
+            # Test the contents of each verbose message, ensuring it satisfies the expected pattern.
+            verb_pattern = re.compile('|'.join(patterns))
+            # To avoid truncated messages, slice out the last message string in the
+            for line in verbose_messages:
+                # Check JSON validity
+                if expect_json:
+                    try:
+                        json.loads(line)
+                    except Exception as e:
+                        self.prout('Unable to parse JSON message: %s' % line)
+                        raise e
 
-            self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
+                self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
+        finally:
+            # Close the connection resource and clean up the contents of the stdout file, flushing out
+            # the verbose output that occurred during the execution of this context.
+            conn.close()
+            self.cleanStdout()
 
-        # Close the connection resource and clean up the contents of the stdout file, flushing out the
-        # verbose output that occurred during the execution of this context.
-        conn.close()
-        self.cleanStdout()
-
-# test_verbose01.py
 # Verify basic uses of the verbose configuration API work as intended i.e. passing
 # single & multiple valid and invalid verbose categories. These tests are mainly focused on uses
 # of the interface prior to the introduction of verbosity levels, ensuring 'legacy'-style
 # uses of the interface are still supported.
 class test_verbose01(test_verbose_base):
 
+    test_name = __qualname__
     format = [
         ('flat', dict(is_json=False)),
         ('json', dict(is_json=True)),
@@ -169,7 +170,7 @@ class test_verbose01(test_verbose_base):
         with self.expect_verbose(['api'], ['WT_VERB_API'], self.is_json) as conn:
             # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
             # messages.
-            uri = 'table:test_verbose01_api'
+            uri = f'table:{self.test_name}_api'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
@@ -183,7 +184,7 @@ class test_verbose01(test_verbose_base):
             # Create a simple table to invoke compaction on. We aren't doing anything interesting with the table
             # such that the data source will be compacted. Rather we want to simply invoke a compaction pass to
             # generate verbose messages.
-            uri = 'table:test_verbose01_compact'
+            uri = f'table:{self.test_name}_compact'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             session.compact(uri)
@@ -198,7 +199,7 @@ class test_verbose01(test_verbose_base):
             # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
             # messages. Beyond opening the connection resource, we shouldn't need to do anything special for the version
             # category.
-            uri = 'table:test_verbose01_multiple'
+            uri = f'table:{self.test_name}_multiple'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
@@ -212,7 +213,7 @@ class test_verbose01(test_verbose_base):
         with self.expect_verbose([], [], self.is_json, False) as conn:
             # Perform a set of simple API operations (table creations and cursor operations). Ensuring no verbose messages
             # are generated.
-            uri = 'table:test_verbose01_none'
+            uri = f'table:{self.test_name}_none'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)

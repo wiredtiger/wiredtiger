@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_tiered16.py
-#    Basic test for the remove_shared configuration in session.drop.
+# Basic test for the remove_shared configuration in session.drop.
 
 from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
@@ -73,8 +72,7 @@ class test_tiered16(TieredConfigMixin, wttest.WiredTigerTestCase):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.session.drop(uri_a, "force=true,remove_files=false,remove_shared=true"), msg)
 
-        # Currently we are only running the test with dir_store because the remove_shared configuration
-        # is not yet implemented for the S3 storage source.
+        # Currently we are only running the test with dir_store.
         if self.is_tiered_scenario() and self.ss_name == 'dir_store':
             # If a cache directory is not provided, the default cache directory is "cache-" appended to
             # the bucket directory.

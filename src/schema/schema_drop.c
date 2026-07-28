@@ -133,17 +133,15 @@ __drop_index(
 static int
 __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
-
-    btree = NULL;
 
     /* Get the layered data handle. */
     ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
-    btree = S2BT(session);
     if (ret == EBUSY)
         WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_RET(ret);
+
+    WT_BTREE *btree = S2BT(session);
 
     if (btree->page_log == NULL)
         WT_ERR(ENOTSUP);
@@ -194,20 +192,26 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    /* Only the leader can remove the metadata from shared metadata table and issue a trim command.
-     */
-    if (S2C(session)->layered_table_manager.leader) {
+    /* Only the leader can issue a trim command. */
+    if (S2C(session)->layered_table_manager.leader)
         WT_ERR(__drop_issue_trim(session, stable_uri));
 
-        /* Remove the all associated metadata from shared metadata table. */
-        WT_SAVE_DHANDLE(session,
-          ret = __wt_disagg_enqueue_metadata_operation(
-            session, stable_uri, tablename, WT_SHARED_METADATA_REMOVE));
-        WT_ERR(ret);
-    }
+    /* Remove all the associated metadata from shared metadata table. */
+    WT_SAVE_DHANDLE(session,
+      ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
+        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
+    WT_ERR(ret);
 
-    WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
-
+    /*
+     * Drop the layered table constituents. The stable table may not exist locally on a follower
+     * (followers don't create stable tables); that is fine because the shared metadata removal is
+     * handled by the enqueued REMOVE operation. Leaders always have the stable constituent, so
+     * treat ENOENT as an error for them.
+     */
+    WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
+    if (WT_CHECK_AND_RESET(ret, ENOENT) && S2C(session)->layered_table_manager.leader)
+        WT_ERR_MSG(session, ENOENT,
+          "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
 
     /* Now drop the top-level table. */
@@ -223,6 +227,7 @@ __drop_layered(
 err:
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
+
     return (ret);
 }
 
@@ -385,7 +390,7 @@ __drop_tiered(
      * remove the work. So hold the tiered lock for the duration so that the worker thread cannot
      * race and process work for this handle.
      */
-    __wt_spin_lock(session, &conn->tiered_lock);
+    __wt_spin_lock(session, &conn->tiered.tiered_lock);
     /*
      * Close all btree handles associated with this table. This must be done after we're done using
      * the tiered structure because that is from the dhandle.
@@ -481,7 +486,7 @@ __drop_tiered(
      */
     __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove work for %p", (void *)tiered);
     __wt_tiered_remove_work(session, tiered, true);
-    __wt_spin_unlock(session, &conn->tiered_lock);
+    __wt_spin_unlock(session, &conn->tiered.tiered_lock);
 
     ret = __wt_metadata_remove(session, uri);
 
@@ -489,7 +494,7 @@ err:
     if (got_dhandle)
         WT_TRET(__wt_session_release_dhandle(session));
     __wt_free(session, name);
-    __wt_spin_unlock_if_owned(session, &conn->tiered_lock);
+    __wt_spin_unlock_if_owned(session, &conn->tiered.tiered_lock);
     return (ret);
 }
 
@@ -567,6 +572,8 @@ __wt_schema_drop(
      * acquired by us.
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+
+    WT_ASSERT_NO_SCHEMA_OP_DURING_ROLE_TRANSITION(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);

@@ -128,6 +128,27 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
+ * __sync_check_for_multiblock_rec --
+ *     If a page has a pending multiblock split as a result of checkpoint reconciliation, flag it
+ *     for eviction. Writing out that split is more efficient than allowing the page to go through
+ *     reconciliation again. This also has the desirable effect of increasing the number of deltas
+ *     WiredTiger can generate for a workload; essentially, the pages that the original page was
+ *     split into can have deltas generated from them.
+ */
+static void
+__sync_check_for_multiblock_rec(WT_SESSION_IMPL *session, WT_REF *walk, bool internal)
+{
+    WT_PAGE *page = walk->page;
+
+    if (internal || !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
+      !WT_REC_RESULT_MULTIBLOCK_SPLIT(page))
+        return;
+
+    WT_STAT_CONN_DSRC_INCR(session, cache_eviction_multiblock_checkpoint_flagged);
+    __wt_evict_page_soon(session, walk);
+}
+
+/*
  * __wt_sync_file --
  *     Flush pages for a specific file.
  */
@@ -141,8 +162,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_PAGE_MODIFY *mod;
     WT_REF *prev, *walk;
     WT_TXN *txn;
-    uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
-    uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
+    uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages, oldest_id;
+    uint64_t reconcile_time_pct, reconcile_time, reconcile_start;
+    uint64_t saved_pinned_id, t, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
 
@@ -157,8 +179,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
+    reconcile_time = 0;
     saved_pinned_id = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->pinned_id);
-    time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
+    time_start = __wt_clock(session);
 
     switch (syncop) {
     case WT_SYNC_WRITE_LEAVES:
@@ -205,7 +228,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += __wt_atomic_load_size_relaxed(&page->memory_footprint);
                 ++leaf_pages;
+                reconcile_start = __wt_clock(session);
                 WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
+                reconcile_time += __wt_clock(session) - reconcile_start;
             }
         }
         break;
@@ -239,15 +264,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * consistent view of that namespace. Set the checkpointing flag to block such actions and
          * wait for any problematic eviction or page splits to complete.
          */
-        WT_ASSERT(session,
-          __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF &&
-            __wt_atomic_load_ptr_relaxed(&btree->sync_session) == NULL);
+        WT_ASSERT(session, __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF);
 
-        /*
-         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
-         * variables.
-         */
-        __wt_atomic_store_ptr_release(&btree->sync_session, session);
+        session->syncing = true;
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
@@ -289,6 +308,18 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
             else
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
+            if (WT_SESSION_IS_CHECKPOINT(session))
+                ++conn->ckpt.progress.pages_visited;
+
+            /*
+             * Wait for the leaf pages to finish reconciling before checking whether the internal
+             * page is dirty, as reconciling the leaf pages could have made the internal page dirty.
+             */
+            if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+                if (WT_SESSION_IS_CHECKPOINT(session) && is_internal) {
+                    WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
+                    reconcile_time += t;
+                }
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -306,6 +337,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
 
+                /* Handle unresolved multiblock reconciliations that we see along the way. */
+                __sync_check_for_multiblock_rec(session, walk, is_internal);
                 continue;
             }
 
@@ -323,7 +356,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 internal_bytes += __wt_atomic_load_size_relaxed(&page->memory_footprint);
                 ++internal_pages;
                 /* Slow down checkpoints. */
-                if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_SLOW_CKPT))
+                if (FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_SLOW_CKPT))
                     __wt_sleep(0, 10 * WT_THOUSAND);
             } else {
                 leaf_bytes += __wt_atomic_load_size_relaxed(&page->memory_footprint);
@@ -366,12 +399,42 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_IS_HS(btree->dhandle))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
-            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+            /* Reconcile leaf pages in parallel, waiting at each internal page. */
+            if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
+              !is_internal) {
+                /*
+                 * Duplicate the position, and give it to the parallel checkpoint worker. The
+                 * existing walk position will be release by the walk code.
+                 */
+                WT_REF *walk_dup = NULL;
+                WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup, rec_flags, flags));
+            } else {
+                reconcile_start = __wt_clock(session);
+                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+                reconcile_time += __wt_clock(session) - reconcile_start;
+            }
 
-            /* Update checkpoint IO tracking data. */
-            if (__wt_checkpoint_verbose_timer_started(session))
+            /*
+             * Handle unresolved multiblock reconciliations. Some of these will be pages left dirty
+             * by checkpoint. Which means eviction will still not be able to evict them, however it
+             * can still realize the split and avoid checkpoint splitting the page again.
+             */
+            __sync_check_for_multiblock_rec(session, walk, is_internal);
+
+            /*
+             * Update checkpoint IO tracking data for the session running the checkpoint. Other
+             * session can execute this code but we are not tracking their progress.
+             */
+            if (WT_SESSION_IS_CHECKPOINT(session) && __wt_checkpoint_verbose_timer_started(session))
                 __wt_checkpoint_progress_stats(
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
+        }
+
+        /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
+        if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session)) {
+            WT_ERR(__wt_checkpoint_parallel_finish(session, &t));
+            reconcile_time += t;
         }
 
         /*
@@ -383,11 +446,17 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          *
          * Do not mark the tree dirty if there is no change to stable timestamp compared to the last
          * checkpoint.
+         *
+         * The load is relaxed rather than acquire: this runs on the checkpoint thread, under the
+         * checkpoint lock, which is the same thread that publishes the timestamp, and the value is
+         * only compared to decide whether to mark the tree dirty. No state published alongside the
+         * timestamp is consumed here.
          */
         if (!btree->modified && !F_ISSET(conn, WT_CONN_RECOVERING) &&
           !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT) &&
           (btree->rec_max_txn >= txn->snapshot_data.snap_min ||
-            (conn->txn_global.checkpoint_timestamp != conn->txn_global.last_ckpt_timestamp &&
+            (conn->txn_global.checkpoint_timestamp !=
+                __wt_atomic_load_uint64_relaxed(&conn->txn_global.last_ckpt_timestamp) &&
               btree->rec_max_timestamp > conn->txn_global.checkpoint_timestamp)))
             __wt_tree_modify_set(session);
         break;
@@ -397,19 +466,38 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         break;
     }
 
-    if (time_start != 0) {
+    /* Calculate and log sync efficiency statistics for checkpoints. */
+    if (WT_SESSION_IS_CHECKPOINT(session)) {
         time_stop = __wt_clock(session);
+        if (time_stop != time_start)
+            reconcile_time_pct = (reconcile_time * 100) / (time_stop - time_start);
+        else
+            reconcile_time_pct = 0;
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
           "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
           " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
           syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages, leaf_bytes,
           internal_pages, internal_bytes, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
+          "__sync_file WT_SYNC_%s spent %" PRIu64 "ms in reconciliation across %" PRIu32
+          " threads (%" PRIu64 "%% of the wall-clock time)",
+          syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT",
+          WT_CLOCKDIFF_MS(reconcile_time, 0), WT_PARALLEL_CHECKPOINTS_NUM_THREADS(session),
+          reconcile_time_pct);
+        __wt_checkpoint_rec_time_stats(session, reconcile_time, time_stop - time_start);
     }
 
 err:
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
+
+    /*
+     * Wait for the workers to finish, as they may be still doing work if we got here because of an
+     * error.
+     */
+    if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
+        WT_TRET(__wt_checkpoint_parallel_finish(session, NULL));
 
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
@@ -429,12 +517,8 @@ err:
         __wt_checkpoint_update_generation(session, btree);
 
         /* Clear the checkpoint flag. */
-        /*
-         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
-         * variables.
-         */
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
-        __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
+        session->syncing = false;
     }
 
     __wt_spin_unlock(session, &btree->flush_lock);

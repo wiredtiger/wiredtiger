@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp26.py
-#   Timestamps: assert commit settings
+# Timestamps: assert commit settings
 #
 
 import wiredtiger, wttest, errno
@@ -54,6 +53,8 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
     def test_wtu_never(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -160,6 +161,8 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
     def test_alter(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -208,6 +211,8 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
     def test_alter_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg'):
+            self.skipTest('session.alter is not supported for layered tables in disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(
@@ -510,6 +515,8 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
     def test_in_memory_ts(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
+        if self.runningHook('disagg') and not self.always:
+            self.skipTest('write_timestamp_usage=never is incompatible with disagg storage')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
         ds = SimpleDataSet(

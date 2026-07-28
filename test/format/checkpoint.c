@@ -85,7 +85,8 @@ checkpoint(void *arg)
     if (g.disagg_storage_config)
         named_checkpoints = false;
 
-    for (secs = mmrand(&g.extra_rnd, 1, 10); !g.workers_finished;) {
+    for (secs = mmrand(&g.extra_rnd, 1, 10);
+      !g.workers_finished && !__wt_atomic_load_bool_v_relaxed(&g.checkpoint_quit);) {
         if (secs > 0) {
             __wt_sleep(1, 0);
             --secs;
@@ -169,6 +170,6 @@ checkpoint(void *arg)
         secs = mmrand(&g.extra_rnd, 5, max_secs);
     }
 
-    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+    wt_wrap_close_session(session);
     return (WT_THREAD_RET_VALUE);
 }

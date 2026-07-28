@@ -144,6 +144,10 @@ if(WT_DARWIN)
     set_target_properties(wiredtiger_python PROPERTIES SUFFIX ".so")
 endif()
 
+# Python tests load extension MODULE libraries via dlopen() at runtime; pull in the umbrella
+# target so they are built whenever wiredtiger_python is built.
+add_dependencies(wiredtiger_python wiredtiger_ext)
+
 # Define a simple smoke test to check the Python API can be used.
 if(WT_POSIX)
     add_test(NAME test_ex_access

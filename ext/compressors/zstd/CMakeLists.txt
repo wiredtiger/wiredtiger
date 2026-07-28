@@ -26,8 +26,8 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
-            ${HAVE_LIBZSTD_INCLUDES}
         )
+    target_link_libraries(wiredtiger_zstd PRIVATE wt::zstd)
     target_compile_options(
         wiredtiger_zstd
         PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
@@ -37,7 +37,6 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
 endif()
 
 if(ENABLE_ZSTD)
-    target_link_libraries(wiredtiger_zstd wt::zstd)
     install(TARGETS wiredtiger_zstd
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

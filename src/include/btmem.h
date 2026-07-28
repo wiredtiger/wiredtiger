@@ -11,21 +11,23 @@
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_READ_CACHE 0x0001u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
-#define WT_READ_NOTFOUND_OK 0x0008u
-#define WT_READ_NO_SPLIT 0x0010u
-#define WT_READ_NO_WAIT 0x0020u
-#define WT_READ_PREFETCH 0x0040u
-#define WT_READ_PREV 0x0080u
-#define WT_READ_RESTART_OK 0x0100u
-#define WT_READ_SEE_DELETED 0x0200u
-#define WT_READ_SKIP_DELETED 0x0400u
-#define WT_READ_SKIP_INTL 0x0800u
-#define WT_READ_TRUNCATE 0x1000u
-#define WT_READ_VISIBLE_ALL 0x2000u
-#define WT_READ_WONT_NEED 0x4000u
+#define WT_READ_CACHE 0x00001u
+#define WT_READ_IGNORE_CACHE_SIZE 0x00002u
+#define WT_READ_INTERNAL_OP 0x00004u /* Internal operations don't bump a page's readgen */
+#define WT_READ_NOTFOUND_OK 0x00008u
+#define WT_READ_NO_SPLIT 0x00010u
+#define WT_READ_NO_WAIT 0x00020u
+#define WT_READ_PREFETCH 0x00040u
+#define WT_READ_PREV 0x00080u
+#define WT_READ_RESTART_OK 0x00100u
+#define WT_READ_SEE_DELETED 0x00200u
+#define WT_READ_SIZE_STAT 0x00400u
+#define WT_READ_SKIP_CORRUPT 0x00800u
+#define WT_READ_SKIP_DELETED 0x01000u
+#define WT_READ_SKIP_INTL 0x02000u
+#define WT_READ_TRUNCATE 0x04000u
+#define WT_READ_VISIBLE_ALL 0x08000u
+#define WT_READ_WONT_NEED 0x10000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_READ_EVICT_WALK_FLAGS \
@@ -38,6 +40,14 @@
  * disable splits.
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
+
+/*
+ * The WT_READ_SKIP_CORRUPT flag means that caller will handle a corrupt page read, while the
+ * WT_CONN_DATA_CORRUPTION flag means that a block manager actually detected one.
+ */
+#define WT_READ_SKIP_CORRUPT_HIT(session, flags) \
+    (FLD_ISSET((flags), WT_READ_SKIP_CORRUPT) && \
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
 
 /*
  * WT_PAGE_HEADER --
@@ -260,7 +270,13 @@ struct __wt_page_block_meta {
     uint64_t page_id;
     uint64_t disagg_lsn;
 
+    /*
+     * LSN of the previous write this one links back to: the immediately preceding delta or base
+     * image for a delta, or the previous full image for a full page. Zero for a page's first write,
+     * including the first write after a discard.
+     */
     uint64_t backlink_lsn;
+    /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
     uint64_t base_lsn;
 
     uint32_t checksum;
@@ -281,6 +297,12 @@ struct __wt_page_disagg_info {
     uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
 
     WT_PAGE_BLOCK_META block_meta;
+
+    /*
+     * When the shared disk cache is enabled, points at the cache entry that owns page->dsk. NULL on
+     * cache miss before insertion, or when the shared disk cache is disabled.
+     */
+    WT_SHARED_DSK_ITEM *shared_dsk_item;
 };
 
 /*
@@ -497,7 +519,6 @@ struct __wt_page_modify {
      * that deleted the page is resolved. These transitions are independent; that is, the first
      * reconciliation can happen either before or after the delete transaction resolves.
      */
-    bool instantiated;        /* True if this is a newly instantiated page. */
     WT_UPDATE **inst_updates; /* Update list for instantiated page with unresolved truncate. */
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock_track((s), &(p)->modify->page_lock)
@@ -520,6 +541,9 @@ struct __wt_page_modify {
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
     wt_shared uint32_t page_state;
+
+    /* Kept with the trailing byte fields to avoid alignment padding before inst_updates. */
+    bool instantiated; /* True if this is a newly instantiated page. */
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
 #define WT_PM_REC_MULTIBLOCK 2 /* Reconciliation: multiple blocks */
@@ -685,7 +709,7 @@ struct __wt_page {
         uint32_t __entries;                                                          \
         WT_INTL_INDEX_GET(session, page, __pindex);                                  \
         for (__refp = __pindex->index, __entries = __pindex->entries; __entries > 0; \
-             --__entries) {                                                          \
+          --__entries) {                                                             \
             (ref) = *__refp++;
 #define WT_INTL_FOREACH_REVERSE_BEGIN(session, page, ref)                                 \
     do {                                                                                  \
@@ -694,7 +718,7 @@ struct __wt_page {
         uint32_t __entries;                                                               \
         WT_INTL_INDEX_GET(session, page, __pindex);                                       \
         for (__refp = __pindex->index + __pindex->entries, __entries = __pindex->entries; \
-             __entries > 0; --__entries) {                                                \
+          __entries > 0; --__entries) {                                                   \
             (ref) = *--__refp;
 #define WT_INTL_FOREACH_END \
     }                       \
@@ -736,21 +760,25 @@ struct __wt_page {
 #define WT_PAGE_COMPACTION_WRITE 0x0002u  /* Writing the page for compaction */
 #define WT_PAGE_DISK_ALLOC 0x0004u        /* Disk image in allocated memory */
 #define WT_PAGE_DISK_MAPPED 0x0008u       /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x0010u         /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x0020u  /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u /* Eviction doesn't count as progress */
-#define WT_PAGE_INMEM_SPLIT 0x0080u
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0100u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_INTL_PINDEX_UPDATE 0x0200u /* Page index updated */
-#define WT_PAGE_PREFETCH 0x0400u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+#define WT_PAGE_DISK_SHARED 0x0010u       /* Disk image is from shared dsk cache */
+#define WT_PAGE_EVICT_LRU 0x0020u         /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0040u  /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0080u /* Eviction doesn't count as progress */
+#define WT_PAGE_INMEM_SPLIT 0x0100u
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0200u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0400u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x0800u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x1000u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x2000u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x4000u      /* Ignore updates on page discard */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
-#define WT_PAGE_IS_INTERNAL(page) \
-    ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
+#define WT_PAGE_IS_INTERNAL(page) WT_PAGE_TYPE_IS_INTERNAL((page)->type)
+#define WT_PAGE_IS_SHARED_DSK(page) F_ISSET_ATOMIC_16((page), WT_PAGE_DISK_SHARED)
+#define WT_PAGE_HAS_SHARED_DSK_REF(page) \
+    ((page)->disagg_info != NULL && (page)->disagg_info->shared_dsk_item != NULL)
+#define WT_PAGE_TYPE_IS_INTERNAL(type) ((type) == WT_PAGE_COL_INT || (type) == WT_PAGE_ROW_INT)
 #define WT_PAGE_INVALID 0            /* Invalid page */
 #define WT_PAGE_BLOCK_MANAGER 1      /* Block-manager page */
 #define WT_PAGE_COL_FIX_DEPRECATED 2 /* Col-store fixed-len leaf */
@@ -1161,18 +1189,17 @@ struct __wt_ref {
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
 /*
- * A flag used to track a ref has changed during internal page reconciliation. The value is compared
- * and swapped to WT_REF_REC_CLEAN for each internal page reconciliation. If the flag becomes
- * WT_REF_REC_DIRTY, this implies that the ref has been changed concurrently and that the ref
- * remains dirty after internal page reconciliation. It is possible for other operations such as
- * page splits and fast-truncate to concurrently mark WT_REF_REC_DIRTY to the ref, but depending on
- * timing or race conditions, it cannot be guaranteed that the new change is included as part of the
- * reconciliation. The page would need to be reconciled again to ensure that these modifications are
- * included.
+ * A flag used to track whether a ref has been dirtied while reconciling an internal page. The value
+ * is compared and swapped to WT_REF_CLEAN for each internal page reconciliation. If the flag
+ * becomes WT_REF_DIRTY, this implies that the ref has been changed concurrently and remains dirty
+ * after internal page reconciliation. Other operations, such as page splits and fast-truncate, can
+ * also concurrently mark the ref WT_REF_DIRTY, but depending on timing or race conditions, it
+ * cannot be guaranteed that the new change is included as part of the reconciliation. The page
+ * would need to be reconciled again to ensure that these modifications are included.
  */
-#define WT_REF_REC_CLEAN 0
-#define WT_REF_REC_DIRTY 1
-    wt_shared volatile uint8_t rec_state;
+#define WT_REF_CLEAN 0
+#define WT_REF_DIRTY 1
+    wt_shared volatile uint8_t dirty_state;
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -1402,7 +1429,7 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
     for ((i) = (page)->entries, (rip) = (page)->pg_row; (i) > 0; ++(rip), --(i))
 #define WT_ROW_FOREACH_REVERSE(page, rip, i)                                             \
     for ((i) = (page)->entries, (rip) = (page)->pg_row + ((page)->entries - 1); (i) > 0; \
-         --(rip), --(i))
+      --(rip), --(i))
 
 /*
  * WT_ROW_SLOT --
@@ -1550,20 +1577,18 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DELETE_DURABLE 0x0001u  /* Key has been removed from disk image. */
-#define WT_UPDATE_DS 0x0002u              /* Update has been chosen to the data store. */
-#define WT_UPDATE_DURABLE 0x0004u         /* Update has been durable. */
-#define WT_UPDATE_HS 0x0008u              /* Update has been written to hs. */
-#define WT_UPDATE_HS_MAX_STOP 0x0010u     /* Update has been written to hs with a max stop. */
-#define WT_UPDATE_PREPARE_DURABLE 0x0020u /* Prepared update has been durable. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0040u /* Prepared update restored from data store. */
-#define WT_UPDATE_PREPARE_ROLLBACK 0x0080u /* Tombstone that rolled back by a prepared update.*/
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0100u /* Fast truncate instantiation. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x0200u       /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x0400u       /* Update restored from history store. */
-#define WT_UPDATE_RESTORED_FROM_INGEST 0x0800u   /* Update restored from ingest btree. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u       /* Used by dry run to mark a would-be abort. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+#define WT_UPDATE_DS 0x001u              /* Update has been chosen to the data store. */
+#define WT_UPDATE_DURABLE 0x002u         /* Update has been durable. */
+#define WT_UPDATE_HS 0x004u              /* Update has been written to hs. */
+#define WT_UPDATE_HS_MAX_STOP 0x008u     /* Update has been written to hs with a max stop. */
+#define WT_UPDATE_PREPARE_DURABLE 0x010u /* Prepared update has been durable. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x020u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x040u   /* Fast truncate instantiation. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x080u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x100u         /* Update restored from history store. */
+#define WT_UPDATE_RESTORED_FROM_INGEST 0x200u     /* Update restored from ingest btree. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x400u         /* Used by dry run to mark a would-be abort. */
+                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the

@@ -82,7 +82,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wti_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL);
+        __wti_rec_cell_build_addr(session, r, addr, NULL, r->recno, NULL, false);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, val->len))
@@ -126,7 +126,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        __wt_atomic_cas_uint8_v(&ref->rec_state, WT_REF_REC_DIRTY, WT_REF_REC_CLEAN);
+        __wt_atomic_cas_uint8_v(&ref->dirty_state, WT_REF_DIRTY, WT_REF_CLEAN);
 
         /* Update the starting record number in case we split. */
         r->recno = ref->ref_recno;
@@ -184,7 +184,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr != NULL) {
-            __wti_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del);
+            /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+            __wti_rec_cell_build_addr(session, r, addr, NULL, ref->ref_recno, page_del, false);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
@@ -195,7 +196,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
                  * info.
                  */
                 WT_ASSERT(session, vpack->type != WT_CELL_ADDR_DEL || page_del != NULL);
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del);
+                /* FIXME-WT-17663: pass the correct is_prepared_fast_truncate from the caller. */
+                __wti_rec_cell_build_addr(session, r, NULL, vpack, ref->ref_recno, page_del, false);
             } else {
                 /* Copy the entire existing cell, including any page-delete information. */
                 val->buf.data = ref->addr;
@@ -207,14 +209,17 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         }
         if (page_del != NULL)
             WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, &ft_ta, page_del);
-        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, val->len))
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, val->len));
 
-        /* Copy the value (which is in val, val == r->v) onto the page. */
+        /*
+         * Copy the value onto the page. val->buf.data may point directly into ref's WT_ADDR
+         * block_cookie; hold the hazard pointer until after the copy.
+         */
         __wti_rec_image_copy(session, r, val);
+        WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
@@ -458,7 +463,7 @@ record_loop:
             if (upd == NULL && orig_stale) {
                 /* The on-disk value is stale and there was no update. Treat it as deleted. */
                 deleted = true;
-                r->key_removed_from_disk_image = true;
+                ++r->keys_removed_from_disk_image_count;
                 twp = &clear_tw;
             } else if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
@@ -479,7 +484,7 @@ record_loop:
                 deleted = orig_deleted;
                 if (deleted) {
                     twp = &clear_tw;
-                    r->key_removed_from_disk_image = true;
+                    ++r->keys_removed_from_disk_image_count;
                     goto compare;
                 }
                 twp = &vpack->tw;
@@ -582,7 +587,7 @@ record_loop:
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
                     twp = &clear_tw;
-                    r->key_removed_from_disk_image = true;
+                    ++r->keys_removed_from_disk_image_count;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));

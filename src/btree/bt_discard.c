@@ -50,6 +50,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE *page;
     WT_PAGE_HEADER *dsk;
     WT_PAGE_MODIFY *mod;
@@ -59,6 +60,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      */
     page = *pagep;
     *pagep = NULL;
+    conn = S2C(session);
 
     /*
      * Ensure that we are not evicting a page ahead of the materialization frontier, unless we are
@@ -77,8 +79,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      */
 
     if (page->disagg_info != NULL &&
-      !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-        F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)))
+      !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING)))
         if (!__wt_materialization_check(session, page->disagg_info->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
@@ -87,8 +88,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * page. We do ordinary eviction from dead trees until sweep gets to them, so we may not in the
      * WT_SYNC_DISCARD loop.
      */
-    if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
         __wt_page_modify_clear(session, page);
 
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
@@ -117,7 +117,12 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     __wt_evict_page_cache_bytes_decr(session, page);
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
+    /*
+     * For shared disk pages the bytes image statistics are owned by the shared disk cache layer and
+     * are drained on the matching last release at the bottom of this function. Skip the per-page
+     * image decrement to avoid double draining.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC) && !WT_PAGE_IS_SHARED_DSK(page))
         __wt_cache_page_image_decr(session, page);
 
     /* Discard any mapped image. */
@@ -129,7 +134,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * If discarding the page as part of process exit, the application may configure to leak the
      * memory rather than do the work.
      */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_LEAK_MEMORY))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_LEAK_MEMORY))
         return;
 
     /* Free the page modification information. */
@@ -149,9 +154,21 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         break;
     }
 
-    /* Discard any allocated disk image. */
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
-        __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
+    /*
+     * Discard any allocated disk image. If the page holds a reference to a shared disk image,
+     * release it from the shared disk cache. Otherwise free the disk image if it is not a shared
+     * disk page.
+     */
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC)) {
+        if (WT_PAGE_HAS_SHARED_DSK_REF(page)) {
+            WT_ASSERT(session, WT_PAGE_IS_SHARED_DSK(page));
+            WT_ASSERT(session, conn->cache->shared_dsk_cache.hash != NULL);
+            WT_ASSERT(session, page->disagg_info->shared_dsk_item->data == dsk);
+            WT_ASSERT(session, page->disagg_info->shared_dsk_item->data_size == dsk->mem_size);
+            __wt_shared_dsk_cache_release(session, page->disagg_info->shared_dsk_item);
+        } else if (!WT_PAGE_IS_SHARED_DSK(page))
+            __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
+    }
 
     __wt_overwrite_and_free(session, page);
 }

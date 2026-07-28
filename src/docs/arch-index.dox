@@ -177,7 +177,7 @@ of the documentation.
 - @subpage arch-toc-mem-disk
     - @ref arch-block
     - @ref arch-data-file
-    - @ref arch-cloud-storage-extension
+
     - @ref arch-prefetch
     - @ref arch-tiered-storage
 
@@ -199,6 +199,8 @@ of the documentation.
     - @ref arch-fs-os
 
 - @subpage arch-toc-disaggregated-storage
+    - @ref arch-page-delta
+    - @ref arch-disagg-cross-checkpoint-caching
     - @ref arch-disagg-layered
     - @ref arch-disagg-layered-cursor
     - @ref arch-disagg-key-provider
@@ -311,10 +313,6 @@ The block manager manages the reading and writing of disk blocks.
 
 The format of the data file is given by structures in \c block.h .
 
-@subpage arch-cloud-storage-extension
-
-The cloud storage source extension which manage the flushing of the data files to and reading from different cloud object stores.
-
 @subpage arch-prefetch
 
 Pre-fetch is a performance optimization that aims to reduce I/O latency by reading pages from disk
@@ -384,6 +382,8 @@ operation.
 
 /*! @page arch-toc-disaggregated-storage Disaggregated Storage
 
+@subpage arch-page-delta
+@subpage arch-disagg-cross-checkpoint-caching
 @subpage arch-disagg-layered
 @subpage arch-disagg-layered-cursor
 @subpage arch-disagg-key-provider

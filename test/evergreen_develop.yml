@@ -21,16 +21,17 @@ variables:
     - ".checkpoint-perf"
     - ".evict-perf"
     - ".log-perf"
-    - ".chunk-cache-perf"
     - ".long-perf"
     - ".oplog-perf"
     - ".wt2853-perf"
+    - ".ycsb-perf"
     - name: many-collection-test
       distros: ubuntu2004-wt-large
     - name: ".cppsuite-perf-test"
     - name: many-dhandle-stress
     - name: prefetch-off-verify
     - name: prefetch-on-verify
+    - name: perf-disagg-many-tables-follower-startup
 
 # Build variants that need to be run only on the develop branch.
 buildvariants:
@@ -71,7 +72,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 0
-    doc_update_branches: develop,mongodb-8.3,mongodb-8.2,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    doc_update_branches: develop,mongodb-9.0,mongodb-8.3,mongodb-8.2,mongodb-8.0,mongodb-7.0,mongodb-6.0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: doc-update
@@ -110,8 +111,6 @@ buildvariants:
       batchtime: 1440 # 1 day
     - name: compatibility-test-upgrade-to-latest-daily
       batchtime: 1440 # 1 day
-    - name: compatibility-test-for-older-releases-weekly
-      batchtime: 10080 # 7 days
     - name: compatibility-test-for-wt-standalone-releases-weekly
       batchtime: 10080 # 7 days
     - name: compatibility-test-for-newer-releases
@@ -135,8 +134,6 @@ buildvariants:
   tasks:
     - name: memory-model-test
       batchtime: 40320 # 28 days
-    - name: s-outdated-fixmes
-      batchtime: 1440 # 1 day
 
 - name: lazyfs-tests
   display_name: "~ LazyFS tests"

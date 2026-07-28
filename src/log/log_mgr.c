@@ -319,7 +319,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
     if (cval.val != 0)
-        log_mgr->force_write_wait = (uint32_t)cval.val;
+        log_mgr->force_write_wait = (uint64_t)cval.val;
 
     /*
      * Note it's meaningless to reconfigure this value during runtime, it only matters on create
@@ -398,17 +398,18 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
      * backup or the checkpoint LSN. Otherwise we want the minimum of the last log file written to
      * disk and the checkpoint LSN.
      */
-    min_lognum = backup_file == 0 ? WT_MIN(log->ckpt_lsn.l.file, log->sync_lsn.l.file) :
-                                    WT_MIN(log->ckpt_lsn.l.file, backup_file);
+    min_lognum = backup_file == 0 ?
+      WT_MIN(__wt_lsn_file(&log->ckpt_lsn), __wt_lsn_file(&log->sync_lsn)) :
+      WT_MIN(__wt_lsn_file(&log->ckpt_lsn), backup_file);
 
     __wt_readlock(session, &conn->log_mgr.debug_log_retention_lock);
 
     /* Adjust the number of log files to retain based on debugging options. */
 
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN) && conn->debug_ckpt_cnt != 0)
-        min_lognum = WT_MIN(conn->debug_ckpt[conn->debug_ckpt_cnt - 1].l.file, min_lognum);
+    if (FLD_ISSET(conn->debug.flags, WT_CONN_DEBUG_CKPT_RETAIN) && conn->debug.ckpt_cnt != 0)
+        min_lognum = WT_MIN(conn->debug.ckpt[conn->debug.ckpt_cnt - 1].l.file, min_lognum);
 
-    if (conn->debug_log_cnt != 0) {
+    if (conn->debug.log_cnt != 0) {
         /*
          * If we're performing checkpoints, apply the retain value as a minimum, increasing the
          * number the log files we keep. If not performing checkpoints, it's an absolute number of
@@ -418,12 +419,12 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
-        if ((conn->debug_log_cnt + 1) >= log->fileid)
+        if ((conn->debug.log_cnt + 1) >= log->fileid)
             min_lognum = 0;
         else if (WT_IS_INIT_LSN(&log->ckpt_lsn))
-            min_lognum = log->fileid - (conn->debug_log_cnt + 1);
+            min_lognum = log->fileid - (conn->debug.log_cnt + 1);
         else
-            min_lognum = WT_MIN(log->fileid - (conn->debug_log_cnt + 1), min_lognum);
+            min_lognum = WT_MIN(log->fileid - (conn->debug.log_cnt + 1), min_lognum);
     }
 
     __wt_readunlock(session, &conn->log_mgr.debug_log_retention_lock);
@@ -435,8 +436,8 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
           " sync file %" PRIu32 " backup_file %" PRIu32 " debug_log count%" PRIu32
           " old min %" PRIu32,
           (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, min_lognum,
-          log->ckpt_lsn.l.file, log->sync_lsn.l.file, backup_file, conn->debug_log_cnt,
-          log->min_fileid));
+          __wt_lsn_file(&log->ckpt_lsn), __wt_lsn_file(&log->sync_lsn), backup_file,
+          conn->debug.log_cnt, log->min_fileid));
         log->min_fileid = min_lognum;
     }
 
@@ -691,7 +692,7 @@ __log_file_server(void *arg)
                  * file system may not support truncate: both are OK, it's just more work during
                  * cursor traversal.
                  */
-                if (__wt_atomic_load_uint64_relaxed(&conn->hot_backup_start) == 0 &&
+                if (__wt_atomic_load_uint64_relaxed(&conn->backup.start) == 0 &&
                   __wt_tsan_suppress_load_uint32(&conn->log_mgr.cursors) == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
                       ret = __wt_ftruncate(session, close_fh, __wt_lsn_offset(&close_end_lsn)),
@@ -769,7 +770,10 @@ restart:
     while (i < WTI_SLOT_POOL) {
         save_i = i;
         slot = &log->slot_pool[i++];
-        if (__wt_atomic_load_int64_v_relaxed(&slot->slot_state) != WTI_LOG_SLOT_WRITTEN)
+        /*
+         * Guard: slot_state. Acquire-load pairs with the release-store in __wti_log_release.
+         */
+        if (__wt_atomic_load_int64_v_acquire(&slot->slot_state) != WTI_LOG_SLOT_WRITTEN)
             continue;
         written[written_i].slot_index = save_i;
         WT_ASSIGN_LSN(&written[written_i++].lsn, &slot->slot_release_lsn);
@@ -894,7 +898,7 @@ __log_wrlsn_server(void *arg)
             __wti_log_wrlsn(session, &yield);
         else
             WT_STAT_CONN_INCR(session, log_write_lsn_skip);
-        prev = log->alloc_lsn;
+        WT_ASSIGN_LSN(&prev, &log->alloc_lsn);
         did_work = (yield == 0);
 
         /*

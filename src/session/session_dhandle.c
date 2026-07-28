@@ -827,7 +827,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
      * Periodically sweep for dead handles; if we've swept recently, don't do it again.
      */
     __wt_seconds(session, &now);
-    if (now - __wt_atomic_load_uint64_relaxed(&session->last_sweep) < conn->sweep_interval)
+    if (now - __wt_atomic_load_uint64_relaxed(&session->last_sweep) < conn->sweep.interval)
         return;
     __wt_atomic_store_uint64_relaxed(&session->last_sweep, now);
 
@@ -845,7 +845,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
         if (dhandle != session->dhandle &&
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
-            (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time)) &&
+            (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep.idle_time)) &&
           (!WT_DHANDLE_BTREE(dhandle) ||
             FLD_ISSET(dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED))) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
@@ -932,11 +932,11 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     for (;;) {
-        WT_RET(__session_get_dhandle(session, uri, checkpoint));
+        WT_ERR(__session_get_dhandle(session, uri, checkpoint));
         dhandle = session->dhandle;
 
         /* Try to lock the handle. */
-        WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
+        WT_ERR(__wt_session_lock_dhandle(session, flags, &is_dead));
         if (is_dead)
             continue;
 
@@ -966,7 +966,16 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
              * the schema lock.
              */
             bool checkpoint_lock_needed = false;
-            if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+            if (__wt_conn_is_disagg(session)) {
+                /*
+                 * When reading checkpointed dhandles, we must hold the checkpoint lock. On
+                 * followers, this is required for the stable constituent of a layered table.
+                 *
+                 * For leaders, this is generally unnecessary. However, leaders are currently
+                 * allowed to read checkpoints during startup for internal testing. In cases where a
+                 * leader reads a checkpoint from shared metadata, it must also acquire the
+                 * checkpoint lock.
+                 */
                 const char *suffix = strstr(uri, ".wt_stable/");
                 if (suffix != NULL)
                     checkpoint_lock_needed = true;
@@ -995,7 +1004,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         dhandle->excl_ref = 0;
         F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
         WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
-        WT_RET(ret);
+        WT_ERR(ret);
     }
 
     WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
@@ -1005,7 +1014,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
       LF_ISSET(WT_DHANDLE_EXCLUSIVE) == F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
         dhandle->excl_ref > 1);
 
-    return (0);
+err:
+    if (ret != 0 && session->dhandle != NULL)
+        WT_DHANDLE_CLEAR(session);
+    return (ret);
 }
 
 /*

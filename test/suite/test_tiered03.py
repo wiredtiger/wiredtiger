@@ -31,18 +31,15 @@ from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_con
 import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
-# test_tiered03.py
-#    Test block-log-structured tree configuration options.
+# Test block-log-structured tree configuration options.
 class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
+    test_name = __qualname__
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    # TODO: tiered: change this to a table: URI, otherwise we are
-    # not using tiered files.  The use of a second directory for
-    # sharing would probably need to be reworked.
-    uri = 'file:test_tiered03'
+    uri = f'file:{test_name}'
 
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered03', tiered_only=True)
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), test_name, tiered_only=True)
 
     # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
@@ -50,16 +47,12 @@ class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios,\
          prune=100, prunelong=500)
 
-    absolute_bucket_dir = None  # initialied in conn_config to an absolute path
+    absolute_bucket_dir = None  # initialized in conn_config to an absolute path
 
     def conn_config(self):
         bucket_ret = self.bucket
 
-        # The bucket format for the S3 store is the name and the region separated by a semi-colon.
-        if self.ss_name == 's3_store':
-            cache_dir = self.bucket[:self.bucket.find(';')] + '-cache'
-        else:
-            cache_dir = self.bucket + '-cache'
+        cache_dir = self.bucket + '-cache'
 
         # We have multiple connections that want to share a bucket.
         # For the directory store, the first time this function is called, we'll

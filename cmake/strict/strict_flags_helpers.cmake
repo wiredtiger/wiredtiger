@@ -151,11 +151,10 @@ function(get_clang_base_flags flags)
     # Ignore unrecognized options.
     list(APPEND clang_flags "-Wno-unknown-warning-option")
 
-    if(WT_DARWIN AND NOT CMAKE_CROSSCOMPILING)
-        # If we are not cross-compiling, we can safely disable this diagnostic.
-        # Its incompatible with strict diagnostics when including external
-        # libraries that are not in the default linker path
-        # e.g. linking zlib/snappy/... from /usr/local/.
+    if(WT_DARWIN)
+        # Disable this diagnostic on Darwin. It is incompatible with strict
+        # diagnostics when including external libraries that are not in the
+        # default linker path e.g. linking zlib/snappy/... from /usr/local/.
         list(APPEND clang_flags "-Wno-poison-system-directories")
     endif()
 
@@ -176,6 +175,14 @@ function(get_clang_base_flags flags)
         list(APPEND clang_flags "-Wno-implicit-fallthrough")
         list(APPEND clang_flags "-Wno-implicit-int-float-conversion")
         list(APPEND clang_flags "-Wno-maybe-uninitialized")
+    endif()
+
+    if(${cmake_compiler_version} VERSION_GREATER_EQUAL 21)
+        # Clang 21+ warns when a function returns a result from an allocator
+        # call but isn't itself annotated as an allocator. WiredTiger has
+        # several thin wrappers around malloc/calloc/realloc that intentionally
+        # follow this pattern.
+        list(APPEND clang_flags "-Wno-allocator-wrappers")
     endif()
 
     set(${flags} ${clang_flags} PARENT_SCOPE)

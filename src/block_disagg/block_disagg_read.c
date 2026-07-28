@@ -27,8 +27,9 @@ __wti_block_disagg_corrupt(
 
     /* Crack the cookie, dump the block. */
     WT_ERR(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
-    WT_ERR(__wt_bm_corrupt_dump(
-      session, tmp, 0, (wt_off_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum));
+    __wt_log_data_dump(session, tmp->data, tmp->size,
+      "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
+      (uintmax_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum);
 
 err:
     __wt_scr_free(session, &tmp);
@@ -40,8 +41,9 @@ err:
  *     Print a block disagg read error context in a standard way.
  */
 static void
-__block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint32_t size, uint64_t page_id,
-  uint64_t lsn, bool is_delta, int32_t delta_seq, const char *context_msg_fmt, ...)
+__block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint64_t table_id,
+  uint32_t size, uint64_t page_id, uint64_t lsn, bool is_delta, int32_t delta_seq,
+  const char *context_msg_fmt, ...)
 {
     WT_DECL_RET;
 
@@ -68,8 +70,8 @@ err:
     __wt_errx(session,
       "%s: read error for %" PRIu32
       "B block at "
-      "page %" PRIu64 ", lsn %" PRIu64 ", %s, %s",
-      name, size, page_id, lsn, page_desc, context_msg);
+      "page %" PRIu64 ", lsn %" PRIu64 ", table_id %" PRIu64 ", %s, %s",
+      name, size, page_id, lsn, table_id, page_desc, context_msg);
 }
 
 /*
@@ -77,7 +79,7 @@ err:
  *     Check that the LSN is not ahead of the materialization frontier.
  */
 static void
-__block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
+__block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn, uint64_t table_id)
 {
     uint64_t last_materialized_lsn =
       __wt_atomic_load_uint64_acquire(&S2C(session)->disaggregated_storage.last_materialized_lsn);
@@ -86,11 +88,24 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
       last_materialized_lsn != WT_DISAGG_START_LSN && lsn > last_materialized_lsn) {
         /* FIXME-WT-15818 Consider crashing upon this check failure. */
         WT_STAT_CONN_INCR(session, disagg_block_read_ahead_frontier);
-        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "LSN frontier violation: read LSN %" PRIu64
-          " is ahead of the materialization frontier at LSN %" PRIu64,
-          lsn, last_materialized_lsn);
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "LSN frontier warning: table_id %" PRIu64 ", read LSN %" PRIu64
+          " is ahead of the materialization frontier at LSN %" PRIu64
+          " (this is not necessarily an error)",
+          table_id, lsn, last_materialized_lsn);
     }
+}
+
+/*
+ * __block_disagg_header_version_compatible --
+ *     Return whether this build can read a header whose oldest-compatible reader version is
+ *     compatible_version. This build can read the header when its own version is at least the
+ *     header's compatible version.
+ */
+static bool
+__block_disagg_header_version_compatible(uint8_t compatible_version)
+{
+    return (compatible_version <= WT_BLOCK_DISAGG_VERSION);
 }
 
 /*
@@ -108,7 +123,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t retry, tmp_count, block_size_sum;
+    uint32_t block_size_sum;
     int32_t last, result;
     uint8_t expected_magic;
     bool from_cache, is_delta;
@@ -127,14 +142,14 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         F_SET(&get_args, WT_PAGE_LOG_COLD);
 
     __wt_verbose(session, WT_VERB_READ,
-      "page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32
-      ", checksum %" PRIx32,
-      page_id, flags, lsn, base_lsn, size, checksum);
+      "page_id %" PRIu64 ", table_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
+      ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+      page_id, block_disagg->tableid, flags, lsn, base_lsn, size, checksum);
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
-    __block_disagg_check_lsn_frontier(session, lsn);
+    __block_disagg_check_lsn_frontier(session, lsn, block_disagg->tableid);
 
     if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
@@ -144,35 +159,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
     /*
-     * If the page server returns no data but doesn't explicitly fail with an error, retry the read
-     * a few times in case the issue is transient.
-     *
-     * FIXME: WT-15768: To support current testing, we never give up. It is better to hang here as
-     * that will allow us to generate a core dump if desired. We should revisit this when we have
-     * more complete end-to-end story for handling read failures.
+     * Output buffers do not need to be pre-allocated, the PALI interface does that.
      */
-    for (retry = 0, tmp_count = 0; tmp_count == 0; retry++) {
-        if (retry > 0) {
-            __wt_verbose_notice(session, WT_VERB_READ,
-              "retry #%" PRIu32 " for page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
-              ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
-              retry, page_id, flags, lsn, base_lsn, size, checksum);
-
-            __wt_sleep(0, WT_MIN(10000 + retry * 5000, 500000));
-        }
-
-        tmp_count = *results_count;
-
-        /*
-         * Output buffers do not need to be pre-allocated, the PALI interface does that.
-         */
-        WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
-          &get_args, results_array, &tmp_count));
-
-        WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
-    }
-
-    *results_count = tmp_count;
+    WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
+      &get_args, results_array, results_count));
+    WT_ASSERT(session, *results_count > 0);
+    WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT + 1);
 
     last = (int32_t)(*results_count - 1);
 
@@ -192,15 +184,19 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
         if (is_delta)
             __wt_verbose(session, WT_VERB_READ,
-              "Reading delta page at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
+              "Reading delta page at position #%" PRId32 " for page_id %" PRIu64
+              ", table_id %" PRIu64,
+              result, page_id, block_disagg->tableid);
         else
-            __wt_verbose(session, WT_VERB_READ, "Reading base page for page_id %" PRIu64, page_id);
+            __wt_verbose(session, WT_VERB_READ,
+              "Reading base page for page_id %" PRIu64 ", table_id %" PRIu64, page_id,
+              block_disagg->tableid);
 
         /*
          * Do little- to big-endian handling early on.
          */
         blk = WT_BLOCK_HEADER_REF(current->data);
-        __wti_block_disagg_header_byteswap_copy(blk, &swap);
+        __wt_block_disagg_header_byteswap_copy(blk, &swap);
 
         /*
          * TODO(WT-16511): When we have the original checksum stored in the page, we should check
@@ -216,17 +212,18 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
-                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
-                      is_delta, result, "magic %" PRIu8 ": doesn't match expected magic of %" PRIu8,
-                      swap.magic, expected_magic);
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
+                      "magic %" PRIu8 ": doesn't match expected magic of %" PRIu8, swap.magic,
+                      expected_magic);
                     goto corrupt;
                 }
-                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
-                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
-                      is_delta, result,
-                      "compatible version error, version %" PRIu8
-                      " is greater than compatible version of %" PRIu8,
-                      swap.compatible_version, WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
+                if (!__block_disagg_header_version_compatible(swap.compatible_version)) {
+                    __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid,
+                      size, page_id, lsn, is_delta, result,
+                      "compatible version error, the block's compatible version %" PRIu8
+                      " is greater than the reader version of %" PRIu8,
+                      swap.compatible_version, WT_BLOCK_DISAGG_VERSION);
                     goto corrupt;
                 }
 
@@ -270,25 +267,28 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
             }
 
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
-                  result,
+                __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+                  page_id, lsn, is_delta, result,
                   "calculated checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
                   swap.checksum, checksum);
         } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
-              result, "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
+            __block_disagg_read_err(session, block_disagg->name, block_disagg->tableid, size,
+              page_id, lsn, is_delta, result,
+              "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
               swap.checksum, checksum);
 
 corrupt:
         if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            WT_IGNORE_RET(
-              __wt_bm_corrupt_dump(session, current, 0, (wt_off_t)page_id, size, checksum));
+            __wt_log_data_dump(session, current->data, current->size,
+              "corrupt dump: {%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}", (uint32_t)0,
+              (uintmax_t)page_id, size, checksum);
 
         /* Panic if a checksum fails during an ordinary read. */
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-        if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+        if (WT_SESSION_READ_CORRUPT_OK(session))
             WT_ERR(WT_ERROR);
-        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
+        WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error (table_id: %" PRIu64 ")",
+          block_disagg->name, block_disagg->tableid);
     }
 
     /*
@@ -355,3 +355,90 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
 
     return (0);
 }
+
+/*
+ * __wt_block_disagg_debug_read_page_id --
+ *     Debug-only entry: fetch a page chain by (page_id, lsn) via plh_get and return the raw results
+ *     plus the page-log get-args. No byteswap, no magic/checksum checks here; the caller
+ *     (bt_debug.c) owns validation and printing. Not for production code paths.
+ */
+int
+__wt_block_disagg_debug_read_page_id(WT_BM *bm, WT_SESSION_IMPL *session, uint64_t page_id,
+  uint64_t lsn, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array, u_int *results_count)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    uint32_t tmp_count;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    WT_CLEAR(*get_args);
+    get_args->lsn = lsn;
+    if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(get_args, WT_PAGE_LOG_COLD);
+
+    tmp_count = (uint32_t)*results_count;
+    WT_RET(block_disagg->plhandle->plh_get(
+      block_disagg->plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+    WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+    *results_count = tmp_count;
+
+    if (tmp_count == 0)
+        return (WT_NOTFOUND);
+
+    return (0);
+}
+
+/*
+ * __wt_block_disagg_debug_read_page_id_raw --
+ *     Debug-only entry: fetch a page chain by (table_id, page_id, lsn) directly off the connection
+ *     page log, without a btree or block manager. Used to inspect pages when the checkpoint cannot
+ *     be picked up. Not for production paths.
+ */
+int
+__wt_block_disagg_debug_read_page_id_raw(WT_SESSION_IMPL *session, uint64_t table_id,
+  uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
+  u_int *results_count)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_PAGE_LOG *npage_log;
+    WT_PAGE_LOG_HANDLE *plhandle;
+    uint32_t tmp_count;
+
+    conn = S2C(session);
+    npage_log = conn->disaggregated_storage.npage_log;
+    plhandle = NULL;
+
+    if (npage_log == NULL)
+        WT_RET_MSG(session, ENOTSUP, "wt page is only supported in disaggregated storage mode");
+
+    WT_CLEAR(*get_args);
+    get_args->lsn = lsn;
+
+    WT_RET(npage_log->page_log->pl_open_handle(
+      npage_log->page_log, &session->iface, table_id, &plhandle));
+
+    tmp_count = (uint32_t)*results_count;
+    WT_ERR(plhandle->plh_get(
+      plhandle, &session->iface, page_id, 0, get_args, results_array, &tmp_count));
+    WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+    *results_count = tmp_count;
+    if (tmp_count == 0)
+        ret = WT_NOTFOUND;
+
+err:
+    WT_TRET(plhandle->plh_close(plhandle, &session->iface));
+    return (ret);
+}
+
+#ifdef HAVE_UNITTEST
+/*
+ * __ut_block_disagg_header_version_compatible --
+ *     Unit-test wrapper for __block_disagg_header_version_compatible.
+ */
+bool
+__ut_block_disagg_header_version_compatible(uint8_t compatible_version)
+{
+    return (__block_disagg_header_version_compatible(compatible_version));
+}
+#endif

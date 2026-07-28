@@ -32,7 +32,6 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from helper import simulate_crash_restart
 
-# test_checkpoint35.py
 #
 # Test precise checkpoint
 class test_checkpoint35(wttest.WiredTigerTestCase):
@@ -84,9 +83,7 @@ class test_checkpoint35(wttest.WiredTigerTestCase):
         # Crash and restart
         simulate_crash_restart(self, ".", "RESTART")
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        self.assertEqual(stat_cursor[stat.conn.txn_rts_upd_aborted][2], 0)
-        stat_cursor.close()
+        self.assertEqual(self.get_stat(stat.conn.txn_rts_upd_aborted), 0)
 
         cursor = self.session.open_cursor(ds.uri, None, None)
         for i in range(1, nrows + 1):

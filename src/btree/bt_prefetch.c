@@ -29,7 +29,7 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
      * Pre-fetch traverses the internal page, to do that safely it requires a split gen.
      */
     if (!(F_ISSET(ref, WT_REF_FLAG_LEAF) || __wt_session_gen(session, WT_GEN_SPLIT) == 0)) {
-        WT_STAT_CONN_INCR(session, prefetch_failed_start);
+        WT_STAT_CONN_INCR(session, prefetch_skipped_internal_split_gen);
         return (0);
     }
 
@@ -52,7 +52,6 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
       session->pf.prefetch_skipped_with_parent < WT_PREFETCH_QUEUE_PER_TRIGGER) {
         ++session->pf.prefetch_skipped_with_parent;
         WT_STAT_CONN_INCR(session, prefetch_skipped_same_ref);
-        WT_STAT_CONN_INCR(session, prefetch_skipped);
         return (0);
     }
 
@@ -61,7 +60,7 @@ __wti_btree_prefetch(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Load and decompress a set of pages into the block cache. */
     WT_INTL_FOREACH_BEGIN (session, ref->home, next_ref) {
         /* Don't let the pre-fetch queue get overwhelmed. */
-        if (__wt_tsan_suppress_load_uint64(&conn->prefetch_queue_count) > WT_MAX_PREFETCH_QUEUE ||
+        if (__wt_tsan_suppress_load_uint64(&conn->prefetch.queue_count) > WT_MAX_PREFETCH_QUEUE ||
           block_preload > WT_PREFETCH_QUEUE_PER_TRIGGER)
             break;
 

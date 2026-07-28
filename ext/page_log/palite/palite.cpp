@@ -41,7 +41,7 @@
  * separate SQLite database file:
  *  - globals.db
  *  - checkpoints.db
- *  - pages_[N].db  - one per WT table (N is the table ID)
+ *  - pages_[N].db  - one per shard (N is the shard index, table_id % NUM_SHARDS)
  *
  * -= Concurrency model =-
  *
@@ -49,9 +49,16 @@
  * database connections, possibly in separate threads or processes, but only one
  * simultaneous write transaction.
  *
- * As a result, PALite uses a readers-writer lock at the table level to ensure
- * that read operations can occur concurrently while write operations are
- * serialized.
+ * As a result, PALite uses a readers-writer lock at the table level, with
+ * exception of pages, to ensure that read operations can occur concurrently
+ * while write operations are serialized.
+ *
+ * Pages are sharded across multiple database files to allow for concurrent
+ * writes to different shards, so each page shard has its own readers-writer lock.
+ * This allows for higher concurrency when multiple threads are accessing
+ * different page shards simultaneously. At the same time, the overall number of
+ * database connections remains low. It is essential for tests that open many
+ * tables.
  *
  * In addition, there is a storage-wide lock that is used for operations that
  * require exclusive access to the entire storage. E.g., abandoning a checkpoint.
@@ -159,6 +166,7 @@
 #include <system_error>
 #include <thread>
 #include <type_traits>
+#include <unordered_map>
 
 using namespace std::chrono_literals;
 
@@ -318,15 +326,18 @@ join(const Range &range, const Separator &sep)
 }
 
 /* Base-2 (binary) units */
-constexpr uint64_t operator""_KB(unsigned long long val)
+constexpr uint64_t
+operator""_KB(unsigned long long val)
 {
     return val * 1024;
 }
-constexpr uint64_t operator""_MB(unsigned long long val)
+constexpr uint64_t
+operator""_MB(unsigned long long val)
 {
     return val * 1024 * 1024;
 }
-constexpr uint64_t operator""_GB(unsigned long long val)
+constexpr uint64_t
+operator""_GB(unsigned long long val)
 {
     return val * 1024 * 1024 * 1024;
 }
@@ -727,8 +738,7 @@ public:
         if constexpr (Policy != THROW)
             return;
 
-        static constexpr auto sqlite2errno = []() constexpr
-        {
+        static constexpr auto sqlite2errno = []() constexpr {
             std::array<std::errc, SQLITE_NOTADB + 1> a{};
             a[SQLITE_OK] = std::errc::operation_not_permitted; /* unused */
             a[SQLITE_ERROR] = std::errc::invalid_argument;
@@ -741,7 +751,7 @@ public:
             a[SQLITE_READONLY] = std::errc::read_only_file_system;
             a[SQLITE_INTERRUPT] = std::errc::interrupted;
             a[SQLITE_IOERR] = std::errc::io_error;
-            a[SQLITE_CORRUPT] = std::errc::illegal_byte_sequence;
+            a[SQLITE_CORRUPT] = std::errc::bad_message;
             a[SQLITE_NOTFOUND] = std::errc::no_such_file_or_directory;
             a[SQLITE_FULL] = std::errc::no_space_on_device;
             a[SQLITE_CANTOPEN] = std::errc::io_error;
@@ -758,8 +768,7 @@ public:
             a[SQLITE_RANGE] = std::errc::result_out_of_range;
             a[SQLITE_NOTADB] = std::errc::illegal_byte_sequence;
             return a;
-        }
-        ();
+        }();
 
         /* Verify that each slot was assigned. */
         static_assert(
@@ -810,10 +819,10 @@ class Connection {
       "PRAGMA journal_mode = WAL;",
 
       /*
-       * Turn Synchronous mode OFF for better performance. We don't care about database corruption
-       * in case of OS crash or power failure.
+       * Sync at the most critical moments, but less often than in FULL mode. WAL mode is safe from
+       * corruption with synchronous=NORMAL.
        */
-      "PRAGMA synchronous = OFF;",
+      "PRAGMA synchronous = NORMAL;",
 
       /* For temporary store use memory instead of disk. */
       "PRAGMA temp_store = MEMORY;"};
@@ -1050,8 +1059,7 @@ struct Globals : public Table<Globals> {
         COUNT /* number of statements */
     };
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /* Increment LSN. */
@@ -1079,8 +1087,7 @@ struct Globals : public Table<Globals> {
              WHERE id = 1;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Globals::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1180,8 +1187,7 @@ struct Checkpoints : public Table<Checkpoints> {
         COUNT /* number of statements */
     };
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /*
@@ -1213,8 +1219,7 @@ struct Checkpoints : public Table<Checkpoints> {
              WHERE lsn > ?;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Checkpoints::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1352,8 +1357,7 @@ struct Pages : public Table<Pages> {
      */
     static constexpr uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
 
-    constexpr static auto sql_statements = []() constexpr
-    {
+    constexpr static auto sql_statements = []() constexpr {
         std::array<std::string_view, COUNT> stmt{};
 
         /*
@@ -1487,8 +1491,7 @@ struct Pages : public Table<Pages> {
              WHERE lsn > ?;)";
 
         return stmt;
-    }
-    ();
+    }();
 
     static_assert(
       std::ranges::none_of(Pages::sql_statements, [](const auto &s) { return s.empty(); }),
@@ -1577,9 +1580,9 @@ struct Pages : public Table<Pages> {
 
     ~Pages() = default;
     Pages(Config &cfg, std::shared_mutex &store_access, const std::filesystem::path &home,
-      uint64_t table_id)
+      size_t shard_id)
         : Table<Pages>(
-            cfg, store_access, home / std::format("{}_{:06}.db", Pages::prefix, table_id))
+            cfg, store_access, home / std::format("{}_{:02}.db", Pages::prefix, shard_id))
     {
     }
 
@@ -1957,18 +1960,29 @@ class Storage {
     Config &config;
     const std::filesystem::path db_home;
 
+    /* Enables exclusive access to entire storage */
+    std::shared_mutex store_access;
+
     Globals globals;
     Checkpoints checkpoints;
 
-    std::unordered_map<uint64_t, std::unique_ptr<Pages>> pages;
-    std::shared_mutex pages_access; /* protects 'pages' map */
-
-    /* Enables exclusive access to entire storage */
-    std::shared_mutex store_access;
+    /*
+     * Pages data is spread across NUM_SHARDS database files. Each table_id is mapped to a shard via
+     * table_id % NUM_SHARDS, so all records for a given table reside in one shard.
+     */
+    static constexpr size_t NUM_SHARDS = 17; /* A prime number to reduce collisions. */
+    std::array<std::unique_ptr<Pages>, NUM_SHARDS> shards;
+    std::shared_mutex shard_access; /* protects 'shards' collection */
 
     /* Stats */
     std::atomic_ullong object_puts; /* (What would be) network writes */
     std::atomic_ullong object_gets; /* (What would be) network requests for data */
+
+    static size_t
+    get_shard_id(uint64_t table_id)
+    {
+        return table_id % NUM_SHARDS;
+    }
 
 public:
     ~Storage() = default;
@@ -1982,25 +1996,57 @@ public:
     Storage &operator=(const Storage &) = delete;
 
 private:
+    /*-
+     * Deletes records up to the specified checkpoint LSN.
+     * Note: Requires a unique lock on the store_access mutex.
+     */
+    void
+    delete_records(uint64_t checkpoint_lsn)
+    {
+        checkpoints.delete_many(checkpoint_lsn, Checkpoints::AccessMode::BYPASS);
+
+        /* To avoid opening the same shard multiple times */
+        std::array<bool, NUM_SHARDS> shard_updated{};
+
+        for (auto table_id : globals.get_table_ids(Globals::AccessMode::BYPASS)) {
+            const size_t shard_id = get_shard_id(table_id);
+            if (shard_updated[shard_id])
+                continue;
+
+            shard_updated[shard_id] = true;
+
+            /*
+             * Table ID's may be recorded in the 'globals' table, however connection to their
+             * 'pages' table may have never been opened. For example, on restart. Therefore, we use
+             * get_or_open_table().
+             */
+            auto &pages = get_or_open_table(table_id);
+            pages.delete_many(checkpoint_lsn, Pages::AccessMode::BYPASS);
+        }
+    }
+
     Pages &
     get_or_open_table(uint64_t table_id)
     {
-        std::unique_lock write_lock(pages_access);
-        auto [it, inserted] = pages.try_emplace(
-          table_id, std::make_unique<Pages>(config, store_access, db_home, table_id));
-        return *(it->second);
+        const size_t shard_id = get_shard_id(table_id);
+        std::unique_lock write_lock(shard_access);
+        if (shards[shard_id] == nullptr) {
+            shards[shard_id] = std::make_unique<Pages>(config, store_access, db_home, shard_id);
+        }
+
+        return *(shards[shard_id]);
     }
 
     Pages &
     get_table(uint64_t table_id)
     {
-        std::shared_lock read_lock(pages_access);
-        auto it = pages.find(table_id);
-        if (it == pages.end()) {
+        const size_t shard_id = get_shard_id(table_id);
+        std::shared_lock read_lock(shard_access);
+        if (shards[shard_id] == nullptr) {
             LOG_AND_THROW("Pages table not found for table ID {}", table_id);
         }
 
-        return *(it->second);
+        return *(shards[shard_id]);
     }
 
 public:
@@ -2008,8 +2054,12 @@ public:
     close()
     {
         std::unique_lock write_lock(store_access);
-        std::ranges::for_each(pages, [](auto &kv) { kv.second->close(); });
-        pages.clear();
+        std::ranges::for_each(shards, [](auto &sh) {
+            if (sh) {
+                sh->close();
+                sh.reset();
+            }
+        });
 
         checkpoints.close();
         globals.close();
@@ -2124,30 +2174,17 @@ public:
         /* Ensure exclusive access to storage since we update multiple tables. */
         std::unique_lock write_lock(store_access);
 
-        int ret = 0;
-        if (checkpoint_lsn == WT_PAGE_LOG_LSN_MAX) {
-            ret =
-              checkpoints.get(checkpoint_lsn, nullptr, nullptr, Checkpoints::AccessMode::BYPASS);
-        }
-
+        int ret =
+          checkpoints.get(checkpoint_lsn, nullptr, nullptr, Checkpoints::AccessMode::BYPASS);
         if (ret == WT_NOTFOUND) {
             LOG_DEBUG("No checkpoint found to abandon; lsn = {}", checkpoint_lsn);
             return;
         }
 
-        /* Note: global LSN counter is not decremented */
+        /* Note: global LSN counter is not decremented. */
 
-        checkpoints.delete_many(checkpoint_lsn, Checkpoints::AccessMode::BYPASS);
-
-        for (auto table_id : globals.get_table_ids(Globals::AccessMode::BYPASS)) {
-            /*
-             * Table ID's may be recorded in the 'globals' table, however connection to their
-             * 'pages' table may have never been opened. For example, on restart. Therefore, we use
-             * get_or_open_table().
-             */
-            auto &pages_tbl = get_or_open_table(table_id);
-            pages_tbl.delete_many(checkpoint_lsn, Pages::AccessMode::BYPASS);
-        }
+        /* Proceed to delete records up to the checkpoint LSN. */
+        delete_records(checkpoint_lsn);
     }
 };
 
@@ -2344,13 +2381,6 @@ public:
         return 0;
     }
 
-    int
-    begin_checkpoint(uint64_t checkpoint_id)
-    {
-        LOG_DEBUG("checkpoint_id={}", checkpoint_id);
-        return 0;
-    }
-
     /*
      * Abandon (delete) all page log entries and checkpoint records with an LSN greater than the
      * given LSN.
@@ -2365,7 +2395,7 @@ public:
     }
 
     int
-    complete_checkpoint_ext(uint64_t checkpoint_id, uint64_t checkpoint_timestamp,
+    complete_checkpoint(uint64_t checkpoint_id, uint64_t checkpoint_timestamp,
       const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
     {
         const uint64_t lsn = storage.make_next_lsn();
@@ -2385,7 +2415,7 @@ public:
     }
 
     int
-    get_complete_checkpoint_ext(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
+    get_complete_checkpoint(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
       uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata)
     {
         if (checkpoint_lsn)
@@ -2492,26 +2522,20 @@ palite_abandon_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *sess)
 }
 
 static int
-palite_begin_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t checkpoint_id)
+palite_complete_checkpoint(
+  WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::begin_checkpoint, checkpoint_id);
+    return safe_call<Palite>(sess, page_log, &Palite::complete_checkpoint, args->checkpoint_id,
+      args->checkpoint_timestamp, args->checkpoint_metadata, &args->lsn);
 }
 
 static int
-palite_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t checkpoint_id,
-  uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
+palite_get_complete_checkpoint(
+  WT_PAGE_LOG *page_log, WT_SESSION *sess, WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS *args)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::complete_checkpoint_ext, checkpoint_id,
-      checkpoint_timestamp, checkpoint_metadata, lsnp);
-}
-
-static int
-palite_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *sess,
-  uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
-  WT_ITEM *checkpoint_metadata)
-{
-    return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint_ext, checkpoint_lsn,
-      checkpoint_id, checkpoint_timestamp, checkpoint_metadata);
+    return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint,
+      &args->checkpoint_lsn, &args->checkpoint_id, &args->checkpoint_timestamp,
+      &args->checkpoint_metadata);
 }
 
 static int
@@ -2552,12 +2576,8 @@ Palite::initialize_interface()
 {
     pl_add_reference = palite_add_reference;
     pl_abandon_checkpoint = palite_abandon_checkpoint;
-    pl_begin_checkpoint = palite_begin_checkpoint;
-    pl_complete_checkpoint_ext = palite_complete_checkpoint_ext;
-    /*
-     * FIXME-WT-16821: palite_get_complete_checkpoint_ext will be deprecated.
-     */
-    pl_get_complete_checkpoint_ext = palite_get_complete_checkpoint_ext;
+    pl_complete_checkpoint = palite_complete_checkpoint;
+    pl_get_complete_checkpoint = palite_get_complete_checkpoint;
     pl_get_last_lsn = palite_get_last_lsn;
     pl_open_handle = palite_open_handle;
     pl_set_last_materialized_lsn = palite_set_last_materialized_lsn;

@@ -26,16 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_truncate09.py
-#   Check for fast-truncate rollback-to-stable timestamps.
+# Check for fast-truncate rollback-to-stable timestamps.
 
 import wttest
 from helper import simulate_crash_restart
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
-# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
+
+@wttest.skip_for_hook("disagg", "Disagg does not support RTS")
 class test_truncate09(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     format_values = [
         ('column', dict(key_format='r')),
         ('row_integer', dict(key_format='i')),
@@ -44,7 +44,7 @@ class test_truncate09(wttest.WiredTigerTestCase):
 
     def test_truncate09(self):
         # Create a large table with lots of pages.
-        uri = "table:test_truncate09"
+        uri = f"table:{self.test_name}"
         format = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + format)
 
@@ -102,15 +102,15 @@ class test_truncate09(wttest.WiredTigerTestCase):
         # Restart, testing RTS on the copy.
         simulate_crash_restart(self, ".", "RESTART")
 
-        # Search for a key in the truncated range which is stabilised, hence should not find it.
+        # Search for a key in the truncated range which is stabilized, hence should not find it.
         cursor = self.session.open_cursor(uri)
         cursor.set_key(simple_key(cursor, 30000))
         self.assertNotEqual(cursor.search(), 0)
 
-        # Search for a key in the truncated range which is not stabilised, hence should find it.
+        # Search for a key in the truncated range which is not stabilized, hence should find it.
         cursor.set_key(simple_key(cursor, 60000))
         self.assertEqual(cursor.search(), 0)
 
-        # Search for a removed key which is not stabilised, hence should find it.
+        # Search for a removed key which is not stabilized, hence should find it.
         cursor.set_key(simple_key(cursor, 75000))
         self.assertEqual(cursor.search(), 0)

@@ -29,8 +29,7 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-# test_prepare03.py
-#    Prepare: Cursor API usage generates expected error in prepared state.
+# Prepare: Cursor API usage generates expected error in prepared state.
 
 # Pattern of test script is to invoke cursor operations in prepared transaction
 # state to ensure they fail and to repeat same operations in non-prepared state
@@ -180,16 +179,14 @@ class test_prepare03(wttest.WiredTigerTestCase):
         cursor.update()
         cursor.remove()
 
-        # FIXME-WT-16880: Fix layered search_near() incorrectly unpositioning the cursor.
-        if not self.runningHook('disagg'):
-            # Check search_near operation
-            cursor.set_key(self.genkey(self.nentries))
-            self.session.begin_transaction()
-            self.session.prepare_transaction("prepare_timestamp=2a")
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:cursor.search_near(), preparemsg)
-            self.session.timestamp_transaction("commit_timestamp=2b")
-            self.session.timestamp_transaction("durable_timestamp=2b")
-            self.session.commit_transaction()
-            cursor.search_near()
-            cursor.close()
+        # Check search_near operation
+        cursor.set_key(self.genkey(self.nentries))
+        self.session.begin_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.search_near(), preparemsg)
+        self.session.timestamp_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("durable_timestamp=2b")
+        self.session.commit_transaction()
+        cursor.search_near()
+        cursor.close()

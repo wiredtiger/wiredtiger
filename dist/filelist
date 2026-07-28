@@ -13,7 +13,6 @@ src/block/block_slvg.c
 src/block/block_vrfy.c
 src/block/block_write.c
 src/block_cache/block_cache.c
-src/block_cache/block_chunkcache.c
 src/block_cache/block_io.c
 src/block_cache/block_map.c
 src/block_cache/block_mgr.c
@@ -22,6 +21,7 @@ src/block_disagg/block_disagg_addr.c
 src/block_disagg/block_disagg_ckpt.c
 src/block_disagg/block_disagg_mgr.c
 src/block_disagg/block_disagg_open.c
+src/block_disagg/block_disagg_size.c
 src/block_disagg/block_disagg_read.c
 src/block_disagg/block_disagg_unsup.c
 src/block_disagg/block_disagg_write.c
@@ -57,9 +57,11 @@ src/btree/row_modify.c
 src/btree/row_srch.c
 src/cache/cache.c
 src/cache/cache_pool.c
+src/cache/shared_dsk.c
 src/call_log/call_log.c
 src/checkpoint/checkpoint_ckptlist.c
 src/checkpoint/checkpoint_conn.c
+src/checkpoint/checkpoint_parallel.c
 src/checkpoint/checkpoint_stats.c
 src/checkpoint/checkpoint_txn.c
 src/checksum/arm64/crc32-arm64.c                ARM64_HOST
@@ -83,18 +85,20 @@ src/config/config_def.c
 src/config/config_ext.c
 src/config/test_config.c
 src/conn/api_calc_modify.c
+src/conn/api_repair.c
 src/conn/api_strerror.c
 src/conn/api_version.c
 src/conn/conn_api.c
 src/conn/conn_capacity.c
-src/conn/conn_chunkcache.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
+src/conn/conn_layered_checkpoint_pick_up.c
 src/conn/conn_layered_ingest.c
 src/conn/conn_layered_page_log.c
 src/conn/conn_layered_table_manager.c
 src/conn/conn_layered.c
+src/conn/conn_load_control.c
 src/conn/conn_open.c
 src/conn/conn_page_history.c
 src/conn/conn_prefetch.c
@@ -119,10 +123,15 @@ src/cursor/cur_std.c
 src/cursor/cur_table.c
 src/cursor/cur_version.c
 src/evict/evict_conn.c
+src/evict/evict_dispatch.c
+src/evict/evict_exclusive.c
 src/evict/evict_file.c
-src/evict/evict_lru.c
 src/evict/evict_page.c
+src/evict/evict_queue.c
 src/evict/evict_stat.c
+src/evict/evict_thread.c
+src/evict/evict_verbose.c
+src/evict/evict_walk.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_verify.c
@@ -153,8 +162,9 @@ src/os_common/os_fstream_stdio.c
 src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
 src/os_darwin/os_futex.c         DARWIN_HOST
+src/os_darwin/os_mtx_sem.c       DARWIN_HOST
 src/os_linux/os_futex.c          LINUX_HOST
-src/os_win/os_futex.c            WINDOWS_HOST
+src/os_linux/os_mtx_sem.c        LINUX_HOST
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST
@@ -175,9 +185,11 @@ src/os_posix/os_yield.c          POSIX_HOST
 src/os_win/os_dir.c              WINDOWS_HOST
 src/os_win/os_dlopen.c           WINDOWS_HOST
 src/os_win/os_fs.c               WINDOWS_HOST
+src/os_win/os_futex.c            WINDOWS_HOST
 src/os_win/os_getenv.c           WINDOWS_HOST
 src/os_win/os_map.c              WINDOWS_HOST
 src/os_win/os_mtx_cond.c         WINDOWS_HOST
+src/os_win/os_mtx_sem.c          WINDOWS_HOST
 src/os_win/os_once.c             WINDOWS_HOST
 src/os_win/os_pagesize.c         WINDOWS_HOST
 src/os_win/os_path.c             WINDOWS_HOST
@@ -211,6 +223,7 @@ src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
 src/schema/schema_stat.c
+src/schema/schema_publish.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
 src/schema/schema_worker.c
@@ -252,3 +265,4 @@ src/txn/txn.c
 src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c
+src/txn/txn_truncate.c

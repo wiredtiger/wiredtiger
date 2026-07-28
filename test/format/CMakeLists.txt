@@ -16,6 +16,7 @@ set(format_sources
     format_util.c
     hs.c
     import.c
+    key_rotation.c
     kv.c
     ops.c
     random.c
@@ -44,5 +45,10 @@ create_test_executable(test_format
 # for sanitizers to work correctly.
 set_target_properties(test_format PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_options(test_format PRIVATE -DEXT_LIBPATH="")
+
+# t loads extension MODULE libraries via dlopen() at runtime; pull in the umbrella target so
+# they are built whenever test_format is built.
+add_dependencies(test_format wiredtiger_ext)
+
 add_test(NAME test_format COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
 set_tests_properties(test_format PROPERTIES LABELS "check")

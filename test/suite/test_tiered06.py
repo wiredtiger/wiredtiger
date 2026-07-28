@@ -32,14 +32,14 @@ from wtscenario import make_scenarios
 
 FileSystem = wiredtiger.FileSystem  # easy access to constants
 
-# test_tiered06.py
 # Note that the APIs we are testing are not meant to be used directly
 # by any WiredTiger application, these APIs are used internally.
 # However, it is useful to do tests of this API independently.
 
 class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
-    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered06', tiered_only=True)
+    test_name = __qualname__
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), test_name, tiered_only=True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(storage_sources)
@@ -74,7 +74,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         ss = self.get_storage_source()
 
         # Since this class has multiple tests, append test name to the prefix to
-        # avoid namespace collison. 0th element on the stack is the current function.
+        # avoid namespace collision. 0th element on the stack is the current function.
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         # The directory store needs the bucket created as a directory on the filesystem.
@@ -117,7 +117,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertEqual(fh.fh_size(session), len(outbytes))
         fh.close(session)
 
-        # The fh_lock call doesn't do anything in the directory and S3 store implementation.
+        # The fh_lock call doesn't do anything in the directory store implementation.
         fh = fs.fs_open_file(session, 'foobar', FileSystem.open_file_type_data, FileSystem.open_readonly)
         fh.fh_lock(session, True)
         fh.fh_lock(session, False)
@@ -157,7 +157,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         ss = self.get_storage_source()
 
         # Since this class has multiple tests, append test name to the prefix to
-        # avoid namespace collison. 0th element on the stack is the current function.
+        # avoid namespace collision. 0th element on the stack is the current function.
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         cachedir = self.bucket + '_cache'
@@ -232,6 +232,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
                     self.assertEqual(in_block, a_block)
             fh.close(session)
 
+        fs.terminate(session)
         ss.terminate(session)
 
     def create_with_fs(self, fs, fname):
@@ -287,7 +288,7 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
         ss = self.get_storage_source()
 
         # Since this class has multiple tests, append test name to the prefix to
-        # avoid namespace collison. 0th element on the stack is the current function.
+        # avoid namespace collision. 0th element on the stack is the current function.
         prefix = self.bucket_prefix + inspect.stack()[0][3] + '/'
 
         # Directory store needs the bucket created as a directory on the filesystem.
@@ -301,9 +302,6 @@ class test_tiered06(wttest.WiredTigerTestCase, TieredConfigMixin):
 
         # Create file system objects. First try some error cases.
         errmsg = '/No such|Invalid bucket name/'
-        # S3 store expects a region with the bucket
-        if self.ss_name == 's3_store':
-            bad_bucket += ';us-east-2'
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: ss.ss_customize_file_system(session, bad_bucket, self.auth_token,

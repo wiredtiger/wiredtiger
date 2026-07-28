@@ -30,12 +30,12 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
-# test_cursor_bound20.py
-#    Test special cursor index bounds case. This python test aims to test the edge cases of
+# Test special cursor index bounds case. This python test aims to test the edge cases of
 # increment_bounds_array function. When max values are given as a key, it will not increment and
 # can turn off the upper bounds setting in some edge cases.
 class test_cursor_bound20(bound_base):
-    file_name = 'test_cursor_bound20'
+    test_name = __qualname__
+    file_name = test_name
     uri = 'table:'
     key_format = 'S'
 
@@ -112,7 +112,7 @@ class test_cursor_bound20(bound_base):
         self.assertEqual(index_cursor.search_near(), 0)
         self.assertEqual(index_cursor.get_key(), self.check_key(MAX_FIXED_STRING))
 
-        # Test basic search scnarios.
+        # Test basic search scenarios.
         index_cursor.set_key(MAX_FIXED_STRING)
         self.assertEqual(index_cursor.search(), 0)
         self.assertEqual(index_cursor.get_key(), self.check_key(MAX_FIXED_STRING))
@@ -165,7 +165,7 @@ class test_cursor_bound20(bound_base):
         index_cursor.set_key(MAX_BYTE_ARRAY)
         self.assertEqual(index_cursor.search_near(), 0)
 
-        # Test basic search scnarios.
+        # Test basic search scenarios.
         index_cursor.set_key(MAX_BYTE_ARRAY)
         self.assertEqual(index_cursor.search(), 0)
         self.assertEqual(index_cursor.get_key(), MAX_BYTE_ARRAY)

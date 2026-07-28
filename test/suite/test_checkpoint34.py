@@ -32,11 +32,8 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from helper import simulate_crash_restart
 
-# test_checkpoint34.py
 #
 # Test precise checkpoint with fast truncate
-# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-@wttest.skip_for_hook("disagg", "FIXME-WT-15430: fast truncate is not supported for disagg yet")
 @wttest.skip_for_hook("tiered", "fast truncate is not supported for tiered yet")
 class test_checkpoint34(wttest.WiredTigerTestCase):
 
@@ -50,10 +47,7 @@ class test_checkpoint34(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def get_fast_truncated_pages(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        stat_cursor.close()
-        return pages
+        return self.get_stat(stat.conn.rec_page_delete_fast)
 
     def test_checkpoint(self):
         uri = 'table:checkpoint34'
@@ -100,9 +94,7 @@ class test_checkpoint34(wttest.WiredTigerTestCase):
         # Crash and restart
         simulate_crash_restart(self, ".", "RESTART")
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        self.assertEqual(stat_cursor[stat.conn.txn_rts_upd_aborted][2], 0)
-        stat_cursor.close()
+        self.assertEqual(self.get_stat(stat.conn.txn_rts_upd_aborted), 0)
 
         cursor = self.session.open_cursor(ds.uri, None, None)
         for i in range(1, nrows + 1):

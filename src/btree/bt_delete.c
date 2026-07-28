@@ -201,7 +201,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -296,11 +296,20 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
              * unresolved transactions aren't going anywhere.
              */
             for (; *updp != NULL; ++updp) {
-                /* The ref is locked, no need to pay attention to memory ordering here. */
-                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK))
-                    (*updp)->upd_rollback_ts = txn->time_point.rollback_timestamp;
-                __wt_atomic_store_uint64_relaxed(&(*updp)->upd_saved_txnid, (*updp)->txnid);
-                __wt_atomic_store_uint64_v_relaxed(&(*updp)->txnid, WT_TXN_ABORTED);
+                /*
+                 * Only save timestamps for prepared transactions; the saved_txnid and rollback_ts
+                 * fields share memory with upd_start_ts and upd_durable_ts in the union, so writing
+                 * them unconditionally would race with concurrent readers. After a split the
+                 * original ref lock does not prevent child refs from being reconciled concurrently,
+                 * so use atomic stores and a release on txnid to establish happens-before with
+                 * reconciliation threads that acquire-load txnid before reading these fields.
+                 */
+                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_ROLLBACK)) {
+                    __wt_atomic_store_uint64_relaxed(
+                      &(*updp)->upd_rollback_ts, txn->time_point.rollback_timestamp);
+                    __wt_atomic_store_uint64_relaxed(&(*updp)->upd_saved_txnid, (*updp)->txnid);
+                }
+                __wt_atomic_store_uint64_v_release(&(*updp)->txnid, WT_TXN_ABORTED);
             }
             /* Now discard the updates. */
             __wt_free(session, ref->page->modify->inst_updates);
@@ -317,7 +326,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     }
 
     if (WT_DELTA_INT_ENABLED(op->btree, S2C(session)))
-        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+        __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
 
     WT_REF_SET_STATE(ref, current_state);
     return (0);
@@ -677,8 +686,12 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Fast-truncate only happens to leaf pages. */
     WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF || page->type == WT_PAGE_COL_VAR);
 
-    /* Empty pages should get skipped before reaching this point. */
-    WT_ASSERT(session, page->entries > 0);
+    /*
+     * A leaf page can be empty only when it was rebuilt from a base image and deltas: that merge
+     * drops every key whose stop is globally visible, which can leave no entries. Instantiating
+     * such a page is a no-op (there are no rows to tombstone). Any other empty page is unexpected.
+     */
+    WT_ASSERT(session, page->entries > 0 || WT_DELTA_LEAF_ENABLED(session));
 
     WT_STAT_CONN_DSRC_INCR(session, cache_read_deleted);
 

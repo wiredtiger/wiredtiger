@@ -270,6 +270,18 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
         __wt_atomic_store_uint64_relaxed(&new_page->read_gen, orig_read_gen);
 }
 
+/*
+ * __wt_evict_shared_dsk_cache_bytes_decr --
+ *     Account for a shared disk image leaving the cache on its last release.
+ */
+static WT_INLINE void
+__wt_evict_shared_dsk_cache_bytes_decr(
+  WT_SESSION_IMPL *session, uint8_t dsk_type, uint32_t dsk_size)
+{
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_evict, dsk_size);
+    __wt_cache_shared_dsk_inmem_decr(session, dsk_type, dsk_size);
+}
+
 /* !!!
  * __wt_evict_page_cache_bytes_decr --
  *     Decrement the in-memory byte count for the cache, B-tree, and page to reflect the eviction
@@ -286,43 +298,36 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree;
     WT_CACHE *cache;
     WT_PAGE_MODIFY *modify;
-    uint64_t memory_footprint;
+    uint64_t btree_footprint, memory_footprint;
     bool is_disagg;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
     modify = page->modify;
-    memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    btree_footprint = memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     is_disagg = __wt_conn_is_disagg(session);
+
+    /*
+     * For shared disk pages, page memory footprint includes disk size that is tracked by the shared
+     * disk cache layer. Subtract the disk size from the drain amount, let the shared disk cache
+     * layer drain the disk size on the matching last release.
+     */
+    if (WT_PAGE_HAS_SHARED_DSK_REF(page)) {
+        WT_ASSERT(session, page->dsk != NULL);
+        WT_ASSERT(session, memory_footprint >= page->dsk->mem_size);
+        memory_footprint -= page->dsk->mem_size;
+    }
 
     /* Update the bytes in-memory to reflect the eviction. */
     __wt_cache_decr_check_uint64(
-      session, &btree->bytes_inmem, memory_footprint, "WT_BTREE.bytes_inmem");
-    __wt_cache_decr_check_uint64(
-      session, &cache->bytes_inmem, memory_footprint, "WT_CACHE.bytes_inmem");
-    if (is_disagg) {
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_ingest, memory_footprint, "WT_CACHE.bytes_inmem_ingest");
-        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_stable, memory_footprint, "WT_CACHE.bytes_inmem_stable");
-    }
+      session, &btree->bytes_inmem, btree_footprint, "WT_BTREE.bytes_inmem");
+    WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, memory_footprint);
 
     /* Update the bytes_internal value to reflect the eviction */
     if (WT_PAGE_IS_INTERNAL(page)) {
         __wt_cache_decr_check_uint64(
-          session, &btree->bytes_internal, memory_footprint, "WT_BTREE.bytes_internal");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_internal, memory_footprint, "WT_CACHE.bytes_internal");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_ingest,
-                  memory_footprint, "WT_CACHE.bytes_internal_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_stable,
-                  memory_footprint, "WT_CACHE.bytes_internal_stable");
-        }
+          session, &btree->bytes_internal, btree_footprint, "WT_BTREE.bytes_internal");
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, memory_footprint);
     }
 
     /* Update the cache's dirty-byte count. */
@@ -330,29 +335,11 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_PAGE_IS_INTERNAL(page)) {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_dirty_intl, modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
-            if (is_disagg) {
-                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_ingest,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_ingest");
-                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_stable,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_stable");
-            }
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_intl, modify->bytes_dirty);
         } else {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
-            if (is_disagg) {
-                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_ingest,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_ingest");
-                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_stable,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_stable");
-            }
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_leaf, modify->bytes_dirty);
         }
     }
 
@@ -360,21 +347,14 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (modify != NULL) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_updates, modify->bytes_updates, "WT_CACHE.bytes_updates");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_ingest,
-                  modify->bytes_updates, "WT_CACHE.bytes_updates_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_stable,
-                  modify->bytes_updates, "WT_CACHE.bytes_updates_stable");
-        }
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_updates, modify->bytes_updates);
     }
 
     /* Update bytes and pages evicted. */
     (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
     (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
+    if (!WT_PAGE_IS_INTERNAL(page))
+        (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_leaf, 1);
     if (is_disagg) {
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
             (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_ingest, 1);
@@ -600,7 +580,8 @@ __wt_evict_needed(
          * updates or dirty pages.
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
-          (!conn->layered_table_manager.leader || F_ISSET(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
+          (!conn->layered_table_manager.leader ||
+            F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
             double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
             if (pct_updates > cache_full)
                 __wt_verbose_debug1(
@@ -839,7 +820,11 @@ __wt_evict_app_assist_worker_check(
 
     /* It is not safe to proceed if the eviction server threads aren't setup yet. */
     WT_CONNECTION_IMPL *conn = S2C(session);
-    if (!__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
+    if (!__wt_atomic_load_bool_relaxed(&conn->evict_config.server_running))
+        return (0);
+
+    /* Checkpoint reconciliation workers cannot participate in eviction. */
+    if (F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER))
         return (0);
 
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */
@@ -969,4 +954,77 @@ __wt_evict_clear_npos(WT_BTREE *btree)
 {
     btree->evict_pos = WT_NPOS_INVALID;
     btree->evict_saved_ref_check = 0;
+}
+
+/*
+ * __evict_list_clear --
+ *     Clear an entry in the LRU eviction list.
+ */
+static WT_INLINE void
+__evict_list_clear(WT_SESSION_IMPL *session, WTI_EVICT_ENTRY *e)
+{
+    if (e->ref != NULL) {
+        WT_ASSERT(session, F_ISSET_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU));
+        F_CLR_ATOMIC_16(e->ref->page, WT_PAGE_EVICT_LRU | WT_PAGE_EVICT_LRU_URGENT);
+    }
+    e->ref = NULL;
+    e->btree = (WT_BTREE *)WT_DEBUG_POINT;
+}
+
+/*
+ * __evict_queue_empty --
+ *     Is the queue empty? Note that the eviction server is pessimistic and treats a half full queue
+ *     as empty.
+ */
+static WT_INLINE bool
+__evict_queue_empty(WTI_EVICT_QUEUE *queue, bool server_check)
+{
+    uint32_t candidates, used;
+
+    if (queue->evict_current == NULL)
+        return (true);
+
+    /* The eviction server only considers half of the candidates. */
+    candidates = queue->evict_candidates;
+    if (server_check && candidates > 1)
+        candidates /= 2;
+    used = (uint32_t)(queue->evict_current - queue->evict_queue);
+    return (used >= candidates);
+}
+
+/*
+ * __evict_queue_full --
+ *     Is the queue full (i.e., it has been populated with candidates and none of them have been
+ *     evicted yet)?
+ */
+static WT_INLINE bool
+__evict_queue_full(WTI_EVICT_QUEUE *queue)
+{
+    return (queue->evict_current == queue->evict_queue && queue->evict_candidates != 0);
+}
+
+/*
+ * __evict_page_updates_candidate --
+ *     Check whether evicting the page will help reduce tracked updates usage.
+ */
+static WT_INLINE bool
+__evict_page_updates_candidate(WT_PAGE *page)
+{
+    if (page == NULL || page->modify == NULL)
+        return (false);
+
+    /*
+     * Internal pages don't track bytes_updates, but still need to be evicted when updates pressure
+     * is active. Evicting and reconciling an internal page frees the underlying disk blocks of any
+     * fast-truncate children whose deletions have become globally visible.
+     */
+    if (WT_PAGE_IS_INTERNAL(page))
+        return (true);
+
+    /*
+     * For leaf pages, only queue the page if it has non-zero tracked update bytes. Freshly-split
+     * child pages start at zero, and evicting a page with no tracked update bytes does not reduce
+     * updates cache pressure.
+     */
+    return (page->modify->bytes_updates != 0);
 }

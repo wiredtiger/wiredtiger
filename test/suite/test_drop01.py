@@ -26,11 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wttest, unittest
 
-# test_drop01.py
 # Test WT_SESSION->drop should clean up history store.
 class test_drop01(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     def add_timestamp_data(self, uri, key, val1, val2, timestamp):
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri, None, None)
@@ -46,8 +46,9 @@ class test_drop01(wttest.WiredTigerTestCase):
         cursor.close()
         return size
 
-    uri = 'table:test_drop01'
-    name = 'test_drop01'
+    uri = f'table:{test_name}'
+    name = test_name
+    @unittest.skip('FIXME-WT-16857, Test has known bug.')
     def test_drop_hs_truncate(self):
         # Create the table with two column groups.
         self.session.create(self.uri, "key_format=S,value_format=SS,"

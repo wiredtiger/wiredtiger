@@ -4,7 +4,7 @@
 ##############################################################################################
 
 set -e
-set -x
+# set -x
 
 #############################################################
 # bcopy:
@@ -16,10 +16,54 @@ bcopy()
     test "$1" = "mongodb-8.0" && echo "1"
     test "$1" = "mongodb-7.0" && echo "1"
     test "$1" = "mongodb-6.0" && echo "1"
-    test "$1" = "mongodb-5.0" && echo "1"
-    test "$1" = "mongodb-4.4" && echo "1"
     # Anything newer than mongodb-8.0 returns false.
     return 0
+}
+
+#############################################################
+# branch_major_version:
+#       arg1: branch name (e.g. mongodb-8.2, develop)
+# Outputs the numeric major version for a mongodb-X.Y branch,
+# or nothing for develop/other non-versioned names.
+#############################################################
+branch_major_version()
+{
+    echo "$1" | sed -n 's/^mongodb-\([0-9]*\)\..*/\1/p'
+}
+
+#############################################################
+# branch_minor_version:
+#       arg1: branch name (e.g. mongodb-8.2, develop)
+# Outputs the numeric minor version for a mongodb-X.Y branch,
+# or nothing for develop/other non-versioned names.
+#############################################################
+branch_minor_version()
+{
+    echo "$1" | sed -n 's/^mongodb-[0-9]*\.\([0-9]*\)$/\1/p'
+}
+
+#############################################################
+# is_minor_release:
+#       arg1: branch name
+# Returns 0 (true) if the branch is a minor release (minor version != 0).
+#############################################################
+is_minor_release()
+{
+    local minor
+    minor=$(branch_minor_version "$1")
+    [ -n "$minor" ] && [ "$minor" -ne 0 ]
+}
+
+#############################################################
+# is_major_release:
+#       arg1: branch name
+# Returns 0 (true) if the branch is a major release (minor version == 0).
+#############################################################
+is_major_release()
+{
+    local minor
+    minor=$(branch_minor_version "$1")
+    [ -n "$minor" ] && [ "$minor" -eq 0 ]
 }
 
 #############################################################
@@ -29,14 +73,13 @@ bcopy()
 bflag()
 {
     # Return if the branch's format command takes the -B flag for backward compatibility.
-    test "$1" = "develop" && echo "-B "
+    test "$1" = "develop" && echo "-B"
+    test "$1" = "mongodb-9.0" && echo "-B"
     test "$1" = "mongodb-8.3" && echo "-B"
     test "$1" = "mongodb-8.2" && echo "-B"
     test "$1" = "mongodb-8.0" && echo "-B"
-    test "$1" = "mongodb-7.0" && echo "-B "
-    test "$1" = "mongodb-6.0" && echo "-B "
-    test "$1" = "mongodb-5.0" && echo "-B "
-    test "$1" = "mongodb-4.4" && echo "-B "
+    test "$1" = "mongodb-7.0" && echo "-B"
+    test "$1" = "mongodb-6.0" && echo "-B"
     return 0
 }
 
@@ -67,9 +110,7 @@ pick_a_version()
     # Avoid picking below types of versions:
     #   - release candidates (rc)
     #   - alpha releases (alpha)
-    #   - mongodb-4.4.0 through mongodb-4.4.6 (4.4.[0-6]$) as they are not compatible with Doxygen
-    #     version 1.8.17 (installed on the build hosts). WT-7437 was introduced since 4.4.7.
-    mapfile -t versions < <( git tag | grep $branch | grep -Ev "rc|alpha|4.4.[0-6]$" )
+    mapfile -t versions < <( git tag | grep $branch | grep -Ev "rc|alpha" )
 
     len_versions=${#versions[@]}
     if [ $len_versions != 0 ]; then
@@ -117,15 +158,21 @@ build_branch()
         # Disable cppsuite - not all versions build with the toolchain
         config+="-DENABLE_CPPSUITE=0 "
 
-        # Use the stable MongoDB toolchain if it exists
-        toolchain="$PWD/cmake/toolchains/mongodbtoolchain_stable_gcc.cmake"
-        if [ ! -f $toolchain ]; then
-            toolchain="$PWD/cmake/toolchains/mongodbtoolchain_v4_gcc.cmake"
-        fi
-        config+="-DCMAKE_TOOLCHAIN_FILE=$toolchain "
+        # Always use master's CMakePresets.json so preset names are consistent
+        # regardless of the branch's own CMake setup.
+        cp "$PROJECT_ROOT/CMakePresets.json" CMakePresets.json
 
-        (mkdir -p build && cd build &&
-            $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
+        local cmake_preset="linux-gcc"
+
+        # Branches mongodb-7.0 and older require the v4 toolchain (incompatible with GCC 14+).
+        if [[ "$1" =~ ^mongodb-[0-7]\. ]]; then
+            cmake_preset="linux-v4-gcc"
+        fi
+
+        (
+            mkdir -p build && cd build &&
+                $CMAKE --preset "$cmake_preset" $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)
+        ) > /dev/null
     else
         config+="--enable-snappy "
         config+="--disable-standalone-build "
@@ -152,7 +199,7 @@ get_config_file_name()
     local file_name=""
     branch_name=$1
     format_dir="$branch_name/build/test/format"
-    if [ "${wt_standalone}" = true ] || [ $older = true ] ; then
+    if [ "${wt_standalone}" = true ]; then
         file_name="${format_dir}/CONFIG_default"
         echo $file_name
         return
@@ -177,59 +224,44 @@ create_configs()
     fi
 
     echo "##################################################" > $file_name
-    echo "runs.type=row" >> $file_name                # WT-7379 - Temporarily disable column store tests
-    echo "block_cache=0" >> $file_name                # Not supported by newer releases, it is forcibly disabled internally.
-    echo "btree.huffman_value=0" >> $file_name        # WT-12456 - Never used, removed from newer releases
-    echo "btree.prefix=0" >> $file_name               # WT-7579 - Prefix testing isn't portable between releases
-    echo "btree.prefix_len=0" >> $file_name           # WT-15548 - Not supported by older releases
-    echo "cache=80" >> $file_name                     # Medium cache so there's eviction
-    echo "checksum=on" >> $file_name                  # WT-7851 Fix illegal checksum configuration
-    echo "checkpoints=1"  >> $file_name               # Force periodic writes
-    echo "compression=snappy"  >> $file_name          # We only build with snappy, force the choice
+    echo "runs.type=row" >> $file_name                          # WT-7379 - Temporarily disable column store tests
+    echo "block_cache=0" >> $file_name                          # Not supported by newer releases, it is forcibly disabled internally.
+    echo "btree.huffman_value=0" >> $file_name                  # WT-12456 - Never used, removed from newer releases
+    echo "btree.prefix=0" >> $file_name                         # WT-7579 - Prefix testing isn't portable between releases
+    echo "btree.prefix_len=0" >> $file_name                     # WT-15548 - Not supported by older releases
+    echo "cache=80" >> $file_name                               # Medium cache so there's eviction
+    echo "checksum=on" >> $file_name                            # WT-7851 Fix illegal checksum configuration
+    echo "checkpoints=1"  >> $file_name                         # Force periodic writes
+    echo "compression=snappy"  >> $file_name                    # We only build with snappy, force the choice
     echo "data_source=table" >> $file_name
-    echo "debug.background_compact=0" >> $file_name   # WT-13276 - Not supported by older releases
-    echo "debug.cursor_reposition=0" >> $file_name    # WT-10594 - Not supported by older releases
-    echo "debug.log_retention=0" >> $file_name        # WT-10434 - Not supported by older releases
-    echo "debug.realloc_malloc=0" >> $file_name       # WT-10111 - Not supported by older releases
-    echo "eviction.evict_use_softptr=0" >> $file_name # WT-14013 - Not supported by older releases
-    echo "in_memory=0" >> $file_name                  # Interested in the on-disk format
-    echo "leak_memory=1" >> $file_name                # Faster runs
-    echo "logging=1" >> $file_name                    # Test log compatibility
-    echo "logging_compression=snappy" >> $file_name   # We only built with snappy, force the choice
-    echo "obsolete_cleanup.method=off" >> $file_name  # WT-14142 - Not supported by older releases
-    echo "obsolete_cleanup.wait=0" >> $file_name      # WT-14142 - Not supported by older releases
-    echo "prefetch=0" >> $file_name                   # WT-12978 - Not supported by older releases
+    echo "debug.background_compact=0" >> $file_name             # WT-13276 - Not supported by older releases
+    echo "debug.cursor_reposition=0" >> $file_name              # WT-10594 - Not supported by older releases
+    echo "debug.disagg_slow_truncate_follower=0" >> $file_name  # WT-17686 - Not supported by older releases
+    echo "debug.log_retention=0" >> $file_name                  # WT-10434 - Not supported by older releases
+    echo "debug.realloc_malloc=0" >> $file_name                 # WT-10111 - Not supported by older releases
+    echo "debug.slow_truncate=0" >> $file_name                  # WT-17686 - Not supported by older releases
+    echo "eviction.evict_use_softptr=0" >> $file_name           # WT-14013 - Not supported by older releases
+    echo "in_memory=0" >> $file_name                            # Interested in the on-disk format
+    echo "leak_memory=1" >> $file_name                          # Faster runs
+    echo "logging=1" >> $file_name                              # Test log compatibility
+    echo "logging_compression=snappy" >> $file_name             # We only built with snappy, force the choice
+    echo "obsolete_cleanup.method=off" >> $file_name            # WT-14142 - Not supported by older releases
+    echo "obsolete_cleanup.wait=0" >> $file_name                # WT-14142 - Not supported by older releases
+    echo "prefetch=0" >> $file_name                             # WT-12978 - Not supported by older releases
+    echo "prefetch.default=0" >> $file_name                     # WT-16671 - Not supported by older releases
     echo "rows=1000000" >> $file_name
-    echo "salvage=0" >> $file_name                    # Faster runs
-    echo "statistics_log.sources=off" >> $file_name   # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
-    echo "stress.checkpoint=0" >> $file_name          # Faster runs
+    echo "salvage=0" >> $file_name                              # Faster runs
+    echo "statistics_log.sources=off" >> $file_name             # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
+    echo "stress.checkpoint=0" >> $file_name                    # Faster runs
     echo "timer=4" >> $file_name
     echo "verify=1" >> $file_name
-    if [ "$branch_name" == "mongodb-4.2" ] ; then
-        # WT-8601 has not been backported to 4.2 and transactions are expected to be timestamped.
-        echo "transaction.timestamps=1" >> $file_name # WT-7545 - Older releases can't do non-timestamp transactions
-        echo "huffman_key=0" >> $file_name            # WT-6893 - Not supported by newer releases
-    else
-        echo "transaction.timestamps=0" >> $file_name # WT-8601 - Timestamps do not work with logged tables
-    fi
-
-    # Append older release configs for newer compatibility release test
-    if [ $newer = true ]; then
-        for i in "${compatible_upgrade_downgrade_release_branches[@]}"
-        do
-            if [ "$i" == "$branch_name" ] ; then
-                echo "transaction.isolation=snapshot" >> $file_name # WT-7545 - Older releases can't do lower isolation levels
-                break
-            fi
-        done
-    fi
+    echo "transaction.timestamps=0" >> $file_name               # WT-8601 - Timestamps do not work with logged tables
     echo "##################################################" >> $file_name
 }
 
 #############################################################
 # create_default_configs:
-# This function will create the default configs for older and standalone
-# release branches.
+# This function will create the default configs for standalone release branches.
 #############################################################
 create_default_configs()
 {
@@ -282,11 +314,8 @@ run_format()
 
     config_file=""
 
-    # Compatibility test for newer releases will have CONFIG file for each release
-    # branches for the upgrade/downgrade testing.
-    #
-    # Compatibility test for older and standalone releases will have the default config.
-    if [ "${wt_standalone}" = true ] || [ $older = true ]; then
+    # Newer releases have a per-branch CONFIG file; standalone uses CONFIG_default.
+    if [ "${wt_standalone}" = true ]; then
         config_file="-c CONFIG_default"
     else
         config_file="-c CONFIG_${branch_name}"
@@ -304,40 +333,6 @@ run_format()
             echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
     done
     cd -
-}
-
-#############################################################
-# is_test_checkpoint_recovery_supported:
-#       arg1: branch name
-#############################################################
-is_test_checkpoint_recovery_supported()
-{
-    branch_name=$1
-
-    #
-    # The test_checkpoint recovery change WT-7958 are included in mongo
-    # 4.4.9 and 5.0.3 (and newer) versions.
-    #
-    # There's no much value to run test_checkpoint for earlier versions.
-    #
-    # Exclude mongodb-4.4.10+ and mongodb-5.0.10+ versions.
-    #
-    # Exclude mongodb-4.4 and mongodb-5.0 and they represent latest code
-    # of the corresponding release branches, which have WT-7958 included.
-    #
-    if ( ([[ $branch_name == mongodb-* ]] &&
-          [[ $branch_name < "mongodb-4.4.9" ]]) ||
-         ([[ $branch_name == mongodb-5.0.[0-9] ]] &&
-          [[ $branch_name < "mongodb-5.0.3" ]]) ) &&
-       [[ $branch_name != mongodb-4.4.[1-9][0-9] ]] &&
-       [[ $branch_name != mongodb-5.0.[1-9][0-9] ]] &&
-       [[ $branch_name != "mongodb-4.4" ]] &&
-       [[ $branch_name != "mongodb-5.0" ]]
-    then
-        echo "no"
-    else
-        echo "yes"
-    fi
 }
 
 #############################################################
@@ -500,39 +495,26 @@ upgrade_downgrade()
     for am in $3; do
         config=$top/$format_dir_branch2/RUNDIR.$am/CONFIG
         for _ in {1..2}; do
-            # In order to be able to test against 4.2, we need to have timestamped transactions. Those
-            # are incompatible with implicit transactions. Adjust the config temporarily.
-            if [ "$1" == "mongodb-4.2" ] ; then
-                echo "Temporarily forcing transaction.timestamps=1 for $config"
-                cp $config $config.orig
-                echo "transaction.timestamps=1" >> $config
-                echo "transaction.implicit=0" >> $config
-            fi
-	    # Older releases (8.0 and older) expect to find a BACKUP.copy
-	    # directory if BACKUP exists. After 8.0 the directory structure
-	    # changed. So copy it for older releases if testing against a
-	    # develop run that is doing backups.
+            # Older releases (8.0 and older) expect to find a BACKUP.copy
+            # directory if BACKUP exists. After 8.0 the directory structure
+            # changed. So copy it for older releases if testing against a
+            # develop run that is doing backups.
             need_bcopy1=$(bcopy $1)
             need_bcopy2=$(bcopy $2)
-	    dir2=$top/$format_dir_branch2/RUNDIR.$am
-	    # If there is a BACKUP and the older release needs a BACKUP.copy directory and
-	    # the source version does not create one, remove any from an earlier run and
-	    # copy the BACKUP contents for this run.
-	    if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
+            dir2=$top/$format_dir_branch2/RUNDIR.$am
+            # If there is a BACKUP and the older release needs a BACKUP.copy directory and
+            # the source version does not create one, remove any from an earlier run and
+            # copy the BACKUP contents for this run.
+            if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
                 echo "Remove any earlier $dir2/BACKUP.copy for older releases"
-		rm -rf $dir2/BACKUP.copy
+                rm -rf $dir2/BACKUP.copy
                 echo "Copying backup directory for older releases"
-		cp -rp $dir2/BACKUP $dir2/BACKUP.copy
-	    fi
+                cp -rp $dir2/BACKUP $dir2/BACKUP.copy
+            fi
             echo "$1 format running on $2 access method $am..."
             cd "$top/$format_dir_branch1"
             flags="-1Rq $(bflag $1)"
             ./t $flags -h "$top/$format_dir_branch2/RUNDIR.$am" timer=2
-            # Revert to the original config.
-            if [ "$1" == "mongodb-4.2" ] ; then
-                echo "Reverting $config to its original state"
-                mv $config.orig $config
-            fi
 
             echo "$2 format running on $2 access method $am..."
             cd "$top/$format_dir_branch2"
@@ -540,49 +522,6 @@ upgrade_downgrade()
             ./t $flags -h "RUNDIR.$am" timer=2
         done
     done
-}
-
-# test/format manually specifies paths to loadable extensions. It also relies on WiredTiger.basecfg
-# existing, so the result is a bunch of paths to .so files in WiredTiger.basecfg. This is fine, but
-# the change from autoconf to cmake resulted in these files living in different directories. It's a
-# bit awful, but this method fixes up the paths in WiredTiger.basecfg when upgrading between
-# versions built with different build systems. This whole thing can go away once we stop caring
-# about 5.0.
-fixup_format_extension_paths()
-{
-    local src_branch="$1"
-    local dst_branch="$2"
-    local working_dir="$3"
-
-    local src_build_system=$(get_build_system "$src_branch")
-    local dst_build_system=$(get_build_system "$dst_branch")
-
-    if [ "$src_build_system" != "$dst_build_system" ]; then
-        if [ "$src_build_system" = "autoconf" ]; then
-            sed --in-place -e 's/\/\.libs//g' "$working_dir"/WiredTiger.basecfg
-        fi
-
-        # We don't need to make the inverse translation when going from cmake to autoconf, since
-        # autoconf puts the libraries in both the .libs/ directory, and the root of the extension's
-        # build directory. Thus, when a newer version saves a path without .libs/ it'll still find
-        # the right shared library.
-    fi
-}
-
-# Check if going from $from to $to is acceptable.
-check_dirty_restart_compatibility()
-{
-    local from="$1"
-    local to="$2"
-
-    # 6.0 introduced a new fast-truncate flag that 5.0 and earlier can't deal with.
-    if [[ "$from" > "mongodb-5.0" ]]; then
-        if [[ "$to" < "mongodb-6.0" ]]; then
-            return -1
-        fi
-    fi
-
-    return 0
 }
 
 # Run test/format from $src_branch, and crash. Recover using test/format from $dst_branch.
@@ -612,7 +551,6 @@ test_dirty_restart()
     # against those.
     pushd "${dst_branch}/build/test/format"
     local dir="../../../../${src_branch}/build/test/format/RUNDIR.${src_branch}"
-    fixup_format_extension_paths "$src_branch" "$dst_branch" "$dir"
     ./t ${flags} -R -h "$dir" format.abort=0
 
     # Remove the database so future runs don't try to use it.
@@ -795,7 +733,6 @@ import_compatibility_test()
 # Only one of below flags will be set by the 1st argument of the script.
 dirty_restart=false
 import=false
-older=false
 newer=false
 wt_standalone=false
 patch_version=false
@@ -807,13 +744,11 @@ upgrade_to_latest=false
 # then the branch name itself will be used for the checkout
 declare -A gittags
 gittags['develop']="develop"
+gittags['mongodb-9.0']="mongodb-9.0"
 gittags['mongodb-8.3']="mongodb-8.3"
 gittags['mongodb-8.0']="mongodb-8.0"
 gittags['mongodb-7.0']="mongodb-7.0"
 gittags['mongodb-6.0']="mongodb-6.0"
-gittags['mongodb-5.0']="mongodb-5.0"
-gittags['mongodb-4.4']="mongodb-4.4"
-gittags['mongodb-4.2']="mongodb-4.2"
 # Then, optionally, replace one or more tags with a particular branch or commit hash where required for testing
 # For example, this set of commit hashes will reproduce the bug in WT-9795
 #gittags['develop']="d031f0af518c9b5f15dc586de4ae55d6867f423b"
@@ -827,6 +762,7 @@ gittags['mongodb-4.2']="mongodb-4.2"
 # Use relative folder to locate the meta file
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
+PROJECT_ROOT="$(realpath "$SCRIPT_DIR/../..")"
 VERSIONS_FILE="$SCRIPT_DIR/meta/versions.sh"
 source "$VERSIONS_FILE"
 
@@ -834,8 +770,6 @@ source "$VERSIONS_FILE"
 
 import_release_branches=($IMPORT_RELEASE_BRANCHES)
 newer_release_branches=($NEWER_RELEASE_BRANCHES)
-older_release_branches=($OLDER_RELEASE_BRANCHES)
-compatible_upgrade_downgrade_release_branches=($COMPATIBLE_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 patch_version_upgrade_downgrade_release_branches=($PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 test_checkpoint_release_branches=($TEST_CHECKPOINT_RELEASE_BRANCHES)
 upgrade_to_latest_upgrade_downgrade_release_branches=($UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
@@ -844,11 +778,11 @@ declare -A scopes
 scopes[dirty_restart]="start from an unclean shutdown of a different version"
 scopes[import]="import files from previous versions"
 scopes[newer]="newer stable release branches"
-scopes[older]="older stable release branches"
 scopes[patch_version]="patch versions of the same release branch"
 scopes[upgrade_to_latest]="upgrade/downgrade databases to the latest versions of the codebase"
 scopes[wt_standalone]="WiredTiger standalone releases"
 scopes[two_versions]="any two given versions"
+scopes[test_pairs]="verify compatibility pair coverage (no builds or tests run)"
 
 #############################################################
 # Retrieve the build system used by a particular release,
@@ -889,19 +823,228 @@ get_build_system()
 }
 
 #############################################################
+# generate_compat_pairs:
+#       arg*: list of branch names (the NEWER_RELEASE_BRANCHES array)
+#
+# Outputs deduplicated "newer_branch older_branch" pairs based on version
+# relationships rather than simple consecutive ordering.  This ensures that
+# minor releases are tested against all required partners per the Server
+# Release Policy upgrade/downgrade matrix:
+#
+#   Minor X.Y  ->  X.(Y-1) and X.(Y+1) if configured
+#              ->  X.0 (base major of the same series)
+#              ->  (X+1).0 if configured, else develop
+#
+#   Major X.0  ->  (X-1).0 if configured
+#              ->  (X+1).0 if configured, else develop
+#              ->  all configured X.Y (Y>0) minors of the same major
+#              ->  highest configured (X-1).Y (last minor of previous major)
+#
+# Each pair is printed as "newer older" where newer > older in version order.
+#############################################################
+generate_compat_pairs()
+{
+    local branches=("$@")
+
+    # branch_in_array <target> <branch...>
+    branch_in_array()
+    {
+        local target="$1"; shift
+        local b
+        for b; do [ "$b" = "$target" ] && return 0; done
+        return 1
+    }
+
+    declare -A unique_pairs
+
+    # add_pair <b1> <b2>
+    # Collect unique pairs into an associative array.
+    # - Key:   "b1:b2" (b1 < b2 lexicographically)
+    # - Value: "b1 b2" in caller-provided order (not normalized here)
+    add_pair()
+    {
+        local b1="$1" b2="$2"
+        local key
+        # Canonical key: sort the two names so dedup works regardless of call order.
+        if [[ "$b1" < "$b2" ]]; then
+            key="${b1}:${b2}"
+        else
+            key="${b2}:${b1}"
+        fi
+        # Store the pair only once; preserve first-seen caller argument order.
+        if [ -z "${unique_pairs[$key]+x}" ]; then
+            unique_pairs[$key]="${b1} ${b2}"
+        fi
+    }
+
+    local branch
+    for branch in "${branches[@]}"; do
+        local major minor
+        major=$(branch_major_version "$branch")
+        minor=$(branch_minor_version "$branch")
+
+        # "develop" branch has no version numbers; its pairs are generated when other branches
+        # look for their upper adjacent major and fall back to develop.
+        [[ "$branch" == "develop" ]] && continue
+
+        if is_minor_release "$branch"; then
+            # ---- Minor release X.Y (Y > 0) ----
+
+            # Adjacent older minor X.(Y-1)
+            local lo_minor=$(( minor - 1 ))
+            local lo_minor_b="mongodb-${major}.${lo_minor}"
+            branch_in_array "$lo_minor_b" "${branches[@]}" && add_pair "$branch" "$lo_minor_b"
+
+            # Adjacent newer minor X.(Y+1)
+            local hi_minor=$(( minor + 1 ))
+            local hi_minor_b="mongodb-${major}.${hi_minor}"
+            branch_in_array "$hi_minor_b" "${branches[@]}" && add_pair "$branch" "$hi_minor_b"
+
+            # Base major X.0
+            local base_b="mongodb-${major}.0"
+            branch_in_array "$base_b" "${branches[@]}" && add_pair "$branch" "$base_b"
+
+            # Next major (X+1).0 or develop as proxy
+            local next_major=$(( major + 1 ))
+            local next_major_b="mongodb-${next_major}.0"
+            if branch_in_array "$next_major_b" "${branches[@]}"; then
+                add_pair "$next_major_b" "$branch"
+            elif branch_in_array "develop" "${branches[@]}"; then
+                add_pair "develop" "$branch"
+            fi
+
+        elif is_major_release "$branch"; then
+            # ---- Major release X.0 ----
+
+            # Lower adjacent major (X-1).0
+            if [ "$major" -gt 0 ]; then
+                local prev_major=$(( major - 1 ))
+                local prev_major_b="mongodb-${prev_major}.0"
+                branch_in_array "$prev_major_b" "${branches[@]}" && add_pair "$branch" "$prev_major_b"
+            fi
+
+            # Upper adjacent major (X+1).0 or develop as proxy
+            local next_major=$(( major + 1 ))
+            local next_major_b="mongodb-${next_major}.0"
+            if branch_in_array "$next_major_b" "${branches[@]}"; then
+                add_pair "$next_major_b" "$branch"
+            elif branch_in_array "develop" "${branches[@]}"; then
+                add_pair "develop" "$branch"
+            fi
+
+            # All configured minors of the same major X.Y (Y > 0)
+            local b b_major b_minor
+            for b in "${branches[@]}"; do
+                b_major=$(branch_major_version "$b")
+                b_minor=$(branch_minor_version "$b")
+                if [ "$b_major" = "$major" ] && [ -n "$b_minor" ] && [ "$b_minor" -ne 0 ]; then
+                    add_pair "$branch" "$b"
+                fi
+            done
+
+            # Highest configured minor of the previous major (X-1).Y
+            if [ "$major" -gt 0 ]; then
+                local prev_major=$(( major - 1 ))
+                local highest_prev_minor_val=-1
+                local highest_prev_minor_b=""
+                for b in "${branches[@]}"; do
+                    b_major=$(branch_major_version "$b")
+                    b_minor=$(branch_minor_version "$b")
+                    if [ "$b_major" = "$prev_major" ] && [ -n "$b_minor" ] && [ "$b_minor" -ne 0 ]; then
+                        if [ "$b_minor" -gt "$highest_prev_minor_val" ]; then
+                            highest_prev_minor_val="$b_minor"
+                            highest_prev_minor_b="$b"
+                        fi
+                    fi
+                done
+                [ -n "$highest_prev_minor_b" ] && add_pair "$branch" "$highest_prev_minor_b"
+            fi
+        else
+            # Non-versioned or unexpected branch name; ignore here.
+            continue
+        fi
+    done
+
+    # Emit the pairs.
+    local key
+    for key in "${!unique_pairs[@]}"; do
+        echo "${unique_pairs[$key]}"
+    done
+}
+
+#############################################################
+# run_pair_tests:
+#
+# Verify that generate_compat_pairs produces expected outputs
+# for fixed golden vectors and satisfies structural invariants.
+#
+# No builds or actual compatibility tests are performed.
+#############################################################
+run_pair_tests()
+{
+    local errors=0
+    local -A input_set emitted
+    local -a branches
+    local b1 b2 key
+
+    read -r -a branches <<< "${newer_release_branches[*]}"
+    for b1 in "${branches[@]}"; do
+        input_set["$b1"]=1
+    done
+
+    echo "Configured branches: ${branches[*]}"
+    echo ""
+    echo "Generated compatibility pairs:"
+
+    while IFS=' ' read -r b1 b2; do
+        [ -z "$b1" ] && continue
+        echo "  $b1  <->  $b2"
+
+        if [ "$b1" = "$b2" ]; then
+            echo "FAIL: self-pair emitted: $b1 <-> $b2"
+            errors=$(( errors + 1 ))
+        fi
+
+        if [ -z "${input_set[$b1]+x}" ] || [ -z "${input_set[$b2]+x}" ]; then
+            echo "FAIL: emitted pair contains branch outside configured set: $b1 <-> $b2"
+            errors=$(( errors + 1 ))
+        fi
+
+        if [[ "$b1" < "$b2" ]]; then
+            key="${b1}:${b2}"
+        else
+            key="${b2}:${b1}"
+        fi
+        if [ -n "${emitted[$key]+x}" ]; then
+            echo "FAIL: duplicate pair emitted: $b1 <-> $b2"
+            errors=$(( errors + 1 ))
+        fi
+        emitted[$key]=1
+    done < <(generate_compat_pairs "${branches[@]}")
+
+    echo ""
+    if [ "$errors" -eq 0 ]; then
+        echo "PASS: pair list generated with no invariant violations."
+    else
+        echo "FAIL: $errors invariant issue(s) detected while listing pairs."
+        return 1
+    fi
+}
+
+#############################################################
 # usage string
 #############################################################
 usage()
 {
-    echo -e "Usage: \tcompatibility_test_for_releases [-d|-i|-n|-o|-p|-u|-w|-v]"
+    echo -e "Usage: \tcompatibility_test_for_releases [-d|-i|-n|-p|-u|-w|-v|-T]"
     echo -e "\t-d\trun compatibility tests for ${scopes[dirty_restart]}"
     echo -e "\t-i\trun compatibility tests for ${scopes[import]}"
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
-    echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
     echo -e "\t-p\trun compatibility tests for ${scopes[patch_version]}"
     echo -e "\t-u\trun compatibility tests for ${scopes[upgrade_to_latest]}"
     echo -e "\t-w\trun compatibility tests for ${scopes[wt_standalone]}"
     echo -e "\t-v <v1> <v2>\trun compatibility tests for ${scopes[two_versions]}"
+    echo -e "\t-T\t${scopes[test_pairs]}"
     exit 1
 }
 
@@ -929,12 +1072,6 @@ case $1 in
     echo "Performing compatibility tests for ${scopes[newer]}"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
-"-o")
-    older=true
-    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-    echo "Performing compatibility tests for ${scopes[older]}"
-    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-;;
 "-p")
     patch_version=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -960,6 +1097,13 @@ case $1 in
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     echo "Performing compatibility tests for $v1 and $v2"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+;;
+"-T")
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Verifying compatibility pair coverage (${scopes[test_pairs]})"
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    run_pair_tests
+    exit $?
 ;;
 *)
     usage
@@ -1014,10 +1158,6 @@ if [ "$dirty_restart" = true ]; then
     for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
             if [[ "$b1" != "$b2" ]]; then
-                if ! check_dirty_restart_compatibility "$b1" "$b2"; then
-                    continue
-                fi
-
                 test_dirty_restart "$b1" "$b2"
             fi
         done
@@ -1025,19 +1165,6 @@ if [ "$dirty_restart" = true ]; then
 fi
 
 if [ "$two_versions" = true ]; then
-    # Check if the 2 given versions support test checkpoint with recovery
-    rtn=$(is_test_checkpoint_recovery_supported $v1)
-    if [ $rtn == "no" ]; then
-        echo -e "\n\"$v1\" does not support test checkpoint with recovery, exiting ...\n"
-        exit 1
-    fi
-
-    rtn=$(is_test_checkpoint_recovery_supported $v2)
-    if [ $rtn == "no" ]; then
-        echo -e "\n\"$v2\" does not support test checkpoint with recovery, exiting ...\n"
-        exit 1
-    fi
-
     # Build the branches
     (build_branch $v1)
     (build_branch $v2)
@@ -1067,15 +1194,11 @@ if [ "$patch_version" = true ]; then
         # test checkpoint in that case.
         if [ -n "$pv" ]; then
             (build_branch $pv)
-            rtn=$(is_test_checkpoint_recovery_supported $pv)
             patch_fix_included=$(git log --format=%h -1 --grep=WT-8708 -b "$pv" --)
 
-            # Only run verify if the picked version supports test checkpoint recovery
-            if [ $rtn == "no" ]; then
-                echo -e "\n\"$pv\" does not support test checkpoint with recovery, skipping ...\n"
             # Apply patch fix from WT-8708 to already released compatible versions to avoid
             # test/checkpoint setting commit timestamp less than stable timestamp
-            elif [ $rtn == "yes" ] && [ -z $patch_fix_included ]; then
+            if [ -z $patch_fix_included ]; then
                 cd $pv;
 
                 git format-patch -1 d4b0ad6cacb874fdc20bcc76311d789dd5a01441;
@@ -1098,12 +1221,6 @@ fi
 # Build the branches.
 if [ "$newer" = true ]; then
     for b in ${newer_release_branches[@]}; do
-        (build_branch $b)
-    done
-fi
-
-if [ "$older" = true ]; then
-    for b in ${older_release_branches[@]}; do
         (build_branch $b)
     done
 fi
@@ -1135,65 +1252,39 @@ if [ "$newer" = true ]; then
     done
 fi
 
-if [ "$older" = true ]; then
-    for b in ${older_release_branches[@]}; do
-        (run_format $b "row var")
-    done
-fi
-
 if [ "${wt_standalone}" = true ]; then
     (run_tests "$wt1" "row")
     (run_format "$wt2" "row")
 fi
 
-# Verify backward compatibility for supported access methods.
+# Verify backward/forward compatibility and run upgrade/downgrade testing.
 #
-# The branch array includes a list of branches in newer-to-older order.
-# For backport compatibility, the binary of the newer branch should
-# be used to verify the data files generated by the older branch.
-# e.g. (verify_branches mongodb-4.4 mongodb-4.2 "row")
+# Pairs are generated by generate_compat_pairs() using version-aware rules so that
+# minor releases are tested against all required partners per the Server Release Policy:
+#   - minor X.Y  <->  X.(Y+/-1) if configured, X.0, and (X+1).0 / develop
+#   - major X.0  <->  (X+/-1).0 / develop, all X.Y minors, highest (X-1).Y minor
+#
+# Each pair is tested in both the backward direction (newer binary reads older data)
+# and the forward direction (older binary reads newer data), plus upgrade/downgrade.
 if [ "$newer" = true ]; then
-    for i in ${!newer_release_branches[@]}; do
-        [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_test_format ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row" true)
-    done
+    while IFS=' ' read -r newer_b older_b; do
+        (verify_test_format "$newer_b" "$older_b" "row" true)   # backward compatibility
+        (verify_test_format "$older_b" "$newer_b" "row" false)  # forward compatibility
+        (upgrade_downgrade  "$older_b" "$newer_b" "row")        # upgrade/downgrade
+    done < <(generate_compat_pairs "${newer_release_branches[@]}")
+
+    # The checkpoint test runs over the full ordered chain so that checkpoint state
+    # propagates sequentially; keep the consecutive-pair approach for it.
     for i in ${!test_checkpoint_release_branches[@]}; do
         [[ $((i+1)) < ${#test_checkpoint_release_branches[@]} ]] && \
-        (verify_test_checkpoint ${test_checkpoint_release_branches[$i]} ${test_checkpoint_release_branches[$((i+1))]} "row")
-    done
-fi
-
-if [ "$older" = true ]; then
-    for i in ${!older_release_branches[@]}; do
-        [[ $((i+1)) < ${#older_release_branches[@]} ]] && \
-        (verify_test_format ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "row var" true)
+        (verify_test_checkpoint ${test_checkpoint_release_branches[$i]} \
+                                 ${test_checkpoint_release_branches[$((i+1))]} "row")
     done
 fi
 
 if [ "${wt_standalone}" = true ]; then
     (verify_branches develop "$wt1" "row" true)
     (verify_test_format "$wt1" "$wt2" "row" true)
-fi
-
-# Verify forward compatibility for supported access methods.
-#
-# The branch array includes a list of branches in newer-to-older order.
-# For forward compatibility, the binary of the older branch should
-# be used to verify the data files generated by the newer branch.
-# e.g. (verify_branches mongodb-4.2 mongodb-4.4 "row")
-if [ "$newer" = true ]; then
-    for i in ${!newer_release_branches[@]}; do
-        [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_test_format ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
-    done
-fi
-
-# Upgrade/downgrade testing for supported access methods.
-if [ "$newer" = true ]; then
-    for i in ${!newer_release_branches[@]}; do
-        [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (upgrade_downgrade ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row")
-    done
 fi
 
 exit 0

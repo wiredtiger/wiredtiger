@@ -32,23 +32,24 @@
 # [END_TAGS]
 
 from helper import copy_wiredtiger_home
+from metadata_helper import checkpoint_extent_list_blocks
 import wttest
 from wtdataset import SimpleDataSet
 import os
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_prepare_hs03.py
 # test to ensure salvage, verify & simulating crash are working for prepared transactions.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 @wttest.skip_for_hook("disagg", "Salvage on disagg tables not yet implemented") # FIXME-WT-14740: Re-enable salvage once implemented.
 class test_prepare_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
+    test_name = __qualname__
     conn_config = ('cache_size=50MB,statistics=(fast),'
                    'eviction_dirty_trigger=50,eviction_updates_trigger=50')
 
     # Create a small table.
-    uri = "table:test_prepare_hs03"
+    uri = f"table:{test_name}"
 
     corrupt_values = [
         ('corrupt_table', dict(corrupt=True)),
@@ -69,15 +70,30 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(corrupt_values, format_values)
 
     def corrupt_table(self, data_to_corrupt_with):
-        tablename="test_prepare_hs03.wt"
+        tablename=f"{self.test_name}.wt"
         self.assertEqual(os.path.exists(tablename), True)
 
-        # This code will overwrite part of the table with 'bad' data, corrupting the table in the process.
-        # The impact of this overwriting can depend on the number of bytes overwritten, depending on what the
-        # rest of the test does and expects.
-        with open(tablename, 'r+') as tablepointer:
-            tablepointer.seek(1024)
-            tablepointer.write(data_to_corrupt_with)
+        # Leave the checkpoint's extent-list blocks intact. Salvage cannot recover a corrupt extent
+        # list, and a later checkpoint that drops this one reads its extent lists: a failed read
+        # there is fatal (a WT_PANIC under the default corruption_abort), so corrupting one aborts
+        # the test whenever the file layout happens to place an extent-list block in the range below.
+        protect = sorted(checkpoint_extent_list_blocks(self.session, 'file:' + self.test_name + '.wt'))
+        start = 1024
+        data = bytes(data_to_corrupt_with, 'latin-1')
+        end = start + len(data)
+        with open(tablename, 'r+b') as f:
+            pos = start
+            for b_off, b_size in protect:
+                b_end = b_off + b_size
+                if b_end <= pos or b_off >= end:
+                    continue
+                if b_off > pos:
+                    f.seek(pos)
+                    f.write(data[pos - start:b_off - start])
+                pos = max(pos, b_end)
+            if pos < end:
+                f.seek(pos)
+                f.write(data[pos - start:])
 
     def corrupt_salvage_verify(self):
         # An exclusive handle operation can fail if there is dirty data in the cache, closing the
@@ -96,12 +112,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 break
             self.session.checkpoint()
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def check_data(self, ds, message, nkeys, nrows, timestamp, expected_value):
         # Search for the keys inserted with commit timestamp
         cursor = self.session.open_cursor(self.uri)
@@ -112,7 +122,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         for i in range(1, nkeys):
             key = nrows + i
             if cursor.set_key(ds.key(key)) != 0:
-                # It is not guarranteed that salvage recovers all the data in the table. Therefore
+                # It is not guaranteed that salvage recovers all the data in the table. Therefore
                 # perform a search and increment number of keys once search is successful.
                 search_result = cursor.search()
                 if search_result == 0:
@@ -158,7 +168,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(timestamp_early))
         cursor.close()
 
-        # Set the stable/oldest timstamps.
+        # Set the stable/oldest timestamps.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(timestamp_early))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(timestamp_early))
 

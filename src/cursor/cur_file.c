@@ -178,6 +178,12 @@ __curfile_next(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, cbt->dhandle);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    /*
+     * If this is a user cursor call, check for system overload before doing any work.
+     */
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
@@ -238,6 +244,8 @@ __curfile_prev(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, cbt->dhandle);
     CURSOR_REPOSITION_ENTER(cursor, session);
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__curfile_check_cbt_txn(session, cbt));
@@ -305,6 +313,9 @@ __curfile_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, search, cbt->dhandle);
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -328,11 +339,11 @@ err:
 }
 
 /*
- * __wti_curfile_search_near --
+ * __curfile_search_near --
  *     WT_CURSOR->search_near method for the btree cursor type.
  */
-int
-__wti_curfile_search_near(WT_CURSOR *cursor, int *exact)
+static int
+__curfile_search_near(WT_CURSOR *cursor, int *exact)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -343,6 +354,9 @@ __wti_curfile_search_near(WT_CURSOR *cursor, int *exact)
     CURSOR_API_CALL(cursor, session, ret, search_near, cbt->dhandle);
     API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -379,6 +393,9 @@ __curfile_insert(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
@@ -421,6 +438,9 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     tret = 0;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert_check);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -449,6 +469,9 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -487,6 +510,9 @@ __curfile_update(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, update);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -530,6 +556,9 @@ __curfile_remove(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, ret, cbt->dhandle);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -572,12 +601,15 @@ __curfile_reserve(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, reserve);
+
+    CURSOR_API_CHECK_SYSTEM_OVERLOAD(session, ret);
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     WT_ERR(__wt_txn_context_check(session, true));
 
-    WT_ERR(__wt_btcur_reserve(cbt));
+    WT_ERR(__wt_btcur_reserve(cbt, false));
 
     /*
      * Reserve maintains a position and key, which doesn't match the library API, where reserve
@@ -1034,7 +1066,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_prev,                                 /* prev */
       __curfile_reset,                                /* reset */
       __curfile_search,                               /* search */
-      __wti_curfile_search_near,                      /* search-near */
+      __curfile_search_near,                          /* search-near */
       __curfile_insert,                               /* insert */
       __wti_cursor_modify_value_format_notsup,        /* modify */
       __curfile_update,                               /* update */
@@ -1063,6 +1095,13 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 
     csize = bulk ? sizeof(WT_CURSOR_BULK) : sizeof(WT_CURSOR_BTREE);
     cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
+    if (cacheable)
+        WT_RET(__wti_cursors_can_be_cached(session, cfg, &cacheable));
+    /*
+     * We check for bulk when we define `cacheable`, so double check that bulk cursors never get
+     * cached.
+     */
+    WT_ASSERT_ALWAYS(session, !cacheable || !bulk, "Bulk cursors should never be cached");
 
     WT_RET(__wt_calloc(session, 1, csize, &cbt));
     cursor = &cbt->iface;
@@ -1134,6 +1173,21 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     WT_ERR(__wt_config_gets_def(session, cfg, "read_once", 0, &cval));
     if (cval.val != 0)
         F_SET(cbt, WT_CBT_READ_ONCE);
+
+    /*
+     * Size-summary accounting accumulates into the shared data-source statistics as the cursor
+     * traverses the tree. Reset here so a fresh open starts from zero. The counters are not
+     * cursor-local: the consumer must not open another size_stats cursor on the same btree while a
+     * walk is in progress, or the reset will wipe a partial accumulation.
+     */
+    WT_ERR(__wt_config_gets_def(session, cfg, "debug.size_stats", 0, &cval));
+    if (cval.val != 0) {
+        if (btree->type != BTREE_ROW)
+            WT_ERR_MSG(
+              session, EINVAL, "debug=(size_stats) is only supported on row-store objects");
+        F_SET(cbt, WT_CBT_SIZE_STAT);
+        __wt_size_stat_reset(session);
+    }
 
     /* Underlying btree initialization. */
     __wt_btcur_open(cbt);

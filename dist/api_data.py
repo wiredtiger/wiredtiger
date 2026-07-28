@@ -125,6 +125,12 @@ connection_page_delta_config_common = [
         When enabled, reconciliation may write deltas for leaf pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
+    Config('delete_pct', '20', r'''
+        when the number of keys removed from the disk image on a leaf page exceeds this
+        percentage of the total page entries, reconciliation writes a full page instead of
+        a delta to reclaim disk space. A removed key still occupies space as a tombstone in
+        the delta; the same key is simply absent from a full page.''',
+        min='1', max='100', type='int', undoc=True),
     Config('max_consecutive_delta', '32', r'''
         the max consecutive deltas allowed for a single page. The maximum value is set
         at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
@@ -149,6 +155,18 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
+    Config('strict_checkpoint_metadata', '', r'''
+        validate at checkpoint pickup that the local and shared metadata contain the same
+        layered tables, panicking on any difference that is not explained by a pending
+        metadata update with a schema epoch greater than the schema epoch of the picked-up
+        checkpoint. At startup the mode must be off: the startup pickup populates an empty
+        node from the checkpoint. Turn it on after startup, provided table creates and drops
+        reach this node through replicated operations and publish() rather than through
+        pickup. After a step-down,
+        turn it off until the unpublished tables left behind (step-down discards their
+        pending metadata updates) have been dropped. Preserved across calls to reconfigure
+        that do not name it''',
+        choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
@@ -187,11 +205,7 @@ connection_reconfigure_disaggregated_configuration = [
         type='category', subconfig=connection_disaggregated_config_common),
 ]
 wiredtiger_open_page_delta_configuration = connection_page_delta_config
-connection_reconfigure_page_delta_configuration = [
-    Config('page_delta', '', r'''
-        configure page delta settings for this connection''',
-        type='category', subconfig=connection_page_delta_config_common),
-]
+connection_reconfigure_page_delta_configuration = connection_page_delta_config
 
 format_meta = common_meta + [
     Config('key_format', 'u', r'''
@@ -699,6 +713,11 @@ connection_runtime_config = [
             if true, modify the disaggregated block manager to pretend that it has an optional
             field protected by a new flag.''',
             type='boolean', undoc=True),
+        Config('disagg_slow_truncate_follower', 'false', r'''
+            if true, follower-side layered-table truncate uses the slow per-record delete path
+            instead of the optimized range delete. Intended for debugging the disaggregated
+            slow/fast truncate split; leader always uses fast truncate.''',
+            type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
             to happen more aggressively. This includes but is not limited to not skewing newest,
@@ -730,6 +749,11 @@ connection_runtime_config = [
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal page processing.''',
             type='boolean'),
+        Config('slow_truncate', 'false', r'''
+            if true, disable the fast-truncate page-skip optimization during range truncate.
+            Intended for debugging the fast-truncate page-skip path on leader and
+            non-disaggregated truncates.''',
+            type='boolean', undoc=True),
         Config('stress_skiplist', 'false', r'''
             Configure various internal parameters to encourage race conditions and other issues
             with internal skip lists, e.g. using a more dense representation.''',
@@ -759,7 +783,8 @@ connection_runtime_config = [
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
-                eviction worker thread uses a session from the configured session_max''',
+                eviction worker thread uses a session from a reserved pool of WT_EVICT_MAX_WORKERS
+                (64) sessions''',
                 min=1, max=64), # !!! Must match WT_EVICT_MAX_WORKERS
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
@@ -929,15 +954,27 @@ connection_runtime_config = [
             internally. The minimum non-zero setting is 1MB.''',
             min='0', max='1TB'),
         Config('chunk_cache', '0', r'''
-            number of bytes per second available to the chunk cache. The minimum non-zero setting
-            is 1MB.''',
-            min='0', max='1TB'),
+            deprecated option, retained for backward compatibility''',
+            min='0', max='1TB', undoc=True),
         ]),
     Config('json_output', '[]', r'''
         enable JSON formatted messages on the event handler interface. Options are given as a
         list, where each option specifies an event handler category e.g. 'error' represents
         the messages from the WT_EVENT_HANDLER::handle_error method.''',
         type='list', choices=['error', 'message']),
+    Config('load_control', '', r'''
+        enable the load control subsystem.''',
+        type='category', subconfig=[
+        Config('enable', 'false', r'''
+            Load control will actively reject the work, based on other settings, to keep the
+            system healthy.''',
+            type='boolean'),
+        Config('control_threshold', '200', r'''
+            Load level, expressed as a percentage of the cache eviction trigger (100 means at
+            the eviction trigger, 200 means twice the trigger), at or above which load control
+            sheds incoming operations. Set to 0 to disable shedding.''',
+            min=0, max=1000),
+        ]),
     Config('operation_timeout_ms', '0', r'''
         this option is no longer supported, retained for backward compatibility.''',
         min=0),
@@ -1007,9 +1044,11 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
-        'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
-        'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
+        'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
+        'evict_reposition',
+        'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
+        'failpoint_history_store_delete_key_from_ts',
+        'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
         'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
@@ -1032,10 +1071,10 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
-            'chunkcache',
             'compact',
             'compact_progress',
             'configuration',
+            'cross_checkpoint_cache',
             'disaggregated_storage',
             'error_returns',
             'eviction',
@@ -1267,48 +1306,39 @@ wiredtiger_open_live_restore_configuration = [
     ])
 ]
 
-chunk_cache_configuration_common = [
-    Config('pinned', '', r'''
-        List of "table:" URIs exempt from cache eviction. Capacity config overrides this,
-        tables exceeding capacity will not be fully retained. Table names can appear
-        in both this and the preload list, but not in both this and the exclude list.
-        Duplicate names are allowed.''',
-        type='list'),
-]
-connection_reconfigure_chunk_cache_configuration = [
-    Config('chunk_cache', '', r'''
-        chunk cache reconfiguration options''',
-        type='category', subconfig=chunk_cache_configuration_common)
-]
+# Chunk cache has been deprecated and removed. We need to keep the sub-configs because
+# they get persisted to WiredTiger.basecfg. WiredTiger will throw an error if the config contains
+# enabled=true but only log warnings for any other chunk cache config.
 wiredtiger_open_chunk_cache_configuration = [
     Config('chunk_cache', '', r'''
-        chunk cache configuration options''',
-        type='category', subconfig=
-        chunk_cache_configuration_common + [
+        deprecated option, retained for backward compatibility''',
+        type='category', undoc=True, subconfig=[
+        Config('pinned', '', r'''
+            deprecated option, retained for backward compatibility''',
+            type='list', undoc=True),
         Config('capacity', '10GB', r'''
-            maximum memory or storage to use for the chunk cache''',
-            min='512KB', max='100TB'),
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100TB', undoc=True),
         Config('chunk_cache_evict_trigger', '90', r'''
-            chunk cache percent full that triggers eviction''',
-            min='0', max='100'),
+            deprecated option, retained for backward compatibility''',
+            min='0', max='100', undoc=True),
         Config('chunk_size', '1MB', r'''
-            size of cached chunks''',
-            min='512KB', max='100GB'),
+            deprecated option, retained for backward compatibility''',
+            min='512KB', max='100GB', undoc=True),
         Config('storage_path', '', r'''
-            the path (absolute or relative) to the file used as cache location. This should be on a
-            filesystem that supports file truncation. All filesystems in common use
-            meet this criteria.'''),
+            deprecated option, retained for backward compatibility''', undoc=True),
         Config('enabled', 'false', r'''
-            enable chunk cache''',
-            type='boolean'),
+            deprecated option, retained for backward compatibility. Setting this to true will
+            result in an error''',
+            type='boolean', undoc=True),
         Config('hashsize', '1024', r'''
-            number of buckets in the hashtable that keeps track of objects''',
-            min='64', max='1048576'),
+            deprecated option, retained for backward compatibility''',
+            min='64', max='1048576', undoc=True),
         Config('flushed_data_cache_insertion', 'true', r'''
-            enable caching of freshly-flushed data, before it is removed locally.''',
+            deprecated option, retained for backward compatibility''',
             type='boolean', undoc=True),
         Config('type', 'FILE', r'''
-            cache location, defaults to the file system.''',
+            deprecated option, retained for backward compatibility''',
             choices=['FILE', 'DRAM'], undoc=True),
     ]),
 ]
@@ -1384,6 +1414,9 @@ wiredtiger_open_common =\
     Config('checkpoint_sync', 'true', r'''
         flush files to stable storage when closing or writing checkpoints''',
         type='boolean'),
+    Config('checkpoint_threads', '1', r'''
+        the number of checkpoint threads for syncing tables in parallel during checkpoints''',
+        min='1'),
     Config('compile_configuration_count', '1000', r'''
         the number of configuration strings that can be precompiled. Some configuration strings
         are compiled internally when the connection is opened.''',
@@ -1528,6 +1561,12 @@ wiredtiger_open = wiredtiger_open_common + [
     Config('exclusive', 'false', r'''
         fail if the database already exists, generally used with the \c create option''',
         type='boolean'),
+    Config('extensions_strict', 'false', r'''
+        if true, fail ::wiredtiger_open with \c EINVAL when an early-loaded extension
+        recorded in \c WiredTiger.basecfg is not passed in the open configuration. The
+        default is to log a warning and continue with the extension absent. See @ref
+        extensions_loadable''',
+        type='boolean'),
     Config('in_memory', 'false', r'''
         keep data in memory only. See @ref in_memory for more information''',
         type='boolean'),
@@ -1566,7 +1605,12 @@ cursor_runtime_config = [
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist''',
+        not exist. On a follower of a layered table with no read timestamp, \c overwrite set to
+        \c true causes WT_CURSOR::remove to write a tombstone to the ingest table without checking
+        the stable table; the caller must guarantee that the key being removed exists. If the key is
+        already deleted in ingest or by the truncate list, the operation violates that guarantee.
+        A write conflict with a concurrent, not-yet-visible change to the same key can still fail
+        the call. This layered-follower remove behavior does not apply on a leader.''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
@@ -1769,6 +1813,11 @@ methods = {
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
+        Config('size_stats', 'false', r'''
+            Accumulate a per-b-tree size summary into the data-source statistics as the cursor
+            traverses the tree; row-store only, an error is returned otherwise. Read the results
+            with a statistics cursor''',
+            type='boolean', undoc=True),
         ]),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex" selects a simple hexadecimal
@@ -1869,6 +1918,15 @@ methods = {
         type='list'),
 ]),
 
+'WT_SESSION.publish' : Method([
+    Config('disaggregated', '', r'''
+        configure disaggregated storage options for this object''',
+        type='category', subconfig=[
+        Config('schema_epoch', '', r'''
+            set the schema epoch for publishing schema operations for this object'''),
+    ]),
+]),
+
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
         specify which timestamp to query: \c commit returns the most recently set commit_timestamp;
@@ -1932,6 +1990,10 @@ methods = {
     Config('read_corrupt', 'false', r'''
         A mode that allows verify to continue reading after encountering a checksum error. It
         will skip past the corrupt block and continue with the verification process''',
+        type='boolean'),
+    Config('skip_per_key_hs', 'false', r'''
+        Skip an expensive per-key check for whether data store and history timestamps make sense
+        when considered together''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no data has a start timestamp after the stable timestamp, to be run after
@@ -2119,6 +2181,10 @@ methods = {
             testing of WiredTiger.''', undoc=True,
             choices=['before_metadata_sync', 'before_metadata_update',
                 'before_key_rotation', 'during_key_rotation', 'after_key_rotation']),
+        Config('database_size_fix', 'false', r'''
+            if true, recompute the disaggregated database size from the sum of all the collections'
+            latest checkpoint sizes, instead of applying the incremental delta''',
+            type='boolean'),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the
@@ -2213,7 +2279,6 @@ methods = {
         print global txn information''', type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(
-    connection_reconfigure_chunk_cache_configuration +\
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_disaggregated_configuration +\
     connection_reconfigure_page_delta_configuration +\
@@ -2224,7 +2289,13 @@ methods = {
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
 
-'WT_CONNECTION.set_key_provider' : Method([]),
+'WT_CONNECTION.set_key_provider' : Method([
+    Config('version', '0', r'''
+        the key provider API version. Version 0 uses the pull model
+        (WiredTiger calls WT_KEY_PROVIDER::get_key). Version 1 uses
+        the push model''',
+        min=0, max=1),
+]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''
@@ -2251,17 +2322,22 @@ methods = {
         that all timestamps up to and including that value have been committed (possibly
         bounded by the application-set \c durable timestamp); \c backup_checkpoint returns
         the stable timestamp of the checkpoint pinned for an open backup cursor; \c last_checkpoint
-        returns the timestamp of the most recent stable checkpoint; \c oldest_timestamp returns the
+        returns the timestamp of the most recent stable checkpoint;
+        \c last_disaggregated_schema_epoch returns the schema epoch from the most recent
+        disaggregated storage checkpoint; \c oldest_timestamp returns the
         most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp; \c oldest_reader
         returns the minimum of the read timestamps of all active readers; \c pinned returns
         the minimum of the \c oldest_timestamp and the read timestamps of all active readers;
         \c recovery returns the timestamp of the most recent stable checkpoint taken prior to
-        a shutdown; \c stable_timestamp returns the most recent \c stable_timestamp set with
+        a shutdown; \c stable_disaggregated_schema_epoch returns the most recent
+        \c stable_disaggregated_schema_epoch set with WT_CONNECTION::set_timestamp;
+        \c stable_timestamp returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. (The \c oldest and \c stable arguments are deprecated
         short-hand for \c oldest_timestamp and \c stable_timestamp, respectively.) See @ref
         timestamp_global_api''',
-        choices=['all_durable','backup_checkpoint','last_checkpoint','oldest',
-            'oldest_reader','oldest_timestamp','pinned','recovery','stable','stable_timestamp']),
+        choices=['all_durable','backup_checkpoint','last_checkpoint',
+            'last_disaggregated_schema_epoch','oldest','oldest_reader','oldest_timestamp',
+            'pinned','recovery','stable','stable_disaggregated_schema_epoch','stable_timestamp']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
@@ -2278,10 +2354,18 @@ methods = {
         future commits and queries will be no earlier than the specified timestamp. Values must
         be monotonically increasing. The value must not be newer than the current stable timestamp.
         See @ref timestamp_global_api'''),
+    Config('stable_disaggregated_schema_epoch', '', r'''
+        set the stable schema epoch for disaggregated storage; the shared metadata included in the
+        disaggregated storage checkpoint will not include the effects of schema operations with
+        higher epochs. Values must be monotonically increasing. See @ref timestamp_global_api'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
+    Config('step_down_timestamp', '', r'''
+        the cutover timestamp for a planned step-down of disaggregated storage: committed writes
+        after this timestamp are directed to the ingest constituent and writes at or before it to
+        the stable constituent. Only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([

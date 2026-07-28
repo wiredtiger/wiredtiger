@@ -197,7 +197,7 @@ struct __wt_session_impl {
     /* Enforce the contract that a session is only used by a single thread at a time. */
     struct __wt_thread_check {
         WT_SPINLOCK lock;
-        uintmax_t owning_thread;
+        wt_shared uintmax_t owning_thread;
         uint32_t entry_count;
     } thread_check;
 
@@ -209,7 +209,7 @@ struct __wt_session_impl {
     struct __wt_scratch_track {
         const char *func; /* Allocating function, line */
         int line;
-    } * scratch_track;
+    } *scratch_track;
 #endif
 
     /* Record the important timestamps of each stage in an reconciliation. */
@@ -246,6 +246,12 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
+    struct {
+        uint64_t txn_id;
+        wt_timestamp_t commit_ts;
+        wt_timestamp_t durable_ts;
+    } replay_trunc_ctx; /* Context for truncate drain during step up. */
+
     WT_PREFETCH pf; /* Pre-fetch structure */
 
     void *block_manager; /* Block-manager support */
@@ -273,6 +279,9 @@ struct __wt_session_impl {
     /* Salvage support. */
     void *salvage_track;
 
+    /* Sync support. */
+    bool syncing;
+
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_conn_bucket;     /* Statistics connection bucket offset */
     u_int stat_dsrc_bucket;     /* Statistics data source bucket offset */
@@ -283,13 +292,12 @@ struct __wt_session_impl {
 #endif
 
 #ifdef HAVE_UNITTEST_ASSERTS
-/*
- * Unit testing assertions requires overriding abort logic and instead capturing this information to
- * be checked by the unit test.
- */
-#define WT_SESSION_UNITTEST_BUF_LEN 100
+    /*
+     * Unit testing assertions requires overriding abort logic and instead capturing this
+     * information to be checked by the unit test.
+     */
     bool unittest_assert_hit;
-    char unittest_assert_msg[WT_SESSION_UNITTEST_BUF_LEN];
+    char unittest_assert_msg[WT_ERR_MSG_BUF_LEN];
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -316,34 +324,47 @@ struct __wt_session_impl {
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_SESSION_BACKUP_CURSOR 0x0000001u
-#define WT_SESSION_BACKUP_DUP 0x0000002u
-#define WT_SESSION_CACHE_CURSORS 0x0000004u
-#define WT_SESSION_CAN_WAIT 0x0000008u
-#define WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE 0x0000010u
-#define WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID 0x0000020u
-#define WT_SESSION_DEBUG_RELEASE_EVICT 0x0000040u
-#define WT_SESSION_DUMPING_EXTLIST 0x0000080u
-#define WT_SESSION_EVICTION 0x0000100u
-#define WT_SESSION_HS_WRAPUP 0x0000200u
-#define WT_SESSION_IGNORE_CACHE_SIZE 0x0000400u
-#define WT_SESSION_IMPORT 0x0000800u
-#define WT_SESSION_IMPORT_REPAIR 0x0001000u
-#define WT_SESSION_INTERNAL 0x0002000u
-#define WT_SESSION_LOGGING_INMEM 0x0004000u
-#define WT_SESSION_NO_DATA_HANDLES 0x0008000u
-#define WT_SESSION_NO_RECONCILE 0x0010000u
-#define WT_SESSION_PREFETCH_ENABLED 0x0020000u
-#define WT_SESSION_PREFETCH_THREAD 0x0040000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x0080000u
-#define WT_SESSION_QUIET_OPEN_FILE 0x0100000u
-#define WT_SESSION_READ_WONT_NEED 0x0200000u
-#define WT_SESSION_RESOLVING_TXN 0x0400000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x0800000u
-#define WT_SESSION_SAVE_ERRORS 0x1000000u
-#define WT_SESSION_SCHEMA_TXN 0x2000000u
+#define WT_SESSION_BACKUP_CURSOR 0x00000001u
+#define WT_SESSION_BACKUP_DUP 0x00000002u
+#define WT_SESSION_CACHE_CURSORS 0x00000004u
+#define WT_SESSION_CAN_WAIT 0x00000008u
+#define WT_SESSION_CHECKPOINT 0x00000010u
+#define WT_SESSION_CHECKPOINT_WORKER 0x00000020u
+#define WT_SESSION_CREATE_BTREE 0x00000040u
+#define WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE 0x00000080u
+#define WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID 0x00000100u
+#define WT_SESSION_DEBUG_RELEASE_EVICT 0x00000200u
+#define WT_SESSION_DUMPING_EXTLIST 0x00000400u
+#define WT_SESSION_EVICTION 0x00000800u
+#define WT_SESSION_HS_WRAPUP 0x00001000u
+#define WT_SESSION_IGNORE_CACHE_SIZE 0x00002000u
+#define WT_SESSION_IMPORT 0x00004000u
+#define WT_SESSION_IMPORT_REPAIR 0x00008000u
+#define WT_SESSION_INGEST_REPLAY 0x00010000u
+#define WT_SESSION_INTERNAL 0x00020000u
+#define WT_SESSION_LOGGING_INMEM 0x00040000u
+#define WT_SESSION_NON_TRANSACTIONAL_TRUNCATE 0x00080000u
+#define WT_SESSION_NO_DATA_HANDLES 0x00100000u
+#define WT_SESSION_NO_RECONCILE 0x00200000u
+#define WT_SESSION_PREFETCH_ENABLED 0x00400000u
+#define WT_SESSION_PREFETCH_THREAD 0x00800000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x01000000u
+#define WT_SESSION_QUIET_OPEN_FILE 0x02000000u
+#define WT_SESSION_READ_SKIP_CORRUPT 0x04000000u
+#define WT_SESSION_READ_WONT_NEED 0x08000000u
+#define WT_SESSION_RESOLVING_TXN 0x10000000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000000u
+#define WT_SESSION_SAVE_ERRORS 0x40000000u
+#define WT_SESSION_SCHEMA_TXN 0x80000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+/*
+ * The block managers check either flag to determine whether a corruption error on a read is
+ * acceptable.
+ */
+#define WT_SESSION_READ_CORRUPT_OK(session) \
+    F_ISSET((session), WT_SESSION_QUIET_CORRUPT_FILE | WT_SESSION_READ_SKIP_CORRUPT)
 
 /*
  * All of the following fields live at the end of the structure so it's easier to clear everything
@@ -373,13 +394,14 @@ struct __wt_session_impl {
     TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) * dhhash;
 
 /* Generations manager */
-#define WT_GEN_CHECKPOINT 0   /* Checkpoint generation */
-#define WT_GEN_EVICT 1        /* Eviction generation */
-#define WT_GEN_HAS_SNAPSHOT 2 /* Snapshot generation */
-#define WT_GEN_HAZARD 3       /* Hazard pointer */
-#define WT_GEN_SPLIT 4        /* Page splits */
-#define WT_GEN_TXN_COMMIT 5   /* Commit generation */
-#define WT_GENERATIONS 6      /* Total generation manager entries */
+#define WT_GEN_CHECKPOINT 0        /* Checkpoint generation */
+#define WT_GEN_EVICT 1             /* Eviction generation */
+#define WT_GEN_HAS_SNAPSHOT 2      /* Snapshot generation */
+#define WT_GEN_HAZARD 3            /* Hazard pointer */
+#define WT_GEN_SPLIT 4             /* Page splits */
+#define WT_GEN_TXN_COMMIT 5        /* Commit generation */
+#define WT_GEN_HAS_CKPT_SNAPSHOT 6 /* Checkpoint snapshot for eviction visibility */
+#define WT_GENERATIONS 7           /* Total generation manager entries */
     wt_shared volatile uint64_t generations[WT_GENERATIONS];
 
     /*
@@ -398,7 +420,7 @@ struct __wt_session_impl {
             void *p; /* Memory, length */
             size_t len;
             uint64_t gen; /* Generation */
-        } * list;
+        } *list;
         size_t cnt;   /* Array entries */
         size_t alloc; /* Allocated bytes */
     } stash[WT_GENERATIONS];

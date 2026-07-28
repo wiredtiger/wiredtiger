@@ -33,7 +33,6 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_checkpoint37.py
 #
 # Test that reconciliation removes obsolete updates on the page.
 class test_checkpoint37(wttest.WiredTigerTestCase):
@@ -65,12 +64,6 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
             count += 1
         self.assertEqual(count, nrows)
         cursor.close()
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     def test_checkpoint(self):
         uri = 'table:checkpoint37'
@@ -138,7 +131,7 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
         self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
-        self.assertGreater(self.get_stat(stat.conn.cache_obsolete_updates_removed), 0)
+        self.assertStatGreaterSoon(stat.conn.cache_obsolete_updates_removed, 0)
 
 if __name__ == '__main__':
     wttest.run()

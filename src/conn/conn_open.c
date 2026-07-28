@@ -60,6 +60,9 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 
     WT_RET(__wt_rollback_to_stable_init(session, cfg));
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
+
+    /* Depends on the cache and eviction configuration, should initialize after them. */
+    WT_RET(__wti_conn_load_control_config(session, cfg, false));
     return (0);
 }
 
@@ -99,9 +102,8 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wti_statlog_destroy(session, true));
     WT_TRET(__wti_tiered_storage_destroy(session, false));
     WT_TRET(__wti_sweep_destroy(session));
-    WT_TRET(__wt_chunkcache_teardown(session));
-    WT_TRET(__wti_chunkcache_metadata_destroy(session));
     WT_TRET(__wti_prefetch_destroy(session));
+    WT_TRET(__wt_checkpoint_parallel_thread_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_threads_destroy(session));
@@ -235,6 +237,12 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "starting WiredTiger utility threads");
 
     /*
+     * Start the checkpoint page reconciliation threads. This must be done before any metadata
+     * operations, because they often require checkpoints.
+     */
+    WT_RET(__wt_checkpoint_parallel_thread_create(session, cfg));
+
+    /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
      */
@@ -282,10 +290,6 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * initialized after metadata tracking and before the history store.
      */
     WT_RET(__wti_disagg_conn_config(session, cfg, false));
-
-    /* Can create a table, so must be done after metadata tracking. */
-    WT_RET(__wt_chunkcache_setup(session, cfg));
-    WT_RET(__wti_chunkcache_metadata_create(session));
 
     /*
      * Create the history store file. This will only actually create it on a clean upgrade or when

@@ -4,7 +4,12 @@
 # modify this file and then run it as a script.
 
 fc="format_config_def.c"
-fh="config.h"
+fh="format_config.h"
+
+if ! command -v clang-format > /dev/null 2>&1; then
+    echo "error: clang-format not found; please install it and ensure it is on PATH"
+    exit 1
+fi
 
 cat<<END_OF_HEADER_FILE_PREFIX>$fh
 /* DO NOT EDIT: automatically built by format/config.sh. */
@@ -44,26 +49,26 @@ n=0
 while IFS= read -r line; do
     case "$line" in
     '{"'*)
-	tag=`echo "$line" |
-	sed -e 's/{"//' \
-	    -e 's/",.*//' \
-	    -e 's/\./_/g' |
-	tr '[:lower:]' '[:upper:]'`
-	prefix="GLOBAL"
-	if `echo "$line" | grep 'C_TABLE' > /dev/null`; then
-	    prefix="TABLE"
-	fi
-	def="V_""$prefix""_""$tag"
-	echo "$line" |
-	sed -e "s/}/, $def},/" \
-	    -e 's/\(^.*",\) \(.*\)/  \1\n    \2/'
+    tag=`echo "$line" |
+    sed -e 's/{"//' \
+        -e 's/",.*//' \
+        -e 's/\./_/g' |
+    tr '[:lower:]' '[:upper:]'`
+    prefix="GLOBAL"
+    if `echo "$line" | grep 'C_TABLE' > /dev/null`; then
+        prefix="TABLE"
+    fi
+    def="V_""$prefix""_""$tag"
+    echo "$line" |
+    sed -e "s/}/, $def},/" \
+        -e 's/\(^.*",\) \(.*\)/  \1\n    \2/'
 
-	echo "#define $def $n" >> $fh
+    echo "#define $def $n" >> $fh
 
-	n=`expr $n + 1`
-	;;
+    n=`expr $n + 1`
+    ;;
     *)
-	echo "$line"
+    echo "$line"
     esac
 done<<END_OF_INPUT>$fc
 /* DO NOT EDIT: automatically built by format/config.sh. */
@@ -151,15 +156,7 @@ CONFIG configuration_list[] = {
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}
 
-{"chunk_cache", "enable chunk cache", C_BOOL | C_IGNORE, 0, 0, 0}
-
-{"chunk_cache.capacity", "maximum memory or storage to use for the chunk cache (MB)", 0x0, 100, 5120, 100 * 1024}
-
-{"chunk_cache.chunk_size", "size of cached chunks (MB)", 0x0, 1, 5, 100 * 1024}
-
-{"chunk_cache.storage_path", "the on-disk storage path for the chunk cache.", C_STRING | C_IGNORE, 0, 0, 0}
-
-{"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
+{"checkpoint_threads", "number of checkpoint threads", 0x0, 1, 4, 8}
 
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
 
@@ -168,6 +165,9 @@ CONFIG configuration_list[] = {
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
 {"debug.cursor_reposition", "cursor temporarily releases any page requiring forced eviction and then repositions back to the page for further operations", C_BOOL, 5, 0, 0}
+
+/* FIXME-WT-17564: Remove once proper write conflict detection is implemented on fast truncate. */
+{"debug.disagg_slow_truncate_follower", "follower-side layered truncate uses the slow per-record delete path", C_BOOL, 2, 0, 0}
 
 {"debug.eviction", "modify internal algorithms to force history store eviction to happen more aggressively", C_BOOL, 2, 0, 0}
 
@@ -178,6 +178,8 @@ CONFIG configuration_list[] = {
 {"debug.realloc_malloc", "every realloc call will force a new memory allocation by using malloc", C_BOOL, 5, 0, 0}
 
 {"debug.slow_checkpoint", "slow down checkpoint creation by slowing down internal page processing", C_BOOL, 2, 0, 0}
+
+{"debug.slow_truncate", "disable the fast-truncate page-skip optimization during range truncate", C_BOOL, 2, 0, 0}
 
 {"debug.table_logging", "write transaction related information to the log for all operations", C_BOOL, 2, 0, 0}
 
@@ -199,11 +201,15 @@ CONFIG configuration_list[] = {
 
 {"disagg.page_log", "configure page log for disaggregated storage (off | palite)", C_IGNORE | C_STRING, 0, 0, 0}
 
-{"disagg.key_provider", "configure a key provider for disaggregated storage", C_BOOL, 20, 0, 0}
+{"disagg.key_provider", "key provider mode for disaggregated storage (0=off, 1=pull, 2=push)", C_IGNORE, 0, 0, 2}
 
 {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0, WT_VERBOSE_DEBUG_5}
 
 {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256}
+
+{"disagg.preserve", "preserve layered table constituents after data mismatches", C_IGNORE | C_BOOL, 100, 1, 0}
+
+{"disagg.stepdown_async", "use async step-down instead of synchronous", C_IGNORE | C_BOOL, 0, 0, 0}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
@@ -277,6 +283,8 @@ CONFIG configuration_list[] = {
 
 {"ops.prepare", "configure transaction prepare", C_BOOL, 5, 0, 0}
 
+{"ops.reserve", "cursor reserve operations (percentage)", 0, 0, 20, 100}
+
 {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0}
 
 {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0}
@@ -290,6 +298,8 @@ CONFIG configuration_list[] = {
 {"ops.verify", "configure verify", C_BOOL, 100, 1, 0}
 
 {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
+
+{"prefetch.default", "enable prefetch by default at the connection level", C_BOOL, 5, 0, 0}
 
 {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0}
 
@@ -379,7 +389,7 @@ CONFIG configuration_list[] = {
 
 {"tiered_storage.flush_frequency", "calls to checkpoint that are flush_tier, if tiered storage enabled (percentage)", 0x0, 0, 50, 100 }
 
-{"tiered_storage.storage_source", "storage source used (azure_store | dir_store | gcp_store | none | off | s3_store)", C_IGNORE | C_STRING, 0, 0, 0}
+{"tiered_storage.storage_source", "storage source used (dir_store | none | off)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0, 0, 100, 100}
 

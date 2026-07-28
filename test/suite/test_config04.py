@@ -30,10 +30,10 @@ import os, shutil
 import wiredtiger, wttest
 from wiredtiger import stat
 
-# test_config04.py
-#    Individually test config options
+# Individually test config options
 class test_config04(wttest.WiredTigerTestCase):
-    table_name1 = 'test_config04'
+    test_name = __qualname__
+    table_name1 = test_name
     log1 = 'WiredTigerLog.0000000001'
     nentries = 100
 
@@ -282,7 +282,6 @@ class test_config04(wttest.WiredTigerTestCase):
 
     def test_error_prefix(self):
         self.common_test('error_prefix="MyOwnPrefix"')
-        # TODO: how do we verify that it was set?
 
     def test_logging(self):
         # Test variations on the log configuration.  The log test takes
@@ -313,7 +312,6 @@ class test_config04(wttest.WiredTigerTestCase):
 
     def test_multiprocess(self):
         self.common_test('multiprocess')
-        # TODO: how do we verify that it was set?
 
     def test_session_max(self):
         # Note: There isn't any direct way to know that this was set,

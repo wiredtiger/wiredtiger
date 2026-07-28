@@ -30,10 +30,10 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_durable_ts03.py
-#    Checking visibility and durability of updates with durable_timestamp
+# Checking visibility and durability of updates with durable_timestamp
 class test_durable_ts03(wttest.WiredTigerTestCase):
 
+    test_name = __qualname__
     format_values = [
         ('row-string', dict(keyfmt='S', valfmt='S')),
         ('row-int', dict(keyfmt='i', valfmt='S')),
@@ -59,7 +59,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
     def test_durable_ts03(self):
 
         # Build an object.
-        uri = self.uri + ':test_durable_ts03'
+        uri = self.uri + f':{self.test_name}'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
 
@@ -74,7 +74,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         Commented out for now: the system panics if we fail after preparing a transaction.
 
         # Scenario: 1
-        # Check to see commit timestamp > durable timestamap, returns error.
+        # Check to see commit timestamp > durable timestamp, returns error.
         session.begin_transaction()
         self.assertEqual(cursor.next(), 0)
         for i in range(1, 10):

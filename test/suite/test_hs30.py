@@ -30,7 +30,6 @@ import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_hs30.py
 #
 # Make sure that the history store works as intended for non-timestamped tables, both
 # logged and unlogged.
@@ -47,7 +46,7 @@ from wtscenario import make_scenarios
 # writing, very extensively). It does not appear possible to read the values from the
 # history store directly (at runtime) in case (1): starting a read transaction after
 # the update transaction commits will not read the old values, and starting a read
-# transction before the update transaction commits (and waiting for it) is not really
+# transaction before the update transaction commits (and waiting for it) is not really
 # different from case (2).
 #
 # However, case (2) to date is not tested elsewhere. This test checks case (2).
@@ -61,6 +60,7 @@ from wtscenario import make_scenarios
 # cover it.
 
 class test_hs30(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     session_config = 'isolation=snapshot'
 
     format_values = [
@@ -108,7 +108,7 @@ class test_hs30(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
     def test_insert_updates_hs(self):
-        uri = 'table:test_hs30'
+        uri = f'table:{self.test_name}'
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         logging = 'log=(enabled={})'.format('true' if self.logging else 'false')
         self.session.create(uri, format + ',' + logging)
@@ -170,9 +170,7 @@ class test_hs30(wttest.WiredTigerTestCase):
         session3.rollback_transaction()
 
         # Check via stats that the history store was used.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        hs_read = stat_cursor[stat.conn.cache_hs_read][2]
-        stat_cursor.close()
+        hs_read = self.get_stat(stat.conn.cache_hs_read)
 
         if self.do_evict:
             # Should have at least read nrows twice.

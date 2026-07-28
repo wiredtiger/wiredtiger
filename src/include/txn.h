@@ -17,6 +17,9 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
+#define WT_SCHEMA_EPOCH_NONE 0                /* Beginning of time for schema epoch */
+#define WT_SCHEMA_EPOCH_UNPUBLISHED WT_TS_MAX /* Unpublished schema epoch */
+
 /*
  * A list of reasons for returning a rollback error from the API. These reasons can be queried via
  * the session get rollback reason API call. Users of the API could have a dependency on the format
@@ -29,10 +32,11 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
-#define WT_TXN_LOG_CKPT_PREPARE 0x02u
-#define WT_TXN_LOG_CKPT_START 0x04u
-#define WT_TXN_LOG_CKPT_STOP 0x08u
-#define WT_TXN_LOG_CKPT_SYNC 0x10u
+#define WT_TXN_LOG_CKPT_FLUSH 0x02u
+#define WT_TXN_LOG_CKPT_PREPARE 0x04u
+#define WT_TXN_LOG_CKPT_START 0x08u
+#define WT_TXN_LOG_CKPT_STOP 0x10u
+#define WT_TXN_LOG_CKPT_SYNC 0x20u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -70,9 +74,7 @@ typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
     (S2C(s)->txn_global.txn_shared_list == NULL ? NULL : \
                                                   &S2C(s)->txn_global.txn_shared_list[(s)->id])
 
-#define WT_SESSION_IS_CHECKPOINT(s) \
-    (!WT_SESSION_IS_DEFAULT(s) &&   \
-      (s)->id == __wt_atomic_load_uint32_v_relaxed(&S2C(s)->txn_global.checkpoint_id))
+#define WT_SESSION_IS_CHECKPOINT(s) (F_ISSET((s), WT_SESSION_CHECKPOINT))
 
 /*
  * Perform an operation at the specified isolation level.
@@ -182,17 +184,26 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t oldest_id;
 
     wt_shared wt_timestamp_t durable_timestamp;
+    wt_shared wt_timestamp_t last_ckpt_disaggregated_schema_epoch;
+    /*
+     * Release-stored by checkpoint once its durable state is established, acquire-loaded by sweep
+     * so that observing the timestamp guarantees the checkpoint's state is visible before an ingest
+     * table is dropped.
+     */
     wt_shared wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
     wt_shared wt_timestamp_t oldest_timestamp;
     wt_shared wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
+    wt_shared wt_timestamp_t stable_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t stable_timestamp;
+    wt_shared wt_timestamp_t step_down_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
     wt_shared bool has_oldest_timestamp;
     wt_shared bool has_pinned_timestamp;
+    wt_shared bool has_stable_disaggregated_schema_epoch;
     wt_shared bool has_stable_timestamp;
     wt_shared bool oldest_is_pinned;
     wt_shared bool stable_is_pinned;
@@ -215,13 +226,15 @@ struct __wt_txn_global {
     wt_shared volatile bool checkpoint_running; /* Checkpoint running */
     wt_shared volatile bool
       checkpoint_running_hs; /* Checkpoint running and processing history store file */
-    wt_shared volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared;           /* Checkpoint's txn shared state */
-    wt_shared wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
+    wt_shared volatile uint32_t checkpoint_id;               /* Checkpoint's session ID */
+    WT_TXN_SHARED checkpoint_txn_shared;                     /* Checkpoint's txn shared state */
+    wt_shared wt_timestamp_t checkpoint_disagg_schema_epoch; /* Checkpoint's schema epoch */
+    wt_shared wt_timestamp_t checkpoint_timestamp;           /* Checkpoint's timestamp */
 
     wt_shared volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;                     /* Debug mode rollback */
     wt_shared volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
+    uint64_t oldest_id_last_verbose; /* Oldest ID at last long-running txn verbose message */
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 
@@ -242,7 +255,8 @@ typedef enum __wt_txn_type {
     WT_TXN_OP_INMEM_ROW,
     WT_TXN_OP_REF_DELETE,
     WT_TXN_OP_TRUNCATE_COL,
-    WT_TXN_OP_TRUNCATE_ROW
+    WT_TXN_OP_TRUNCATE_ROW,
+    WT_TXN_OP_FOLLOWER_TRUNCATE
 } WT_TXN_TYPE;
 
 typedef enum {
@@ -290,6 +304,11 @@ struct __wt_txn_op {
             WT_ITEM start, stop;
             WT_TXN_TRUNC_MODE mode;
         } truncate_row;
+
+        /* WT_TXN_FOLLOWER_TRUNCATE */
+        struct {
+            WT_TRUNCATE *t;
+        } follower_truncate;
     } u;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -459,4 +478,26 @@ struct __wt_txn {
      * C99 flexible array member which has the semantics we want.
      */
     uint64_t __snapshot[];
+};
+
+/*
+ * WT_FIX_PREPARED_COOKIE --
+ *   State passed to find the prepared transaction to fix when draining the ingest btree.
+ *   The owning session is identified by either of two ids depending on how the prepared
+ *   transaction came to live in this connection:
+ *     - txnid: matches a session whose prepared transaction remained in-flight across
+ *       step-up and therefore still carries a transaction id.
+ *     - prepared_id: matches a session that reclaimed the prepared transaction from a
+ *       checkpoint at startup recovery. Such a session has no transaction id assigned but
+ *       does carry a prepared id.
+ *   Both ids must be set to the values associated with the prepared transaction being
+ *   fixed; the callback prefers txnid when the candidate session has a transaction id and
+ *   falls back to prepared_id otherwise.
+ */
+struct __wt_fix_prepared_cookie {
+    WT_BTREE *ingest_btree;
+    WT_BTREE *stable_btree;
+    WT_ITEM *key;
+    uint64_t txnid;
+    uint64_t prepared_id;
 };

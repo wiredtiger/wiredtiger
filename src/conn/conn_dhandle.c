@@ -160,7 +160,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
-        __wt_schema_close_layered(session, (WT_LAYERED_TABLE *)dhandle);
+        __wt_schema_destroy_layered(session, (WT_LAYERED_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
@@ -212,6 +212,9 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     } else if (WT_PREFIX_MATCH(uri, "layered:")) {
         WT_RET(__wt_calloc_one(session, &layered));
         dhandle = (WT_DATA_HANDLE *)layered;
+        WT_TRUNCATE_LIST *truncate_list = &layered->truncate_list;
+        TAILQ_INIT(&truncate_list->qh);
+        WT_RET(__wt_rwlock_init(session, &truncate_list->lock));
         __wt_atomic_store_enum_relaxed(&dhandle->type, WT_DHANDLE_TYPE_LAYERED);
     } else if (WT_PREFIX_MATCH(uri, "table:")) {
         WT_RET(__wt_calloc_one(session, &table));
@@ -292,14 +295,17 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
                 continue;
             if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
                 /*
-                 * For read-only stable table checkpoints, they are really outdated when they are
-                 * not in use any more. The pinned shared history store checkpoints may be still
-                 * needed by the readers while the stable table checkpoints may still be needed by
-                 * the checkpoint tracking logic.
+                 * An outdated read-only stable handle is only safe to reuse in its checkpoint-view
+                 * form (a "...wt_stable/WiredTigerCheckpoint.N" name): those checkpoint handles
+                 * span eras and sweep keeps them alive for readers and the checkpoint tracking
+                 * logic. A live stable handle must be reopened fresh instead -- draining through an
+                 * outdated one hits resident inserts or unresolved prepared updates left by the
+                 * previous leader era.
                  */
                 if (WT_DHANDLE_BTREE(dhandle) &&
                   F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
-                    if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0)
+                    if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0 ||
+                      !WT_URI_IS_STABLE_CHECKPOINT(dhandle->name))
                         continue;
                 } else
                     continue;
@@ -393,7 +399,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
             WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
             if (!__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
                 WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
-                  "the table has uncommitted data and cannot be dropped yet");
+                  "the table has uncommitted data and cannot be closed yet");
         }
 
         /* Turn off eviction. */
@@ -452,8 +458,13 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         bm = btree->bm;
         if (bm != NULL)
             is_mapped = bm->is_mapped(bm, session);
-        if (!discard && mark_dead && (bm == NULL || !is_mapped))
-            marked_dead = true;
+        if (!discard && mark_dead && (bm == NULL || !is_mapped)) {
+            /* On the final close, discard pages now because no later sweep will run. */
+            if (final)
+                discard = true;
+            else
+                marked_dead = true;
+        }
 
         /*
          * Flush dirty data from any durable trees we couldn't mark dead. That involves writing a
@@ -465,7 +476,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          *
          */
         if (!discard && !marked_dead) {
-            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY))
+            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || __wt_btree_stays_in_memory(btree))
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));
@@ -1084,7 +1095,7 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
          * transaction ids of the pages will be reset when loaded from disk to memory.
          */
         btree->write_gen = btree->base_write_gen = btree->run_write_gen =
-          WT_MAX(btree->write_gen, conn->base_write_gen);
+          WT_MAX(btree->write_gen, __wt_atomic_load_uint64_relaxed(&conn->base_write_gen));
 
         /*
          * Clear out any transaction IDs that might have been already loaded and cached, as they are

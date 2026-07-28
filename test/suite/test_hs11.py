@@ -30,9 +30,9 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_hs11.py
 # Ensure that updates without timestamps clear the history store records.
 class test_hs11(wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_config = 'cache_size=50MB,statistics=(all)'
     format_values = [
         ('column', dict(key_format='r')),
@@ -68,12 +68,6 @@ class test_hs11(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     def evict_cursor(self, uri, nrows):
         s = self.conn.open_session()
         s.begin_transaction()
@@ -87,7 +81,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
     def test_non_ts_updates_clears_hs(self):
-        uri = 'table:test_hs11'
+        uri = f'table:{self.test_name}'
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
@@ -169,7 +163,7 @@ class test_hs11(wttest.WiredTigerTestCase):
             self.assertGreater(hs_truncate, 0)
 
     def test_ts_updates_donot_clears_hs(self):
-        uri = 'table:test_hs11'
+        uri = f'table:{self.test_name}'
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 

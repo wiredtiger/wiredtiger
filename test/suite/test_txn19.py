@@ -30,8 +30,7 @@
 # recovery:log_files
 # [END_TAGS]
 #
-# test_txn19.py
-#   Transactions: test recovery with corrupted log files
+# Transactions: test recovery with corrupted log files
 #
 
 import os, re
@@ -59,6 +58,7 @@ def corrupt(fname, truncate, offset, writeit):
 
 @wttest.skip_for_hook("disagg", "corrupts log files, which are not relevant for disagg")
 class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     base_config = 'log=(enabled,file_max=100K,remove=false),' + \
                   'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
                   'debug_mode=(corruption_abort=false),'
@@ -126,7 +126,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         key_format_values, corruption_type, corruption_pos, nrecords,
         include=includeFunc, prune=20, prunelong=1000)
 
-    uri = 'table:test_txn19'
+    uri = f'table:{test_name}'
 
     # Return the log file number that contains the given record
     # number.  In this test, two records fit into each log file, and
@@ -273,6 +273,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # Then does a restart with recovery, then starts again with salvage,
         # and finally starts again with recovery (adding new records).
 
+        self.ignoreStdoutPattern('log_slot_destroy: failed to write slot')
+
         create_params = 'key_format=i,value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
         self.inserts([x for x in range(0, self.nrecords)])
@@ -347,6 +349,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         self.checks(expect)
 
 class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
+    test_name = __qualname__
     base_config = 'log=(enabled,file_max=100K,remove=false),' + \
                   'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
                   'debug_mode=(corruption_abort=false),'
@@ -434,7 +437,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     scenarios = make_scenarios(key_format_values, corruption_scenarios, filename_scenarios)
-    uri = 'table:test_txn19_meta_'
+    uri = f'table:{test_name}_'
     ntables = 5
     nrecords = 1000                                  # records per table.
     suffixes = [ str(x) for x in range(0, ntables)]  # [ '0', '1', ... ]
@@ -511,6 +514,8 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         newdir2 = "RESTART2"
         expect = list(range(1, self.nrecords + 1))
         salvage_config = self.base_config + ',salvage=true'
+
+        self.ignoreStdoutPattern('log_slot_destroy: failed to write slot')
 
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         for suffix in self.suffixes:

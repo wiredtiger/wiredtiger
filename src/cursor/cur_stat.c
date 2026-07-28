@@ -308,7 +308,7 @@ __curstat_search(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, search, NULL);
 
     WT_ERR(__cursor_needkey(cursor));
-    F_CLR(cursor, WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_SET);
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     /* Initialize on demand. */
     if (cst->notinitialized) {
@@ -434,6 +434,18 @@ retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
+        /*
+         * On a follower the stable's pages are not resident in the local cache, so its non-walk
+         * stats are ~0 - except the block size, which we read from the checkpoint metadata directly
+         * since this path never opens the stable table to obtain it.
+         */
+        if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
+            uint64_t ckpt_size = 0;
+            WT_ERR(__wt_block_disagg_ckpt_size(session, stable_uri, &ckpt_size));
+            cst->u.dsrc_stats.block_size += (int64_t)ckpt_size;
+            goto done;
+        }
+
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
@@ -456,8 +468,12 @@ retry:
 
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
     if (ret == EBUSY) {
-        /* FIXME-WT-16476: no need to yield if we no longer take the checkpoint lock. */
-        __wt_yield();
+        /*
+         * The retry re-fetches the checkpoint name and reallocates the scratch buffer, so release
+         * both before looping.
+         */
+        __wt_free(session, checkpoint_name);
+        __wt_scr_free(session, &stable_uri_buf);
         goto retry;
     }
 
@@ -488,6 +504,68 @@ err:
 }
 
 /*
+ * __wt_curstat_size_local --
+ *     Fast-path size retrieval for a local file. If the file exists, set *existp and return the
+ *     size via *sizep. A non-existent file is not an error; *existp will be false.
+ */
+int
+__wt_curstat_size_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *existp, int64_t *sizep)
+{
+    wt_off_t size;
+
+    WT_RET(__wt_fs_exist(session, filename, existp));
+    if (*existp) {
+        WT_RET(__wt_block_manager_named_size(session, filename, &size));
+        *sizep = (int64_t)size;
+    }
+
+    return (0);
+}
+
+/*
+ * __wt_curstat_size_disagg --
+ *     Fast-path size retrieval for a disaggregated table. There is no local file on disk, so the
+ *     size comes from the last checkpoint entry in the metadata. If found, set *existp and return
+ *     the size via *sizep. A missing metadata entry is not an error; *existp will be false.
+ */
+int
+__wt_curstat_size_disagg(WT_SESSION_IMPL *session, const char *uri, bool *existp, int64_t *sizep)
+{
+    uint64_t ckpt_size;
+
+    *existp = false;
+    WT_RET(__wt_block_disagg_ckpt_size(session, uri, &ckpt_size));
+    if (ckpt_size > 0) {
+        *sizep = (int64_t)ckpt_size;
+        *existp = true;
+    }
+
+    return (0);
+}
+
+/*
+ * __curstat_file_size --
+ *     Fast-path size retrieval for a file: URI. Try to determine the size without opening the
+ *     dhandle: first check for a local file on disk, then fall back to reading the checkpoint size
+ *     from the metadata (for disaggregated storage). If neither succeeds, *existp is false and the
+ *     caller should fall through to the slow path.
+ */
+static int
+__curstat_file_size(
+  WT_SESSION_IMPL *session, const char *uri, const char *filename, bool *existp, int64_t *sizep)
+{
+    /* Try the local file first. */
+    WT_RET(__wt_curstat_size_local(session, filename, existp, sizep));
+    if (*existp)
+        return (0);
+
+    /* No local file; check the metadata for a disagg checkpoint size. */
+    WT_RET(__wt_curstat_size_disagg(session, uri, existp, sizep));
+    return (0);
+}
+
+/*
  * __curstat_file_init --
  *     Initialize the statistics for a file.
  */
@@ -497,21 +575,31 @@ __curstat_file_init(
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    wt_off_t size;
+    int64_t size;
     const char *filename;
+    bool exist;
 
     /*
-     * If we are only getting the size of the file, we don't need to open the tree. This only
-     * applies to file: types. Tiered tables need to use the dhandle.
+     * If we are only getting the size of the file, try to avoid opening the dhandle. This only
+     * applies to file: types. Tiered tables need to use the dhandle. If the fast path fails to
+     * determine a size, fall through to the slow path below.
      */
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
         filename = uri;
         WT_PREFIX_SKIP(filename, "file:");
-        __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        WT_RET(__wt_block_manager_named_size(session, filename, &size));
-        cst->u.dsrc_stats.block_size = size;
-        __wt_curstat_dsrc_final(cst);
-        return (0);
+
+        size = 0;
+        WT_RET(__curstat_file_size(session, uri, filename, &exist, &size));
+        if (exist) {
+            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+            cst->u.dsrc_stats.block_size = size;
+            __wt_curstat_dsrc_final(cst);
+            return (0);
+        }
+        /*
+         * Neither the local file nor the disagg metadata entry was found; fall through to the slow
+         * path which opens the dhandle.
+         */
     }
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));

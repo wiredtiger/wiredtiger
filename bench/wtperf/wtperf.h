@@ -67,12 +67,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #ifndef DIR_STORE_PATH
 #define DIR_STORE_PATH "storage_sources/dir_store/libwiredtiger_dir_store.so"
 #endif
-#ifndef S3_PATH
-#define S3_PATH "storage_sources/s3_store/libwiredtiger_s3_store.so"
-#endif
-
 #define DIR_EXT EXT_PFX EXTPATH DIR_STORE_PATH EXT_SFX
-#define S3_EXT EXT_PFX EXTPATH S3_PATH EXT_SFX
 
 #define MAX_MODIFY_PCT 10
 #define MAX_MODIFY_NUM 16
@@ -223,25 +218,31 @@ struct __wtperf {          /* Per-database structure */
 #define MILLION (1000000ULL)
 #define BILLION (1000000000ULL)
 
+#ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC BILLION
+#endif
+#ifndef USEC_PER_SEC
 #define USEC_PER_SEC MILLION
+#endif
+#ifndef MSEC_PER_SEC
 #define MSEC_PER_SEC THOUSAND
+#endif
 
 #define ns_to_ms(v) ((v) / MILLION)
 #define ns_to_sec(v) ((v) / BILLION)
 #define ns_to_us(v) ((v) / THOUSAND)
 
 #define us_to_ms(v) ((v) / THOUSAND)
-#define us_to_ns(v) ((v)*THOUSAND)
+#define us_to_ns(v) ((v) * THOUSAND)
 #define us_to_sec(v) ((v) / MILLION)
 
-#define ms_to_ns(v) ((v)*MILLION)
-#define ms_to_us(v) ((v)*THOUSAND)
+#define ms_to_ns(v) ((v) * MILLION)
+#define ms_to_us(v) ((v) * THOUSAND)
 #define ms_to_sec(v) ((v) / THOUSAND)
 
-#define sec_to_ns(v) ((v)*BILLION)
-#define sec_to_us(v) ((v)*MILLION)
-#define sec_to_ms(v) ((v)*THOUSAND)
+#define sec_to_ns(v) ((v) * BILLION)
+#define sec_to_us(v) ((v) * MILLION)
+#define sec_to_ms(v) ((v) * THOUSAND)
 
 typedef struct {
     /*
@@ -250,7 +251,7 @@ typedef struct {
      */
     uint64_t ops;         /* Total operations */
     uint64_t latency_ops; /* Total ops sampled for latency */
-    uint64_t latency;     /* Total latency */
+    uint64_t latency;     /* Total latency (ns) */
 
     uint64_t last_latency_ops; /* Last read by monitor thread */
     uint64_t last_latency;
@@ -259,8 +260,8 @@ typedef struct {
      * Minimum/maximum latency, shared with the monitor thread, that is, the monitor thread clears
      * it so it's recalculated again for each period.
      */
-    uint32_t min_latency; /* Minimum latency (uS) */
-    uint32_t max_latency; /* Maximum latency (uS) */
+    uint64_t min_latency; /* Minimum latency (ns) */
+    uint64_t max_latency; /* Maximum latency (ns) */
 
     /*
      * Latency buckets.
@@ -313,11 +314,11 @@ char *config_reopen(CONFIG_OPTS *);
 int config_sanity(WTPERF *);
 int delete_index_key(WTPERF *, WT_CURSOR *, char *, uint64_t);
 void generate_index_key(WTPERF_THREAD *, bool, char *, uint64_t);
-void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
-void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+void latency_insert(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
+void latency_modify(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
 void latency_print(WTPERF *);
-void latency_read(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
-void latency_update(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+void latency_read(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
+void latency_update(WTPERF *, uint64_t *, uint64_t *, uint64_t *);
 int run_truncate(WTPERF *, WTPERF_THREAD *, WT_CURSOR *, WT_SESSION *, int *);
 int setup_log_file(WTPERF *);
 void setup_throttle(WTPERF_THREAD *);

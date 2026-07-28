@@ -249,8 +249,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
     } else {
-        /* FIXME-WT-16479 Extend testing for layered cursor->modify. */
-        if (new_val % 39 < 30 && !g.opts.disagg.is_enabled) {
+        if (new_val % 39 < 30) {
             /* Do modify. */
             ret = cursor->search(cursor);
             if (ret == 0) {
@@ -312,7 +311,8 @@ real_worker(THREAD_DATA *td)
 {
     WT_CURSOR **cursors;
     WT_SESSION *session;
-    uint64_t base_ts, prepared_id;
+    wt_timestamp_t base_ts;
+    uint64_t prepared_id;
     u_int i, keyno, next_rnd;
     int j, ret, t_ret;
     char buf[128];
@@ -359,7 +359,7 @@ real_worker(THREAD_DATA *td)
          * thread reaches a stable equal to the stop timestamp. Ignore the provided operation count
          * in such a case.
          */
-        if (g.stop_ts == 0 && i >= g.nops)
+        if (g.stop_ts == WT_TS_NONE && i >= g.nops)
             break;
 
         if (i > 0 && i % (5 * WT_THOUSAND) == 0)

@@ -26,16 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
-# test_truncate22.py
 # Test that we can set the commit timestamp before performing fast truncate.
-# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate22(wttest.WiredTigerTestCase):
-    uri = 'table:test_truncate22'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
     conn_config = 'statistics=(all)'
     key_format_values = (
         ('column', dict(key_format='r', value_format='S')),
