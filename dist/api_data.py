@@ -137,7 +137,7 @@ connection_page_delta_config_common = [
         as well.''', min='1', max='32', type='int', undoc=True),
 ]
 connection_disaggregated_config_common = [
-    Config('checkpoint_deferral_timeout_ms', '0', r'''
+    Config('checkpoint_deferral_timeout_ms', '10000', r'''
         the number of milliseconds to defer adopting a picked-up checkpoint while transactional
         snapshots without a read timestamp that predate it are active. A deferred checkpoint is
         retried periodically and adopted once no such snapshot remains or the timeout expires.
