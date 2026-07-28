@@ -32,17 +32,20 @@ from helper_disagg import disagg_test_class
 from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
-# Verify that the wt CLI enforces the disaggregated-storage subcommand
-# allowlist end-to-end.
+# Verify that the wt CLI rejects the disaggregated-storage-unsupported
+# subcommands end-to-end. Framed as a reject list rather than an allowlist:
+# support for existing subcommands is expected to shift more often than the
+# set of subcommands itself, and a subcommand becoming supported means one
+# entry drops from this list rather than a rebalance across both sides.
 
 @disagg_test_class
 class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
-    # Keep in sync with util_func_allowed_disagg() in src/utilities/util_main.c.
-    ALLOWED_SUBCOMMANDS = frozenset(
-        ('dump', 'list', 'page', 'read', 'stat', 'turtle', 'verify'))
-
-    # Subcommands that short-circuit in main() before wiredtiger_open() runs,
-    # so the disagg reject path never sees them. Skipped from the survey.
+    # Keep in sync with util_func_allowed_disagg() in src/utilities/util_main.c
+    # (this set is that function's complement over the wt subcommand table,
+    # minus the no-storage-access set below).
+    REJECTED_SUBCOMMANDS = frozenset(('alter', 'backup', 'compact', 'create',
+        'downgrade', 'drop', 'load', 'loadtext', 'printlog', 'salvage',
+        'truncate', 'write'))
     NO_STORAGE_ACCESS = frozenset(('copyright',))
 
     REJECT_MSG = 'is not supported in disaggregated storage mode'
@@ -77,8 +80,7 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
         ext_dir = os.path.join(wt_builddir, 'ext', 'page_log', self.ds_name)
         candidates = [os.path.join(ext_dir, e) for e in os.listdir(ext_dir)
                       if e.endswith('.so') or e.endswith('.dylib')]
-        self.assertEqual(len(candidates), 1,
-            f"expected exactly one page-log shared object under {ext_dir}, got {candidates}")
+        self.assertEqual(len(candidates), 1)
         return candidates[0]
 
     # Spawn `wt <args>` against a sibling home that shares kv_home with the
@@ -100,7 +102,7 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.stdout, result.stderr
 
-    def test_allowlist_matches_binary(self):
+    def test_reject_list(self):
         # A checkpoint is required so the follower can attach.
         self.session.create('layered:test_disagg_util05',
             'key_format=S,value_format=S')
@@ -108,20 +110,15 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.close_conn()
 
+        # Sanity check that subcommands are found.
         subcmds = self._all_subcommands()
-        self.assertGreater(len(subcmds), 0,
-            "failed to parse any subcommands from `wt -?` output")
+        self.assertGreater(len(subcmds), 0)
 
         for cmd in subcmds:
             if cmd in self.NO_STORAGE_ACCESS:
                 continue
-            stdout, stderr = self._run_wt_follower(f'wt-{cmd}', [cmd])
-            rejected = self.REJECT_MSG in stderr
-            if cmd in self.ALLOWED_SUBCOMMANDS:
-                self.assertFalse(rejected,
-                    f"subcommand '{cmd}' is on the allowlist but was rejected;\n"
-                    f"stdout:\n{stdout}\nstderr:\n{stderr}")
+            _, stderr = self._run_wt_follower(f'wt-{cmd}', [cmd])
+            if cmd in self.REJECTED_SUBCOMMANDS:
+                self.assertIn(self.REJECT_MSG, stderr)
             else:
-                self.assertTrue(rejected,
-                    f"subcommand '{cmd}' is not on the allowlist but was not rejected;\n"
-                    f"stdout:\n{stdout}\nstderr:\n{stderr}")
+                self.assertNotIn(self.REJECT_MSG, stderr)

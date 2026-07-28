@@ -1598,6 +1598,7 @@ readtime
 readunlock
 realloc
 reallocations
+rebalance
 rebalancing
 recency
 recno
