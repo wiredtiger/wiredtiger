@@ -333,7 +333,7 @@ __wti_evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
-    uint32_t evict_walk_flags, evict_walk_period;
+    uint32_t dominating_flags, evict_walk_flags, evict_walk_period;
     u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool aggressive, dhandle_list_locked;
@@ -502,23 +502,28 @@ retry:
         }
 
         /*
+         * Consider every dimension eviction is targeting, except dirty content in a tree that is
+         * syncing: every modified page in such a tree is rejected, so its dirty footprint cannot
+         * translate into candidates.
+         */
+        dominating_flags = evict_walk_flags;
+        if (WT_BTREE_SYNCING(btree))
+            FLD_CLR(dominating_flags, WT_EVICT_CACHE_DIRTY);
+
+        /*
          * If we are filling the queue, skip files that haven't been useful in the past. The walk
          * period only records that previous walks found few candidates, not what the tree holds
          * now: if the tree dominates the cache usage for a dimension eviction is currently
          * targeting, skipping it can stall eviction entirely, so walk it regardless.
          *
-         * Two restrictions keep that override from becoming a treadmill on a tree that cannot give
-         * up pages. The dirty dimension is excluded because a dirty-dominating tree is usually the
-         * one being checkpointed, and every modified page in a syncing tree is rejected. A
-         * saturated walk period is excluded because it means many consecutive walks of this tree
-         * came up short, so the tree's size is not translating into candidates.
+         * A saturated walk period is excluded from that override because it means many consecutive
+         * walks of this tree came up short, so the tree's size is not translating into candidates.
          */
         evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_walk_period);
         btree->evict_walk_dominating = false;
         if (evict_walk_period != 0 && btree->evict_walk_skips++ < evict_walk_period) {
             if (evict_walk_period >= WTI_EVICT_WALK_PERIOD_MAX ||
-              !__evict_btree_dominating_cache(session, btree,
-                evict_walk_flags & (WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES))) {
+              !__evict_btree_dominating_cache(session, btree, dominating_flags)) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
                 __evict_disagg_btree_skip_count(session, btree);
                 continue;
