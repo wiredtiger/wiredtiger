@@ -16,11 +16,21 @@ static bool
 __sync_scrub_checkpoint_enabled(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    uint8_t image_max;
 
     conn = S2C(session);
 
     /* Skip during recovery or checkpoint shutdown: the scrubbed image would never be consumed. */
     if (F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
+        return (false);
+
+    /* Bound the cache consumed by retained scrub images. An excess of pages retained in the cache
+     * is inefficient use of space. */
+    image_max = __wt_atomic_load_uint8_relaxed(
+      &conn->cache->cache_eviction_controls.checkpoint_scrub_image_max);
+    if (image_max == 0 ||
+      __wt_atomic_load_uint64_relaxed(&conn->cache->bytes_scrub_image) >=
+        (conn->cache_size / 100) * image_max)
         return (false);
 
     switch (__wt_atomic_load_uint8_relaxed(
@@ -30,18 +40,8 @@ __sync_scrub_checkpoint_enabled(WT_SESSION_IMPL *session)
     case WT_CACHE_CHECKPOINT_SCRUB_EVICT_ON:
         return (true);
     default: /* WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO */
-        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) ||
-          !F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB))
-            return (false);
-        /*
-         * Cap the cache consumed by retained scrub images at 10% of the configured cache; Ideally
-         * the clean pages are used as they are being generated - an excess of pages retained in the
-         * cache is inefficient use of space. Ideally this decision could be made after checkpoint
-         * attempts a clean-scrub, but it isn't simple to release the saved image after we've
-         * attempted their first swap, since other threads might be using it.
-         */
         return (
-          __wt_atomic_load_uint64_relaxed(&conn->cache->bytes_scrub_image) < conn->cache_size / 10);
+          F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
     }
 }
 
