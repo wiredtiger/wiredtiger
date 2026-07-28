@@ -430,8 +430,8 @@ struct __wt_txn {
 
     /*
      * True if the step-down timestamp was set when this transaction began. Used to redirect the
-     * transaction's writes to the ingest constituent, and to detect a "straddler": a transaction
-     * that started before the step-down timestamp was set and is still writing afterwards.
+     * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
+     * straddlers.
      */
     bool stepdown_ts_set;
 

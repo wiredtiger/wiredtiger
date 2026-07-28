@@ -2608,8 +2608,9 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
         return (0);
 
     /*
-     * A write routed to stable is covered by the stable cursor's own check; only a write routed to
-     * ingest can conflict with committed history in the other constituent.
+     * Only a write routed to ingest can conflict with committed history in the stable constituent:
+     * a write routed to stable is covered by the stable cursor's own check, and currently writes
+     * are routed to stable only while the ingest table is empty.
      */
     if (op->ingest == NULL)
         return (0);
