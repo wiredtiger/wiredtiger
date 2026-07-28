@@ -68,10 +68,6 @@ public:
         /* Assert that we are running in memory. */
         testutil_assert(_config->get_bool(IN_MEMORY));
 
-        /*
-         * Declare one execution_timer and one instruction_counter per API under test. On non-Linux
-         * platforms instruction_counter is a no-op stub.
-         */
         execution_timer begin_transaction_timer("begin_transaction", test::_args.test_name);
         execution_timer commit_transaction_timer("commit_transaction", test::_args.test_name);
         execution_timer cursor_insert_timer("cursor_insert", test::_args.test_name);
@@ -236,7 +232,9 @@ public:
         cursorp = nullptr;
 
         /*
-         * Loop the timer-only measurements for begin/commit/rollback/timestamp_transaction_uint.
+         * Loop the timer.track sites to gather enough samples for a stable signal.
+         * instruction_counter is deterministic on Linux and overwrites its stored count on each
+         * call, so looping the counter adds no information.
          */
         constexpr int LOOP_COUNTER = 1000;
         auto key_count = coll.get_key_count();
