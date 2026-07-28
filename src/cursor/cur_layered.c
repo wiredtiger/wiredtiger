@@ -2597,7 +2597,9 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     /*
      * On a leader with the step-down timestamp set, a transaction writing ingest can face live
      * content about to be committed on stable, unlike a follower whose stable is untouched locally.
-     * That content may be invisible to this snapshot and shares no update chain with the write.
+     * That content may be invisible to this snapshot and shares no update chain with the write. The
+     * step-down lock does not close this window: it is acquired separately from taking the
+     * snapshot, so a stable commit can still be invisible to it, and this check remains necessary.
      */
     bool stepdown_ts_set = session->txn->stepdown_ts_set;
 
