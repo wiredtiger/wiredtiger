@@ -32,115 +32,202 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # test_layered_async_stepdown01.py
-#    Write routing: pre-arm writes route to stable, post-arm writes route to ingest.
+#    Write routing and write semantics: writes route to stable before the step-down timestamp is
+#    set and to ingest afterwards, and the merged view drives duplicate-key detection,
+#    overwrite=false and reserve.
 @disagg_test_class
 class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    test_name = __qualname__
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:async_stepdown'
+    uri = f'layered:{test_name}'
 
-    # Pre-arm writes go to stable, post-arm writes go to ingest.
-    def test_pre_post_arm_write_routing(self):
+    # Writes route to stable beforehand and to ingest afterwards.
+    def test_write_routing_around_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        pre = {'pre' + str(i) for i in range(5)}
-        post = {'post' + str(i) for i in range(5)}
+        before = {'before' + str(i) for i in range(5)}
+        after = {'after' + str(i) for i in range(5)}
 
-        # Before the arm, writes go to stable. The ingest constituent stays empty.
-        self.write_at(self.uri, {k: 'stable' for k in pre}, 10)
+        self.write_at(self.uri, {k: 'stable' for k in before}, 10)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 15), set(),
-            'pre-arm writes must not be in the ingest table')
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 15), pre,
-            'pre-arm writes must land in the stable table')
-        self.assertEqual(self.read_keys_at(self.uri, 15), pre)
+            'these writes must not be in the ingest table')
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 15), before,
+            'these writes must land in the stable table')
+        self.assertEqual(self.read_keys_at(self.uri, 15), before)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
-        # After the arm, writes are directed to ingest.
-        self.write_at(self.uri, {k: 'ingest' for k in post}, 30)
+        self.write_at(self.uri, {k: 'ingest' for k in after}, 30)
 
         # The leader now reads ingest-first, merged over the live stable table: it sees both halves.
-        self.assertEqual(self.read_keys_at(self.uri, 40), pre | post)
+        self.assertEqual(self.read_keys_at(self.uri, 40), before | after)
 
-        # Post-arm keys landed in ingest and never reached stable.
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), post)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), pre,
-            'post-arm writes must not be in the stable table')
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), after)
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), before,
+            'later writes must not reach the stable table')
 
-    # Update/modify/remove of stable keys route to ingest after arm, like insert.
-    def test_post_arm_update_modify_remove_routing(self):
+    # Update, modify and remove of stable keys route to ingest, like insert.
+    def test_update_modify_remove_routing_after_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         self.write_at(self.uri, {'k1': 'base', 'k2': 'base', 'k3': 'base'}, 10)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 15), set(),
-            'pre-arm writes must not be in the ingest table')
+            'these writes must not be in the ingest table')
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 15), {'k1', 'k2', 'k3'},
-            'pre-arm writes must land in the stable table')
+            'these writes must land in the stable table')
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        # Update k1.
         self.session.begin_transaction()
         cursor['k1'] = 'updated'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
 
-        # Remove k2: a tombstone record over stable's k2.
-        self.session.begin_transaction()
-        cursor.set_key('k2')
-        cursor.remove()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
+        self.remove_at(self.uri, ['k2'], 31)
 
-        # Modify k3: build the new value on the stable base, write the result to ingest.
+        # Modify builds the new value on the stable base and writes the result to ingest.
         self.session.begin_transaction()
         cursor.set_key('k3')
         cursor.modify([wiredtiger.Modify('v', 0, 1)])  # 'base' -> 'vase'
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(32))
         cursor.close()
 
-        # Merged result on the leader: update and modify reflected, remove hides the stable key.
         kv = self.read_kvs_at(self.uri, 40)
         self.assertEqual(kv.get('k1'), 'updated')
         self.assertEqual(kv.get('k3'), 'vase')
         self.assertNotIn('k2', kv)
 
-        # All three writes landed in ingest (the remove as a tombstone record shadowing stable);
-        # the stable versions are untouched.
+        # All three landed in ingest, the remove as a tombstone shadowing stable.
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2', 'k3'})
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
             {'k1': 'base', 'k2': 'base', 'k3': 'base'},
-            'post-arm update/modify/remove must not touch the stable table')
+            'these writes must not touch the stable table')
 
         # The update, modify and tombstone all survive the completed step-down.
         self.complete_step_down(20)
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated', 'k3': 'vase'})
 
-    # All tables share the same cutoff; arming once routes all their post-arm writes to ingest.
+    # All tables share one cutoff, so a single call routes every table's later writes to ingest.
     def test_multiple_tables_share_cutoff(self):
-        uri1 = 'layered:multi1'
-        uri2 = 'layered:multi2'
+        uri1 = f'layered:{self.test_name}_multi1'
+        uri2 = f'layered:{self.test_name}_multi2'
         self.set_global_ts(1, 1)
         self.session.create(uri1, 'key_format=S,value_format=S')
         self.session.create(uri2, 'key_format=S,value_format=S')
 
-        self.write_at(uri1, {'a': 'pre'}, 10)
-        self.write_at(uri2, {'b': 'pre'}, 10)
+        self.write_at(uri1, {'a': 'stable'}, 10)
+        self.write_at(uri2, {'b': 'stable'}, 10)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
-        self.write_at(uri1, {'c': 'post'}, 30)
-        self.write_at(uri2, {'d': 'post'}, 30)
+        self.write_at(uri1, {'c': 'ingest'}, 30)
+        self.write_at(uri2, {'d': 'ingest'}, 30)
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri1), 40), {'c'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri2), 40), {'d'})
         self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), {'a'})
         self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b'})
-        self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'pre', 'c': 'post'})
-        self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'pre', 'd': 'post'})
+        self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'stable', 'c': 'ingest'})
+        self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'stable', 'd': 'ingest'})
+
+    # A non-overwrite insert of a stable key conflicts even though the write targets ingest.
+    def test_duplicate_key_detection_while_step_down_ts_set(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'dup': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, "overwrite=false")
+        self.session.begin_transaction()
+        cursor.set_key('dup')
+        cursor.set_value('again')
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.insert(),
+            wiredtiger.wiredtiger_strerror(wiredtiger.WT_DUPLICATE_KEY))
+        self.session.rollback_transaction()
+        cursor.close()
+
+        # The rejected insert left the stable value alone and nothing in ingest.
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'dup': 'stable'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+
+    # overwrite=false update and remove consult the merged view; the writes land in ingest.
+    def test_overwrite_false_ops_while_step_down_ts_set(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'base', 'k2': 'base'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, "overwrite=false")
+
+        # Update of a stable key: found in the merged view, written to ingest.
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        cursor.set_value('updated')
+        self.assertEqual(cursor.update(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+
+        # Remove of a stable key: a tombstone routed to ingest.
+        self.session.begin_transaction()
+        cursor.set_key('k2')
+        self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
+
+        # Update and remove of a missing key fail across the merged view.
+        self.session.begin_transaction()
+        cursor.set_key('missing')
+        cursor.set_value('v')
+        self.assertEqual(cursor.update(), wiredtiger.WT_NOTFOUND)
+        cursor.set_key('missing')
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+        cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2'})
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
+            {'k1': 'base', 'k2': 'base'})
+
+        # Both writes survive the completed step-down.
+        self.complete_step_down(20)
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
+
+    # A reserve conflicts with concurrent writers and leaves no content behind.
+    def test_reserve_while_step_down_ts_set(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor.set_key('k1')
+        self.assertEqual(cursor.reserve(), 0)
+
+        # A concurrent writer conflicts with the reservation.
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur.set_key('k1')
+        wcur.set_value('other')
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: wcur.update(),
+            wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
+        wsession.rollback_transaction()
+        wcur.close()
+        wsession.close()
+
+        # The reserve-only commit leaves no content behind in either constituent.
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'stable'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())

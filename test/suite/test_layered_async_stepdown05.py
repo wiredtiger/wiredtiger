@@ -32,7 +32,7 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # test_layered_async_stepdown05.py
-#    Arm validation and timestamp guards for a planned step-down.
+#    Validation of the step-down timestamp itself and the timestamp guards it imposes.
 @disagg_test_class
 class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -41,71 +41,73 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:armcheck'
+    test_name = __qualname__
 
-    # The cutoff cannot be re-armed while one is set.
-    def test_double_arm_rejected(self):
+    uri = f'layered:{test_name}'
+
+    # The cutoff cannot be replaced while one is set.
+    def test_second_step_down_ts_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(30), '/step down timestamp is already set/')
+            lambda: self.set_step_down_ts(30), '/step down timestamp is already set/')
 
-    # Arming is only valid on a leader.
-    def test_arm_on_follower_rejected(self):
+    # The cutoff is only valid on a leader.
+    def test_step_down_ts_on_follower_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(20), '/can only be set on a disaggregated leader/')
+            lambda: self.set_step_down_ts(20), '/can only be set on a disaggregated leader/')
 
-    # The cutoff must sit at or ahead of all_durable; arming exactly at it is allowed.
-    def test_arm_below_all_durable_rejected(self):
+    # The cutoff must sit at or ahead of all_durable; setting it exactly there is allowed.
+    def test_step_down_ts_below_all_durable_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(9), '/must not be older than the newest durable timestamp/')
-        self.arm(10)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_step_down_ts(9),
+            '/must not be older than the newest durable timestamp/')
+        self.set_step_down_ts(10)
 
-    # While armed, stable may reach the cutoff exactly but never pass it.
-    def test_stable_cannot_pass_armed_cutoff(self):
+    # Stable may reach the cutoff exactly but never pass it.
+    def test_stable_cannot_pass_cutoff(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(21)),
             '/must not advance past the step down timestamp/')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
-    # Arming and advancing stable to the cutoff in one set_timestamp call takes full effect.
-    def test_arm_and_stable_in_one_call(self):
+    # Setting the cutoff and advancing stable to it in one call takes full effect.
+    def test_step_down_ts_and_stable_in_one_call(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20) +
                                 ',step_down_timestamp=' + self.timestamp_str(20))
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(30), '/step down timestamp is already set/')
+            lambda: self.set_step_down_ts(30), '/step down timestamp is already set/')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
             '/must not advance past the step down timestamp/')
 
-    # Arming below the current stable must be rejected: stable may never sit past the cutoff.
-    def test_arm_below_stable_rejected(self):
+    # A cutoff below the current stable must be rejected: stable may never sit past it.
+    def test_step_down_ts_below_stable_rejected(self):
         self.set_global_ts(1, 10)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(5), '/must not be older than the stable timestamp/')
+            lambda: self.set_step_down_ts(5), '/must not be older than the stable timestamp/')
 
-    # Transactions that begin after the arm and commit above the cutoff are in ingest.
-    def test_post_arm_commits_above_cutoff_succeed(self):
+    # Transactions that begin after the cutoff is set and commit above it land in ingest.
+    def test_commits_above_cutoff_succeed(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i, commit_ts in enumerate((30, 40, 50)):
@@ -119,12 +121,12 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 60),
             {'post0', 'post1', 'post2'})
 
-    # Post-arm commits at or below the cutoff are rejected.
-    def test_post_arm_commit_at_or_below_cutoff_rejected(self):
+    # Later commits at or below the cutoff are rejected.
+    def test_commit_at_or_below_cutoff_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for commit_ts in (15, 20):
@@ -140,11 +142,11 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
         self.assertEqual(self.read_kvs_at(self.uri, 25), {})
 
-    # A commit without a timestamp while armed succeeds and lands in ingest; pins current behavior.
-    def test_untimestamped_commit_while_armed(self):
+    # A commit with no timestamp succeeds and lands in ingest; this pins current behavior.
+    def test_untimestamped_commit_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
@@ -154,9 +156,9 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), {'k1'})
 
-    # Arming does not change all_durable behavior: an in-flight txn still clamps it, and it
-    # moves normally once that txn resolves and post-arm commits land.
-    def test_arm_does_not_change_all_durable(self):
+    # The cutoff does not change all_durable behavior: an in-flight txn still clamps it, and it
+    # moves normally once that txn resolves and later commits land.
+    def test_step_down_ts_does_not_change_all_durable(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v'}, 10)
@@ -171,8 +173,8 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'k2': 'v'}, 15)
         self.assertEqual(self.all_durable(), 11)
 
-        self.arm(20)
-        self.assertEqual(self.all_durable(), 11, 'arming must not move all_durable')
+        self.set_step_down_ts(20)
+        self.assertEqual(self.all_durable(), 11, 'setting the cutoff must not move all_durable')
 
         # The straddler resolves and the hole closes.
         straddler.rollback_transaction()
@@ -180,6 +182,6 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         straddler.close()
         self.assertEqual(self.all_durable(), 15)
 
-        # A post-arm commit above the cutoff carries all_durable past it: drained.
+        # A commit above the cutoff carries all_durable past it: drained.
         self.write_at(self.uri, {'k3': 'v'}, 25)
         self.assertEqual(self.all_durable(), 25)

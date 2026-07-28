@@ -34,9 +34,6 @@ from wiredtiger import stat
 
 # Shared helpers for the layered async step-down test suite.
 class LayeredStepdownMixin:
-    # A substring of the WT_ROLLBACK last-error reason.
-    STRADDLER_REASON = 'started before the step-down timestamp was set'
-
     # FIXME-WT-17895: remove this skip once the planned step-down implementation lands.
     def setUp(self):
         self.skipTest('elegant step-down is not implemented yet')
@@ -46,11 +43,11 @@ class LayeredStepdownMixin:
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
                                 ',stable_timestamp=' + self.timestamp_str(stable))
 
-    # Arm a planned step-down at the given cutoff timestamp.
-    def arm(self, ts):
+    # Set the planned step-down timestamp at the given cutoff.
+    def set_step_down_ts(self, ts):
         self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(ts))
 
-    # Complete an armed step-down: advance stable to the cutoff, take the step-down checkpoint
+    # Complete a planned step-down: advance stable to the cutoff, take the step-down checkpoint
     # and demote to follower.
     def complete_step_down(self, cutoff):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(cutoff))
@@ -80,6 +77,16 @@ class LayeredStepdownMixin:
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
+    # Remove keys (iterable) from a table in one transaction committed at commit_ts.
+    def remove_at(self, uri, keys, commit_ts):
+        cursor = self.session.open_cursor(uri, None, None)
+        self.session.begin_transaction()
+        for k in keys:
+            cursor.set_key(k)
+            self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+        cursor.close()
+
     # The key/value map visible through a cursor on uri at read_ts.
     def read_kvs_at(self, uri, read_ts):
         cursor = self.session.open_cursor(uri, None, None)
@@ -103,20 +110,24 @@ class LayeredStepdownMixin:
         return keys
 
     # The connection-wide count of step-down transaction rollbacks.
-    def step_down_rollbacks(self):
+    def get_step_down_rollback_count(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         count = stat_cursor[stat.conn.txn_rollback_stepdown][2]
         stat_cursor.close()
         return count
 
-    # Run op and expect WT_ROLLBACK.
-    def assert_step_down_rollback(self, op, reason=STRADDLER_REASON):
-        before = self.step_down_rollbacks()
+    # Run op and expect WT_ROLLBACK, with no claim about the reason.
+    def expect_rollback(self, op):
+        self.assertRaisesException(wiredtiger.WiredTigerError, op,
+            wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
+
+    # Run op and expect a WT_ROLLBACK carrying the step-down reason.
+    def assert_step_down_rollback(self, op):
+        before = self.get_step_down_rollback_count()
         self.assertRaisesException(wiredtiger.WiredTigerError, op,
             wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
         err, _, err_msg = self.session.get_last_error()
         self.assertEqual(err, wiredtiger.WT_ROLLBACK)
-        if reason is not None:
-            self.assertTrue(reason in err_msg,
-                'expected a step-down rollback reason, got: ' + err_msg)
-        self.assertEqual(self.step_down_rollbacks(), before + 1)
+        self.assertTrue('started before the step-down timestamp was set' in err_msg,
+            'expected a step-down rollback reason, got: ' + err_msg)
+        self.assertEqual(self.get_step_down_rollback_count(), before + 1)

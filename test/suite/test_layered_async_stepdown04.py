@@ -33,7 +33,7 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # test_layered_async_stepdown04.py
-#    Operational surfaces: schema ops, cached cursors, cursor configs, isolation levels.
+#    Operational surfaces: schema ops, cached-cursor reuse and cursor configurations.
 @disagg_test_class
 class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -42,7 +42,9 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:stepdown_ops'
+    test_name = __qualname__
+
+    uri = f'layered:{test_name}'
 
     # The connection-wide count of cursors reused from the session cursor cache.
     def cursor_reopen_count(self):
@@ -51,12 +53,13 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         stat_cursor.close()
         return count
 
-    # Table created while armed: writes route to ingest, stable stays empty.
-    def test_create_while_armed(self):
+    # A table created while the timestamp is set routes its writes to ingest, leaves stable empty,
+    # and survives the demotion.
+    def test_create_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
-        self.arm(20)
+        self.set_step_down_ts(20)
 
-        uri = 'layered:armed_create'
+        uri = f'layered:{self.test_name}_create'
         self.session.create(uri, 'key_format=S,value_format=S')
         self.write_at(uri, {'k1': 'v', 'k2': 'v'}, 30)
 
@@ -64,20 +67,29 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_uri(uri), 40), set())
         self.assertEqual(self.read_keys_at(uri, 40), {'k1', 'k2'})
 
-    # A table with pre-arm stable content can be dropped while armed.
-    def test_drop_while_armed(self):
+        # The table has no stable content at all, so the demotion is its first checkpoint.
+        self.complete_step_down(20)
+        self.assertEqual(self.read_kvs_at(uri, 40), {'k1': 'v', 'k2': 'v'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 40), {'k1', 'k2'})
+
+        # A follower write reaches the same table.
+        self.write_at(uri, {'k3': 'v'}, 50)
+        self.assertEqual(self.read_keys_at(uri, 60), {'k1', 'k2', 'k3'})
+
+    # A table with stable content can be dropped while the timestamp is set.
+    def test_drop_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.dropUntilSuccess(self.session, self.uri)
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
-    # Cached-cursor reuse across arm picks up armed routing; writes go to ingest.
-    def test_cached_cursor_reuse_across_arm(self):
+    # A cursor reused from the cache picks up the new routing: its writes go to ingest.
+    def test_cached_cursor_reuse_across_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -87,7 +99,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
         cursor.close()
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         # Prove the reopen is served from the session cursor cache.
         reopen_count = self.cursor_reopen_count()
@@ -110,7 +122,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'pre': 'stable'}, 10)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.write_at(self.uri, {'post': 'ingest'}, 30)
 
         self.complete_step_down(20)
@@ -129,46 +141,8 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(seen, {'pre', 'post'},
             'all content must be readable through a reopened cursor after the step-down')
 
-    # overwrite=false update/remove consult the merged view; the writes land in ingest.
-    def test_overwrite_false_ops_while_armed(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'base', 'k2': 'base'}, 10)
-
-        self.arm(20)
-
-        cursor = self.session.open_cursor(self.uri, None, "overwrite=false")
-
-        # Update of a stable key: found in the merged view, written to ingest.
-        self.session.begin_transaction()
-        cursor.set_key('k1')
-        cursor.set_value('updated')
-        self.assertEqual(cursor.update(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-
-        # Remove of a stable key: a tombstone routed to ingest.
-        self.session.begin_transaction()
-        cursor.set_key('k2')
-        self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(31))
-
-        # Update and remove of a missing key fail across the merged view.
-        self.session.begin_transaction()
-        cursor.set_key('missing')
-        cursor.set_value('v')
-        self.assertEqual(cursor.update(), wiredtiger.WT_NOTFOUND)
-        cursor.set_key('missing')
-        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
-        self.session.rollback_transaction()
-        cursor.close()
-
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2'})
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'base', 'k2': 'base'})
-
-    # Bounds set before the arm apply to keys from both constituents.
-    def test_bounded_cursor_across_arm(self):
+    # Bounds set before the timestamp apply to keys from both constituents.
+    def test_bounded_cursor_across_step_down_ts(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
@@ -179,7 +153,7 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.set_key('e')
         self.assertEqual(cursor.bound('action=set,bound=upper'), 0)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -190,15 +164,15 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
 
         self.assertEqual(seen, ['b', 'c', 'd', 'e'],
-            'a bounded scan across the arm must respect bounds on both constituents')
+            'a bounded scan must respect its bounds on both constituents')
 
-    # A readonly cursor reads the merged view while armed and rejects writes.
-    def test_readonly_cursor_while_armed(self):
+    # A readonly cursor reads the merged view and still rejects writes.
+    def test_readonly_cursor_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'stable'}, 10)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.write_at(self.uri, {'k2': 'ingest'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, 'readonly=true')
@@ -215,50 +189,58 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-    # next_random while armed samples the post-arm ingest content.
-    def test_next_random_while_armed(self):
+    # A sample only ever comes from the visible merged view: never a removed key, and never a key
+    # from outside the table. Which constituent a sample is drawn from is not part of the contract,
+    # so the observed split is reported rather than asserted.
+    def test_next_random_while_step_down_ts_set(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.arm(20)
 
-        keys = {f'k{i:02d}' for i in range(10)}
-        self.write_at(self.uri, {k: 'i' for k in keys}, 30)
+        stable_keys = {f's{i:02d}' for i in range(10)}
+        self.write_at(self.uri, {k: 's' for k in stable_keys}, 10)
 
+        self.set_step_down_ts(20)
+
+        ingest_keys = {f'i{i:02d}' for i in range(10)}
+        self.write_at(self.uri, {k: 'i' for k in ingest_keys}, 30)
+
+        # Remove one key from each constituent; a tombstone in ingest hides the stable key.
+        removed = {'s00', 'i00'}
+        self.remove_at(self.uri, sorted(removed), 40)
+
+        visible = (stable_keys | ingest_keys) - removed
         cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
-        for _ in range(10):
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(50))
+        sampled = set()
+        for _ in range(100):
             self.assertEqual(cursor.next(), 0)
-            self.assertIn(cursor.get_key(), keys)
+            key = cursor.get_key()
+            self.assertIn(key, visible, 'a sample must come from the visible merged view')
+            sampled.add(key)
         self.session.rollback_transaction()
         cursor.close()
 
-    # A post-arm reserve conflicts with concurrent writers and leaves no content behind.
-    def test_reserve_while_armed(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.write_at(self.uri, {'k1': 'stable'}, 10)
+        self.pr(f'next_random sampled {len(sampled & stable_keys)} stable and '
+                f'{len(sampled & ingest_keys)} ingest keys over 100 draws')
 
-        self.arm(20)
+        # Sampling 100 keys out of 18 only probably lands on a removed one, so narrow the table to a
+        # single survivor: now every draw must return it, whichever constituent it came from.
+        survivor = 's01'
+        self.remove_at(self.uri, sorted(visible - {survivor}), 50)
 
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-        cursor.set_key('k1')
-        self.assertEqual(cursor.reserve(), 0)
-
-        # A concurrent writer conflicts with the reservation.
-        wsession = self.conn.open_session()
-        wcur = wsession.open_cursor(self.uri, None, None)
-        wsession.begin_transaction()
-        wcur.set_key('k1')
-        wcur.set_value('other')
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: wcur.update(),
-            wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
-        wsession.rollback_transaction()
-        wcur.close()
-        wsession.close()
-
-        # The reserve-only commit leaves no content behind in either constituent.
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+        for _ in range(20):
+            self.assertEqual(cursor.next(), 0)
+            self.assertEqual(cursor.get_key(), survivor,
+                'the only visible key must be the only key sampled')
+        self.session.rollback_transaction()
         cursor.close()
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'stable'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+
+        # With that one gone too there is nothing left to sample.
+        self.remove_at(self.uri, [survivor], 70)
+        cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(80))
+        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+        cursor.close()

@@ -32,7 +32,8 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 # test_layered_async_stepdown03.py
-#    Straddler rollback guards: writers that cross the arm roll back.
+#    Straddler rollback guards: a writer that began before the step-down timestamp was set rolls
+#    back.
 @disagg_test_class
 class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -41,19 +42,21 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:guards'
+    test_name = __qualname__
 
-    # Straddler rolls back on write; retry after the arm commits to ingest.
+    uri = f'layered:{test_name}'
+
+    # Straddler rolls back on write; retry after the step-down timestamp is set commits to ingest.
     def test_straddler_rollback_on_write(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Begin a transaction and write before the arm (this lands in stable).
+        # Begin a transaction and write beforehand, so this write lands in stable.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddle'] = 'before'
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         # The next write by the straddling transaction must roll back.
         def straddle_write():
@@ -62,7 +65,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-        # The server retries the transaction after the arm: it now routes cleanly to ingest.
+        # A retry after the timestamp is set routes cleanly to ingest.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddle'] = 'after'
@@ -73,7 +76,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.uri, 40), {'straddle'})
 
     # Straddler rollback applies to any write; remove rolls back like insert.
-    def test_straddler_rollback_non_insert(self):
+    def test_straddler_rollback_remove(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
@@ -82,15 +85,15 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction()
         cursor.set_key('k1')
 
-        # The server arms the step-down while this transaction is in flight.
-        self.arm(20)
+        # The step-down timestamp is set while this transaction is in flight.
+        self.set_step_down_ts(20)
 
         self.assert_step_down_rollback(lambda: cursor.remove())
         self.session.rollback_transaction()
         cursor.close()
 
-    # Transaction writes pre-arm, arm fires, commit rolls back; retry lands in ingest.
-    def test_arm_just_before_commit_rolls_back(self):
+    # A transaction that wrote beforehand rolls back at commit; the retry lands in ingest.
+    def test_straddler_commit_rolls_back(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -98,7 +101,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction()
         cursor['k1'] = 'v'
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         self.assert_step_down_rollback(
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
@@ -109,7 +112,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
 
-        # The retry runs after the arm and commits cleanly to ingest.
+        # The retry runs after the step-down timestamp is set and commits cleanly to ingest.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['k1'] = 'v'
@@ -127,7 +130,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction()
         cursor['k1'] = 'v'
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         self.assert_step_down_rollback(
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15)))
@@ -135,7 +138,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     # A straddler that wrote only a plain table still rolls back at commit.
     def test_straddler_plain_table_commit_rolls_back(self):
-        plain_uri = 'table:guards_plain'
+        plain_uri = f'table:{self.test_name}_plain'
         self.set_global_ts(1, 1)
         self.session.create(plain_uri, 'key_format=S,value_format=S')
 
@@ -143,7 +146,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction()
         cursor['k1'] = 'v'
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         self.assert_step_down_rollback(
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
@@ -155,31 +158,31 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'v'}, 10)
 
-        # A read-only transaction begins before the arm and commits after it.
+        # A read-only transaction begins before the step-down timestamp is set and commits after it.
         rcur = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
         self.assertEqual(rcur['k1'], 'v')
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.assertEqual(rcur['k1'], 'v')
         # Committing a read-only transaction must succeed (no WT_ROLLBACK).
         self.session.commit_transaction()
         rcur.close()
 
-    # Shared function: begin a stable write, arm, advance stable to the cutoff, checkpoint.
+    # Shared body: begin a stable write, set the cutoff, advance stable to it, checkpoint.
     def stable_writer_through_checkpoint(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['k1'] = 'v'
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         ckpt_session = self.conn.open_session()
         ckpt_session.checkpoint()
         ckpt_session.close()
         return cursor
 
-    # A write after the step-down checkpoint, still armed, rolls back.
+    # A write after the step-down checkpoint, with the step-down timestamp still set, rolls back.
     def test_stable_writer_write_after_checkpoint_rolls_back(self):
         cursor = self.stable_writer_through_checkpoint()
 
@@ -189,7 +192,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-    # A commit after the step-down checkpoint, still armed, rolls back.
+    # A commit after the step-down checkpoint, with the step-down timestamp still set, rolls back.
     def test_stable_writer_commit_after_checkpoint_rolls_back(self):
         cursor = self.stable_writer_through_checkpoint()
 

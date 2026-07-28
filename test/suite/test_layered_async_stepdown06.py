@@ -42,14 +42,16 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    uri = 'layered:lifecycle'
+    test_name = __qualname__
 
-    # Every commit mix survives the completed step-down: pre-arm only, post-arm only, both; a
-    # follower write afterwards routes to ingest.
+    uri = f'layered:{test_name}'
+
+    # Every commit mix survives the completed step-down: before the cutoff only, after it only, and
+    # both; and a follower write afterwards routes to ingest.
     def test_data_survives_step_down_all_mixes(self):
-        t_pre = 'layered:mix_pre'
-        t_post = 'layered:mix_post'
-        t_both = 'layered:mix_both'
+        t_pre = f'layered:{self.test_name}_mix_pre'
+        t_post = f'layered:{self.test_name}_mix_post'
+        t_both = f'layered:{self.test_name}_mix_both'
         self.set_global_ts(1, 1)
         for uri in (t_pre, t_post, t_both):
             self.session.create(uri, 'key_format=S,value_format=S')
@@ -57,7 +59,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(t_pre, {'a': 'stable'}, 10)
         self.write_at(t_both, {'a': 'stable'}, 10)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         self.write_at(t_post, {'b': 'ingest'}, 30)
         self.write_at(t_both, {'b': 'ingest'}, 30)
@@ -81,27 +83,27 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(t_both, 60),
             {'a': 'stable', 'b': 'ingest', 'c': 'follower'})
 
-    # A restart without local files serves exactly the step-down checkpoint: pre-arm content
-    # survives, post-arm ingest content is local-only and gone.
+    # A restart without local files serves exactly the step-down checkpoint: the stable content
+    # survives and the ingest content, being local-only, is gone.
     def test_step_down_checkpoint_survives_restart(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         pre = {'pre' + str(i) for i in range(5)}
         self.write_at(self.uri, {k: 'stable' for k in pre}, 10)
-        self.arm(20)
+        self.set_step_down_ts(20)
         post = {'post' + str(i) for i in range(5)}
         self.write_at(self.uri, {k: 'ingest' for k in post}, 30)
 
         self.complete_step_down(20)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), post,
-            'post-arm (ingest) content must survive the step-down')
+            'ingest content must survive the step-down')
 
         self.restart_without_local_files(
             config=self.conn_base_config + 'disaggregated=(role="follower")')
 
         self.assertEqual(self.read_kvs_at(self.uri, 40), {k: 'stable' for k in pre},
-            'the restarted node must serve exactly the pre-arm content from the checkpoint')
+            'the restarted node must serve exactly the checkpointed content')
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
 
     # next_random keeps sampling correctly through every step-down phase.
@@ -119,7 +121,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
             self.assertIn(cursor.get_key(), keys)
 
         sample()
-        self.arm(20)
+        self.set_step_down_ts(20)
         sample()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         sample()
@@ -139,7 +141,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i', 'z': 'i'}, 30)
 
         rcur = self.session.open_cursor(self.uri, None, None)
@@ -201,9 +203,9 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
     def test_reader_without_read_ts_survives_step_down(self):
         self.reader_across_step_down(None)
 
-    # Shared body for the pre-arm reader tests: a snapshot taken before the arm is held through
-    # the whole step-down; the post-arm ingest writes must stay invisible at every phase.
-    def reader_from_before_arm_across_step_down(self, begin_config):
+    # Shared body: a snapshot taken before the cutoff is held through the whole step-down, and the
+    # later ingest writes must stay invisible at every phase.
+    def reader_from_before_step_down_ts(self, begin_config):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's', 'h': 's', 'j': 's'}, 10)
@@ -213,12 +215,12 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(rcur.next(), 0)
         self.assertEqual(rcur.get_key(), 'b')
 
-        # The cursor stays positioned across the arm.
-        self.arm(20)
+        # The cursor stays positioned across the cutoff being set.
+        self.set_step_down_ts(20)
         self.assertEqual(rcur.next(), 0)
         self.assertEqual(rcur.get_key(), 'd')
 
-        # A concurrent post-arm transaction interleaves ingest keys, invisible to this snapshot.
+        # A concurrent later transaction interleaves ingest keys, invisible to this snapshot.
         wsession = self.conn.open_session()
         wcur = wsession.open_cursor(self.uri, None, None)
         wsession.begin_transaction()
@@ -245,7 +247,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         while rcur.next() == 0:
             seen.append(rcur.get_key())
         self.assertEqual(seen, ['j'],
-            'the pre-arm snapshot must yield exactly its own keys across the step-down')
+            'the snapshot taken beforehand must yield exactly its own keys across the step-down')
 
         # The ingest keys stay invisible to point reads on the follower.
         rcur.set_key('a')
@@ -262,13 +264,13 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         rcur.close()
 
-    # A pre-arm reader with a read timestamp holds its view through the whole step-down.
-    def test_reader_from_before_arm_with_read_ts(self):
-        self.reader_from_before_arm_across_step_down('read_timestamp=' + self.timestamp_str(15))
+    # A reader with a read timestamp holds its view through the whole step-down.
+    def test_reader_from_before_step_down_ts_with_read_ts(self):
+        self.reader_from_before_step_down_ts('read_timestamp=' + self.timestamp_str(15))
 
-    # A pre-arm reader gated only by its snapshot holds its view through the whole step-down.
-    def test_reader_from_before_arm_without_read_ts(self):
-        self.reader_from_before_arm_across_step_down(None)
+    # A reader gated only by its snapshot holds its view through the whole step-down.
+    def test_reader_from_before_step_down_ts_without_read_ts(self):
+        self.reader_from_before_step_down_ts(None)
 
     # Shared body for the repeatable-read tests: a snapshot reader spans the completed step-down;
     # a concurrent commit the snapshot excluded must stay invisible afterwards.
@@ -282,8 +284,8 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction(begin_config)
         self.assertEqual(rcur['k1'], 'old')
 
-        # A concurrent pre-arm commit routes to stable, so the step-down checkpoint includes
-        # content the reader's snapshot excludes.
+        # A concurrent commit routes to stable, so the step-down checkpoint includes content the
+        # reader's snapshot excludes.
         wsession = self.conn.open_session()
         wcur = wsession.open_cursor(self.uri, None, None)
         wsession.begin_transaction()
@@ -295,7 +297,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(rcur['k1'], 'old', 'the snapshot must exclude the concurrent commit')
         rcur.reset()
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.complete_step_down(20)
 
         # Both a fresh cursor and the original one must still answer from the snapshot.
@@ -330,7 +332,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
-        # A second node picks up the pre-arm checkpoint and opens a snapshot reader on it.
+        # A second node picks up that checkpoint and opens a snapshot reader on it.
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
             self.conn_base_config + 'disaggregated=(role="follower")')
         self.disagg_advance_checkpoint(conn_follow)
@@ -341,7 +343,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # The leader commits above the reader's view and completes the step-down.
         self.write_at(self.uri, {'k1': 'new'}, 15)
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.complete_step_down(20)
 
         # The follower picks up the step-down checkpoint under the open snapshot.
@@ -370,12 +372,12 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
     def test_follower_repeatable_read_with_read_ts_across_pickup(self):
         self.follower_reader_across_pickup('read_timestamp=' + self.timestamp_str(12))
 
-    # An ingest writer begun after the arm commits successfully across the demotion.
+    # A writer begun after the cutoff commits successfully across the demotion.
     def test_ingest_writer_survives_demotion(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        self.arm(20)
+        self.set_step_down_ts(20)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
@@ -390,9 +392,9 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v'})
 
-    # A pre-arm transaction that reads through the whole step-down and only then performs its
-    # first write is still a straddler: the write must fail hard. It holds no transaction id
-    # until that write, so no demotion-time writer sweep can catch it.
+    # A transaction begun before the cutoff that reads through the whole step-down and only then
+    # performs its first write is still a straddler: the write must fail hard. It holds no
+    # transaction id until that write, so no demotion-time writer sweep can catch it.
     def test_reader_turned_writer_after_step_down_fails(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -402,7 +404,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction()
         self.assertEqual(cursor['k1'], 'stable')
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.assertEqual(cursor['k1'], 'stable')
 
         self.complete_step_down(20)
@@ -418,8 +420,8 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'stable'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
 
-    # Shared body for the straddler-held-open tests: a transaction that wrote before the arm and
-    # is still open after the completed step-down must fail hard at commit and leave no trace.
+    # Shared body: a transaction that wrote before the cutoff and is still open after the completed
+    # step-down must fail hard at commit, leave no trace, and allow a retry in a fresh transaction.
     def straddler_commit_after_step_down(self, begin_config):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -428,7 +430,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.begin_transaction(begin_config)
         cursor['k1'] = 'v'
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.complete_step_down(20)
 
         self.assert_step_down_rollback(
@@ -439,6 +441,16 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
 
+        # The session is still usable: a retry on the follower commits into ingest.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+
     # A write transaction with no read timestamp held open across the step-down fails hard.
     def test_straddler_commit_after_step_down_fails(self):
         self.straddler_commit_after_step_down(None)
@@ -447,27 +459,27 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
     def test_straddler_with_read_ts_commit_after_step_down_fails(self):
         self.straddler_commit_after_step_down('read_timestamp=' + self.timestamp_str(5))
 
-    # Once the step-down completes the node is a follower; arming again is rejected.
-    def test_rearm_after_step_down_rejected(self):
+    # Once the step-down completes the node is a follower; setting the cutoff again is rejected.
+    def test_step_down_ts_after_step_down_rejected(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'pre': 'stable'}, 10)
 
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.complete_step_down(20)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.arm(30), '/can only be set on a disaggregated leader/')
+            lambda: self.set_step_down_ts(30), '/can only be set on a disaggregated leader/')
 
-    # Two full arm/step-down/step-up cycles: the promotion drains ingest into stable and the node
-    # is fully reusable, including arming again.
+    # Two full step-down/step-up cycles: the promotion drains ingest into stable and the node is
+    # fully reusable, including setting the cutoff again.
     def test_step_up_drains_ingest_then_second_cycle(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Cycle 1: pre-arm stable content, post-arm ingest content, complete the step-down.
+        # Cycle 1: stable content, then ingest content, then complete the step-down.
         self.write_at(self.uri, {'a': 'cycle1-stable'}, 10)
-        self.arm(20)
+        self.set_step_down_ts(20)
         self.write_at(self.uri, {'b': 'cycle1-ingest'}, 30)
         self.complete_step_down(20)
 
@@ -485,11 +497,11 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
         self.session.checkpoint()
 
-        # Cycle 2: arming again must succeed and route new writes to ingest, not stable.
-        self.arm(60)
+        # Cycle 2: setting the cutoff again must succeed and route new writes to ingest.
+        self.set_step_down_ts(60)
         self.write_at(self.uri, {'d': 'cycle2-ingest'}, 70)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 80), {'d'},
-            'a post-arm write in the second cycle must route to ingest')
+            'a later write in the second cycle must route to ingest')
         self.complete_step_down(60)
 
         expected['d'] = 'cycle2-ingest'
