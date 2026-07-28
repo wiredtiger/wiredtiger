@@ -1494,11 +1494,6 @@ __evict_get_ref(
                     if (TAILQ_EMPTY(&hash_entry->dhandle_hashchain))
                         continue;
 
-                    /* Unlocked hint: the chain has subqueues but none currently holds a page. Skip
-                     * it without paying for the trylock and chain walk below. Racy but safe. */
-                    if (__wt_atomic_load_uint32(&hash_entry->nonempty_subqueues) == 0)
-                        continue;
-
                     if (__wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY) {
                         WT_STAT_CONN_INCR(session, eviction_skip_locked_hashchain);
                         __wt_verbose_debug1(session, WT_VERB_EVICTION,
@@ -1579,9 +1574,6 @@ __evict_get_ref(
                             ref->page->evict_data.bucket = NULL;
                             /* The page is leaving the subqueue: drop the cached pointer. */
                             ref->page->evict_data.subq = NULL;
-                            /* If that was the last page, the slot no longer holds evictable pages. */
-                            if (TAILQ_EMPTY(&subq->evict_queue))
-                                (void)__wt_atomic_sub_uint32(&hash_entry->nonempty_subqueues, 1);
                             __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
                         }
                         __wt_spin_unlock(session, &subq->evict_queue_lock);
@@ -1957,9 +1949,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 
         __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
         TAILQ_REMOVE(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
-        /* If that was the last page, the slot no longer holds evictable pages. */
-        if (TAILQ_EMPTY(&dhandle_subqueue->evict_queue))
-            (void)__wt_atomic_sub_uint32(&dhandle_subqueue->hash_entry->nonempty_subqueues, 1);
         page->evict_data.subq = NULL;
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
     }
@@ -2097,7 +2086,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
               "subq CREATE tree=%s bucket_id=%" PRIu64 " slot=%d level=%d",
               page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
               bucket->id, hash_slot, (int)bucketset->level);
-            dhandle_subqueue->hash_entry = dhandle_hashentry;
             TAILQ_INSERT_HEAD(&dhandle_hashentry->dhandle_hashchain, dhandle_subqueue, dhandle_subq);
             dhandle_hashentry->chain_len++;
         } else
@@ -2107,9 +2095,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
               bucket->id, hash_slot, (int)bucketset->level);
 
         __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
-        /* First page into an empty subqueue: the slot now holds evictable pages. */
-        if (TAILQ_EMPTY(&dhandle_subqueue->evict_queue))
-            (void)__wt_atomic_add_uint32(&dhandle_subqueue->hash_entry->nonempty_subqueues, 1);
         TAILQ_INSERT_TAIL(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);
         /*
          * Cache the subqueue on the page under the same lock that protects the linkage, so removal
