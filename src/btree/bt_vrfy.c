@@ -847,12 +847,12 @@ __tree_stack(WT_VSTUFF *vs)
 }
 
 /*
- * __verify_progress_due --
+ * __wti_verify_progress_due --
  *     Return whether at least the reporting interval has elapsed since the last verify progress
  *     report, restarting the timer when it has so the next interval is measured from now.
  */
-static bool
-__verify_progress_due(WT_SESSION_IMPL *session, WT_TIMER *last_report, uint64_t interval_ms)
+bool
+__wti_verify_progress_due(WT_SESSION_IMPL *session, WT_TIMER *last_report, uint64_t interval_ms)
 {
     uint64_t elapsed_ms;
 
@@ -939,7 +939,7 @@ __verify_tree(
      * per-page verification work.
      */
     ++vs->fcnt;
-    if (__verify_progress_due(
+    if (__wti_verify_progress_due(
           session, &vs->progress_timer, (uint64_t)WT_PROGRESS_MSG_PERIOD * WT_THOUSAND))
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
