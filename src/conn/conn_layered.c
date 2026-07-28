@@ -1323,12 +1323,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * to adopt over. Those snapshots span the role change and are refused regardless; refusing
          * them from here on is what lets binds resolve the checkpoint name without the checkpoint
          * lock while deferral is enabled. Snapshots established after this point pin the pending
-         * checkpoint, so the adoption is consistent for them.
+         * checkpoint, so the adoption is consistent for them. Role transitions are serialized by
+         * reconfigure, so the increment needs no lock; binds racing it are refused by re-checking
+         * the generation after they resolve.
          */
         role_change_started = true;
-        WT_WITH_CHECKPOINT_LOCK(session,
-          __wt_atomic_store_uint64_release(&conn->disaggregated_storage.role_change_gen,
-            __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.role_change_gen) + 1));
+        (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
 
         /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must

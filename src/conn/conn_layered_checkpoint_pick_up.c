@@ -150,7 +150,7 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     cfg[2] = NULL;
     WT_ERR(__wt_config_collapse(session, cfg, &cfg_new));
 
-    /* Put in our new config. */
+    /* Put in our new config: a tracked update, so a failed merge unrolls it. */
     WT_ERR(__wt_metadata_update(session, metadata_key, cfg_new));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -343,6 +343,7 @@ __disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor)
 
     WT_ERR(sh_cursor->get_key(sh_cursor, &key));
     WT_ERR(sh_cursor->get_value(sh_cursor, &value));
+    /* A tracked insert, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_insert(session, key, value),
       "Failed to insert metadata for key \"%s\"", key);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -405,6 +406,7 @@ __disagg_update_file_meta(
     cfg[2] = NULL;
     WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
+    /* A tracked update, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_update(session, sh_file_key, cfg_ret),
       "Failed to update metadata for key \"%s\"", sh_file_key);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_updated);
@@ -1102,6 +1104,31 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __disagg_deferred_copy --
+ *     Copy out the deferred checkpoint to adopt: the newest one outright when forced (a step-up
+ *     must continue from the newest checkpoint), otherwise the newest one the active snapshots
+ *     permit. Called with the checkpoint lock.
+ */
+static int
+__disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp)
+{
+    WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+
+    if (!force)
+        return (__disagg_deferred_select(session, metap, lsnp));
+
+    *metap = NULL;
+    *lsnp = WT_DISAGG_LSN_NONE;
+    if (disagg->deferred_ckpt_newest == NULL)
+        return (0);
+
+    *lsnp = disagg->deferred_ckpt_newest->lsn;
+    return (__wt_strdup(session, disagg->deferred_ckpt_newest->meta, metap));
+}
+
+/*
  * __wti_disagg_deferred_pickup_retry --
  *     Retry adopting a checkpoint whose pickup was deferred for active snapshots. Called
  *     periodically so a deferred checkpoint is adopted once the snapshots that blocked it end.
@@ -1120,17 +1147,8 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
     if (disagg->deferred_ckpt_oldest == NULL)
         return (0);
 
-    /*
-     * A forced retry (step-up) adopts the newest deferred checkpoint outright; otherwise adopt the
-     * newest one the active snapshots (or the adoption deadline) permit.
-     */
     WT_WITH_CHECKPOINT_LOCK(
-      session, if (force) {
-          if (disagg->deferred_ckpt_newest != NULL) {
-              deferred_lsn = disagg->deferred_ckpt_newest->lsn;
-              ret = __wt_strdup(session, disagg->deferred_ckpt_newest->meta, &meta_copy);
-          }
-      } else ret = __disagg_deferred_select(session, &meta_copy, &deferred_lsn));
+      session, ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn));
     WT_RET(ret);
     if (meta_copy == NULL)
         return (0);

@@ -515,6 +515,35 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __clayered_stable_bind_check_deferral --
+ *     The deferral-mode counterpart of the bind check: with deferral enabled, a checkpoint is only
+ *     adopted once no snapshot predating it remains, and a role transition's forced adoption is
+ *     refused by the role and generation checks so the published LSN passing this snapshot's pin
+ *     without a generation change means the deferral machinery let a pickup break a snapshot.
+ *     Assert that in every build: failing loudly beats returning wrong data later. The generation
+ *     is loaded after the published LSN, so a transition observed through its published LSN is also
+ *     observed through its generation bump.
+ */
+static WT_INLINE void
+__clayered_stable_bind_check_deferral(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
+    uint64_t conn_lsn, pinned_lsn;
+
+    conn_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    pinned_lsn = __wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn);
+
+    WT_ASSERT_ALWAYS(session,
+      conn_lsn == WT_DISAGG_LSN_NONE ||
+        (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn) ||
+        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
+          session->txn->disagg_role_gen,
+      "a checkpoint pickup overtook an active transaction snapshot with deferral enabled");
+}
+
+/*
  * __clayered_stable_last_name --
  *     Check the snapshot against the newest checkpoint and resolve that checkpoint's name. See the
  *     caller for when this requires the checkpoint lock.
@@ -522,8 +551,36 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
 static int
 __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, const char **namep)
 {
+    WT_RET(__wt_meta_checkpoint_last_name(session, stable_uri, namep, NULL, NULL));
+
+    /*
+     * Re-check the role-change generation now that the name is resolved: a role transition bumps
+     * the generation before its forced adoption mutates the metadata, so a resolution that observed
+     * any of that mutation observes the bump here and is refused. The check before the resolution
+     * alone is not enough, since it can read the old generation and still resolve metadata written
+     * after the bump.
+     */
+    if (__wt_atomic_load_uint64_acquire(&S2C(session)->disaggregated_storage.role_change_gen) ==
+      session->txn->disagg_role_gen)
+        return (0);
+
+    __wt_free(session, *namep);
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
+    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
+}
+
+/*
+ * __clayered_stable_last_name_checked --
+ *     The non-deferral form of resolving the newest checkpoint's name: run the snapshot check and
+ *     the resolution as one unit. Called under the checkpoint lock, which adoptions run under, so
+ *     the check and the name refer to the same adoption.
+ */
+static int
+__clayered_stable_last_name_checked(
+  WT_SESSION_IMPL *session, const char *stable_uri, const char **namep)
+{
     WT_RET(__clayered_stable_bind_check(session));
-    return (__wt_meta_checkpoint_last_name(session, stable_uri, namep, NULL, NULL));
+    return (__clayered_stable_last_name(session, stable_uri, namep));
 }
 
 /*
@@ -563,6 +620,11 @@ retry:
      * adoption: the bind lands entirely before the merge and resolves the old checkpoint, or
      * entirely after and is refused by the published LSN.
      *
+     * The role check takes no lock in either resolution mode: this function only runs when the
+     * caller's single read of the connection's role said follower, so passing follower compares the
+     * value the caller dispatched on, and the role-change generation is re-checked after the
+     * resolution, refusing a bind that raced a transition.
+     *
      * The open itself always runs outside the lock: if a pickup lands in between and the named
      * checkpoint is gone, the open fails and the retry re-runs the check, which then refuses the
      * moved checkpoint. Only a transactional snapshot without a read timestamp needs the check: any
@@ -570,11 +632,13 @@ retry:
      * history store checkpoint fails the open and retries.
      */
     if (__clayered_stable_bind_check_needed(session)) {
-        if (S2C(session)->disaggregated_storage.checkpoint_deferral)
+        WT_ERR(__clayered_stable_bind_check_role_change(session, false));
+        if (S2C(session)->disaggregated_storage.checkpoint_deferral) {
+            __clayered_stable_bind_check_deferral(session);
             ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name);
-        else
-            WT_WITH_CHECKPOINT_LOCK(
-              session, ret = __clayered_stable_last_name(session, stable_uri, &checkpoint_name));
+        } else
+            WT_WITH_CHECKPOINT_LOCK(session,
+              ret = __clayered_stable_last_name_checked(session, stable_uri, &checkpoint_name));
     } else
         ret = __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL);
     if (!checkpoint_expected && ret == WT_NOTFOUND) {
@@ -613,6 +677,17 @@ static int
 __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
 {
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+
+    /*
+     * A leader's stable table is written locally with this node's transaction ids and is safe under
+     * any snapshot, except a snapshot from before a role change, which must not see adopted content
+     * laundered into the live tree. This function is the leader branch of a dispatch on a single
+     * role read, so passing leader here compares the same value the dispatch used, and no lock is
+     * needed.
+     */
+    if (__clayered_stable_bind_check_needed(session))
+        WT_RET(__clayered_stable_bind_check_role_change(session, true));
 
     return (__clayered_open_stable_int(clayered, layered->stable_uri));
 }
@@ -625,19 +700,6 @@ static int
 __clayered_open_stable(
   WTI_CURSOR_LAYERED *clayered, bool checkpoint_expected, WTI_CLAYERED_ROLE role)
 {
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-
-    /*
-     * The role passed in comes from a single read of the connection's role, and the bind dispatches
-     * on that same value below: a role change racing the bind fails the comparison inside the check
-     * no matter how the reads interleave, so no lock is needed. A leader's stable table is written
-     * locally with this node's transaction ids and is otherwise safe under any snapshot; the
-     * exception is a snapshot from before a role change, which must not see adopted content
-     * laundered into the live tree.
-     */
-    if (__clayered_stable_bind_check_needed(session))
-        WT_RET(__clayered_stable_bind_check_role_change(session, role == WTI_CLAYERED_ROLE_LEADER));
-
     return (role == WTI_CLAYERED_ROLE_LEADER ?
         __clayered_open_stable_leader(clayered) :
         __clayered_open_stable_follower(clayered, checkpoint_expected));
