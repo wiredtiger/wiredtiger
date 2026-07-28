@@ -299,7 +299,7 @@ class test_layered_tombstone_modify(wttest.WiredTigerTestCase):
 
         self.checkpoint_to_follower(1)
 
-        # The follower cannot write to stable, so each modify materialises into ingest.
+        # The follower cannot write to stable, so each modify materializes into ingest.
         for key, case in enumerate(self.modify_cases, 1):
             self.apply_modify(
                 self.follow, key, case.modifications, commit_ts=2
