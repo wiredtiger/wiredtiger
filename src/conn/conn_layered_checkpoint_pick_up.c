@@ -353,28 +353,22 @@ static int
 __disagg_update_file_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
 {
-    WT_CONFIG_ITEM cval, cval_cur, new_ckpt;
+    WT_CONFIG_ITEM cval, cval_cur;
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    char *cfg_ret, *current_value_copy, *new_ckpt_copy;
+    char *cfg_ret, *current_value_copy;
     const char *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
     bool discard;
 
-    cfg_ret = current_value_copy = new_ckpt_copy = NULL;
+    cfg_ret = current_value_copy = NULL;
     checkpoint_name = NULL;
     discard = false;
-    WT_CLEAR(new_ckpt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
     WT_ERR(sh_file_cursor->get_key(sh_file_cursor, &sh_file_key));
     WT_ERR(sh_file_cursor->get_value(sh_file_cursor, &metadata_value));
     WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
-    /* Own shared checkpoint bytes before any other cursor get_value can invalidate them. */
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &new_ckpt_copy));
-    new_ckpt.str = new_ckpt_copy;
-    new_ckpt.len = cval.len;
-    new_ckpt.type = cval.type;
 
     /* Check that the local metadata cursor is positioned at the same key. */
     WT_ERR(md_file_cursor->get_key(md_file_cursor, &md_file_key));
@@ -385,13 +379,13 @@ __disagg_update_file_meta(
     WT_ERR(__wt_strdup(session, current_value, &current_value_copy));
     WT_ERR(__wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur));
     /* Nothing to do if the local checkpoint already matches the shared one. */
-    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, new_ckpt.str, new_ckpt.len) == 0)
+    if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
         goto err;
 
     /*
      * Only the checkpoint field changes on this path (see FIXME-WT-14730).
      */
-    WT_ERR(__wt_config_replace(session, current_value_copy, "checkpoint", &new_ckpt, &cfg_ret));
+    WT_ERR(__wt_config_replace(session, current_value_copy, "checkpoint", &cval, &cfg_ret));
 
     md_file_cursor->set_value(md_file_cursor, cfg_ret);
     WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
@@ -400,7 +394,7 @@ __disagg_update_file_meta(
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"", sh_file_key,
-      (int)new_ckpt.len, new_ckpt.str);
+      (int)cval.len, cval.str);
 
     /*
      * Mark any matching data handles associated with the previous checkpoint to be out of date. Any
@@ -432,7 +426,6 @@ __disagg_update_file_meta(
 err:
     __wt_scr_free(session, &old_uri_buf);
     __wt_free(session, current_value_copy);
-    __wt_free(session, new_ckpt_copy);
     __wt_free(session, cfg_ret);
     __wt_free(session, checkpoint_name);
     return (ret);
