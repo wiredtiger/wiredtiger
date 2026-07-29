@@ -590,7 +590,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.pct.modify=50:90 runs.ops=500000:2000000
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
@@ -603,7 +603,7 @@ variables:
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 disagg.preserve=1 runs.ops=500000:2000000
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.pct.modify=50:90 ops.verify=1 disagg.multi_validation=1 disagg.preserve=1 runs.ops=500000:2000000
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
