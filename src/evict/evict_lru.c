@@ -1619,7 +1619,7 @@ __evict_get_ref(
                 WT_EVICT_DHANDLE_SUBQUEUE *subq, *subq_start;
                 const char *subq_name;
                 uint32_t chain_len, chain_skip, slot, slot_iter, slot_start;
-                bool wrapped;
+                bool all_empty, wrapped;
 
                 WT_ASSERT(session, bucket->pertree_hashtable != NULL);
 
@@ -1638,6 +1638,19 @@ __evict_get_ref(
                     /* Unlocked hint: an empty chain has nothing to evict. Racy but safe — a
                      * concurrent insert just means we miss this chain on this pass. */
                     if (TAILQ_EMPTY(&hash_entry->dhandle_hashchain))
+                        continue;
+
+                    /*
+                     * Unlocked hint: the chain has subqueues, but none of them held a page when a
+                     * sweep last drained it. Skip the slot without paying for the trylock and the
+                     * chain walk below. Subqueues are only unlinked when their dhandle closes, so a
+                     * tree that has gone quiet leaves an empty subqueue on the chain indefinitely
+                     * and the test above keeps letting it through.
+                     *
+                     * Racy in the same way as the test above and safe for the same reason: a
+                     * concurrent enqueue just means we miss this chain on this pass.
+                     */
+                    if (__wt_atomic_load_uint32_relaxed(&hash_entry->maybe_nonempty) == 0)
                         continue;
 
                     if (__wt_spin_trylock(session, &hash_entry->evict_hashchain_lock) == EBUSY) {
@@ -1669,12 +1682,18 @@ __evict_get_ref(
                          chain_skip--)
                         subq_start = TAILQ_NEXT(subq_start, dhandle_subq);
 
-                    for (subq = subq_start, wrapped = false; subq != NULL;
+                    for (subq = subq_start, all_empty = true, wrapped = false; subq != NULL;
                          subq = __evict_hashchain_next(hash_entry, subq, subq_start, &wrapped)) {
                         if (TAILQ_EMPTY(&subq->evict_queue)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_empty_subqueue);
                             continue;
                         }
+                        /*
+                         * This subqueue holds pages, so the slot must stay marked even if we go on
+                         * to skip it below. Record that before any of the skip paths, not after the
+                         * scan: a subqueue we decline to scan still has pages for a later pass.
+                         */
+                        all_empty = false;
                         if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle, i)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
                             __wt_verbose_debug2(session, WT_VERB_EVICTION,
@@ -1745,6 +1764,17 @@ __evict_get_ref(
                          */
                         goto next_slot;
                     }
+                    /*
+                     * Reaching here means the walk covered every subqueue on the chain and found
+                     * them all empty, without ever releasing the chain lock. Enqueue takes that
+                     * same lock, so nothing can have been added behind us and the chain really is
+                     * drained: clear the hint so later sweeps skip the slot until a page arrives.
+                     *
+                     * Dequeue does not take the chain lock, but it can only empty a subqueue
+                     * further, so it can only make this conclusion more true.
+                     */
+                    if (all_empty)
+                        __wt_atomic_store_uint32_relaxed(&hash_entry->maybe_nonempty, 0);
                     __wt_spin_unlock(session, &hash_entry->evict_hashchain_lock);
 next_slot:
                     continue;
@@ -2239,6 +2269,15 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
               "subq REUSE  tree=%s bucket_id=%" PRIu64 " slot=%d level=%d",
               page->evict_data.dhandle->name != NULL ? page->evict_data.dhandle->name : "(null)",
               bucket->id, hash_slot, (int)bucketset->level);
+
+        /*
+         * Mark the slot as holding pages, under the chain lock the sweep must also take to clear
+         * it. Unconditional: storing one every time is cheaper than first testing whether the
+         * subqueue was empty, and with few pages per subqueue that test would be true on nearly
+         * every enqueue anyway. A plain relaxed store, so this costs no atomic read-modify-write
+         * and no additional contention on the enqueue path.
+         */
+        __wt_atomic_store_uint32_relaxed(&dhandle_hashentry->maybe_nonempty, 1);
 
         __wt_spin_lock(session, &dhandle_subqueue->evict_queue_lock);
         TAILQ_INSERT_TAIL(&dhandle_subqueue->evict_queue, page, evict_data.evict_q);

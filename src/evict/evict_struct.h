@@ -156,4 +156,19 @@ struct __wt_evict_dhandle_hash_entry {
     TAILQ_HEAD(__wt_hashchain_dhandle_qh,  __wt_evict_dhandle_subqueue) dhandle_hashchain;
     /* Number of subqueues on the chain. Maintained under evict_hashchain_lock. */
     uint32_t chain_len;
+    /*
+     * Unlocked hint: zero means no subqueue on this chain held a page the last time a sweep looked.
+     * Read without the chain lock so a drained slot can be skipped before paying for the trylock
+     * and the chain walk.
+     *
+     * Set to one when a page is enqueued and cleared by a sweep that walked the whole chain and
+     * found every subqueue empty. Both happen under evict_hashchain_lock, which is why neither
+     * needs a read-modify-write: this hint costs the enqueue and dequeue paths a single relaxed
+     * store between them, and costs the dequeue paths nothing at all.
+     *
+     * The raciness is deliberately one-sided. A stale one costs a wasted walk that then clears it.
+     * A stale zero would cost a missed page, so the clear is the only conditional side and it runs
+     * under the same lock that enqueue holds, which is what makes a lost update impossible.
+     */
+    wt_shared uint32_t maybe_nonempty;
 };
