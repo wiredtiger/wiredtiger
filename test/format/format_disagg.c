@@ -273,7 +273,7 @@ stepdown_pause_worker_writes(void)
 
     if (tinfo_list != NULL)
         for (tlp = tinfo_list; *tlp != NULL; ++tlp)
-            (*tlp)->pause_ack = false;
+            WT_RELEASE_WRITE_WITH_BARRIER((*tlp)->pause_ack, false);
     WT_RELEASE_WRITE_WITH_BARRIER(g.stepdown_pause_writes, true);
 }
 

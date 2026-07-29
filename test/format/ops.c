@@ -1238,7 +1238,7 @@ rollback_retry:
          */
         WT_ACQUIRE_READ_WITH_BARRIER(pause_writes, g.stepdown_pause_writes);
         if (!pause_writes)
-            tinfo->pause_ack = false;
+            WT_RELEASE_WRITE_WITH_BARRIER(tinfo->pause_ack, false);
         else if (!intxn)
             WT_RELEASE_WRITE_WITH_BARRIER(tinfo->pause_ack, true);
 
