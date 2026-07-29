@@ -1228,7 +1228,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
      * every store of the timestamp is made under it.
      */
     __wt_writelock(session, &conn->txn_global.step_down_lock);
-    __wt_atomic_store_uint64_release(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
+    __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
 
