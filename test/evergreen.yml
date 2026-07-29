@@ -1810,7 +1810,7 @@ variables:
           # FIXME-WT-18173 Enable modifies in disagg multi mode once the related issues have been resolved.
           # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=50000:100000 ops.pct.modify=0 ops.truncate=0
-          times: 5
+          times: 10
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   # FIXME-WT-18228 Re-enable random cursor operations in the disaggregated asynchronous step-down format tests
