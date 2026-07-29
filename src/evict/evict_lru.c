@@ -13,7 +13,7 @@ static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, int i);
-static bool __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree);
+static bool __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level);
 static bool __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed);
 
 #define WT_EVICT_HAS_WORKERS(s) \
@@ -1336,7 +1336,8 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
          * We hold the lock protecting this queue, so nobody can remove the page from it, and we can
          * safely access its dhandle. For a per-tree subqueue the caller already tested the tree.
          */
-        if (!per_tree && __evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle))
+        if (!per_tree &&
+          __evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle, level))
             continue;
 
         /* Try to lock the reference. If it's already locked, skip it. */
@@ -1674,7 +1675,7 @@ __evict_get_ref(
                             WT_STAT_CONN_INCR(session, eviction_skip_empty_subqueue);
                             continue;
                         }
-                        if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle)) {
+                        if (__evict_skip_tree(session, (WT_BTREE *)subq->dhandle->handle, i)) {
                             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
                             __wt_verbose_debug2(session, WT_VERB_EVICTION,
                               "subq WALK   tree=%s level=%d bucket_id=%" PRIu64 " slot=%u SKIP_SYNCING",
@@ -2382,7 +2383,7 @@ __evict_disagg_btree_skip_count(WT_SESSION_IMPL *session, WT_BTREE *btree)
  *     Decide if we should skip this tree
  */
 static bool
-__evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t level)
 {
     WT_EVICT *evict;
 
@@ -2403,9 +2404,18 @@ __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree)
     }
 
     /*
-     * Skip files that are checkpointing if we are only looking for dirty pages.
+     * Skip a checkpointing file at the levels that hold modified pages. Every candidate there will
+     * be refused by __wt_page_can_evict, one page at a time, for the whole length of the queue --
+     * a locked CAS and a full eligibility check each, none of which can succeed.
+     *
+     * The test is on the level alone, not on WT_EVICT_CACHE_CLEAN. Only six levels are ever
+     * eligible (see __evict_eligible_levels): the three dirty ones, which are skipped here; the two
+     * clean ones, which are only eligible when CLEAN is set and are evictable in a syncing tree
+     * anyway; and the updates leaf level, whose pages are not modified and so are also evictable.
+     * Gating on CLEAN would additionally skip that updates level whenever CLEAN happened to be
+     * clear, discarding work eviction could really have done.
      */
-    if (WT_BTREE_SYNCING(btree) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+    if (WT_BTREE_SYNCING(btree) && __evict_level_holds_modified((int)level)) {
         WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
         __evict_disagg_btree_skip_count(session, btree);
         return true;
