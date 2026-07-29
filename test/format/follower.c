@@ -270,8 +270,37 @@ follower_read_no_ts(void *arg)
                       "follower_read_no_ts: snapshot key changed within a transaction (row %u)", i);
                     testutil_assertfmt(value.size == values[i].size &&
                         memcmp(value.data, values[i].data, value.size) == 0,
-                      "follower_read_no_ts: snapshot value changed within a transaction (row %u)", i);
+                      "follower_read_no_ts: snapshot value changed within a transaction (row %u)",
+                      i);
                 }
+            }
+            testutil_check(cursor->close(cursor));
+        }
+
+        /*
+         * Repeat the reads as point lookups: within the same snapshot, searching each key seen by
+         * the scan must return the identical value. Point reads and scans position differently, so
+         * both paths are verified.
+         */
+        if (!failed && count > 0 && !g.workers_finished) {
+            wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
+            for (i = 0; i < count; ++i) {
+                cursor->set_key(cursor, &keys[i]);
+                if ((ret = cursor->search(cursor)) != 0) {
+                    testutil_assertfmt(
+                      ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT || ret == WT_CACHE_FULL,
+                      "follower_read_no_ts: a key seen by the snapshot disappeared on search (row "
+                      "%u): "
+                      "%d",
+                      i, ret);
+                    break;
+                }
+                testutil_check(cursor->get_value(cursor, &value));
+                testutil_assertfmt(value.size == values[i].size &&
+                    memcmp(value.data, values[i].data, value.size) == 0,
+                  "follower_read_no_ts: snapshot value changed between a scan and a search (row "
+                  "%u)",
+                  i);
             }
             testutil_check(cursor->close(cursor));
         }

@@ -392,7 +392,8 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     if (disagg_is_multi_node() && !g.disagg_leader) {
         testutil_check(__wt_thread_create(NULL, &follower_tid, follower, NULL));
         for (i = 0; i < WT_ELEMENTS(follower_read_no_ts_tid); ++i)
-            testutil_check(__wt_thread_create(NULL, &follower_read_no_ts_tid[i], follower_read_no_ts, NULL));
+            testutil_check(
+              __wt_thread_create(NULL, &follower_read_no_ts_tid[i], follower_read_no_ts, NULL));
     }
     if (GV(OPS_HS_CURSOR))
         testutil_check(__wt_thread_create(NULL, &hs_tid, hs_cursor, NULL));
