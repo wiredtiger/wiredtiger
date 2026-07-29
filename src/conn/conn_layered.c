@@ -1223,9 +1223,11 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Clear the step-down timestamp now that the step-down is complete. No transaction can be
-     * writing across the reconfigure, so the lock is not required for correctness; take it so that
-     * every store of the timestamp is made under it.
+     * Clear the step-down timestamp. No write transaction runs concurrently with the step-down, but
+     * the lock is still required for readers: transaction begin reads the step-down timestamp under
+     * it, so a transaction that sees the timestamp cleared is guaranteed to also see the earlier
+     * switch of the role to follower. Without that ordering a reader could observe the stale leader
+     * role with no step-down timestamp and read only stable, missing ingest content.
      */
     __wt_writelock(session, &conn->txn_global.step_down_lock);
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
