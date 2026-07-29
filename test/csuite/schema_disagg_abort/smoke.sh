@@ -42,8 +42,11 @@ $TEST_WRAPPER "$test_bin" -b "$build_dir" -r l -t 10 -T 2 -h WT_TEST.schema_disa
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r l -t 10 -T 4 -h WT_TEST.schema_disagg_abort.l4
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r l -t 10 -T 2 -u 4 -h WT_TEST.schema_disagg_abort.u4
 
-# A lone follower has no event source and stays idle; verification finds an empty run.
+# A lone follower generates its own workload and never checkpoints, so nothing becomes durable; the
+# second run then steps up over the operations it accumulated, the way a fresh node bootstraps its
+# own tables before taking leadership.
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r f -t 10 -T 2 -h WT_TEST.schema_disagg_abort.f
+$TEST_WRAPPER "$test_bin" -b "$build_dir" -r f -s 6 -t 18 -T 2 -h WT_TEST.schema_disagg_abort.fs
 
 # Single-node role switches every 5 seconds, ending gracefully.
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r l -s 5 -t 20 -T 2 -h WT_TEST.schema_disagg_abort.ls
@@ -57,8 +60,6 @@ $TEST_WRAPPER "$test_bin" -b "$build_dir" -r lf -k l8 -t 12 -T 2 -h WT_TEST.sche
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r lf -k f8 -t 12 -T 2 -h WT_TEST.schema_disagg_abort.kf
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r lf -k l8 -k f8 -t 12 -T 2 -h WT_TEST.schema_disagg_abort.kb
 
-# Two nodes with role swaps; after a kill the lone survivor still switches by sentinel. A step-up
-# still trips the stale-metadata paths, so these two are EXPECTED to fail until
-# FIXME-WT-18068 / FIXME-WT-17746 land, and pass afterwards.
+# Two nodes with role swaps; after a kill the lone survivor still switches by sentinel.
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r lf -s 5 -t 20 -T 2 -h WT_TEST.schema_disagg_abort.lfs
 $TEST_WRAPPER "$test_bin" -b "$build_dir" -r lf -s 6 -k l9 -t 20 -T 2 -h WT_TEST.schema_disagg_abort.lfsk

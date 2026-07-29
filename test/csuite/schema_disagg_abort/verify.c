@@ -221,8 +221,8 @@ check_data_rows(WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uin
  * verify_schema_state --
  *     Verify schema and data state after recovery.
  *
- * Reads every node's per-thread schema record files (each node logs only its own operations while
- *     leading; the shared page log makes all of them visible to any recovered node) and takes
+ * Reads every node's per-thread leader record files (each node logs only its own operations while
+ *     it leads; the shared page log makes all of them visible to any recovered node) and takes
  *     last_disaggregated_schema_epoch as the highest durable schema epoch. Asserts that every table
  *     whose last durable operation was a create exists and holds the right rows, and every one last
  *     dropped is gone. Aborts on the first mismatch.
@@ -230,23 +230,12 @@ check_data_rows(WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uin
 void
 verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
 {
-    /* A run may legitimately do nothing: a lone follower has no event source. */
-    bool have_records = false;
-    for (uint32_t n = 0; n < MAX_NODES && !have_records; n++)
-        for (uint32_t t = 0; t < cfg->nth && !have_records; t++) {
-            char fname[128];
-            testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, n, t);
-            have_records = testutil_exists(NULL, fname);
-        }
-
     const uint64_t durable_epoch = query_ts(conn, "last_disaggregated_schema_epoch");
     println("Schema verify: last_disaggregated_schema_epoch = %" PRIu64, durable_epoch);
+    /* Nothing durable means no record is below the cutoff, so there is nothing to check. */
     if (durable_epoch == 0) {
-        if (!have_records) {
-            println("Schema verify: empty run, no records to check");
-            return;
-        }
-        testutil_die(EINVAL, "last_disaggregated_schema_epoch is 0 after recovery");
+        println("Schema verify: nothing durable, no expectations to check");
+        return;
     }
 
     const uint64_t last_ckpt_ts = query_ts(conn, "last_checkpoint");
@@ -259,7 +248,7 @@ verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
     for (uint32_t n = 0; n < MAX_NODES; n++)
         for (uint32_t t = 0; t < cfg->nth; t++) {
             char fname[128];
-            testutil_snprintf(fname, sizeof(fname), SCHEMA_RECORDS_FILE, n, t);
+            testutil_snprintf(fname, sizeof(fname), LEADER_RECORDS_FILE, n, t);
 
             /*
              * A missing record file means there are no expectations to verify for this thread:
@@ -298,38 +287,38 @@ verify_relay_prefix(const TEST_CONFIG *cfg)
     uint32_t checked = 0;
     for (uint32_t n = 0; n < MAX_NODES; n++)
         for (uint32_t t = 0; t < cfg->nth; t++) {
-            char relay_fname[128], schema_fname[128];
-            testutil_snprintf(relay_fname, sizeof(relay_fname), RELAY_RECORDS_FILE, n, t);
-            testutil_snprintf(schema_fname, sizeof(schema_fname), SCHEMA_RECORDS_FILE, 1 - n, t);
+            char follower_fname[128], leader_fname[128];
+            testutil_snprintf(follower_fname, sizeof(follower_fname), FOLLOWER_RECORDS_FILE, n, t);
+            testutil_snprintf(leader_fname, sizeof(leader_fname), LEADER_RECORDS_FILE, 1 - n, t);
 
             /* No relay file means no events were relayed for this thread; nothing to check. */
-            if (!testutil_exists(NULL, relay_fname))
+            if (!testutil_exists(NULL, follower_fname))
                 continue;
-            testutil_assertfmt(testutil_exists(NULL, schema_fname),
-              "%s exists but the peer's %s does not", relay_fname, schema_fname);
+            testutil_assertfmt(testutil_exists(NULL, leader_fname),
+              "%s exists but the peer's %s does not", follower_fname, leader_fname);
 
             FILE *ffp, *sfp;
-            testutil_assert_errno((ffp = fopen(relay_fname, "r")) != NULL);
-            testutil_assert_errno((sfp = fopen(schema_fname, "r")) != NULL);
+            testutil_assert_errno((ffp = fopen(follower_fname, "r")) != NULL);
+            testutil_assert_errno((sfp = fopen(leader_fname, "r")) != NULL);
 
             char fline[256], sline[256];
             uint32_t lineno = 0;
             while (fgets(fline, sizeof(fline), ffp) != NULL) {
                 ++lineno;
                 testutil_assertfmt(fgets(sline, sizeof(sline), sfp) != NULL,
-                  "%s line %" PRIu32 " has no counterpart in %s", relay_fname, lineno,
-                  schema_fname);
+                  "%s line %" PRIu32 " has no counterpart in %s", follower_fname, lineno,
+                  leader_fname);
 
                 const size_t flen = strlen(fline);
                 if (flen > 0 && fline[flen - 1] == '\n')
                     testutil_assertfmt(strcmp(fline, sline) == 0,
-                      "%s diverges from %s at line %" PRIu32 ": \"%s\" vs \"%s\"", relay_fname,
-                      schema_fname, lineno, fline, sline);
+                      "%s diverges from %s at line %" PRIu32 ": \"%s\" vs \"%s\"", follower_fname,
+                      leader_fname, lineno, fline, sline);
                 else
                     /* Partial trailing line: the recorder was killed mid-write. */
                     testutil_assertfmt(strncmp(sline, fline, flen) == 0,
                       "%s truncated line %" PRIu32 " is not a prefix of %s: \"%s\" vs \"%s\"",
-                      relay_fname, lineno, schema_fname, fline, sline);
+                      follower_fname, lineno, leader_fname, fline, sline);
             }
 
             (void)fclose(ffp);
@@ -338,6 +327,6 @@ verify_relay_prefix(const TEST_CONFIG *cfg)
         }
 
     println("Relay verify: %" PRIu32
-            " relay record files are prefixes of the peer's schema records",
+            " follower record files are prefixes of the peer's leader records",
       checked);
 }

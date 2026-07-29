@@ -74,10 +74,10 @@ follower_adopt_latest(WORKLOAD_STATE *state)
  *     and the connection stays open for the step-up's reconfigure.
  */
 static void
-follower_leave(WORKLOAD_STATE *state, uint64_t counter_hwm)
+follower_leave(WORKLOAD_STATE *state, uint64_t final_counter)
 {
     WT_UNUSED(state);
-    WT_UNUSED(counter_hwm);
+    WT_UNUSED(final_counter);
 }
 
 /*
@@ -86,16 +86,16 @@ follower_leave(WORKLOAD_STATE *state, uint64_t counter_hwm)
  *     the follower role and put it back in the epoch world.
  */
 static void
-follower_enter(WORKLOAD_STATE *state, uint64_t counter_hwm)
+follower_enter(WORKLOAD_STATE *state, uint64_t final_counter)
 {
     node_open(state->cfg, node_role_follower.name, &state->conn);
 
     /*
      * The reopened connection starts outside the epoch world, and this node keeps publishing the
-     * operations it applies for the new leader, so restore the frontier at the term's high-water
-     * mark. Everything the new leader relays was allocated above it.
+     * operations it applies for the new leader, so restore the frontier at the term's final counter
+     * value. Everything the new leader relays was allocated above it.
      */
-    set_frontier(state->conn, counter_hwm);
+    set_frontier(state->conn, final_counter);
 }
 
 /*

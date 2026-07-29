@@ -42,17 +42,9 @@
 
 /* Tunables. */
 #define MAX_CKPT_INVL 4
-/*
- * One create in INSERT_ODDS takes data. Only a dirty table's drop has to wait for the checkpoint
- * that persists its data, so keeping inserts rare lets the schema churn run at full speed and
- * leaves a handful of gated slots per checkpoint interval to exercise the waiting path.
- */
 #define INSERT_ODDS 64
-/*
- * The value a node enters the "epoch world" at. Publishing panics while the stable schema epoch is
- * unset, so every connection sets the frontier before anything publishes, and the allocator starts
- * from the same value: publish also requires the epoch to be above the stable one.
- */
+#define GEN_APPLY_RATE_FLOOR 30 /* generator: applied values/second, the multi-node worst case */
+#define GEN_LEAD_MIN 64         /* generator: lead floor, so the workers stay fed */
 #define SCHEMA_EPOCH_BOOTSTRAP 1
 #define MAX_NODES 2
 #define MAX_POOL_SIZE 64
@@ -73,12 +65,12 @@
 #define SCHEMA_TABLE_FMT "table:schema_%" PRIu32 "_%" PRIu32 "_%" PRIu32 /* node, thread, slot */
 
 /*
- * Per-node, per-thread record files: "<records dir>/node<node>-<kind>-<thread>". A node's "schema"
- * files log the operations it originated while leading; its "relay" files log the peer's events it
- * applied while following.
+ * Per-node, per-thread record files: "<records dir>/node<node>-<role>-<thread>", named for the role
+ * the node held when it wrote them. Its "leader" files log the operations it originated; its
+ * "follower" files log the peer's events it applied.
  */
-#define SCHEMA_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "node%" PRIu32 "-schema-%" PRIu32
-#define RELAY_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "node%" PRIu32 "-relay-%" PRIu32
+#define LEADER_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "node%" PRIu32 "-leader-%" PRIu32
+#define FOLLOWER_RECORDS_FILE RECORDS_DIR DIR_DELIM_STR "node%" PRIu32 "-follower-%" PRIu32
 
 /*
  * Sentinels the nodes and the parent coordinate through. The switch request is consumed by the
@@ -107,7 +99,7 @@ typedef enum { KILL_LONE = 0, KILL_LEADER, KILL_FOLLOWER } KILL_TARGET;
  * up.
  *
  * EVENT_SWITCH is the final event of a leadership term's stream: it directs the receiving node to
- * step up, and carries the term's counter high-water mark as a relay-integrity check, which the
+ * step up, and carries the term's final counter value as a relay-integrity check, which the
  * receiver's own counter must equal once it has drained the stream. Schema epochs and commit
  * timestamps come from that one shared counter, so a commit's value always exceeds its table's
  * create epoch.
@@ -121,7 +113,7 @@ typedef struct {
      * The event's value from the single monotonic allocator: the value whose completion the event
      * represents. CREATE/DROP carry the schema epoch the operation publishes at; INSERT carries the
      * commit timestamp (and the inserted rows are valued with it); EVENT_SWITCH carries the ending
-     * term's counter high-water mark, which the receiver's drained counter must match. Unused by
+     * term's final counter value, which the receiver's drained counter must match. Unused by
      * EVENT_CKPT.
      */
     uint64_t event_ts;
@@ -177,6 +169,7 @@ typedef struct __workload_state {
      * than picked up, and every applied event is relayed to the peer. Fixed per phase.
      */
     bool leads;
+    bool generates;         /* this phase generates events into the self-pipe; fixed per phase */
     bool stop_phase;        /* set to quiesce all worker threads between phases; atomic access */
     bool reader_stop;       /* the engine directs the reader to exit; atomic access */
     bool generator_stop;    /* the engine directs the generator to exit; atomic access */
@@ -196,9 +189,15 @@ typedef struct __workload_state {
      * causality an ordering property: a commit into a table always draws a higher value than the
      * table's create, so one stable frontier is consistent on both axes by construction. A follower
      * advances it to every value it applies, and a node stepping up mid-test seeds it from the
-     * previous leader's high-water mark.
+     * previous leader's final counter.
      */
     uint64_t current_ts;
+    /*
+     * In flight is emitted minus applied. Counted rather than derived from the completed frontier:
+     * a worker whose picks are all gated never reports one.
+     */
+    uint64_t emitted; /* generator only */
+    uint64_t applied; /* atomic access: every worker adds to it */
     uint32_t nth_workers;
     /* Per-thread state: workers first, then the generator and timestamp threads. */
     struct {
@@ -239,16 +238,16 @@ typedef struct {
  * A node role, in the C flavor of a vtable: the node's single control loop (the state machine in
  * node.c) runs the phases, and the role differences that are behavior rather than a choice of data
  * dispatch through these operations. leave() steps out of the role once a switch is triggered and
- * enter() completes the transition into it, both carrying the ending term's counter high-water
- * mark; checkpoint() handles one checkpoint event, producing it or picking it up.
+ * enter() completes the transition into it, both carrying the ending term's final counter mark;
+ * checkpoint() handles one checkpoint event, producing it or picking it up.
  */
 typedef struct __node_role NODE_ROLE;
 struct __node_role {
     const char *name;         /* also the disaggregated connection mode string */
     const char *close_config; /* connection close configuration for a graceful stop */
     bool leads;               /* this role generates events and checkpoints */
-    void (*leave)(WORKLOAD_STATE *state, uint64_t counter_hwm);
-    void (*enter)(WORKLOAD_STATE *state, uint64_t counter_hwm);
+    void (*leave)(WORKLOAD_STATE *state, uint64_t final_counter);
+    void (*enter)(WORKLOAD_STATE *state, uint64_t final_counter);
     void (*checkpoint)(
       WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt, const SCHEMA_EVENT *ev);
 };

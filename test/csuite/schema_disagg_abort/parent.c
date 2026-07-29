@@ -79,16 +79,18 @@ spawn_node(const TEST_CONFIG *cfg, const char *self_path, uint32_t node_id, bool
     static const char *const node_names[SUBPROC_SLOTS] = {"node0", "node1"};
     testutil_assert(node_id < SUBPROC_SLOTS);
 
-    char id_arg[16], nth_arg[16], pool_arg[16], rfd_arg[16], wfd_arg[16], seed_arg[80];
+    char id_arg[16], nth_arg[16], pool_arg[16], rfd_arg[16], switch_arg[16], wfd_arg[16],
+      seed_arg[80];
     testutil_snprintf(id_arg, sizeof(id_arg), "%" PRIu32, node_id);
     testutil_snprintf(nth_arg, sizeof(nth_arg), "%" PRIu32, cfg->nth);
     testutil_snprintf(pool_arg, sizeof(pool_arg), "%" PRIu32, cfg->pool_size);
     testutil_snprintf(rfd_arg, sizeof(rfd_arg), "%d", read_fd);
+    testutil_snprintf(switch_arg, sizeof(switch_arg), "%" PRIu32, cfg->switch_interval);
     testutil_snprintf(wfd_arg, sizeof(wfd_arg), "%d", write_fd);
     testutil_snprintf(seed_arg, sizeof(seed_arg), TESTUTIL_SEED_FORMAT, cfg->opts->data_seed,
       cfg->opts->extra_seed);
 
-    const char *argv[24];
+    const char *argv[28];
     size_t n = 0;
     argv[n++] = self_path;
     argv[n++] = "-r";
@@ -107,6 +109,11 @@ spawn_node(const TEST_CONFIG *cfg, const char *self_path, uint32_t node_id, bool
     argv[n++] = nth_arg;
     argv[n++] = "-u";
     argv[n++] = pool_arg;
+    /* The node bounds how far its generator runs ahead so a hand-over drains inside a period. */
+    if (cfg->switch_interval != 0) {
+        argv[n++] = "-s";
+        argv[n++] = switch_arg;
+    }
     if (read_fd >= 0) {
         argv[n++] = "-R";
         argv[n++] = rfd_arg;
@@ -260,23 +267,28 @@ run_children(TEST_CONFIG *cfg, const char *self_path)
     if (nnodes == 1)
         spawn_node(cfg, self_path, 0, cfg->with_leader, -1, -1, NULL, 0, &children[0]);
     else {
-        /* One pipe per direction; a node writes while leading and reads while following. */
-        int p01[2], p10[2];
-        subproc_pipe(p01);
-        subproc_pipe(p10);
+        /*
+         * One pipe per direction, each named for the node that reads it: a node writes to its
+         * peer's pipe while leading and reads its own while following.
+         */
+        int to_node0[2], to_node1[2];
+        subproc_pipe(to_node0);
+        subproc_pipe(to_node1);
 
-        const int close0[] = {p01[0], p10[1]}; /* node0 keeps p01 write, p10 read */
-        spawn_node(
-          cfg, self_path, 0, true, p10[0], p01[1], close0, WT_ELEMENTS(close0), &children[0]);
-        const int close1[] = {p01[1], p10[0]}; /* node1 keeps p01 read, p10 write */
-        spawn_node(
-          cfg, self_path, 1, false, p01[0], p10[1], close1, WT_ELEMENTS(close1), &children[1]);
+        /* node0 keeps the to_node1 write and the to_node0 read. */
+        const int close0[] = {to_node1[0], to_node0[1]};
+        spawn_node(cfg, self_path, 0, true, to_node0[0], to_node1[1], close0, WT_ELEMENTS(close0),
+          &children[0]);
+        /* node1 keeps the to_node0 write and the to_node1 read. */
+        const int close1[] = {to_node1[1], to_node0[0]};
+        spawn_node(cfg, self_path, 1, false, to_node1[0], to_node0[1], close1, WT_ELEMENTS(close1),
+          &children[1]);
 
         /* The children own the pipes now; each pipe's ends live only in its two users. */
-        close(p01[0]);
-        close(p01[1]);
-        close(p10[0]);
-        close(p10[1]);
+        close(to_node0[0]);
+        close(to_node0[1]);
+        close(to_node1[0]);
+        close(to_node1[1]);
     }
 
     /*

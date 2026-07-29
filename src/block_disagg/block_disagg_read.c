@@ -68,17 +68,20 @@ err:
     }
     va_end(args);
 
+    /*
+     * Build the message once: the two sinks differ only in where the text goes. Truncation is
+     * harmless here and a failure return has nowhere useful to go, so the result is ignored.
+     */
+    char msg[1024];
+    WT_IGNORE_RET(__wt_snprintf(msg, sizeof(msg),
+      "%s: read error for %" PRIu32 "B block at page %" PRIu64 ", lsn %" PRIu64
+      ", table_id %" PRIu64 ", %s, %s",
+      name, size, page_id, lsn, table_id, page_desc, context_msg));
+
     if (F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-        __wt_verbose_debug1(session, WT_VERB_READ,
-          "%s: read error for %" PRIu32 "B block at page %" PRIu64 ", lsn %" PRIu64
-          ", table_id %" PRIu64 ", %s, %s",
-          name, size, page_id, lsn, table_id, page_desc, context_msg);
+        __wt_verbose_debug1(session, WT_VERB_READ, "%s", msg);
     else
-        __wt_errx(session,
-          "%s: read error for %" PRIu32
-          "B block at "
-          "page %" PRIu64 ", lsn %" PRIu64 ", table_id %" PRIu64 ", %s, %s",
-          name, size, page_id, lsn, table_id, page_desc, context_msg);
+        __wt_errx(session, "%s", msg);
 }
 
 /*

@@ -10,10 +10,10 @@
  * The generic node: everything a database node does regardless of role. This file owns the phase
  * loop, the WiredTiger connection, the event pipes, and the workload engine.
  *
- * One pipeline serves both roles: a generator thread produces the node's command stream (the full
- * workload into the self-pipe when leading, only the lone node's switch trigger when following), a
- * reader thread demuxes the source pipe to N worker threads that apply the events, and a timestamp
- * thread advances the frontier. The threads coordinate without locks.
+ * One pipeline serves both roles: a generator thread produces the node's command stream into a
+ * self-pipe (a leader always does, and so does a follower with no peer to receive from), a reader
+ * thread demuxes the source pipe - the self-pipe, or a live peer's - to N worker threads that apply
+ * the events, and a timestamp thread advances the frontier. The threads coordinate without locks.
  *
  * The role specifics live in leader.c and follower.c behind the NODE_ROLE operations.
  */
@@ -35,7 +35,7 @@ typedef struct {
 /* Per-thread worker state for one phase. */
 typedef struct {
     WT_SESSION *session;
-    FILE *record_fp; /* schema records (leading) or relay records (following); opens lazily */
+    FILE *record_fp; /* records for what this node originated, or for what it applied */
 } WORKER_CTX;
 
 /*
@@ -54,8 +54,8 @@ workload_state_create(TEST_CONFIG *cfg)
 
 /*
  * workload_seed_counter --
- *     Seed the monotonic allocator from the previous leader's high-water mark, so a node stepping
- *     up continues the global epoch/timestamp sequence.
+ *     Seed the monotonic allocator from the previous leader's final counter, so a node stepping up
+ *     continues the global epoch/timestamp sequence.
  */
 void
 workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts)
@@ -172,9 +172,10 @@ typedef enum { TRIGGER_STOP, TRIGGER_SWITCH } NODE_TRIGGER;
 /*
  * node_trigger_wait --
  *     The payload wait of a phase, identical in both roles: sleep until something ends the phase.
- *     The stop sentinel ends any phase; the hand-over report ends it with a switch. All switch
- *     triggering lives in the generator, so the trigger arrives here uniformly, whether it came
- *     from the node's own stream, the peer's hand-over, or a lone follower's sentinel poll.
+ *     The stop sentinel ends any phase; a hand-over report ends it with a switch.
+ *
+ * Whoever owns the phase's stream consumes the switch request. A phase left with no stream - a
+ *     follower whose peer died has neither generator nor reader - consumes it here instead.
  */
 static NODE_TRIGGER
 node_trigger_wait(WORKLOAD_STATE *state)
@@ -182,6 +183,11 @@ node_trigger_wait(WORKLOAD_STATE *state)
     while (!node_stop_requested()) {
         if (__wt_atomic_load_bool_acquire(&state->handover_received))
             return (TRIGGER_SWITCH);
+
+        const bool abandoned_follower = !state->generates && !state->cfg->peer_alive;
+        if (abandoned_follower && node_switch_request_consume())
+            return (TRIGGER_SWITCH);
+
         /*
          * Nothing will ever end this phase once the parent is gone: it owns both sentinels. A lone
          * follower would otherwise idle for as long as the machine is up.
@@ -314,19 +320,17 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
 
 /*
  * worker_record_open --
- *     Open a worker's record file: schema records when leading, relay records when following.
+ *     Open a worker's record file, named for the origin of what it logs: the operations this node
+ *     produced itself go to its leader records, the peer's relayed events to its follower records.
  *     Append so a later phase preserves the earlier records for the post-crash verifier.
  */
 static FILE *
 worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
 {
     char fname[128];
-    if (state->leads)
-        testutil_snprintf(
-          fname, sizeof(fname), SCHEMA_RECORDS_FILE, state->cfg->node_id, thread_index);
-    else
-        testutil_snprintf(
-          fname, sizeof(fname), RELAY_RECORDS_FILE, state->cfg->node_id, thread_index);
+    testutil_snprintf(fname, sizeof(fname),
+      state->generates ? LEADER_RECORDS_FILE : FOLLOWER_RECORDS_FILE, state->cfg->node_id,
+      thread_index);
 
     FILE *fp;
     testutil_assert_errno((fp = fopen(fname, "a")) != NULL);
@@ -422,6 +426,7 @@ static void
 worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
 {
     counter_advance(state, value);
+    (void)__wt_atomic_add_uint64(&state->applied, 1);
     __wt_atomic_store_uint64_release(&state->threads[thread_index].completed_ts, value);
 }
 
@@ -600,6 +605,7 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
         if (errno != EINTR)
             testutil_die(errno, "write self pipe");
     testutil_assert(nw == (ssize_t)sizeof(*ev));
+    ++state->emitted;
 }
 
 /*
@@ -653,12 +659,15 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
 /*
  * generator_round --
  *     Feed every worker thread one generated operation, round-robin. Reports whether anything was
- *     emitted: an empty round means every pick was an uncovered drop, and the caller should wait
- *     out the next checkpoint instead of spinning on the slot model.
+ *     emitted: nothing is while the lead over the workers is spent, or when every pick was an
+ *     uncovered drop, and the caller waits instead of spinning on the slot model.
  */
 static bool
-generator_round(WORKLOAD_STATE *state)
+generator_round(WORKLOAD_STATE *state, uint64_t lead_max)
 {
+    if (state->emitted - __wt_atomic_load_uint64_acquire(&state->applied) > lead_max)
+        return (false);
+
     bool emitted = false;
 
     for (uint32_t t = 0; t < state->nth_workers && generator_running(state); t++)
@@ -667,12 +676,16 @@ generator_round(WORKLOAD_STATE *state)
     return (emitted);
 }
 
-/* A leading generator's pacing state: the checkpoint cadence and the sentinel poll throttle. */
+/*
+ * A leading generator's pacing state: the checkpoint cadence, the sentinel poll throttle, and the
+ * lead it may build over its workers.
+ */
 typedef struct {
     WT_RAND_STATE *rnd; /* the generator's own rnd stream, used for the checkpoint intervals */
     struct timespec last_ckpt;
     struct timespec last_poll;
     uint64_t ckpt_wait; /* seconds until the next checkpoint event is due */
+    uint64_t lead_max;  /* events that may be in flight; UINT64_MAX when nothing bounds it */
 } GENERATOR_PACING;
 
 /*
@@ -680,12 +693,16 @@ typedef struct {
  *     Initialize the pacing state at the start of a leading phase.
  */
 static void
-generator_pacing_init(GENERATOR_PACING *pacing, WT_RAND_STATE *rnd)
+generator_pacing_init(GENERATOR_PACING *pacing, const TEST_CONFIG *cfg, WT_RAND_STATE *rnd)
 {
     pacing->rnd = rnd;
     __wt_epoch(NULL, &pacing->last_ckpt);
     pacing->last_poll = pacing->last_ckpt;
     pacing->ckpt_wait = __wt_random(rnd) % MAX_CKPT_INVL;
+    /* Bound the lead so a hand-over drains inside one switch period; no switches, no bound. */
+    pacing->lead_max = cfg->switch_interval == 0 ?
+      UINT64_MAX :
+      WT_MAX(cfg->switch_interval * GEN_APPLY_RATE_FLOOR, GEN_LEAD_MIN);
 }
 
 /*
@@ -722,19 +739,24 @@ generator_switch_requested(GENERATOR_PACING *pacing)
 }
 
 /*
- * generator_lead --
- *     A leading generator's phase: produce the term's event stream into the self-pipe - workload
- *     rounds, a checkpoint event whenever one is due, and, once the parent requests a switch, the
- *     hand-over event that ends the stream and the phase.
+ * thread_generator_run --
+ *     The node's command source, started only for a phase that produces its own stream: a leader
+ *     always does, and so does a follower with no peer to receive from. Feeds workload rounds into
+ *     the self-pipe, a checkpoint event whenever one is due, and, once the parent requests a
+ *     switch, the hand-over event that ends the stream and the phase. All switch triggering lives
+ *     here, never in the control loop.
  */
-static void
-generator_lead(WORKLOAD_STATE *state, WT_RAND_STATE *rnd)
+static WT_THREAD_RET
+thread_generator_run(void *arg)
 {
+    const THREAD_ARG *ta = arg;
+    WORKLOAD_STATE *state = ta->state;
+
     GENERATOR_PACING pacing;
-    generator_pacing_init(&pacing, rnd);
+    generator_pacing_init(&pacing, state->cfg, &state->threads[ta->thread_index].rnd);
 
     while (generator_running(state)) {
-        if (!generator_round(state))
+        if (!generator_round(state, pacing.lead_max))
             __wt_sleep(0, WT_THOUSAND);
 
         if (generator_ckpt_due(&pacing)) {
@@ -749,46 +771,9 @@ generator_lead(WORKLOAD_STATE *state, WT_RAND_STATE *rnd)
             ev.type = EVENT_SWITCH;
             ev.event_ts = __wt_atomic_load_uint64_acquire(&state->current_ts);
             generator_emit(state, &ev);
-            return;
+            break;
         }
     }
-}
-
-/*
- * generator_follow --
- *     A following generator's phase: watch for the parent's switch request on a lone node's behalf
- *     and report the hand-over directly, since a lone follower has no reader or in-flight stream to
- *     order against. A peered follower must not act: its hand-over arrives through the peer's
- *     stream.
- */
-static void
-generator_follow(WORKLOAD_STATE *state)
-{
-    while (generator_running(state)) {
-        if (!state->cfg->peer_alive && node_switch_request_consume()) {
-            __wt_atomic_store_bool_release(&state->handover_received, true);
-            return;
-        }
-        __wt_sleep(1, 0);
-    }
-}
-
-/*
- * thread_generator_run --
- *     The node's command source, one per phase in either role: the whole event stream when leading,
- *     only the lone node's switch trigger when following. Either way, all switch triggering lives
- *     in the generated stream or here, never in the control loop.
- */
-static WT_THREAD_RET
-thread_generator_run(void *arg)
-{
-    const THREAD_ARG *ta = arg;
-    WORKLOAD_STATE *state = ta->state;
-
-    if (state->leads)
-        generator_lead(state, &state->threads[ta->thread_index].rnd);
-    else
-        generator_follow(state);
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -854,18 +839,18 @@ node_current_role(const WORKLOAD_STATE *state)
 
 /*
  * thread_reader_run --
- *     Drain the node's event source: the self-pipe when leading, the peer's pipe when following.
- *     Schema and data events are queued for the worker threads; a checkpoint event is produced
- *     (leading) or picked up after a drain barrier (following); the hand-over event ends the phase.
- *     Pipe EOF can only happen on a peer-fed pipe: it marks the peer dead and turns this node into
- *     a lone follower.
+ *     Drain the node's event source: the self-pipe when this phase generates, the peer's pipe
+ *     otherwise. Schema and data events are queued for the worker threads; a checkpoint event is
+ *     produced (leading) or picked up after a drain barrier (following); the hand-over event ends
+ *     the phase. Pipe EOF can only happen on a peer-fed pipe: it marks the peer dead and turns this
+ *     node into a lone follower.
  */
 static WT_THREAD_RET
 thread_reader_run(void *arg)
 {
     WORKLOAD_STATE *state = arg;
     TEST_CONFIG *cfg = state->cfg;
-    const int src_fd = state->leads ? cfg->self_pipe_read_fd : cfg->pipe_read_fd;
+    const int src_fd = state->generates ? cfg->self_pipe_read_fd : cfg->pipe_read_fd;
 
     WT_SESSION *session;
     testutil_check(state->conn->open_session(state->conn, NULL, NULL, &session));
@@ -903,12 +888,12 @@ thread_reader_run(void *arg)
             /* The final event of the term's stream: this node must step up. */
             workload_drain_barrier(state);
             /*
-             * Relay-integrity check: the drained counter must equal the sender's high-water mark.
+             * Relay-integrity check: the drained counter must equal the sender's final counter.
              * Every counter value the term allocated rides an event that precedes the switch in the
              * stream, so after the drain nothing may be missing.
              */
             testutil_assertfmt(__wt_atomic_load_uint64_acquire(&state->current_ts) == ev.event_ts,
-              "hand-over: drained counter %" PRIu64 " != sender high-water %" PRIu64,
+              "hand-over: drained counter %" PRIu64 " != sender's final counter %" PRIu64,
               __wt_atomic_load_uint64_acquire(&state->current_ts), ev.event_ts);
             __wt_atomic_store_bool_release(&state->handover_received, true);
             running = false;
@@ -969,12 +954,15 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
 
     state->nth_workers = cfg->nth;
     state->leads = as_leader;
+    /* A leader feeds itself; so does a follower with no peer. Snapshot it: peer_alive can flip. */
+    state->generates = as_leader || !cfg->peer_alive;
     state->stop_phase = false;
     state->reader_stop = false;
     state->generator_stop = false;
     state->handover_received = false;
     /* Start gated: the timestamp thread republishes the connection's durable epoch immediately. */
     state->ckpt_covered_ts = 0;
+    state->emitted = state->applied = 0;
 
     for (uint32_t i = 0; i < cfg->nth + 2; i++) {
         workload_arg[i].state = state;
@@ -998,28 +986,30 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
         testutil_check(
           __wt_thread_create(NULL, &workload_thr[i], thread_worker_run, &workload_arg[i]));
 
-    /* The queue source's producer: the reader drains the self-pipe or a live peer's pipe. */
-    if (as_leader || cfg->peer_alive)
-        node_reader_start(state);
+    /* Every phase has a source: this node's own generator, or a live peer's relay. */
+    node_reader_start(state);
 
     /* Start the generator last, once the machinery consuming its stream is up. */
-    testutil_check(__wt_thread_create(
-      NULL, &workload_thr[cfg->nth], thread_generator_run, &workload_arg[cfg->nth]));
+    if (state->generates)
+        testutil_check(__wt_thread_create(
+          NULL, &workload_thr[cfg->nth], thread_generator_run, &workload_arg[cfg->nth]));
     fflush(stdout);
 }
 
 /*
  * workload_stop --
- *     Quiesce and join all of the phase's threads, in dependency order. The generator goes first,
- *     while the reader still drains the self-pipe the generator may be blocked on; the reader next,
- *     while the workers are still consuming; then the workers drain what the reader delivered
- *     before exiting.
+ *     Quiesce and join all of the phase's threads, in dependency order. The generator goes first if
+ *     the phase had one, while the reader still drains the self-pipe it may be blocked on; the
+ *     reader next, while the workers are still consuming; then the workers drain what the reader
+ *     delivered before exiting.
  */
 void
 workload_stop(WORKLOAD_STATE *state)
 {
-    __wt_atomic_store_bool_release(&state->generator_stop, true);
-    testutil_check(__wt_thread_join(NULL, &workload_thr[state->nth_workers]));
+    if (state->generates) {
+        __wt_atomic_store_bool_release(&state->generator_stop, true);
+        testutil_check(__wt_thread_join(NULL, &workload_thr[state->nth_workers]));
+    }
 
     node_reader_stop(state);
 
@@ -1058,15 +1048,15 @@ node_run(TEST_CONFIG *cfg, WORKLOAD_STATE *state, const NODE_ROLE *role)
 
         if (trigger == TRIGGER_SWITCH) {
             /*
-             * The ending term's counter high-water mark. The workload is quiesced and drained, so
-             * the node's own counter holds every value the term allocated or adopted - on a peered
-             * hand-over the reader asserted it equals the sender's high-water mark.
+             * The counter the ending term finished on. The workload is quiesced and drained, so the
+             * node's own counter holds every value the term allocated or adopted - on a peered
+             * hand-over the reader asserted it equals the sender's final counter.
              */
-            const uint64_t counter_hwm = state->current_ts;
+            const uint64_t final_counter = state->current_ts;
 
-            role->leave(state, counter_hwm);
+            role->leave(state, final_counter);
             role = node_switch_role(role);
-            role->enter(state, counter_hwm);
+            role->enter(state, final_counter);
             println("Node %" PRIu32 ": now %s", cfg->node_id, role->name);
             /* The swap-completing transition: entering leadership, or a lone node's only one. */
             node_transition_done(cfg, state, role->leads || !cfg->peer_alive);

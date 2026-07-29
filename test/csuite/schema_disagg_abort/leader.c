@@ -65,11 +65,11 @@ leader_checkpoint(
  *     Step down: take a final checkpoint so the term's tail is durable, close the connection before
  *     the peer steps up (the page log allows one writer), then hand the term over - a checkpoint
  *     event first, so the peer picks up the final checkpoint through the normal path, then the
- *     switch event carrying the counter high-water mark it must continue from. Without a live peer
- *     there is nothing to send: this node continues both sides of the swap itself.
+ *     switch event carrying the term's final counter value, which it must continue from. Without a
+ *     live peer there is nothing to send: this node continues both sides of the swap itself.
  */
 static void
-leader_leave(WORKLOAD_STATE *state, uint64_t counter_hwm)
+leader_leave(WORKLOAD_STATE *state, uint64_t final_counter)
 {
     WT_CONNECTION *conn = state->conn;
     WT_SESSION *session;
@@ -81,8 +81,8 @@ leader_leave(WORKLOAD_STATE *state, uint64_t counter_hwm)
      * thread's periodic advance can miss the drain's last burst, and publishes above the final
      * checkpoint's stable epoch would be lost with the closed connection.
      */
-    if (counter_hwm != 0)
-        set_frontier(conn, counter_hwm);
+    if (final_counter != 0)
+        set_frontier(conn, final_counter);
     testutil_check(session->checkpoint(session, "use_timestamp=true"));
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, "debug=(skip_checkpoint=true)"));
@@ -92,7 +92,7 @@ leader_leave(WORKLOAD_STATE *state, uint64_t counter_hwm)
     ev.type = EVENT_CKPT;
     if (node_event_send(state->cfg, &ev)) {
         ev.type = EVENT_SWITCH;
-        ev.event_ts = counter_hwm;
+        ev.event_ts = final_counter;
         testutil_assert(node_event_send(state->cfg, &ev));
     }
 }
@@ -103,7 +103,7 @@ leader_leave(WORKLOAD_STATE *state, uint64_t counter_hwm)
  *     step-up is the transition that completes a swap.
  */
 static void
-leader_enter(WORKLOAD_STATE *state, uint64_t counter_hwm)
+leader_enter(WORKLOAD_STATE *state, uint64_t final_counter)
 {
     /*
      * A lone step-up first adopts the latest checkpoint from the page log; with a live peer the
@@ -113,15 +113,15 @@ leader_enter(WORKLOAD_STATE *state, uint64_t counter_hwm)
         follower_adopt_latest(state);
 
     testutil_check(state->conn->reconfigure(state->conn, "disaggregated=(role=leader)"));
-    workload_seed_counter(state, counter_hwm);
+    workload_seed_counter(state, final_counter);
 
     /*
      * Restore the stable frontier on the new leader's connection: a follower's reopened connection
      * starts with none, and a checkpoint taken before this term advances it (a short term's closing
      * checkpoint, say) must not regress the shared metadata's epoch.
      */
-    if (counter_hwm != 0)
-        set_frontier(state->conn, counter_hwm);
+    if (final_counter != 0)
+        set_frontier(state->conn, final_counter);
 }
 
 const NODE_ROLE node_role_leader = {
