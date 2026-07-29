@@ -119,9 +119,8 @@ __wt_page_evict_clean(WT_PAGE *page)
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
      */
-    return (page->modify == NULL ||
-      (__wt_atomic_load_uint32_relaxed(&page->modify->page_state) == WT_PAGE_CLEAN &&
-        page->modify->rec_result == 0));
+    return (
+      page->modify == NULL || (!__wt_page_is_modified(page) && page->modify->rec_result == 0));
 }
 
 /*
@@ -134,14 +133,8 @@ __wt_page_evict_swap(WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
 
-    /*
-     * Don't use the more obvious page is modified check, this code has ordering expectations on the
-     * reads between page_state and rec_result/mod_disk_image that need a stronger load semantic
-     * when reading page_state.
-     */
     return (!WT_PAGE_IS_INTERNAL(page) && (mod = page->modify) != NULL &&
-      __wt_atomic_load_uint32_acquire(&mod->page_state) == WT_PAGE_CLEAN && mod->rec_result != 0 &&
-      mod->mod_disk_image != NULL);
+      !__wt_page_is_modified(page) && mod->rec_result != 0 && mod->mod_disk_image != NULL);
 }
 
 /*
@@ -155,9 +148,12 @@ __wt_page_is_modified(WT_PAGE *page)
      * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
+     *
+     * Without the stronger acquire used here, the reads might be from an earlier reconciliation
+     * that don't reflect the current clean in-memory state.
      */
     return (page->modify != NULL &&
-      __wt_atomic_load_uint32_relaxed(&page->modify->page_state) != WT_PAGE_CLEAN);
+      __wt_atomic_load_uint32_acquire(&page->modify->page_state) != WT_PAGE_CLEAN);
 }
 
 /*
