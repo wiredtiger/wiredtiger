@@ -213,7 +213,7 @@ done:
  *     role-change generation, and (on a follower) the pinned checkpoint. Returns the pinned LSN for
  *     the validation after the build.
  */
-static uint64_t
+static WT_INLINE uint64_t
 __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -260,7 +260,7 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
  *     cannot repeat indefinitely because each retry requires another adoption during the
  *     microseconds of a build, while adoptions are seconds apart.
  */
-static bool
+static WT_INLINE bool
 __txn_snapshot_validate_disagg(WT_SESSION_IMPL *session, uint64_t pinned_lsn)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
