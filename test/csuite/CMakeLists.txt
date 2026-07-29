@@ -93,9 +93,6 @@ define_c_test(
 )
 
 if(ENABLE_PALITE AND WT_POSIX)
-    # FIXME-WT-18112: Build the binary but register no ctest test, so it never runs in
-    # "make check" or csuite-tests-fast while the follower step-up data-loss bug is open.
-    # The wiredtiger-disagg project invokes the binary directly.
     create_test_executable(test_schema_disagg_abort
         SOURCES
             schema_disagg_abort/main.c
