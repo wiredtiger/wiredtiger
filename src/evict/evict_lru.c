@@ -399,6 +399,145 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 }
 
 /*
+ * __evict_update_checkpoint_dirty --
+ *     Recompute the volume of dirty leaf data that eviction cannot reach because a checkpoint is
+ *     syncing the tree that owns it.
+ *
+ *     This resamples live per-tree counters rather than maintaining a running total. A running
+ *     total would have to be adjusted on every dirty-byte increment and decrement, and a tree can
+ *     enter or leave the syncing state between any such pair, so the total would drift; a drifting
+ *     discount silently mis-throttles application threads. Resampling costs one pointer chase per
+ *     registered tree per server pass and cannot drift, at the price of being at most one pass out
+ *     of date.
+ */
+static void
+__evict_update_checkpoint_dirty(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+    uint64_t bytes;
+    u_int i;
+
+    conn = S2C(session);
+    evict = conn->evict;
+    bytes = 0;
+
+    /*
+     * Read the slots without the registry lock. Registration happens twice per tree per checkpoint
+     * and we resample every pass, so the only cost of a torn view is one pass of staleness. Taking
+     * the lock here would serialise the server against every checkpoint tree transition to buy
+     * nothing.
+     */
+    for (i = 0; i < WT_EVICT_CKPT_TREES_MAX; i++) {
+        WT_READ_ONCE(btree, evict->evict_ckpt_trees[i]);
+        if (btree == NULL)
+            continue;
+
+        /*
+         * Re-check the syncing flag rather than trusting the slot. A tree whose sync has finished
+         * but which has not yet been unregistered has evictable pages again, and must not be
+         * discounted.
+         */
+        if (!WT_BTREE_SYNCING(btree))
+            continue;
+
+        bytes += __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf);
+    }
+
+    /*
+     * Per-tree counters hold raw page bytes; the cache-level totals these are compared against
+     * carry the per-page overhead estimate. Convert before publishing so the subtraction in
+     * __wti_evict_dirty_leaf_evictable is between like quantities.
+     */
+    if (bytes != 0)
+        bytes = __wt_cache_bytes_plus_overhead(conn->cache, bytes);
+
+    __wt_atomic_store_uint64_relaxed(&evict->bytes_dirty_leaf_checkpoint, bytes);
+
+    /*
+     * Publish what is actually subtracted, not the raw sum. Both bounds in
+     * __wti_evict_ckpt_dirty_discount clamp the raw figure, often heavily, and a number that cannot
+     * be compared against the dirty thresholds is no use for tuning them.
+     */
+    WT_STAT_CONN_SET(
+      session, eviction_dirty_leaf_checkpoint, __wti_evict_ckpt_dirty_discount(session, bytes));
+}
+
+/*
+ * __wt_evict_checkpoint_tree_enter --
+ *     Tell eviction that a checkpoint has begun syncing this tree, so that its dirty leaf bytes
+ *     stop counting towards the dirty thresholds.
+ *
+ *     Must be called after WT_BTREE_SYNCING is set, and must be paired with
+ *     __wt_evict_checkpoint_tree_exit before the caller releases the dhandle: eviction reads these
+ *     pointers without holding a reference.
+ */
+void
+__wt_evict_checkpoint_tree_enter(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_EVICT *evict;
+    u_int i;
+
+    evict = S2C(session)->evict;
+
+    __wt_spin_lock(session, &evict->evict_ckpt_trees_lock);
+    for (i = 0; i < WT_EVICT_CKPT_TREES_MAX; i++)
+        if (evict->evict_ckpt_trees[i] == NULL) {
+            evict->evict_ckpt_trees[i] = btree;
+            break;
+        }
+    __wt_spin_unlock(session, &evict->evict_ckpt_trees_lock);
+
+    /* Out of slots is not an error: the tree keeps counting towards the thresholds as before. */
+    if (i == WT_EVICT_CKPT_TREES_MAX)
+        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+          "no checkpoint tree slot for %s; its dirty bytes still count towards the thresholds",
+          btree->dhandle != NULL && btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
+}
+
+/*
+ * __wt_evict_checkpoint_tree_exit --
+ *     Tell eviction that a checkpoint has finished syncing this tree. Must be called before the
+ *     caller releases the dhandle, and is safe to call for a tree that was never registered.
+ */
+void
+__wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_EVICT *evict;
+    u_int i;
+    bool empty;
+
+    evict = S2C(session)->evict;
+    empty = true;
+
+    __wt_spin_lock(session, &evict->evict_ckpt_trees_lock);
+    for (i = 0; i < WT_EVICT_CKPT_TREES_MAX; i++)
+        if (evict->evict_ckpt_trees[i] == btree) {
+            evict->evict_ckpt_trees[i] = NULL;
+            break;
+        }
+    for (i = 0; i < WT_EVICT_CKPT_TREES_MAX; i++)
+        if (evict->evict_ckpt_trees[i] != NULL) {
+            empty = false;
+            break;
+        }
+    __wt_spin_unlock(session, &evict->evict_ckpt_trees_lock);
+
+    /*
+     * If nothing is syncing any more, drop the discount now rather than waiting for the next server
+     * pass; leaving it in place would under-throttle for up to a pass after the pages became
+     * evictable again. If other trees are still registered we must not zero it, or their bytes
+     * would count again until the next pass -- the server resamples and corrects the figure either
+     * way, but zeroing here would throttle against unevictable data in the meantime.
+     */
+    if (empty) {
+        __wt_atomic_store_uint64_relaxed(&evict->bytes_dirty_leaf_checkpoint, 0);
+        WT_STAT_CONN_SET(session, eviction_dirty_leaf_checkpoint, 0);
+    }
+}
+
+/*
  * __evict_update_work --
  *     Configure eviction work state.
  */
@@ -477,6 +616,12 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     }
 
     /*
+     * Refresh the checkpoint dirty discount before any threshold is evaluated, so every flag
+     * decision in this pass sees one consistent figure.
+     */
+    __evict_update_checkpoint_dirty(session);
+
+    /*
      * If we need space in the cache, try to find clean pages to evict.
      *
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
@@ -490,7 +635,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         LF_SET(WT_EVICT_CACHE_CLEAN);
     }
 
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
+    bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
     if (__wti_evict_exceeded_dirty_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_DIRTY_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_dirty_reached);

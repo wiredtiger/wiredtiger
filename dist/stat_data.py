@@ -395,6 +395,7 @@ conn_stats = [
     EvictStat('eviction_bucket_wont_need_internal_items', 'eviction bucket items won\'t need internal', 'no_clear,no_scale'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
+    EvictStat('eviction_dirty_leaf_checkpoint', 'dirty leaf bytes discounted from the eviction thresholds because a checkpoint is syncing the tree', 'no_clear,no_scale,size'),
     EvictStat('eviction_enqueued_page', 'number of calls to enqueue a page'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),

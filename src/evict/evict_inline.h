@@ -579,6 +579,96 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 }
 
 /* !!!
+ * __wti_evict_ckpt_dirty_discount --
+ *     Given the raw volume of dirty leaf data owned by trees a checkpoint is currently syncing,
+ *     return how much of it may actually be hidden from the dirty thresholds.
+ *
+ *     Two bounds apply. The first is absolute: never hide more than
+ *     WT_EVICT_CKPT_DIRTY_DISCOUNT_MAX_PCT of the cache, so that a stalled checkpoint cannot switch
+ *     the dirty thresholds off altogether.
+ *
+ *     The second depends on how full the cache is. Discounting is only sound while there is room to
+ *     absorb the dirty data the checkpoint is holding on to. Once the cache itself is close to full,
+ *     throttling application threads is the correct response even though those dirty bytes are
+ *     unevictable: waiting for the checkpoint really is the only way to get space back, and the
+ *     pages we are declining to count still occupy it. So the discount is tapered linearly to zero
+ *     across the band between the eviction target and the eviction trigger -- full below the
+ *     target, none at or above the trigger.
+ *
+ *     The taper is self-limiting. The discount is what lets dirty grow, dirty growing raises cache
+ *     occupancy, and rising occupancy shrinks the discount, which restores throttling. The feedback
+ *     is negative, so occupancy settles instead of running to the trigger.
+ */
+static WT_INLINE uint64_t
+__wti_evict_ckpt_dirty_discount(WT_SESSION_IMPL *session, uint64_t bytes_raw)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+    uint64_t bytes_inuse, bytes_max, bytes_target, bytes_trigger, discount_max;
+
+    if (bytes_raw == 0)
+        return (0);
+
+    conn = S2C(session);
+    evict = conn->evict;
+
+    /* Avoid division by zero if the cache size has not yet been set in a shared cache. */
+    bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
+
+    discount_max = (bytes_max / 100) * WT_EVICT_CKPT_DIRTY_DISCOUNT_MAX_PCT;
+    if (bytes_raw > discount_max)
+        bytes_raw = discount_max;
+
+    bytes_inuse = __wt_cache_bytes_inuse(conn->cache);
+    bytes_target = (uint64_t)((evict->eviction_target * bytes_max) / 100);
+    bytes_trigger = (uint64_t)((evict->eviction_trigger * bytes_max) / 100);
+
+    /* At or past the trigger the cache has nothing to lend: count every dirty byte. */
+    if (bytes_inuse >= bytes_trigger)
+        return (0);
+
+    /*
+     * Between target and trigger, scale down in proportion to the headroom that is left. Scale
+     * through a percentage rather than multiplying the two byte counts directly: their product
+     * overflows a uint64 for large caches. The cost is up to one percent of the discount, which is
+     * immaterial against a threshold this coarse.
+     */
+    if (bytes_inuse > bytes_target && bytes_trigger > bytes_target)
+        bytes_raw = (bytes_raw / 100) *
+          (((bytes_trigger - bytes_inuse) * 100) / (bytes_trigger - bytes_target));
+
+    return (bytes_raw);
+}
+
+/* !!!
+ * __wti_evict_dirty_leaf_evictable --
+ *     Return the volume of dirty leaf data that eviction can actually act on: the total, less
+ *     whatever portion of the dirty leaf bytes owned by trees a checkpoint is currently syncing is
+ *     eligible to be discounted.
+ *
+ *     With no checkpoint running this is exactly __wt_cache_dirty_leaf_inuse. While a checkpoint
+ *     holds a tree, that tree's dirty bytes are unreachable to eviction, so counting them towards
+ *     the dirty thresholds throttles application threads against data no eviction thread can free.
+ *     How much is actually discounted is decided by __wti_evict_ckpt_dirty_discount.
+ */
+static WT_INLINE uint64_t
+__wti_evict_dirty_leaf_evictable(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t bytes_dirty, bytes_discount;
+
+    conn = S2C(session);
+    bytes_dirty = __wt_cache_dirty_leaf_inuse(conn->cache);
+
+    bytes_discount = __wti_evict_ckpt_dirty_discount(
+      session, __wt_atomic_load_uint64_relaxed(&conn->evict->bytes_dirty_leaf_checkpoint));
+    if (bytes_discount == 0)
+        return (bytes_dirty);
+
+    return (bytes_dirty > bytes_discount ? bytes_dirty - bytes_discount : 0);
+}
+
+/* !!!
  * __wti_evict_exceeded_dirty_trigger --
  *     Check whether the configured eviction dirty trigger threshold for the total volume
  *     of dirty data in the cache has been reached. Once this threshold is met, application threads
@@ -603,7 +693,7 @@ __wti_evict_exceeded_dirty_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
     bytes_max = S2C(session)->cache_size + 1;
 
     if (pct_fullp != NULL)
@@ -633,7 +723,7 @@ __wti_evict_exceeded_dirty_target(WT_SESSION_IMPL *session)
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
     bytes_max = S2C(session)->cache_size + 1;
 
     return (bytes_dirty > (uint64_t)(dirty_target * bytes_max) / 100);
@@ -887,7 +977,7 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
     uint64_t bytes_dirty = 0, bytes_dirty_tolerance = 0, bytes_over_dirty_trigger = 0;
 
     bytes_max = S2C(session)->cache_size + 1;
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    bytes_dirty = __wti_evict_dirty_leaf_evictable(session);
     bytes_dirty_trigger = (uint64_t)(dirty_trigger * bytes_max) / 100;
     /*
      * bytes_dirty_tolerance = number of bytes over the dirty trigger based on configured

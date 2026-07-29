@@ -356,6 +356,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_cond_auto_alloc(
       session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_server_cond));
     WT_RET(__wt_spin_init(session, &conn->evict->evict_housekeeping_lock, "evict-housekeeping"));
+    WT_RET(__wt_spin_init(session, &conn->evict->evict_ckpt_trees_lock, "evict-checkpoint-trees"));
 
     /*
      * Determine the number of buckets. We want to size them in proportion to the cache size.
@@ -470,6 +471,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_spin_destroy(session, &evict->evict_housekeeping_lock);
+    __wt_spin_destroy(session, &evict->evict_ckpt_trees_lock);
     __wt_free(session, conn->evict);
     return (0);
 }

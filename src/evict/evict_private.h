@@ -25,6 +25,26 @@
  */
 #define WT_EVICT_INTERNAL_WEIGHT_DIVISOR 256
 
+/*
+ * The number of trees a checkpoint may be syncing at once and still have their dirty leaf bytes
+ * discounted from the dirty thresholds. Checkpoints sync trees one at a time per worker, so this
+ * only needs to cover the checkpoint worker count. Overflowing the array is not an error: a tree
+ * that cannot be registered simply keeps counting towards the thresholds, which is the behaviour
+ * before this change.
+ */
+#define WT_EVICT_CKPT_TREES_MAX 16
+
+/*
+ * The most dirty leaf data, as a percentage of the cache, that may be hidden from the dirty
+ * thresholds because a checkpoint is syncing the tree that owns it.
+ *
+ * Discounting is what lets application threads keep working while a checkpoint holds the dominant
+ * tree, but it must be bounded: if a checkpoint stalls, an unbounded discount would disable the
+ * dirty thresholds entirely and let the cache fill. This is the absolute ceiling; the discount is
+ * additionally tapered as the cache fills, see __wti_evict_ckpt_dirty_discount.
+ */
+#define WT_EVICT_CKPT_DIRTY_DISCOUNT_MAX_PCT 15
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,

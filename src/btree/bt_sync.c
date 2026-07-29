@@ -252,7 +252,16 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
-        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT, "subq SYNC_START tree=%s",
+        /*
+         * Tell eviction this tree is being checkpointed. Its dirty leaf pages are unevictable until
+         * the sync completes, so their bytes must stop counting towards the dirty thresholds --
+         * otherwise application threads throttle on data no eviction thread is allowed to free.
+         * Paired with __wt_evict_checkpoint_tree_exit below, which runs on every exit path from
+         * this function while the flush lock is still held.
+         */
+        __wt_evict_checkpoint_tree_enter(session, btree);
+
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT, "subq SYNC_START tree=%s",
           btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
 
         /*
@@ -439,7 +448,15 @@ err:
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
         __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
 
-        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT, "subq SYNC_END   tree=%s",
+        /*
+         * The pages are evictable again, so stop discounting this tree's dirty bytes. This must
+         * happen before the dhandle can be released: eviction reads the registered pointers without
+         * holding a reference. It is reached on every path out of this function, including errors,
+         * because it follows the err label.
+         */
+        __wt_evict_checkpoint_tree_exit(session, btree);
+
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT, "subq SYNC_END   tree=%s",
           btree->dhandle->name != NULL ? btree->dhandle->name : "(null)");
     }
 

@@ -53,6 +53,23 @@ struct __wt_evict {
     WT_SPINLOCK evict_housekeeping_lock; /* Server thread lock */
 
     /*
+     * Trees a checkpoint is currently syncing.
+     *
+     * Dirty leaf pages in a syncing tree cannot be evicted: __evict_skip_tree turns the whole tree
+     * away, and __wt_page_can_evict would refuse the pages individually in any case. Counting those
+     * bytes towards the dirty thresholds therefore throttles application threads on data that
+     * eviction has already decided it will not touch, which stalls writers without producing a
+     * single eviction. The bytes are discounted instead, on the basis that the checkpoint is itself
+     * draining them.
+     *
+     * The registry holds the trees; bytes_dirty_leaf_checkpoint is the discount derived from it,
+     * resampled once per eviction server pass by __evict_update_checkpoint_dirty.
+     */
+    WT_SPINLOCK evict_ckpt_trees_lock;
+    WT_BTREE *evict_ckpt_trees[WT_EVICT_CKPT_TREES_MAX];
+    wt_shared uint64_t bytes_dirty_leaf_checkpoint;
+
+    /*
      * Read information.
      */
     uint64_t read_gen;        /* Current page read generation */
@@ -159,6 +176,8 @@ extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
+extern void __wt_evict_checkpoint_tree_enter(WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree);
 extern void __wt_evict_dhandle_subqueues_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle);
 extern void __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
