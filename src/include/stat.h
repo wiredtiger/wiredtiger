@@ -1393,7 +1393,6 @@ struct __wt_connection_stats {
     int64_t txn_prepared_updates_key_repeated;
     int64_t txn_prepared_updates_rolledback;
     int64_t txn_read_race_prepare_commit;
-    int64_t txn_rollback_stepdown;
     int64_t txn_read_overflow_remove;
     int64_t txn_rollback_oldest_pinned;
     int64_t txn_rollback_oldest_id;
@@ -1464,6 +1463,7 @@ struct __wt_connection_stats {
     int64_t txn_commit;
     int64_t txn_rollback;
     int64_t txn_update_conflict;
+    int64_t txn_rollback_stepdown;
 };
 
 /*

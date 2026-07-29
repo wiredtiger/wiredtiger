@@ -3014,8 +3014,6 @@ static const char *const __stats_connection_desc[] = {
   "transaction: Number of prepared updates repeated on the same key",
   "transaction: Number of prepared updates rolled back",
   "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
-  "transaction: in-flight transactions rolled back because they started before the step-down "
-  "timestamp was set",
   "transaction: number of times overflow removed value is read",
   "transaction: oldest pinned transaction ID rolled back for eviction",
   "transaction: oldest transaction ID rolled back for eviction",
@@ -3093,6 +3091,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transactions committed",
   "transaction: transactions rolled back",
   "transaction: update conflicts",
+  "transaction: write transactions rolled back for straddling the step-down timestamp setting "
+  "boundary",
 };
 
 int
@@ -4100,7 +4100,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_prepared_updates_key_repeated = 0;
     stats->txn_prepared_updates_rolledback = 0;
     stats->txn_read_race_prepare_commit = 0;
-    stats->txn_rollback_stepdown = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_rollback_oldest_pinned = 0;
     stats->txn_rollback_oldest_id = 0;
@@ -4171,6 +4170,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
     stats->txn_update_conflict = 0;
+    stats->txn_rollback_stepdown = 0;
 }
 
 void
@@ -5431,7 +5431,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, txn_prepared_updates_key_repeated);
     to->txn_prepared_updates_rolledback += WT_STAT_CONN_READ(from, txn_prepared_updates_rolledback);
     to->txn_read_race_prepare_commit += WT_STAT_CONN_READ(from, txn_read_race_prepare_commit);
-    to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
     to->txn_read_overflow_remove += WT_STAT_CONN_READ(from, txn_read_overflow_remove);
     to->txn_rollback_oldest_pinned += WT_STAT_CONN_READ(from, txn_rollback_oldest_pinned);
     to->txn_rollback_oldest_id += WT_STAT_CONN_READ(from, txn_rollback_oldest_id);
@@ -5511,6 +5510,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_commit += WT_STAT_CONN_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_CONN_READ(from, txn_rollback);
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
+    to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
 }
 
 static const char *const __stats_session_desc[] = {
