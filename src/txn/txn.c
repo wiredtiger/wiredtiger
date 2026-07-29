@@ -208,6 +208,76 @@ done:
 }
 
 /*
+ * __txn_snapshot_record_disagg --
+ *     Record the disaggregated state a snapshot about to be built is consistent with: the role, the
+ *     role-change generation, and (on a follower) the pinned checkpoint. Returns the pinned LSN for
+ *     the validation after the build.
+ */
+static uint64_t
+__txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
+    uint64_t pinned_lsn;
+
+    session->txn->disagg_role_gen =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
+    session->txn->disagg_role_leader = conn->layered_table_manager.leader;
+
+    /*
+     * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
+     * stable table is written with local transaction ids and needs no pin, and its own checkpoints
+     * advance the published LSN, so pinning would rebuild every snapshot that overlaps a checkpoint
+     * completion. A snapshot from before a step-down is left unpinned and refused if it binds
+     * checkpoint content afterwards.
+     *
+     * Pin the newest checkpoint received, even if its adoption is still in progress: arrival
+     * implies its content is already replayed into the ingest tables, so this snapshot covers it.
+     * Until the adoption completes, the pin is simply newer than anything the stable can bind,
+     * which is always safe.
+     *
+     * The transaction-table lock the caller takes right after this is the full barrier that pairs
+     * with a delivery's pending-LSN update: a delivery either observes the pin published here, or
+     * the validation after the build observes the delivery and retries.
+     */
+    if (session->txn->disagg_role_leader) {
+        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
+        return (WT_DISAGG_LSN_NONE);
+    }
+    pinned_lsn =
+      WT_MAX(__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
+        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.pending_checkpoint_meta_lsn));
+    __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, pinned_lsn + 1);
+    return (pinned_lsn);
+}
+
+/*
+ * __txn_snapshot_validate_disagg --
+ *     Return whether the disaggregated state recorded before the snapshot was built is still
+ *     current, so the snapshot and the pin describe the same world. A pickup or role change that
+ *     landed during the build fails this and the caller retries: rebuilding is equivalent to
+ *     releasing the snapshot and acquiring a new one before anything was read under it, and it
+ *     cannot repeat indefinitely because each retry requires another adoption during the
+ *     microseconds of a build, while adoptions are seconds apart.
+ */
+static bool
+__txn_snapshot_validate_disagg(WT_SESSION_IMPL *session, uint64_t pinned_lsn)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    if (__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
+        session->txn->disagg_role_gen ||
+      conn->layered_table_manager.leader != session->txn->disagg_role_leader)
+        return (false);
+    if (session->txn->disagg_role_leader)
+        return (true);
+    return (
+      WT_MAX(__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
+        __wt_atomic_load_uint64_acquire(
+          &conn->disaggregated_storage.pending_checkpoint_meta_lsn)) == pinned_lsn);
+}
+
+/*
  * __txn_get_snapshot_int --
  *     Allocate a snapshot, optionally update our shared txn ids.
  */
@@ -220,7 +290,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t current_id, id, pinned_checkpoint_lsn, pinned_id, prev_oldest_id, snapshot_gen;
     uint32_t i, n, session_cnt;
-    bool pin_checkpoint, record_disagg;
+    bool record_disagg;
 
     conn = S2C(session);
     txn = session->txn;
@@ -254,34 +324,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 
 retry:
     n = 0;
-    pin_checkpoint = false;
-    if (record_disagg) {
-        txn->disagg_role_gen =
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen);
-        txn->disagg_role_leader = conn->layered_table_manager.leader;
-        /*
-         * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
-         * stable table is written with local transaction ids and needs no pin, and its own
-         * checkpoints advance the published LSN, so pinning would rebuild every snapshot that
-         * overlaps a checkpoint completion. A snapshot from before a step-down is left unpinned and
-         * refused if it binds checkpoint content afterwards.
-         *
-         * Pin the newest checkpoint received, even if its adoption is still in progress: arrival
-         * implies its content is already replayed into the ingest tables, so this snapshot covers
-         * it. Until the adoption completes, the pin is simply newer than anything the stable can
-         * bind, which is always safe.
-         */
-        pin_checkpoint = !conn->layered_table_manager.leader;
-        if (pin_checkpoint) {
-            pinned_checkpoint_lsn = WT_MAX(__wt_atomic_load_uint64_acquire(
-                                             &conn->disaggregated_storage.last_checkpoint_meta_lsn),
-              __wt_atomic_load_uint64_acquire(
-                &conn->disaggregated_storage.pending_checkpoint_meta_lsn));
-            __wt_atomic_store_uint64_release(
-              &txn_shared->disagg_pinned_lsn, pinned_checkpoint_lsn + 1);
-        } else
-            __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
-    }
+    if (record_disagg)
+        pinned_checkpoint_lsn = __txn_snapshot_record_disagg(session);
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
@@ -370,23 +414,7 @@ done:
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
 
-    /*
-     * Validate the pinned checkpoint against the snapshot. A pickup (or role change) that landed
-     * during the build cannot repeat indefinitely: each retry requires another adoption during the
-     * microseconds of a snapshot build, and adoptions are seconds apart. Rebuilding is equivalent
-     * to releasing the snapshot and acquiring a new one before anything was read under it, and the
-     * published pinned id and checkpoint pin only ever move forward.
-     */
-    if (record_disagg &&
-      (__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.role_change_gen) !=
-          txn->disagg_role_gen ||
-        conn->layered_table_manager.leader != txn->disagg_role_leader ||
-        (pin_checkpoint &&
-          WT_MAX(
-            __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
-            __wt_atomic_load_uint64_acquire(
-              &conn->disaggregated_storage.pending_checkpoint_meta_lsn)) !=
-            pinned_checkpoint_lsn))) {
+    if (record_disagg && !__txn_snapshot_validate_disagg(session, pinned_checkpoint_lsn)) {
         WT_STAT_CONN_INCR(session, disagg_snapshot_pin_retry);
         goto retry;
     }
