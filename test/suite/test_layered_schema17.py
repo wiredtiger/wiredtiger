@@ -186,6 +186,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
+        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
