@@ -273,6 +273,13 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
           __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl) +
             __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf),
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
+    if (__wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image) != 0 ||
+      __wt_atomic_load_uint64_relaxed(&cache->pages_scrub_image) != 0)
+        __wt_errx(session,
+          "cache server: exiting with %" PRIu64 " scrub image bytes and %" PRIu64
+          " scrub image pages",
+          __wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image),
+          __wt_atomic_load_uint64_relaxed(&cache->pages_scrub_image));
 
     /* Destroy the shared disk cache if it was initialized. */
     if (conn->cache->shared_dsk_cache.hash != NULL)
