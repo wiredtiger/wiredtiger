@@ -3352,6 +3352,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
+    bool ingest_modify_failed = false;
 
     WT_CLEAR(value);
 
@@ -3363,19 +3364,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     else
         WT_ITEM_SET(value, cursor->value);
 
-    if (clayered->current_cursor != c_ingest) {
-        /*
-         * Cursor is positioned on the stable table. Compute a full value and write it to the ingest
-         * table.
-         */
-        c_ingest->set_key(c_ingest, &cursor->key);
-        __clayered_deleted_decode(session, &value);
-        WT_ITEM_SET(c_ingest->value, value);
-        WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
-        WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
-        F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
-        WT_ERR(c_ingest->update(c_ingest));
-    } else {
+    if (clayered->current_cursor == c_ingest) {
         /*
          * A tombstone is a special value in the ingest table, so it cannot be used as a base value
          * for a modify operation. Similarly, a delete-encoded value alters the original value and
@@ -3389,9 +3378,30 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
             WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
             F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
             WT_ERR(c_ingest->update(c_ingest));
-        } else
+        } else {
             /* FIXME-WT-18057: a modify may land in the tombstone namespace without re-encoding. */
-            WT_ERR(c_ingest->modify(c_ingest, entries, nentries));
+            WT_ERR_NOTFOUND_OK(c_ingest->modify(c_ingest, entries, nentries), true);
+            if (ret != 0) {
+                /* The base may have been pruned from the ingest, retry via the full update path. */
+                ingest_modify_failed = true;
+                WT_ERR(__clayered_lookup(op, &value));
+            }
+        }
+    }
+
+    if (clayered->current_cursor != c_ingest || ingest_modify_failed) {
+        /*
+         * Compute a full value and write it to the ingest table. Either the cursor is positioned on
+         * the stable table, or the raw modify missed and we re-read a fresh base (which may resolve
+         * from either table) so write the full value unconditionally rather than a raw modify.
+         */
+        c_ingest->set_key(c_ingest, &cursor->key);
+        __clayered_deleted_decode(session, &value);
+        WT_ITEM_SET(c_ingest->value, value);
+        WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
+        WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
+        F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
+        WT_ERR(c_ingest->update(c_ingest));
     }
 
     /*
