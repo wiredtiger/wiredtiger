@@ -2039,8 +2039,8 @@ __clayered_lookup(WTI_CLAYERED_OP *op, WT_ITEM *value)
         WT_ERR(__clayered_lookup_lazy_stable_open(op));
         /*
          * A successful open sets ret to zero, but that is not a lookup result. A table with no
-         * checkpoint leaves the stable cursor NULL and skips the search below, so keep the
-         * return as not found.
+         * checkpoint leaves the stable cursor NULL and skips the search below, so keep the return
+         * as not found.
          */
         ret = WT_NOTFOUND;
     }
