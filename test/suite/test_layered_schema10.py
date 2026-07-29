@@ -375,19 +375,19 @@ class test_layered_schema10(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session_follow.close()
 
         # Follower queue holds CREATE uri at epoch 20. No follower checkpoint has completed.
-        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertFalse(self.uri_stable_exists(conn_follow, self.uri))
         self.swap_roles(conn_follow)
 
         # After step-up: uri stable constituent created locally.
-        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
 
         self.checkpoint_and_advance(15, 2, conn_follow)
         # Stable epoch 15 has not reached the publish epoch so CREATE is still pending.
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_stable_exists(self.conn, self.uri))
 
         self.checkpoint_and_advance(20, 3, conn_follow)
         # Stable epoch 20 matches the publish epoch so CREATE is flushed and uri is visible.
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertTrue(self.uri_stable_exists(self.conn, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
 
