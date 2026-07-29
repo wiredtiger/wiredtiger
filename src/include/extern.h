@@ -2679,6 +2679,8 @@ static WT_INLINE void __wt_txn_op_delete_apply_prepare_state(
 static WT_INLINE void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);
 static WT_INLINE void __wt_txn_pinned_timestamp(
   WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
+static WT_INLINE void __wt_txn_pinned_timestamp_uncapped(
+  WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
 static WT_INLINE void __wt_txn_read_last(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
