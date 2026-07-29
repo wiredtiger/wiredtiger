@@ -255,9 +255,7 @@ __clayered_skip_stable(
     if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         return (false);
 
-    /*
-     * Writes to the ingest table can defer opening stable to lookup time.
-     */
+    /* Writes to the ingest table can defer opening stable to lookup time. */
     if (mode == WTI_CLAYERED_MODE_WRITE)
         return (true);
 
