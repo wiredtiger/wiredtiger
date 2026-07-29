@@ -95,15 +95,19 @@ define_c_test(
 if(ENABLE_PALITE AND WT_POSIX)
     create_test_executable(test_schema_disagg_abort
         SOURCES
+            schema_disagg_abort/event_pipe.c
             schema_disagg_abort/follower.c
+            schema_disagg_abort/generator.c
             schema_disagg_abort/leader.c
             schema_disagg_abort/main.c
             schema_disagg_abort/node.c
             schema_disagg_abort/parent.c
+            schema_disagg_abort/reader.c
             schema_disagg_abort/schema_disagg_abort.h
             schema_disagg_abort/subproc.c
             schema_disagg_abort/subproc.h
             schema_disagg_abort/verify.c
+            schema_disagg_abort/worker.c
         ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/schema_disagg_abort/smoke.sh
         BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/schema_disagg_abort
     )

@@ -7,36 +7,19 @@
  */
 
 /*
- * The generic node: everything a database node does regardless of role. This file owns the phase
- * loop, the WiredTiger connection, the event pipes, and the workload engine.
+ * The generic node: the phase loop, the WiredTiger connection, the workload engine's state and
+ * per-phase lifecycle, the worker event queues, and the timestamp thread.
  *
- * One pipeline serves both roles: a generator thread produces the node's command stream into a
- * self-pipe (a leader always does, and so does a follower with no peer to receive from), a reader
- * thread demuxes the source pipe - the self-pipe, or a live peer's - to N worker threads that apply
- * the events, and a timestamp thread advances the frontier. The threads coordinate without locks.
- *
- * The role specifics live in leader.c and follower.c behind the NODE_ROLE operations.
+ * One pipeline serves both roles, coordinating without locks: a generator produces the node's
+ * command stream into a self-pipe, a reader demuxes the source pipe - the self-pipe, or a live
+ * peer's - to N workers that apply the events, and a timestamp thread advances the frontier. Each
+ * stage lives in its own file behind a start/stop pair; the role specifics live in leader.c and
+ * follower.c behind the NODE_ROLE operations.
  */
 
 #include "schema_disagg_abort.h"
 
 #include <signal.h>
-#include <sys/select.h>
-
-/* The table configuration every schema table is created with, on either role. */
-#define SCHEMA_TABLE_CONFIG "key_format=S,value_format=S,type=layered,block_manager=disagg"
-
-/* Thread argument: the shared workload state plus this thread's identity. */
-typedef struct {
-    WORKLOAD_STATE *state;
-    uint32_t thread_index;
-} THREAD_ARG;
-
-/* Per-thread worker state for one phase. */
-typedef struct {
-    WT_SESSION *session;
-    FILE *record_fp; /* records for what this node originated, or for what it applied */
-} WORKER_CTX;
 
 /*
  * workload_state_create --
@@ -65,12 +48,12 @@ workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts)
 }
 
 /*
- * counter_advance --
+ * workload_counter_advance --
  *     Advance the monotonic allocator to at least the given applied value, so a follower's counter
  *     tracks everything it applied.
  */
-static void
-counter_advance(WORKLOAD_STATE *state, uint64_t v)
+void
+workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
 {
     uint64_t cur;
     do {
@@ -82,7 +65,7 @@ counter_advance(WORKLOAD_STATE *state, uint64_t v)
  * workload_running --
  *     The condition every phase loop runs on: true until the phase is directed to quiesce.
  */
-static bool
+bool
 workload_running(WORKLOAD_STATE *state)
 {
     return (!__wt_atomic_load_bool_acquire(&state->stop_phase));
@@ -117,32 +100,6 @@ node_open(TEST_CONFIG *cfg, const char *disagg_mode, WT_CONNECTION **connp)
 }
 
 /*
- * node_event_send --
- *     Relay one event to the peer over the node's out-pipe. Single write() calls of
- *     sizeof(SCHEMA_EVENT) are atomic, so concurrent threads need no extra locking. Returns false
- *     without failing when there is no peer (no pipe, or the peer is gone), leaving the caller to
- *     decide whether delivery is optional (the workload relay) or mandatory (the hand-over).
- */
-bool
-node_event_send(TEST_CONFIG *cfg, const SCHEMA_EVENT *ev)
-{
-    if (cfg->pipe_write_fd < 0)
-        return (false);
-
-    const ssize_t nw = write(cfg->pipe_write_fd, ev, sizeof(*ev));
-    if (nw < 0) {
-        if (errno != EPIPE && errno != EBADF)
-            testutil_die(errno, "write event pipe");
-        close(cfg->pipe_write_fd);
-        cfg->pipe_write_fd = -1;
-        cfg->peer_alive = false;
-        return (false);
-    }
-    testutil_assert(nw == (ssize_t)sizeof(*ev));
-    return (true);
-}
-
-/*
  * node_stop_requested --
  *     Check for the parent's graceful-stop sentinel. Not consumed: every node must see it.
  */
@@ -157,7 +114,7 @@ node_stop_requested(void)
  *     Check for the parent's switch-request sentinel and consume it, so one request triggers
  *     exactly one switch. Only the acting node (the leader, or a lone node) may call this.
  */
-static bool
+bool
 node_switch_request_consume(void)
 {
     if (!testutil_exists(NULL, SWITCH_REQUEST_FILE))
@@ -268,9 +225,29 @@ workload_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 {
     testutil_assert(ev->thread_id < state->nth_workers);
 
-    EVENT_QUEUE *q = &state->threads[ev->thread_id].evq;
+    EVENT_QUEUE *q = &state->workers[ev->thread_id].evq;
     while (!evq_push(q, ev) && workload_running(state))
         __wt_sleep(0, WT_THOUSAND);
+}
+
+/*
+ * workload_dequeue --
+ *     Take the next event queued for one worker; false when nothing is queued for it.
+ */
+bool
+workload_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev)
+{
+    return (evq_pop(&state->workers[thread_index].evq, ev));
+}
+
+/*
+ * workload_queue_empty --
+ *     Report whether one worker's queue is empty.
+ */
+bool
+workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index)
+{
+    return (evq_empty(&state->workers[thread_index].evq));
 }
 
 /*
@@ -284,243 +261,10 @@ void
 workload_drain_barrier(WORKLOAD_STATE *state)
 {
     for (uint32_t t = 0; t < state->nth_workers; t++)
-        while ((!evq_empty(&state->threads[t].evq) ||
-                 __wt_atomic_load_bool_acquire(&state->threads[t].busy)) &&
+        while ((!evq_empty(&state->workers[t].evq) ||
+                 __wt_atomic_load_bool_acquire(&state->workers[t].busy)) &&
           workload_running(state))
             __wt_sleep(0, WT_THOUSAND);
-}
-
-/*
- * record_event_line --
- *     Append one event to a record file; the one place that defines the record format for both the
- *     schema and the relay files.
- */
-static void
-record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
-{
-    int ret = 0;
-
-    switch (ev->type) {
-    case EVENT_CREATE:
-    case EVENT_DROP:
-        ret = fprintf(fp, "%s %" PRIu64 " %s\n", ev->type == EVENT_CREATE ? "CREATE" : "DROP",
-          ev->event_ts, ev->uri);
-        break;
-    case EVENT_INSERT:
-        ret = fprintf(fp, "INSERT %" PRIu64 " %" PRIu32 " %" PRIu32 " %s\n", ev->event_ts,
-          ev->key_min, ev->key_max, ev->uri);
-        break;
-    case EVENT_CKPT:
-    case EVENT_SWITCH:
-        testutil_assertfmt(false, "Unexpected record event type: %d", ev->type);
-    }
-    if (ret < 0)
-        testutil_die(EIO, "fprintf event record");
-}
-
-/*
- * worker_record_open --
- *     Open a worker's record file, named for the origin of what it logs: the operations this node
- *     produced itself go to its leader records, the peer's relayed events to its follower records.
- *     Append so a later phase preserves the earlier records for the post-crash verifier.
- */
-static FILE *
-worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
-{
-    char fname[128];
-    testutil_snprintf(fname, sizeof(fname),
-      state->generates ? LEADER_RECORDS_FILE : FOLLOWER_RECORDS_FILE, state->cfg->node_id,
-      thread_index);
-
-    FILE *fp;
-    testutil_assert_errno((fp = fopen(fname, "a")) != NULL);
-    /* Flush the record file per line so entries survive a SIGKILL crash. */
-    __wt_stream_set_line_buffer(fp);
-    return (fp);
-}
-
-/*
- * schema_op_execute --
- *     Execute one schema operation: the single call site for creating and dropping the test's
- *     tables, on either role. EBUSY is retried (the stream cannot be reordered, and when the source
- *     is the peer the operation already succeeded there), with a bound so a wedged operation fails
- *     the test instead of hanging it.
- */
-static void
-schema_op_execute(WT_SESSION *session, const SCHEMA_EVENT *ev)
-{
-    const bool is_create = ev->type == EVENT_CREATE;
-    testutil_assert(ev->type == EVENT_CREATE || ev->type == EVENT_DROP);
-
-    struct timespec start;
-    __wt_epoch(NULL, &start);
-
-    int ret;
-    for (;;) {
-        ret = is_create ? session->create(session, ev->uri, SCHEMA_TABLE_CONFIG) :
-                          session->drop(session, ev->uri, "force=false,lock_wait=false");
-        if (ret != EBUSY)
-            break;
-
-        struct timespec now;
-        __wt_epoch(NULL, &now);
-        if (WT_TIMEDIFF_SEC(now, start) > MAX_STARTUP)
-            testutil_die(ETIMEDOUT, "%s %s: EBUSY for %d seconds", is_create ? "CREATE" : "DROP",
-              ev->uri, MAX_STARTUP);
-        __wt_yield();
-    }
-    testutil_assertfmt(ret == 0, "%s %s (ts %" PRIu64 "): %s", is_create ? "CREATE" : "DROP",
-      ev->uri, ev->event_ts, wiredtiger_strerror(ret));
-}
-
-/*
- * schema_op_publish --
- *     Publish the schema operation at the given epoch so it becomes visible in shared metadata at
- *     the next checkpoint. Runs on both roles: a follower's applied operations queue up and drain
- *     when it eventually leads.
- */
-static void
-schema_op_publish(WT_SESSION *session, const char *uri, uint64_t epoch)
-{
-    char pub_cfg[64];
-    testutil_snprintf(pub_cfg, sizeof(pub_cfg), "disaggregated=(schema_epoch=%" PRIx64 ")", epoch);
-    testutil_check(session->publish(session, uri, pub_cfg));
-}
-
-/*
- * schema_op_insert_data --
- *     Populate a table with rows keyed key_min..key_max at the given commit timestamp; each row is
- *     valued with the commit timestamp, so the verifier can tell which generation of a reused table
- *     name wrote the data.
- */
-static void
-schema_op_insert_data(
-  WT_SESSION *session, const char *uri, uint64_t commit_ts, uint32_t key_min, uint32_t key_max)
-{
-    char val_buf[32];
-    testutil_snprintf(val_buf, sizeof(val_buf), "%" PRIu64, commit_ts);
-    testutil_check(session->begin_transaction(session, NULL));
-
-    WT_CURSOR *cursor;
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
-    for (uint32_t r = key_min; r <= key_max; r++) {
-        char key_buf[16];
-        testutil_snprintf(key_buf, sizeof(key_buf), "%" PRIu32, r);
-        cursor->set_key(cursor, key_buf);
-        cursor->set_value(cursor, val_buf);
-        testutil_check(cursor->insert(cursor));
-    }
-    testutil_check(cursor->close(cursor));
-
-    char commit_cfg[64];
-    testutil_snprintf(commit_cfg, sizeof(commit_cfg), "commit_timestamp=%" PRIx64, commit_ts);
-    testutil_check(session->commit_transaction(session, commit_cfg));
-}
-
-/*
- * worker_complete --
- *     Mark one allocator value fully completed by a worker: track it in the counter (a no-op for
- *     freshly allocated values) and publish it as the thread's completed frontier mark.
- */
-static void
-worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
-{
-    counter_advance(state, value);
-    (void)__wt_atomic_add_uint64(&state->applied, 1);
-    __wt_atomic_store_uint64_release(&state->threads[thread_index].completed_ts, value);
-}
-
-/*
- * apply_event --
- *     Apply one event on this node, identically for both roles and exactly as the source stream
- *     fixed it - same operation, same epoch, same commit timestamp: execute the schema operation or
- *     the insert, record the event, publish a schema operation, relay it to the peer when leading,
- *     and mark it completed.
- *
- * The ordering is load-bearing. A schema operation is recorded before it is published, so the
- *     record reaches the file before a checkpoint can make the epoch durable (a record without a
- *     durable epoch is ignored by the verifier, the reverse would be a hole). The relay precedes
- *     the completion store, which is what lets the stable frontier advance past this operation,
- *     what lets a checkpoint cover it, and what lets the checkpoint thread send that checkpoint's
- *     pipe event: the peer holds every event at or below a checkpoint's stable frontier by the time
- *     it sees that checkpoint's event.
- */
-static void
-apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const SCHEMA_EVENT *ev)
-{
-    const bool relay = state->leads;
-
-    if (ctx->record_fp == NULL)
-        ctx->record_fp = worker_record_open(state, thread_index);
-
-    switch (ev->type) {
-    case EVENT_INSERT:
-        schema_op_insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
-        record_event_line(ctx->record_fp, ev);
-        if (relay)
-            (void)node_event_send(state->cfg, ev);
-        worker_complete(state, thread_index, ev->event_ts);
-        break;
-    case EVENT_CREATE:
-    case EVENT_DROP:
-        schema_op_execute(ctx->session, ev);
-        record_event_line(ctx->record_fp, ev);
-        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
-        if (relay)
-            (void)node_event_send(state->cfg, ev);
-        worker_complete(state, thread_index, ev->event_ts);
-        break;
-    case EVENT_CKPT:
-    case EVENT_SWITCH:
-        testutil_assertfmt(false, "Unexpected apply event type: %d", ev->type);
-    }
-}
-
-/*
- * worker_apply_loop --
- *     A worker's phase, identical in both roles: execute whatever the reader queued while the phase
- *     runs, then drain the queue so a graceful stop loses nothing.
- */
-static void
-worker_apply_loop(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index)
-{
-    EVENT_QUEUE *q = &state->threads[thread_index].evq;
-    bool *busyp = &state->threads[thread_index].busy;
-
-    while (workload_running(state) || !evq_empty(q)) {
-        /* Publish busy before checking the queue so the drain barrier never races an apply. */
-        __wt_atomic_store_bool_release(busyp, true);
-        SCHEMA_EVENT ev;
-        const bool popped = evq_pop(q, &ev);
-        if (popped)
-            apply_event(state, ctx, thread_index, &ev);
-        __wt_atomic_store_bool_release(busyp, false);
-        if (!popped)
-            __wt_sleep(0, WT_THOUSAND);
-    }
-}
-
-/*
- * thread_worker_run --
- *     One worker thread: set up the per-phase context, run the processing loop, tear the context
- *     down.
- */
-static WT_THREAD_RET
-thread_worker_run(void *arg)
-{
-    const THREAD_ARG *ta = arg;
-    WORKLOAD_STATE *state = ta->state;
-
-    WORKER_CTX ctx;
-    WT_CLEAR(ctx);
-    testutil_check(state->conn->open_session(state->conn, NULL, NULL, &ctx.session));
-
-    worker_apply_loop(state, &ctx, ta->thread_index);
-
-    if (ctx.record_fp != NULL)
-        testutil_check(fclose(ctx.record_fp));
-    testutil_check(ctx.session->close(ctx.session, NULL));
-    return (WT_THREAD_RET_VALUE);
 }
 
 /*
@@ -534,7 +278,7 @@ workers_min(WORKLOAD_STATE *state)
 {
     uint64_t min_val = UINT64_MAX;
     for (uint32_t i = 0; i < state->nth_workers; i++) {
-        const uint64_t val = __wt_atomic_load_uint64_acquire(&state->threads[i].completed_ts);
+        const uint64_t val = __wt_atomic_load_uint64_acquire(&state->workers[i].completed_ts);
         if (val == 0)
             return (0);
         if (val < min_val)
@@ -558,8 +302,7 @@ workers_min(WORKLOAD_STATE *state)
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
-    const THREAD_ARG *ta = arg;
-    WORKLOAD_STATE *state = ta->state;
+    WORKLOAD_STATE *state = arg;
 
     while (workload_running(state)) {
         /*
@@ -582,362 +325,8 @@ thread_ts_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
-/*
- * generator_running --
- *     The generator's loop condition: true until the engine directs it to exit.
- */
-static bool
-generator_running(WORKLOAD_STATE *state)
-{
-    return (!__wt_atomic_load_bool_acquire(&state->generator_stop) && workload_running(state));
-}
-
-/*
- * generator_emit --
- *     Write one event to the node's self-pipe, blocking while it is full: the workers' consumption
- *     rate backpressures the generator through the pipe and the queues.
- */
-static void
-generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
-{
-    ssize_t nw;
-    while ((nw = write(state->cfg->self_pipe_write_fd, ev, sizeof(*ev))) < 0)
-        if (errno != EINTR)
-            testutil_die(errno, "write self pipe");
-    testutil_assert(nw == (ssize_t)sizeof(*ev));
-    ++state->emitted;
-}
-
-/*
- * generator_op --
- *     Generate one schema operation for the given worker thread: pick a slot, flip it between
- *     create and drop, allocate the epoch, and give one create in INSERT_ODDS an insert at a fresh
- *     commit timestamp, which comes from the same allocator as the epoch and so is above the
- *     table's create epoch by construction. Reports whether an event was emitted.
- *
- * Only a slot holding data is gated: a dirty table cannot be dropped until a completed checkpoint
- *     covers its insert (the drop would wedge in EBUSY), so that pick is simply skipped, the
- *     generation-time analogue of trying another slot. Clean tables churn ungated. The slot model
- *     flips at generation time; the worker's bounded EBUSY retry guarantees the executed state
- *     converges to it.
- */
-static bool
-generator_op(WORKLOAD_STATE *state, uint32_t t)
-{
-    WT_RAND_STATE *rnd = &state->threads[t].rnd;
-
-    const uint32_t slot = __wt_random(rnd) % state->cfg->pool_size;
-    const bool is_create = !state->table_exists[t][slot];
-    /* A clean table (commit timestamp 0) is droppable at once; a dirty one waits for coverage. */
-    if (!is_create && state->table_commit_ts[t][slot] != 0 &&
-      state->table_commit_ts[t][slot] > __wt_atomic_load_uint64_acquire(&state->ckpt_covered_ts))
-        return (false);
-    state->table_exists[t][slot] = is_create;
-
-    SCHEMA_EVENT ev = {0};
-    ev.type = is_create ? EVENT_CREATE : EVENT_DROP;
-    ev.thread_id = t;
-    ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
-    testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
-    generator_emit(state, &ev);
-
-    if (is_create) {
-        /* Most creates leave the table clean, so the churn is not gated on checkpoints. */
-        state->table_commit_ts[t][slot] = 0;
-        if (__wt_random(rnd) % INSERT_ODDS == 0) {
-            ev.type = EVENT_INSERT;
-            ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
-            ev.key_min = DATA_KEY_MIN;
-            ev.key_max = DATA_KEY_MAX;
-            state->table_commit_ts[t][slot] = ev.event_ts;
-            generator_emit(state, &ev);
-        }
-    }
-    return (true);
-}
-
-/*
- * generator_round --
- *     Feed every worker thread one generated operation, round-robin. Reports whether anything was
- *     emitted: nothing is while the lead over the workers is spent, or when every pick was an
- *     uncovered drop, and the caller waits instead of spinning on the slot model.
- */
-static bool
-generator_round(WORKLOAD_STATE *state, uint64_t lead_max)
-{
-    if (state->emitted - __wt_atomic_load_uint64_acquire(&state->applied) > lead_max)
-        return (false);
-
-    bool emitted = false;
-
-    for (uint32_t t = 0; t < state->nth_workers && generator_running(state); t++)
-        if (generator_op(state, t))
-            emitted = true;
-    return (emitted);
-}
-
-/*
- * A leading generator's pacing state: the checkpoint cadence, the sentinel poll throttle, and the
- * lead it may build over its workers.
- */
-typedef struct {
-    WT_RAND_STATE *rnd; /* the generator's own rnd stream, used for the checkpoint intervals */
-    struct timespec last_ckpt;
-    struct timespec last_poll;
-    uint64_t ckpt_wait; /* seconds until the next checkpoint event is due */
-    uint64_t lead_max;  /* events that may be in flight; UINT64_MAX when nothing bounds it */
-} GENERATOR_PACING;
-
-/*
- * generator_pacing_init --
- *     Initialize the pacing state at the start of a leading phase.
- */
-static void
-generator_pacing_init(GENERATOR_PACING *pacing, const TEST_CONFIG *cfg, WT_RAND_STATE *rnd)
-{
-    pacing->rnd = rnd;
-    __wt_epoch(NULL, &pacing->last_ckpt);
-    pacing->last_poll = pacing->last_ckpt;
-    pacing->ckpt_wait = __wt_random(rnd) % MAX_CKPT_INVL;
-    /* Bound the lead so a hand-over drains inside one switch period; no switches, no bound. */
-    pacing->lead_max = cfg->switch_interval == 0 ?
-      UINT64_MAX :
-      WT_MAX(cfg->switch_interval * GEN_APPLY_RATE_FLOOR, GEN_LEAD_MIN);
-}
-
-/*
- * generator_ckpt_due --
- *     Pace the stream's checkpoint events: true when the current random interval has elapsed,
- *     starting the next one.
- */
-static bool
-generator_ckpt_due(GENERATOR_PACING *pacing)
-{
-    struct timespec now;
-    __wt_epoch(NULL, &now);
-    if ((uint64_t)WT_TIMEDIFF_SEC(now, pacing->last_ckpt) < pacing->ckpt_wait)
-        return (false);
-    pacing->last_ckpt = now;
-    pacing->ckpt_wait = __wt_random(pacing->rnd) % MAX_CKPT_INVL;
-    return (true);
-}
-
-/*
- * generator_switch_requested --
- *     Watch for the parent's switch request, polling the sentinel at most once a second (the
- *     cadence the control loop's own waits use).
- */
-static bool
-generator_switch_requested(GENERATOR_PACING *pacing)
-{
-    struct timespec now;
-    __wt_epoch(NULL, &now);
-    if (WT_TIMEDIFF_SEC(now, pacing->last_poll) < 1)
-        return (false);
-    pacing->last_poll = now;
-    return (node_switch_request_consume());
-}
-
-/*
- * thread_generator_run --
- *     The node's command source, started only for a phase that produces its own stream: a leader
- *     always does, and so does a follower with no peer to receive from. Feeds workload rounds into
- *     the self-pipe, a checkpoint event whenever one is due, and, once the parent requests a
- *     switch, the hand-over event that ends the stream and the phase. All switch triggering lives
- *     here, never in the control loop.
- */
-static WT_THREAD_RET
-thread_generator_run(void *arg)
-{
-    const THREAD_ARG *ta = arg;
-    WORKLOAD_STATE *state = ta->state;
-
-    GENERATOR_PACING pacing;
-    generator_pacing_init(&pacing, state->cfg, &state->threads[ta->thread_index].rnd);
-
-    while (generator_running(state)) {
-        if (!generator_round(state, pacing.lead_max))
-            __wt_sleep(0, WT_THOUSAND);
-
-        if (generator_ckpt_due(&pacing)) {
-            SCHEMA_EVENT ev = {0};
-            ev.type = EVENT_CKPT;
-            generator_emit(state, &ev);
-        }
-
-        if (generator_switch_requested(&pacing)) {
-            /* The stream's last event, carrying the counter the next leader continues from. */
-            SCHEMA_EVENT ev = {0};
-            ev.type = EVENT_SWITCH;
-            ev.event_ts = __wt_atomic_load_uint64_acquire(&state->current_ts);
-            generator_emit(state, &ev);
-            break;
-        }
-    }
-    return (WT_THREAD_RET_VALUE);
-}
-
-/* The reader thread's handle; its context and results live in the workload state. */
-static wt_thread_t reader_thr;
-static bool reader_started = false;
-
-/*
- * pipe_wait_readable --
- *     Wait up to a second for the pipe to become readable, so the reader can notice a stop request
- *     even when the source is silent.
- */
-static bool
-pipe_wait_readable(int fd)
-{
-    fd_set rfds;
-    FD_ZERO(&rfds);
-    FD_SET(fd, &rfds);
-
-    struct timeval tv = {1, 0};
-    const int ret = select(fd + 1, &rfds, NULL, NULL, &tv);
-    if (ret < 0) {
-        if (errno == EINTR)
-            return (false);
-        testutil_die(errno, "reader select pipe");
-    }
-    return (ret > 0);
-}
-
-/*
- * pipe_read_event --
- *     Read one complete event from the pipe. Returns false on EOF (the writer died). The writer's
- *     death can truncate the final write, so reassemble the event from partial reads.
- */
-static bool
-pipe_read_event(int fd, SCHEMA_EVENT *ev)
-{
-    size_t have = 0;
-    while (have < sizeof(*ev)) {
-        const ssize_t nr = read(fd, (uint8_t *)ev + have, sizeof(*ev) - have);
-        if (nr < 0) {
-            if (errno == EINTR)
-                continue;
-            testutil_die(errno, "reader read pipe");
-        }
-        if (nr == 0)
-            return (false);
-        have += (size_t)nr;
-    }
-    return (true);
-}
-
-/*
- * node_current_role --
- *     Return the role this phase runs. The engine tracks the role as a single bool, so the role
- *     instance is derived from it rather than stored: one source of truth, no invariant to keep.
- */
-static const NODE_ROLE *
-node_current_role(const WORKLOAD_STATE *state)
-{
-    return (state->leads ? &node_role_leader : &node_role_follower);
-}
-
-/*
- * thread_reader_run --
- *     Drain the node's event source: the self-pipe when this phase generates, the peer's pipe
- *     otherwise. Schema and data events are queued for the worker threads; a checkpoint event is
- *     produced (leading) or picked up after a drain barrier (following); the hand-over event ends
- *     the phase. Pipe EOF can only happen on a peer-fed pipe: it marks the peer dead and turns this
- *     node into a lone follower.
- */
-static WT_THREAD_RET
-thread_reader_run(void *arg)
-{
-    WORKLOAD_STATE *state = arg;
-    TEST_CONFIG *cfg = state->cfg;
-    const int src_fd = state->generates ? cfg->self_pipe_read_fd : cfg->pipe_read_fd;
-
-    WT_SESSION *session;
-    testutil_check(state->conn->open_session(state->conn, NULL, NULL, &session));
-
-    /* The role's checkpoint bookkeeping for this phase; only a follower picks checkpoints up. */
-    CKPT_CTX ckpt = {0};
-    __wt_epoch(NULL, &ckpt.phase_start);
-    if (!state->leads)
-        testutil_check(state->conn->get_page_log(state->conn, "palite", &ckpt.page_log));
-
-    SCHEMA_EVENT ev;
-    bool running = true;
-    while (running && !__wt_atomic_load_bool_acquire(&state->reader_stop)) {
-        if (!pipe_wait_readable(src_fd))
-            continue;
-        if (!pipe_read_event(src_fd, &ev)) {
-            /* EOF: the peer died. Keep the role; the node continues as a lone follower. */
-            testutil_assert(!state->leads); /* The self-pipe's writer lives in this process. */
-            cfg->peer_alive = false;
-            println("Node %" PRIu32 ": peer died; continuing as a lone follower", cfg->node_id);
-            running = false;
-            continue;
-        }
-
-        switch (ev.type) {
-        case EVENT_CREATE:
-        case EVENT_DROP:
-        case EVENT_INSERT:
-            workload_enqueue(state, &ev);
-            break;
-        case EVENT_CKPT:
-            node_current_role(state)->checkpoint(state, session, &ckpt, &ev);
-            break;
-        case EVENT_SWITCH:
-            /* The final event of the term's stream: this node must step up. */
-            workload_drain_barrier(state);
-            /*
-             * Relay-integrity check: the drained counter must equal the sender's final counter.
-             * Every counter value the term allocated rides an event that precedes the switch in the
-             * stream, so after the drain nothing may be missing.
-             */
-            testutil_assertfmt(__wt_atomic_load_uint64_acquire(&state->current_ts) == ev.event_ts,
-              "hand-over: drained counter %" PRIu64 " != sender's final counter %" PRIu64,
-              __wt_atomic_load_uint64_acquire(&state->current_ts), ev.event_ts);
-            __wt_atomic_store_bool_release(&state->handover_received, true);
-            running = false;
-            break;
-        }
-    }
-
-    if (ckpt.page_log != NULL)
-        testutil_check(ckpt.page_log->terminate(ckpt.page_log, NULL));
-    testutil_check(session->close(session, NULL));
-    return (WT_THREAD_RET_VALUE);
-}
-
-/*
- * node_reader_start --
- *     Start the reader thread for a phase with an event source: any leader phase (the self-pipe),
- *     or a follower phase with a live peer. The per-phase hand-over and stop fields were reset by
- *     workload_start.
- */
-static void
-node_reader_start(WORKLOAD_STATE *state)
-{
-    testutil_assert(!reader_started);
-    testutil_check(__wt_thread_create(NULL, &reader_thr, thread_reader_run, state));
-    reader_started = true;
-}
-
-/*
- * node_reader_stop --
- *     Stop and join the reader thread, if one is running.
- */
-static void
-node_reader_stop(WORKLOAD_STATE *state)
-{
-    if (!reader_started)
-        return;
-    __wt_atomic_store_bool_release(&state->reader_stop, true);
-    testutil_check(__wt_thread_join(NULL, &reader_thr));
-    reader_started = false;
-}
-
-/* Thread handles have process lifetime; phases join and restart them but never free them. */
-static wt_thread_t workload_thr[MAX_TH + 2];
-static THREAD_ARG workload_arg[MAX_TH + 2];
+/* The timestamp thread's handle; phases join and restart it but never free it. */
+static wt_thread_t ts_thr;
 
 /*
  * workload_start --
@@ -964,35 +353,32 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->ckpt_covered_ts = 0;
     state->emitted = state->applied = 0;
 
-    for (uint32_t i = 0; i < cfg->nth + 2; i++) {
-        workload_arg[i].state = state;
-        workload_arg[i].thread_index = i;
-        testutil_random_from_random(
-          &state->threads[i].rnd, i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
+    for (uint32_t i = 0; i < cfg->nth; i++) {
         /*
          * The stable frontier must wait for this phase's workers, not trust the previous phase's.
          */
-        state->threads[i].completed_ts = 0;
-        state->threads[i].busy = false;
-        state->threads[i].evq.head = state->threads[i].evq.tail = 0;
+        state->workers[i].completed_ts = 0;
+        state->workers[i].busy = false;
+        state->workers[i].evq.head = state->workers[i].evq.tail = 0;
     }
 
-    /* Start timestamp thread. */
-    testutil_check(__wt_thread_create(
-      NULL, &workload_thr[cfg->nth + 1], thread_ts_run, &workload_arg[cfg->nth + 1]));
+    /*
+     * Reseed the generator's streams: the worker streams first, then its own pacing stream. Every
+     * phase draws, whether it generates or not, so the streams stay in step across role switches.
+     */
+    for (uint32_t i = 0; i <= cfg->nth; i++)
+        testutil_random_from_random(
+          &state->gen_rnd[i], i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
 
-    /* Start worker threads. */
-    for (uint32_t i = 0; i < cfg->nth; i++)
-        testutil_check(
-          __wt_thread_create(NULL, &workload_thr[i], thread_worker_run, &workload_arg[i]));
+    testutil_check(__wt_thread_create(NULL, &ts_thr, thread_ts_run, state));
+    node_workers_start(state);
 
     /* Every phase has a source: this node's own generator, or a live peer's relay. */
     node_reader_start(state);
 
     /* Start the generator last, once the machinery consuming its stream is up. */
     if (state->generates)
-        testutil_check(__wt_thread_create(
-          NULL, &workload_thr[cfg->nth], thread_generator_run, &workload_arg[cfg->nth]));
+        node_generator_start(state);
     fflush(stdout);
 }
 
@@ -1006,17 +392,12 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
 void
 workload_stop(WORKLOAD_STATE *state)
 {
-    if (state->generates) {
-        __wt_atomic_store_bool_release(&state->generator_stop, true);
-        testutil_check(__wt_thread_join(NULL, &workload_thr[state->nth_workers]));
-    }
-
+    node_generator_stop(state);
     node_reader_stop(state);
 
     __wt_atomic_store_bool_release(&state->stop_phase, true);
-    for (uint32_t i = 0; i < state->nth_workers + 2; ++i)
-        if (i != state->nth_workers)
-            testutil_check(__wt_thread_join(NULL, &workload_thr[i]));
+    node_workers_join(state);
+    testutil_check(__wt_thread_join(NULL, &ts_thr));
 }
 
 /*

@@ -199,11 +199,10 @@ typedef struct __workload_state {
     uint64_t emitted; /* generator only */
     uint64_t applied; /* atomic access: every worker adds to it */
     uint32_t nth_workers;
-    /* Per-thread state: workers first, then the generator and timestamp threads. */
+    /* Per-worker state, owned by worker.c; the queue is filled by the reader. */
     struct {
-        WT_RAND_STATE rnd; /* a worker's rnd drives its generated stream; owned by the generator */
-        EVENT_QUEUE evq;   /* this worker's inbound events */
-        bool busy;         /* the worker is mid-apply; atomic access */
+        EVENT_QUEUE evq; /* this worker's inbound events */
+        bool busy;       /* the worker is mid-apply; atomic access */
         /*
          * The highest allocator value the thread has fully completed (published or committed). The
          * thread's single in-flight operation always holds a higher value, so the minimum across
@@ -211,7 +210,13 @@ typedef struct __workload_state {
          * sets the stable timestamp and stable schema epoch to that minimum.
          */
         uint64_t completed_ts;
-    } threads[MAX_TH + 2];
+    } workers[MAX_TH];
+    /*
+     * The generator's random streams, owned by generator.c: one per worker, driving the stream of
+     * operations generated for that worker, plus its own pacing stream one past them. Reseeded by
+     * workload_start on every phase, generating or not, so they stay in step across role switches.
+     */
+    WT_RAND_STATE gen_rnd[MAX_TH + 1];
     /*
      * The generator's per-thread slot model, carried across phases so each leader phase resumes its
      * own namespace where the last ended: whether the slot's table exists, and the commit timestamp
@@ -267,17 +272,42 @@ void follower_adopt_latest(WORKLOAD_STATE *state);
 /* parent.c */
 void parent_main(TEST_CONFIG *cfg, const char *self_path);
 
-/* node.c: the generic node - control loop, connection, event pipe, and the workload engine. */
+/*
+ * node.c: the generic node - the control loop and role state machine, the connection, the workload
+ * engine's state and per-phase lifecycle, the worker event queues, and the timestamp thread.
+ */
 int node_main(TEST_CONFIG *cfg);
 void node_open(TEST_CONFIG *cfg, const char *disagg_mode, WT_CONNECTION **connp);
-bool node_event_send(TEST_CONFIG *cfg, const SCHEMA_EVENT *ev);
 void disagg_opts_init(const TEST_CONFIG *cfg);
+bool node_switch_request_consume(void);
 WORKLOAD_STATE *workload_state_create(TEST_CONFIG *cfg);
 void workload_start(WORKLOAD_STATE *state, bool as_leader);
 void workload_stop(WORKLOAD_STATE *state);
+bool workload_running(WORKLOAD_STATE *state);
 void workload_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev);
+bool workload_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev);
+bool workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index);
 void workload_drain_barrier(WORKLOAD_STATE *state);
 void workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts);
+void workload_counter_advance(WORKLOAD_STATE *state, uint64_t v);
+
+/* event_pipe.c: the event framing every pipe shares. */
+bool node_event_send(TEST_CONFIG *cfg, const SCHEMA_EVENT *ev);
+void pipe_event_write(int fd, const SCHEMA_EVENT *ev);
+bool pipe_event_read(int fd, SCHEMA_EVENT *ev);
+bool pipe_wait_readable(int fd);
+
+/* generator.c: the generator stage - the node's command stream, and all switch triggering. */
+void node_generator_start(WORKLOAD_STATE *state);
+void node_generator_stop(WORKLOAD_STATE *state);
+
+/* reader.c: the reader stage - demuxing the source pipe to the workers. */
+void node_reader_start(WORKLOAD_STATE *state);
+void node_reader_stop(WORKLOAD_STATE *state);
+
+/* worker.c: the worker stage - executing events and recording them. */
+void node_workers_start(WORKLOAD_STATE *state);
+void node_workers_join(WORKLOAD_STATE *state);
 
 /* verify.c */
 void verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg);
