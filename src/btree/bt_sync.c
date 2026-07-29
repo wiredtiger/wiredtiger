@@ -16,11 +16,21 @@ static bool
 __sync_scrub_checkpoint_enabled(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    uint8_t image_max;
 
     conn = S2C(session);
 
     /* Skip during recovery or checkpoint shutdown: the scrubbed image would never be consumed. */
     if (F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
+        return (false);
+
+    /* Bound the cache consumed by retained scrub images. An excess of pages retained in the cache
+     * is inefficient use of space. */
+    image_max = __wt_atomic_load_uint8_relaxed(
+      &conn->cache->cache_eviction_controls.checkpoint_scrub_image_max);
+    if (image_max == 0 ||
+      __wt_atomic_load_uint64_relaxed(&conn->cache->bytes_scrub_image) >=
+        (conn->cache_size / 100) * image_max)
         return (false);
 
     switch (__wt_atomic_load_uint8_relaxed(

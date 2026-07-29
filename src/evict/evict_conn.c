@@ -306,6 +306,10 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         (WT_CONFIG_LIT_MATCH("off", cval) ? WT_CACHE_CHECKPOINT_SCRUB_EVICT_OFF :
                                             WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO));
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction.checkpoint_scrub_image_max", &cval));
+    __wt_atomic_store_uint8_relaxed(
+      &cache->cache_eviction_controls.checkpoint_scrub_image_max, (uint8_t)cval.val);
+
     WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);

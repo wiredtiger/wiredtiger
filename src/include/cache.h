@@ -37,6 +37,9 @@ struct __wt_cache_eviction_controls {
 #define WT_CACHE_CHECKPOINT_SCRUB_EVICT_ON 2
     wt_shared uint8_t checkpoint_scrub_eviction;
 
+    /* Percentage of the cache checkpoint may fill with retained scrub images. */
+    wt_shared uint8_t checkpoint_scrub_image_max;
+
 /* cache eviction controls bit positions */
 #define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u
 #define WT_CACHE_PREFER_SCRUB_EVICTION 0x2u

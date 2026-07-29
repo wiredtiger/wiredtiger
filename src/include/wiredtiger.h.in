@@ -2340,6 +2340,10 @@ struct __wt_connection {
      * \c on always attempts the replacement\, \c off never does\, and \c auto lets eviction decide
      * based on cache pressure.  Most applications should leave this at \c auto., a string\, chosen
      * from the following options: \c "auto"\, \c "off"\, \c "on"; default \c auto.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_scrub_image_max, maximum percentage of the cache
+     * that checkpoint may consume with the clean images it retains for that replacement.
+     * Checkpoint stops retaining new images once the limit is reached; a value of \c 0 disables
+     * retention entirely., an integer between \c 0 and \c 100; default \c 10.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
      * page\, attempt to locate a random in-memory page by examining all entries on the root page.,
      * a boolean flag; default \c true.}
@@ -3312,28 +3316,35 @@ struct __wt_connection {
  * image.  \c on always attempts the replacement\, \c off never does\, and \c auto lets eviction
  * decide based on cache pressure.  Most applications should leave this at \c auto., a string\,
  * chosen from the following options: \c "auto"\, \c "off"\, \c "on"; default \c auto.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;evict_sample_inmem, If no in-memory ref is found on the root
- * page\, attempt to locate a random in-memory page by examining all entries on the root page., a
- * boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a
- * part of application threads will participate in cache management when a cache threshold reaches
- * its trigger limit., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_scrub_image_max, maximum percentage of the cache that
+ * checkpoint may consume with the clean images it retains for that replacement.  Checkpoint stops
+ * retaining new images once the limit is reached; a value of \c 0 disables retention entirely., an
+ * integer between \c 0 and \c 100; default \c 10.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * legacy_page_visit_strategy, Use legacy page visit strategy for eviction.  Using this option is
- * highly discouraged as it will re-introduce a bug where eviction can fail to find older cache
- * content., a boolean flag; default \c false.}
+ * evict_sample_inmem, If no in-memory ref is found on the root page\, attempt to locate a random
+ * in-memory page by examining all entries on the root page., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads will
+ * participate in cache management when a cache threshold reaches its trigger limit., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;legacy_page_visit_strategy, Use legacy
+ * page visit strategy for eviction.  Using this option is highly discouraged as it will
+ * re-introduce a bug where eviction can fail to find older cache content., a boolean flag; default
+ * \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;prefer_scrub_eviction, Change the eviction strategy to
+ * scrub eviction when the cache usage is under half way between the target limit to the trigger
+ * limit., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * prefer_scrub_eviction, Change the eviction strategy to scrub eviction when the cache usage is
- * under half way between the target limit to the trigger limit., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for obsolete updates
- * whenever an update operation is performed., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will start to
- * help evict pages from cache.  The number of threads started will vary depending on the current
- * eviction load.  Each eviction worker thread uses a session from a reserved pool of
- * WT_EVICT_MAX_WORKERS (64) sessions., an integer between \c 1 and \c 64; default \c 8.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start to
- * help evict pages from cache.  The number of threads currently running will vary depending on the
- * current eviction load., an integer between \c 1 and \c 64; default \c 1.}
+ * skip_update_obsolete_check, Skip checking for obsolete updates whenever an update operation is
+ * performed., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max,
+ * maximum number of threads WiredTiger will start to help evict pages from cache.  The number of
+ * threads started will vary depending on the current eviction load.  Each eviction worker thread
+ * uses a session from a reserved pool of WT_EVICT_MAX_WORKERS (64) sessions., an integer between \c
+ * 1 and \c 64; default \c 8.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of
+ * threads WiredTiger will start to help evict pages from cache.  The number of threads currently
+ * running will vary depending on the current eviction load., an integer between \c 1 and \c 64;
+ * default \c 1.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is
