@@ -90,7 +90,7 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
 {
     WT_DISAGG_METADATA metadata;
     WT_ITEM full_metadata;
-    wt_timestamp_t pinned_ts;
+    wt_timestamp_t pinned_ts, replayed_ts;
     char config[1024];
     bool picked_up;
 
@@ -112,6 +112,21 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
       follower_fetch_full_metadata(session, page_log, checkpoint_metadata, &full_metadata));
     testutil_check(__wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata));
     testutil_assert(metadata.oldest_timestamp != WT_TS_NONE);
+    /*
+     * Honor the delivery contract the snapshot-consistency design relies on: checkpoint metadata
+     * may only be delivered once the checkpoint's content has been replayed, so a snapshot
+     * established after the delivery covers it. Skip the pickup until every replay operation up to
+     * the checkpoint's timestamp has committed on this node; the stable timestamp is not a
+     * substitute, since it advances on the replay schedule rather than with application.
+     */
+    replayed_ts = replay_maximum_committed();
+    if (replayed_ts == WT_TS_NONE || replayed_ts < checkpoint_ts) {
+        printf("--- [Follower] Skipping checkpoint pickup: checkpoint_timestamp(hex)=%" PRIx64
+               " > replayed_timestamp(hex)=%" PRIx64 " ---\n",
+          checkpoint_ts, replayed_ts);
+        goto done;
+    }
+
     testutil_check(timestamp_query("get=pinned", &pinned_ts));
     if (pinned_ts != WT_TS_NONE && metadata.oldest_timestamp > pinned_ts) {
         printf("--- [Follower] Skipping checkpoint pickup: oldest_timestamp(hex)=%" PRIx64
@@ -240,6 +255,27 @@ follower_read_no_ts(void *arg)
                 failed = true;
                 testutil_check(cursor->close(cursor));
                 break;
+            }
+            /*
+             * A near search may legally position on either neighbor of the search key, and the side
+             * it picks can change when the underlying trees are reshaped without any visible
+             * change, such as by a checkpoint pickup. Anchor every pass on the first visible key at
+             * or after the start position so the passes are comparable.
+             */
+            if (exact < 0 && (ret = cursor->next(cursor)) != 0) {
+                testutil_assertfmt(ret == WT_NOTFOUND || ret == WT_ROLLBACK ||
+                    ret == WT_PREPARE_CONFLICT || ret == WT_CACHE_FULL,
+                  "follower_read_no_ts: next: %d", ret);
+                if (ret == WT_NOTFOUND) {
+                    /* No rows at or after the start position: every pass must agree on that. */
+                    testutil_assertfmt(pass == 0 || count == 0,
+                      "follower_read_no_ts: snapshot row count changed within a transaction "
+                      "(0 != %u)",
+                      count);
+                } else
+                    failed = true;
+                testutil_check(cursor->close(cursor));
+                continue;
             }
             for (i = 0; i < FOLLOWER_READ_ROWS; ++i) {
                 if (i > 0 && (ret = cursor->next(cursor)) != 0) {
