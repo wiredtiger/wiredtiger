@@ -107,6 +107,41 @@ err:
 }
 
 /*
+ * __disagg_replace_checkpoint --
+ *     Replace the checkpoint= value in a metadata config string.
+ */
+static int
+__disagg_replace_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+{
+    WT_CONFIG_ITEM v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    size_t cut_off;
+
+    *config_ret = NULL;
+
+    WT_RET(__wt_config_getones(session, base, "checkpoint", &v));
+
+    /*
+     * A key with no value parses to a shared literal rather than a slice of base, leaving nothing
+     * to splice over.
+     */
+    if (!WT_CONFIG_STRING_WITHIN_DEFAULT(v.str, base))
+        WT_RET_MSG(session, EINVAL, "checkpoint key has no value to replace");
+
+    cut_off = WT_PTRDIFF(v.str, base);
+    WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 1, &tmp));
+    WT_ERR(__wt_buf_fmt(session, tmp, "%.*s%.*s%s", (int)cut_off, base, (int)new_ckpt->len,
+      new_ckpt->str, v.str + v.len));
+    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
  * __disagg_save_checkpoint_meta_local --
  *     Update the local metadata entry with the supplied checkpoint configuration.
  */
@@ -138,7 +173,7 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     /* Copy the value since we don't own the memory after calling get_value(). */
     WT_ERR(__wt_strdup(session, cfg_current, &cfg_current_copy));
 
-    WT_ERR(__wt_config_replace(session, cfg_current_copy, "checkpoint", &new_ckpt, &cfg_new));
+    WT_ERR(__disagg_replace_checkpoint(session, cfg_current_copy, &new_ckpt, &cfg_new));
 
     /* Put in our new config. */
     WT_ERR(__wt_metadata_insert(session, metadata_key, cfg_new));
@@ -385,7 +420,7 @@ __disagg_update_file_meta(
     /*
      * Only the checkpoint field changes on this path (see FIXME-WT-14730).
      */
-    WT_ERR(__wt_config_replace(session, current_value_copy, "checkpoint", &cval, &cfg_ret));
+    WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &cval, &cfg_ret));
 
     md_file_cursor->set_value(md_file_cursor, cfg_ret);
     WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
@@ -1185,5 +1220,16 @@ __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const cha
     *out_compatible_version = ckpt_meta.compatible_version;
 
     return (0);
+}
+
+/*
+ * __ut_disagg_replace_checkpoint --
+ *     Unit test wrapper for __disagg_replace_checkpoint.
+ */
+int
+__ut_disagg_replace_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+{
+    return (__disagg_replace_checkpoint(session, base, new_ckpt, config_ret));
 }
 #endif

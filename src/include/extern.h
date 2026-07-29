@@ -406,8 +406,6 @@ extern int __wt_config_merge(WT_SESSION_IMPL *session, const char **cfg, const c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_config_replace(WT_SESSION_IMPL *session, const char *base, const char *key,
-  const WT_CONFIG_ITEM *value, char **config_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_subget_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_subgetraw(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, WT_CONFIG_ITEM *key,
@@ -2740,6 +2738,9 @@ extern int __ut_ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MO
   wt_off_t offset, wt_off_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_parse_version_and_check(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
   WT_DISAGG_METADATA *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_disagg_replace_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session,
   const char *meta_str, uint32_t *out_version, uint32_t *out_compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
