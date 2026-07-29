@@ -339,6 +339,8 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     # Randomized ops split either side of the step-down timestamp, with the merged view checked
     # against a shadow map.
+    #
+    # FIXME-WT-18209: extend the layered cursor stress test to cover async step-down and retire this.
     def test_stress_random_ops(self):
         uri = f'layered:{self.test_name}_stress'
         self.set_global_ts(1, 1)

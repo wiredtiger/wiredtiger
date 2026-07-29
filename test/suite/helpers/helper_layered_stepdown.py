@@ -143,6 +143,6 @@ class LayeredStepdownMixin:
             wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
         err, _, err_msg = (session or self.session).get_last_error()
         self.assertEqual(err, wiredtiger.WT_ROLLBACK)
-        self.assertTrue('started before the step-down timestamp was set' in err_msg,
+        self.assertTrue('straddled the step-down timestamp setting boundary' in err_msg,
             'expected a step-down rollback reason, got: ' + err_msg)
         self.assertEqual(self.get_step_down_rollback_count(), before + 1)

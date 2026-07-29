@@ -96,6 +96,11 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.uri, None, None))
 
+        # The drop is not undone by the demotion.
+        self.complete_step_down(20)
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.open_cursor(self.uri, None, None))
+
     # A cursor reused from the cache picks up the new routing: its writes go to ingest.
     def test_cached_cursor_reuse_across_step_down_ts(self):
         self.set_global_ts(1, 1)
@@ -141,6 +146,16 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(seen, {'pre', 'post'},
             'all content must be readable through a reopened cursor after the step-down')
 
+        # A write through the cache-served cursor after the demotion still routes to ingest.
+        cursor = self.open_cached_cursor(self.uri)
+        self.session.begin_transaction()
+        cursor['follower'] = 'ingest'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
+        cursor.close()
+
+        self.assertIn('follower', self.read_keys_at(self.ingest_uri(self.uri), 60))
+        self.assertEqual(self.read_keys_at(self.uri, 60), {'pre', 'post', 'follower'})
+
     # Bounds set before the timestamp apply to keys from both constituents.
     def test_bounded_cursor_across_step_down_ts(self):
         self.set_global_ts(1, 1)
@@ -161,10 +176,44 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         while cursor.next() == 0:
             seen.append(cursor.get_key())
         self.session.rollback_transaction()
-        cursor.close()
 
         self.assertEqual(seen, ['b', 'c', 'd', 'e'],
             'a bounded scan must respect its bounds on both constituents')
+
+        # Walking out of the bounds resets the cursor, which clears them, so the same bounds are
+        # applied again for the post-demotion walk.
+        self.complete_step_down(20)
+        cursor.set_key('b')
+        self.assertEqual(cursor.bound('action=set,bound=lower'), 0)
+        cursor.set_key('e')
+        self.assertEqual(cursor.bound('action=set,bound=upper'), 0)
+
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
+        seen = []
+        while cursor.next() == 0:
+            seen.append(cursor.get_key())
+        self.session.rollback_transaction()
+
+        self.assertEqual(seen, ['b', 'c', 'd', 'e'],
+            'the bounds must still clamp the merged view after the demotion')
+
+        # Follower writes land in ingest, one inside the bounds and one past the upper bound.
+        self.write_at(self.uri, {'cc': 'f', 'z': 'f'}, 50)
+
+        cursor.set_key('b')
+        self.assertEqual(cursor.bound('action=set,bound=lower'), 0)
+        cursor.set_key('e')
+        self.assertEqual(cursor.bound('action=set,bound=upper'), 0)
+
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+        seen = []
+        while cursor.next() == 0:
+            seen.append(cursor.get_key())
+        self.session.rollback_transaction()
+        cursor.close()
+
+        self.assertEqual(seen, ['b', 'c', 'cc', 'd', 'e'],
+            'the bounds must clamp content written after the demotion')
 
     # A readonly cursor reads the merged view and still rejects writes.
     def test_readonly_cursor_while_step_down_ts_set(self):
@@ -176,6 +225,20 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(self.uri, {'k2': 'ingest'}, 30)
 
         cursor = self.session.open_cursor(self.uri, None, 'readonly=true')
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
+        self.assertEqual(cursor['k1'], 'stable')
+        self.assertEqual(cursor['k2'], 'ingest')
+        self.session.rollback_transaction()
+
+        self.session.begin_transaction()
+        cursor.set_key('k3')
+        cursor.set_value('v')
+        with self.expectedStderrPattern('Unsupported cursor operation'):
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.insert())
+        self.session.rollback_transaction()
+
+        self.complete_step_down(20)
+
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
         self.assertEqual(cursor['k1'], 'stable')
         self.assertEqual(cursor['k2'], 'ingest')
@@ -242,5 +305,37 @@ class test_layered_async_stepdown04(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor = self.session.open_cursor(self.uri, None, 'next_random=true')
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(80))
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+        cursor.close()
+
+    # The demotion happens with the table still holding an ingest/stable mix, so sampling afterwards
+    # is bound by the same contract: only visible merged keys come back.
+    def test_next_random_after_step_down(self):
+        uri = f'layered:{self.test_name}_random_after'
+        self.set_global_ts(1, 1)
+        self.session.create(uri, 'key_format=S,value_format=S')
+
+        stable_keys = {f's{i:02d}' for i in range(10)}
+        self.write_at(uri, {k: 's' for k in stable_keys}, 10)
+
+        self.set_step_down_ts(20)
+
+        ingest_keys = {f'i{i:02d}' for i in range(10)}
+        self.write_at(uri, {k: 'i' for k in ingest_keys}, 30)
+
+        removed = {'s00', 'i00'}
+        self.remove_at(uri, sorted(removed), 40)
+
+        visible = (stable_keys | ingest_keys) - removed
+        self.complete_step_down(20)
+        self.assertEqual(self.read_keys_at(uri, 50), visible,
+            'the merged view must be unchanged by the demotion')
+
+        cursor = self.session.open_cursor(uri, None, 'next_random=true')
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(50))
+        for _ in range(100):
+            self.assertEqual(cursor.next(), 0)
+            self.assertIn(cursor.get_key(), visible,
+                'a sample after the demotion must come from the visible merged view')
         self.session.rollback_transaction()
         cursor.close()
