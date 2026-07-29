@@ -285,7 +285,7 @@ __wti_evict_page(WT_SESSION_IMPL *session, bool is_server)
  */
 int
 __wti_evict_app_assist_worker(
-  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible)
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool bounded)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -300,6 +300,9 @@ __wti_evict_app_assist_worker(
 
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
+
+    /* A bounded caller is at a transaction boundary, with nothing left to roll back. */
+    WT_ASSERT(session, !bounded || session->txn->mod_count == 0);
 
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
@@ -316,6 +319,12 @@ __wti_evict_app_assist_worker(
     /* Track how long application threads spend doing eviction. */
     if (!F_ISSET(session, WT_SESSION_INTERNAL))
         time_start = __wt_clock(session);
+
+    /*
+     * Time a bounded caller independently of the session's cache wait budget: that budget is shared
+     * with the rest of the enclosing API call and is not tracked at all for internal sessions.
+     */
+    uint64_t bound_start = bounded ? __wt_clock(session) : 0;
 
     /*
      * Note that this for loop is designed to reset expected eviction error codes before exiting,
@@ -354,6 +363,16 @@ __wti_evict_app_assist_worker(
             uint64_t time_stop = __wt_clock(session);
             if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
                 break;
+        }
+
+        /*
+         * A bounded caller stops assisting rather than waiting for the cache to recover. It cannot
+         * be rolled back to relieve the pressure, so this is the only thing that releases it.
+         */
+        if (bound_start != 0 &&
+          WT_CLOCKDIFF_US(__wt_clock(session), bound_start) > WTI_EVICT_BOUNDED_WAIT_US) {
+            WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
+            break;
         }
 
         /*

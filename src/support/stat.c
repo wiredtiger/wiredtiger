@@ -2125,6 +2125,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
+  "cache: application threads that stopped assisting eviction at their bounded wait",
   "cache: bytes allocated for updates",
   "cache: bytes allocated for updates from the ingest btrees",
   "cache: bytes allocated for updates from the stable btrees",
@@ -3246,6 +3247,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
+    stats->eviction_app_bounded_wait_exceeded = 0;
     /* not clearing cache_bytes_updates */
     /* not clearing cache_bytes_updates_ingest */
     /* not clearing cache_bytes_updates_stable */
@@ -4330,6 +4332,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
+    to->eviction_app_bounded_wait_exceeded +=
+      WT_STAT_CONN_READ(from, eviction_app_bounded_wait_exceeded);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
     to->cache_bytes_updates_ingest += WT_STAT_CONN_READ(from, cache_bytes_updates_ingest);
     to->cache_bytes_updates_stable += WT_STAT_CONN_READ(from, cache_bytes_updates_stable);
