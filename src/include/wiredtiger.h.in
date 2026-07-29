@@ -2772,10 +2772,14 @@ struct __wt_connection {
      * specified timestamp in tables configured with \c "log=(enabled=false)". Values must be
      * monotonically increasing.  The value must not be older than the current oldest timestamp.
      * See @ref timestamp_global_api., a string; default empty.}
-     * @config{step_down_timestamp, the cutover timestamp for a planned step-down of disaggregated
-     * storage: committed writes after this timestamp are directed to the ingest constituent and
-     * writes at or before it to the stable constituent.  Only valid on a leader., a string; default
-     * empty.}
+     * @config{step_down_timestamp, the timestamp that prepares for a planned step-down in
+     * disaggregated storage.  The application must ensure the timestamp is newer than every commit
+     * timestamp already allocated\, and that no new timestamp is allocated until this call returns.
+     * Once set\, write transactions that start after it is set are kept locally so their content
+     * survives the step-down\, and their commit timestamps must be after this timestamp; in-flight
+     * write transactions are rolled back for the application to retry.  Before stepping down\, the
+     * application must advance the stable timestamp to equal it and checkpoint at that boundary.
+     * Cannot be changed while set; only valid on a leader., a string; default empty.}
      * @configend
      * @errors
      */
@@ -4502,6 +4506,12 @@ const char *wiredtiger_repair(WT_CONNECTION *connection, const char *config)
  * with disaggregated storage.
  */
 #define	WT_CONFLICT_DISAGG	(-32014)
+/*!
+ * Write transaction straddled the step-down timestamp setting boundary.
+ * This sub-level error indicates that a transaction was rolled back because it
+ * was in flight when the step-down timestamp was set.
+ */
+#define	WT_STEP_DOWN	(-32015)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
@@ -9112,8 +9122,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_SET_TS_STABLE_DISAGG_EPOCH_UPD	2014
 /*! transaction: set timestamp stable updates */
 #define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		2015
-/*! transaction: set timestamp step down updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STEP_DOWN_UPD		2016
+/*! transaction: step-down timestamp is currently set */
+#define	WT_STAT_CONN_TXN_STEPDOWN_TS_SET		2016
 /*! transaction: transaction begins */
 #define	WT_STAT_CONN_TXN_BEGIN				2017
 /*!
@@ -9172,6 +9182,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_ROLLBACK			2038
 /*! transaction: update conflicts */
 #define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2039
+/*!
+ * transaction: write transactions rolled back for straddling the step-
+ * down timestamp setting boundary
+ */
+#define	WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN		2040
 
 /*!
  * @}
