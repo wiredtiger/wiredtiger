@@ -36,6 +36,7 @@ else()
         misc_tests/test_txn_config.cpp
         misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
+        misc_tests/test_verify_progress.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
