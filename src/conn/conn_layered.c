@@ -165,17 +165,15 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     stable_schema_epoch =
       __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
     /*
      * Use the legacy method only when this node was never in epoch world. Either a completed epoch
      * checkpoint or a live stable epoch means epoch-aware recovery is required.
      */
     if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE) {
-        __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (__layered_create_missing_stable_tables_legacy(session));
-    }
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
 
