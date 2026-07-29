@@ -46,6 +46,7 @@ BLKCACHE
 BLmpqRrSVv
 BOOL
 BSR
+BT
 BTREE
 BTree
 BUF
@@ -1906,6 +1907,7 @@ unredacts
 unreferenced
 unsetting
 unsized
+unsynchronised
 unterminated
 untyped
 unvisited
