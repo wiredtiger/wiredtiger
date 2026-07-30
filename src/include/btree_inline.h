@@ -667,14 +667,6 @@ __cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bo
 
     __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
     __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
-    if (is_disagg) {
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_ingest, size, "WT_CACHE.bytes_inmem_ingest");
-        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_stable, size, "WT_CACHE.bytes_inmem_stable");
-    }
     WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, size);
     if (track_updates && page->modify != NULL && !WT_PAGE_IS_INTERNAL(page))
         __wt_cache_page_byte_updates_decr(session, page, size);
