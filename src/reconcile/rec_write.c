@@ -2462,6 +2462,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     conn = S2C(session);
     btree = S2BT(session);
     page = r->page;
+
+    WT_ASSERT(session, r->ref != NULL);
+
     build_delta = false;
     skip_write = false;
 #ifdef HAVE_DIAGNOSTIC
