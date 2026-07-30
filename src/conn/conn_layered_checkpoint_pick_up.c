@@ -114,15 +114,10 @@ static int
 __disagg_replace_checkpoint(
   WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
 {
-    WT_CONFIG_ITEM v;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    size_t cut_off;
-
     *config_ret = NULL;
 
+    WT_CONFIG_ITEM v;
     WT_RET(__wt_config_getones(session, base, "checkpoint", &v));
-
     /*
      * A key with no value parses to a shared literal rather than a slice of base, leaving nothing
      * to splice over.
@@ -130,13 +125,12 @@ __disagg_replace_checkpoint(
     if (!WT_CONFIG_STRING_WITHIN_DEFAULT(v.str, base))
         WT_RET_MSG(session, EINVAL, "checkpoint key has no value to replace");
 
-    cut_off = WT_PTRDIFF(v.str, base);
+    WT_ITEM *tmp;
     WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 1, &tmp));
-    WT_ERR(__wt_buf_fmt(session, tmp, "%.*s%.*s%s", (int)cut_off, base, (int)new_ckpt->len,
-      new_ckpt->str, v.str + v.len));
-    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
-
-err:
+    int ret = __wt_buf_fmt(session, tmp, "%.*s%.*s%s", (int)WT_PTRDIFF(v.str, base), base,
+      (int)new_ckpt->len, new_ckpt->str, v.str + v.len);
+    if (ret == 0)
+        ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
