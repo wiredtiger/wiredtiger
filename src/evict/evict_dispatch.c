@@ -298,6 +298,12 @@ __wti_evict_app_assist_worker(
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
 
+    /*
+     * Time a bounded caller independently of the session's cache wait budget: that budget is shared
+     * with the rest of the enclosing API call and is not tracked at all for internal sessions.
+     */
+    uint64_t bound_start = bounded ? __wt_clock(session) : 0;
+
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
 
@@ -319,12 +325,6 @@ __wti_evict_app_assist_worker(
     /* Track how long application threads spend doing eviction. */
     if (!F_ISSET(session, WT_SESSION_INTERNAL))
         time_start = __wt_clock(session);
-
-    /*
-     * Time a bounded caller independently of the session's cache wait budget: that budget is shared
-     * with the rest of the enclosing API call and is not tracked at all for internal sessions.
-     */
-    uint64_t bound_start = bounded ? __wt_clock(session) : 0;
 
     /*
      * Note that this for loop is designed to reset expected eviction error codes before exiting,
