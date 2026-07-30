@@ -420,8 +420,8 @@ disagg_switch_roles(void)
         track("[role change] follower -> leader", 0ULL);
 
         /*
-         * Push stable past the follower phase's commits before stepping up else eviction wouldn't
-         * be able to reconcile pages holding updates newer than stable, so those pages would stay
+         * Push stable past the follower phase's commits before stepping up; otherwise eviction
+         * couldn't reconcile pages holding updates newer than stable, and those pages would stay
          * pinned in cache during step-up.
          */
         timestamp_sync_threads_commit_ts();
