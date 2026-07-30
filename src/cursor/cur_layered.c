@@ -3352,7 +3352,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
     WT_ITEM value;
-    bool ingest_modify_failed = false;
 
     WT_CLEAR(value);
 
@@ -3381,19 +3380,25 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         } else {
             /* FIXME-WT-18057: a modify may land in the tombstone namespace without re-encoding. */
             WT_ERR_NOTFOUND_OK(c_ingest->modify(c_ingest, entries, nentries), true);
-            if (ret != 0) {
-                /* The base may have been pruned from the ingest, retry via the full update path. */
-                ingest_modify_failed = true;
+            /*
+             * We already found the key in the ingest table and positioned the cursor on it, but if
+             * a checkpoint was picked up recently it's possible that the ingest page has since been
+             * pruned. If this has occurred, the key must now exist in the stable table, so a second
+             * lookup is guaranteed to locate it.
+             */
+            if (ret == WT_NOTFOUND) {
                 WT_ERR(__clayered_lookup(op, &value));
+                WT_ASSERT_ALWAYS(session, clayered->current_cursor != c_ingest,
+                  "after a failed ingest modify, the second lookup should land on the stable "
+                  "table");
             }
         }
     }
 
-    if (clayered->current_cursor != c_ingest || ingest_modify_failed) {
+    if (clayered->current_cursor != c_ingest) {
         /*
-         * Compute a full value and write it to the ingest table. Either the cursor is positioned on
-         * the stable table, or the raw modify missed and we re-read a fresh base (which may resolve
-         * from either table) so write the full value unconditionally rather than a raw modify.
+         * Cursor is positioned on the stable table. Compute a full value and write it to the ingest
+         * table.
          */
         c_ingest->set_key(c_ingest, &cursor->key);
         __clayered_deleted_decode(session, &value);
