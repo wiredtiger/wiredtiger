@@ -303,13 +303,6 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     /*
-     * Incremented on every role change. What the stable table is (an adopted checkpoint or the live
-     * btree) changes with the role, so a transactional snapshot established under one role cannot
-     * bind the stable table under another.
-     */
-    wt_shared uint64_t role_change_gen;
-
-    /*
      * The LSN of the newest checkpoint received, published before its adoption begins. A snapshot
      * established after a checkpoint's arrival may pin it even though the adoption has not
      * completed: arrival implies the checkpoint's content is already replayed into the ingest

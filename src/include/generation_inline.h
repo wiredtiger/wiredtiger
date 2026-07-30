@@ -21,6 +21,18 @@ __wt_gen(WT_SESSION_IMPL *session, int which)
 }
 
 /*
+ * __wt_gen_acquire --
+ *     Return the resource's generation with acquire ordering, for readers that must observe the
+ *     generation no older than another variable they loaded before it. The relaxed read above is
+ *     for the common protocol, whose ordering comes from the full barriers at its publish points.
+ */
+static WT_INLINE uint64_t
+__wt_gen_acquire(WT_SESSION_IMPL *session, int which)
+{
+    return (__wt_atomic_load_uint64_v_acquire(&S2C(session)->generations[which]));
+}
+
+/*
  * __wt_gen_next --
  *     Switch the resource to its next generation.
  */

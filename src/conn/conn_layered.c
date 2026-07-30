@@ -1043,7 +1043,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
-    (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
+    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
 
     /* A leader never adopts checkpoints: discard a pending deferred pickup. */
     __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
@@ -1166,7 +1166,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     /* Step down to the follower mode. */
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
-    (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
+    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     return (0);
 }
 
@@ -1368,7 +1368,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * resolve.
          */
         role_change_started = true;
-        (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
+        __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
 
         /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must

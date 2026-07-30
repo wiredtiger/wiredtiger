@@ -40,6 +40,8 @@ __gen_name(int which)
         return ("commit");
     case WT_GEN_HAS_CKPT_SNAPSHOT:
         return ("checkpoint-snapshot");
+    case WT_GEN_DISAGG_ROLE:
+        return ("disagg-role");
     default:
         break;
     }

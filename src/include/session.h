@@ -401,7 +401,8 @@ struct __wt_session_impl {
 #define WT_GEN_SPLIT 4             /* Page splits */
 #define WT_GEN_TXN_COMMIT 5        /* Commit generation */
 #define WT_GEN_HAS_CKPT_SNAPSHOT 6 /* Checkpoint snapshot for eviction visibility */
-#define WT_GENERATIONS 7           /* Total generation manager entries */
+#define WT_GEN_DISAGG_ROLE 7       /* Disaggregated role changes */
+#define WT_GENERATIONS 8           /* Total generation manager entries */
     wt_shared volatile uint64_t generations[WT_GENERATIONS];
 
     /*
