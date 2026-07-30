@@ -3265,6 +3265,11 @@ __clayered_modify_stable(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
     /* FIXME-WT-17933: this encodes into the stable table. */
     if (need_full_update) {
+        /*
+         * FIXME-WT-18216: If an error occurs before the full update completes, the intermediate
+         * unescaped update remains in the transaction's update chain. The transaction cannot
+         * commit, but subsequent operations can still observe the raw value before rollback.
+         */
         WT_ERR(__clayered_deleted_encode(session, &c_stable->value, &c_stable->value, &buf));
         __wt_clayered_stable_value_stat(session, c_stable->value.data, c_stable->value.size);
         F_SET(c_stable, WT_CURSTD_VALUE_EXT);
@@ -3344,6 +3349,11 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     }
 
     if (need_full_update) {
+        /*
+         * FIXME-WT-18216: If an error occurs before the full update completes, the intermediate
+         * unescaped update remains in the transaction's update chain. The transaction cannot
+         * commit, but subsequent operations can still observe the raw value before rollback.
+         */
         WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, &c_ingest->value, &buf));
         F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
         WT_ERR(c_ingest->update(c_ingest));
