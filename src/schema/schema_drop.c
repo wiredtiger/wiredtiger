@@ -143,6 +143,16 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
 
     WT_BTREE *btree = S2BT(session);
 
+    /*
+     * An unpublished table that still holds committed durable data keeps its only copy in memory,
+     * so the drop must wait until a checkpoint publishes it. A table with no such data is transient
+     * and drops normally.
+     */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+      __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+        WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
+          "the table has unpublished data and must be checkpointed before it can be dropped");
+
     if (btree->page_log == NULL)
         WT_ERR(ENOTSUP);
 
