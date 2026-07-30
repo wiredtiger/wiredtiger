@@ -17,6 +17,12 @@
 #define WTI_EVICT_WALK_INCR 100         /* Pages added each walk */
 
 /*
+ * The walk period doubles on every unproductive walk of a tree, so saturation means the tree has
+ * been unproductive for many consecutive walks.
+ */
+#define WTI_EVICT_WALK_PERIOD_MAX 100 /* Ceiling on walks skipped for one tree */
+
+/*
  * Cap the wait for callers that pin no transaction state: the stuck-cache escape cannot roll them
  * back, so an unbounded wait ends only when eviction succeeds, and blocking them can stop the
  * application from advancing the timestamps that would make the cache reclaimable.
