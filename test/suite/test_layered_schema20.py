@@ -122,6 +122,28 @@ class test_layered_schema20(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         conn_follower.close()
         self.assert_drop_succeeds()
 
+    def test_checkpoint_between_create_and_drop_epochs_keeps_data(self):
+        # Create and publish the table at schema epoch 5, then write committed data at timestamp 10.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 5)
+        self.write_rows(commit_ts=10)
+
+        # A later checkpoint at schema epoch 6 covers the create but not a drop published at epoch
+        # 7, so it must include the table with the timestamp-10 writes. Dropping the table now would
+        # discard those writes when the handle closes, so the drop is refused first.
+        self.assert_drop_refused()
+
+        # The checkpoint at schema epoch 6 and timestamp 11 includes the table and its data.
+        self.set_stable_epoch(6)
+        self.leader_checkpoint(11)
+        conn_follower, session_follower = self.open_follower()
+        self.assert_all_rows(session_follower)
+        session_follower.close()
+        conn_follower.close()
+
     def test_drop_empty_is_allowed(self):
         # An awaiting-publication table with no data is transient: nothing obligates a checkpoint,
         # so the drop is allowed.
