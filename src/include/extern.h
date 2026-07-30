@@ -9,7 +9,7 @@ extern WT_EXT *__wt_block_off_srch_inclusive(WT_EXTLIST *el, wt_off_t off)
 extern WT_HAZARD *__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_SESSION_IMPL **sessionp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_SHARED_METADATA_OP __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session,
-  const char *table_name) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const char *table_name, wt_timestamp_t *epochp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_block_disagg_manager_owns_object(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_block_extlist_can_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block,
@@ -61,6 +61,8 @@ extern bool __wti_rts_visibility_page_needs_abort(WT_SESSION_IMPL *session, WT_R
   wt_timestamp_t rollback_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wti_rts_visibility_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wti_verify_progress_due(WT_SESSION_IMPL *session, WT_TIMER *last_report,
+  uint64_t interval_ms) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_point_to_string(wt_timestamp_t durable_ts, wt_timestamp_t ts,
@@ -100,6 +102,8 @@ extern const char *__wt_verbose_category_string(WT_VERBOSE_CATEGORY category)
 extern const char *__wt_wiredtiger_error(int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wti_cell_type_string(uint8_t type)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern const char *__wti_disagg_shared_metadata_op_to_string(WT_SHARED_METADATA_OP op)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern double __wt_page_npos(WT_SESSION_IMPL *session, WT_REF *ref, double start, char *path_str,
   size_t *path_str_offsetp, size_t path_str_sz_max)
@@ -2386,6 +2390,8 @@ static WT_INLINE int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, W
   WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_search_check(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree,
   wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)

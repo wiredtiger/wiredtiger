@@ -106,7 +106,7 @@
 #define MIN_TIMESTAMP 2 /* Minimum timestamp */
 
 /* Capacity of the static push-mode key rotation history. */
-#define KEY_PUSH_HISTORY_MAX WT_THOUSAND
+#define KEY_PUSH_HISTORY_MAX 10 * WT_THOUSAND
 
 #include "format_config.h"
 extern CONFIG configuration_list[];
@@ -476,7 +476,7 @@ WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET follower(void *);
 WT_THREAD_RET disagg_key_rotation(void *);
-void disagg_key_push_initial(WT_CONNECTION *);
+void disagg_key_push_initial(WT_CONNECTION *, bool);
 void disagg_key_history_clear(void);
 void disagg_key_validate_after_checkpoint(WT_SESSION *);
 int follower_fetch_full_metadata(WT_SESSION *, WT_PAGE_LOG *, const WT_ITEM *, WT_ITEM *);

@@ -29,18 +29,20 @@
 # test_layered_stepup12.py
 #   Verify how schema operations on layered tables behave during a role transition, against both
 #   step-up (follower->leader) and step-down (leader->follower):
-#     - Operations that take only the schema lock (create, and drop with checkpoint_wait=false) can
-#       race the transition, so they hit the schema lock guard and abort the process.
-#     - Operations that take the checkpoint lock first (truncate, verify, and drop with
+#     - Schema ops that take only the schema lock (create, and drop with checkpoint_wait=false) can
+#       race the transition, so they hit the "ongoing role-transition" guard and abort the process.
+#     - Schema ops that take the checkpoint lock first (truncate, verify, and drop with
 #       checkpoint_wait=true) are serialized against the transition by that lock - it is held for
 #       the whole step up/down - so they never observe the transition and do not abort.
+#     - Opening a statistics cursor acquires the schema lock to open a data handle, but a handle
+#       open is not a schema operation, so it is allowed during a transition and must not abort.
 #
 #   Each scenario runs in a subprocess, so that the expected aborts are caught as a
 #   non-zero exit code without killing the test runner.
 #
 #   FIXME-WT-17880: Remove this test once we have asynchronous step-up/step-down.
 
-import signal, threading, time, wiredtiger, wttest
+import signal, threading, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -70,6 +72,8 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             dict(op='truncate',                                     expect_abort=False)),
         ('verify',
             dict(op='verify',                                       expect_abort=False)),
+        ('stat_cursor',
+            dict(op='stat_cursor',                                  expect_abort=False)),
     ]
     scenarios = make_scenarios(disagg_storages, transitions, ops)
 
@@ -99,25 +103,23 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
             meta = self.disagg_get_complete_checkpoint_meta(conn)
             self.assertIsNotNone(meta, 'expected a complete checkpoint from the leader')
             conn.reconfigure(f'disaggregated=(checkpoint_meta="{meta}")')
-            session.open_cursor(self.uri).close()
+            # Leave the handle unopened for the stat-cursor case so that opening the statistics
+            # cursor during the transition triggers a first-time handle open.
+            if self.op != 'stat_cursor':
+                session.open_cursor(self.uri).close()
 
         # Start the role transition in a background thread.
         t = threading.Thread(
             target=lambda: conn.reconfigure(f'disaggregated=(role={self.target_role})'),
             daemon=True)
 
-        def role_transition_in_progress():
-            stat_cursor = session.open_cursor('statistics:', None, None)
-            value = stat_cursor[wiredtiger.stat.conn.disagg_role_transition_in_progress][2]
-            stat_cursor.close()
-            return value != 0
+        transition_stat = wiredtiger.stat.conn.disagg_step_up_in_progress \
+            if self.target_role == 'leader' else wiredtiger.stat.conn.disagg_step_down_in_progress
 
         # Wait until the role transition has begun before initiating the schema op.
         t.start()
-        deadline = time.time() + 10
-        while not role_transition_in_progress():
-            self.assertLess(time.time(), deadline, 'role transition did not start')
-            time.sleep(0.01)
+        self.assertStatGreaterSoon(transition_stat, 0, session=session, timeout=10,
+            msg='role transition did not start')
 
         match self.op:
             case 'drop':
@@ -131,6 +133,9 @@ class test_layered_stepup12(wttest.WiredTigerTestCase, suite_subprocess):
                 session.truncate(self.uri, None, None, None)
             case 'verify':
                 session.verify(self.uri, None)
+            case 'stat_cursor':
+                session.open_cursor(
+                    'statistics:' + self.uri, None, 'statistics=(all)').close()
 
         t.join()
 

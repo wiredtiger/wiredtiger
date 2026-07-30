@@ -145,6 +145,10 @@ struct __wt_layered_table_manager {
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
     size_t entries_allocated_bytes;
 
+    /*
+     * FIXME-WT-18205: written on role reconfigure while other threads read it unsynchronised;
+     * convert to atomic accesses.
+     */
     bool leader;
 };
 
@@ -165,7 +169,7 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 3
+#define WT_DISAGG_CHECKPOINT_TURTLE_VERSION 4
 #define WT_DISAGG_CHECKPOINT_TURTLE_COMPATIBLE_VERSION 1
 
 /*
@@ -324,6 +328,13 @@ struct __wt_disaggregated_storage {
                                          /* Updates are protected by the checkpoint lock. */
 
     /*
+     * True when the newest picked-up checkpoint predates the write generation high-water mark in
+     * the checkpoint metadata; a node becoming leader must then derive the base write generation
+     * from its local metadata before its trees open for the role. Protected by the checkpoint lock.
+     */
+    bool base_write_gen_missing;
+
+    /*
      * Total size of all stable tables in the database, along with other components such as the KEK
      * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
      */
@@ -344,6 +355,7 @@ struct __wt_disaggregated_storage {
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
+#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -1041,8 +1053,21 @@ struct __wt_connection_impl {
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
 
-    /* Connection's base write generation. */
-    uint64_t base_write_gen;
+    /*
+     * Connection's base write generation. Set once at startup for local storage. Under
+     * disaggregated storage a follower also advances it at every checkpoint pickup, under the
+     * checkpoint lock, to stay past the generations of the checkpoints it adopts; see the open path
+     * for how that read is ordered against the update. Accessed with relaxed atomics because the
+     * follower mutates it at runtime; ordering comes from the checkpoint lock, not the atomic.
+     */
+    wt_shared uint64_t base_write_gen;
+
+    /*
+     * High-water mark of write generations used this run, seeded from the base write generation. A
+     * disaggregated leader persists this in the checkpoint metadata as the base write generation a
+     * follower must adopt to stay past the leader's generations.
+     */
+    wt_shared uint64_t max_write_gen;
 
     uint32_t stat_flags; /* Options declared in flags.py */
 

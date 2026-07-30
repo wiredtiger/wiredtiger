@@ -18,7 +18,8 @@ typedef struct {
     WT_ITEM *max_key;  /* Largest key */
     WT_ITEM *max_addr; /* Largest key page */
 
-    uint64_t fcnt; /* Progress counter */
+    uint64_t fcnt;           /* Progress counter */
+    WT_TIMER progress_timer; /* Last progress report time */
 
     /* Accumulated size of all blocks in this btree. */
     uint64_t total_block_size;
@@ -564,6 +565,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
 
+    /* Start the progress-report timer; progress is reported on a time interval, not per page. */
+    __wt_timer_start(session, &vs->progress_timer);
+
     /* Optionally dump specific block offsets. */
 #ifdef HAVE_DIAGNOSTIC
     WT_ERR(__verify_config_offsets(session, cfg, &quit, vs));
@@ -598,6 +602,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
     bm_start = true;
+
+    /*
+     * Announce the object being verified. Info-level verify messages are normally disabled in
+     * standalone WiredTiger, but MongoDB enables this category by default so the message appears in
+     * mongod logs without extra configuration.
+     */
+    __wt_verbose_info(session, WT_VERB_VERIFY, "verify: starting on %s", name);
 
     /*
      * Skip the history store explicit call if:
@@ -836,6 +847,23 @@ __tree_stack(WT_VSTUFF *vs)
 }
 
 /*
+ * __wti_verify_progress_due --
+ *     Return whether at least the reporting interval has elapsed since the last verify progress
+ *     report, restarting the timer when it has so the next interval is measured from now.
+ */
+bool
+__wti_verify_progress_due(WT_SESSION_IMPL *session, WT_TIMER *last_report, uint64_t interval_ms)
+{
+    uint64_t elapsed_ms;
+
+    __wt_timer_evaluate_ms(session, last_report, &elapsed_ms);
+    if (elapsed_ms < interval_ms)
+        return (false);
+    __wt_timer_start(session, last_report);
+    return (true);
+}
+
+/*
  * __verify_tree --
  *     Verify a tree, recursively descending through it in depth-first fashion. The page argument
  *     was physically verified (so we know it's correctly formed), and the in-memory version built.
@@ -906,9 +934,13 @@ __verify_tree(
      * we split page verification into a physical verification, which allows the in-memory version
      * of the page to be built, and then a subsequent logical verification which happens here.
      *
-     * Report progress occasionally.
+     * Report progress on a time interval rather than a page count, so a fast verify stays quiet and
+     * a long-running one emits a periodic heartbeat. The clock read is negligible next to the
+     * per-page verification work.
      */
-    if (__wt_counter_backoff(++vs->fcnt, 100))
+    ++vs->fcnt;
+    if (__wti_verify_progress_due(
+          session, &vs->progress_timer, (uint64_t)WT_PROGRESS_MSG_PERIOD * WT_THOUSAND))
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
 #ifdef HAVE_DIAGNOSTIC
@@ -1707,67 +1739,117 @@ __verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids, si
 }
 
 /*
+ * WT_VERIFY_PAGE_ID_LIST --
+ *     A list of page IDs found walking the btree.
+ */
+typedef struct {
+    uint64_t *ids;
+    size_t count;
+    size_t capacity_in_bytes;
+} WT_VERIFY_PAGE_ID_LIST;
+
+/*
+ * __verify_page_id_append --
+ *     Append a page ID to the given list, growing the list if necessary.
+ */
+static int
+__verify_page_id_append(WT_SESSION_IMPL *session, WT_VERIFY_PAGE_ID_LIST *list, uint64_t page_id)
+{
+    if (list->count == (list->capacity_in_bytes / sizeof(*list->ids)))
+        WT_RET(
+          __wt_realloc_def(session, &list->capacity_in_bytes, list->count * 2 + 10, &list->ids));
+
+    list->ids[list->count++] = page_id;
+    return (0);
+}
+
+/*
+ * __verify_page_discard_skip --
+ *     Tree walk callback. Skip fast-truncated pages, but record their page IDs.
+ */
+static int
+__verify_page_discard_skip(
+  WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
+{
+    WT_UNUSED(visible_all);
+
+    *skipp = false;
+    if (WT_REF_GET_STATE(ref) != WT_REF_DELETED)
+        return (0);
+    *skipp = true;
+
+    WT_ADDR_COPY addr;
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        /* Block already freed, no need to record it. */
+        return (0);
+
+    const uint8_t *p = addr.addr;
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_RET(__wt_block_disagg_addr_unpack(session, &p, addr.size, &cookie));
+
+    WT_VERIFY_PAGE_ID_LIST *list = context;
+    return (__verify_page_id_append(session, list, cookie.page_id));
+}
+
+/*
  * __verify_page_discard --
  *     Verify all live pages in disagg mode, ensuring that no pages were incorrectly discarded.
  */
 static int
 __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
-    WT_REF *ref = NULL;
-    uint64_t num_pages_found_in_btree = 0;
-    size_t capacity_in_bytes = 0;
-    uint64_t *page_ids = NULL;
-    int ret = 0;
+    WT_DECL_ITEM(item);
+    WT_DECL_RET;
+    WT_REF *ref;
+    WT_VERIFY_PAGE_ID_LIST list;
+    size_t num_pages_found_in_pali;
+    uint64_t checkpoint_lsn;
+
+    ref = NULL;
+    WT_CLEAR(list);
 
     /*
      * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
-     * time.
+     * time. Fast-truncated pages are collected by the skip function: their blocks are not discarded
+     * until their parent is reconciled, so PALI still holds them.
      */
-    while ((ret = (__wt_tree_walk(session, &ref, WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED))) == 0 &&
+    while ((ret = (__wt_tree_walk_custom_skip(session, &ref, __verify_page_discard_skip, &list,
+              WT_READ_SEE_DELETED | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED))) == 0 &&
       ref != NULL) {
         WT_PAGE *page = ref->page;
 
-        /*
-         * Use dynamically allocated array to track page IDs as we don't know the number of pages
-         *  here. Check if the array size needs to grow.
-         */
-        if (num_pages_found_in_btree == (capacity_in_bytes / sizeof(*page_ids))) {
-            uint64_t new_capacity_count = num_pages_found_in_btree * 2 + 10;
-            WT_RET(__wt_realloc_def(session, &capacity_in_bytes, new_capacity_count, &page_ids));
-        }
-
         if (page != NULL) {
             WT_ASSERT(session, page->disagg_info != NULL);
-            page_ids[num_pages_found_in_btree++] = page->disagg_info->block_meta.page_id;
+            /* Pages created in memory and never reconciled have no backing block. */
+            if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
+                WT_ERR(
+                  __verify_page_id_append(session, &list, page->disagg_info->block_meta.page_id));
         }
     }
 
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    checkpoint_lsn = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
+    if (checkpoint_lsn == WT_DISAGG_LSN_NONE)
+        /* FIXME-WT-18186: should probably be page log LSN max. */
+        checkpoint_lsn = INT_MAX;
 
     /*
-     * Track the number of pages found in the PALI walk. This value is tracked separately because
-     * WT_ITEM->size must match the allocated memory, while the actual number of pages found may be
-     * smaller than that allocation.
+     * Get page IDs from PALI. The number of pages is tracked separately because WT_ITEM->size must
+     * match the allocated memory, while the actual number of pages found may be smaller than that
+     * allocation.
      */
-    size_t num_pages_found_in_pali = 0;
-    uint64_t checkpoint_lsn;
-    checkpoint_lsn =
-      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE ?
-      INT_MAX :
-      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
-
-    WT_DECL_ITEM(item);
-    WT_RET(__wt_scr_alloc(session, num_pages_found_in_pali, &item));
-
+    num_pages_found_in_pali = 0;
+    WT_ERR(__wt_scr_alloc(session, 0, &item));
     WT_ASSERT(session, bm->get_page_ids != NULL);
-    /* Get page IDs from PALI. */
     WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_pali, checkpoint_lsn));
 
-    if ((uint64_t)num_pages_found_in_pali != num_pages_found_in_btree) {
+    if ((uint64_t)num_pages_found_in_pali != list.count) {
         __wt_verbose_error(session, WT_VERB_VERIFY,
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
-          " Btree walk %" PRIu64,
-          (uint64_t)num_pages_found_in_pali, num_pages_found_in_btree);
+          " Btree walk %" WT_SIZET_FMT,
+          (uint64_t)num_pages_found_in_pali, list.count);
         WT_TRET(EINVAL);
     }
 
@@ -1775,16 +1857,15 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      * Sort the btree walk array by page ID in ascending order to match the order used in the PALI
      * walk.
      */
-    __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
+    __wt_qsort(list.ids, list.count, sizeof(uint64_t), __verify_compare_page_id);
 
     WT_ERR_MSG_CHK(session,
-      __verify_compare_page_id_lists(session, page_ids, (size_t)num_pages_found_in_btree,
-        (const uint64_t *)item->data, num_pages_found_in_pali),
+      __verify_compare_page_id_lists(
+        session, list.ids, list.count, (const uint64_t *)item->data, num_pages_found_in_pali),
       "Page discard verification found mismatches");
 
 err:
-
-    __wt_free(session, page_ids);
+    __wt_free(session, list.ids);
     __wt_scr_free(session, &item);
 
     return (ret);

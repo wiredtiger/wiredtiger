@@ -321,31 +321,13 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Update the bytes in-memory to reflect the eviction. */
     __wt_cache_decr_check_uint64(
       session, &btree->bytes_inmem, btree_footprint, "WT_BTREE.bytes_inmem");
-    __wt_cache_decr_check_uint64(
-      session, &cache->bytes_inmem, memory_footprint, "WT_CACHE.bytes_inmem");
-    if (is_disagg) {
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_ingest, memory_footprint, "WT_CACHE.bytes_inmem_ingest");
-        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_inmem_stable, memory_footprint, "WT_CACHE.bytes_inmem_stable");
-    }
+    WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, memory_footprint);
 
     /* Update the bytes_internal value to reflect the eviction */
     if (WT_PAGE_IS_INTERNAL(page)) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_internal, btree_footprint, "WT_BTREE.bytes_internal");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_internal, memory_footprint, "WT_CACHE.bytes_internal");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_ingest,
-                  memory_footprint, "WT_CACHE.bytes_internal_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_stable,
-                  memory_footprint, "WT_CACHE.bytes_internal_stable");
-        }
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_internal, memory_footprint);
     }
 
     /* Update the cache's dirty-byte count. */
@@ -353,29 +335,11 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_PAGE_IS_INTERNAL(page)) {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_dirty_intl, modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
-            if (is_disagg) {
-                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_ingest,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_ingest");
-                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_stable,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_stable");
-            }
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_intl, modify->bytes_dirty);
         } else {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
-            __wt_cache_decr_check_uint64(
-              session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
-            if (is_disagg) {
-                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_ingest,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_ingest");
-                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_stable,
-                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_stable");
-            }
+            WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_dirty_leaf, modify->bytes_dirty);
         }
     }
 
@@ -383,16 +347,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (modify != NULL) {
         __wt_cache_decr_check_uint64(
           session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_updates, modify->bytes_updates, "WT_CACHE.bytes_updates");
-        if (is_disagg) {
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_ingest,
-                  modify->bytes_updates, "WT_CACHE.bytes_updates_ingest");
-            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_stable,
-                  modify->bytes_updates, "WT_CACHE.bytes_updates_stable");
-        }
+        WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_updates, modify->bytes_updates);
     }
 
     /* Update bytes and pages evicted. */
@@ -620,13 +575,16 @@ __wt_evict_needed(
         updates_needed = __wti_evict_updates_needed(session, &pct_updates);
 
         /*
-         * Temporary solution to not do updates and dirty eviction using application threads on
-         * followers or during step-up. Log an error and log an error if the cache is full of
-         * updates or dirty pages.
+         * Temporary solution: application threads skip update and dirty eviction on followers,
+         * during step-up, and on a leader with the step-down timestamp set. In these states the
+         * dirty content is mostly ingest pages that cannot be evicted until a drain or checkpoint
+         * releases them, so pressing application threads into dirty eviction would stall them on
+         * work that cannot succeed. Log a message if the cache fills with updates or dirty pages.
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
           (!conn->layered_table_manager.leader ||
-            F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
+            F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
+            __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)) {
             double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
             if (pct_updates > cache_full)
                 __wt_verbose_debug1(

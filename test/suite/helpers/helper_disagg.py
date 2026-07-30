@@ -818,7 +818,7 @@ class DisaggSchemaEpochMixin:
         session.close()
         return found
 
-    def uri_in_local_metadata(self, conn, uri):
+    def uri_stable_exists(self, conn, uri):
         """Return True if uri's stable constituent is present in conn's local metadata."""
         session = conn.open_session('')
         exists = True
@@ -830,6 +830,29 @@ class DisaggSchemaEpochMixin:
         session.close()
         return exists
 
+    def uri_in_local_metadata(self, conn, uri, leader=False):
+        """
+        Return True if uri is present in conn's local metadata.
+
+        On a follower, checks the ingest constituent. On a leader, checks both the ingest and
+        stable constituents.
+        """
+        tablename = uri[len('layered:'):]
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        if leader:
+            cursor.set_key('file:' + tablename + '.wt_ingest')
+            ingest_found = cursor.search() == 0
+            cursor.set_key('file:' + tablename + '.wt_stable')
+            stable_found = cursor.search() == 0
+            found = ingest_found and stable_found
+        else:
+            cursor.set_key('file:' + tablename + '.wt_ingest')
+            found = cursor.search() == 0
+        cursor.close()
+        session.close()
+        return found
+
     def open_follower(self):
         """Open a follower, pick up the latest leader checkpoint, and open a session on it."""
         conn = self.wiredtiger_open(
@@ -840,14 +863,20 @@ class DisaggSchemaEpochMixin:
         session = conn.open_session('')
         return conn, session
 
+    def open_follower_epoch(self, epoch=1):
+        """Open a follower already in epoch world (stable schema epoch set), ready to publish."""
+        conn, session = self.open_follower()
+        self.set_stable_epoch(epoch, conn)
+        return conn, session
+
 class DisaggSizeTestMixin:
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def get_checkpoint_size(self):
+    def get_checkpoint_size(self, uri=None):
         mc = self.session.open_cursor('metadata:')
-        mc.set_key(self.stable_uri)
+        mc.set_key(uri if uri is not None else self.stable_uri)
         self.assertEqual(mc.search(), 0)
         sizes = re.findall(r',size=(\d+),', mc.get_value())
         mc.close()
