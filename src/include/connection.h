@@ -217,6 +217,15 @@ struct __wt_disagg_pending_crypt_key {
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
 /*
+ * The checkpoint generation encoding of an LSN: the LSN plus one. The generation manager starts
+ * connection generations at one and reserves zero in a session slot for "not entered", so the
+ * initial generation is exactly the encoding of "no checkpoint" and a published pin of an
+ * un-delivered node covers nothing. A pin covers an LSN when its generation exceeds it, and a
+ * generation-active query at an LSN finds exactly the pins that do not cover it.
+ */
+#define WT_DISAGG_CKPT_GEN(lsn) ((lsn) + 1)
+
+/*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
  *      A relationship between the checkpoint order number and the history timestamp.
  */

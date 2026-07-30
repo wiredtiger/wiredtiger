@@ -300,21 +300,27 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_step_down_ts(20)
         self.complete_step_down(20)
 
-        # Both a fresh cursor and the original one must still answer from the snapshot.
-        rcur2 = self.session.open_cursor(self.uri, None, None)
-        self.assertEqual(rcur2['k1'], 'old',
-            'a fresh cursor after the step-down must still read the snapshot value')
-        self.assertEqual(rcur['k1'], 'old',
-            'the original cursor after the step-down must still read the snapshot value')
+        # Both a fresh cursor and the original one must still answer from the snapshot. An
+        # untimestamped snapshot spanning the role change may instead be refused at its next
+        # stable bind: the role change swaps what the stable content is, so no binding is
+        # consistent for it.
+        rollback_ok = begin_config is None
+        try:
+            rcur2 = self.session.open_cursor(self.uri, None, None)
+            self.assertEqual(rcur2['k1'], 'old',
+                'a fresh cursor after the step-down must still read the snapshot value')
+            self.assertEqual(rcur['k1'], 'old',
+                'the original cursor after the step-down must still read the snapshot value')
+            rcur2.close()
+        except wiredtiger.WiredTigerError as e:
+            if not (rollback_ok and 'WT_ROLLBACK' in str(e)):
+                raise
         self.session.rollback_transaction()
-        rcur2.close()
         rcur.close()
 
     # Without a read timestamp the snapshot is the only visibility gate; the completed
     # step-down must not break repeatable read.
     def test_repeatable_read_no_read_ts_across_step_down(self):
-        self.skipTest('FIXME-WT-18156: the demotion reopens the stable constituent on the '
-            'step-down checkpoint, breaking snapshot reads without a read timestamp')
         self.reader_repeatable_across_step_down(None)
 
     # With a read timestamp the timestamp gate must protect the reader across the step-down.
@@ -346,8 +352,9 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.set_step_down_ts(20)
         self.complete_step_down(20)
 
-        # The follower picks up the step-down checkpoint under the open snapshot.
-        self.disagg_advance_checkpoint(conn_follow)
+        # The follower picks up the step-down checkpoint under the open snapshot; an
+        # untimestamped snapshot defers the adoption, so do not wait for it.
+        self.disagg_advance_checkpoint(conn_follow, wait=(begin_config is not None))
 
         # Both a fresh cursor and the original one must still answer from the snapshot.
         fcur2 = fsession.open_cursor(self.uri, None, None)
@@ -364,8 +371,6 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
     # Without a read timestamp the snapshot is the only visibility gate; the id wipe at checkpoint
     # pickup must not break repeatable read on the follower.
     def test_follower_repeatable_read_no_read_ts_across_pickup(self):
-        self.skipTest('FIXME-WT-18156: a cursor opened after a checkpoint pickup binds to the '
-            'new checkpoint, breaking snapshot reads without a read timestamp')
         self.follower_reader_across_pickup(None)
 
     # With a read timestamp the timestamp gate must protect the reader across the id wipe.

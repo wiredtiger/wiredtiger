@@ -558,15 +558,14 @@ static WT_INLINE void
 __clayered_stable_bind_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
-    uint64_t conn_lsn, pinned_lsn;
+    uint64_t conn_lsn, pinned_gen;
 
     conn_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-    pinned_lsn = __wt_session_gen(session, WT_GEN_DISAGG_CKPT);
+    pinned_gen = __wt_session_gen(session, WT_GEN_DISAGG_CKPT);
 
     WT_ASSERT_ALWAYS(session,
-      conn_lsn == WT_DISAGG_LSN_NONE ||
-        (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn) ||
+      conn_lsn == WT_DISAGG_LSN_NONE || pinned_gen >= WT_DISAGG_CKPT_GEN(conn_lsn) ||
         __wt_gen(session, WT_GEN_DISAGG_ROLE) != __wt_session_gen(session, WT_GEN_DISAGG_ROLE),
       "a checkpoint pickup overtook an active transaction snapshot");
 }

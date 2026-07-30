@@ -953,7 +953,7 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, char **metap, uint64_t *lsnp)
      */
     selected = NULL;
     for (entry = disagg->deferred_ckpt_oldest; entry != NULL; entry = entry->newer) {
-        /* A pin, the covered LSN plus one, at or below the LSN means a snapshot predates it. */
+        /* A pin that does not cover the LSN means a snapshot predates it. */
         if (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, entry->lsn))
             break;
         selected = entry;
@@ -1540,8 +1540,8 @@ __wti_disagg_pick_up_checkpoint_meta(
             &disagg->pending_checkpoint_meta_lsn, pending_lsn, ckpt_meta.metadata_lsn))
             break;
     }
-    /* Advance the checkpoint generation snapshots pin: the covered LSN plus one. */
-    __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn + 1);
+    /* Advance the checkpoint generation snapshots pin. */
+    __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, WT_DISAGG_CKPT_GEN(ckpt_meta.metadata_lsn));
     /* Publish the delivered LSN as a statistic; the adopted LSN is published separately. */
     WT_STAT_CONN_SET(session, disagg_checkpoint_pending_lsn,
       (int64_t)__wt_atomic_load_uint64_relaxed(&disagg->pending_checkpoint_meta_lsn));
