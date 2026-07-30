@@ -415,7 +415,7 @@ done:
     __txn_sort_snapshot(session, n, current_id);
 
     if (record_disagg && !__txn_snapshot_validate_disagg(session, pinned_checkpoint_lsn)) {
-        WT_STAT_CONN_INCR(session, disagg_snapshot_pin_retry);
+        WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
         goto retry;
     }
 }

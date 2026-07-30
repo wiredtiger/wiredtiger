@@ -1042,8 +1042,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
-    __wt_atomic_store_uint64_release(&conn->disaggregated_storage.role_change_gen,
-      __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.role_change_gen) + 1);
+    (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
 
     /* A leader never adopts checkpoints: discard a pending deferred pickup. */
     __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
@@ -1166,8 +1165,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     /* Step down to the follower mode. */
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
-    __wt_atomic_store_uint64_release(&conn->disaggregated_storage.role_change_gen,
-      __wt_atomic_load_uint64_relaxed(&conn->disaggregated_storage.role_change_gen) + 1);
+    (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
     return (0);
 }
 

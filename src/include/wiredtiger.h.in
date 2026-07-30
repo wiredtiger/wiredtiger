@@ -7944,7 +7944,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! disagg: role leader */
 #define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1583
 /*! disagg: snapshots rebuilt after racing a checkpoint pick-up */
-#define	WT_STAT_CONN_DISAGG_SNAPSHOT_PIN_RETRY		1584
+#define	WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD		1584
 /*! disagg: step down in progress */
 #define	WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS	1585
 /*! disagg: step down most recent time (msecs) */

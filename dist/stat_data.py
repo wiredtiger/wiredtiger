@@ -620,7 +620,7 @@ conn_stats = [
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
     DisaggStat('disagg_role_leader', 'role leader'),
-    DisaggStat('disagg_snapshot_pin_retry', 'snapshots rebuilt after racing a checkpoint pick-up'),
+    DisaggStat('disagg_snapshot_rebuild', 'snapshots rebuilt after racing a checkpoint pick-up'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
