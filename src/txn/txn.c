@@ -324,8 +324,11 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 
 retry:
     n = 0;
-    if (record_disagg)
+    if (record_disagg) {
         pinned_checkpoint_lsn = __txn_snapshot_record_disagg(session);
+        /* Widen the window between recording the pin and building the snapshot. */
+        WT_DIAGNOSTIC_YIELD;
+    }
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
@@ -414,9 +417,18 @@ done:
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
 
-    if (record_disagg && !__txn_snapshot_validate_disagg(session, pinned_checkpoint_lsn)) {
-        WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
-        goto retry;
+    if (record_disagg) {
+        /* Widen the window a delivery during the build must be caught in. */
+        WT_DIAGNOSTIC_YIELD;
+        if (!__txn_snapshot_validate_disagg(session, pinned_checkpoint_lsn)) {
+            WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
+            goto retry;
+        }
+        /*
+         * Widen the window between the validation passing and the snapshot's first use: a delivery
+         * landing here must observe the published pin and defer its adoption.
+         */
+        WT_DIAGNOSTIC_YIELD;
     }
 }
 
