@@ -45,6 +45,8 @@ class test_txn33(error_info_util):
     value_size = 4 * 1024
     max_inserts = 4000
 
+    # FIXME-WT-15058
+    @wttest.skip_for_hook("disagg", "Fails due to incorrect cursor logic.")
     def test_txn_too_large_for_cache(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
         cursor = self.session.open_cursor(self.uri)
