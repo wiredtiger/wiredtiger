@@ -859,18 +859,6 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 }
 
 /*
- * __disagg_snapshot_predates_lsn --
- *     Return whether any active transactional snapshot without a read timestamp predates the given
- *     checkpoint LSN. A snapshot's pin is its published checkpoint generation, the covered LSN plus
- *     one, so a pin at or below the LSN predates it.
- */
-static bool
-__disagg_snapshot_predates_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
-{
-    return (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, lsn));
-}
-
-/*
  * __disagg_defer_checkpoint --
  *     Remember a checkpoint whose adoption is deferred while transactional snapshots that predate
  *     it are active. The queue has its own lock, so deliveries never wait behind an adoption.
@@ -965,7 +953,8 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, char **metap, uint64_t *lsnp)
      */
     selected = NULL;
     for (entry = disagg->deferred_ckpt_oldest; entry != NULL; entry = entry->newer) {
-        if (__disagg_snapshot_predates_lsn(session, entry->lsn))
+        /* A pin, the covered LSN plus one, at or below the LSN means a snapshot predates it. */
+        if (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, entry->lsn))
             break;
         selected = entry;
     }
@@ -1564,7 +1553,7 @@ __wti_disagg_pick_up_checkpoint_meta(
      */
     if (!force &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
-      __disagg_snapshot_predates_lsn(session, ckpt_meta.metadata_lsn)) {
+      __wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
         WT_ERR(__disagg_defer_checkpoint(session, meta_str, ckpt_meta.metadata_lsn, &deferred));
         WT_ASSERT(session, deferred);
         WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
