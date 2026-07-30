@@ -24,7 +24,7 @@
 static bool
 generator_running(WORKLOAD_STATE *state)
 {
-    return (!__wt_atomic_load_bool_acquire(&state->generator_stop) && workload_running(state));
+    return (!__wt_atomic_load_bool(&state->generator_stop) && workload_running(state));
 }
 
 /*
@@ -61,7 +61,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
     const bool is_create = !state->table_exists[t][slot];
     /* A clean table (commit timestamp 0) is droppable at once; a dirty one waits for coverage. */
     if (!is_create && state->table_commit_ts[t][slot] != 0 &&
-      state->table_commit_ts[t][slot] > __wt_atomic_load_uint64_acquire(&state->ckpt_covered_ts))
+      state->table_commit_ts[t][slot] > __wt_atomic_load_uint64(&state->ckpt_covered_ts))
         return (false);
     state->table_exists[t][slot] = is_create;
 
@@ -96,7 +96,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
 static bool
 generator_round(WORKLOAD_STATE *state, uint64_t lead_max)
 {
-    if (state->emitted - __wt_atomic_load_uint64_acquire(&state->applied) > lead_max)
+    if (state->emitted - __wt_atomic_load_uint64(&state->applied) > lead_max)
         return (false);
 
     bool emitted = false;
@@ -198,7 +198,7 @@ thread_generator_run(void *arg)
             /* The stream's last event, carrying the counter the next leader continues from. */
             SCHEMA_EVENT ev = {0};
             ev.type = EVENT_SWITCH;
-            ev.event_ts = __wt_atomic_load_uint64_acquire(&state->current_ts);
+            ev.event_ts = __wt_atomic_load_uint64(&state->current_ts);
             generator_emit(state, &ev);
             break;
         }
@@ -233,7 +233,7 @@ node_generator_stop(WORKLOAD_STATE *state)
 {
     if (!generator_started)
         return;
-    __wt_atomic_store_bool_release(&state->generator_stop, true);
+    __wt_atomic_store_bool(&state->generator_stop, true);
     testutil_check(__wt_thread_join(NULL, &generator_thr));
     generator_started = false;
 }

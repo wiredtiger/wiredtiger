@@ -26,12 +26,6 @@ typedef struct {
     uint32_t key_max;
     bool is_create;
     bool valid;
-    /*
-     * FIXME-WT-18099: A create or drop above the recovered epoch churns the reused URI. After
-     * recovery the slot no longer matches its durable state, so a dropped table can reappear or a
-     * durable create can read back empty. Skip verifying it.
-     */
-    bool churned_past_durable;
     char uri[64]; /* filled when valid, so the checks need not rebuild it */
 } SLOT_STATE;
 
@@ -107,10 +101,8 @@ parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t dura
             continue;
         if (!parse_record_uri(rec_uri, node, t, pool_size, &s))
             continue;
-        if (entry_epoch > durable_epoch) {
-            states[s].churned_past_durable = true;
+        if (entry_epoch > durable_epoch)
             continue;
-        }
         if (entry_epoch > states[s].epoch) {
             states[s].epoch = entry_epoch;
             states[s].commit_ts = DATA_COMMIT_TS_NONE;
@@ -125,15 +117,12 @@ parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t dura
 /*
  * check_schema_presence --
  *     For each slot with a durable record, assert that a table whose last operation was a create
- *     still exists and one whose last operation was a drop is absent. Returns the number of slots
- *     skipped for FIXME-WT-18099.
+ *     still exists and one whose last operation was a drop is absent.
  */
-static uint32_t
+static void
 check_schema_presence(
   WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uint32_t pool_size)
 {
-    uint32_t skipped = 0;
-
     /* Validate presence against the metadata entry rather than instantiating each table. */
     WT_CURSOR *md_cursor;
     testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &md_cursor));
@@ -141,12 +130,6 @@ check_schema_presence(
     for (uint32_t s = 0; s < pool_size; s++) {
         if (!states[s].valid)
             continue;
-
-        /* FIXME-WT-18099: A create above the recovered epoch resurrects a dropped table. */
-        if (!states[s].is_create && states[s].churned_past_durable) {
-            ++skipped;
-            continue;
-        }
 
         md_cursor->set_key(md_cursor, states[s].uri);
         const int ret = md_cursor->search(md_cursor);
@@ -161,7 +144,6 @@ check_schema_presence(
     }
 
     testutil_check(md_cursor->close(md_cursor));
-    return (skipped);
 }
 
 /*
@@ -169,14 +151,12 @@ check_schema_presence(
  *     For each slot whose last checkpointed operation was a CREATE and whose data commit timestamp
  *     is at or below the last checkpoint timestamp, confirm the recorded key range is present.
  *     Slots with no durable insert record, or whose data commit timestamp exceeds last_ckpt_ts, are
- *     skipped. Returns the number of slots skipped for FIXME-WT-18099.
+ *     skipped.
  */
-static uint32_t
+static void
 check_data_rows(WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uint32_t pool_size,
   uint64_t last_ckpt_ts)
 {
-    uint32_t skipped = 0;
-
     for (uint32_t s = 0; s < pool_size; s++) {
         if (!states[s].valid || !states[s].is_create)
             continue;
@@ -184,13 +164,6 @@ check_data_rows(WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uin
             continue;
         if (last_ckpt_ts > 0 && states[s].commit_ts > last_ckpt_ts)
             continue;
-
-        /* FIXME-WT-18099: The URI was churned above the recovered epoch, so its data is
-         * unreliable. */
-        if (states[s].churned_past_durable) {
-            ++skipped;
-            continue;
-        }
 
         WT_CURSOR *cursor;
         testutil_check(session->open_cursor(session, states[s].uri, NULL, NULL, &cursor));
@@ -214,7 +187,6 @@ check_data_rows(WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uin
         }
         testutil_check(cursor->close(cursor));
     }
-    return (skipped);
 }
 
 /*
@@ -244,7 +216,6 @@ verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
     WT_SESSION *session;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    uint32_t data_skipped = 0, presence_skipped = 0;
     for (uint32_t n = 0; n < MAX_NODES; n++)
         for (uint32_t t = 0; t < cfg->nth; t++) {
             char fname[128];
@@ -260,14 +231,9 @@ verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
 
             SLOT_STATE states[MAX_POOL_SIZE];
             parse_schema_records(fname, n, t, durable_epoch, states, cfg->pool_size);
-            presence_skipped += check_schema_presence(session, states, cfg->pool_size);
-            data_skipped += check_data_rows(session, states, cfg->pool_size, last_ckpt_ts);
+            check_schema_presence(session, states, cfg->pool_size);
+            check_data_rows(session, states, cfg->pool_size, last_ckpt_ts);
         }
-
-    /* Surface how much coverage the pick-up gap costs this run. */
-    println("Schema verify: skipped %" PRIu32 " presence and %" PRIu32
-            " data checks for churned-above-epoch slots (FIXME-WT-18099)",
-      presence_skipped, data_skipped);
 
     testutil_check(session->close(session, NULL));
 }

@@ -166,7 +166,7 @@ worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
 {
     workload_counter_advance(state, value);
     (void)__wt_atomic_add_uint64(&state->applied, 1);
-    __wt_atomic_store_uint64_release(&state->workers[thread_index].completed_ts, value);
+    __wt_atomic_store_uint64(&state->workers[thread_index].completed_ts, value);
 }
 
 /*
@@ -227,12 +227,12 @@ worker_apply_loop(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index)
 
     while (workload_running(state) || !workload_queue_empty(state, thread_index)) {
         /* Publish busy before checking the queue so the drain barrier never races an apply. */
-        __wt_atomic_store_bool_release(busyp, true);
+        __wt_atomic_store_bool(busyp, true);
         SCHEMA_EVENT ev;
         const bool popped = workload_dequeue(state, thread_index, &ev);
         if (popped)
             apply_event(state, ctx, thread_index, &ev);
-        __wt_atomic_store_bool_release(busyp, false);
+        __wt_atomic_store_bool(busyp, false);
         if (!popped)
             __wt_sleep(0, WT_THOUSAND);
     }

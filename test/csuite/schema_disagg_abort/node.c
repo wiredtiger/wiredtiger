@@ -57,7 +57,7 @@ workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
 {
     uint64_t cur;
     do {
-        cur = __wt_atomic_load_uint64_acquire(&state->current_ts);
+        cur = __wt_atomic_load_uint64(&state->current_ts);
     } while (cur < v && !__wt_atomic_cas_uint64(&state->current_ts, cur, v));
 }
 
@@ -68,7 +68,7 @@ workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
 bool
 workload_running(WORKLOAD_STATE *state)
 {
-    return (!__wt_atomic_load_bool_acquire(&state->stop_phase));
+    return (!__wt_atomic_load_bool(&state->stop_phase));
 }
 
 /*
@@ -138,7 +138,7 @@ static NODE_TRIGGER
 node_trigger_wait(WORKLOAD_STATE *state)
 {
     while (!node_stop_requested()) {
-        if (__wt_atomic_load_bool_acquire(&state->handover_received))
+        if (__wt_atomic_load_bool(&state->handover_received))
             return (TRIGGER_SWITCH);
 
         const bool abandoned_follower = !state->generates && !state->cfg->peer_alive;
@@ -182,10 +182,10 @@ static bool
 evq_push(EVENT_QUEUE *q, const SCHEMA_EVENT *ev)
 {
     const uint64_t tail = q->tail; /* single producer */
-    if (tail - __wt_atomic_load_uint64_acquire(&q->head) >= EVQ_SIZE)
+    if (tail - __wt_atomic_load_uint64(&q->head) >= EVQ_SIZE)
         return (false);
     q->ev[tail % EVQ_SIZE] = *ev;
-    __wt_atomic_store_uint64_release(&q->tail, tail + 1);
+    __wt_atomic_store_uint64(&q->tail, tail + 1);
     return (true);
 }
 
@@ -197,10 +197,10 @@ static bool
 evq_pop(EVENT_QUEUE *q, SCHEMA_EVENT *ev)
 {
     const uint64_t head = q->head; /* single consumer */
-    if (head == __wt_atomic_load_uint64_acquire(&q->tail))
+    if (head == __wt_atomic_load_uint64(&q->tail))
         return (false);
     *ev = q->ev[head % EVQ_SIZE];
-    __wt_atomic_store_uint64_release(&q->head, head + 1);
+    __wt_atomic_store_uint64(&q->head, head + 1);
     return (true);
 }
 
@@ -211,7 +211,7 @@ evq_pop(EVENT_QUEUE *q, SCHEMA_EVENT *ev)
 static bool
 evq_empty(EVENT_QUEUE *q)
 {
-    return (__wt_atomic_load_uint64_acquire(&q->head) == __wt_atomic_load_uint64_acquire(&q->tail));
+    return (__wt_atomic_load_uint64(&q->head) == __wt_atomic_load_uint64(&q->tail));
 }
 
 /*
@@ -261,8 +261,8 @@ void
 workload_drain_barrier(WORKLOAD_STATE *state)
 {
     for (uint32_t t = 0; t < state->nth_workers; t++)
-        while ((!evq_empty(&state->workers[t].evq) ||
-                 __wt_atomic_load_bool_acquire(&state->workers[t].busy)) &&
+        while (
+          (!evq_empty(&state->workers[t].evq) || __wt_atomic_load_bool(&state->workers[t].busy)) &&
           workload_running(state))
             __wt_sleep(0, WT_THOUSAND);
 }
@@ -278,7 +278,7 @@ workers_min(WORKLOAD_STATE *state)
 {
     uint64_t min_val = UINT64_MAX;
     for (uint32_t i = 0; i < state->nth_workers; i++) {
-        const uint64_t val = __wt_atomic_load_uint64_acquire(&state->workers[i].completed_ts);
+        const uint64_t val = __wt_atomic_load_uint64(&state->workers[i].completed_ts);
         if (val == 0)
             return (0);
         if (val < min_val)
@@ -318,7 +318,7 @@ thread_ts_run(void *arg)
         }
 
         const uint64_t durable_epoch = query_ts(state->conn, "last_disaggregated_schema_epoch");
-        __wt_atomic_store_uint64_release(&state->ckpt_covered_ts, durable_epoch);
+        __wt_atomic_store_uint64(&state->ckpt_covered_ts, durable_epoch);
 
         __wt_sleep(0, 100 * WT_THOUSAND);
     }
@@ -395,7 +395,7 @@ workload_stop(WORKLOAD_STATE *state)
     node_generator_stop(state);
     node_reader_stop(state);
 
-    __wt_atomic_store_bool_release(&state->stop_phase, true);
+    __wt_atomic_store_bool(&state->stop_phase, true);
     node_workers_join(state);
     testutil_check(__wt_thread_join(NULL, &ts_thr));
 }

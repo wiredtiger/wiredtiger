@@ -52,7 +52,7 @@ thread_reader_run(void *arg)
 
     SCHEMA_EVENT ev;
     bool running = true;
-    while (running && !__wt_atomic_load_bool_acquire(&state->reader_stop)) {
+    while (running && !__wt_atomic_load_bool(&state->reader_stop)) {
         if (!pipe_wait_readable(src_fd))
             continue;
         if (!pipe_event_read(src_fd, &ev)) {
@@ -81,10 +81,10 @@ thread_reader_run(void *arg)
              * Every counter value the term allocated rides an event that precedes the switch in the
              * stream, so after the drain nothing may be missing.
              */
-            testutil_assertfmt(__wt_atomic_load_uint64_acquire(&state->current_ts) == ev.event_ts,
+            testutil_assertfmt(__wt_atomic_load_uint64(&state->current_ts) == ev.event_ts,
               "hand-over: drained counter %" PRIu64 " != sender's final counter %" PRIu64,
-              __wt_atomic_load_uint64_acquire(&state->current_ts), ev.event_ts);
-            __wt_atomic_store_bool_release(&state->handover_received, true);
+              __wt_atomic_load_uint64(&state->current_ts), ev.event_ts);
+            __wt_atomic_store_bool(&state->handover_received, true);
             running = false;
             break;
         }
@@ -123,7 +123,7 @@ node_reader_stop(WORKLOAD_STATE *state)
 {
     if (!reader_started)
         return;
-    __wt_atomic_store_bool_release(&state->reader_stop, true);
+    __wt_atomic_store_bool(&state->reader_stop, true);
     testutil_check(__wt_thread_join(NULL, &reader_thr));
     reader_started = false;
 }
