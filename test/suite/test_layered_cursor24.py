@@ -53,13 +53,13 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
         super().setUp()
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.conn_follow = self.wiredtiger_open('follower',
-            self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="follower",checkpoint_deferral=false)')
+            self.extensionsConfig() + ',create,statistics=(all),disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')
         self.session_follow.create(self.uri, 'key_format=i,value_format=S')
 
     # Write a key on the leader at the given timestamp, checkpoint, and pull it into the follower's
     # stable constituent. Each call publishes a new checkpoint for the follower to pick up.
-    def write_stable(self, key, value, ts):
+    def write_stable(self, key, value, ts, wait=True):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cursor[key] = value
@@ -67,7 +67,7 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
         cursor.close()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow)
+        self.disagg_advance_checkpoint(self.conn_follow, wait=wait)
 
     # The running count of stable btree reopens on the follower.
     def reopen_stable_count(self):
@@ -77,8 +77,11 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
         return number
 
     def test_reopen_stable_allowed_with_read_timestamp(self):
-        # Seed the key into the stable constituent and position a follower cursor on it.
+        # Seed the key into the stable constituent and position a follower cursor on it inside a
+        # transaction pinned to read_timestamp=1: a timestamped reader does not defer the adoption
+        # of the checkpoint published underneath it.
         self.write_stable(1, 'v1', 1)
+        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(1))
         cursor = self.session_follow.open_cursor(self.uri)
         cursor.set_key(1)
         self.assertEqual(cursor.search(), 0)
@@ -87,11 +90,10 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
         # now be possible.
         self.write_stable(2, 'v2', 2)
 
-        # The update runs inside a transaction pinned to read_timestamp=1. Because a read timestamp
-        # is set, the stable cursor is allowed to reopen to the newer checkpoint  the version
-        # pinned by the read timestamp is still present there. Expect exactly one stable reopen.
+        # Because a read timestamp is set, the stable cursor is allowed to reopen to the newer
+        # checkpoint  the version pinned by the read timestamp is still present there. Expect
+        # exactly one stable reopen.
         before = self.reopen_stable_count()
-        self.session_follow.begin_transaction('read_timestamp=' + self.timestamp_str(1))
         cursor.set_value('v3')
         self.assertEqual(cursor.update(), 0)
         self.session_follow.commit_transaction('commit_timestamp=' + self.timestamp_str(3))

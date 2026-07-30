@@ -1363,10 +1363,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * refuses, at their next stable bind, the snapshots whose pins the forced adoption is about
          * to adopt over. Those snapshots span the role change and are refused regardless; refusing
          * them from here on is what lets binds resolve the checkpoint name without the checkpoint
-         * lock while deferral is enabled. Snapshots established after this point pin the pending
-         * checkpoint, so the adoption is consistent for them. Role transitions are serialized by
-         * reconfigure, so the increment needs no lock; binds racing it are refused by re-checking
-         * the generation after they resolve.
+         * lock. Snapshots established after this point pin the pending checkpoint, so the adoption
+         * is consistent for them. Role transitions are serialized by reconfigure, so the increment
+         * needs no lock; binds racing it are refused by re-checking the generation after they
+         * resolve.
          */
         role_change_started = true;
         (void)__wt_atomic_add_uint64(&conn->disaggregated_storage.role_change_gen, 1);
@@ -1405,9 +1405,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
 
-        /* A follower with deferral configured needs the deferred pickup server again. */
-        if (conn->disaggregated_storage.checkpoint_deferral)
-            WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
+        /* A follower needs the deferred pickup server again. */
+        WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
 
         WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -1418,12 +1417,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     if (reconfig)
         goto err;
-
-    /* Get the checkpoint deferral setting. */
-    WT_ERR_NOTFOUND_OK(
-      __wt_config_gets(session, cfg, "disaggregated.checkpoint_deferral", &cval), true);
-    if (ret == 0)
-        conn->disaggregated_storage.checkpoint_deferral = cval.val != 0;
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -1546,8 +1539,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         if (cval.len > 0 && cval.val >= 0)
             conn->layered_drain_data.thread_count = (uint32_t)cval.val;
 
-        /* A follower with deferral configured gets a server adopting deferred checkpoints. */
-        if (!leader && conn->disaggregated_storage.checkpoint_deferral)
+        /* A follower gets a server adopting deferred checkpoints. */
+        if (!leader)
             WT_ERR(__wti_disagg_deferred_pickup_server_create(session));
     }
 

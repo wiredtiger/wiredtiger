@@ -122,10 +122,8 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def follower_config(self):
-        # Disable checkpoint deferral: the survive scenarios assert the refusal a racing pickup
-        # causes, which deferral is designed to avoid.
         return self.extensionsConfig() + self.conn_base_config + \
-            'disaggregated=(role="follower",checkpoint_deferral=false)'
+            'disaggregated=(role="follower")'
 
     def insert_keys(self, session, nkeys, ts):
         cursor = session.open_cursor(self.uri)
@@ -172,7 +170,9 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        # The survive scenario keeps its transaction open across the pickup, deferring the
+        # adoption, so there is nothing to wait for.
+        self.disagg_advance_checkpoint(conn_follow, wait=(self.txn_mode != 'survive'))
 
         if self.txn_mode != 'survive':
             session_follow.begin_transaction()
@@ -189,16 +189,12 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
             opens_stable = 0
 
         # After the checkpoint arrives, repeat the same operation. A transaction that survived the
-        # pickup has a snapshot that predates it, so an operation that would open the stable table
-        # is refused with WT_ROLLBACK instead of binding the new checkpoint.
-        if self.txn_mode == 'survive' and opens_stable:
-            try:
-                self.do_op(cursor_follow)
-                self.fail('an operation binding the new checkpoint was not refused')
-            except wiredtiger.WiredTigerError as e:
-                self.assertTrue('WT_ROLLBACK' in str(e))
+        # pickup has a snapshot that predates it, so the adoption is deferred while it runs: the
+        # operation keeps reading the ingest content and finds no stable checkpoint to bind.
+        if self.txn_mode == 'survive':
+            self.do_op(cursor_follow)
             session_follow.rollback_transaction()
-            opens_stable = False
+            opens_stable = 0
         else:
             self.do_op(cursor_follow)
             self.end_txn(session_follow)

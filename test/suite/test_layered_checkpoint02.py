@@ -130,7 +130,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
             self.session.create(uri, cfg)
 
         # Create the follower
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower",checkpoint_deferral=false)')
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
         self.session_follow = session_follow   # Useful for convenience functions
@@ -176,8 +176,8 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
         self.close_cursors(follower_cursors)
+        self.disagg_advance_checkpoint(conn_follow)
         follower_cursors = self.check_data_follower(value_prefix2)
         # keep the follower cursors
 
@@ -191,9 +191,10 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
-        # Check data in the follower after a reset
-        self.disagg_advance_checkpoint(conn_follow)
+        # Check data in the follower after a reset. Reset first: the positioned cursors' snapshots
+        # would defer the adoption.
         self.reset_cursors(follower_cursors)
+        self.disagg_advance_checkpoint(conn_follow)
         follower_cursors = self.check_data_follower(value_prefix3, cursors=follower_cursors)
 
         #
@@ -213,7 +214,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.put_data(value_prefix4)
 
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
 
         # Check the continuation of each scan in the follower. Pure cursor scans should be insulated from state changes.
         #
@@ -222,8 +223,10 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         # that reopens those cursors, thus losing their position.
         follower_cursors = self.scan_data_follower(value_prefix3, first_read, self.nitems, cursors=follower_cursors, uris=self.layered_uris)
 
-        # Now check that after closing, we get the new value
+        # Now check that after closing, we get the new value; closing the cursors ends the
+        # snapshots deferring the adoption.
         self.close_cursors(follower_cursors)
+        self.disagg_await_checkpoint_adoption(conn_follow)
         follower_cursors = self.scan_data_follower(value_prefix4, uris=self.layered_uris)
 
         #
@@ -236,7 +239,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.put_data(value_prefix5)
 
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
 
         # Reset cursors before stepping up -- positioned cursors across a role change are illegal.
         self.reset_cursors(follower_cursors)
@@ -284,7 +287,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         #
 
         # Make sure that the follower is a follower again.
-        conn_follow.reconfigure('disaggregated=(role="follower",checkpoint_deferral=false)')
+        conn_follow.reconfigure('disaggregated=(role="follower")')
 
         # Pick up a non-existent checkpoint
         l = lambda: conn_follow.reconfigure('disaggregated=(checkpoint_meta="test")')

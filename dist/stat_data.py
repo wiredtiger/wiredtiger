@@ -612,6 +612,8 @@ conn_stats = [
     DisaggStat('disagg_abandon_checkpoint_succeed', 'abandon checkpoints succeeded'),
     DisaggStat('disagg_apply_checkpoint_meta_time', 'apply checkpoint metadata most recent time (msecs)'),
     DisaggStat('disagg_checkpoint_defer', 'checkpoint pick-ups deferred for active transaction snapshots'),
+    DisaggStat('disagg_checkpoint_meta_lsn', 'most recently adopted checkpoint metadata LSN', 'no_clear,no_scale'),
+    DisaggStat('disagg_checkpoint_pending_lsn', 'most recently delivered checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_conn_reconfig', 'connection reconfiguration'),
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),

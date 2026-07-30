@@ -321,13 +321,11 @@ struct __wt_disaggregated_storage {
      * Checkpoints whose adoption is deferred while transactional snapshots that predate them are
      * active, oldest first. Keeping every checkpoint not yet adopted lets the node adopt
      * incrementally up to the newest one no active snapshot predates, so a reader only ever blocks
-     * the checkpoints newer than its own snapshot. Protected by the checkpoint lock; the timeout is
-     * set at configuration time.
+     * the checkpoints newer than its own snapshot.
      */
     WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
     WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_oldest;
     WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_newest;
-    bool checkpoint_deferral;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until

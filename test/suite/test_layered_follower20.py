@@ -56,7 +56,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         # Deferral on: every adoption in this test comes from blocking
         # transactions finishing.
         return self.extensionsConfig() + self.conn_base_config + \
-            'disaggregated=(role="follower",checkpoint_deferral=true)'
+            'disaggregated=(role="follower")'
 
     def put(self, session, uri, kv, ts):
         cursor = session.open_cursor(uri)
@@ -110,7 +110,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'v1'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         self.assertEqual(self.get_stat(conn_follow, pickups), 1)
 
         # Transaction A establishes its snapshot before the second checkpoint.
@@ -122,7 +122,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         self.put(self.session, self.uri, {'key': 'v2'}, 20)
         self.leader_checkpoint(20)
         self.put(session_follow, self.uri, {'key': 'v2'}, 20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         self.assertGreaterEqual(self.get_stat(conn_follow, defers), 1)
         self.assertEqual(self.get_stat(conn_follow, pickups), 1)
 
@@ -144,7 +144,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         self.put(self.session, self.uri, {'key': 'v3'}, 30)
         self.leader_checkpoint(30)
         self.put(session_follow, self.uri, {'key': 'v3'}, 30)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         self.assertEqual(self.get_stat(conn_follow, pickups), 2)
         self.assertEqual(self.read(session_b, 'key'), (0, 'v2'))
 
@@ -178,7 +178,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'v1'}, 10)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         self.assertEqual(self.get_stat(conn_follow, pickups), 1)
 
         # Reader A: snapshot before any deferred checkpoint.
@@ -191,7 +191,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         self.put(self.session, self.uri, {'key': 'v2'}, 20)
         self.leader_checkpoint(20)
         self.put(session_follow, self.uri, {'key': 'v2'}, 20)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         session_b = conn_follow.open_session('')
         session_b.begin_transaction()
         self.assertEqual(self.read(session_b, 'key'), (0, 'v2'))
@@ -201,7 +201,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         self.put(self.session, self.uri, {'key': 'v3'}, 30)
         self.leader_checkpoint(30)
         self.put(session_follow, self.uri, {'key': 'v3'}, 30)
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         session_c = conn_follow.open_session('')
         session_c.begin_transaction()
         self.assertEqual(self.read(session_c, 'key'), (0, 'v3'))

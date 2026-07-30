@@ -1200,6 +1200,8 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
      */
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
+    /* Publish the adopted LSN as a statistic: adoption is asynchronous when deferred. */
+    WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)ckpt_meta->metadata_lsn);
 
     /* The adoption satisfies any pending deferred pickup this checkpoint covers. */
     __wti_disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
@@ -1561,14 +1563,16 @@ __wti_disagg_pick_up_checkpoint_meta(
             &disagg->pending_checkpoint_meta_lsn, pending_lsn, ckpt_meta.metadata_lsn))
             break;
     }
+    /* Publish the delivered LSN as a statistic; the adopted LSN is published separately. */
+    WT_STAT_CONN_SET(session, disagg_checkpoint_pending_lsn,
+      (int64_t)__wt_atomic_load_uint64_relaxed(&disagg->pending_checkpoint_meta_lsn));
 
     /*
-     * Optionally defer adopting a newer checkpoint while transactional snapshots that predate it
-     * are active, so those readers keep opening stable cursors instead of being refused. On timeout
-     * the checkpoint is adopted anyway and any remaining such readers are refused at their next
-     * stable first open. Forced pickups (startup, step-up) are never deferred.
+     * Defer adopting a newer checkpoint while transactional snapshots that predate it are active,
+     * so those readers keep opening stable cursors instead of being refused. Forced pickups
+     * (startup, step-up) are never deferred.
      */
-    if (!force && disagg->checkpoint_deferral &&
+    if (!force &&
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
       __disagg_snapshot_predates_lsn(session, ckpt_meta.metadata_lsn)) {
         WT_ERR(__disagg_defer_checkpoint(session, meta_str, ckpt_meta.metadata_lsn, &deferred));

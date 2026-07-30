@@ -51,8 +51,6 @@ build_cfg(const std::string &role)
     cfg += "create,statistics=(all),";
     cfg += "extensions=[./ext/page_log/palite/libwiredtiger_palite.so],";
     cfg += std::string("disaggregated=(role=") + role + ",page_log=palite";
-    if (role == "follower")
-        cfg += ",checkpoint_deferral=true";
     cfg += ")";
     return cfg;
 }
