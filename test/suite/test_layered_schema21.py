@@ -26,12 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Test fail-back cycles (step-down followed by step-up) with a pending publish.
-#
-# A table published at a schema epoch above the last checkpoint's stable epoch has a
-# pending CREATE in the shared metadata queue. That intent is role-independent, so it
-# must survive a step-down and still be published by the next covering leader checkpoint
-# after a step-up.
+# Test that a pending table create survives a fail-back (step-down then step-up)
+# and is published by the next covering checkpoint.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
@@ -64,6 +60,12 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
 
+    def step_down(self):
+        self.conn.reconfigure('disaggregated=(role="follower")')
+
+    def step_up(self):
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
     def test_failback_no_pickup(self):
         """
         A pending publish survives a step-down followed by an immediate step-up with no
@@ -73,13 +75,13 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
         # Step down: the uncovered local stable constituent is dropped, but the pending
         # CREATE survives in the queue to explain and rebuild it.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.step_down()
+        self.assertFalse(self.uri_stable_exists(self.conn, self.uri))
 
         # Step back up without picking up any checkpoint: the surviving CREATE recreates
         # the stable constituent.
-        self.conn.reconfigure('disaggregated=(role="leader")')
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.step_up()
+        self.assertTrue(self.uri_stable_exists(self.conn, self.uri))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
 
         # A checkpoint at a covering epoch publishes the table.
@@ -88,6 +90,29 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
 
         # A follower picking up that checkpoint sees the table.
+        conn_follow, session_follow = self.open_follower()
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')
+
+    def test_failback_repeated(self):
+        """
+        A pending CREATE survives several step-down and step-up cycles, its stable
+        constituent rebuilt on each step-up, and a later covering checkpoint publishes it.
+        """
+        self.create_with_pending_publish(20)
+
+        for _ in range(3):
+            self.step_down()
+            self.assertFalse(self.uri_stable_exists(self.conn, self.uri))
+            self.step_up()
+            self.assertTrue(self.uri_stable_exists(self.conn, self.uri))
+            self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
+
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(2)
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
+
         conn_follow, session_follow = self.open_follower()
         self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
         session_follow.close()
@@ -120,7 +145,7 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # This node dropped its uncovered stable constituent on step-down; the pending
         # CREATE survives, and the non-covering pickup neither rebuilds nor prunes it.
         self.disagg_advance_checkpoint(self.conn, conn_follow)
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_stable_exists(self.conn, self.uri))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri))
 
         # Fail back to this node and checkpoint at a covering epoch: the table is

@@ -92,21 +92,6 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.set_stable_epoch(epoch)
         self.leader_checkpoint(stable_ts)
 
-    def uri_layered_in_local_metadata(self, conn, uri):
-        """
-        Return True if the layered: entry is present in conn's local metadata.
-
-        Unlike uri_in_local_metadata, this does not rely on the stable constituent,
-        which follower-created tables lack until step-up.
-        """
-        session = conn.open_session('')
-        cursor = session.open_cursor('metadata:')
-        cursor.set_key(uri)
-        found = cursor.search() == 0
-        cursor.close()
-        session.close()
-        return found
-
     def run_panic_subprocess(self, name):
         """
         Run subprocess_<name> in a subprocess and assert it died from the strict
@@ -156,7 +141,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)
 
         # uri2 survives locally and never reaches shared metadata.
-        self.assertTrue(self.uri_layered_in_local_metadata(conn_follow, self.uri2))
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri2))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
@@ -177,7 +162,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.leader_checkpoint_at_epoch(30, 2)
         self.disagg_advance_checkpoint(conn_follow)
 
-        self.assertTrue(self.uri_layered_in_local_metadata(conn_follow, self.uri2))
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri2))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
@@ -200,7 +185,7 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)
 
         self.assertTrue(self.uri_in_shared_metadata(conn_follow, self.uri))
-        self.assertFalse(self.uri_layered_in_local_metadata(conn_follow, self.uri))
+        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
 
         conn_follow.close('debug=(skip_checkpoint=true)')
@@ -363,10 +348,10 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # The unpublished table survives locally and stays out of shared metadata
         # until a checkpoint covers its CREATE.
-        self.assertTrue(self.uri_layered_in_local_metadata(self.conn, self.uri2))
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri2))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri2))
         # The table published before the step-down is still picked up normally.
-        self.assertTrue(self.uri_layered_in_local_metadata(self.conn, self.uri))
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
 
         conn_lead.close('debug=(skip_checkpoint=true)')
 
@@ -382,8 +367,8 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.conn.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
         self.disagg_advance_checkpoint(self.conn, conn_lead)
 
-        self.assertTrue(self.uri_layered_in_local_metadata(self.conn, self.uri))
-        self.assertFalse(self.uri_layered_in_local_metadata(self.conn, self.uri2))
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri2))
         self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri2))
 
         conn_lead.close('debug=(skip_checkpoint=true)')

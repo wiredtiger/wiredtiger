@@ -27,14 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # Test that a legacy (no schema epoch) step-down drops the local stable
-# constituents that the shared metadata does not cover.
-#
-# Without schema epochs the shared metadata queue cannot mark which local stable
-# tables a checkpoint covers, so step-down reconciles against the shared metadata
-# directly, mirroring the legacy step-up that creates missing stable tables. A
-# table created as leader and checkpointed is published and kept; one created
-# without a covering checkpoint is uncovered, so its stable constituent must be
-# dropped when the node becomes a follower.
+# constituents that no checkpoint has published to the shared metadata.
 
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
@@ -47,35 +40,59 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
-    uri = f'layered:{test_name}'
-    uri_uncovered = f'layered:{test_name}_uncovered'
     table_config = 'key_format=i,value_format=S'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def stable_uri(self, uri):
-        """Return the stable constituent URI for a layered table URI."""
-        return 'file:' + uri.split(':', 1)[1] + '.wt_stable'
+    def uri(self, name):
+        """Return a distinct layered table URI within this test."""
+        return f'layered:{self.test_name}_{name}'
+
+    def create_published(self, uri, value=None):
+        """Create a table, optionally write a row, and checkpoint so it reaches shared metadata."""
+        self.session.create(uri, self.table_config)
+        if value is not None:
+            cursor = self.session.open_cursor(uri)
+            cursor[1] = value
+            cursor.close()
+        self.session.checkpoint()
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
+
+    def step_down(self):
+        self.conn.reconfigure('disaggregated=(role="follower")')
 
     def test_legacy_step_down_drops_uncovered_stable(self):
-        # Legacy leader: no schema epoch is ever set.
-        self.session.create(self.uri, self.table_config)
-        cursor = self.session.open_cursor(self.uri)
-        cursor[1] = 'published'
-        cursor.close()
-
-        # A checkpoint publishes the first table to the shared metadata.
-        self.session.checkpoint()
-        self.assertTrue(self.uri_in_shared_metadata(self.conn, self.uri))
+        """A published table's stable is kept with its data; an uncovered table's is dropped."""
+        published = self.uri('published')
+        self.create_published(published, value='published')
 
         # A second table created without a covering checkpoint stays local-only.
-        self.session.create(self.uri_uncovered, self.table_config)
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri_uncovered))
-        self.assertFalse(self.uri_in_shared_metadata(self.conn, self.uri_uncovered))
+        uncovered = self.uri('uncovered')
+        self.session.create(uncovered, self.table_config)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, uncovered))
 
-        # Step down: the uncovered table's stable constituent is dropped, while the
-        # published table's stable constituent is kept.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri_uncovered))
-        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri))
+        self.step_down()
+        self.assertFalse(self.uri_stable_exists(self.conn, uncovered))
+        self.assertTrue(self.uri_stable_exists(self.conn, published))
+        cursor = self.session.open_cursor(published)
+        self.assertEqual({k: v for k, v in cursor}, {1: 'published'})
+        cursor.close()
+
+    def test_legacy_multiple_uncovered(self):
+        """Step-down keeps every published stable and drops every uncovered one."""
+        published = [self.uri(f'published{i}') for i in range(3)]
+        for uri in published:
+            self.create_published(uri, value='v')
+
+        uncovered = [self.uri(f'uncovered{i}') for i in range(3)]
+        for uri in uncovered:
+            self.session.create(uri, self.table_config)
+
+        self.step_down()
+        for uri in published:
+            self.assertTrue(self.uri_stable_exists(self.conn, uri))
+        for uri in uncovered:
+            self.assertFalse(self.uri_stable_exists(self.conn, uri))
+            # The ingest half survives the step-down.
+            self.assertTrue(self.uri_in_local_metadata(self.conn, uri))
