@@ -868,6 +868,8 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      * correct and self-consistent.
      */
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, lsn);
+    /* A leader's own checkpoint is implicitly adopted; keep the statistic in step. */
+    WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)lsn);
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_timestamp, checkpoint_timestamp);
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_oldest_timestamp, oldest_timestamp);
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_schema_epoch, schema_epoch);
