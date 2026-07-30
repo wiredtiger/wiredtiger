@@ -402,13 +402,6 @@ __cache_page_inmem_incr(
         __txn_incr_bytes_dirty(session, size, new_update);
         if (track_updates && !WT_PAGE_IS_INTERNAL(page)) {
             WT_CACHE_INCR(is_disagg, btree, cache, bytes_updates, size);
-            (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates, size);
-            if (is_disagg) {
-                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates_ingest, size);
-                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_updates_stable, size);
-            }
             (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_updates, size);
         }
