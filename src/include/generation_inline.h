@@ -37,6 +37,22 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
 }
 
 /*
+ * __wt_gen_advance --
+ *     Advance the resource's generation to a caller-supplied value, for resources whose generation
+ *     is an externally assigned sequence rather than a counter. Only ever moves forward; racing
+ *     advances resolve to the maximum.
+ */
+static WT_INLINE void
+__wt_gen_advance(WT_SESSION_IMPL *session, int which, uint64_t gen)
+{
+    uint64_t old;
+
+    do {
+        old = __wt_gen(session, which);
+    } while (old < gen && !__wt_atomic_cas_uint64_v(&S2C(session)->generations[which], old, gen));
+}
+
+/*
  * __wt_session_gen --
  *     Return the thread's resource generation.
  */

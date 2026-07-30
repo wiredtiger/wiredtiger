@@ -134,11 +134,11 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned, WT_TXN_NONE);
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->pinned_id, WT_TXN_NONE);
     /*
-     * Releasing a snapshot that pinned a checkpoint may unblock a deferred pickup: wake the pickup
-     * server after the pin is cleared, so its scan observes the release.
+     * Releasing a snapshot that pinned a checkpoint generation may unblock a deferred pickup: wake
+     * the pickup server after the pin is cleared, so its scan observes the release.
      */
-    if (__wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn) != 0) {
-        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
+    if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0) {
+        __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
         __wt_disagg_deferred_pickup_signal(session);
     }
     /* The snapshot's role era ends with it. */
@@ -213,20 +213,17 @@ done:
 /*
  * __txn_snapshot_record_disagg --
  *     Record the disaggregated state a snapshot about to be built is consistent with: the role, the
- *     role-change generation, and (on a follower) the pinned checkpoint. Returns the pinned LSN for
- *     the validation after the build.
+ *     role-change generation, and (on a follower) the pinned checkpoint generation.
  */
-static WT_INLINE uint64_t
+static WT_INLINE void
 __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
-    uint64_t pinned_lsn;
 
     /*
      * Enter the role-change generation: the published generation is the snapshot's recorded role
-     * era, compared at every stable bind. It is left wherever the era ends: a failed validation, a
-     * snapshot refresh, or the snapshot's release.
+     * era, compared at every stable bind. Both generations entered here are left wherever the
+     * snapshot's era ends: a failed validation, a snapshot refresh, or the snapshot's release.
      */
     __wt_session_gen_enter(session, WT_GEN_DISAGG_ROLE);
     session->txn->disagg_role_leader = conn->layered_table_manager.leader;
@@ -234,28 +231,21 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
     /*
      * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
      * stable table is written with local transaction ids and needs no pin, and its own checkpoints
-     * advance the published LSN, so pinning would rebuild every snapshot that overlaps a checkpoint
-     * completion. A snapshot from before a step-down is left unpinned and refused if it binds
-     * checkpoint content afterwards.
+     * advance the checkpoint generation, so pinning would rebuild every snapshot that overlaps a
+     * checkpoint completion. A snapshot from before a step-down is left unpinned and refused if it
+     * binds checkpoint content afterwards.
      *
-     * Pin the newest checkpoint received, even if its adoption is still in progress: arrival
-     * implies its content is already replayed into the ingest tables, so this snapshot covers it.
-     * Until the adoption completes, the pin is simply newer than anything the stable can bind,
-     * which is always safe.
+     * The checkpoint generation is the newest checkpoint delivered plus one, advanced when the
+     * metadata arrives, even before its adoption completes: arrival implies its content is already
+     * replayed into the ingest tables, so this snapshot covers it. Until the adoption completes,
+     * the pin is simply newer than anything the stable can bind, which is always safe.
      *
-     * The transaction-table lock the caller takes right after this is the full barrier that pairs
-     * with a delivery's pending-LSN update: a delivery either observes the pin published here, or
+     * Entering the generation publishes the pin with the manager's full-barrier recheck, pairing
+     * with a delivery's generation advance: a delivery either observes the pin published here, or
      * the validation after the build observes the delivery and retries.
      */
-    if (session->txn->disagg_role_leader) {
-        __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
-        return (WT_DISAGG_LSN_NONE);
-    }
-    pinned_lsn =
-      WT_MAX(__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
-        __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.pending_checkpoint_meta_lsn));
-    __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, pinned_lsn + 1);
-    return (pinned_lsn);
+    if (!session->txn->disagg_role_leader)
+        __wt_session_gen_enter(session, WT_GEN_DISAGG_CKPT);
 }
 
 /*
@@ -268,19 +258,14 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
  *     microseconds of a build, while adoptions are seconds apart.
  */
 static WT_INLINE bool
-__txn_snapshot_validate_disagg(WT_SESSION_IMPL *session, uint64_t pinned_lsn)
+__txn_snapshot_validate_disagg(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-
     if (__wt_gen(session, WT_GEN_DISAGG_ROLE) != __wt_session_gen(session, WT_GEN_DISAGG_ROLE) ||
-      conn->layered_table_manager.leader != session->txn->disagg_role_leader)
+      S2C(session)->layered_table_manager.leader != session->txn->disagg_role_leader)
         return (false);
     if (session->txn->disagg_role_leader)
         return (true);
-    return (
-      WT_MAX(__wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn),
-        __wt_atomic_load_uint64_acquire(
-          &conn->disaggregated_storage.pending_checkpoint_meta_lsn)) == pinned_lsn);
+    return (__wt_gen(session, WT_GEN_DISAGG_CKPT) == __wt_session_gen(session, WT_GEN_DISAGG_CKPT));
 }
 
 /*
@@ -294,7 +279,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
-    uint64_t current_id, id, pinned_checkpoint_lsn, pinned_id, prev_oldest_id, snapshot_gen;
+    uint64_t current_id, id, pinned_id, prev_oldest_id, snapshot_gen;
     uint32_t i, n, session_cnt;
     bool record_disagg;
 
@@ -302,7 +287,6 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    pinned_checkpoint_lsn = WT_DISAGG_LSN_NONE;
 
     /* Fast path if we already have the current snapshot. */
     if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
@@ -316,6 +300,10 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
         __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
         if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
             __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
+        if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0) {
+            __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
+            __wt_disagg_deferred_pickup_signal(session);
+        }
     }
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
@@ -333,7 +321,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 retry:
     n = 0;
     if (record_disagg) {
-        pinned_checkpoint_lsn = __txn_snapshot_record_disagg(session);
+        __txn_snapshot_record_disagg(session);
         /* Widen the window between recording the pin and building the snapshot. */
         WT_DIAGNOSTIC_YIELD;
     }
@@ -428,9 +416,11 @@ done:
     if (record_disagg) {
         /* Widen the window a delivery during the build must be caught in. */
         WT_DIAGNOSTIC_YIELD;
-        if (!__txn_snapshot_validate_disagg(session, pinned_checkpoint_lsn)) {
+        if (!__txn_snapshot_validate_disagg(session)) {
             WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
             __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
+            if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0)
+                __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
             goto retry;
         }
         /*

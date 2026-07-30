@@ -558,12 +558,11 @@ static WT_INLINE void
 __clayered_stable_bind_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     uint64_t conn_lsn, pinned_lsn;
 
     conn_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-    pinned_lsn = __wt_atomic_load_uint64_acquire(&txn_shared->disagg_pinned_lsn);
+    pinned_lsn = __wt_session_gen(session, WT_GEN_DISAGG_CKPT);
 
     WT_ASSERT_ALWAYS(session,
       conn_lsn == WT_DISAGG_LSN_NONE ||

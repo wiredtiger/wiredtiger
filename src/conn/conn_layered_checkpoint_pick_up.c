@@ -861,25 +861,13 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 /*
  * __disagg_snapshot_predates_lsn --
  *     Return whether any active transactional snapshot without a read timestamp predates the given
- *     checkpoint LSN. The scan is advisory: a racing snapshot it misses is still refused at its
- *     first stable open, so no locking is required.
+ *     checkpoint LSN. A snapshot's pin is its published checkpoint generation, the covered LSN plus
+ *     one, so a pin at or below the LSN predates it.
  */
 static bool
 __disagg_snapshot_predates_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
 {
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_TXN_SHARED *s;
-    uint64_t pinned_lsn;
-    uint32_t i, session_cnt;
-
-    session_cnt = __wt_atomic_load_uint32_acquire(&conn->session_array.cnt);
-    for (i = 0, s = conn->txn_global.txn_shared_list; i < session_cnt; i++, s++) {
-        /* The pin is the LSN plus one; zero means no pinned snapshot. */
-        pinned_lsn = __wt_atomic_load_uint64_acquire(&s->disagg_pinned_lsn);
-        if (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 < lsn)
-            return (true);
-    }
-    return (false);
+    return (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, lsn));
 }
 
 /*
@@ -1563,6 +1551,8 @@ __wti_disagg_pick_up_checkpoint_meta(
             &disagg->pending_checkpoint_meta_lsn, pending_lsn, ckpt_meta.metadata_lsn))
             break;
     }
+    /* Advance the checkpoint generation snapshots pin: the covered LSN plus one. */
+    __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn + 1);
     /* Publish the delivered LSN as a statistic; the adopted LSN is published separately. */
     WT_STAT_CONN_SET(session, disagg_checkpoint_pending_lsn,
       (int64_t)__wt_atomic_load_uint64_relaxed(&disagg->pending_checkpoint_meta_lsn));

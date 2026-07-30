@@ -146,16 +146,6 @@ struct __wt_txn_shared {
      */
     wt_shared wt_timestamp_t read_timestamp;
 
-    /*
-     * The disaggregated checkpoint this transaction's snapshot is consistent with, stored as the
-     * checkpoint metadata LSN plus one so that zero means no pinned snapshot. Content adopted from
-     * a checkpoint carries no local transaction ids, so a snapshot established before an adoption
-     * must not read the adopted content; a checkpoint pickup uses this field to find such readers.
-     * Only set for snapshots without a read timestamp: timestamped readers stay consistent through
-     * the history store.
-     */
-    wt_shared uint64_t disagg_pinned_lsn;
-
     wt_shared volatile uint8_t is_allocating;
     WT_CACHE_LINE_PAD_END
 };
