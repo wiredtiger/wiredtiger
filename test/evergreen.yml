@@ -1757,20 +1757,6 @@ variables:
           format_args: disagg.mode=switch runs.timer=5:10
           times: 5
 
-  - &format-stress-test-disagg-switch-async
-    depends_on: *s-all-dep
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 runs.timer=5:10
-          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 runs.timer=5:10
-          times: 5
-
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-test-disagg-switch-data-validation
     depends_on: *s-all-dep
@@ -1787,22 +1773,6 @@ variables:
           format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
-  # FIXME-WT-16113: Consolidate this logic in test/format itself.
-  - &format-stress-test-disagg-switch-data-validation-async
-    depends_on: *s-all-dep
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
-          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
-      - func: "format test disagg"
-        vars:
-          # Validate data with a non-layered table.
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
-          times: 5
-
   - &format-stress-test-disagg-switch-pull-request
     depends_on: *s-all-dep
     commands:
@@ -1817,7 +1787,41 @@ variables:
           format_args: disagg.mode=switch runs.timer=3
           times: 1
 
-  - &format-stress-test-disagg-switch-pull-request-async
+  # FIXME-WT-18228 Re-enable random cursor operations in the disaggregated asynchronous step-down format tests
+  # Switch-mode variants with asynchronous step-down.
+  - &format-stress-test-disagg-switch-stepdown-async
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.timer=5:10
+          times: 5
+
+  # FIXME-WT-16113: Consolidate this logic in test/format itself.
+  # FIXME-WT-18228 Re-enable random cursor operations in the disaggregated asynchronous step-down format tests
+  - &format-stress-test-disagg-switch-data-validation-stepdown-async
+    depends_on: *s-all-dep
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -t 120 -c ../../../test/format/CONFIG.disagg -- disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          num_jobs: 1 # FIXME-WT-16134 PALite cannot run multiple jobs. PALI will address this.
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          times: 5
+
+  # FIXME-WT-18228 Re-enable random cursor operations in the disaggregated asynchronous step-down format tests
+  - &format-stress-test-disagg-switch-pull-request-stepdown-async
     depends_on: *s-all-dep
     commands:
       - func: "get project"
@@ -1825,10 +1829,10 @@ variables:
       - func: "format test script"
         vars:
           # run for 10 minutes.
-          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 runs.rows=10000 runs.timer=1
+          format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.rows=10000 runs.timer=1
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 runs.timer=3
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.timer=3
           times: 1
 
 #######################################
@@ -5310,23 +5314,11 @@ tasks:
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-2
     tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-switch-async
-    name: format-stress-test-disagg-switch-async-1
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-switch-async
-    name: format-stress-test-disagg-switch-async-2
-    tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch-data-validation
     name: format-stress-test-disagg-switch-data-validation-1
     tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch-data-validation
     name: format-stress-test-disagg-switch-data-validation-2
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-switch-data-validation-async
-    name: format-stress-test-disagg-switch-data-validation-async-1
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-switch-data-validation-async
-    name: format-stress-test-disagg-switch-data-validation-async-2
     tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-1
@@ -5334,11 +5326,25 @@ tasks:
   - <<: *format-stress-test-disagg-switch-pull-request
     name: format-stress-test-disagg-switch-pull-request-2
     tags: ["pull_request"]
-  - <<: *format-stress-test-disagg-switch-pull-request-async
-    name: format-stress-test-disagg-switch-pull-request-async-1
+
+  # Switch-mode variants with asynchronous step-down.
+  - <<: *format-stress-test-disagg-switch-stepdown-async
+    name: format-stress-test-disagg-switch-stepdown-async-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-stepdown-async
+    name: format-stress-test-disagg-switch-stepdown-async-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-data-validation-stepdown-async
+    name: format-stress-test-disagg-switch-data-validation-stepdown-async-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-data-validation-stepdown-async
+    name: format-stress-test-disagg-switch-data-validation-stepdown-async-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-switch-pull-request-stepdown-async
+    name: format-stress-test-disagg-switch-pull-request-stepdown-async-1
     tags: ["pull_request"]
-  - <<: *format-stress-test-disagg-switch-pull-request-async
-    name: format-stress-test-disagg-switch-pull-request-async-2
+  - <<: *format-stress-test-disagg-switch-pull-request-stepdown-async
+    name: format-stress-test-disagg-switch-pull-request-stepdown-async-2
     tags: ["pull_request"]
 
   - name: format-stress-test-disagg-follower-pull-request
@@ -5388,7 +5394,7 @@ tasks:
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 2
 
-  - name: format-stress-test-disagg-switch-tsan-async
+  - name: format-stress-test-disagg-switch-tsan-stepdown-async
     tags: ["pull_request"]
     depends_on: *s-all-dep
     commands:
@@ -5398,11 +5404,11 @@ tasks:
         vars:
           # Delete-heavy mix on a small key space: concurrent removes of live keys across the
           # step-down boundary are the one skew the step-up drain can detect (double deletes).
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 runs.rows=1000:3000 runs.tables=1:3 runs.timer=1 ops.pct.delete=40 ops.pct.insert=40 ops.pct.modify=0 ops.pct.read=10 ops.pct.write=10
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.rows=1000:3000 runs.tables=1:3 runs.timer=1 ops.pct.delete=40 ops.pct.insert=40 ops.pct.modify=0 ops.pct.read=10 ops.pct.write=10
           times: 2
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 runs.rows=100000:300000 runs.tables=1:3 runs.timer=1
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.rows=100000:300000 runs.tables=1:3 runs.timer=1
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 2
 
@@ -7117,7 +7123,7 @@ buildvariants:
       distros: ubuntu2004-large
     - name: format-stress-test-disagg-switch-tsan
       distros: ubuntu2004-large
-    - name: format-stress-test-disagg-switch-tsan-async
+    - name: format-stress-test-disagg-switch-tsan-stepdown-async
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
       distros: ubuntu2004-large
@@ -7911,7 +7917,7 @@ buildvariants:
       distros: amazon2023.3-arm64-large
     - name: format-stress-test-disagg-switch-tsan
       distros: amazon2023.3-arm64-large
-    - name: format-stress-test-disagg-switch-tsan-async
+    - name: format-stress-test-disagg-switch-tsan-stepdown-async
       distros: amazon2023.3-arm64-large
     - name: unit-test-hook-parallel-checkpoint-tsan
     - name: format-stress-test-tsan
