@@ -80,6 +80,13 @@ class test_txn27(error_info_util):
         # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.update(), msg1)
 
-        # Expect the last saved error to give us the true reason for the rollback.
+        # Expect the last saved error to give us the true reason for the rollback. Two independent
+        # mechanisms can produce this rollback: the stuck-cache detector, which needs the aggressive
+        # score to escalate over real time, and a check that fires as soon as this session's own
+        # dirty content exceeds the updates trigger, with no escalation delay. Whichever wins
+        # depends on how fast the cache's background eviction is progressing in this environment,
+        # so either is a valid outcome here.
         self.session = session1
-        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, wiredtiger.WT_ROLLBACK)
+        self.assertIn(sub_level_err, (wiredtiger.WT_OLDEST_FOR_EVICTION, wiredtiger.WT_TXN_TOO_LARGE_FOR_CACHE))
