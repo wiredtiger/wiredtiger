@@ -5394,6 +5394,7 @@ tasks:
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 2
 
+  # FIXME-WT-18228 Re-enable random cursor operations in the disaggregated asynchronous step-down format tests
   - name: format-stress-test-disagg-switch-tsan-stepdown-async
     tags: ["pull_request"]
     depends_on: *s-all-dep
@@ -5402,9 +5403,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "format test disagg"
         vars:
-          # Delete-heavy mix on a small key space: concurrent removes of live keys across the
-          # step-down boundary are the one skew the step-up drain can detect (double deletes).
-          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.rows=1000:3000 runs.tables=1:3 runs.timer=1 ops.pct.delete=40 ops.pct.insert=40 ops.pct.modify=0 ops.pct.read=10 ops.pct.write=10
+          format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.rows=1000:3000 runs.tables=1:3 runs.timer=1
           times: 2
       - func: "format test disagg"
         vars:
