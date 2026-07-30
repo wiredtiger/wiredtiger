@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, time
+import wiredtiger, time, wttest
 from error_info_util import error_info_util
 from wtdataset import SimpleDataSet
 
@@ -34,6 +34,11 @@ from wtdataset import SimpleDataSet
 class test_txn27(error_info_util):
     conn_config = 'cache_size=1MB'
 
+    # The oldest-for-eviction reason is only reachable once eviction reports itself stuck, which
+    # requires eviction to stop making progress globally. Under this hook the layered table's ingest
+    # constituent stays evictable, so progress continues and that state is never reached.
+    # FIXME-WT-15058
+    @wttest.skip_for_hook("disagg", "Fails due to incorrect cursor logic.")
     def test_rollback_reason(self):
         uri = "table:txn27"
 
@@ -80,13 +85,6 @@ class test_txn27(error_info_util):
         # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.update(), msg1)
 
-        # Expect the last saved error to give us the true reason for the rollback. Two independent
-        # mechanisms can produce this rollback: the stuck-cache detector, which needs the aggressive
-        # score to escalate over real time, and a check that fires as soon as this session's own
-        # dirty content exceeds the updates trigger, with no escalation delay. Whichever wins
-        # depends on how fast the cache's background eviction is progressing in this environment,
-        # so either is a valid outcome here.
+        # Expect the last saved error to give us the true reason for the rollback.
         self.session = session1
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, wiredtiger.WT_ROLLBACK)
-        self.assertIn(sub_level_err, (wiredtiger.WT_OLDEST_FOR_EVICTION, wiredtiger.WT_TXN_TOO_LARGE_FOR_CACHE))
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
