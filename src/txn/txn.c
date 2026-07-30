@@ -224,12 +224,10 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
     uint64_t pinned_lsn;
 
     /*
-     * Enter the role-change generation, re-entering to refresh it when the build is retried: the
-     * published generation is the snapshot's recorded role era, compared at every stable bind and
-     * left when the snapshot is released.
+     * Enter the role-change generation: the published generation is the snapshot's recorded role
+     * era, compared at every stable bind. It is left wherever the era ends: a failed validation, a
+     * snapshot refresh, or the snapshot's release.
      */
-    if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
-        __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
     __wt_session_gen_enter(session, WT_GEN_DISAGG_ROLE);
     session->txn->disagg_role_leader = conn->layered_table_manager.leader;
 
@@ -316,6 +314,8 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 
         /* Leave the generation here and enter again later to acquire a new snapshot. */
         __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
+        if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
+            __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
     }
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
@@ -430,6 +430,7 @@ done:
         WT_DIAGNOSTIC_YIELD;
         if (!__txn_snapshot_validate_disagg(session, pinned_checkpoint_lsn)) {
             WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
+            __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
             goto retry;
         }
         /*
