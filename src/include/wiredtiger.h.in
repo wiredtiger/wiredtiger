@@ -6670,48 +6670,48 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * extents during first-fit allocation
  */
 #define	WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME		1103
+/*!
+ * cache: application eviction assists stopped when the bounded wait was
+ * exhausted
+ */
+#define	WT_STAT_CONN_EVICTION_APP_BOUNDED_WAIT_EXCEEDED	1104
 /*! cache: application requested eviction interrupt */
-#define	WT_STAT_CONN_EVICTION_INTERUPTED_BY_APP		1104
+#define	WT_STAT_CONN_EVICTION_INTERUPTED_BY_APP		1105
 /*! cache: application thread time evicting (usecs) */
-#define	WT_STAT_CONN_EVICTION_APP_TIME			1105
+#define	WT_STAT_CONN_EVICTION_APP_TIME			1106
 /*!
  * cache: application threads eviction requested with cache fill ratio <
  * 25%
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_LT_25	1106
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_LT_25	1107
 /*!
  * cache: application threads eviction requested with cache fill ratio >=
  * 25% and < 50%
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_25_50	1107
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_25_50	1108
 /*!
  * cache: application threads eviction requested with cache fill ratio >=
  * 50% and < 75%
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_50_75	1108
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_50_75	1109
 /*!
  * cache: application threads eviction requested with cache fill ratio >=
  * 75%
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_GT_75	1109
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_FILL_RATIO_GT_75	1110
 /*!
  * cache: application threads eviction skip page with updates or dirty
  * page
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE	1110
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_THREADS_SKIP_UPDATES_DIRTY_PAGE	1111
 /*! cache: application threads page read from disk to cache count */
-#define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1111
+#define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1112
 /*! cache: application threads page read from disk to cache time (usecs) */
-#define	WT_STAT_CONN_CACHE_READ_APP_TIME		1112
+#define	WT_STAT_CONN_CACHE_READ_APP_TIME		1113
 /*! cache: application threads page write from cache to disk count */
-#define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1113
+#define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1114
 /*! cache: application threads page write from cache to disk time (usecs) */
-#define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1114
-/*!
- * cache: application threads that stopped assisting eviction at their
- * bounded wait
- */
-#define	WT_STAT_CONN_EVICTION_APP_BOUNDED_WAIT_EXCEEDED	1115
+#define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1115
 /*! cache: bytes allocated for updates */
 #define	WT_STAT_CONN_CACHE_BYTES_UPDATES		1116
 /*! cache: bytes allocated for updates from the ingest btrees */

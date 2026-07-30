@@ -75,5 +75,6 @@ class test_eviction06(wttest.WiredTigerTestCase):
         self.assertStatGreaterSoon(
             wiredtiger.stat.conn.eviction_server_walk_dominating_cache, baseline, timeout=5)
 
+
 if __name__ == '__main__':
     wttest.run()

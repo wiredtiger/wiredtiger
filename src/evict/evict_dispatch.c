@@ -366,16 +366,6 @@ __wti_evict_app_assist_worker(
         }
 
         /*
-         * A bounded caller stops assisting rather than waiting for the cache to recover. It cannot
-         * be rolled back to relieve the pressure, so this is the only thing that releases it.
-         */
-        if (bound_start != 0 &&
-          WT_CLOCKDIFF_US(__wt_clock(session), bound_start) > WTI_EVICT_BOUNDED_WAIT_US) {
-            WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
-            break;
-        }
-
-        /*
          * Check if we have become busy.
          *
          * If we're busy (because of the transaction check we just did or because our caller is
@@ -400,6 +390,18 @@ __wti_evict_app_assist_worker(
         if (!__evict_check_user_ok_with_eviction(session, interruptible))
             break;
 
+        /*
+         * A bounded caller stops assisting rather than waiting for the cache to recover. It cannot
+         * be rolled back to relieve the pressure, so this is the only thing that releases it.
+         */
+        if (bounded) {
+            uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
+            if (__evict_bounded_wait_remaining_us(elapsed_us) == 0) {
+                WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
+                break;
+            }
+        }
+
         /* Evict a page. */
         ret = __wti_evict_page(session, false);
         if (ret == 0) {
@@ -407,8 +409,19 @@ __wti_evict_app_assist_worker(
             if (busy)
                 break;
         } else if (ret == WT_NOTFOUND) {
+            uint64_t wait_us = 10 * WT_THOUSAND;
+            if (bounded) {
+                uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
+                uint64_t remaining_us = __evict_bounded_wait_remaining_us(elapsed_us);
+                if (remaining_us == 0) {
+                    WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
+                    break;
+                }
+                wait_us = WT_MIN(wait_us, remaining_us);
+            }
+
             /* Allow the queue to re-populate before retrying. */
-            __wt_cond_wait(session, conn->evict_config.threads.wait_cond, 10 * WT_THOUSAND, NULL);
+            __wt_cond_wait(session, conn->evict_config.threads.wait_cond, wait_us, NULL);
             __wt_tsan_suppress_add_uint64(&evict->app_waits, 1);
         } else if (ret != EBUSY)
             WT_ERR(ret);

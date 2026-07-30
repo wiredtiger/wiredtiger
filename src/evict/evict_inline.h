@@ -8,6 +8,16 @@
 
 #pragma once
 
+/*
+ * __evict_bounded_wait_remaining_us --
+ *     Return the remaining bounded eviction wait time.
+ */
+static WT_INLINE uint64_t
+__evict_bounded_wait_remaining_us(uint64_t elapsed_us)
+{
+    return (elapsed_us > WTI_EVICT_BOUNDED_WAIT_US ? 0 : WTI_EVICT_BOUNDED_WAIT_US - elapsed_us);
+}
+
 /* !!!
  * __wt_evict_aggressive --
  *     Check whether eviction is unable to make any progress for some amount of time.

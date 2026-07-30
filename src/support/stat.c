@@ -2114,6 +2114,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the region was remapped via write",
   "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
   "allocation",
+  "cache: application eviction assists stopped when the bounded wait was exhausted",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
@@ -2125,7 +2126,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
-  "cache: application threads that stopped assisting eviction at their bounded wait",
   "cache: bytes allocated for updates",
   "cache: bytes allocated for updates from the ingest btrees",
   "cache: bytes allocated for updates from the stable btrees",
@@ -3241,6 +3241,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     /* not clearing block_first_srch_walk_time */
+    stats->eviction_app_bounded_wait_exceeded = 0;
     stats->eviction_interupted_by_app = 0;
     stats->eviction_app_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
@@ -3252,7 +3253,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
-    stats->eviction_app_bounded_wait_exceeded = 0;
     /* not clearing cache_bytes_updates */
     /* not clearing cache_bytes_updates_ingest */
     /* not clearing cache_bytes_updates_stable */
@@ -4324,6 +4324,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->block_first_srch_walk_time += WT_STAT_CONN_READ(from, block_first_srch_walk_time);
+    to->eviction_app_bounded_wait_exceeded +=
+      WT_STAT_CONN_READ(from, eviction_app_bounded_wait_exceeded);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
@@ -4340,8 +4342,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
-    to->eviction_app_bounded_wait_exceeded +=
-      WT_STAT_CONN_READ(from, eviction_app_bounded_wait_exceeded);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
     to->cache_bytes_updates_ingest += WT_STAT_CONN_READ(from, cache_bytes_updates_ingest);
     to->cache_bytes_updates_stable += WT_STAT_CONN_READ(from, cache_bytes_updates_stable);
