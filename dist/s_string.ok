@@ -167,6 +167,7 @@ ENOSPC
 ENOTSUP
 ENUM
 EOF
+EPIPE
 EQ
 ERANGE
 ETIME
@@ -367,6 +368,7 @@ Og
 Optane
 Outfmt
 PALI
+PALITE
 PALite
 PDEATHSIG
 PFX
@@ -407,6 +409,7 @@ Py
 QQQS
 QSQ
 Qsort
+Quiesce
 RCPC
 RCpc
 RDNOLOCK
@@ -451,6 +454,9 @@ SDK
 SIGABRT
 SIGBUS
 SIGKILL
+SIGKILLed
+SIGKILLs
+SIGPIPE
 SIGSEGV
 SIMD
 SLS
@@ -504,6 +510,7 @@ TSan
 TTY
 TW
 TXN
+TerminateProcess
 TestSuiteConnection
 Testcases
 ThreadList
@@ -644,6 +651,7 @@ ajn
 al
 alloc
 allocator
+allocator's
 allocators
 allocfile
 allocsize
@@ -677,6 +685,7 @@ bInheritHandle
 backends
 backlink
 backoff
+backpressures
 badsize
 bal
 basecfg
@@ -806,6 +815,7 @@ collatorp
 collist
 columngroup
 commandline
+commit's
 committime
 compactUntilSuccess
 comparator
@@ -872,6 +882,7 @@ cutlim
 cutover
 cv
 cval
+cwait
 cx
 cxa
 cygwin
@@ -913,6 +924,9 @@ deflateEnd
 deflateInit
 del
 deletable
+demuxes
+demuxing
+dequeue
 dequeued
 der
 deref
@@ -955,6 +969,7 @@ dmb
 dmsg
 drealloc
 dropUntilSuccess
+droppable
 dryrun
 ds
 dsb
@@ -1013,6 +1028,7 @@ ev
 evd
 eventv
 evictable
+evq
 ewma
 exactp
 exc
@@ -1023,6 +1039,7 @@ extern
 extlist
 extlists
 extraconfig
+fN
 fadvise
 fahrenheit
 failover
@@ -1034,6 +1051,7 @@ fclose
 fcntl
 fd
 fdatasync
+fds
 feffff
 fextend
 ffc
@@ -1248,6 +1266,7 @@ kp
 kv
 kvraw
 kvs
+lN
 lang
 las
 latin
@@ -1390,6 +1409,7 @@ namespace
 namespaced
 namespaces
 nbits
+nclose
 nclr
 nd
 needkey
@@ -1479,6 +1499,7 @@ oplog
 optrack
 optwt
 optype
+orchestrator
 ord
 ori
 origcnt
@@ -1548,6 +1569,7 @@ presync
 prev
 prevlsn
 printf
+println
 printlog
 priv
 probabilistically
@@ -1598,6 +1620,7 @@ readtime
 readunlock
 realloc
 reallocations
+realpath
 rebalancing
 recency
 recno
@@ -1698,6 +1721,7 @@ softptr
 somename
 sortable
 sp
+spawnv
 spinlock
 spinlocks
 sqlite
@@ -1761,6 +1785,7 @@ subinit
 sublicense
 sublist
 suboptimal
+subproc
 subprocess
 subprocesses
 substring
@@ -1827,6 +1852,7 @@ tombstoned
 toml
 toolchain
 toolchains
+topologies
 totalsec
 tp
 traceapi
@@ -1884,6 +1910,7 @@ unesc
 unescape
 unescaped
 unflatten
+ungated
 unhandled
 unicode
 uninstantiated
@@ -1907,10 +1934,13 @@ unredacts
 unreferenced
 unsetting
 unsized
+unspawned
 unsynchronised
 unterminated
 untyped
 unvisited
+unwedge
+up's
 upd
 uri
 uri's
@@ -1946,6 +1976,7 @@ vdata
 vec
 vectorized
 verifier
+verifier's
 verifyLayered
 vers
 vfprintf
@@ -1958,6 +1989,7 @@ vpmsumd
 vprintf
 vsize
 vsnprintf
+vtable
 vthread
 vunpack
 vxr
