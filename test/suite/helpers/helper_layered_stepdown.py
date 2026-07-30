@@ -34,10 +34,6 @@ from wiredtiger import stat
 
 # Shared helpers for the layered async step-down test suite.
 class LayeredStepdownMixin:
-    # FIXME-WT-17895: remove this skip once the planned step-down implementation lands.
-    def setUp(self):
-        self.skipTest('elegant step-down is not implemented yet')
-        super().setUp()
     # Set the global oldest and stable timestamps.
     def set_global_ts(self, oldest, stable):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
