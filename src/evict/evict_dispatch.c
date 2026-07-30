@@ -294,6 +294,15 @@ __evict_txn_too_large_for_cache(WT_SESSION_IMPL *session)
         return (false);
 
     /*
+     * Only consider transactions that have made a modification. A transaction that has not written
+     * anything can still be charged dirty bytes, because instantiating a fast-truncated page while
+     * reading it allocates updates against whichever transaction happens to touch the page, and
+     * rolling a reader back over that is both useless and unsupported by the callers.
+     */
+    if (session->txn->mod_count == 0)
+        return (false);
+
+    /*
      * Compare against the updates trigger rather than the dirty trigger: it is the lower of the two
      * by default, and uncommitted content is accounted for in both.
      */
