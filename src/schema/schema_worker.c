@@ -19,6 +19,18 @@ __wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
     WT_DECL_RET;
 
     /*
+     * A tree awaiting publication has no on-disk data to verify, and the exclusive open would
+     * discard its in-memory content. Skip it.
+     */
+    if (FLD_ISSET(open_flags, WT_BTREE_VERIFY)) {
+        WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        if (WT_DHANDLE_BTREE(session->dhandle) &&
+          F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH))
+            return (__wt_session_release_dhandle(session));
+        WT_RET(__wt_session_release_dhandle(session));
+    }
+
+    /*
      * If the operation requires exclusive access, close any open file handles, including
      * checkpoints.
      */
