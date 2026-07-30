@@ -422,6 +422,253 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __disagg_shared_metadata_queue_verify --
+ *     Validate the queue that survives step-down: every entry is an uncovered create or remove
+ *     intent (schema epoch above the last checkpoint), and never a transient update --
+ *     an update exists only inside an in-flight checkpoint, and none runs during step-down.
+ */
+static void
+__disagg_shared_metadata_queue_verify(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry;
+    wt_timestamp_t stable_schema_epoch;
+
+    conn = S2C(session);
+    stable_schema_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        WT_ASSERT(session,
+          entry->metadata_op == WT_SHARED_METADATA_CREATE ||
+            entry->metadata_op == WT_SHARED_METADATA_REMOVE);
+        /* An uncovered intent sits above the last checkpoint, except in epoch-less legacy mode. */
+        WT_ASSERT(session,
+          stable_schema_epoch == WT_SCHEMA_EPOCH_NONE ||
+            entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
+            entry->schema_epoch > stable_schema_epoch);
+    }
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+}
+
+/*
+ * __disagg_assert_stable_empty --
+ *     Validate that an uncovered stable constituent holds no data before it is dropped, so the drop
+ *     cannot discard committed data.
+ */
+static void
+__disagg_assert_stable_empty(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, stable_uri, NULL, cfg, &cursor));
+    WT_ASSERT(session, cursor->next(cursor) == WT_NOTFOUND);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    WT_UNUSED(ret);
+}
+#endif
+
+/*
+ * __disagg_drop_local_stable --
+ *     Drop one local stable constituent, tolerating one already removed (a following remove dropped
+ *     it). Schema work during a role transition is allowed only on an internal session. Returns
+ *     EBUSY when the constituent's handle is in use.
+ */
+static int
+__disagg_drop_local_stable(WT_SESSION_IMPL *int_session, const char *stable_uri)
+{
+    WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(int_session, WT_SESSION_drop), "force=true", NULL};
+
+#ifdef HAVE_DIAGNOSTIC
+    __disagg_assert_stable_empty(int_session, stable_uri);
+#endif
+
+    WT_WITH_SCHEMA_LOCK(
+      int_session, ret = __wt_schema_drop(int_session, stable_uri, drop_cfg, false));
+    if (ret == ENOENT || ret == WT_NOTFOUND)
+        return (0);
+    return (ret);
+}
+
+/*
+ * __disagg_collect_local_only_stable_uris --
+ *     Collect into the caller's array the local layered tables' stable constituents that are absent
+ *     from the shared metadata.
+ */
+static int
+__disagg_collect_local_only_stable_uris(
+  WT_SESSION_IMPL *int_session, WT_CURSOR *shared, char ***urisp, size_t *countp, size_t *allocp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CURSOR *scan;
+    WT_DECL_RET;
+    char *stable_uri;
+    const char *layered_cfg, *layered_uri;
+
+    scan = NULL;
+    stable_uri = NULL;
+
+    WT_ERR(__wt_metadata_cursor(int_session, &scan));
+    scan->set_key(scan, "layered:");
+    WT_ERR(scan->bound(scan, "bound=lower"));
+    while ((ret = scan->next(scan)) == 0) {
+        WT_ERR(scan->get_key(scan, &layered_uri));
+        WT_ERR(scan->get_value(scan, &layered_cfg));
+        if (!WT_PREFIX_MATCH(layered_uri, "layered:"))
+            break;
+
+        WT_ERR(__wt_config_getones(int_session, layered_cfg, "stable", &cval));
+        WT_ERR(__wt_strndup(int_session, cval.str, cval.len, &stable_uri));
+
+        /* A constituent already in the shared metadata is published; keep it. */
+        if (shared != NULL) {
+            shared->set_key(shared, stable_uri);
+            ret = shared->search(shared);
+            if (ret == 0) {
+                __wt_free(int_session, stable_uri);
+                stable_uri = NULL;
+                continue;
+            }
+            if (ret != WT_NOTFOUND)
+                WT_ERR(ret);
+        }
+
+        WT_ERR(__wt_realloc_def(int_session, allocp, *countp + 1, urisp));
+        (*urisp)[(*countp)++] = stable_uri;
+        stable_uri = NULL;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    __wt_free(int_session, stable_uri);
+    if (scan != NULL)
+        WT_TRET(__wt_metadata_cursor_release(int_session, &scan));
+    return (ret);
+}
+
+/*
+ * __disagg_drop_local_only_stable_tables_legacy --
+ *     Legacy step-down cleanup. Without schema epochs to mark coverage, drop every local stable
+ *     table missing from the shared metadata: it was created as leader and never published, so a
+ *     follower must not keep it. Also clear the queue, which a later step-up rebuilds from a scan.
+ */
+static int
+__disagg_drop_local_only_stable_tables_legacy(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *shared;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *int_session;
+    size_t drop_allocated, drop_count, i;
+    char **drop_uris;
+    const char *cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+    shared = NULL;
+    int_session = NULL;
+    drop_uris = NULL;
+    drop_allocated = drop_count = 0;
+
+    __disagg_shared_metadata_queue_clear(session);
+
+    /* A role transition permits schema work only on an internal session. */
+    WT_ERR(__wt_open_internal_session(S2C(session), "disagg-step-down", false, 0, 0, &int_session));
+
+    /* Read the shared metadata live: the checkpoint cursor would deadlock on the lock we hold. */
+    WT_ERR(__wt_open_cursor(int_session, WT_DISAGG_METADATA_URI, NULL, cursor_cfg, &shared));
+
+    /* Collect first, then drop: a drop closes handles and cannot run with the scan cursor open. */
+    WT_ERR(__disagg_collect_local_only_stable_uris(
+      int_session, shared, &drop_uris, &drop_count, &drop_allocated));
+    if (shared != NULL)
+        WT_ERR(shared->close(shared));
+    shared = NULL;
+
+    for (i = 0; i < drop_count; i++) {
+        ret = __disagg_drop_local_stable(int_session, drop_uris[i]);
+        /* Step-down is quiesced, so an uncovered stable drops cleanly; a busy one is a bug. */
+        WT_ASSERT(int_session, ret != EBUSY);
+        WT_ERR(ret);
+    }
+
+err:
+    for (i = 0; i < drop_count; i++)
+        __wt_free(int_session, drop_uris[i]);
+    __wt_free(int_session, drop_uris);
+    if (shared != NULL)
+        WT_TRET(shared->close(shared));
+    if (int_session != NULL)
+        WT_TRET(__wt_session_close_internal(int_session));
+    return (ret);
+}
+
+/*
+ * __disagg_drop_local_only_stable_tables_epoch --
+ *     Epoch step-down cleanup. The queue's uncovered create entries name the stable tables no
+ *     checkpoint covers; drop each one.
+ */
+static int
+__disagg_drop_local_only_stable_tables_epoch(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_METADATA_OP *entry;
+    WT_SESSION_IMPL *int_session;
+
+    conn = S2C(session);
+    int_session = NULL;
+
+    WT_RET(__wt_open_internal_session(conn, "disagg-step-down", false, 0, 0, &int_session));
+
+    /* The checkpoint lock freezes the queue for the walk. */
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE || entry->stable_value == NULL)
+            continue;
+
+        ret = __disagg_drop_local_stable(int_session, entry->stable_uri);
+        /* Step-down is quiesced, so an uncovered stable drops cleanly; a busy one is a bug. */
+        WT_ASSERT(int_session, ret != EBUSY);
+        WT_ERR(ret);
+
+        __wt_free(session, entry->stable_value);
+        entry->stable_value = NULL;
+    }
+
+err:
+    WT_TRET(__wt_session_close_internal(int_session));
+    return (ret);
+}
+
+/*
+ * __disagg_drop_local_only_stable_tables --
+ *     Step-down cleanup: drop the local stable tables no checkpoint covers so the follower stops
+ *     owning them; a later step-up rebuilds them from the surviving create intents.
+ */
+static int
+__disagg_drop_local_only_stable_tables(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+
+    /*
+     * No stable epoch means legacy mode, which reconciles against shared metadata instead. Test the
+     * configured epoch, not the last checkpoint's, so a node not yet checkpointed still counts.
+     */
+    if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
+        return (__disagg_drop_local_only_stable_tables_legacy(session));
+    return (__disagg_drop_local_only_stable_tables_epoch(session));
+}
+
 /*
  * __wti_disagg_shared_metadata_queue_prune --
  *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
@@ -1197,8 +1444,17 @@ __disagg_step_down(WT_SESSION_IMPL *session)
       session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
     WT_ERR(ret);
 
-    /* Do some cleanup as we are abandoning the current checkpoint. */
-    __disagg_shared_metadata_queue_clear(session);
+    /*
+     * Reconcile local schema state for the follower role. The metadata queue survives the role
+     * change -- its create and remove intents are role-independent and a later step-up still needs
+     * them -- but the local stable tables no checkpoint covers must go, since a follower cannot own
+     * them.
+     */
+    WT_ERR(__disagg_drop_local_only_stable_tables(session));
+
+#ifdef HAVE_DIAGNOSTIC
+    __disagg_shared_metadata_queue_verify(session);
+#endif
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
