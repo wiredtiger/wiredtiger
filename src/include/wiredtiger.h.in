@@ -4512,6 +4512,14 @@ const char *wiredtiger_repair(WT_CONNECTION *connection, const char *config)
  * was in flight when the step-down timestamp was set.
  */
 #define	WT_STEP_DOWN	(-32015)
+/*!
+ * Transaction dirty content alone exceeds the eviction updates trigger.
+ * This sub-level error indicates that a single transaction has dirtied more
+ * cache than the eviction updates trigger allows. Eviction cannot reclaim
+ * content pinned by an uncommitted transaction, so the transaction cannot
+ * succeed against the configured cache size and has been rolled back.
+ */
+#define	WT_TXN_TOO_LARGE_FOR_CACHE	(-32016)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
@@ -9181,13 +9189,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_COMMIT				2036
 /*! transaction: transactions rolled back */
 #define	WT_STAT_CONN_TXN_ROLLBACK			2037
+/*!
+ * transaction: transactions rolled back because their own dirty content
+ * exceeds the eviction updates trigger
+ */
+#define	WT_STAT_CONN_TXN_ROLLBACK_TOO_LARGE_FOR_CACHE	2038
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2038
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		2039
 /*!
  * transaction: write transactions rolled back for straddling the step-
  * down timestamp setting boundary
  */
-#define	WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN		2039
+#define	WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN		2040
 
 /*!
  * @}
