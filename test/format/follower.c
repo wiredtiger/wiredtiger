@@ -117,14 +117,18 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
      * may only be delivered once the checkpoint's content has been replayed, so a snapshot
      * established after the delivery covers it. Skip the pickup until every replay operation up to
      * the checkpoint's timestamp has committed on this node; the stable timestamp is not a
-     * substitute, since it advances on the replay schedule rather than with application.
+     * substitute, since it advances on the replay schedule rather than with application. The
+     * watermark only exists under predictable replay; in other modes (a role switch picking up the
+     * node's own checkpoint) there is no replayed content to wait for.
      */
-    replayed_ts = replay_maximum_committed();
-    if (replayed_ts == WT_TS_NONE || replayed_ts < checkpoint_ts) {
-        printf("--- [Follower] Skipping checkpoint pickup: checkpoint_timestamp(hex)=%" PRIx64
-               " > replayed_timestamp(hex)=%" PRIx64 " ---\n",
-          checkpoint_ts, replayed_ts);
-        goto done;
+    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+        replayed_ts = replay_maximum_committed();
+        if (replayed_ts == WT_TS_NONE || replayed_ts < checkpoint_ts) {
+            printf("--- [Follower] Skipping checkpoint pickup: checkpoint_timestamp(hex)=%" PRIx64
+                   " > replayed_timestamp(hex)=%" PRIx64 " ---\n",
+              checkpoint_ts, replayed_ts);
+            goto done;
+        }
     }
 
     testutil_check(timestamp_query("get=pinned", &pinned_ts));
