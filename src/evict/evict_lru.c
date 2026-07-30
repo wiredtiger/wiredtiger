@@ -1610,15 +1610,6 @@ __evict_get_ref(
             bucket = &bucketset->buckets[j];
 
             /*
-             * Reject an empty bucket with a single load, before touching its hash table.
-             *
-             * Racy but safe: a page enqueued concurrently is simply missed on this pass, which is
-             * already true of the unlocked TAILQ_EMPTY hint on the hash chains below.
-             */
-            if (__wt_atomic_load_uint64_v_relaxed(&bucket->bucket_num_items) == 0)
-                continue;
-
-            /*
              * Every bucket holds one queue per tree, in a hashtable. Walk each hash chain under
              * its own lock. Skipping a syncing tree costs a single check for the whole tree, rather
              * than one check per page as it would in a flat queue.
@@ -1748,7 +1739,6 @@ __evict_get_ref(
                             ref->page->evict_data.bucket = NULL;
                             /* The page is leaving the subqueue: drop the cached pointer. */
                             ref->page->evict_data.subq = NULL;
-                            __wt_atomic_sub_uint64(&bucket->bucket_num_items, 1);
                             __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
                         }
                         __wt_spin_unlock(session, &subq->evict_queue_lock);
@@ -2138,7 +2128,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
         page->evict_data.subq = NULL;
         __wt_spin_unlock(session, &dhandle_subqueue->evict_queue_lock);
     }
-    __wt_atomic_sub_uint64(&page->evict_data.bucket->bucket_num_items, 1);
     __wt_atomic_sub_uint64(&bucketset->bucketset_num_items, 1);
     page->evict_data.bucket = NULL;
     if (destroying)
@@ -2307,7 +2296,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_REF *ref)
                             bucket->id, hash_slot, (int)bucketset->level);
     }
     page->evict_data.bucket = bucket;
-    __wt_atomic_add_uint64(&bucket->bucket_num_items, 1);
     __wt_atomic_add_uint64(&bucketset->bucketset_num_items, 1);
 
     WT_STAT_CONN_INCR(session, eviction_enqueued_page);

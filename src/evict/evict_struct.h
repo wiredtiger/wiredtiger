@@ -23,18 +23,6 @@ struct __wt_evict_bucket {
     uint64_t id; /* index in the bucket set */
     struct __wt_evict_bucketset *bucketset;
 
-    /*
-     * Number of pages held in this bucket, summed over all of its per-tree subqueues. Maintained
-     * alongside the bucketset-wide counter and updated with the same atomics.
-     *
-     * A scan can reject an empty bucket with a single relaxed load instead of probing every hash
-     * slot in it. That matters because the hash entries are individually lock-padded: probing all
-     * dhandle_hash_size slots of a bucket touches one cache line per slot, so a sweep over a
-     * bucketset touches num_buckets * dhandle_hash_size cache lines whether or not there is
-     * anything in them. The counters are packed two to a cache line by comparison.
-     */
-    uint64_t bucket_num_items; /* must be updated atomically */
-
     /* Every bucket, at every level, holds per-tree queues in a hashtable. */
     struct __wt_evict_dhandle_hash_entry *pertree_hashtable;
 };
