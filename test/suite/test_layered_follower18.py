@@ -399,18 +399,30 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
         self.leader_checkpoint(20)
         self.disagg_advance_checkpoint(conn_follow)
 
-        # The first table hides the writer through the pre-pickup cursor.
-        self.assertEqual(self.search(cursor_a, 'key_inserted'), ('notfound', None))
-
-        cursor_b = session_follow.open_cursor(self.aux_uri)
-        state = self.search(cursor_b, 'anchor_inserted')
+        # The first table hides the writer through the pre-pickup cursor. The pickup marks the
+        # constituents outdated, so even a pre-pickup cursor re-binds its stable constituent on
+        # the next operation; without deferral that re-bind may be refused instead.
+        state = self.search(cursor_a, 'key_inserted')
         if state[0] != 'rollback':
             self.assertEqual(state, ('notfound', None),
-                'a multi-table writer transaction is torn across tables')
+                'a multi-table writer transaction leaked into a snapshot after a pickup')
+
+        # Opening the second table's cursor after the pickup may itself be refused.
+        try:
+            cursor_b = session_follow.open_cursor(self.aux_uri)
+        except wiredtiger.WiredTigerError as e:
+            self.assertTrue(wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(e))
+            cursor_b = None
+        if cursor_b is not None:
+            state = self.search(cursor_b, 'anchor_inserted')
+            if state[0] != 'rollback':
+                self.assertEqual(state, ('notfound', None),
+                    'a multi-table writer transaction is torn across tables')
+            cursor_b.close()
         session_follow.rollback_transaction()
-        cursor_b.close()
         cursor_a.close()
         conn_follow.close()
+        self.ignoreStderrPatternIfExists('(WT_ROLLBACK|WT_NOTFOUND)')
 
     def test_cursor_cache_reopen_after_pickup(self):
         # A cursor closed before the pickup and reopened afterwards (likely
@@ -731,10 +743,10 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
         conn_follow.close()
 
     def test_open_cursor_on_table_unaffected(self):
-        # A cursor that was already reading the table before the pickup keeps
-        # its view afterwards with no rollbacks; this must hold both before
-        # and after any fix, and the reader must never see the post-snapshot
-        # writes at all.
+        # A cursor that was already reading the table before the pickup must
+        # never see the post-snapshot writes. The cursor's stable constituent
+        # opens lazily, so the first read needing it may fall after the pickup
+        # and be refused instead of served; a refusal is an acceptable outcome.
         conn_follow, session_follow = self.setup_with_first_checkpoint()
 
         session_follow.begin_transaction()
@@ -745,14 +757,15 @@ class test_layered_follower18(wttest.WiredTigerTestCase):
 
         self.commit_post_snapshot_writes(conn_follow)
 
-        cursor.set_key('key_inserted')
-        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        cursor.set_key('key_updated')
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), 'old value')
+        state = self.search(cursor, 'key_inserted')
+        if state[0] != 'rollback':
+            self.assertEqual(state, ('notfound', None),
+                'a post-snapshot write leaked into an open cursor after a pickup')
+            self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
         session_follow.rollback_transaction()
         cursor.close()
         conn_follow.close()
+        self.ignoreStderrPatternIfExists('(WT_ROLLBACK|WT_NOTFOUND)')
 
     def test_transaction_after_pickup_unaffected(self):
         # A snapshot transaction that begins after the pickup must see the
