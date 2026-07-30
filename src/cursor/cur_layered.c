@@ -537,7 +537,7 @@ __clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session, bool leader)
     WT_ASSERT(session, __clayered_stable_bind_check_needed(session));
 
     if (leader == session->txn->disagg_role_leader &&
-      session->txn->disagg_role_gen == __wt_gen_acquire(session, WT_GEN_DISAGG_ROLE))
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) == __wt_gen(session, WT_GEN_DISAGG_ROLE))
         return (0);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
@@ -568,7 +568,7 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
     WT_ASSERT_ALWAYS(session,
       conn_lsn == WT_DISAGG_LSN_NONE ||
         (pinned_lsn != WT_DISAGG_LSN_NONE && pinned_lsn - 1 >= conn_lsn) ||
-        __wt_gen_acquire(session, WT_GEN_DISAGG_ROLE) != session->txn->disagg_role_gen,
+        __wt_gen(session, WT_GEN_DISAGG_ROLE) != __wt_session_gen(session, WT_GEN_DISAGG_ROLE),
       "a checkpoint pickup overtook an active transaction snapshot");
 }
 
@@ -589,7 +589,7 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
      * alone is not enough, since it can read the old generation and still resolve metadata written
      * after the bump.
      */
-    if (__wt_gen_acquire(session, WT_GEN_DISAGG_ROLE) == session->txn->disagg_role_gen)
+    if (__wt_gen(session, WT_GEN_DISAGG_ROLE) == __wt_session_gen(session, WT_GEN_DISAGG_ROLE))
         return (0);
 
     __wt_free(session, *namep);

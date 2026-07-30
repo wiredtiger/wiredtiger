@@ -141,6 +141,9 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
         __wt_atomic_store_uint64_release(&txn_shared->disagg_pinned_lsn, WT_DISAGG_LSN_NONE);
         __wt_disagg_deferred_pickup_signal(session);
     }
+    /* The snapshot's role era ends with it. */
+    if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
+        __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
@@ -220,7 +223,14 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
     uint64_t pinned_lsn;
 
-    session->txn->disagg_role_gen = __wt_gen(session, WT_GEN_DISAGG_ROLE);
+    /*
+     * Enter the role-change generation, re-entering to refresh it when the build is retried: the
+     * published generation is the snapshot's recorded role era, compared at every stable bind and
+     * left when the snapshot is released.
+     */
+    if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
+        __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
+    __wt_session_gen_enter(session, WT_GEN_DISAGG_ROLE);
     session->txn->disagg_role_leader = conn->layered_table_manager.leader;
 
     /*
@@ -264,7 +274,7 @@ __txn_snapshot_validate_disagg(WT_SESSION_IMPL *session, uint64_t pinned_lsn)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    if (__wt_gen(session, WT_GEN_DISAGG_ROLE) != session->txn->disagg_role_gen ||
+    if (__wt_gen(session, WT_GEN_DISAGG_ROLE) != __wt_session_gen(session, WT_GEN_DISAGG_ROLE) ||
       conn->layered_table_manager.leader != session->txn->disagg_role_leader)
         return (false);
     if (session->txn->disagg_role_leader)

@@ -427,13 +427,13 @@ struct __wt_txn {
     uint32_t forced_iso; /* Isolation is currently forced. */
 
     /*
-     * The disaggregated role and role-change generation observed when the snapshot was established.
-     * A snapshot established under one role must not bind a layered table's stable content under
-     * another. A bind compares both: the role catches a transition racing the bind without needing
-     * a lock (the dispatch and the comparison use one read of one variable), and the generation
-     * catches a role that changed away and back.
+     * The disaggregated role observed when the snapshot was established; the role-change generation
+     * it was established under is published in the session's generation slot. A snapshot
+     * established under one role must not bind a layered table's stable content under another. A
+     * bind compares both: the role catches a transition racing the bind without needing a lock (the
+     * dispatch and the comparison use one read of one variable), and the generation catches a role
+     * that changed away and back.
      */
-    uint64_t disagg_role_gen;
     bool disagg_role_leader;
 
     WT_TXN_LOG txn_log;
