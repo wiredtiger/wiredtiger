@@ -1612,12 +1612,12 @@ variables:
   - &format-stress-idle-timeout
     command: timeout.update
     params:
+      # If the task does not produce any output for this amount of time, it will be terminated.
       timeout_secs: 10800 # 3 hours
 
   - &format-stress-test
     exec_timeout_secs: 25200
     commands:
-      - *format-stress-idle-timeout
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
