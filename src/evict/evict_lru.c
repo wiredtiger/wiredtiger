@@ -538,6 +538,37 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __evict_ramp --
+ *     Return true with a probability that rises linearly from zero at lo to one at hi.
+ *
+ * The eviction flags are recomputed by every eviction worker and by the eviction server, hundreds
+ * of times a second, and each caller publishes the whole word. Deciding a flag this way therefore
+ * dithers it: over any interval long enough to matter, the fraction of time the flag is set tracks
+ * how far into the band the cache is, instead of the flag flipping all at once at one occupancy.
+ *
+ * The point is to stop a small change in occupancy from changing policy wholesale. Occupancy is
+ * what eviction efficiency moves, so under a step threshold an unrelated change in how fast pages
+ * are evicted can switch an entire workload between two regimes with very different costs.
+ */
+static WT_INLINE bool
+__evict_ramp(WT_SESSION_IMPL *session, double pct, double lo, double hi)
+{
+    double p;
+
+    /* Degenerate or inverted configuration: fall back to a step at the top of the band. */
+    if (!(hi > lo))
+        return (pct >= hi);
+
+    p = (pct - lo) / (hi - lo);
+    if (p <= 0.0)
+        return (false);
+    if (p >= 1.0)
+        return (true);
+
+    return (__wt_random(&session->rnd_random) < (uint32_t)(p * (double)UINT32_MAX));
+}
+
+/*
  * __evict_update_work --
  *     Configure eviction work state.
  */
@@ -549,8 +580,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
-    double dirty_target, dirty_trigger, target, trigger,  updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem, total_updates;
+    double cache_pct, dirty_target, dirty_trigger, target, trigger,  updates_target, updates_trigger;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, now, total_dirty, total_inmem, total_updates;
     uint32_t flags, hs_id;
 
     conn = S2C(session);
@@ -628,10 +659,42 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      */
     bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
     bytes_inuse = __wt_cache_bytes_inuse(cache);
+
+    /*
+     * Occupancy as a percentage, on the same two quantities the target and trigger gates below
+     * compare, so the ramps and the gates cannot disagree about where the cache is.
+     */
+    cache_pct = (100.0 * bytes_inuse) / bytes_max;
+
+    /*
+     * Re-roll the clean-eviction decision once per quantum and hold it. Clearing this flag parks
+     * the eviction workers, which stops them re-evaluating it, so a decision taken per call is
+     * sampled far more often while set than while clear and its duty cycle lands well under the
+     * probability the ramp asks for.
+     */
+    now = __wt_clock(session);
+    if (evict->evict_ramp_clean_begin == 0 ||
+      WT_CLOCKDIFF_US(now, evict->evict_ramp_clean_begin) >= WT_EVICT_RAMP_QUANTUM_US) {
+        evict->evict_ramp_clean = __evict_ramp(session, cache_pct, target, trigger);
+        evict->evict_ramp_clean_begin = now;
+    }
+
+    /*
+     * Ramp clean eviction across the target-to-trigger band rather than switching it on the
+     * instant the target is passed. Just above target the flag is set only occasionally, so a
+     * cache that has drifted barely over is nudged rather than drained; approaching the trigger it
+     * is set almost always. Above the trigger nothing changes -- that is the point at which
+     * application threads are already being made to help, and it stays unconditional.
+     *
+     * The target gate is kept as the outer condition so clean eviction still never runs below
+     * target. Effective steady-state occupancy will sit higher than it does today, because
+     * eviction now only pushes as hard as the overshoot warrants: that is the intent, but it
+     * leaves less headroom before the dirty and updates triggers on write-heavy workloads.
+     */
     if (__wti_evict_exceeded_clean_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_reached);
-    } else if (__wti_evict_exceeded_clean_target(session)) {
+    } else if (__wti_evict_exceeded_clean_target(session) && evict->evict_ramp_clean) {
         LF_SET(WT_EVICT_CACHE_CLEAN);
     }
 
@@ -692,9 +755,20 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      * There's an experimental flag WT_CACHE_PREFER_SCRUB_EVICTION that can be turned on to enable
      * scrub eviction as long as cache usage overall is under half way to the trigger limit.
      */
+    /*
+     * Ramp NOKEEP across the same band. NOKEEP is not a volume knob, it is admission control: with
+     * it set a page read from disk is flagged wont_need and dropped by the thread that read it,
+     * without it the page is admitted and an eviction sweep has to find it again later. Switching
+     * that for the whole workload at one occupancy is the sharpest cliff in this function.
+     *
+     * Ramping across [target, trigger] puts the 50% point at the midpoint between them, which is
+     * exactly where the old step was, so the change is unbiased: below the old threshold there is
+     * now some NOKEEP where there was none, above it some admission where there was none, and the
+     * crossover is unmoved. Narrow the band here if a sharper transition is wanted.
+     */
     if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
         LF_SET(WT_EVICT_CACHE_SCRUB);
-    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+    else if (!__evict_ramp(session, cache_pct, target, trigger)) {
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);

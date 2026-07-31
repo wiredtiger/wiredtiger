@@ -33,6 +33,22 @@ struct __wt_evict {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
 
+    /*
+     * Ramped clean-eviction decision, held for a fixed quantum rather than re-rolled on every call.
+     *
+     * A worker that finds WT_EVICT_CACHE_CLEAN clear leaves __evict_lru_pages() and parks on a
+     * 10ms condition wait, so it stops re-evaluating; while the flag is set it re-evaluates once
+     * per batch, far more often. Re-rolling per call therefore samples the two states at very
+     * different rates and the flag's duty cycle comes out well below the intended probability.
+     * Holding one decision per quantum makes the duty cycle independent of who evaluates it and
+     * how often.
+     *
+     * Unsynchronized: two threads may roll for the same quantum, or a quantum may run slightly
+     * long. Neither changes the duty cycle in expectation.
+     */
+    uint64_t evict_ramp_clean_begin; /* Clock value this quantum started at */
+    bool evict_ramp_clean;           /* Decision in force for this quantum */
+
     uint64_t app_waits;     /* User threads waited for eviction */
     uint64_t app_evicts;    /* Pages evicted by user threads */
     uint64_t evicted_pages; /* The number of evicted pages */
@@ -143,6 +159,13 @@ struct __wt_evict {
 #define WT_EVICT_CACHE_ANY (WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)
 #define WT_EVICT_CACHE_HARD \
     (WT_EVICT_CACHE_CLEAN_HARD | WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)
+
+/*
+ * How long one ramped clean-eviction decision is held. Comfortably longer than the 10ms park in
+ * __evict_lru_pages(), so a parked worker re-checks several times within a quantum and the off
+ * phase lasts the quantum rather than the park.
+ */
+#define WT_EVICT_RAMP_QUANTUM_US (50 * WT_THOUSAND)
     uint32_t flags;
 };
 
