@@ -144,10 +144,8 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
     WT_BTREE *btree = S2BT(session);
 
     /*
-     * A table awaiting publication has never been checkpointed, so any committed data it holds lives
-     * only in the in-memory handle and is lost when the drop closes it. Refuse the drop so a
-     * checkpoint persists the data first. A table with no committed data has nothing to lose and
-     * drops normally.
+     * A table awaiting publication has never been checkpointed, so any committed data it holds is
+     * lost when the drop closes the handle. Refuse the drop until a checkpoint has persisted it.
      */
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
       __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
