@@ -597,17 +597,26 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
 static WT_INLINE bool
 __evict_ramp(WT_SESSION_IMPL *session, double pct, double lo, double hi)
 {
-    double p;
+    double p, x;
+    u_int i;
 
     /* Degenerate or inverted configuration: fall back to a step at the top of the band. */
     if (!(hi > lo))
         return (pct >= hi);
 
-    p = (pct - lo) / (hi - lo);
-    if (p <= 0.0)
+    x = (pct - lo) / (hi - lo);
+    if (x <= 0.0)
         return (false);
-    if (p >= 1.0)
+    if (x >= 1.0)
         return (true);
+
+    /*
+     * Curve the ramp. Repeated multiplication rather than pow(): the exponent is a small integer,
+     * and this runs on every eviction state update.
+     */
+    p = x;
+    for (i = 1; i < WT_EVICT_RAMP_EXPONENT; i++)
+        p *= x;
 
     return (__wt_random(&session->rnd_random) < (uint32_t)(p * (double)UINT32_MAX));
 }
