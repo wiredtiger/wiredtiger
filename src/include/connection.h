@@ -330,11 +330,6 @@ struct __wt_disaggregated_storage {
      */
     WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
     TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
-    /*
-     * The newest queued checkpoint's generation, zero when the queue is empty: a lock-free summary
-     * for the wakeup paths, maintained under the queue lock.
-     */
-    wt_shared uint64_t deferred_ckpt_newest_gen;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until
