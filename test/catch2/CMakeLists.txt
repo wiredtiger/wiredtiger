@@ -18,6 +18,7 @@ else()
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_error.cpp
+        misc_tests/test_evict_bounded_wait.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp

@@ -8,6 +8,16 @@
 
 #pragma once
 
+/*
+ * __evict_bounded_wait_remaining_us --
+ *     Return the remaining bounded eviction wait time.
+ */
+static WT_INLINE uint64_t
+__evict_bounded_wait_remaining_us(uint64_t elapsed_us)
+{
+    return (elapsed_us > WTI_EVICT_BOUNDED_WAIT_US ? 0 : WTI_EVICT_BOUNDED_WAIT_US - elapsed_us);
+}
+
 /* !!!
  * __wt_evict_aggressive --
  *     Check whether eviction is unable to make any progress for some amount of time.
@@ -809,14 +819,16 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
  *       (2) `readonly`: A flag indicating if the session is read-only, in which case dirty and
  *          update triggers are ignored.
  *       (3) `interruptible`: A flag indicating if the user is allowed to interrupt eviction.
- *       (4) `didworkp`: A pointer to indicate whether eviction work was done (optional).
+ *       (4) `bounded`: A flag indicating the caller pins no transaction state, in which case the
+ *            wait is capped rather than continuing until the cache drops below its triggers.
+ *       (5) `didworkp`: A pointer to indicate whether eviction work was done (optional).
  *
  *     Return an error code from `__wti_evict_app_assist_worker` if it is unable to perform
  *     meaningful work (eviction cache stuck).
  */
 static WT_INLINE int
-__wt_evict_app_assist_worker_check(
-  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
+__wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  bool interruptible, bool bounded, bool *didworkp)
 {
     if (didworkp != NULL)
         *didworkp = false;
@@ -945,7 +957,7 @@ __wt_evict_app_assist_worker_check(
     if (didworkp != NULL)
         *didworkp = true;
 
-    return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible));
+    return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible, bounded));
 }
 
 /*
