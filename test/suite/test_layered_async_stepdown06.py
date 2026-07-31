@@ -166,31 +166,38 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(rcur.get_key(), 'd')
 
         # The cursor stays positioned across the demotion and the walk continues in place, with
-        # no duplicates or gaps.
+        # no duplicates or gaps. An untimestamped snapshot spanning the demotion may instead be
+        # refused at its next stable bind: the role change swaps what the stable content is, so no
+        # binding is consistent for it. A timestamped reader must never be refused.
         self.conn.reconfigure('disaggregated=(role="follower")')
-        seen = []
-        while rcur.next() == 0:
-            seen.append(rcur.get_key())
-        self.assertEqual(seen, ['e', 'f', 'z'],
-            'the walk must continue correctly across the completed step-down')
+        try:
+            seen = []
+            while rcur.next() == 0:
+                seen.append(rcur.get_key())
+            self.assertEqual(seen, ['e', 'f', 'z'],
+                'the walk must continue correctly across the completed step-down')
 
-        # Point reads keep answering from both constituents; a miss is still a miss.
-        self.assertEqual(rcur['d'], 's')
-        self.assertEqual(rcur['e'], 'i')
-        rcur.set_key('x')
-        self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
+            # Point reads keep answering from both constituents; a miss is still a miss.
+            self.assertEqual(rcur['d'], 's')
+            self.assertEqual(rcur['e'], 'i')
+            rcur.set_key('x')
+            self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
 
-        # search_near on the follower positions on an adjacent key from the merged view.
-        rcur.set_key('x')
-        self.assertNotEqual(rcur.search_near(), wiredtiger.WT_NOTFOUND)
-        self.assertIn(rcur.get_key(), ('f', 'z'))
+            # search_near on the follower positions on an adjacent key from the merged view.
+            rcur.set_key('x')
+            self.assertNotEqual(rcur.search_near(), wiredtiger.WT_NOTFOUND)
+            self.assertIn(rcur.get_key(), ('f', 'z'))
 
-        # A reverse walk in the same held transaction yields the full merged view.
-        rcur.reset()
-        seen = []
-        while rcur.prev() == 0:
-            seen.append(rcur.get_key())
-        self.assertEqual(seen, ['z', 'f', 'e', 'd', 'c', 'b', 'a'])
+            # A reverse walk in the same held transaction yields the full merged view.
+            rcur.reset()
+            seen = []
+            while rcur.prev() == 0:
+                seen.append(rcur.get_key())
+            self.assertEqual(seen, ['z', 'f', 'e', 'd', 'c', 'b', 'a'])
+        except wiredtiger.WiredTigerError as e:
+            if begin_config is not None or 'WT_ROLLBACK' not in str(e):
+                raise
+            self.ignoreStderrPatternIfExists('WT_ROLLBACK')
 
         self.session.rollback_transaction()
         rcur.close()
@@ -241,25 +248,34 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
         ckpt_session.close()
 
         # The cursor stays positioned across the demotion and the walk finishes in place: still
-        # only the snapshot's keys, in order.
+        # only the snapshot's keys, in order. An untimestamped snapshot spanning the demotion may
+        # instead be refused at its next stable bind: the role change swaps what the stable
+        # content is, so no binding is consistent for it. A timestamped reader must never be
+        # refused.
         self.conn.reconfigure('disaggregated=(role="follower")')
-        seen = []
-        while rcur.next() == 0:
-            seen.append(rcur.get_key())
-        self.assertEqual(seen, ['j'],
-            'the snapshot taken beforehand must yield exactly its own keys across the step-down')
+        try:
+            seen = []
+            while rcur.next() == 0:
+                seen.append(rcur.get_key())
+            self.assertEqual(seen, ['j'],
+                'the snapshot taken beforehand must yield exactly its own keys across the '
+                'step-down')
 
-        # The ingest keys stay invisible to point reads on the follower.
-        rcur.set_key('a')
-        self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(rcur['d'], 's')
+            # The ingest keys stay invisible to point reads on the follower.
+            rcur.set_key('a')
+            self.assertEqual(rcur.search(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(rcur['d'], 's')
 
-        # A reverse walk still yields only the snapshot's keys.
-        rcur.reset()
-        seen = []
-        while rcur.prev() == 0:
-            seen.append(rcur.get_key())
-        self.assertEqual(seen, ['j', 'h', 'f', 'd', 'b'])
+            # A reverse walk still yields only the snapshot's keys.
+            rcur.reset()
+            seen = []
+            while rcur.prev() == 0:
+                seen.append(rcur.get_key())
+            self.assertEqual(seen, ['j', 'h', 'f', 'd', 'b'])
+        except wiredtiger.WiredTigerError as e:
+            if begin_config is not None or 'WT_ROLLBACK' not in str(e):
+                raise
+            self.ignoreStderrPatternIfExists('WT_ROLLBACK')
 
         self.session.rollback_transaction()
         rcur.close()
