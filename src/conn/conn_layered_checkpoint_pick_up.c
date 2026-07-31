@@ -962,11 +962,15 @@ __disagg_deferred_pickup_server(void *arg)
          * with a concurrent pickup (EBUSY) is expected and retried quietly; back off so failures
          * are not hot.
          */
-        while (__disagg_deferred_pickup_run_chk(session) &&
-          (ret = __wti_disagg_deferred_pickup_retry(session, false)) != 0) {
+        while (__disagg_deferred_pickup_run_chk(session)) {
+            ret = __wti_disagg_deferred_pickup_retry(session, false);
+            if (ret == 0)
+                break;
+
             if (ret != EBUSY)
                 __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "deferred checkpoint pickup failed: %s", __wt_strerror(session, ret, NULL, 0));
+
             __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
 

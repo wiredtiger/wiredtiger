@@ -1379,13 +1379,18 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * checkpoint cannot become the leader, cannot report the failure, and a panic hands
          * leadership to another node.
          */
-        for (retries = 0; (ret = __wti_disagg_deferred_pickup_retry(session, true)) == EBUSY;
-          ++retries) {
+        for (retries = 0;; ++retries) {
+            ret = __wti_disagg_deferred_pickup_retry(session, true);
+            if (ret != EBUSY)
+                break;
+
+            /* Report the wait periodically rather than on every retry. */
             if (retries % 10 == 0)
                 __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "The deferred checkpoint adoption before step-up is blocked, retrying (%" PRIu64
                   " retries)",
                   retries);
+
             __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
         /* The common error path panics: the role transition has started. */
