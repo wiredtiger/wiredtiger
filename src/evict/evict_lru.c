@@ -338,6 +338,29 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 #define WT_EVICT_WORKER_BATCH 100
 
 /*
+ * __evict_ramp_quantum_expired --
+ *     Return whether the ramped clean-eviction decision is due to be re-rolled.
+ *
+ * A clock read and a comparison, so it is cheap enough to test on the path where there is no
+ * eviction work to do -- unlike __evict_update_work(), which walks the history store trees.
+ */
+static WT_INLINE bool
+__evict_ramp_quantum_expired(WT_SESSION_IMPL *session)
+{
+    WT_EVICT *evict;
+
+    evict = S2C(session)->evict;
+
+    /*
+     * Read without synchronisation, as the quantum itself is. A stale or torn read costs one
+     * needless re-roll or one late one, and corrects on the next pass.
+     */
+    return (evict->evict_ramp_clean_begin == 0 ||
+      WT_CLOCKDIFF_US(__wt_clock(session), evict->evict_ramp_clean_begin) >=
+        WT_EVICT_RAMP_QUANTUM_US);
+}
+
+/*
  * __evict_lru_pages --
  *     Evict pages while the cache is over target, draining a bounded batch between occupancy checks.
  */
@@ -354,8 +377,29 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     conn = S2C(session);
     eviction_needed = false;
 
-    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
-      F_ISSET(conn->evict, WT_EVICT_CACHE_ANY) && ret == 0) {
+    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) && ret == 0) {
+        /*
+         * Continue when there is eviction work to do, and also when there is none but the ramped
+         * clean-eviction decision is due to be re-rolled.
+         *
+         * Testing the flag alone here left the ramp delivering far less than the probability it
+         * asks for. A worker that finds the flag clear leaves without reaching
+         * __evict_update_work(), so it cannot re-roll, and the eviction server becomes the only
+         * thing able to end an off period. That makes the two states sample at very different
+         * rates: measured on a YCSB read workload, on periods ran for their quantum while off
+         * periods ran about six times longer, and a ramp asking for 81% delivered 43%. The error
+         * grows as the probability falls, so the ramp was least accurate in the gentle region just
+         * above target that it exists to serve.
+         *
+         * Letting a worker re-roll once its own quantum is up bounds an off period at the quantum
+         * plus one park, which is what the on periods already cost.
+         *
+         * The short circuit keeps this off the hot path: while there is work to do the flag test
+         * alone decides, and the clock is only read when there is not.
+         */
+        if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY) && !__evict_ramp_quantum_expired(session))
+            break;
+
         /*
          * Recompute the eviction state once per batch, not once per page: it is expensive and
          * occupancy does not change meaningfully between consecutive evictions. This also refreshes
