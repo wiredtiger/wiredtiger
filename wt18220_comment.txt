@@ -1,0 +1,52 @@
+Ran all the gap cases from the coverage doc locally as a scratch file (not for commit):
+168 tests, 167 passing, 1 skipped. Everything looks good on current code -- closing this ticket.
+
+What was covered:
+
+*Case gaps* -- cross-constituent write conflict after the step-down (plus two variants),
+boundary reads below/at/above the cutoff, largest_key on a removed maximum, drop staying
+dropped, write through a cache-served cursor, next_random resample with mixed content.
+
+*Cross-class combinations* -- straddler through a cache-served cursor and through a handle
+last used by an earlier transaction, duplicate-key and overwrite=false against ingest-resident
+keys and tombstones, cursor bounds on ingest-only / tombstone / gap edges, forward and reverse.
+
+*History store reads* -- multiple versions in both constituents, both evicted, as-of-past
+reads verified in P1/P2/P3/P4 with cache_hs_read confirming the reads really resolve through the
+history store; oldest advancing mid-transition under a pinned reader.
+
+*Maintenance ops* -- verify succeeds on the layered table and both constituents
+with legitimate ingest content. Recorded the rest rather than asserting, since the contract is not
+agreed: compact and alter are unsupported for disagg/layered, rollback_to_stable, salvage and
+backup succeed.
+
+*Role-change edges* -- reconfigure back to leader with the cutoff set, repeated
+demotion, step-up with ingest content present. All defined, content survives.
+
+*Eviction during the transition* -- eviction driven during the transition (~1400 pages), merged view
+correct before and after the demotion.
+
+*Prohibited ops* -- autocommit layered write, read-committed and read-uncommitted all
+abort as designed, each in a subprocess. These are WT_ASSERT guards, so they need a diagnostic
+build.
+
+*Cursor/transaction binding* -- 144 scenarios: 3 reuse patterns (same handle,
+cache-served, close/reopen inside the transaction) x 8 resumed operations (scan from reset, search,
+search_near, largest_key, insert, update, remove, reserve) x 2 windows (cutoff set, full step-down)
+x 3 previous-transaction endings, including the step-down guard firing mid-operation. Resumed reads
+see the whole merged view; resumed writes land in ingest with stable's values untouched.
+
+Not tested:
+
+- The snapshot-invisibility case (a reader with no read timestamp seeing a post-snapshot stable
+  commit). It reproduces -- the visibility flips at the reconfigure, not at the step-down
+  checkpoint -- but it is WT-18156 and being fixed separately.
+- Fast truncate and prepared transactions, which are not supported while the step-down timestamp
+  is set.
+- Writes to plain (local, non-layered) tables while the timestamp is set. Prohibited by design but
+  not enforced, so there is no behavior to pin until a guard is added.
+- The maintenance-op contracts (compact, alter, rollback_to_stable, salvage, backup while the
+  timestamp is set): current behavior is recorded above but not asserted, since no contract has
+  been agreed yet.
+- Pickup completeness on a second node: content and schema survival across a checkpoint pickup.
+- Writers whose transaction spans the reconfigure, tracked separately.
