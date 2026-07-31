@@ -144,8 +144,10 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
     WT_BTREE *btree = S2BT(session);
 
     /*
-     * A table awaiting publication has never been checkpointed, so any committed data it holds is
-     * lost when the drop closes the handle. Refuse the drop until a checkpoint has persisted it.
+     * Behave like a regular table, which returns EBUSY when it holds uncheckpointed data. A table
+     * awaiting publication has never been checkpointed and trims its stable data before closing the
+     * handle, so committed data is gone before the close could fail. Refuse the drop until a
+     * checkpoint has persisted the data.
      */
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
       __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)

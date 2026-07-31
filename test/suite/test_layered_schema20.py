@@ -144,6 +144,39 @@ class test_layered_schema20(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         session_follower.close()
         conn_follower.close()
 
+    def test_drop_published_checkpointed_with_dirty_data(self):
+        # Create and publish at epoch 5.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 5)
+
+        # Write and checkpoint at ts 10, epoch 6. Epoch 6 > publish epoch 5, so
+        # the checkpoint covers the create and clears AWAITS_PUBLISH.
+        self.write_rows(commit_ts=10)
+        self.set_stable_epoch(6)
+        self.leader_checkpoint(10)
+
+        # Write new data at ts 11 -- uncheckpointed. AWAITS_PUBLISH is now clear.
+        self.write_rows(commit_ts=11)
+
+        # Drop at epoch 7. The published table no longer awaits publication, so the
+        # unpublished-data guard does not apply. The drop is still refused with EBUSY
+        # because closing the dirty ingest file fails, protecting the ts-11 data
+        # through the same path a regular table uses.
+        self.set_stable_epoch(7)
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.drop(self.uri))
+        err, sub, msg = self.session.get_last_error()
+        self.assertEqual(err, errno.EBUSY)
+        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
+        self.assertTrue('dirty data' in msg)
+
+        # Checkpoint to quiesce dirty state so teardown can close cleanly.
+        self.set_stable_epoch(8)
+        self.leader_checkpoint(11)
+
     def test_drop_empty_is_allowed(self):
         # An awaiting-publication table with no data is transient: nothing obligates a checkpoint,
         # so the drop is allowed.
