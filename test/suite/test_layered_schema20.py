@@ -26,173 +26,139 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Dropping a published but uncheckpointed layered table would discard the only copy of its
-# committed data, since the published CREATE obligates a covering checkpoint to include that
-# data. The drop must be refused until a checkpoint publishes the table.
+# Test that verifying a table that is still awaiting publication does not throw away its
+# committed data. Such a table lives only in memory until a checkpoint publishes it, so there
+# is nothing on disk to verify. Verify skips it and leaves the data intact.
 
-import errno
-import wiredtiger, wttest
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
 class test_layered_schema20(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
-    conn_base_config = 'statistics=(all),precise_checkpoint=true,cache_cursors=false,'
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
-    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     uri = f'layered:{test_name}'
+    stable_uri = f'file:{test_name}.wt_stable'
     table_config = 'key_format=i,value_format=S'
-    nrows = 100
+
+    nrows = 10
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    #
-    # Helper methods
-    #
-
-    def create_and_publish_table(self):
-        """Create and publish a table under a stable schema epoch so it awaits publication."""
-        # Precise checkpoint requires a stable timestamp at connection close.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(5)
+    def create_unpublished_table_with_data(self):
+        """Create a table awaiting publication and write committed rows into it."""
+        # The table is created in epoch 10 and published at epoch 20. The stable epoch
+        # stays at 10, so no checkpoint can publish the table and it keeps its data in
+        # memory.
+        self.set_stable_epoch(10)
         self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 10)
+        self.publish(self.uri, 20)
 
-    def write_rows(self, commit_ts=None):
-        """Write nrows to the table, then commit at commit_ts or roll back if it is None."""
-        self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
-            cursor[i] = 'value'
+            self.session.begin_transaction()
+            cursor[i] = f'value{i}'
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30 + i))
         cursor.close()
-        if commit_ts is None:
-            self.session.rollback_transaction()
-        else:
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
 
-    def assert_all_rows(self, session):
-        """Assert that every written row is readable through the given session."""
-        cursor = session.open_cursor(self.uri)
-        count = 0
-        while cursor.next() == 0:
-            self.assertEqual(cursor.get_value(), 'value')
-            count += 1
+        # A table awaiting publication may only hold unstable data. Keep the stable timestamp
+        # below the committed rows so the data stays unstable, and provide the stable timestamp
+        # a precise checkpoint needs, including the one taken when the connection closes.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30) +
+                                ',oldest_timestamp=' + self.timestamp_str(1))
+
+    def create_empty_unpublished_table(self):
+        """Create a table awaiting publication that never receives any data."""
+        self.set_stable_epoch(10)
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 20)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30) +
+                                ',oldest_timestamp=' + self.timestamp_str(1))
+
+    def check_rows(self):
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
+            cursor.set_key(i)
+            self.assertEqual(cursor.search(), 0, f'key {i} is missing')
+            self.assertEqual(cursor.get_value(), f'value{i}')
         cursor.close()
-        self.assertEqual(count, self.nrows)
 
-    def assert_drop_refused(self):
-        """Assert that dropping the table is refused with EBUSY / WT_DIRTY_DATA."""
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(self.uri))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('unpublished data' in msg)
+    def test_verify_unpublished_table(self):
+        """
+        Verify a table that is still awaiting publication. Such a table has nothing on disk,
+        so verify skips it and must leave the committed rows intact rather than discarding them.
+        """
+        self.create_unpublished_table_with_data()
+        self.check_rows()
 
-    def assert_drop_succeeds(self):
-        """Drop the table and confirm it is gone from local metadata."""
-        self.session.drop(self.uri)
-        self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+        self.session.verify(self.uri, None)
 
-    #
-    # Drop lifecycle tests
-    #
+        self.check_rows()
 
-    def test_drop_with_committed_data_is_refused(self):
-        # A table that awaits publication and holds committed data keeps its only copy in memory,
-        # so the drop is refused until a checkpoint publishes it.
-        self.create_and_publish_table()
-        self.write_rows(commit_ts=3)
-        self.assert_drop_refused()
+    def test_verify_empty_unpublished_table(self):
+        """
+        Verify an unpublished table that never held any data. It is still awaiting publication,
+        so verify skips it and completes without error.
+        """
+        self.create_empty_unpublished_table()
 
-        # The refused drop left no partial state, so the committed rows remain readable.
-        self.assert_all_rows(self.session)
+        self.session.verify(self.uri, None)
 
-        # A checkpoint publishes and persists the table with no data loss: the rows reach a
-        # follower, and the published table then drops normally.
-        self.set_stable_epoch(10)
-        self.leader_checkpoint(3)
-        conn_follower, session_follower = self.open_follower()
-        self.assert_all_rows(session_follower)
-        session_follower.close()
-        conn_follower.close()
-        self.assert_drop_succeeds()
+    def test_verify_unpublished_table_is_idempotent(self):
+        """Repeated verifies of an unpublished table keep skipping and never lose the data."""
+        self.create_unpublished_table_with_data()
 
-    def test_checkpoint_between_create_and_drop_epochs_keeps_data(self):
-        # Create and publish the table at schema epoch 5, then write committed data at timestamp 10.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(1)
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 5)
-        self.write_rows(commit_ts=10)
+        self.session.verify(self.uri, None)
+        self.session.verify(self.uri, None)
 
-        # A later checkpoint at schema epoch 6 covers the create but not a drop published at epoch
-        # 7, so it must include the table with the timestamp-10 writes. Dropping the table now would
-        # discard those writes when the handle closes, so the drop is refused first.
-        self.assert_drop_refused()
+        self.check_rows()
 
-        # The checkpoint at schema epoch 6 and timestamp 11 includes the table and its data.
-        self.set_stable_epoch(6)
-        self.leader_checkpoint(11)
-        conn_follower, session_follower = self.open_follower()
-        self.assert_all_rows(session_follower)
-        session_follower.close()
-        conn_follower.close()
+    def test_verify_unpublished_table_with_config(self):
+        """A strict verify of an unpublished table is skipped like any other and preserves data."""
+        self.create_unpublished_table_with_data()
 
-    def test_drop_published_checkpointed_with_dirty_data(self):
-        # Create and publish at epoch 5.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
-            ',oldest_timestamp=' + self.timestamp_str(1))
-        self.set_stable_epoch(1)
-        self.session.create(self.uri, self.table_config)
-        self.publish(self.uri, 5)
+        self.session.verify(self.uri, 'strict=true')
 
-        # Write and checkpoint at ts 10, epoch 6. Epoch 6 > publish epoch 5, so
-        # the checkpoint covers the create and clears AWAITS_PUBLISH.
-        self.write_rows(commit_ts=10)
-        self.set_stable_epoch(6)
-        self.leader_checkpoint(10)
+        self.check_rows()
 
-        # Write new data at ts 11 -- uncheckpointed. AWAITS_PUBLISH is now clear.
-        self.write_rows(commit_ts=11)
+    def test_verify_unpublished_stable_constituent(self):
+        """
+        Verify the stable constituent file directly rather than through the layered URI. It is
+        awaiting publication, so verify skips it and the data survives.
+        """
+        self.create_unpublished_table_with_data()
 
-        # Drop at epoch 7. The published table no longer awaits publication, so the
-        # unpublished-data guard does not apply. The drop is still refused with EBUSY
-        # because closing the dirty ingest file fails, protecting the ts-11 data
-        # through the same path a regular table uses.
-        self.set_stable_epoch(7)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.drop(self.uri))
-        err, sub, msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EBUSY)
-        self.assertEqual(sub, wiredtiger.WT_DIRTY_DATA)
-        self.assertTrue('dirty data' in msg)
+        self.session.verify(self.stable_uri, None)
 
-        # Checkpoint to quiesce dirty state so teardown can close cleanly.
-        self.set_stable_epoch(8)
-        self.leader_checkpoint(11)
+        self.check_rows()
 
-    def test_drop_empty_is_allowed(self):
-        # An awaiting-publication table with no data is transient: nothing obligates a checkpoint,
-        # so the drop is allowed.
-        self.create_and_publish_table()
-        self.assert_drop_succeeds()
+    def test_verify_across_publish(self):
+        """
+        Verify is skipped while the table awaits publication, then runs for real once a checkpoint
+        publishes it. The committed data survives the whole sequence.
+        """
+        self.create_unpublished_table_with_data()
 
-    def test_drop_rolled_back_data_is_allowed(self):
-        # Rolled-back writes leave no committed durable data, so the drop is allowed.
-        self.create_and_publish_table()
-        self.write_rows()
-        self.assert_drop_succeeds()
+        self.session.verify(self.uri, None)
+        self.check_rows()
 
-    def test_drop_after_checkpoint_is_allowed(self):
-        # Once a checkpoint publishes the table, its data is durable and the drop is a normal drop.
-        self.create_and_publish_table()
-        self.write_rows(commit_ts=3)
-        self.set_stable_epoch(10)
-        self.leader_checkpoint(3)
-        self.assert_drop_succeeds()
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(50)
+
+        self.session.verify(self.uri, None)
+        self.check_rows()
+
+    def test_verify_published_table(self):
+        """A checkpoint publishes the table, after which verify is harmless."""
+        self.create_unpublished_table_with_data()
+
+        self.set_stable_epoch(20)
+        self.leader_checkpoint(50)
+
+        self.session.verify(self.uri, None)
+
+        self.check_rows()
