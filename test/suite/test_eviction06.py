@@ -26,182 +26,55 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
 import wiredtiger
 import wttest
-from wiredtiger import stat
 
-# test_eviction06.py
-# Verify the per-btree dirty-index ring is exercised end-to-end.
-#
-# The ring is fed by every cursor modify on a leaf page and drained by the
-# eviction walker. The ring is allocated at btree open (before the handle is
-# published for eviction), so the very first cursor write after create/open
-# populates it -- no checkpoint is needed to trigger allocation.
-#
-#   Produce side  cache_eviction_dirty_index_insert        -- leaf entered the ring
-#   Consume side  cache_eviction_dirty_index_drain_scanned -- ring slots examined
-#
-# The connection starts with a roomy cache and high dirty triggers so the
-# produce-side checks see uninterrupted inserts. The drain check tightens
-# the cache to force eviction pressure.
-#
+
+@wttest.skip_for_hook("disagg", "Layout and eviction targets differ under disaggregated storage.")
+@wttest.skip_for_hook("tiered", "Layout and eviction targets differ under tiered storage.")
 class test_eviction06(wttest.WiredTigerTestCase):
-    conn_config = ('cache_size=200MB,statistics=(all),'
-                   'eviction_dirty_index=true,'
-                   'eviction_dirty_index_disagg=true,'
-                   'eviction_dirty_target=80,eviction_dirty_trigger=95,'
-                   'eviction_updates_target=80,eviction_updates_trigger=95')
-
+    conn_config = (
+        'cache_size=10MB,statistics=(all),eviction=(threads_min=1,threads_max=1),'
+        'eviction_updates_trigger=20,eviction_updates_target=10,'
+        'eviction_dirty_trigger=95,eviction_dirty_target=90')
+    uri = 'table:eviction06'
     nrows = 20000
-    value_size = 1500
-    batch_size = 200
 
-    def get_stat(self, stat_key, uri=None):
-        stat_cursor = self.session.open_cursor('statistics:' if uri is None else 'statistics:' + uri)
-        val = stat_cursor[stat_key][2]
-        stat_cursor.close()
-        return val
+    def dominating_walks(self):
+        return self.get_stat(wiredtiger.stat.conn.eviction_server_walk_dominating_cache)
 
-    def _write_batch(self, cursor, batch_start, batch_end, value):
-        # Retry on rollback in case any background pressure rolls the writer back.
-        while True:
-            self.session.begin_transaction()
-            try:
-                for i in range(batch_start, batch_end):
+    def test_walk_dominating_tree(self):
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        cursor = self.session.open_cursor(self.uri)
+
+        value = 'a' * 1024
+        for i in range(self.nrows):
+            cursor[i] = value
+        cursor.close()
+
+        # Only count walks driven by this tree's own cache footprint.
+        baseline = self.dominating_walks()
+
+        # Keep updating in place so the tree dominates the cache in the updates dimension. The dirty
+        # targets are set high so that eviction is working on updates rather than dirty content.
+        # Sample the statistics as we go: once the eviction server is idle they stop advancing, so
+        # waiting until after the workload would leave nothing to observe.
+        for _ in range(10):
+            for start in range(0, self.nrows, 1000):
+                cursor = self.session.open_cursor(self.uri)
+                self.session.begin_transaction()
+                for i in range(start, start + 1000, 2):
                     cursor[i] = value
                 self.session.commit_transaction()
-                return
-            except wiredtiger.WiredTigerError as e:
-                self.session.rollback_transaction()
-                if 'WT_ROLLBACK' not in str(e):
-                    raise
-
-    def _write_rows(self, uri, start, count, value):
-        cursor = self.session.open_cursor(uri)
-        for batch_start in range(start, start + count, self.batch_size):
-            self._write_batch(cursor,
-                              batch_start,
-                              min(batch_start + self.batch_size, start + count),
-                              value)
-        cursor.close()
-
-    def test_dirty_index_insert_and_drain(self):
-        # Phase 1: the ring is allocated at create/open, so the first wave of
-        # writes populates it directly -- the insert counter is non-zero with
-        # no checkpoint needed to trigger allocation.
-        uri = 'table:test_eviction06'
-        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
-
-        self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
-        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
-
-        # Phase 2: drive the drain. Tighten the cache and dirty triggers to
-        # force eviction pressure, then keep writing so the ring stays
-        # non-empty when the walker next visits this btree.
-        self.conn.reconfigure('cache_size=20MB,'
-                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
-
-        for _ in range(40):
-            self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
-            if self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) > 0:
+                cursor.close()
+            if self.dominating_walks() > baseline:
                 break
-            time.sleep(0.05)
 
-        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri), 0)
-        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri), 0)
+        # The statistic is only incremented from inside the walk-period check, so growth here is
+        # also evidence that the period was throttling the tree at the time.
+        self.assertStatGreaterSoon(
+            wiredtiger.stat.conn.eviction_server_walk_dominating_cache, baseline, timeout=5)
 
-    def test_dirty_index_duplicate_insert_progress(self):
-        uri = 'table:test_eviction06_duplicate'
-        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
-
-        cursor = self.session.open_cursor(uri)
-        for i in range(100):
-            cursor[1] = str(i)
-        cursor.close()
-
-        self.conn.reconfigure('cache_size=20MB,'
-                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
-        self._write_rows(uri, 2, 10000, 'z' * self.value_size)
-
-        for _ in range(40):
-            scanned = self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
-            if scanned > 1:
-                break
-            time.sleep(0.05)
-        self.assertGreater(scanned, 1)
-
-    def test_dirty_index_column_insert(self):
-        uri = 'table:test_eviction06_column'
-        self.session.create(uri, 'key_format=r,value_format=S,leaf_page_max=4KB')
-        self._write_rows(uri, 1, self.nrows, 'x' * self.value_size)
-        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
-
-    def test_dirty_index_default_off_for_hook(self):
-        if not self.runningHook('disagg'):
-            self.skipTest('requires the disagg hook')
-
-        self.reopen_conn(config='cache_size=200MB,statistics=(all),'
-                                'eviction_dirty_index=true,'
-                                'eviction_dirty_index_disagg=false')
-        uri = 'table:test_eviction06_disagg_off'
-        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
-        self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
-        self.assertEqual(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
-
-    def test_dirty_index_disabled(self):
-        # Opening with the feature disabled allocates no ring, so neither producers nor the drain
-        # can advance their counters under write and eviction pressure.
-        self.reopen_conn(config='cache_size=200MB,statistics=(all),'
-                                'eviction_dirty_index=false')
-        uri = 'table:test_eviction06_off'
-        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
-
-        baseline_insert = self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri)
-        baseline_drain = self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri)
-
-        self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
-        self.conn.reconfigure('cache_size=20MB,'
-                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
-        for _ in range(20):
-            self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
-            time.sleep(0.05)
-
-        self.assertEqual(
-            self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri) - baseline_insert, 0)
-        self.assertEqual(
-            self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri) - baseline_drain, 0)
-
-    def test_dirty_index_disabled_at_runtime(self):
-        # Reconfiguring the feature off must stand the producer down too, not just
-        # the drain. The ring stays allocated (it is freed only at btree close), so
-        # a producer keyed solely on ring existence would keep filling it. Open
-        # with the feature on, allocate and exercise a ring, then turn it off: no
-        # later write may advance the producer counter.
-        uri = 'table:test_eviction06_runtime'
-        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
-        self._write_rows(uri, 0, self.nrows, 'x' * self.value_size)
-
-        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
-
-        self.conn.reconfigure('eviction_dirty_index=false')
-
-        # Let any in-flight insert settle before the baseline: a checkpoint plus a
-        # short pause lets an insert outstanding when the flag flipped finish and
-        # be counted. Once the disable is visible every producer bails, so the
-        # post-baseline delta isolates activity under the disabled feature -- none.
-        self.session.checkpoint()
-        time.sleep(1)
-        baseline_insert = self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri)
-
-        self.conn.reconfigure('cache_size=20MB,'
-                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
-        for _ in range(20):
-            self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
-            time.sleep(0.05)
-
-        self.assertEqual(
-            self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri) - baseline_insert, 0)
 
 if __name__ == '__main__':
     wttest.run()
