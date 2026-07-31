@@ -3418,12 +3418,12 @@ err:
 }
 
 /*
- * __clayered_modify_ingest_try_inplace --
+ * __clayered_modify_try_ingest --
  *     Attempt a raw modify on the ingest constituent, given the cursor is already positioned there
  *     with the base value in hand.
  */
 static int
-__clayered_modify_ingest_try_inplace(
+__clayered_modify_try_ingest(
   WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, WT_ITEM *value, bool *need_full_updatep)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
@@ -3504,8 +3504,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         WT_ITEM_SET(value, cursor->value);
 
     if (clayered->current_cursor == c_ingest)
-        WT_ERR(
-          __clayered_modify_ingest_try_inplace(op, entries, nentries, &value, &need_full_update));
+        WT_ERR(__clayered_modify_try_ingest(op, entries, nentries, &value, &need_full_update));
 
     c_stable = op->stable;
     if (clayered->current_cursor == c_stable) {
