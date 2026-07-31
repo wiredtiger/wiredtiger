@@ -284,11 +284,17 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
 static int
 __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
     bool ref_deleted;
 
+    btree = S2BT(session);
     ref_deleted = false;
+
+    /* Re-check on individual refs as the leader flag can flip mid-walk during step-down. */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->layered_table_manager.leader)
+        return (0);
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
@@ -383,7 +389,11 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 static bool
 __checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
 {
-    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP));
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    return (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP) &&
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN));
 }
 
 /*
@@ -846,7 +856,22 @@ __checkpoint_cleanup(void *arg)
         if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
             continue;
 
-        WT_ERR(__checkpoint_cleanup_int(session));
+        /*
+         * It's possible for a node to transition from leader to follower while the checkpoint
+         * cleanup thread is running. If that happens, we want to stop the cleanup, by either
+         * preempting it or signaling it to quit.
+         */
+        (void)__wt_atomic_add_uint32_v(&conn->cc_cleanup.busy, 1);
+        if (F_ISSET_ATOMIC_32(
+              conn, WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) ||
+          (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)) {
+            (void)__wt_atomic_sub_uint32_v(&conn->cc_cleanup.busy, 1);
+            continue;
+        }
+
+        ret = __checkpoint_cleanup_int(session);
+        (void)__wt_atomic_sub_uint32_v(&conn->cc_cleanup.busy, 1);
+        WT_ERR(ret);
         WT_STAT_CONN_INCR(session, checkpoint_cleanup_success);
         last = now;
     }
