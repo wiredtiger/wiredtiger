@@ -893,6 +893,7 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
     entry->meta = *meta_strp;
     *meta_strp = NULL;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
+    __wt_atomic_store_uint64_release(&disagg->deferred_ckpt_newest_gen, WT_DISAGG_CKPT_GEN(lsn));
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (0);
 }
@@ -914,6 +915,8 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
         __wt_free(session, entry->meta);
         __wt_free(session, entry);
     }
+    if (TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
+        __wt_atomic_store_uint64_release(&disagg->deferred_ckpt_newest_gen, 0);
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
 }
 
@@ -945,21 +948,30 @@ __disagg_deferred_pickup_server(void *arg)
     for (;;) {
         /*
          * Sleep until signalled: a deferral arms the server and a pin release may unblock an
-         * adoption.
+         * adoption. While anything is queued, wake periodically as a backstop against a wakeup lost
+         * to a release racing a delivery; this is not an adoption deadline.
          */
-        __wt_cond_wait(session, disagg->deferred_pickup_cond, 0, __disagg_deferred_pickup_run_chk);
+        __wt_cond_wait(session, disagg->deferred_pickup_cond,
+          __wt_atomic_load_uint64_acquire(&disagg->deferred_ckpt_newest_gen) == 0 ? 0 :
+                                                                                    10 * WT_MILLION,
+          __disagg_deferred_pickup_run_chk);
+
+        /*
+         * Keep retrying while an adoption fails: the blockers that will produce the next signal may
+         * already be gone, so returning to an indefinite wait could strand the queue. A conflict
+         * with a concurrent pickup (EBUSY) is expected and retried quietly; back off so failures
+         * are not hot.
+         */
+        while (__disagg_deferred_pickup_run_chk(session) &&
+          (ret = __wti_disagg_deferred_pickup_retry(session, false)) != 0) {
+            if (ret != EBUSY)
+                __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "deferred checkpoint pickup failed: %s", __wt_strerror(session, ret, NULL, 0));
+            __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
+        }
 
         if (!__disagg_deferred_pickup_run_chk(session))
             break;
-        if (TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
-            continue;
-
-        /* Failures are retried at the next signal; back off so they are not hot. */
-        if ((ret = __wti_disagg_deferred_pickup_retry(session, false)) != 0) {
-            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "deferred checkpoint pickup failed: %s", __wt_strerror(session, ret, NULL, 0));
-            __wt_sleep(0, 100 * WT_THOUSAND);
-        }
     }
 
     return (WT_THREAD_RET_VALUE);
@@ -968,14 +980,19 @@ __disagg_deferred_pickup_server(void *arg)
 /*
  * __wt_disagg_deferred_pickup_signal --
  *     Wake the deferred pickup server: called when a pinning transaction finishes and when a
- *     checkpoint is deferred.
+ *     checkpoint is deferred. A released pin generation is passed so releases that cannot unblock
+ *     any queued checkpoint skip the wakeup; zero signals whenever anything is queued.
  */
 void
-__wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session)
+__wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    uint64_t newest_gen;
 
-    if (disagg->deferred_pickup_cond != NULL && !TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
+    newest_gen = __wt_atomic_load_uint64_acquire(&disagg->deferred_ckpt_newest_gen);
+    if (newest_gen == 0 || (released_gen != 0 && released_gen >= newest_gen))
+        return;
+    if (disagg->deferred_pickup_cond != NULL)
         __wt_cond_signal(session, disagg->deferred_pickup_cond);
 }
 
@@ -987,6 +1004,7 @@ int
 __wti_disagg_deferred_pickup_server_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg = &conn->disaggregated_storage;
 
     if (disagg->deferred_pickup_session != NULL)
@@ -998,12 +1016,16 @@ __wti_disagg_deferred_pickup_server_create(WT_SESSION_IMPL *session)
       conn, "disagg-pickup-server", false, 0, 0, &disagg->deferred_pickup_session));
     /* The condition variable survives a server stop: see the comment in the destroy function. */
     if (disagg->deferred_pickup_cond == NULL)
-        WT_RET(__wt_cond_alloc(disagg->deferred_pickup_session, "disagg deferred pickup",
+        WT_ERR(__wt_cond_alloc(disagg->deferred_pickup_session, "disagg deferred pickup",
           &disagg->deferred_pickup_cond));
-    WT_RET(__wt_thread_create(disagg->deferred_pickup_session, &disagg->deferred_pickup_tid,
+    WT_ERR(__wt_thread_create(disagg->deferred_pickup_session, &disagg->deferred_pickup_tid,
       __disagg_deferred_pickup_server, disagg->deferred_pickup_session));
     disagg->deferred_pickup_tid_set = true;
     return (0);
+
+err:
+    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
+    return (ret);
 }
 
 /*
@@ -1086,8 +1108,8 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
-    /* Unlocked pre-check: deferral state changes only on this cold path. */
-    if (TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
+    /* Lock-free pre-check through the queue summary. */
+    if (__wt_atomic_load_uint64_acquire(&disagg->deferred_ckpt_newest_gen) == 0)
         return (0);
 
     WT_RET(__disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn));
@@ -1350,8 +1372,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
     __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
     if ((ret = __disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata)) != 0)
-        WT_ERR(__wt_panic(
-          session, ret, "failed to adopt a checkpoint after completing its metadata merge"));
+        WT_ERR_PANIC(
+          session, ret, "failed to adopt a checkpoint after completing its metadata merge");
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);
@@ -1515,7 +1537,7 @@ __wti_disagg_pick_up_checkpoint_meta(
         WT_ERR(__disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn));
         WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
         /* Wake the pickup server: the delivery may already be adoptable. */
-        __wt_disagg_deferred_pickup_signal(session);
+        __wt_disagg_deferred_pickup_signal(session, 0);
         goto err;
     }
 

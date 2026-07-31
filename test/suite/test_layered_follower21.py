@@ -275,6 +275,42 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         aux_cursor.close()
         conn_follow.close()
 
+    def test_reverse_scan_after_pickup(self):
+        # The reverse counterpart of the scan test: a backward walk and a
+        # near-positioning from above must also return only snapshot-visible
+        # keys after the pickup.
+        conn_follow, session_follow = self.setup_with_first_checkpoint()
+
+        session_follow.begin_transaction()
+        aux_cursor = session_follow.open_cursor(self.aux_uri)
+        aux_cursor.set_key('anchor')
+        self.assertEqual(aux_cursor.search(), 0)
+
+        self.commit_post_snapshot_writes(conn_follow)
+
+        cursor = session_follow.open_cursor(self.uri)
+        try:
+            contents = []
+            while cursor.prev() == 0:
+                contents.append((cursor.get_key(), cursor.get_value()))
+            self.assertEqual(contents, [('key_updated', 'old value')],
+                'a reverse scan through a cursor opened after the pickup returned post-snapshot '
+                'data')
+
+            # Near-positioning from above must land on the snapshot-visible key below.
+            cursor.reset()
+            cursor.set_key('key_z')
+            self.assertEqual(cursor.search_near(), -1)
+            self.assertEqual(cursor.get_key(), 'key_updated',
+                'search_near positioned on a post-snapshot key')
+        except wiredtiger.WiredTigerError as e:
+            if 'WT_ROLLBACK' not in str(e):
+                raise
+        session_follow.rollback_transaction()
+        cursor.close()
+        aux_cursor.close()
+        conn_follow.close()
+
     def test_multiple_pickups(self):
         # Several pickups complete while the transaction is open. A new cursor
         # must not observe the writes sealed by any of them: consistency is
@@ -637,6 +673,33 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         if state[0] != 'rollback':
             self.assertEqual(state, ('notfound', None),
                 'stepping up made post-snapshot checkpoint content visible')
+        session_follow.rollback_transaction()
+        cursor.close()
+        aux_cursor.close()
+        conn_follow.close()
+
+    def test_role_away_and_back_mid_transaction(self):
+        # The role changes away and back (follower to leader to follower)
+        # while the transaction is open, so the role recorded at establishment
+        # matches the final role and only the role-change generation can
+        # detect the transitions. A bind after the round trip must be refused:
+        # the step-up rebuilt the stable content in between.
+        self.ignoreStdoutPattern('Picking up the same checkpoint again')
+        conn_follow, session_follow = self.setup_with_first_checkpoint()
+
+        session_follow.begin_transaction()
+        aux_cursor = session_follow.open_cursor(self.aux_uri)
+        aux_cursor.set_key('anchor')
+        self.assertEqual(aux_cursor.search(), 0)
+
+        # Step up, then immediately back down: the roles return to the
+        # starting configuration.
+        self.disagg_switch_follower_and_leader(conn_follow, self.conn)
+        self.disagg_switch_follower_and_leader(self.conn, conn_follow)
+
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(self.search(cursor, 'key_updated'), ('rollback', None),
+            'a snapshot spanning an away-and-back role transition was not refused')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()

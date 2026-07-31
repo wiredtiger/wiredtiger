@@ -7953,7 +7953,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME	1584
 /*! disagg: role leader */
 #define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1585
-/*! disagg: snapshots rebuilt after racing a checkpoint pick-up */
+/*!
+ * disagg: snapshots rebuilt after racing a checkpoint pick-up or role
+ * change
+ */
 #define	WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD		1586
 /*! disagg: step down in progress */
 #define	WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS	1587

@@ -118,9 +118,11 @@ __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapsh
 static WT_INLINE void
 __txn_snapshot_leave_disagg(WT_SESSION_IMPL *session)
 {
-    if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0) {
+    uint64_t released_gen;
+
+    if ((released_gen = __wt_session_gen(session, WT_GEN_DISAGG_CKPT)) != 0) {
         __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
-        __wt_disagg_deferred_pickup_signal(session);
+        __wt_disagg_deferred_pickup_signal(session, released_gen);
     }
     if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
         __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
@@ -295,20 +297,6 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    /* Fast path if we already have the current snapshot. */
-    if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
-        WT_ASSERT(
-          session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || !F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT));
-        if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) &&
-          snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
-            return;
-
-        /* Leave the generations here and enter again later to acquire a new snapshot. */
-        __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
-        __txn_snapshot_leave_disagg(session);
-    }
-    __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
-
     /*
      * Record the disaggregated state the snapshot is consistent with before building it, and
      * validate it afterwards, retrying the build on a change: the retried snapshot postdates the
@@ -319,6 +307,26 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      */
     record_disagg = update_shared_state && __wt_conn_is_disagg(session) &&
       txn_shared->read_timestamp == WT_TS_NONE;
+
+    /* Fast path if we already have the current snapshot. */
+    if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
+        WT_ASSERT(
+          session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || !F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT));
+        if (!F_ISSET(txn, WT_TXN_REFRESH_SNAPSHOT) &&
+          snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
+            return;
+
+        /*
+         * Leave the generations here and enter again later to acquire a new snapshot. The
+         * disaggregated generations are left only when this build re-records them: a temporary
+         * snapshot taken to be released or restored (an eviction refresh) keeps the transaction's
+         * pins, which are older than the temporary snapshot and thus conservatively cover it.
+         */
+        __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
+        if (record_disagg)
+            __txn_snapshot_leave_disagg(session);
+    }
+    __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
 retry:
     n = 0;

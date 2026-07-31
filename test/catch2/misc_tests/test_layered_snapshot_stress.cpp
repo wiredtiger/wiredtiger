@@ -73,7 +73,7 @@ put_version(WT_SESSION *session, int version, uint32_t ts)
  */
 static void
 reader(WT_CONNECTION *conn, std::atomic<bool> *stop, std::mutex *errors_mutex,
-  std::vector<std::string> *errors)
+  std::vector<std::string> *errors, std::atomic<uint64_t> *transactions)
 {
     WT_CURSOR *cursor;
     WT_SESSION *session;
@@ -82,8 +82,12 @@ reader(WT_CONNECTION *conn, std::atomic<bool> *stop, std::mutex *errors_mutex,
     const char *value;
     std::string error, seen;
 
-    if (conn->open_session(conn, nullptr, nullptr, &session) != 0)
+    if (conn->open_session(conn, nullptr, nullptr, &session) != 0) {
+        std::lock_guard<std::mutex> lock(*errors_mutex);
+        errors->push_back("reader failed to open a session");
+        stop->store(true);
         return;
+    }
 
     while (!stop->load() && error.empty()) {
         if ((ret = session->begin_transaction(session, nullptr)) != 0) {
@@ -118,6 +122,8 @@ reader(WT_CONNECTION *conn, std::atomic<bool> *stop, std::mutex *errors_mutex,
             (void)cursor->close(cursor);
         }
         (void)session->rollback_transaction(session, nullptr);
+        if (error.empty())
+            transactions->fetch_add(1);
     }
 
     if (!error.empty()) {
@@ -158,11 +164,12 @@ TEST_CASE("Layered follower: snapshot readers racing checkpoint pickups",
     layered_disagg_pickup_latest_checkpoint(conn_follow, session_follow);
 
     std::atomic<bool> stop(false);
+    std::atomic<uint64_t> transactions(0);
     std::mutex errors_mutex;
     std::vector<std::string> errors;
     std::vector<std::thread> readers;
     for (int i = 0; i < NREADERS; i++)
-        readers.emplace_back(reader, conn_follow, &stop, &errors_mutex, &errors);
+        readers.emplace_back(reader, conn_follow, &stop, &errors_mutex, &errors, &transactions);
 
     /* Stream versions and checkpoints through the deferral queue while the readers run. */
     for (int version = 1; version < NVERSIONS && !stop.load(); version++) {
@@ -180,6 +187,25 @@ TEST_CASE("Layered follower: snapshot readers racing checkpoint pickups",
     {
         std::lock_guard<std::mutex> lock(errors_mutex);
         REQUIRE(errors == std::vector<std::string>());
+    }
+
+    /* The intended path must have run: readers finished transactions and deferred an adoption. */
+    REQUIRE(transactions.load() > 0);
+    {
+        WT_CURSOR *stat_cursor;
+        WT_SESSION *stat_session;
+        int64_t deferred;
+
+        REQUIRE(conn_follow->open_session(conn_follow, nullptr, nullptr, &stat_session) == 0);
+        REQUIRE(stat_session->open_cursor(
+                  stat_session, "statistics:", nullptr, nullptr, &stat_cursor) == 0);
+        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER);
+        REQUIRE(stat_cursor->search(stat_cursor) == 0);
+        const char *desc, *pvalue;
+        REQUIRE(stat_cursor->get_value(stat_cursor, &desc, &pvalue, &deferred) == 0);
+        REQUIRE(deferred > 0);
+        REQUIRE(stat_cursor->close(stat_cursor) == 0);
+        REQUIRE(stat_session->close(stat_session, nullptr) == 0);
     }
 }
 

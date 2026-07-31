@@ -1286,7 +1286,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
-    uint64_t time_start, time_stop;
+    uint64_t retries, time_start, time_stop;
     bool leader, picked_up, role_change_started, was_leader;
 
     conn = S2C(session);
@@ -1379,14 +1379,17 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * checkpoint cannot become the leader, cannot report the failure, and a panic hands
          * leadership to another node.
          */
-        while ((ret = __wti_disagg_deferred_pickup_retry(session, true)) == EBUSY) {
-            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
-              "The deferred checkpoint adoption before step-up is blocked, retrying");
-            __wt_sleep(0, 100 * WT_THOUSAND);
+        for (retries = 0; (ret = __wti_disagg_deferred_pickup_retry(session, true)) == EBUSY;
+          ++retries) {
+            if (retries % 10 == 0)
+                __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "The deferred checkpoint adoption before step-up is blocked, retrying (%" PRIu64
+                  " retries)",
+                  retries);
+            __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
-        if (ret != 0)
-            WT_ERR(
-              __wt_panic(session, ret, "failed to adopt a deferred checkpoint before step-up"));
+        /* The common error path panics: the role transition has started. */
+        WT_ERR_MSG_CHK(session, ret, "failed to adopt a deferred checkpoint before step-up");
 
         /* Follower step-up. */
         time_start = __wt_clock(session);

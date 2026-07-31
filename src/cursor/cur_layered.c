@@ -819,10 +819,10 @@ __clayered_reopen_stable(
     clayered->stable_cursor = NULL;
 
     /*
-     * A reopen re-binds the stable cursor to different content a newer checkpoint on an advance,
-     * the live stable table or an adopted checkpoint on a role change so it needs the same snapshot
-     * check as a first open. In particular, a cursor inherited from an earlier transaction may
-     * advance because the snapshot changed, while the new snapshot still predates the newest
+     * A reopen re-binds the stable cursor to different content (a newer checkpoint on an advance;
+     * the live stable table or an adopted checkpoint on a role change), so it needs the same
+     * snapshot check as a first open. In particular, a cursor inherited from an earlier transaction
+     * may advance because the snapshot changed, while the new snapshot still predates the newest
      * adoption.
      */
     WT_ERR(__clayered_open_stable(clayered, true, role));

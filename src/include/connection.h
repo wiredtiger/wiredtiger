@@ -225,6 +225,9 @@ struct __wt_disagg_pending_crypt_key {
  */
 #define WT_DISAGG_CKPT_GEN(lsn) ((lsn) + 1)
 
+/* The backoff between retries of a blocked checkpoint adoption. */
+#define WT_DISAGG_RETRY_SLEEP_USECS (100 * WT_THOUSAND)
+
 /*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
  *      A relationship between the checkpoint order number and the history timestamp.
@@ -291,8 +294,8 @@ struct __wt_repair {
  *      active.
  */
 struct __wt_disagg_deferred_ckpt {
-    char *meta;   /* Checkpoint metadata configuration */
     uint64_t lsn; /* Checkpoint metadata LSN */
+    char *meta;   /* Checkpoint metadata configuration */
     TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
@@ -327,14 +330,19 @@ struct __wt_disaggregated_storage {
      */
     WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
     TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
+    /*
+     * The newest queued checkpoint's generation, zero when the queue is empty: a lock-free summary
+     * for the wakeup paths, maintained under the queue lock.
+     */
+    wt_shared uint64_t deferred_ckpt_newest_gen;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until
-     * a pinning transaction finishes or a checkpoint is deferred, and owns the deferral deadline.
+     * a pinning transaction finishes or a checkpoint is deferred.
      */
+    WT_CONDVAR *deferred_pickup_cond;
     WT_SESSION_IMPL *deferred_pickup_session;
     wt_thread_t deferred_pickup_tid;
-    WT_CONDVAR *deferred_pickup_cond;
     bool deferred_pickup_tid_set;
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */

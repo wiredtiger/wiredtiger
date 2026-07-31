@@ -2632,7 +2632,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
-  "disagg: snapshots rebuilt after racing a checkpoint pick-up",
+  "disagg: snapshots rebuilt after racing a checkpoint pick-up or role change",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
   "disagg: step up in progress",
