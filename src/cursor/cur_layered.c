@@ -3450,8 +3450,8 @@ __clayered_modify_ingest_try_inplace(
         return (0);
     }
 
-    ret = c_ingest->modify(c_ingest, entries, nentries);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_RET_NOTFOUND_OK(c_ingest->modify(c_ingest, entries, nentries));
+
     /*
      * Even if the ingest key was found and pinned during the lookup, it may still have been evicted
      * during modify(), in which case WT_NOTFOUND is returned. That's not a problem for insert() and
@@ -3461,8 +3461,7 @@ __clayered_modify_ingest_try_inplace(
     if (ret == WT_NOTFOUND) {
         if (op->stable == NULL)
             WT_RET(__clayered_lookup_lazy_stable_open(op));
-        ret = __clayered_lookup_constituent(op, op->stable, value);
-        WT_RET_NOTFOUND_OK(ret);
+        WT_RET_NOTFOUND_OK(__clayered_lookup_constituent(op, op->stable, value));
         WT_ASSERT_ALWAYS(
           session, ret != WT_NOTFOUND, "ingest modify evicted the key, now it should be in stable");
         return (0);
