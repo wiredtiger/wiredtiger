@@ -1612,7 +1612,7 @@ variables:
   - &format-stress-idle-timeout
     command: timeout.update
     params:
-      timeout_secs: 10800
+      timeout_secs: 10800 # 3 hours
 
   - &format-stress-test
     exec_timeout_secs: 25200
