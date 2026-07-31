@@ -42,8 +42,8 @@ class test_eviction07(wttest.WiredTigerTestCase):
     dirty_trigger_pct = 5
 
     resolution_values = [
-        ('commit', dict(resolution='commit_transaction')),
-        ('rollback', dict(resolution='rollback_transaction')),
+        ('commit', dict(rollback=False)),
+        ('rollback', dict(rollback=True)),
     ]
     scenarios = make_scenarios(resolution_values)
 
@@ -75,6 +75,9 @@ class test_eviction07(wttest.WiredTigerTestCase):
             dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
             self.assertGreater(dirty, dirty_trigger)
 
+            # Resolve modified transactions while the pinned transaction prevents eviction from
+            # reducing the dirty cache pressure. The bounded-wait statistic increasing across a
+            # resolution proves that the commit or rollback stopped assisting at its time limit.
             cursor = self.session.open_cursor(self.uri)
             bounded_resolution_time = None
             for i in range(100000, 100500):
@@ -85,7 +88,10 @@ class test_eviction07(wttest.WiredTigerTestCase):
                 bounded_waits = self.get_stat(
                     stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
                 start = time.monotonic()
-                getattr(self.session, self.resolution)()
+                if self.rollback:
+                    self.session.rollback_transaction()
+                else:
+                    self.session.commit_transaction()
                 elapsed = time.monotonic() - start
                 resolution_txn_active = False
 
