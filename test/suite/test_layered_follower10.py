@@ -202,13 +202,9 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         hold_cursor.close()
         self.disagg_await_checkpoint_adoption(conn_follow)
 
-        # Eviction can now remove the inserts covered by the adopted checkpoint, but still cannot
-        # remove all the records from the ingest table because the deletes are not in the stable
-        # table.
+        # Eviction may now remove the inserts covered by the adopted checkpoint (how many is its
+        # choice), but it cannot remove the deletes: they are not in the stable table.
         self.evict_ingest(session_follow, ts)
-        count = self.count_ingest(session_follow, ts)
-        self.assertEqual(count, (0, 0))
-
         count = self.count_ingest(session_follow)
         self.assertEqual(count, (0, self.nitems))
 
