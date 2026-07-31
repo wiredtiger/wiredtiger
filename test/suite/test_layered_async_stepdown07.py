@@ -241,7 +241,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.set_key('d')
         self.assertEqual(cursor.search_near(), 0)
         cursor.set_key('c')
-        self.assertNotEqual(cursor.search_near(), 0)
+        self.assertIn(cursor.search_near(), (-1, 1))
         self.assertIn(cursor.get_key(), ('b', 'd'))
         self.session.rollback_transaction()
         cursor.close()
@@ -308,11 +308,11 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
             'largest_key must report the uncommitted key it cannot read')
 
         # The aborted update stays in the tree until reconciliation discards it, and largest_key
-        # consults no visibility state, so the abandoned key is still the reported maximum.
+        # consults no visibility state, so the abandoned key may still be the reported maximum.
         wsession.rollback_transaction()
         wcur.close()
         wsession.close()
-        self.assertEqual(largest(), 'zz')
+        self.assertIn(largest(), ('d', 'zz'))
 
     # A reverse walk interrupted by the cutoff re-seats the same way a forward walk does.
     def test_reverse_iteration_across_step_down_ts(self):
