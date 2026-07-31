@@ -59,11 +59,22 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         c1.close()
 
         self.set_step_down_ts(20)
+
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur['x'] = 'i'
+        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        wcur.close()
+        wsession.close()
+
         self.complete_step_down(20)
 
         c2 = self.session.open_cursor(self.uri, None, None)
-        self.assertEqual(c2['b'], 's')
-        self.assertEqual(c2['d'], 's')
+        seen = {}
+        while c2.next() == 0:
+            seen[c2.get_key()] = c2.get_value()
+        self.assertEqual(seen, {'b': 's', 'd': 's'})
         self.session.commit_transaction()
         c2.close()
 
@@ -456,8 +467,8 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
 
-# Write-conflict detection when the two writers sit in different step-down phases, so their updates
-# land on different constituents with no shared update chain.
+# Write-conflict detection around the cutoff and the demotion, plus a checkpoint taken while the
+# cutoff is set.
 @disagg_test_class
 class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
                                                    wttest.WiredTigerTestCase):
