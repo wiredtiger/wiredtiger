@@ -26,55 +26,101 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger
+import time
 import wttest
+from wiredtiger import stat
+from wtscenario import make_scenarios
 
-
-@wttest.skip_for_hook("disagg", "Layout and eviction targets differ under disaggregated storage.")
-@wttest.skip_for_hook("tiered", "Layout and eviction targets differ under tiered storage.")
+# Test that a thread resolving a transaction is released from the eviction assist at its bounded
+# wait. The assist normally spins until the cache drops below its triggers, which never happens when
+# the dirty content cannot be reconciled away - here because another session is holding it
+# uncommitted. The resolving thread pins no transaction state, so nothing can roll it back to
+# relieve the pressure and it must be released on its own.
 class test_eviction07(wttest.WiredTigerTestCase):
-    conn_config = (
-        'cache_size=10MB,statistics=(all),eviction=(threads_min=1,threads_max=1),'
-        'eviction_updates_trigger=20,eviction_updates_target=10,'
-        'eviction_dirty_trigger=95,eviction_dirty_target=90')
-    uri = 'table:eviction06'
-    nrows = 20000
+    uri = 'table:test_eviction07'
+    cache_bytes = 50 * 1024 * 1024
+    dirty_trigger_pct = 5
 
-    def dominating_walks(self):
-        return self.get_stat(wiredtiger.stat.conn.eviction_server_walk_dominating_cache)
+    resolution_values = [
+        ('commit', dict(rollback=False)),
+        ('rollback', dict(rollback=True)),
+    ]
+    scenarios = make_scenarios(resolution_values)
 
-    def test_walk_dominating_tree(self):
+    conn_config = 'cache_size=50MB,statistics=(all),' \
+        'eviction_dirty_target=1,eviction_dirty_trigger=5,eviction=(threads_max=1)'
+
+    def test_bounded_assist_at_transaction_resolution(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        cursor = self.session.open_cursor(self.uri)
+        value = 'a' * 4096
+        stat_session = pin_session = None
+        pin_cursor = cursor = None
+        pin_txn_active = resolution_txn_active = False
 
-        value = 'a' * 1024
-        for i in range(self.nrows):
-            cursor[i] = value
-        cursor.close()
+        try:
+            # Reading statistics is a cursor operation that can itself be pulled into an eviction
+            # assist, so read them from a session that never waits for the cache.
+            stat_session = self.conn.open_session('cache_max_wait_ms=1')
 
-        # Only count walks driven by this tree's own cache footprint.
-        baseline = self.dominating_walks()
+            # Hold dirty content above the trigger in an uncommitted transaction. Reconciliation
+            # has to restore these updates to the page, so eviction cannot reclaim them.
+            pin_session = self.conn.open_session()
+            pin_cursor = pin_session.open_cursor(self.uri)
+            pin_session.begin_transaction()
+            pin_txn_active = True
+            for i in range(1500):
+                pin_cursor[i] = value
 
-        # Keep updating in place so the tree dominates the cache in the updates dimension. The dirty
-        # targets are set high so that eviction is working on updates rather than dirty content.
-        # Sample the statistics as we go: once the eviction server is idle they stop advancing, so
-        # waiting until after the workload would leave nothing to observe.
-        for _ in range(10):
-            for start in range(0, self.nrows, 1000):
-                cursor = self.session.open_cursor(self.uri)
+            dirty_trigger = self.cache_bytes * self.dirty_trigger_pct // 100
+            dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
+            self.assertGreater(dirty, dirty_trigger)
+
+            # Resolve modified transactions while the pinned transaction prevents eviction from
+            # reducing the dirty cache pressure. The bounded-wait statistic increasing across a
+            # resolution proves that the commit or rollback stopped assisting at its time limit.
+            cursor = self.session.open_cursor(self.uri)
+            bounded_resolution_time = None
+            for i in range(100000, 100500):
                 self.session.begin_transaction()
-                for i in range(start, start + 1000, 2):
-                    cursor[i] = value
-                self.session.commit_transaction()
+                resolution_txn_active = True
+                cursor[i] = value
+
+                bounded_waits = self.get_stat(
+                    stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+                start = time.monotonic()
+                if self.rollback:
+                    self.session.rollback_transaction()
+                else:
+                    self.session.commit_transaction()
+                elapsed = time.monotonic() - start
+                resolution_txn_active = False
+
+                bounded_waits_after = self.get_stat(
+                    stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+                if bounded_waits_after > bounded_waits:
+                    bounded_resolution_time = elapsed
+                    break
+
+            self.assertIsNotNone(bounded_resolution_time)
+            self.assertLess(bounded_resolution_time, 1.0)
+
+            # The pressure must still be there, otherwise the assist stopped because the cache
+            # drained.
+            dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
+            self.assertGreater(dirty, dirty_trigger)
+        finally:
+            if pin_txn_active:
+                pin_session.rollback_transaction()
+            if resolution_txn_active:
+                self.session.rollback_transaction()
+            if cursor is not None:
                 cursor.close()
-            if self.dominating_walks() > baseline:
-                break
-
-        # The statistic is only incremented from inside the walk-period check, so growth here is
-        # also evidence that the period was throttling the tree at the time.
-        self.assertStatGreaterSoon(
-            wiredtiger.stat.conn.eviction_server_walk_dominating_cache, baseline, timeout=5)
-
+            if pin_cursor is not None:
+                pin_cursor.close()
+            if pin_session is not None:
+                pin_session.close()
+            if stat_session is not None:
+                stat_session.close()
 
 if __name__ == '__main__':
     wttest.run()
