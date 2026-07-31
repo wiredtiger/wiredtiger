@@ -141,12 +141,11 @@ class test_layered_checkpoint09(wttest.WiredTigerTestCase):
             cursor[i] = 'value' + str(i)
         cursor.close()
 
-        # Step down to follower before closing so WiredTiger skips the implicit shutdown
-        # checkpoint. This leaves database_size=0 in the shared metadata and no btree
-        # checkpoint sizes in the local metadata. The database size verify should detect
-        # that both are zero and skip the comparison entirely.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.close_conn()
+        # Skip the implicit shutdown checkpoint on close. This leaves database_size=0 in
+        # the shared metadata and no btree checkpoint sizes in the local metadata. The
+        # database size verify should detect that both are zero and skip the comparison
+        # entirely.
+        self.close_conn('debug=(skip_checkpoint=true)')
 
         # Open fresh connection, no checkpoint_meta since no checkpoint was ever taken.
         self.open_conn(config=self.conn_config + ',verify_metadata=true')
@@ -159,8 +158,9 @@ class test_layered_checkpoint09(wttest.WiredTigerTestCase):
             cursor[i] = 'value' + str(i)
         cursor.close()
 
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.close_conn()
+        # Skip the implicit shutdown checkpoint on close, leaving database_size=0 and no
+        # btree checkpoints.
+        self.close_conn('debug=(skip_checkpoint=true)')
 
         # Open fresh connection, database_size is 0 and no btree checkpoints exist, so the database
         # size verify skips the comparison entirely.
