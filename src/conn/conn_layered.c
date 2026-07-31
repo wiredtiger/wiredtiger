@@ -1798,12 +1798,11 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_free(session, disagg->last_checkpoint_root);
-    while ((deferred = disagg->deferred_ckpt_oldest) != NULL) {
-        disagg->deferred_ckpt_oldest = deferred->newer;
+    while ((deferred = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL) {
+        TAILQ_REMOVE(&disagg->deferred_ckpt_qh, deferred, q);
         __wt_free(session, deferred->meta);
         __wt_free(session, deferred);
     }
-    disagg->deferred_ckpt_newest = NULL;
     __wt_free(session, disagg->page_log);
     return (ret);
 }

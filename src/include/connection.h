@@ -293,7 +293,7 @@ struct __wt_repair {
 struct __wt_disagg_deferred_ckpt {
     char *meta;   /* Checkpoint metadata configuration */
     uint64_t lsn; /* Checkpoint metadata LSN */
-    WT_DISAGG_DEFERRED_CKPT *newer;
+    TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
 /*
@@ -326,8 +326,7 @@ struct __wt_disaggregated_storage {
      * the checkpoints newer than its own snapshot.
      */
     WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
-    WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_oldest;
-    WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_newest;
+    TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until

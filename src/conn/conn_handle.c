@@ -26,6 +26,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->fhqh);                                       /* File list */
     TAILQ_INIT(&conn->disaggregated_storage.shared_metadata_qh);   /* Shared metadata list */
     TAILQ_INIT(&conn->disaggregated_storage.pending_crypt_key_qh); /* Pending pushed crypt keys */
+    TAILQ_INIT(&conn->disaggregated_storage.deferred_ckpt_qh);     /* Deferred checkpoints */
 
     /* Prefetch. */
     WT_RET(__wti_conn_prefetch_init(session));

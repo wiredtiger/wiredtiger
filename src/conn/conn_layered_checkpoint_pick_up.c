@@ -876,7 +876,8 @@ __disagg_defer_checkpoint(
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
 
     /* A checkpoint at or behind the newest deferred one carries nothing new. */
-    if (disagg->deferred_ckpt_newest != NULL && lsn <= disagg->deferred_ckpt_newest->lsn) {
+    entry = TAILQ_LAST(&disagg->deferred_ckpt_qh, __wt_disagg_deferred_ckpt_qh);
+    if (entry != NULL && lsn <= entry->lsn) {
         __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
         *deferredp = true;
         return (0);
@@ -895,11 +896,7 @@ __disagg_defer_checkpoint(
         return (ret);
     }
     entry->lsn = lsn;
-    if (disagg->deferred_ckpt_newest == NULL)
-        disagg->deferred_ckpt_oldest = entry;
-    else
-        disagg->deferred_ckpt_newest->newer = entry;
-    disagg->deferred_ckpt_newest = entry;
+    TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     *deferredp = true;
     return (0);
@@ -917,13 +914,11 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
-    while ((entry = disagg->deferred_ckpt_oldest) != NULL && entry->lsn <= adopted_lsn) {
-        disagg->deferred_ckpt_oldest = entry->newer;
+    while ((entry = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL && entry->lsn <= adopted_lsn) {
+        TAILQ_REMOVE(&disagg->deferred_ckpt_qh, entry, q);
         __wt_free(session, entry->meta);
         __wt_free(session, entry);
     }
-    if (disagg->deferred_ckpt_oldest == NULL)
-        disagg->deferred_ckpt_newest = NULL;
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
 }
 
@@ -952,7 +947,7 @@ __disagg_deferred_select(WT_SESSION_IMPL *session, char **metap, uint64_t *lsnp)
      * newest one that passed.
      */
     selected = NULL;
-    for (entry = disagg->deferred_ckpt_oldest; entry != NULL; entry = entry->newer) {
+    TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q) {
         /* A pin that does not cover the LSN means a snapshot predates it. */
         if (__wt_gen_active(session, WT_GEN_DISAGG_CKPT, entry->lsn))
             break;
@@ -1000,7 +995,7 @@ __disagg_deferred_pickup_server(void *arg)
 
         if (!__disagg_deferred_pickup_run_chk(session))
             break;
-        if (disagg->deferred_ckpt_oldest == NULL)
+        if (TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
             continue;
 
         /* Failures are retried at the next signal or deadline; back off so they are not hot. */
@@ -1024,7 +1019,7 @@ __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
-    if (disagg->deferred_pickup_cond != NULL && disagg->deferred_ckpt_oldest != NULL)
+    if (disagg->deferred_pickup_cond != NULL && !TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
         __wt_cond_signal(session, disagg->deferred_pickup_cond);
 }
 
@@ -1095,6 +1090,7 @@ static int
 __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp)
 {
     WT_DECL_RET;
+    WT_DISAGG_DEFERRED_CKPT *newest;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
 
     *metap = NULL;
@@ -1103,9 +1099,10 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
     if (!force)
         ret = __disagg_deferred_select(session, metap, lsnp);
-    else if (disagg->deferred_ckpt_newest != NULL) {
-        *lsnp = disagg->deferred_ckpt_newest->lsn;
-        ret = __wt_strdup(session, disagg->deferred_ckpt_newest->meta, metap);
+    else if ((newest = TAILQ_LAST(&disagg->deferred_ckpt_qh, __wt_disagg_deferred_ckpt_qh)) !=
+      NULL) {
+        *lsnp = newest->lsn;
+        ret = __wt_strdup(session, newest->meta, metap);
     }
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (ret);
@@ -1127,7 +1124,7 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
     /* Unlocked pre-check: deferral state changes only on this cold path. */
-    if (disagg->deferred_ckpt_oldest == NULL)
+    if (TAILQ_EMPTY(&disagg->deferred_ckpt_qh))
         return (0);
 
     WT_RET(__disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn));
