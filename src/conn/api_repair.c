@@ -15,6 +15,7 @@ struct __wt_repair_config {
 #define WT_REPAIR_COMMAND_NONE 0
 #define WT_REPAIR_COMMAND_FETCH_DATABASE_SIZE 1
 #define WT_REPAIR_COMMAND_FETCH_METADATA 2
+#define WT_REPAIR_COMMAND_FIX_ID 3
     int command;
 
     struct {
@@ -31,6 +32,17 @@ struct __wt_repair_config {
         /* Single metadata key to report, or NULL for the whole value. */
         const char *key;
     } fetch_metadata;
+
+    struct {
+        /* The metadata entry to renumber; the entry holding "id", e.g. a file: URI. */
+        const char *uri;
+        /* The table the URI is the stable file of, or NULL when there is no shared metadata. */
+        const char *table_name;
+        /* The current id, used as a guard against fixing the wrong entry. */
+        uint32_t old_id;
+        /* The replacement id. */
+        uint32_t new_id;
+    } fix_id;
 };
 
 static int __repair_config_decode(WT_SESSION_IMPL *, WT_ITEM *, const char *, WT_REPAIR_CONFIG *);
@@ -39,6 +51,8 @@ static int __repair_config_set_command(
 
 static int __repair_fetch_database_size(WT_SESSION_IMPL *, WT_ITEM *, bool);
 static int __repair_fetch_metadata(WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, bool);
+static int __repair_fix_id(
+  WT_SESSION_IMPL *, WT_ITEM *, const char *, const char *, uint32_t, uint32_t);
 
 /*
  * WT_ERR_REPORT --
@@ -149,6 +163,145 @@ err:
 }
 
 /*
+ * __repair_fix_id_validate --
+ *     Check that the fix is safe and return the metadata value to rewrite.
+ */
+static int
+__repair_fix_id_validate(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri,
+  uint32_t old_id, uint32_t new_id, char **valuep)
+{
+    WT_CONFIG_ITEM item;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    char *conflict_uri, *value;
+
+    conn = S2C(session);
+    conflict_uri = value = NULL;
+    *valuep = NULL;
+
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, uri, &value), true);
+    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR_REPORT(session, EINVAL, " no metadata entry for uri:\"%s\"", uri);
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, value, "id", &item), true);
+    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR_REPORT(session, EINVAL, " uri:\"%s\" has no id", uri);
+    if ((uint32_t)item.val != old_id)
+        WT_ERR_REPORT(session, EINVAL,
+          " uri:\"%s\" has id=%" PRId64 ", not the expected old_id=%" PRIu32, uri, item.val,
+          old_id);
+
+    /*
+     * The low bits of an id say whether the table is local, shared or one of the fixed special
+     * tables, so they have to be preserved.
+     */
+    if (WT_BTREE_ID_NAMESPACE_ID(new_id) != WT_BTREE_ID_NAMESPACE_ID(old_id))
+        WT_ERR_REPORT(session, EINVAL,
+          " new_id=%" PRIu32 " is not in the same namespace as old_id=%" PRIu32, new_id, old_id);
+
+    /* A unique id is the whole point, so refuse to swap one collision for another. */
+    WT_ERR_NOTFOUND_OK(__wt_metadata_btree_id_to_uri(session, new_id, &conflict_uri), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR_REPORT(session, EINVAL, " new_id=%" PRIu32 " is already used by uri:\"%s\"", new_id,
+          conflict_uri);
+
+    /* Stay above the allocator, or a later create hands the same id out again. */
+    if (WT_BTREE_ID_UNNAMESPACED(new_id) <= conn->next_file_id)
+        WT_ERR_REPORT(session, EINVAL,
+          " new_id=%" PRIu32 " is not above the largest id allocated so far (%" PRIu32 ")", new_id,
+          WT_BTREE_ID_NAMESPACED(conn->next_file_id, WT_BTREE_ID_NAMESPACE_ID(new_id)));
+
+    /*
+     * An open handle caches the old id in its btree, and in disaggregated storage a page service
+     * handle opened with it, so the fix would not take effect.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      session, WT_SAVE_DHANDLE(session, ret = __wt_conn_dhandle_find(session, uri, NULL)));
+    if (ret == 0)
+        WT_ERR_REPORT(session, EBUSY,
+          " uri:\"%s\" is open; close its cursors and let the handle sweep before fixing it", uri);
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    *valuep = value;
+    value = NULL;
+
+err:
+    __wt_free(session, conflict_uri);
+    __wt_free(session, value);
+    return (ret);
+}
+
+/*
+ * __repair_fix_id_apply --
+ *     Write the new id to the local metadata and, in disaggregated storage, queue the same change
+ *     for the shared metadata table. The schema lock is held.
+ */
+static int
+__repair_fix_id_apply(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri,
+  const char *table_name, uint32_t old_id, uint32_t new_id)
+{
+    WT_DECL_RET;
+    char id_cfg[32], *new_value, *value;
+    const char *cfg[3] = {NULL, NULL, NULL};
+
+    new_value = value = NULL;
+
+    WT_ERR(__repair_fix_id_validate(session, report, uri, old_id, new_id, &value));
+
+    WT_ERR(__wt_snprintf(id_cfg, sizeof(id_cfg), "id=%" PRIu32, new_id));
+    cfg[0] = value;
+    cfg[1] = id_cfg;
+    WT_ERR(__wt_config_collapse(session, cfg, &new_value));
+    WT_ERR(__wt_metadata_update(session, uri, new_value));
+
+    S2C(session)->next_file_id = WT_BTREE_ID_UNNAMESPACED(new_id);
+
+    /*
+     * A checkpoint only rewrites the shared metadata of the tables it writes, and this table is not
+     * being written, so queue the entry by hand. No schema epoch and deferred=false put it in the
+     * checkpoint the caller is about to take.
+     */
+    if (table_name != NULL)
+        WT_ERR(__wt_disagg_enqueue_metadata_operation(
+          session, uri, table_name, WT_SHARED_METADATA_UPDATE, WT_SCHEMA_EPOCH_NONE, false));
+
+err:
+    __wt_free(session, new_value);
+    __wt_free(session, value);
+    return (ret);
+}
+
+/*
+ * __repair_fix_id --
+ *     Give one table a new btree id, using its current id as a guard. This renumbers metadata only:
+ *     in disaggregated storage the id is the table's page service namespace, so the pages already
+ *     written under the old id are not reachable afterwards and the caller has to rebuild or drop
+ *     the table. Renumbering first is what makes that drop safe, because a drop trims every page
+ *     under the table's id, including the pages of whichever table it collided with.
+ */
+static int
+__repair_fix_id(WT_SESSION_IMPL *session, WT_ITEM *report, const char *uri, const char *table_name,
+  uint32_t old_id, uint32_t new_id)
+{
+    WT_DECL_RET;
+
+    WT_RET(__wt_buf_catfmt(
+      session, report, "fix_id(uri=\"%s\", %" PRIu32 " -> %" PRIu32 "):", uri, old_id, new_id));
+
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __repair_fix_id_apply(session, report, uri, table_name, old_id, new_id));
+    WT_RET(ret);
+
+    /* Make the new id durable, then read it back from where it has to be durable. */
+    WT_RET(((WT_SESSION *)session)->checkpoint((WT_SESSION *)session, NULL));
+
+    WT_RET(__wt_buf_catfmt(session, report,
+      " fixed, now rebuild or drop this table: its data is not reachable under the new id."));
+
+    return (__repair_fetch_metadata(session, report, uri, "id", !__wt_conn_is_disagg(session)));
+}
+
+/*
  * __repair_config_set_command --
  *     Set the command in the repair_config based on the parsed config item.
  */
@@ -158,8 +311,11 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
 {
     WT_CONFIG_ITEM item;
     WT_DECL_RET;
+    int64_t new_id, old_id;
+    const char *name, *suffix;
     bool require_disagg;
 
+    new_id = old_id = 0;
     require_disagg = false;
 
     if (repair_config->command != WT_REPAIR_COMMAND_NONE)
@@ -196,6 +352,52 @@ __repair_config_set_command(WT_SESSION_IMPL *session, WT_ITEM *report, WT_CONFIG
             WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fetch_metadata.key));
 
         require_disagg = !repair_config->fetch_metadata.local;
+    } else if (repair_config->command == WT_REPAIR_COMMAND_FIX_ID) {
+        /* All three settings are required; none of them has a safe default. */
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "uri", &item), true);
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND) || item.len == 0)
+            WT_ERR_REPORT(session, EINVAL, "fix_id requires uri, old_id and new_id");
+        WT_ERR(__wt_strndup(session, item.str, item.len, &repair_config->fix_id.uri));
+
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "old_id", &item), true);
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            WT_ERR_REPORT(session, EINVAL, "fix_id requires uri, old_id and new_id");
+        old_id = item.val;
+
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, config_item, "new_id", &item), true);
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            WT_ERR_REPORT(session, EINVAL, "fix_id requires uri, old_id and new_id");
+        new_id = item.val;
+
+        if (old_id <= 0 || old_id >= WT_BTREE_ID_INVALID || new_id <= 0 ||
+          new_id >= WT_BTREE_ID_INVALID)
+            WT_ERR_REPORT(session, EINVAL, "fix_id ids must be between 1 and %" PRIu32,
+              WT_BTREE_ID_INVALID - 1);
+        if (old_id == new_id)
+            WT_ERR_REPORT(session, EINVAL, "fix_id old_id and new_id are the same");
+
+        repair_config->fix_id.old_id = (uint32_t)old_id;
+        repair_config->fix_id.new_id = (uint32_t)new_id;
+
+        /* The metadata write needs somewhere to land: a local connection or a disagg leader. */
+        if (__wt_conn_is_disagg(session)) {
+            if (!S2C(session)->layered_table_manager.leader)
+                WT_ERR_REPORT(
+                  session, ENOTSUP, "fix_id requires a disaggregated leader connection");
+
+            /*
+             * Only the stable file of a layered table is copied to the shared metadata table, so a
+             * disaggregated fix has to name one. Derive the table name the copy is keyed by.
+             */
+            name = repair_config->fix_id.uri + strlen("file:");
+            suffix = strstr(repair_config->fix_id.uri, ".wt_stable");
+            if (!WT_PREFIX_MATCH(repair_config->fix_id.uri, "file:") || suffix == NULL ||
+              suffix <= name)
+                WT_ERR_REPORT(session, EINVAL,
+                  "fix_id needs a \"file:<name>.wt_stable\" uri on a disaggregated connection");
+            WT_ERR(__wt_strndup(
+              session, name, (size_t)(suffix - name), &repair_config->fix_id.table_name));
+        }
     }
 
     if (require_disagg && !__wt_disagg_has_picked_up_checkpoint(session))
@@ -220,6 +422,13 @@ err:
  *     the shared, page-server-durable metadata checkpoint. uri="" selects one target; absent or
  *     empty means all URIs. key="" selects one first-level config value out of the matching
  *     entries; absent or empty means the whole value.
+ *
+ * fix_id=(uri="<uri>",old_id=<id>,new_id=<id>) Write: give one table a new btree id, to break a
+ *     duplicated id between two tables. All three settings are required; old_id must match the
+ *     table's current id, which guards against renumbering the wrong table. The table must not be
+ *     open, new_id must be unused and above every id allocated so far, and in disaggregated storage
+ *     this must run on the leader. The renumbered table's data is left behind under the old id, so
+ *     rebuild or drop it afterwards; pick the table that can be rebuilt.
  */
 static int
 __repair_config_decode(
@@ -242,6 +451,11 @@ __repair_config_decode(
     if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
         WT_ERR(__repair_config_set_command(
           session, report, &item, repair_config, WT_REPAIR_COMMAND_FETCH_METADATA));
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "fix_id", &item), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        WT_ERR(__repair_config_set_command(
+          session, report, &item, repair_config, WT_REPAIR_COMMAND_FIX_ID));
 
     if (repair_config->command == WT_REPAIR_COMMAND_NONE)
         WT_ERR_REPORT(session, EINVAL, "No command found in the config");
@@ -300,6 +514,11 @@ wiredtiger_repair(WT_CONNECTION *connection, const char *config)
         WT_ERR(__repair_fetch_metadata(session, report, repair_config.fetch_metadata.uri,
           repair_config.fetch_metadata.key, repair_config.fetch_metadata.local));
         break;
+    case WT_REPAIR_COMMAND_FIX_ID:
+        WT_ERR(__repair_fix_id(session, report, repair_config.fix_id.uri,
+          repair_config.fix_id.table_name, repair_config.fix_id.old_id,
+          repair_config.fix_id.new_id));
+        break;
     default:
         WT_ERR(__wt_illegal_value(session, repair_config.command));
     }
@@ -311,6 +530,8 @@ err:
 
     __wt_free(default_session, repair_config.fetch_metadata.uri);
     __wt_free(default_session, repair_config.fetch_metadata.key);
+    __wt_free(default_session, repair_config.fix_id.uri);
+    __wt_free(default_session, repair_config.fix_id.table_name);
 
     if (session != NULL)
         WT_IGNORE_RET(((WT_SESSION *)session)->close((WT_SESSION *)session, NULL));
