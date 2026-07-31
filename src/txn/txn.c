@@ -110,6 +110,23 @@ __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapsh
 }
 
 /*
+ * __txn_snapshot_leave_disagg --
+ *     Leave the disaggregated generations a snapshot entered, at the end of its era: its release, a
+ *     refresh, or a failed post-build validation. Releasing a pinned checkpoint generation may
+ *     unblock a deferred pickup, so wake the pickup server after the pin is cleared.
+ */
+static WT_INLINE void
+__txn_snapshot_leave_disagg(WT_SESSION_IMPL *session)
+{
+    if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0) {
+        __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
+        __wt_disagg_deferred_pickup_signal(session);
+    }
+    if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
+        __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
+}
+
+/*
  * __wt_txn_release_snapshot --
  *     Release the snapshot in the current transaction.
  */
@@ -133,17 +150,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned, WT_TXN_NONE);
     __wt_atomic_store_uint64_v_relaxed(&txn_shared->pinned_id, WT_TXN_NONE);
-    /*
-     * Releasing a snapshot that pinned a checkpoint generation may unblock a deferred pickup: wake
-     * the pickup server after the pin is cleared, so its scan observes the release.
-     */
-    if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0) {
-        __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
-        __wt_disagg_deferred_pickup_signal(session);
-    }
-    /* The snapshot's role era ends with it. */
-    if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
-        __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
+    __txn_snapshot_leave_disagg(session);
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
@@ -296,14 +303,9 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
           snapshot_gen == __wt_gen(session, WT_GEN_HAS_SNAPSHOT))
             return;
 
-        /* Leave the generation here and enter again later to acquire a new snapshot. */
+        /* Leave the generations here and enter again later to acquire a new snapshot. */
         __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
-        if (__wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0)
-            __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
-        if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0) {
-            __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
-            __wt_disagg_deferred_pickup_signal(session);
-        }
+        __txn_snapshot_leave_disagg(session);
     }
     __wt_session_gen_enter(session, WT_GEN_HAS_SNAPSHOT);
 
@@ -418,9 +420,7 @@ done:
         WT_DIAGNOSTIC_YIELD;
         if (!__txn_snapshot_validate_disagg(session)) {
             WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
-            __wt_session_gen_leave(session, WT_GEN_DISAGG_ROLE);
-            if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) != 0)
-                __wt_session_gen_leave(session, WT_GEN_DISAGG_CKPT);
+            __txn_snapshot_leave_disagg(session);
             goto retry;
         }
         /*

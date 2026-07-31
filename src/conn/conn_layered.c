@@ -1772,7 +1772,6 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
-    WT_DISAGG_DEFERRED_CKPT *deferred;
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
@@ -1798,11 +1797,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_free(session, disagg->last_checkpoint_root);
-    while ((deferred = TAILQ_FIRST(&disagg->deferred_ckpt_qh)) != NULL) {
-        TAILQ_REMOVE(&disagg->deferred_ckpt_qh, deferred, q);
-        __wt_free(session, deferred->meta);
-        __wt_free(session, deferred);
-    }
+    __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
     __wt_free(session, disagg->page_log);
     return (ret);
 }

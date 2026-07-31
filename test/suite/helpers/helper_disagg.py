@@ -229,26 +229,23 @@ class DisaggConfigMixin:
     # active transaction snapshots predate the checkpoint. Wait for the given LSN, or for the
     # newest delivered one.
     def disagg_await_checkpoint_adoption(self, conn_follower, target_lsn=None):
-        session = conn_follower.open_session('')
-        try:
-            for _ in range(2000):
-                try:
-                    stat_cursor = session.open_cursor('statistics:', None, None)
-                except wiredtiger.WiredTigerError:
-                    # Adoption is only observable through statistics. Without them, rely on the
-                    # adoption being synchronous when no snapshot defers it.
-                    self.ignoreStderrPatternIfExists('statistics configuration')
-                    return
-                adopted_lsn = stat_cursor[wiredtiger.stat.conn.disagg_checkpoint_meta_lsn][2]
-                pending_lsn = stat_cursor[wiredtiger.stat.conn.disagg_checkpoint_pending_lsn][2]
-                stat_cursor.close()
-                if adopted_lsn >= (pending_lsn if target_lsn is None else target_lsn):
-                    return
-                time.sleep(0.005)
-            raise Exception(
-                f'checkpoint adoption did not reach LSN {target_lsn} (at {adopted_lsn})')
-        finally:
-            session.close()
+        adopted_lsn = None
+        for _ in range(2000):
+            try:
+                adopted_lsn = self.get_stat(
+                    wiredtiger.stat.conn.disagg_checkpoint_meta_lsn, conn=conn_follower)
+                target = target_lsn if target_lsn is not None else self.get_stat(
+                    wiredtiger.stat.conn.disagg_checkpoint_pending_lsn, conn=conn_follower)
+            except wiredtiger.WiredTigerError:
+                # Adoption is only observable through statistics. Without them, rely on the
+                # adoption being synchronous when no snapshot defers it.
+                self.ignoreStderrPatternIfExists('statistics configuration')
+                return
+            if adopted_lsn >= target:
+                return
+            time.sleep(0.005)
+        raise Exception(
+            f'checkpoint adoption did not reach LSN {target_lsn} (at {adopted_lsn})')
 
     # Let the follower pick up the latest checkpoint. Adopting the delivered checkpoint is
     # asynchronous when active transaction snapshots predate it, so by default wait until the

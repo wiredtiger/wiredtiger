@@ -523,6 +523,17 @@ __clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __clayered_stable_bind_refuse --
+ *     Refuse a stable bind the session's transactional snapshot cannot consistently observe.
+ */
+static WT_INLINE int
+__clayered_stable_bind_refuse(WT_SESSION_IMPL *session)
+{
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
+    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
+}
+
+/*
  * __clayered_stable_bind_check_role_change --
  *     Fail with WT_ROLLBACK if the session's transactional snapshot was established under a
  *     different role: a role change swaps what the stable content is (an adopted checkpoint or the
@@ -540,8 +551,7 @@ __clayered_stable_bind_check_role_change(WT_SESSION_IMPL *session, bool leader)
       __wt_session_gen(session, WT_GEN_DISAGG_ROLE) == __wt_gen(session, WT_GEN_DISAGG_ROLE))
         return (0);
 
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
-    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
+    return (__clayered_stable_bind_refuse(session));
 }
 
 /*
@@ -591,8 +601,7 @@ __clayered_stable_last_name(WT_SESSION_IMPL *session, const char *stable_uri, co
         return (0);
 
     __wt_free(session, *namep);
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
-    WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
+    return (__clayered_stable_bind_refuse(session));
 }
 
 /*
