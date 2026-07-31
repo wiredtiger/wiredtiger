@@ -343,10 +343,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
              */
             thread_ops = -1;
             ops_seconds = 0;
-            if (g.replay_ops_base == WT_TS_NONE)
-                g.replay_ops_base = g.timestamp;
-            g.stop_timestamp =
-              g.replay_ops_base + (GV(RUNS_OPS) * (uint64_t)run_current) / run_total;
+            g.stop_timestamp = (GV(RUNS_OPS) * (uint64_t)run_current) / run_total;
         } else
             thread_ops = GV(RUNS_OPS) / GV(RUNS_THREADS);
     }
