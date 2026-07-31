@@ -383,12 +383,6 @@ main(int argc, char *argv[])
     scan_args.rnd = &g.extra_rnd;
     TIMED_MAJOR_OP(tables_apply(wts_read_scan, &scan_args));
 
-    /*
-     * Agree on the predictable-replay operations base before the first run computes its stop
-     * timestamp, and before any background thread can advance the timestamp asymmetrically.
-     */
-    disagg_sync_ops_base();
-
     /* Optionally start checkpoints. */
     wts_checkpoints();
 
