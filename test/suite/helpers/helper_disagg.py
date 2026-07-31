@@ -231,11 +231,12 @@ class DisaggConfigMixin:
     def disagg_await_checkpoint_adoption(self, conn_follower, target_lsn=None):
         adopted_lsn = None
         for _ in range(2000):
+            # Call the base class explicitly: tests are free to define their own get_stat.
             try:
-                adopted_lsn = self.get_stat(
-                    wiredtiger.stat.conn.disagg_checkpoint_meta_lsn, conn=conn_follower)
-                target = target_lsn if target_lsn is not None else self.get_stat(
-                    wiredtiger.stat.conn.disagg_checkpoint_pending_lsn, conn=conn_follower)
+                adopted_lsn = wttest.WiredTigerTestCase.get_stat(
+                    self, wiredtiger.stat.conn.disagg_checkpoint_meta_lsn, conn=conn_follower)
+                target = target_lsn if target_lsn is not None else wttest.WiredTigerTestCase.get_stat(
+                    self, wiredtiger.stat.conn.disagg_checkpoint_pending_lsn, conn=conn_follower)
             except wiredtiger.WiredTigerError:
                 # Adoption is only observable through statistics. Without them, rely on the
                 # adoption being synchronous when no snapshot defers it.
