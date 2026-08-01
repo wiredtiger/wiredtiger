@@ -631,8 +631,8 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     WT_ASSERT(session, dirty_index_blocked);
     WT_UNUSED(dirty_index_blocked);
     dirty_index = __wt_atomic_load_ptr_acquire(&S2BT(session)->dirty_index);
-    dirty_index_active = dirty_index != NULL &&
-      __wt_atomic_load_ptr_acquire(&dirty_index->slots) != NULL;
+    dirty_index_active =
+      dirty_index != NULL && __wt_atomic_load_ptr_acquire(&dirty_index->slots) != NULL;
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
@@ -650,7 +650,8 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
-    WT_TRET(__split_safe_free(session, split_gen, exclusive && !dirty_index_active, ref, sizeof(WT_REF)));
+    WT_TRET(
+      __split_safe_free(session, split_gen, exclusive && !dirty_index_active, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
 
     return (ret);

@@ -117,8 +117,8 @@ TEST_CASE_METHOD(
     REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, nullptr));
 }
 
-TEST_CASE_METHOD(
-  dirty_index_fixture, "Dirty index: blocking an absent page clears its ring entry", "[dirty_index]")
+TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocking an absent page clears its ring entry",
+  "[dirty_index]")
 {
     WT_PAGE page{};
     WT_PAGE_MODIFY modify{};

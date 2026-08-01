@@ -232,7 +232,8 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
       __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
         return (true);
 
-    /* A split can clear ref->page before retiring the ref. Remove that ref from the ring directly. */
+    /* A split can clear ref->page before retiring the ref. Remove that ref from the ring directly.
+     */
     if (page == NULL) {
         for (i = 0; i < idx->capacity; ++i) {
             slotp = &idx->slots[i];
