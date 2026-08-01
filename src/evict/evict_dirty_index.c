@@ -131,12 +131,12 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     if (!__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index) ||
       !F_ISSET(ref, WT_REF_FLAG_LEAF) || WT_REF_GET_STATE(ref) != WT_REF_MEM ||
       (page = __wt_atomic_load_ptr_acquire(&ref->page)) == NULL || page->modify == NULL ||
-      (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
+      __wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)
+        return (false);
+    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return (false);
     if (WTI_DIRTY_INDEX_IS_DISAGG(btree) &&
       !__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index_disagg))
-        return (false);
-    if (__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)
         return (false);
     if (!__evict_dirty_index_ensure_slots(session, idx))
         return (false);
@@ -291,15 +291,17 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     WTI_DIRTY_INDEX_SLOT *slotp;
     uint32_t bp;
 
-    WT_UNUSED(session);
     /* Check the page's own back-pointer first: zero means it never entered the ring. */
     if (page == NULL ||
       (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == WTI_DIRTY_BP_NONE)
         return;
     if (bp == WTI_DIRTY_BP_BLOCKED)
         return;
-    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
-      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL || WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
+    idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index);
+    if (idx == NULL || __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
+        return;
+    WT_ASSERT(session, WTI_DIRTY_BP_SLOT(bp) < idx->capacity);
+    if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
         return;
 
     slotp = &__wt_atomic_load_ptr_acquire(&idx->slots)[WTI_DIRTY_BP_SLOT(bp)];
