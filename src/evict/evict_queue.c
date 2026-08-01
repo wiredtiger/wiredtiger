@@ -246,10 +246,9 @@ __wti_evict_lru_walk(WT_SESSION_IMPL *session)
      * A dirty leaf trimmed here is not lost: re-insert it into its btree's ring so the next drain
      * reconsiders it. Under modified-page pressure the sort keys on update_txn, so the freshest
      * writes -- exactly what the ring captures -- land past the trim line. The insert applies the
-     * leaf,
-     * ring-present, and ring-full gates itself and returns true only when it created a new entry,
-     * so the stat counts genuine re-inserts (a drain-origin page the drain popped and cleared) and
-     * not the no-op re-inserts for walker-origin pages still parked in the ring.
+     * leaf, ring-present, and ring-full gates itself and returns true only when it created a new
+     * entry, so the stat counts genuine re-inserts (a drain-origin page the drain popped and
+     * cleared) and not the no-op re-inserts for walker-origin pages still parked in the ring.
      */
     while (entries > WTI_EVICT_WALK_BASE) {
         evict_entry = &queue->evict_queue[--entries];

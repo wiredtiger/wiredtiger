@@ -660,9 +660,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_BTREE *btree;
     WT_DECL_ITEM(scr);
     WT_DECL_RET;
+    WT_PAGE *page;
     WT_PAGE *parent;
     WT_PAGE_INDEX *alloc_index, *pindex;
-    WT_PAGE *page;
     WT_REF **alloc_refp, *next_ref;
     WT_SPLIT_ERROR_PHASE complete;
     size_t parent_decr, size;

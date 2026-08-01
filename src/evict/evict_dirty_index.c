@@ -34,7 +34,10 @@ __evict_dirty_index_capacity(WT_BTREE *btree, uint64_t size_hint)
     return (++capacity);
 }
 
-/* Allocate and publish the slot array once, after a producer passes eligibility checks. */
+/*
+ * __evict_dirty_index_ensure_slots --
+ *     Allocate and publish the slot array once, after a producer passes eligibility checks.
+ */
 static bool
 __evict_dirty_index_ensure_slots(WT_SESSION_IMPL *session, WTI_DIRTY_INDEX *idx)
 {
@@ -227,8 +230,8 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
         if (bp == WTI_DIRTY_BP_BLOCKED)
             return (true);
         if (bp == WTI_DIRTY_BP_NONE) {
-            if (__wt_atomic_cas_uint32(&page->dirty_index_slot, WTI_DIRTY_BP_NONE,
-                  WTI_DIRTY_BP_BLOCKED))
+            if (__wt_atomic_cas_uint32(
+                  &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_BLOCKED))
                 return (true);
             continue;
         }
@@ -289,8 +292,7 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     if (bp == WTI_DIRTY_BP_BLOCKED)
         return;
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
-      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL ||
-      WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
+      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL || WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
         return;
 
     slotp = &__wt_atomic_load_ptr_acquire(&idx->slots)[WTI_DIRTY_BP_SLOT(bp)];

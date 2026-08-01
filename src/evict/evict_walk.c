@@ -1643,8 +1643,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      */
     pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
     if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
-        should_drain = pass_gen >=
-          __wt_atomic_load_uint64_relaxed(&btree->drain_next_probe_gen);
+        should_drain = pass_gen >= __wt_atomic_load_uint64_relaxed(&btree->drain_next_probe_gen);
     else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         /*
          * The ring is leaf-only, so only the walker queues internal pages. When the drain has

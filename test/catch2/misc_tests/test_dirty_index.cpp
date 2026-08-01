@@ -58,7 +58,8 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: descriptor allocation", "[di
     REQUIRE(index->tail == 0);
 }
 
-TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: first qualifying insert allocates slots", "[dirty_index]")
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: first qualifying insert allocates slots", "[dirty_index]")
 {
     WT_PAGE page{};
     WT_PAGE_MODIFY modify{};
@@ -76,7 +77,8 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: first qualifying insert allo
     REQUIRE(index->slots[0].ref == &ref);
 }
 
-TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocked page rejects insertion", "[dirty_index]")
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: blocked page rejects insertion", "[dirty_index]")
 {
     WT_PAGE page{};
     WT_PAGE_MODIFY modify{};
@@ -106,8 +108,8 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocked page rejects inserti
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
 }
 
-TEST_CASE_METHOD(
-  dirty_index_fixture, "Dirty index: retirement waits for publication and clears old ref", "[dirty_index]")
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: retirement waits for publication and clears old ref", "[dirty_index]")
 {
     WT_PAGE page{};
     WT_PAGE_MODIFY modify{};
@@ -165,7 +167,8 @@ TEST_CASE_METHOD(
     REQUIRE(page.dirty_index_slot != WTI_DIRTY_BP_BLOCKED);
 }
 
-TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: duplicate insertion is suppressed", "[dirty_index]")
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: duplicate insertion is suppressed", "[dirty_index]")
 {
     WT_PAGE page{};
     WT_PAGE_MODIFY modify{};
@@ -183,7 +186,8 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: duplicate insertion is suppr
     REQUIRE(index->head == head);
 }
 
-TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: runtime disable and re-enable uses fresh pages", "[dirty_index]")
+TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: runtime disable and re-enable uses fresh pages",
+  "[dirty_index]")
 {
     WT_PAGE first_page{};
     WT_PAGE_MODIFY first_modify{};
@@ -212,7 +216,8 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: runtime disable and re-enabl
     REQUIRE(__wt_dirty_index_insert(session, btree, &second_ref));
 }
 
-TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: concurrent first-use allocation", "[dirty_index]")
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: concurrent first-use allocation", "[dirty_index]")
 {
     constexpr size_t thread_count = 8;
     std::array<WT_PAGE, thread_count> pages{};
@@ -227,7 +232,8 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: concurrent first-use allocat
         refs[i].page = &pages[i];
         F_SET(&refs[i], WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(&refs[i], WT_REF_MEM);
-        threads[i] = std::thread([&, i] { inserted[i] = __wt_dirty_index_insert(session, btree, &refs[i]); });
+        threads[i] =
+          std::thread([&, i] { inserted[i] = __wt_dirty_index_insert(session, btree, &refs[i]); });
     }
     for (auto &thread : threads)
         thread.join();

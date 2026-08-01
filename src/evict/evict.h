@@ -175,6 +175,8 @@ struct __wt_evict {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern bool __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref,
+  WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -201,10 +203,8 @@ extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_dirty_index_clear_page(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page);
-extern bool __wt_dirty_index_block_page(
-  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page);
-extern void __wt_dirty_index_unblock_page(WT_PAGE *page);
 extern void __wt_dirty_index_destroy(WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_dirty_index_unblock_page(WT_PAGE *page);
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
