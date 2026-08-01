@@ -229,7 +229,7 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 
     WT_UNUSED(session);
     if (page == NULL)
-        return (false);
+        return (true);
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
         return (true);

@@ -108,6 +108,15 @@ TEST_CASE_METHOD(
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
 }
 
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: blocking an absent page succeeds", "[dirty_index]")
+{
+    WT_REF ref{};
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, nullptr));
+}
+
 TEST_CASE_METHOD(dirty_index_fixture,
   "Dirty index: retirement waits for publication and clears old ref", "[dirty_index]")
 {
