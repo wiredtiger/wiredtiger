@@ -604,6 +604,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     WT_IKEY *ikey;
     WT_PAGE *page;
     size_t size;
+    bool dirty_index_blocked;
 
     /*
      * Row-store trees where the old version of the page is being discarded: the previous parent
@@ -625,7 +626,9 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
 
     /* Free any backing fast-truncate memory. */
     page = ref->page;
-    WT_ASSERT(session, __wt_dirty_index_block_page(session, S2BT(session), ref, page));
+    dirty_index_blocked = __wt_dirty_index_block_page(session, S2BT(session), ref, page);
+    WT_ASSERT(session, dirty_index_blocked);
+    WT_UNUSED(dirty_index_blocked);
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
