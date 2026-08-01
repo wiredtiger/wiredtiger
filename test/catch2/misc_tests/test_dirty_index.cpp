@@ -111,3 +111,34 @@ TEST_CASE_METHOD(
     __wt_dirty_index_unblock_page(&page);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
 }
+
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: retained split page can be indexed", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF old_ref{};
+    WT_REF replacement{};
+    page.modify = &modify;
+    old_ref.page = &page;
+    replacement.page = &page;
+    F_SET(&old_ref, WT_REF_FLAG_LEAF);
+    F_SET(&replacement, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&old_ref, WT_REF_MEM);
+    WT_REF_SET_STATE(&replacement, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+    page.dirty_index_slot = WTI_DIRTY_BP_MAKE(0);
+    __wt_atomic_store_ptr_release(&index->slots[0].ref, &old_ref);
+
+    REQUIRE(__wt_dirty_index_block_page(session, btree, &old_ref, &page));
+    REQUIRE(index->slots[0].ref == nullptr);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+
+    __wt_atomic_store_ptr_release(&index->slots[0].ref, &replacement);
+    __wt_dirty_index_unblock_page(&page);
+
+    REQUIRE(__wt_dirty_index_insert(session, btree, &replacement));
+    REQUIRE(index->slots[0].ref == &replacement);
+}

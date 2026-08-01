@@ -662,6 +662,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_DECL_RET;
     WT_PAGE *parent;
     WT_PAGE_INDEX *alloc_index, *pindex;
+    WT_PAGE *page;
     WT_REF **alloc_refp, *next_ref;
     WT_SPLIT_ERROR_PHASE complete;
     size_t parent_decr, size;
@@ -676,6 +677,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 
     btree = S2BT(session);
     parent = ref->home;
+    page = ref->page;
 
     alloc_index = pindex = NULL;
     parent_decr = 0;
@@ -855,6 +857,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
         WT_TRET(
           __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
+        /* An insert split retains the old page under the first replacement ref. */
+        if (new_entries != 0 && ref_new[0]->page == page)
+            __wt_dirty_index_unblock_page(page);
         /* Reverse split removes a deleted/empty leaf, not a split replacement. */
         if (new_entries == 0 && btree->type == BTREE_ROW &&
           __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages) != WT_LEAF_STATS_UNKNOWN)
