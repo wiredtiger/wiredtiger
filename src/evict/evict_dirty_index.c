@@ -129,7 +129,8 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
 
     evict = S2C(session)->evict;
     if (!__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index) ||
-      !F_ISSET(ref, WT_REF_FLAG_LEAF) || WT_REF_GET_STATE(ref) != WT_REF_MEM ||
+      !F_ISSET(ref, WT_REF_FLAG_LEAF) || __wt_atomic_load_ptr_relaxed(&ref->home) == NULL ||
+      WT_REF_GET_STATE(ref) != WT_REF_MEM ||
       (page = __wt_atomic_load_ptr_acquire(&ref->page)) == NULL || page->modify == NULL ||
       __wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)
         return (false);

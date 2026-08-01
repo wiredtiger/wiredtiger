@@ -65,6 +65,7 @@ TEST_CASE_METHOD(
     WT_PAGE_MODIFY modify{};
     WT_REF ref{};
     page.modify = &modify;
+    ref.home = &page;
     ref.page = &page;
     F_SET(&ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&ref, WT_REF_MEM);
@@ -78,12 +79,29 @@ TEST_CASE_METHOD(
 }
 
 TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: unpublished ref rejects insertion", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    page.modify = &modify;
+    ref.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(!__wt_dirty_index_insert(session, btree, &ref));
+    REQUIRE(btree->dirty_index->slots == nullptr);
+}
+
+TEST_CASE_METHOD(
   dirty_index_fixture, "Dirty index: blocked page rejects insertion", "[dirty_index]")
 {
     WT_PAGE page{};
     WT_PAGE_MODIFY modify{};
     WT_REF ref{};
     page.modify = &modify;
+    ref.home = &page;
     ref.page = &page;
     F_SET(&ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&ref, WT_REF_MEM);
@@ -99,6 +117,7 @@ TEST_CASE_METHOD(
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
 
     WT_REF replacement{};
+    replacement.home = &page;
     replacement.page = &page;
     WT_REF_SET_STATE(&replacement, WT_REF_MEM);
     page.dirty_index_slot = WTI_DIRTY_BP_MAKE(0);
@@ -124,6 +143,7 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocking an absent page clea
     WT_PAGE_MODIFY modify{};
     WT_REF ref{};
     page.modify = &modify;
+    ref.home = &page;
     ref.page = &page;
     F_SET(&ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&ref, WT_REF_MEM);
@@ -143,6 +163,7 @@ TEST_CASE_METHOD(dirty_index_fixture,
     WT_PAGE_MODIFY modify{};
     WT_REF ref{};
     page.modify = &modify;
+    ref.home = &page;
     ref.page = &page;
     F_SET(&ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&ref, WT_REF_MEM);
@@ -174,6 +195,8 @@ TEST_CASE_METHOD(
     WT_REF old_ref{};
     WT_REF replacement{};
     page.modify = &modify;
+    old_ref.home = &page;
+    replacement.home = &page;
     old_ref.page = &page;
     replacement.page = &page;
     F_SET(&old_ref, WT_REF_FLAG_LEAF);
@@ -202,6 +225,7 @@ TEST_CASE_METHOD(
     WT_PAGE_MODIFY modify{};
     WT_REF ref{};
     page.modify = &modify;
+    ref.home = &page;
     ref.page = &page;
     F_SET(&ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&ref, WT_REF_MEM);
@@ -221,6 +245,7 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: runtime disable and re-enabl
     WT_PAGE_MODIFY first_modify{};
     WT_REF first_ref{};
     first_page.modify = &first_modify;
+    first_ref.home = &first_page;
     first_ref.page = &first_page;
     F_SET(&first_ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&first_ref, WT_REF_MEM);
@@ -238,6 +263,7 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: runtime disable and re-enabl
     WT_PAGE_MODIFY second_modify{};
     WT_REF second_ref{};
     second_page.modify = &second_modify;
+    second_ref.home = &second_page;
     second_ref.page = &second_page;
     F_SET(&second_ref, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(&second_ref, WT_REF_MEM);
@@ -257,6 +283,7 @@ TEST_CASE_METHOD(
     REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
     for (size_t i = 0; i < thread_count; ++i) {
         pages[i].modify = &modifies[i];
+        refs[i].home = &pages[i];
         refs[i].page = &pages[i];
         F_SET(&refs[i], WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(&refs[i], WT_REF_MEM);
