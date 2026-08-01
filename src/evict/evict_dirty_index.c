@@ -198,14 +198,74 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
 }
 
 /*
+ * __wt_dirty_index_block_page --
+ *     Block dirty-index producers while a ref is being retired. If a producer owns the page
+ *     back-pointer but has not published its ref yet, wait for publication before taking the block.
+ *     The expected ref is conditionally removed after the block is acquired.
+ */
+bool
+__wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
+{
+    WTI_DIRTY_INDEX *idx;
+    WTI_DIRTY_INDEX_SLOT *slotp;
+    WT_REF *published_ref;
+    uint32_t bp;
+
+    WT_UNUSED(session);
+    if (page == NULL || (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
+        return (false);
+
+    for (;;) {
+        bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);
+        if (bp == WTI_DIRTY_BP_BLOCKED)
+            return (true);
+        if (bp == WTI_DIRTY_BP_NONE) {
+            if (__wt_atomic_cas_uint32(&page->dirty_index_slot, WTI_DIRTY_BP_NONE,
+                  WTI_DIRTY_BP_BLOCKED))
+                return (true);
+            continue;
+        }
+
+        if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
+            continue;
+        slotp = &idx->slots[WTI_DIRTY_BP_SLOT(bp)];
+        published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
+        if (published_ref == NULL) {
+            WT_PAUSE();
+            continue;
+        }
+        if (!__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_BLOCKED))
+            continue;
+
+        /* Do not clear a newer entry if the old ref has already been replaced. */
+        if (!__wt_atomic_cas_ptr(&slotp->ref, ref, NULL)) {
+            published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
+            if (published_ref != NULL && published_ref != ref)
+                __wt_dirty_index_unblock_page(page);
+        }
+        return (true);
+    }
+}
+
+/*
+ * __wt_dirty_index_unblock_page --
+ *     Allow a page retained by a usable replacement ref to re-enter the dirty index.
+ */
+void
+__wt_dirty_index_unblock_page(WT_PAGE *page)
+{
+    if (page != NULL)
+        (void)__wt_atomic_cas_uint32(
+          &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_NONE);
+}
+
+/*
  * __wt_dirty_index_clear_page --
  *     Invalidate a page's published entry without waiting for the eviction consumer. Idempotent and
  *     safe to call more than once for the same page: a page never has two simultaneously-live ring
  *     entries (the back-pointer names at most one slot), so a second call after the first has
- *     already cleared it is a no-op. That makes it safe to call again after a ref is replaced but
- *     the page is retained (splits), to catch a producer that raced in a fresh ring entry for the
- *     old ref between the first call and the ref's state change to non-WT_REF_MEM --
- *     the caller is expected to bracket that race window with two calls in exactly this way.
+ *     already cleared it is a no-op. Split retirement uses __wt_dirty_index_block_page instead so
+ *     the page cannot acquire a new entry between cleanup and the ref state transition.
  */
 void
 __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
@@ -218,6 +278,8 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     /* Check the page's own back-pointer first: zero means it never entered the ring. */
     if (page == NULL ||
       (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == WTI_DIRTY_BP_NONE)
+        return;
+    if (bp == WTI_DIRTY_BP_BLOCKED)
         return;
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)

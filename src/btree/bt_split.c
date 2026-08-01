@@ -625,7 +625,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
 
     /* Free any backing fast-truncate memory. */
     page = ref->page;
-    __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
+    (void)__wt_dirty_index_block_page(session, S2BT(session), ref, page);
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
@@ -642,12 +642,6 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      * chance.
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
-
-    /*
-     * Call clear_page again: it is idempotent, and this second call catches a producer that raced
-     * an insertion for the old ref between the first call above and the state change just made.
-     */
-    __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
 
     WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);

@@ -8,6 +8,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <thread>
+
 #include "../wrappers/mock_session.h"
 
 extern "C" {
@@ -52,4 +54,60 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: eager allocation", "[dirty_i
     REQUIRE(index->mask == index->capacity - 1);
     REQUIRE(index->head == 0);
     REQUIRE(index->tail == 0);
+}
+
+TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocked page rejects insertion", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    page.modify = &modify;
+    ref.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+    page.dirty_index_slot = WTI_DIRTY_BP_BLOCKED;
+    REQUIRE(!__wt_dirty_index_insert(session, btree, &ref));
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+    __wt_dirty_index_unblock_page(&page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+
+    WT_REF replacement{};
+    replacement.page = &page;
+    WT_REF_SET_STATE(&replacement, WT_REF_MEM);
+    page.dirty_index_slot = WTI_DIRTY_BP_MAKE(0);
+    __wt_atomic_store_ptr_release(&index->slots[0].ref, &replacement);
+    REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, &page));
+    REQUIRE(index->slots[0].ref == &replacement);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+}
+
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: retirement waits for publication and clears old ref", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    page.modify = &modify;
+    ref.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+    page.dirty_index_slot = WTI_DIRTY_BP_MAKE(0);
+    __wt_atomic_store_ptr_release(&index->slots[0].ref, nullptr);
+
+    bool blocked = false;
+    std::thread retire([&] { blocked = __wt_dirty_index_block_page(session, btree, &ref, &page); });
+    __wt_atomic_store_ptr_release(&index->slots[0].ref, &ref);
+    retire.join();
+
+    REQUIRE(blocked);
+    REQUIRE(index->slots[0].ref == nullptr);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+    __wt_dirty_index_unblock_page(&page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
 }

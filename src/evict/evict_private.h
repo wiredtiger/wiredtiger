@@ -73,6 +73,7 @@ struct __wti_evict_entry {
  * operations.
  */
 #define WTI_DIRTY_BP_NONE 0u
+#define WTI_DIRTY_BP_BLOCKED UINT32_MAX
 #define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
 #define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
 
