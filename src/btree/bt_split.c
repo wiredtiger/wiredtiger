@@ -648,8 +648,14 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
-    WT_TRET(
-      __split_safe_free(session, split_gen, exclusive && !dirty_index_active, ref, sizeof(WT_REF)));
+    /*
+     * A ref the ring still reached needs the generation the ring's consumer runs under, not this
+     * split's, and exclusive access to the tree says nothing about that consumer.
+     */
+    WT_TRET(dirty_index_active ?
+        __wt_stash_add(
+          session, WT_GEN_SPLIT, __wt_dirty_index_retire_gen(session), ref, sizeof(WT_REF)) :
+        __split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
 
     return (ret);

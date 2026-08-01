@@ -342,6 +342,29 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 }
 
 /*
+ * __wt_dirty_index_retire_gen --
+ *     Return the split generation a retired ref must be stashed at while the ring is active.
+ *
+ * Generation safety normally rests on a reader that enters after the page index swap being unable
+ *     to reach the old ref at all, which is why the retiring thread can stash at its own split
+ *     generation. The ring breaks that: it keeps the ref reachable long after the swap, so a drain
+ *     that entered later --
+ *     and therefore at a generation the stash does not cover --
+ *     can still pull the ref out of a slot and be holding it when the stash is reclaimed. The
+ *     current generation covers it instead, because that drain published its own generation, no
+ *     larger than this one, before it read the slot.
+ *
+ * The barrier orders the removal from the ring ahead of this read. That is what bounds the exposure
+ *     to drains already in flight: one that starts afterwards cannot find the ref to begin with.
+ */
+uint64_t
+__wt_dirty_index_retire_gen(WT_SESSION_IMPL *session)
+{
+    WT_FULL_BARRIER();
+    return (__wt_gen(session, WT_GEN_SPLIT));
+}
+
+/*
  * __wti_dirty_index_unlink_page --
  *     Drop the drain's claim on a popped page, and report whether this call is what dropped it. A
  *     false return means the back-pointer had already moved on: either someone else cleared it, or

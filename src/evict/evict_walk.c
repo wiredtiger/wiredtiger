@@ -192,9 +192,9 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     already_queued = seen_clean = seen_dirty = seen_updates = 0;
 
     /*
-     * Hold the split generation across the loop. A concurrent split that frees a ref still in the
-     * ring stashes it at a generation >= ours, and the stash cannot reclaim until we leave the
-     * generation.
+     * Hold the split generation across the loop, and publish it before reading any slot: a split
+     * retiring a ref the ring still holds stashes it at the generation current once the ref is out
+     * of the ring, which is at least this one, so the stash cannot reclaim until we leave.
      */
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
@@ -205,7 +205,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
         __wt_atomic_stats_max_uint64(
           &S2C(session)->evict->dirty_index_ring_peak_occupancy, scan_limit);
     while (*slotp < max_entries && scanned < scan_limit) {
-        bp_released = reinsert = false;
+        reinsert = false;
         slot = (uint32_t)pos & idx->mask;
         di_slot = &slots[slot];
         seq = __wt_atomic_load_uint64_acquire(&di_slot->sequence);
