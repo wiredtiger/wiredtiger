@@ -64,6 +64,7 @@ struct __wti_evict_entry {
  */
 #define WTI_DIRTY_INDEX_MIN_CAPACITY (16 * 1024u)
 #define WTI_DIRTY_INDEX_MAX_CAPACITY (256 * 1024u)
+#define WTI_DIRTY_INDEX_MAX_RESERVATION_RETRIES 8u
 
 /*
  * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot;

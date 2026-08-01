@@ -125,7 +125,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     WT_PAGE *page;
     uint64_t pos, seq;
     int64_t dif;
-    uint32_t slot;
+    uint32_t retries, slot;
 
     evict = S2C(session)->evict;
     if (!__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index) ||
@@ -145,6 +145,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
         return (false);
 
     pos = __wt_atomic_load_uint64_relaxed(&idx->head);
+    retries = 0;
     for (;;) {
         slotp = &__wt_atomic_load_ptr_acquire(&idx->slots)[(uint32_t)pos & idx->mask];
         seq = __wt_atomic_load_uint64_acquire(&slotp->sequence);
@@ -153,6 +154,8 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
             if (__wt_atomic_cas_uint64_relaxed(&idx->head, pos, pos + 1))
                 break;
             WT_PAUSE();
+            if (++retries >= WTI_DIRTY_INDEX_MAX_RESERVATION_RETRIES)
+                return (false);
             pos = __wt_atomic_load_uint64_relaxed(&idx->head);
         } else if (dif < 0) {
             if (WT_STAT_ENABLED(session)) {
@@ -163,8 +166,12 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
             }
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_ring_full);
             return (false);
-        } else
+        } else {
+            WT_PAUSE();
+            if (++retries >= WTI_DIRTY_INDEX_MAX_RESERVATION_RETRIES)
+                return (false);
             pos = __wt_atomic_load_uint64_relaxed(&idx->head);
+        }
     }
 
     slot = (uint32_t)pos & idx->mask;
