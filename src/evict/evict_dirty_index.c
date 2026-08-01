@@ -225,14 +225,23 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     WTI_DIRTY_INDEX *idx;
     WTI_DIRTY_INDEX_SLOT *slotp;
     WT_REF *published_ref;
-    uint32_t bp;
+    uint32_t bp, i;
 
     WT_UNUSED(session);
-    if (page == NULL)
-        return (true);
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
         return (true);
+
+    /* A split can clear ref->page before retiring the ref. Remove that ref from the ring directly. */
+    if (page == NULL) {
+        for (i = 0; i < idx->capacity; ++i) {
+            slotp = &idx->slots[i];
+            published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
+            if (published_ref == ref)
+                (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
+        }
+        return (true);
+    }
 
     for (;;) {
         bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);

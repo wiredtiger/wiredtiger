@@ -117,6 +117,25 @@ TEST_CASE_METHOD(
     REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, nullptr));
 }
 
+TEST_CASE_METHOD(
+  dirty_index_fixture, "Dirty index: blocking an absent page clears its ring entry", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    page.modify = &modify;
+    ref.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+    REQUIRE(__wt_dirty_index_insert(session, btree, &ref));
+    ref.page = nullptr;
+    REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, nullptr));
+    REQUIRE(index->slots[0].ref == nullptr);
+}
+
 TEST_CASE_METHOD(dirty_index_fixture,
   "Dirty index: retirement waits for publication and clears old ref", "[dirty_index]")
 {

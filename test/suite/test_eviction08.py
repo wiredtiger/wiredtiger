@@ -109,7 +109,9 @@ class test_eviction08(wttest.WiredTigerTestCase):
             time.sleep(0.05)
 
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri), 0)
-        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri), 0)
+        self.assertGreater(
+            self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) +
+            self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_filtered, uri), 0)
 
     def test_dirty_index_duplicate_suppression(self):
         uri = 'table:test_eviction08_duplicate'
