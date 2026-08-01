@@ -920,21 +920,17 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
 
 /*
  * __disagg_deferred_ckpt_queued --
- *     Check whether any checkpoint is waiting to be adopted. Only the pickup server asks, to choose
- *     how long to sleep, so the queue lock is uncontended here and cheaper than a summary of the
- *     queue that every wakeup path would have to maintain.
+ *     Check whether any checkpoint is waiting to be adopted. This is an unsafe check to avoid
+ *     claiming the queue lock: only the pickup server asks, to choose how long to sleep, and an
+ *     answer stale in either direction only delays a look at the queue. This is in its own function
+ *     to suppress the TSan warning.
  */
 static WT_INLINE bool
 __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-    bool queued;
 
-    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
-    queued = !TAILQ_EMPTY(&disagg->deferred_ckpt_qh);
-    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
-
-    return (queued);
+    return (!TAILQ_EMPTY(&disagg->deferred_ckpt_qh));
 }
 
 /*
