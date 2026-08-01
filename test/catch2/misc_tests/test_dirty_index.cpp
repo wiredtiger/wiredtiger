@@ -282,6 +282,35 @@ TEST_CASE_METHOD(dirty_index_fixture,
     REQUIRE(index->slots[0].ref == nullptr);
 }
 
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: page teardown clears a ref the back-pointer does not name", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    WT_REF newer{};
+    page.modify = &modify;
+    ref.home = newer.home = &page;
+    ref.page = newer.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    F_SET(&newer, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+    WT_REF_SET_STATE(&newer, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(__wt_dirty_index_insert(session, btree, &ref));
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+
+    /* The back-pointer names a second slot holding a different ref for the same page. */
+    __wt_atomic_store_ptr_release(&index->slots[1].ref, &newer);
+    page.dirty_index_slot = WTI_DIRTY_BP_MAKE(1);
+
+    /* The page is about to be freed, so its ref must not survive anywhere in the ring. */
+    __wt_dirty_index_clear_page(session, btree, &ref, &page);
+    REQUIRE(index->slots[0].ref == nullptr);
+    REQUIRE(index->slots[1].ref == &newer);
+}
+
 /*
  * The drain releases a block only when the block was taken while the drained slot still owned the
  * page's back-pointer. The two orderings below are what distinguishes a retirement handshake the

@@ -225,21 +225,38 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
 
 /*
  * __evict_dirty_index_scan_clear --
- *     Search the whole ring for a ref and drop it. The fallback for a retiring ref the page
- *     back-pointer does not lead to; the caller must have exhausted the back-pointer first, because
- *     this is O(capacity). Load before the compare-and-swap: an unconditional compare-and-swap
- *     would take every line of the ring exclusive and stall the producers spinning on it. A ref
- *     occupies at most one slot, so stop at the first match.
+ *     Search the ring for a ref and drop it. The fallback for a ref the page back-pointer does not
+ *     lead to; the caller must have exhausted the back-pointer first.
+ *
+ * Only the live span is searched, which is what keeps this affordable: a split retires every
+ *     deleted ref it finds, and those carry no page to follow, so a mostly-empty ring costs almost
+ *     nothing instead of a pass over every slot. Read the tail before the head so both races widen
+ *     the span rather than narrow it, and cap it at one lap, beyond which every slot has been seen.
+ *     The caller's ref cannot be published while this runs --
+ *     it is retiring, and the producer rejects any ref that is not in WT_REF_MEM --
+ *     so a span captured here cannot miss it.
+ *
+ * Load before the compare-and-swap: an unconditional compare-and-swap would take every line of the
+ *     span exclusive and stall the producers spinning on it. A ref occupies at most one slot, so
+ *     stop at the first match.
  */
 static void
 __evict_dirty_index_scan_clear(WTI_DIRTY_INDEX *idx, WTI_DIRTY_INDEX_SLOT *slots, WT_REF *ref)
 {
-    uint32_t i;
+    uint64_t head, pos, tail;
+    uint32_t slot;
 
-    for (i = 0; i < idx->capacity; ++i)
-        if (__wt_atomic_load_ptr_acquire(&slots[i].ref) == ref &&
-          __wt_atomic_cas_ptr(&slots[i].ref, ref, NULL))
+    tail = __wt_atomic_load_uint64_acquire(&idx->tail);
+    head = __wt_atomic_load_uint64_acquire(&idx->head);
+    if (head - tail > idx->capacity)
+        head = tail + idx->capacity;
+
+    for (pos = tail; pos != head; ++pos) {
+        slot = (uint32_t)pos & idx->mask;
+        if (__wt_atomic_load_ptr_acquire(&slots[slot].ref) == ref &&
+          __wt_atomic_cas_ptr(&slots[slot].ref, ref, NULL))
             break;
+    }
 }
 
 /*
@@ -372,10 +389,13 @@ __wt_dirty_index_unblock_page(WT_PAGE *page)
 /*
  * __wt_dirty_index_clear_page --
  *     Invalidate a page's published entry without waiting for the eviction consumer. Idempotent and
- *     safe to call more than once for the same page: a page never has two simultaneously-live ring
- *     entries (the back-pointer names at most one slot), so a second call after the first has
- *     already cleared it is a no-op. Split retirement uses __wt_dirty_index_block_page instead so
- *     the page cannot acquire a new entry between cleanup and the ref state transition.
+ *     safe to call more than once for the same page: a second call after the first has already
+ *     cleared the entry finds nothing to do. Split retirement uses __wt_dirty_index_block_page
+ *     instead so the page cannot acquire a new entry between cleanup and the ref state transition.
+ *
+ * The page is about to be freed, so no slot may be left naming this ref. As with retirement, the
+ *     back-pointer leads to at most one slot and need not be the one holding this ref, so the paths
+ *     that cannot confirm the removal fall back to searching the ring.
  */
 void
 __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
@@ -388,17 +408,25 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     if (page == NULL ||
       (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == WTI_DIRTY_BP_NONE)
         return;
-    if (bp == WTI_DIRTY_BP_BLOCKED)
-        return;
     idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index);
     if (idx == NULL || (slots = __wt_atomic_load_ptr_acquire(&idx->slots)) == NULL)
         return;
-    WT_ASSERT(session, WTI_DIRTY_BP_SLOT(bp) < idx->capacity);
-    if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
+
+    /* A retirement holds the block; the back-pointer no longer names a slot to follow. */
+    if (bp == WTI_DIRTY_BP_BLOCKED) {
+        __evict_dirty_index_scan_clear(idx, slots, ref);
         return;
+    }
+    WT_ASSERT(session, WTI_DIRTY_BP_SLOT(bp) < idx->capacity);
+    if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity) {
+        __evict_dirty_index_scan_clear(idx, slots, ref);
+        return;
+    }
 
     slotp = &slots[WTI_DIRTY_BP_SLOT(bp)];
     /* Only clear the page back-pointer if this ref still owns the slot. */
     if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
         (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_NONE);
+    else
+        __evict_dirty_index_scan_clear(idx, slots, ref);
 }
