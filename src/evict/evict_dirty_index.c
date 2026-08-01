@@ -228,9 +228,11 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     uint32_t bp;
 
     WT_UNUSED(session);
-    if (page == NULL || (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
-      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
+    if (page == NULL)
         return (false);
+    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
+      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
+        return (true);
 
     for (;;) {
         bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);
