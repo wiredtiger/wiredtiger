@@ -122,11 +122,11 @@ TEST_CASE_METHOD(
     WT_REF_SET_STATE(&replacement, WT_REF_MEM);
     page.dirty_index_slot = WTI_DIRTY_BP_MAKE(0);
     __wt_atomic_store_ptr_release(&index->slots[0].ref, &replacement);
-    REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, &page));
+    __wt_dirty_index_block_page(session, btree, &ref, &page);
     REQUIRE(index->slots[0].ref == &replacement);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
 
-    REQUIRE(__wt_dirty_index_block_page(session, btree, &replacement, &page));
+    __wt_dirty_index_block_page(session, btree, &replacement, &page);
     REQUIRE(index->slots[0].ref == nullptr);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
     __wt_dirty_index_unblock_page(&page);
@@ -139,7 +139,7 @@ TEST_CASE_METHOD(
     WT_REF ref{};
 
     REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
-    REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, nullptr));
+    __wt_dirty_index_block_page(session, btree, &ref, nullptr);
 }
 
 TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocking an absent page clears its ring entry",
@@ -158,7 +158,7 @@ TEST_CASE_METHOD(dirty_index_fixture, "Dirty index: blocking an absent page clea
     WTI_DIRTY_INDEX *index = btree->dirty_index;
     REQUIRE(__wt_dirty_index_insert(session, btree, &ref));
     ref.page = nullptr;
-    REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, nullptr));
+    __wt_dirty_index_block_page(session, btree, &ref, nullptr);
     REQUIRE(index->slots[0].ref == nullptr);
 }
 
@@ -181,12 +181,10 @@ TEST_CASE_METHOD(dirty_index_fixture,
     page.dirty_index_slot = WTI_DIRTY_BP_MAKE(0);
     __wt_atomic_store_ptr_release(&index->slots[0].ref, nullptr);
 
-    bool blocked = false;
-    std::thread retire([&] { blocked = __wt_dirty_index_block_page(session, btree, &ref, &page); });
+    std::thread retire([&] { __wt_dirty_index_block_page(session, btree, &ref, &page); });
     __wt_atomic_store_ptr_release(&index->slots[0].ref, &ref);
     retire.join();
 
-    REQUIRE(blocked);
     REQUIRE(index->slots[0].ref == nullptr);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
     __wt_dirty_index_unblock_page(&page);
@@ -214,7 +212,7 @@ TEST_CASE_METHOD(
     WTI_DIRTY_INDEX *index = btree->dirty_index;
     REQUIRE(__wt_dirty_index_insert(session, btree, &old_ref));
 
-    REQUIRE(__wt_dirty_index_block_page(session, btree, &old_ref, &page));
+    __wt_dirty_index_block_page(session, btree, &old_ref, &page);
     REQUIRE(index->slots[0].ref == nullptr);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
 
@@ -222,6 +220,80 @@ TEST_CASE_METHOD(
 
     REQUIRE(__wt_dirty_index_insert(session, btree, &replacement));
     REQUIRE(page.dirty_index_slot != WTI_DIRTY_BP_BLOCKED);
+}
+
+/*
+ * The drain releases a block only when the block was taken while the drained slot still owned the
+ * page's back-pointer. The two orderings below are what distinguishes a retirement handshake the
+ * drain must complete from a retirement that raced the pop and must stay in force.
+ */
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: drain completes the retirement handshake for a replacement ref", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF old_ref{};
+    WT_REF replacement{};
+    page.modify = &modify;
+    old_ref.home = replacement.home = &page;
+    old_ref.page = replacement.page = &page;
+    F_SET(&old_ref, WT_REF_FLAG_LEAF);
+    F_SET(&replacement, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&old_ref, WT_REF_MEM);
+    WT_REF_SET_STATE(&replacement, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+    REQUIRE(__wt_dirty_index_insert(session, btree, &replacement));
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_MAKE(0));
+
+    /* Retiring the old ref finds slot 0 holding the replacement, so the page stays blocked. */
+    __wt_dirty_index_block_page(session, btree, &old_ref, &page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+    REQUIRE(index->slots[0].ref == &replacement);
+
+    /* The drain pops the replacement: the block predates the pop, so the drain releases it. */
+    bool cleared = __wti_dirty_index_unlink_page(&page, 0);
+    REQUIRE(!cleared);
+    __wti_dirty_index_release_page(&page, cleared);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+    REQUIRE(__wt_dirty_index_insert(session, btree, &replacement));
+}
+
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: drain leaves a retirement block that raced the pop", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    WT_REF retiring{};
+    page.modify = &modify;
+    ref.home = retiring.home = &page;
+    ref.page = retiring.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    F_SET(&retiring, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+    WT_REF_SET_STATE(&retiring, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(__wt_dirty_index_insert(session, btree, &ref));
+
+    /* The drain pops the entry and gives up its claim on the page. */
+    bool cleared = __wti_dirty_index_unlink_page(&page, 0);
+    REQUIRE(cleared);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+
+    /* A retirement blocks the page in the window before the drain finishes with it. */
+    __wt_dirty_index_block_page(session, btree, &retiring, &page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+
+    /*
+     * The drain must not release that block: doing so would let a producer publish the ref the
+     * retirement is about to discard.
+     */
+    __wti_dirty_index_release_page(&page, cleared);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+    REQUIRE(!__wt_dirty_index_insert(session, btree, &retiring));
 }
 
 TEST_CASE_METHOD(

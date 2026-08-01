@@ -167,12 +167,12 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *ref;
-    WTI_DIRTY_INDEX_SLOT *di_slot;
+    WTI_DIRTY_INDEX_SLOT *di_slot, *slots;
     wt_timestamp_t pinned_stable, ts;
     uint64_t pos, scan_limit, seq;
     uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
     uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
-    bool busy, precise_ckpt, queued, urgent_queued;
+    bool bp_released, busy, precise_ckpt, queued, reinsert, urgent_queued;
 
     *drainedp = 0;
     if (*slotp >= max_entries)
@@ -198,14 +198,16 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
      */
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
+    slots = __wt_atomic_load_ptr_acquire(&idx->slots);
     pos = __wt_atomic_load_uint64_relaxed(&idx->tail);
     scan_limit = WT_MIN(__wt_atomic_load_uint64_acquire(&idx->head) - pos, idx->capacity);
     if (WT_STAT_ENABLED(session))
         __wt_atomic_stats_max_uint64(
           &S2C(session)->evict->dirty_index_ring_peak_occupancy, scan_limit);
     while (*slotp < max_entries && scanned < scan_limit) {
+        bp_released = reinsert = false;
         slot = (uint32_t)pos & idx->mask;
-        di_slot = &idx->slots[slot];
+        di_slot = &slots[slot];
         seq = __wt_atomic_load_uint64_acquire(&di_slot->sequence);
         if (seq != pos + 1)
             break;
@@ -230,6 +232,15 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
              * Busy (eviction, reconciliation or split in progress). Leave the entry in place and
              * retry on a later pass: without a hazard pointer we cannot safely clear the page
              * back-pointer, and dropping only the slot could permanently suppress reinsertion.
+             *
+             * Consumption is tail-ordered, so an entry that never becomes available stalls the
+             * whole ring. That needs a ref stuck outside WT_REF_MEM for the life of the handle and
+             * missed by every retirement path that searches the ring, which is not known to happen;
+             * the deliberate choice is to leave it unhandled rather than carry the machinery to
+             * recover. It is also self-limiting: the drain then queues nothing, the tree parks into
+             * walker-only mode after WTI_DRAIN_EMPTY_THRESHOLD passes and only probes every
+             * WTI_DRAIN_PROBE_INTERVAL, so the tree falls back to plain walker eviction. A
+             * drain_hazard count that climbs while drain_queued stays at zero is the signature.
              */
             ++hazard_total;
             break;
@@ -242,8 +253,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * letting the producer re-insert when the page is next dirtied.
          */
         if (ref->page->modify == NULL) {
-            (void)__wt_atomic_cas_uint32(
-              &ref->page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
+            bp_released = __wti_dirty_index_unlink_page(ref->page, slot);
             ++seen_clean;
             ++stale_total;
             goto release;
@@ -258,8 +268,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * the next modify is guaranteed to see the slot already cleared, never a transient
          * double-reference.
          */
-        (void)__wt_atomic_cas_uint32(
-          &ref->page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
+        bp_released = __wti_dirty_index_unlink_page(ref->page, slot);
 
         /* Already on the eviction queue; the existing entry will drive eviction. */
         if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU) ||
@@ -302,26 +311,27 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
             /*
              * The page did not qualify under the current pressure mode (e.g. a page with no tracked
              * update bytes under updates-only pressure). Re-insert at the back of the active ring
-             * so it gets another look when the pressure mode shifts. dirty_index_slot is already 0
-             * (cleared above); the insert's back-pointer CAS guards against a concurrent producer
-             * racing to re-insert the same page. Count only a genuine re-insert (the insert returns
-             * false if the ring is now full).
+             * so it gets another look when the pressure mode shifts. The re-insert has to wait
+             * until this slot has been released below: it reserves the slot at the head, and with a
+             * single entry in flight that is the slot being drained right now, so inserting here
+             * would spin out its reservation retries and drop the page every time.
              */
-            if (__wt_dirty_index_insert(session, btree, ref))
-                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_reinserted);
+            reinsert = true;
         }
 
 release:
         __wt_atomic_store_ptr_release(&di_slot->ref, NULL);
-        page = __wt_atomic_load_ptr_acquire(&ref->page);
-        if (page != NULL) {
-            (void)__wt_atomic_cas_uint32(
-              &page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
-            (void)__wt_atomic_cas_uint32(
-              &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_NONE);
-        }
+        if ((page = __wt_atomic_load_ptr_acquire(&ref->page)) != NULL)
+            __wti_dirty_index_release_page(page, bp_released);
         __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
         __wt_atomic_store_uint64_release(&idx->tail, ++pos);
+        /*
+         * Still under the hazard pointer, so the page cannot be torn down between the release above
+         * and the re-insert. The insert's back-pointer compare-and-swap settles any race with a
+         * producer re-inserting the same page; count only a genuine re-insert.
+         */
+        if (reinsert && __wt_dirty_index_insert(session, btree, ref))
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_reinserted);
         WT_TRET(__wt_hazard_clear(session, ref));
         if (ret != 0)
             break;
