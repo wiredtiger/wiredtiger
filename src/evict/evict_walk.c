@@ -100,7 +100,8 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
     u_int drained;
 
     *drainedp = 0;
-    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
+    if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
+      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
         return (0);
     if (*slotp >= max_entries)
         return (0);

@@ -34,6 +34,25 @@ __evict_dirty_index_capacity(WT_BTREE *btree, uint64_t size_hint)
     return (++capacity);
 }
 
+/* Allocate and publish the slot array once, after a producer passes eligibility checks. */
+static bool
+__evict_dirty_index_ensure_slots(WT_SESSION_IMPL *session, WTI_DIRTY_INDEX *idx)
+{
+    WTI_DIRTY_INDEX_SLOT *slots;
+    uint32_t i;
+
+    if (__wt_atomic_load_ptr_acquire(&idx->slots) != NULL)
+        return (true);
+    if (__wt_calloc_def(session, idx->capacity, &slots) != 0)
+        return (false);
+    for (i = 0; i < idx->capacity; ++i)
+        __wt_atomic_store_uint64_release(&slots[i].sequence, i);
+
+    if (!__wt_atomic_cas_ptr(&idx->slots, NULL, slots))
+        __wt_free(session, slots);
+    return (true);
+}
+
 /*
  * __wt_dirty_index_alloc --
  *     Allocate the per-btree dirty-page ring before the handle is published for eviction.
@@ -41,10 +60,9 @@ __evict_dirty_index_capacity(WT_BTREE *btree, uint64_t size_hint)
 int
 __wt_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
-    WT_DECL_RET;
     WTI_DIRTY_INDEX *idx;
     wt_off_t file_size;
-    uint32_t capacity, i;
+    uint32_t capacity;
 
     if (!__wt_atomic_load_bool_relaxed(&S2C(session)->evict->eviction_dirty_index) ||
       WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
@@ -64,24 +82,8 @@ __wt_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_RET(__wt_calloc_one(session, &idx));
     idx->capacity = capacity;
     idx->mask = capacity - 1;
-    WT_ERR(__wt_calloc_def(session, capacity, &idx->slots));
-    /*
-     * Seed each slot's sequence with its own index, a one-time O(capacity) cost paid once per btree
-     * open, not on the insert/drain hot path. Without it a fresh (zeroed) slot array would let a
-     * producer claim slot 0 immediately but block every other slot until the drain first visited
-     * it.
-     */
-    for (i = 0; i < capacity; ++i)
-        __wt_atomic_store_uint64_release(&idx->slots[i].sequence, i);
     __wt_atomic_store_ptr_release(&btree->dirty_index, idx);
     return (0);
-
-err:
-    if (idx != NULL) {
-        __wt_free(session, idx->slots);
-        __wt_free(session, idx);
-    }
-    return (ret);
 }
 
 /*
@@ -92,11 +94,13 @@ void
 __wt_dirty_index_destroy(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WTI_DIRTY_INDEX *idx;
+    WTI_DIRTY_INDEX_SLOT *slots;
 
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return;
     __wt_atomic_store_ptr_release(&btree->dirty_index, NULL);
-    __wt_free(session, idx->slots);
+    slots = __wt_atomic_load_ptr_acquire(&idx->slots);
+    __wt_free(session, slots);
     __wt_free(session, idx);
 }
 
@@ -134,10 +138,15 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
         return (false);
     if (__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)
         return (false);
+    if (!__evict_dirty_index_ensure_slots(session, idx))
+        return (false);
+    idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index);
+    if (idx == NULL || __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
+        return (false);
 
     pos = __wt_atomic_load_uint64_relaxed(&idx->head);
     for (;;) {
-        slotp = &idx->slots[(uint32_t)pos & idx->mask];
+        slotp = &__wt_atomic_load_ptr_acquire(&idx->slots)[(uint32_t)pos & idx->mask];
         seq = __wt_atomic_load_uint64_acquire(&slotp->sequence);
         dif = (int64_t)(seq - pos);
         if (dif == 0) {
@@ -212,7 +221,8 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     uint32_t bp;
 
     WT_UNUSED(session);
-    if (page == NULL || (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
+    if (page == NULL || (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
+      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL)
         return (false);
 
     for (;;) {
@@ -228,7 +238,7 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 
         if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
             continue;
-        slotp = &idx->slots[WTI_DIRTY_BP_SLOT(bp)];
+        slotp = &__wt_atomic_load_ptr_acquire(&idx->slots)[WTI_DIRTY_BP_SLOT(bp)];
         published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
         if (published_ref == NULL) {
             WT_PAUSE();
@@ -282,10 +292,11 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     if (bp == WTI_DIRTY_BP_BLOCKED)
         return;
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
+      __wt_atomic_load_ptr_acquire(&idx->slots) == NULL ||
       WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
         return;
 
-    slotp = &idx->slots[WTI_DIRTY_BP_SLOT(bp)];
+    slotp = &__wt_atomic_load_ptr_acquire(&idx->slots)[WTI_DIRTY_BP_SLOT(bp)];
     /* Only clear the page back-pointer if this ref still owns the slot. */
     if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
         (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_NONE);
