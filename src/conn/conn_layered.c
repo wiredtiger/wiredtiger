@@ -1040,10 +1040,14 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
      * below depend on WiredTiger already being in the leader mode.
+     *
+     * End the role era before publishing the role: a snapshot that observes the new role must not
+     * be able to validate against the old era, or it would keep binding stable content across the
+     * transition.
      */
+    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
-    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
 
     /* A leader never adopts checkpoints: discard a pending deferred pickup. */
     __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
@@ -1163,10 +1167,10 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
 
-    /* Step down to the follower mode. */
+    /* Step down to the follower mode, ending the role era before publishing the role. */
+    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
-    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     return (0);
 }
 
@@ -1367,25 +1371,21 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * needs no lock; binds racing it are refused by re-checking the generation after they
          * resolve.
          */
-        role_change_started = true;
         __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
 
         /*
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
-         * shared checkpoint lineage from an older ancestor. A step-up must not fail back to the
-         * caller, so retry while in-flight work blocks the adoption (the one condition that clears
-         * on its own), and treat anything else as fatal: a node that cannot read or apply the
-         * checkpoint cannot become the leader, cannot report the failure, and a panic hands
-         * leadership to another node.
+         * shared checkpoint lineage from an older ancestor. Retry while in-flight work blocks the
+         * adoption, the one condition that clears on its own.
          */
         for (retries = 0;; ++retries) {
             ret = __wti_disagg_deferred_pickup_retry(session, true);
             if (ret != EBUSY)
                 break;
 
-            /* Report the wait periodically rather than on every retry. */
-            if (retries % 10 == 0)
+            /* The adoption is expected to be blocked briefly; report only a protracted wait. */
+            if (retries != 0 && retries % 100 == 0)
                 __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "The deferred checkpoint adoption before step-up is blocked, retrying (%" PRIu64
                   " retries)",
@@ -1393,8 +1393,17 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
             __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
-        /* The common error path panics: the role transition has started. */
-        WT_ERR_MSG_CHK(session, ret, "failed to adopt a deferred checkpoint before step-up");
+        if (ret != 0) {
+            /*
+             * The node is still the follower it was: restore the pickup server the step-up stopped,
+             * and report the failure rather than panicking. Only the role era ended above, which
+             * costs the snapshots spanning it a rollback and nothing else.
+             */
+            WT_TRET(__wti_disagg_deferred_pickup_server_create(session));
+            WT_ERR_MSG(session, ret, "failed to adopt a deferred checkpoint before step-up");
+        }
+
+        role_change_started = true;
 
         /* Follower step-up. */
         time_start = __wt_clock(session);

@@ -236,7 +236,7 @@ class DisaggConfigMixin:
                 adopted_lsn = wttest.WiredTigerTestCase.get_stat(
                     self, wiredtiger.stat.conn.disagg_checkpoint_meta_lsn, conn=conn_follower)
                 target = target_lsn if target_lsn is not None else wttest.WiredTigerTestCase.get_stat(
-                    self, wiredtiger.stat.conn.disagg_checkpoint_pending_lsn, conn=conn_follower)
+                    self, wiredtiger.stat.conn.disagg_checkpoint_delivered_lsn, conn=conn_follower)
             except wiredtiger.WiredTigerError:
                 # Adoption is only observable through statistics. Without them, rely on the
                 # adoption being synchronous when no snapshot defers it.

@@ -29,15 +29,13 @@
 # On a disaggregated follower, a transaction at snapshot isolation with no read
 # timestamp must observe exactly its snapshot, even when the follower picks up
 # a new checkpoint in the middle of the transaction: no data committed after
-# the snapshot appears, and no data visible to the snapshot disappears.
-# A correct implementation may satisfy this either by
-# keeping such reads on the pre-pickup view or by refusing them with
-# WT_ROLLBACK; both outcomes are accepted wherever the transaction raced a
-# pickup. Readers with a read timestamp, cursors already reading before the
-# pickup, and transactions that begin after the pickup must keep working
-# without rollbacks.
+# the snapshot appears, and no data visible to the snapshot disappears. Adopting
+# a checkpoint is deferred while such a reader is active, so the reader keeps
+# reading its snapshot and is never refused. Only a role change, which ends the
+# era the snapshot recorded, refuses a read with WT_ROLLBACK.
 
 import wiredtiger, wttest
+from wiredtiger import stat
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -52,10 +50,6 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
 
-    # Adoption of a picked-up checkpoint is deferred while racing snapshot readers are active, so
-    # they normally keep reading their snapshot; a read that instead races a forced adoption (a
-    # role change) or a lazy stable bind may be refused with WT_ROLLBACK. Every test here accepts
-    # either outcome.
     scenarios = make_scenarios(disagg_storages)
 
     def conn_config(self):
@@ -99,6 +93,20 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
             return ('notfound', None)
         self.assertEqual(ret, 0)
         return ('found', cursor.get_value())
+
+    def stat_value(self, conn, stat_id):
+        session = conn.open_session('')
+        cursor = session.open_cursor('statistics:')
+        value = cursor[stat_id][2]
+        cursor.close()
+        session.close()
+        return value
+
+    def adopted_lsn(self, conn):
+        return self.stat_value(conn, stat.conn.disagg_checkpoint_meta_lsn)
+
+    def delivered_lsn(self, conn):
+        return self.stat_value(conn, stat.conn.disagg_checkpoint_delivered_lsn)
 
     def setup_with_first_checkpoint(self):
         # Leader: baseline data sealed into a first checkpoint; follower
@@ -158,11 +166,10 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         cursor = session_follow.open_cursor(self.uri)
         state_inserted = self.search(cursor, 'key_inserted')
-        if state_inserted[0] != 'rollback':
-            self.assertEqual(state_inserted, ('notfound', None),
-                'insert committed after the snapshot leaked through the picked-up checkpoint')
-            self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'),
-                'update committed after the snapshot leaked through the picked-up checkpoint')
+        self.assertEqual(state_inserted, ('notfound', None),
+            'insert committed after the snapshot leaked through the picked-up checkpoint')
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'),
+            'update committed after the snapshot leaked through the picked-up checkpoint')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -201,18 +208,16 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         # The cursor that already returned pre-pickup results: a single cursor
         # must not mix results from before and after the pickup.
         state = self.search(cursor_before, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a cursor already reading before the pickup returned post-snapshot data')
-            self.assertEqual(self.search(cursor_before, 'key_base'), ('found', 'base value'))
+        self.assertEqual(state, ('notfound', None),
+            'a cursor already reading before the pickup returned post-snapshot data')
+        self.assertEqual(self.search(cursor_before, 'key_base'), ('found', 'base value'))
 
-            # A brand-new cursor inside the same transaction.
-            cursor_after = session_follow.open_cursor(self.uri)
-            state = self.search(cursor_after, 'key_inserted')
-            if state[0] != 'rollback':
-                self.assertEqual(state, ('notfound', None),
-                    'a new cursor opened after the first-ever pickup returned post-snapshot data')
-            cursor_after.close()
+        # A brand-new cursor inside the same transaction.
+        cursor_after = session_follow.open_cursor(self.uri)
+        state = self.search(cursor_after, 'key_inserted')
+        self.assertEqual(state, ('notfound', None),
+            'a new cursor opened after the first-ever pickup returned post-snapshot data')
+        cursor_after.close()
         session_follow.rollback_transaction()
         cursor_before.close()
         conn_follow.close()
@@ -231,10 +236,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         cursor_after = session_follow.open_cursor(self.uri)
         state = self.search(cursor_after, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, self.search(cursor_before, 'key_inserted'),
-                'two cursors in one transaction disagree about a key across a pickup')
-            self.assertEqual(state, ('notfound', None))
+        self.assertEqual(state, self.search(cursor_before, 'key_inserted'),
+            'two cursors in one transaction disagree about a key across a pickup')
+        self.assertEqual(state, ('notfound', None))
         cursor_after.close()
         session_follow.rollback_transaction()
         cursor_before.close()
@@ -256,20 +260,16 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.commit_post_snapshot_writes(conn_follow)
 
         cursor = session_follow.open_cursor(self.uri)
-        try:
-            contents = [tuple(kv) for kv in cursor]
-            self.assertEqual(contents, [('key_updated', 'old value')],
-                'a scan through a cursor opened after the pickup returned post-snapshot data')
+        contents = [tuple(kv) for kv in cursor]
+        self.assertEqual(contents, [('key_updated', 'old value')],
+            'a scan through a cursor opened after the pickup returned post-snapshot data')
 
-            # Near-positioning must land on a snapshot-visible key.
-            cursor.reset()
-            cursor.set_key('key_a')
-            self.assertEqual(cursor.search_near(), 1)
-            self.assertEqual(cursor.get_key(), 'key_updated',
-                'search_near positioned on a post-snapshot key')
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
-                raise
+        # Near-positioning must land on a snapshot-visible key.
+        cursor.reset()
+        cursor.set_key('key_a')
+        self.assertEqual(cursor.search_near(), 1)
+        self.assertEqual(cursor.get_key(), 'key_updated',
+            'search_near positioned on a post-snapshot key')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -289,23 +289,19 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.commit_post_snapshot_writes(conn_follow)
 
         cursor = session_follow.open_cursor(self.uri)
-        try:
-            contents = []
-            while cursor.prev() == 0:
-                contents.append((cursor.get_key(), cursor.get_value()))
-            self.assertEqual(contents, [('key_updated', 'old value')],
-                'a reverse scan through a cursor opened after the pickup returned post-snapshot '
-                'data')
+        contents = []
+        while cursor.prev() == 0:
+            contents.append((cursor.get_key(), cursor.get_value()))
+        self.assertEqual(contents, [('key_updated', 'old value')],
+            'a reverse scan through a cursor opened after the pickup returned post-snapshot '
+            'data')
 
-            # Near-positioning from above must land on the snapshot-visible key below.
-            cursor.reset()
-            cursor.set_key('key_z')
-            self.assertEqual(cursor.search_near(), -1)
-            self.assertEqual(cursor.get_key(), 'key_updated',
-                'search_near positioned on a post-snapshot key')
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
-                raise
+        # Near-positioning from above must land on the snapshot-visible key below.
+        cursor.reset()
+        cursor.set_key('key_z')
+        self.assertEqual(cursor.search_near(), -1)
+        self.assertEqual(cursor.get_key(), 'key_updated',
+            'search_near positioned on a post-snapshot key')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -334,11 +330,10 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         cursor = session_follow.open_cursor(self.uri)
         state = self.search(cursor, 'key_a')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a write sealed by an earlier mid-transaction pickup leaked')
-            self.assertEqual(self.search(cursor, 'key_b'), ('notfound', None),
-                'a write sealed by the latest mid-transaction pickup leaked')
+        self.assertEqual(state, ('notfound', None),
+            'a write sealed by an earlier mid-transaction pickup leaked')
+        self.assertEqual(self.search(cursor, 'key_b'), ('notfound', None),
+            'a write sealed by the latest mid-transaction pickup leaked')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -393,9 +388,8 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         cursor = session_follow.open_cursor(self.uri)
         state = self.search(cursor, 'key_removed')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('found', 'kept value'),
-                'a key visible to the snapshot disappeared after the pickup')
+        self.assertEqual(state, ('found', 'kept value'),
+            'a key visible to the snapshot disappeared after the pickup')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -435,9 +429,8 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         # constituents outdated, so even a pre-pickup cursor re-binds its stable constituent on
         # the next operation; without deferral that re-bind may be refused instead.
         state = self.search(cursor_a, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a multi-table writer transaction leaked into a snapshot after a pickup')
+        self.assertEqual(state, ('notfound', None),
+            'a multi-table writer transaction leaked into a snapshot after a pickup')
 
         # Opening the second table's cursor after the pickup may itself be refused.
         try:
@@ -447,9 +440,8 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
             cursor_b = None
         if cursor_b is not None:
             state = self.search(cursor_b, 'anchor_inserted')
-            if state[0] != 'rollback':
-                self.assertEqual(state, ('notfound', None),
-                    'a multi-table writer transaction is torn across tables')
+            self.assertEqual(state, ('notfound', None),
+                'a multi-table writer transaction is torn across tables')
             cursor_b.close()
         session_follow.rollback_transaction()
         cursor_a.close()
@@ -471,10 +463,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         cursor = session_follow.open_cursor(self.uri)
         state = self.search(cursor, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a cursor reopened after the pickup returned post-snapshot data')
-            self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
+        self.assertEqual(state, ('notfound', None),
+            'a cursor reopened after the pickup returned post-snapshot data')
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
         session_follow.rollback_transaction()
         cursor.close()
         conn_follow.close()
@@ -501,13 +492,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(conn_follow, wait=False)
 
         cursor = session_follow.open_cursor(late_uri)
-        try:
-            contents = [tuple(kv) for kv in cursor]
-            self.assertEqual(contents, [],
-                'rows of a table created after the snapshot are visible')
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
-                raise
+        contents = [tuple(kv) for kv in cursor]
+        self.assertEqual(contents, [],
+            'rows of a table created after the snapshot are visible')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -555,13 +542,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(conn_follow, wait=False)
 
         cursor = session_follow.open_cursor(self.uri)
-        try:
-            contents = [key for key, _ in cursor]
-            self.assertEqual(contents, sorted(keys.keys()),
-                'a range visible to the snapshot disappeared after the pickup')
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
-                raise
+        contents = [key for key, _ in cursor]
+        self.assertEqual(contents, sorted(keys.keys()),
+            'a range visible to the snapshot disappeared after the pickup')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -589,13 +572,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.commit_post_snapshot_writes(conn_follow)
 
         cursor = session_follow.open_cursor(self.uri, None, 'next_random=true')
-        try:
-            ret = cursor.next()
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
-                'random sampling returned a key committed after the snapshot')
-        except wiredtiger.WiredTigerError as e:
-            if 'WT_ROLLBACK' not in str(e):
-                raise
+        ret = cursor.next()
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND,
+            'random sampling returned a key committed after the snapshot')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -668,14 +647,22 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
         self.disagg_switch_follower_and_leader(conn_follow, self.conn)
 
+        # The step-up ended the role era the snapshot recorded, so the bind is
+        # refused rather than served: what it must never do is serve the
+        # post-snapshot content the step-up made current.
         cursor = session_follow.open_cursor(self.uri)
-        state = self.search(cursor, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'stepping up made post-snapshot checkpoint content visible')
+        self.assertEqual(self.search(cursor, 'key_inserted'), ('rollback', None),
+            'stepping up made post-snapshot checkpoint content visible')
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
+
+        # The step-up must have force-adopted the checkpoint that was deferred
+        # behind the transaction: the new leader continues from the newest
+        # checkpoint, so its content is current and its LSN is the adopted one.
+        self.assertEqual(self.adopted_lsn(conn_follow), self.delivered_lsn(conn_follow),
+            'the step-up did not adopt the deferred checkpoint')
+        self.check_new_data_visible(conn_follow)
         conn_follow.close()
 
     def test_role_away_and_back_mid_transaction(self):
@@ -734,10 +721,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.commit_post_snapshot_writes(conn_follow)
 
         state = self.search(cursor, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a cursor inherited from an earlier transaction advanced past the snapshot')
-            self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
+        self.assertEqual(state, ('notfound', None),
+            'a cursor inherited from an earlier transaction advanced past the snapshot')
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
         session_follow.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -767,11 +753,11 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.leader_checkpoint(20)
         self.conn.reconfigure('disaggregated=(role="follower")')
 
+        # As with the step-up, the role era ended, so the bind is refused; what
+        # it must never do is serve the write committed after the snapshot.
         cursor = session_txn.open_cursor(self.uri)
-        state = self.search(cursor, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a post-snapshot write became visible across a step-down')
+        self.assertEqual(self.search(cursor, 'key_inserted'), ('rollback', None),
+            'a post-snapshot write became visible across a step-down')
         session_txn.rollback_transaction()
         cursor.close()
         aux_cursor.close()
@@ -817,10 +803,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.commit_post_snapshot_writes(conn_follow)
 
         state = self.search(cursor, 'key_inserted')
-        if state[0] != 'rollback':
-            self.assertEqual(state, ('notfound', None),
-                'a post-snapshot write leaked into an open cursor after a pickup')
-            self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
+        self.assertEqual(state, ('notfound', None),
+            'a post-snapshot write leaked into an open cursor after a pickup')
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
         session_follow.rollback_transaction()
         cursor.close()
         conn_follow.close()
@@ -838,4 +823,46 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'new value 2'))
         session_follow.rollback_transaction()
         cursor.close()
+        conn_follow.close()
+
+    def test_step_down_restarts_deferred_pickup(self):
+        # A node that steps up stops the deferred pickup server; stepping back
+        # down must start it again, or a checkpoint deferred afterwards would
+        # never be adopted. The deferral is what makes this observable: only the
+        # server can adopt a checkpoint after the transaction blocking it ends.
+        self.ignoreStdoutPattern('Picking up the same checkpoint again')
+        conn_follow, session_follow = self.setup_with_first_checkpoint()
+
+        # Round trip through the leader role and back.
+        self.disagg_switch_follower_and_leader(conn_follow, self.conn)
+        self.disagg_switch_follower_and_leader(self.conn, conn_follow)
+
+        # A transaction holds a snapshot while the next checkpoint is delivered,
+        # so its adoption is deferred; nothing but the pickup server will do it.
+        session_hold = conn_follow.open_session('')
+        session_hold.begin_transaction()
+        cursor = session_hold.open_cursor(self.uri)
+        self.assertEqual(self.search(cursor, 'key_updated'), ('found', 'old value'))
+
+        self.put(self.session, self.uri, {'key_final': 'final value'}, 30)
+        self.leader_checkpoint(30)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        delivered = self.delivered_lsn(conn_follow)
+        self.assertGreater(delivered, self.adopted_lsn(conn_follow),
+            'the checkpoint was not deferred, so the server is not exercised')
+
+        # Ending the transaction releases the pin: the restarted server adopts.
+        cursor.close()
+        session_hold.rollback_transaction()
+        session_hold.close()
+        self.disagg_await_checkpoint_adoption(conn_follow, target_lsn=delivered)
+        self.assertEqual(self.adopted_lsn(conn_follow), delivered)
+
+        session = conn_follow.open_session('')
+        session.begin_transaction()
+        cursor = session.open_cursor(self.uri)
+        self.assertEqual(self.search(cursor, 'key_final'), ('found', 'final value'))
+        session.rollback_transaction()
+        cursor.close()
+        session.close()
         conn_follow.close()

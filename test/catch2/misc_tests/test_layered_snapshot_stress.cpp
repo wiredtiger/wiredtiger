@@ -37,9 +37,9 @@ static const std::string TABLE_URI = "table:test_layered_snap_stress";
 static const std::string LEADER_HOME = "WT_TEST.layered_snap_stress_leader";
 static const std::string FOLLOWER_HOME = "WT_TEST.layered_snap_stress_follower";
 
-#define NKEYS 10
-#define NREADERS 4
-#define NVERSIONS 60
+static constexpr int NKEYS = 10;
+static constexpr int NREADERS = 4;
+static constexpr int NVERSIONS = 60;
 
 /*
  * put_version --

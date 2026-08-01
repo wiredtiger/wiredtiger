@@ -168,6 +168,8 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         # newest checkpoint the remaining readers cover — no further — and
         # every reader must keep seeing exactly its snapshot's value.
         pickups = stat.conn.layered_table_manager_checkpoints_disagg_pick_up_succeed
+        adopted = stat.conn.disagg_checkpoint_meta_lsn
+        delivered = stat.conn.disagg_checkpoint_delivered_lsn
 
         self.session.create(self.uri, self.table_config)
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
@@ -192,6 +194,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         self.leader_checkpoint(20)
         self.put(session_follow, self.uri, {'key': 'v2'}, 20)
         self.disagg_advance_checkpoint(conn_follow, wait=False)
+        lsn2 = self.get_stat(conn_follow, delivered)
         session_b = conn_follow.open_session('')
         session_b.begin_transaction()
         self.assertEqual(self.read(session_b, 'key'), (0, 'v2'))
@@ -202,6 +205,8 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         self.leader_checkpoint(30)
         self.put(session_follow, self.uri, {'key': 'v3'}, 30)
         self.disagg_advance_checkpoint(conn_follow, wait=False)
+        lsn3 = self.get_stat(conn_follow, delivered)
+        self.assertGreater(lsn3, lsn2)
         session_c = conn_follow.open_session('')
         session_c.begin_transaction()
         self.assertEqual(self.read(session_c, 'key'), (0, 'v3'))
@@ -213,9 +218,10 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_a.rollback_transaction()
         session_a.close()
         self.wait_for_stat(conn_follow, pickups, 2)
-        time.sleep(0.5)
-        self.assertEqual(self.get_stat(conn_follow, pickups), 2,
+        self.assertEqual(self.get_stat(conn_follow, adopted), lsn2,
             'adopted past the checkpoint the remaining readers cover')
+        self.assertEqual(self.get_stat(conn_follow, delivered), lsn3,
+            'the third checkpoint was not delivered, so nothing held it back')
         self.assertEqual(self.read(session_b, 'key'), (0, 'v2'))
         self.assertEqual(self.read(session_c, 'key'), (0, 'v3'))
 
@@ -223,6 +229,7 @@ class test_layered_follower20(wttest.WiredTigerTestCase):
         session_b.rollback_transaction()
         session_b.close()
         self.wait_for_stat(conn_follow, pickups, 3)
+        self.assertEqual(self.get_stat(conn_follow, adopted), lsn3)
         self.assertEqual(self.read(session_c, 'key'), (0, 'v3'))
         session_c.rollback_transaction()
         session_c.close()

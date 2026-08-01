@@ -893,6 +893,7 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
     entry->meta = *meta_strp;
     *meta_strp = NULL;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
+    WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (0);
 }
@@ -919,16 +920,21 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
 
 /*
  * __disagg_deferred_ckpt_queued --
- *     Check whether any checkpoint is waiting to be adopted. The queue head is read without its
- *     lock: an answer stale in either direction only changes how long the pickup server sleeps
- *     before looking again.
+ *     Check whether any checkpoint is waiting to be adopted. Only the pickup server asks, to choose
+ *     how long to sleep, so the queue lock is uncontended here and cheaper than a summary of the
+ *     queue that every wakeup path would have to maintain.
  */
 static WT_INLINE bool
 __disagg_deferred_ckpt_queued(WT_SESSION_IMPL *session)
 {
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    bool queued;
 
-    return (__wt_atomic_load_generic_relaxed(&disagg->deferred_ckpt_qh.tqh_first) != NULL);
+    __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
+    queued = !TAILQ_EMPTY(&disagg->deferred_ckpt_qh);
+    __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+
+    return (queued);
 }
 
 /*
@@ -952,9 +958,11 @@ __disagg_deferred_pickup_server(void *arg)
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_SESSION_IMPL *session;
+    int last_error;
 
     session = arg;
     disagg = &S2C(session)->disaggregated_storage;
+    last_error = 0;
 
     for (;;) {
         /*
@@ -967,21 +975,25 @@ __disagg_deferred_pickup_server(void *arg)
           __disagg_deferred_pickup_run_chk);
 
         /*
-         * Keep retrying while an adoption fails: the blockers that will produce the next signal may
-         * already be gone, so returning to an indefinite wait could strand the queue. A conflict
-         * with a concurrent pickup (EBUSY) is expected and retried quietly; back off so failures
-         * are not hot.
+         * A conflict with a concurrent pickup (EBUSY) clears on its own, and the blockers that
+         * would produce the next signal may already be gone, so spin here rather than returning to
+         * an indefinite wait that could strand the queue. Back off so the conflict is not hot.
+         *
+         * Any other failure may well be permanent, so report it once and go back to waiting: the
+         * queue stays armed and the backstop retries it, without a warning per retry.
          */
         while (__disagg_deferred_pickup_run_chk(session)) {
             ret = __wti_disagg_deferred_pickup_retry(session, false);
-            if (ret == 0)
+            if (ret != EBUSY)
                 break;
 
-            if (ret != EBUSY)
+            __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
+        }
+        if (ret != last_error) {
+            last_error = ret;
+            if (ret != 0)
                 __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "deferred checkpoint pickup failed: %s", __wt_strerror(session, ret, NULL, 0));
-
-            __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
 
         if (!__disagg_deferred_pickup_run_chk(session))
@@ -1030,7 +1042,7 @@ __wti_disagg_deferred_pickup_server_create(WT_SESSION_IMPL *session)
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_DISAGG_PICKUP);
 
-    WT_RET(__wt_open_internal_session(
+    WT_ERR(__wt_open_internal_session(
       conn, "disagg-pickup-server", false, 0, 0, &disagg->deferred_pickup_session));
     /* The condition variable survives a server stop: see the comment in the destroy function. */
     if (disagg->deferred_pickup_cond == NULL)
@@ -1091,15 +1103,23 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
     WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *selected;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
+    uint64_t oldest_gen;
 
     *metap = NULL;
     *lsnp = WT_DISAGG_LSN_NONE;
+
+    /*
+     * The oldest pin decides the whole queue, so scan the sessions once, before taking the queue
+     * lock. A snapshot established after the scan pins a generation newer than every delivered
+     * checkpoint, so it cannot be one this selection needed to see.
+     */
+    oldest_gen = force ? 0 : __wt_gen_oldest(session, WT_GEN_DISAGG_CKPT);
 
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
     selected = NULL;
     TAILQ_FOREACH (entry, &disagg->deferred_ckpt_qh, q) {
         /* A pin that does not cover the LSN means a snapshot predates it. */
-        if (!force && __wt_gen_active(session, WT_GEN_DISAGG_CKPT, entry->lsn))
+        if (!force && oldest_gen <= entry->lsn)
             break;
         selected = entry;
     }
@@ -1537,7 +1557,7 @@ __wti_disagg_pick_up_checkpoint_meta(
     /* Advance the checkpoint generation snapshots pin. */
     __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, WT_DISAGG_CKPT_GEN(ckpt_meta.metadata_lsn));
     /* Publish the delivered LSN as a statistic; the adopted LSN is published separately. */
-    WT_STAT_CONN_SET(session, disagg_checkpoint_pending_lsn,
+    WT_STAT_CONN_SET(session, disagg_checkpoint_delivered_lsn,
       (int64_t)__wt_atomic_load_uint64_relaxed(&disagg->pending_checkpoint_meta_lsn));
 
     /*
@@ -1549,7 +1569,6 @@ __wti_disagg_pick_up_checkpoint_meta(
       ckpt_meta.metadata_lsn > __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) &&
       __wt_gen_active(session, WT_GEN_DISAGG_CKPT, ckpt_meta.metadata_lsn)) {
         WT_ERR(__disagg_defer_checkpoint(session, &meta_str, ckpt_meta.metadata_lsn));
-        WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
         /* Wake the pickup server: the delivery may already be adoptable. */
         __wt_disagg_deferred_pickup_signal(session, 0);
         goto err;

@@ -7946,7 +7946,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! disagg: most recently adopted checkpoint metadata LSN */
 #define	WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN		1581
 /*! disagg: most recently delivered checkpoint metadata LSN */
-#define	WT_STAT_CONN_DISAGG_CHECKPOINT_PENDING_LSN	1582
+#define	WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN	1582
 /*! disagg: new file metadata entries inserted during checkpoint pick-up */
 #define	WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED	1583
 /*! disagg: pick up checkpoint most recent time (msecs) */

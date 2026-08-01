@@ -577,7 +577,10 @@ __clayered_stable_bind_check(WT_SESSION_IMPL *session)
     WT_ASSERT_ALWAYS(session,
       conn_lsn == WT_DISAGG_LSN_NONE || pinned_gen >= WT_DISAGG_CKPT_GEN(conn_lsn) ||
         __wt_gen(session, WT_GEN_DISAGG_ROLE) != __wt_session_gen(session, WT_GEN_DISAGG_ROLE),
-      "a checkpoint pickup overtook an active transaction snapshot");
+      "a checkpoint pickup overtook an active transaction snapshot: adopted LSN %" PRIu64
+      ", pinned checkpoint generation %" PRIu64 ", role generation %" PRIu64 " pinned %" PRIu64,
+      conn_lsn, pinned_gen, __wt_gen(session, WT_GEN_DISAGG_ROLE),
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE));
 }
 
 /*
