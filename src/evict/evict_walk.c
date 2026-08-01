@@ -211,6 +211,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
         ref = __wt_atomic_load_ptr_acquire(&di_slot->ref);
         ++scanned;
         if (ref == NULL) {
+            ++stale_total;
             __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
             __wt_atomic_store_uint64_release(&idx->tail, ++pos);
             continue;

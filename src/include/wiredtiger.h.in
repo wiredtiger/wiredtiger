@@ -6805,8 +6805,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD	1141
 /*!
- * cache: dirty index slots dropped by drain because the page was clean
- * or already queued
+ * cache: dirty index slots dropped by drain because the ref was cleared,
+ * the page was clean or already queued
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE	1142
 /*! cache: dirty index slots examined by drain */
@@ -9542,8 +9542,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_HAZARD	2092
 /*!
- * cache: dirty index slots dropped by drain because the page was clean
- * or already queued
+ * cache: dirty index slots dropped by drain because the ref was cleared,
+ * the page was clean or already queued
  */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY_INDEX_DRAIN_STALE	2093
 /*! cache: dirty index slots examined by drain */

@@ -104,14 +104,16 @@ class test_eviction08(wttest.WiredTigerTestCase):
 
         for _ in range(40):
             self._write_rows(uri, self.nrows, 500, 'z' * self.value_size)
-            if self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) > 0:
+            drain_consumed = (
+                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) +
+                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_filtered, uri) +
+                self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_stale, uri))
+            if drain_consumed > 0:
                 break
             time.sleep(0.05)
 
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri), 0)
-        self.assertGreater(
-            self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_queued, uri) +
-            self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_filtered, uri), 0)
+        self.assertGreater(drain_consumed, 0)
 
     def test_dirty_index_duplicate_suppression(self):
         uri = 'table:test_eviction08_duplicate'

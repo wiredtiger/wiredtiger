@@ -101,7 +101,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: dirty index inserts abandoned after a page ownership or state race",
   "cache: dirty index inserts dropped due to full ring",
   "cache: dirty index slots deferred because a hazard pointer could not be acquired",
-  "cache: dirty index slots dropped by drain because the page was clean or already queued",
+  "cache: dirty index slots dropped by drain because the ref was cleared, the page was clean or "
+  "already queued",
   "cache: dirty index slots examined by drain",
   "cache: dirty index slots queued to ordinary or urgent eviction by drain",
   "cache: dirty index slots reinserted after the LRU sort trimmed them",
@@ -2235,7 +2236,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: dirty index largest capacity among rings that hit full",
   "cache: dirty index largest ring occupancy seen in slots",
   "cache: dirty index slots deferred because a hazard pointer could not be acquired",
-  "cache: dirty index slots dropped by drain because the page was clean or already queued",
+  "cache: dirty index slots dropped by drain because the ref was cleared, the page was clean or "
+  "already queued",
   "cache: dirty index slots examined by drain",
   "cache: dirty index slots queued to ordinary or urgent eviction by drain",
   "cache: dirty index slots reinserted after the LRU sort trimmed them",
