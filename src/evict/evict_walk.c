@@ -593,6 +593,22 @@ retry:
         goto retry;
     }
 
+    /*
+     * Under aggressive eviction, don't resume the next fill from the tree that just filled the
+     * queue. A tree whose pages queue successfully but repeatedly fail eviction can otherwise
+     * monopolize the walk indefinitely, starving trees holding evictable content. Advancing the
+     * saved position guarantees the rotation covers every handle while the cache is struggling.
+     */
+    if (slot == max_entries && __wt_evict_aggressive(session) &&
+      (dhandle = evict->walk_tree) != NULL) {
+        if (!dhandle_list_locked && __wti_evict_lock_handle_list(session) == 0)
+            dhandle_list_locked = true;
+        if (dhandle_list_locked) {
+            __evict_walk_choose_dhandle(session, &dhandle);
+            __wti_evict_set_saved_walk_tree(session, dhandle);
+        }
+    }
+
 err:
     if (dhandle_list_locked)
         __wt_readunlock(session, &conn->dhandle_lock);
@@ -781,15 +797,9 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
             wt_timestamp_t prune_timestamp =
               __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-            if (prune_timestamp != WT_TS_NONE) {
-                if (newest_commit_timestamp > prune_timestamp) {
-                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
-                    return (true);
-                }
-                if (page->modify->rec_prune_timestamp >= prune_timestamp) {
-                    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
-                    return (true);
-                }
+            if (prune_timestamp != WT_TS_NONE && newest_commit_timestamp > prune_timestamp) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
+                return (true);
             }
         } else {
             if (newest_commit_timestamp > __wt_txn_pinned_stable_timestamp(session)) {
@@ -1236,6 +1246,35 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
           !__wt_evict_aggressive(session)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_non_aggressive);
             return;
+        }
+    }
+
+    /*
+     * Never queue a leaf page that eviction is guaranteed to reject: a garbage collection page
+     * already reconciled at the current prune timestamp, or a page already reconciled at a
+     * timestamp servicing the running precise checkpoint, fails eviction until the respective
+     * timestamp moves. These mirror the checks in eviction's page review. Unlike the heuristic
+     * checks below, skip such pages even in aggressive eviction, otherwise a tree with a stalled
+     * timestamp fills the queues with candidates that can never be evicted, starving the walk of
+     * every other tree.
+     */
+    if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+            wt_timestamp_t prune_timestamp =
+              __wt_atomic_load_uint64_acquire(&btree->prune_timestamp);
+            if (prune_timestamp != WT_TS_NONE &&
+              page->modify->rec_prune_timestamp >= prune_timestamp) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp_not_move);
+                return;
+            }
+        } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            wt_timestamp_t checkpoint_timestamp =
+              __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_timestamp);
+            if (checkpoint_timestamp != WT_TS_NONE &&
+              page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
+                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
+                return;
+            }
         }
     }
 
