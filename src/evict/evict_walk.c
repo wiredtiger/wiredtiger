@@ -165,6 +165,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
   wt_timestamp_t *ts_maxp, u_int *drainedp)
 {
     WT_DECL_RET;
+    WT_PAGE *page;
     WT_REF *ref;
     WTI_DIRTY_INDEX_SLOT *di_slot;
     wt_timestamp_t pinned_stable, ts;
@@ -312,6 +313,13 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
 
 release:
         __wt_atomic_store_ptr_release(&di_slot->ref, NULL);
+        page = __wt_atomic_load_ptr_acquire(&ref->page);
+        if (page != NULL) {
+            (void)__wt_atomic_cas_uint32(
+              &page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
+            (void)__wt_atomic_cas_uint32(
+              &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_NONE);
+        }
         __wt_atomic_store_uint64_release(&di_slot->sequence, pos + idx->capacity);
         __wt_atomic_store_uint64_release(&idx->tail, ++pos);
         WT_TRET(__wt_hazard_clear(session, ref));

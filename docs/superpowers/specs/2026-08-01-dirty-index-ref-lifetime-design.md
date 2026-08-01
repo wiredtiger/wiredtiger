@@ -21,9 +21,13 @@ alive long enough for hazard-pointer acquisition.
 ## Design
 
 When retirement blocks a page and discovers that the slot contains a replacement ref rather than
-the retiring ref, restore the page back-pointer from `WTI_DIRTY_BP_BLOCKED` to the original encoded
-slot value. Do not reset it to `WTI_DIRTY_BP_NONE`. This preserves ownership of the replacement slot
-and lets its eventual teardown clear the slot before reclaiming the replacement ref.
+the retiring ref, keep the page blocked. Do not reset it to `WTI_DIRTY_BP_NONE` or restore the slot
+index, because a drain could consume the replacement between the pointer check and that restore.
+
+The replacement remains discoverable in the ring. Its retirement path scans for and clears its exact
+slot even when the page is already blocked. The drain clears the slot before changing the page from
+blocked to unblocked. This ordering prevents a producer from publishing a second slot while the old
+slot still contains the replacement.
 
 Do not add a slot-claim sentinel, reader counter, refcount, or new `WT_REF`/`WT_PAGE` member. Those
 approaches add a second lifetime protocol and are unnecessary once the existing back-pointer

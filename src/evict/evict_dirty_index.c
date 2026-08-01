@@ -247,8 +247,15 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 
     for (;;) {
         bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);
-        if (bp == WTI_DIRTY_BP_BLOCKED)
+        if (bp == WTI_DIRTY_BP_BLOCKED) {
+            /* A prior ref is blocking this page; remove this ref if it owns the slot. */
+            for (i = 0; i < idx->capacity; ++i) {
+                slotp = &idx->slots[i];
+                if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
+                    break;
+            }
             return (true);
+        }
         if (bp == WTI_DIRTY_BP_NONE) {
             if (__wt_atomic_cas_uint32(
                   &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_BLOCKED))
@@ -268,11 +275,7 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
             continue;
 
         /* Do not clear a newer entry if the old ref has already been replaced. */
-        if (!__wt_atomic_cas_ptr(&slotp->ref, ref, NULL)) {
-            published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
-            if (published_ref != NULL && published_ref != ref)
-                __wt_dirty_index_unblock_page(page);
-        }
+        (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
         return (true);
     }
 }

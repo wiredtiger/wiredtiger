@@ -124,6 +124,12 @@ TEST_CASE_METHOD(
     __wt_atomic_store_ptr_release(&index->slots[0].ref, &replacement);
     REQUIRE(__wt_dirty_index_block_page(session, btree, &ref, &page));
     REQUIRE(index->slots[0].ref == &replacement);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+
+    REQUIRE(__wt_dirty_index_block_page(session, btree, &replacement, &page));
+    REQUIRE(index->slots[0].ref == nullptr);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+    __wt_dirty_index_unblock_page(&page);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
 }
 
