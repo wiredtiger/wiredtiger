@@ -1395,11 +1395,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         }
         if (ret != 0) {
             /*
-             * The node is still the follower it was: restore the pickup server the step-up stopped,
-             * and report the failure rather than panicking. Only the role era ended above, which
-             * costs the snapshots spanning it a rollback and nothing else.
+             * An adoption that failed unrolled its metadata merge completely, so the node is still
+             * the follower it was: restore the pickup server the step-up stopped and report the
+             * failure rather than panicking. Only the role era ended above, which costs the
+             * snapshots spanning it a rollback and nothing else. An adoption that got far enough to
+             * be unable to unroll panics the connection itself, and no partially adopted checkpoint
+             * survives either way, so leave a panicked connection alone.
              */
-            WT_TRET(__wti_disagg_deferred_pickup_server_create(session));
+            if (WT_CONN_CHECK_PANIC(conn) == 0)
+                WT_TRET(__wti_disagg_deferred_pickup_server_create(session));
             WT_ERR_MSG(session, ret, "failed to adopt a deferred checkpoint before step-up");
         }
 
