@@ -223,6 +223,66 @@ TEST_CASE_METHOD(
 }
 
 /*
+ * Retirement has to leave no trace of the ref in the ring, whatever the back-pointer says: the
+ * caller frees it through the split stash, and a slot that still names it hands the drain a
+ * dangling pointer once that generation passes.
+ */
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: retirement clears a ref the page back-pointer does not name", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF retiring{};
+    WT_REF newer{};
+    page.modify = &modify;
+    retiring.home = newer.home = &page;
+    retiring.page = newer.page = &page;
+    F_SET(&retiring, WT_REF_FLAG_LEAF);
+    F_SET(&newer, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&retiring, WT_REF_MEM);
+    WT_REF_SET_STATE(&newer, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(__wt_dirty_index_insert(session, btree, &retiring));
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+    REQUIRE(index->slots[0].ref == &retiring);
+
+    /* Point the back-pointer at a second slot holding a different ref for the same page. */
+    __wt_atomic_store_ptr_release(&index->slots[1].ref, &newer);
+    page.dirty_index_slot = WTI_DIRTY_BP_MAKE(1);
+
+    __wt_dirty_index_block_page(session, btree, &retiring, &page);
+
+    /* The named slot keeps its newer occupant, but the retiring ref is gone from the ring. */
+    REQUIRE(index->slots[1].ref == &newer);
+    REQUIRE(index->slots[0].ref == nullptr);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+}
+
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: retirement clears a ref left behind by an earlier block", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF retiring{};
+    page.modify = &modify;
+    retiring.home = &page;
+    retiring.page = &page;
+    F_SET(&retiring, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&retiring, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(__wt_dirty_index_insert(session, btree, &retiring));
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+
+    /* An earlier retirement already blocked the page, so the back-pointer names nothing. */
+    page.dirty_index_slot = WTI_DIRTY_BP_BLOCKED;
+
+    __wt_dirty_index_block_page(session, btree, &retiring, &page);
+    REQUIRE(index->slots[0].ref == nullptr);
+}
+
+/*
  * The drain releases a block only when the block was taken while the drained slot still owned the
  * page's back-pointer. The two orderings below are what distinguishes a retirement handshake the
  * drain must complete from a retirement that raced the pop and must stay in force.

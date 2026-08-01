@@ -224,10 +224,35 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
 }
 
 /*
+ * __evict_dirty_index_scan_clear --
+ *     Search the whole ring for a ref and drop it. The fallback for a retiring ref the page
+ *     back-pointer does not lead to; the caller must have exhausted the back-pointer first, because
+ *     this is O(capacity). Load before the compare-and-swap: an unconditional compare-and-swap
+ *     would take every line of the ring exclusive and stall the producers spinning on it. A ref
+ *     occupies at most one slot, so stop at the first match.
+ */
+static void
+__evict_dirty_index_scan_clear(WTI_DIRTY_INDEX *idx, WTI_DIRTY_INDEX_SLOT *slots, WT_REF *ref)
+{
+    uint32_t i;
+
+    for (i = 0; i < idx->capacity; ++i)
+        if (__wt_atomic_load_ptr_acquire(&slots[i].ref) == ref &&
+          __wt_atomic_cas_ptr(&slots[i].ref, ref, NULL))
+            break;
+}
+
+/*
  * __wt_dirty_index_block_page --
- *     Block dirty-index producers while a ref is being retired. If a producer owns the page
- *     back-pointer but has not published its ref yet, wait for publication before taking the block.
- *     The expected ref is conditionally removed after the block is acquired.
+ *     Block dirty-index producers while a ref is being retired, and drop the ref from the ring. If
+ *     a producer owns the page back-pointer but has not published its ref yet, wait for publication
+ *     before taking the block.
+ *
+ * The ref must be gone from the ring by the time this returns: the caller frees it through the
+ *     split stash, and a ring slot still naming it outlives that generation and hands the drain a
+ *     dangling pointer. The back-pointer names at most one slot, and for a page with several refs
+ *     it may not be the slot holding this one, so every path that cannot confirm the removal falls
+ *     back to scanning.
  */
 void
 __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, WT_PAGE *page)
@@ -235,44 +260,36 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     WTI_DIRTY_INDEX *idx;
     WTI_DIRTY_INDEX_SLOT *slots, *slotp;
     WT_REF *published_ref;
-    uint32_t bp, i;
+    uint32_t bp;
 
     WT_UNUSED(session);
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL ||
       (slots = __wt_atomic_load_ptr_acquire(&idx->slots)) == NULL)
         return;
 
-    /*
-     * A split can clear ref->page before retiring the ref, and a page already blocked by an earlier
-     * retirement no longer names the slot holding this ref. Neither case leaves a back-pointer to
-     * follow, so search the ring. Load before the compare-and-swap: an unconditional
-     * compare-and-swap would take every line of the ring exclusive and stall the producers spinning
-     * on it. A ref occupies at most one slot, so stop at the first match.
-     */
+    /* A split can clear ref->page before retiring the ref, leaving no back-pointer to follow. */
     if (page == NULL) {
-        for (i = 0; i < idx->capacity; ++i) {
-            slotp = &slots[i];
-            if (__wt_atomic_load_ptr_acquire(&slotp->ref) == ref &&
-              __wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
-                break;
-        }
+        __evict_dirty_index_scan_clear(idx, slots, ref);
         return;
     }
 
     for (;;) {
         bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);
+        /* An earlier retirement already took the block, so the back-pointer names nothing. */
         if (bp == WTI_DIRTY_BP_BLOCKED) {
-            for (i = 0; i < idx->capacity; ++i) {
-                slotp = &slots[i];
-                if (__wt_atomic_load_ptr_acquire(&slotp->ref) == ref &&
-                  __wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
-                    break;
-            }
+            __evict_dirty_index_scan_clear(idx, slots, ref);
             return;
         }
         if (bp == WTI_DIRTY_BP_NONE) {
             if (__wt_atomic_cas_uint32(
                   &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_BLOCKED))
+                /*
+                 * No back-pointer means no live ring entry for this page. The one window where a
+                 * slot still holds the ref is a drain that has cleared the back-pointer but not yet
+                 * emptied the slot, and it holds a hazard pointer throughout, which is what stops
+                 * the eviction driving this retirement. No scan needed, which matters because a
+                 * page that never entered the ring takes this path.
+                 */
                 return;
             WT_PAUSE();
             continue;
@@ -280,10 +297,12 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
 
         /*
          * The back-pointer only ever holds the two sentinels or a one-indexed slot, so an
-         * out-of-range value means the ring was rebuilt underneath us; there is nothing to clear.
+         * out-of-range value means the ring was rebuilt underneath us; fall back to the scan.
          */
-        if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity)
+        if (WTI_DIRTY_BP_SLOT(bp) >= idx->capacity) {
+            __evict_dirty_index_scan_clear(idx, slots, ref);
             return;
+        }
         slotp = &slots[WTI_DIRTY_BP_SLOT(bp)];
         published_ref = __wt_atomic_load_ptr_acquire(&slotp->ref);
         if (published_ref == NULL) {
@@ -295,8 +314,12 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
             continue;
         }
 
-        /* Do not clear a newer entry if the old ref has already been replaced. */
-        (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
+        /*
+         * Leave a newer entry alone, but the retiring ref still has to go: it is in some other slot
+         * that the back-pointer never named.
+         */
+        if (!__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
+            __evict_dirty_index_scan_clear(idx, slots, ref);
         return;
     }
 }

@@ -86,6 +86,10 @@ class test_eviction08(wttest.WiredTigerTestCase):
                               value)
         cursor.close()
 
+    # The drain skips a btree whose modified pages cannot be evicted, and under the disagg hook a
+    # leader's table is checkpointed often enough that the skip can hold for the whole test. The
+    # produce side is still covered here; the disagg-specific gating has its own test below.
+    @wttest.skip_for_hook("disagg", "The drain is gated off while the tree is checkpointed.")
     def test_dirty_index_insert_and_drain(self):
         # Phase 1: the ring is allocated at create/open, so the first wave of
         # writes populates it directly -- the insert counter is non-zero with
