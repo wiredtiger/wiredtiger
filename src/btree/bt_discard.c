@@ -45,10 +45,8 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_page_out --
- *     Discard an in-memory page, freeing all memory associated with it. The ref argument may be
- *     NULL for callers that do not own a stable WT_REF (root-split chains, scratch pages, salvage
- *     rebuild). When non-NULL, the dirty-index ring entry for the page is cleared up front while
- *     the page memory is still valid.
+ *     Discard an in-memory page, freeing all associated memory. Callers without a stable page
+ *     reference omit dirty-index cleanup; otherwise the entry is cleared while the page is valid.
  */
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE **pagep)
@@ -57,6 +55,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE **pagep)
     WT_PAGE *page;
     WT_PAGE_HEADER *dsk;
     WT_PAGE_MODIFY *mod;
+
+    WT_ASSERT(session, ref == NULL || pagep == &ref->page);
 
     /*
      * Kill our caller's reference, do our best to catch races.

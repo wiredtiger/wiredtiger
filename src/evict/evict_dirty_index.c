@@ -64,10 +64,7 @@ __wt_dirty_index_alloc(WT_SESSION_IMPL *session, WT_BTREE *btree)
     wt_off_t file_size;
     uint32_t capacity;
 
-    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->evict->eviction_dirty_index) ||
-      WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
-      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-        !__wt_atomic_load_bool_relaxed(&S2C(session)->evict->eviction_dirty_index_disagg)) ||
+    if (WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
       F_ISSET(btree, WT_BTREE_READONLY | WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_VERIFY) ||
       WT_DHANDLE_IS_CHECKPOINT(btree->dhandle))
         return (0);
@@ -133,7 +130,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
       (page = __wt_atomic_load_ptr_acquire(&ref->page)) == NULL || page->modify == NULL ||
       (idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return (false);
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+    if (WTI_DIRTY_INDEX_IS_DISAGG(btree) &&
       !__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index_disagg))
         return (false);
     if (__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)

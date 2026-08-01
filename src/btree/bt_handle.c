@@ -36,7 +36,6 @@ __btree_clear(WT_SESSION_IMPL *session)
     if (btree->collator_owned && btree->collator->terminate != NULL)
         WT_TRET(btree->collator->terminate(btree->collator, &session->iface));
 
-    /* Free the per-btree dirty-page index (push-model eviction). */
     __wt_dirty_index_destroy(session, btree);
 
     /* Destroy locks. */

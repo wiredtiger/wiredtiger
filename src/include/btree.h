@@ -342,10 +342,11 @@ struct __wt_btree {
     uint32_t evict_walk_progress;               /* Eviction walk progress */
     uint32_t evict_walk_target;                 /* Eviction walk target */
     wt_shared WTI_DIRTY_INDEX *dirty_index;     /* Push-model dirty ring; NULL when disabled */
-    wt_shared uint32_t drain_consecutive_empty; /* Adaptive drain: # of empty drains in a row */
+    wt_shared uint32_t drain_consecutive_empty; /* Adaptive drain: # of unproductive drains in a row */
     wt_shared uint32_t
       drain_filled_skips; /* Consecutive walks skipped because the drain filled the budget */
     wt_shared bool drain_disabled; /* Adaptive drain: walker-only mode for this btree */
+    wt_shared uint64_t drain_next_probe_gen; /* Next eviction pass to probe a parked drain */
     /*
      * Median commit timestamp of the ring's stable-blocked pages, captured on the last drained
      * pass. While the pinned stable timestamp sits below it the precise checkpoint cannot evict

@@ -109,7 +109,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
     conn = S2C(session);
     if (!__wt_atomic_load_bool_relaxed(&conn->evict->eviction_dirty_index))
         return (0);
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+    if (WTI_DIRTY_INDEX_IS_DISAGG(btree) &&
       !__wt_atomic_load_bool_relaxed(&conn->evict->eviction_dirty_index_disagg))
         return (0);
 
@@ -157,7 +157,7 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
  * __evict_dirty_index_drain_ring --
  *     Pop refs from one ring into the eviction queue. Each ref is protected by a short-lived hazard
  *     pointer so concurrent teardown cannot free the page while it is examined. Writes into the
- *     queue's slots, advancing *slotp; returns the number of refs queued.
+ *     Populate available eviction-queue slots and return the number of refs queued.
  */
 static int
 __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DIRTY_INDEX *idx,
@@ -1642,19 +1642,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * Disabled trees still probe periodically to detect a shift back to write-heavy.
      */
     pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
-    if (__evict_drain_stable_blocked(session, btree)) {
-        /*
-         * The precise checkpoint cannot evict most of the ring until the pinned stable timestamp
-         * crosses the midpoint of the blocked commit timestamp range from the last drain pass. Skip
-         * the drain entirely rather than park its cadence: re-examining the ring would only re-pay
-         * the candidacy filter and re-insert refs it cannot queue, and a probe pass re-drains the
-         * whole backlog so parking does not reduce that volume. The walker still evicts any page
-         * that has since fallen below stable.
-         */
-        should_drain = false;
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_stable_lag);
-    } else if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
-        should_drain = (pass_gen % WTI_DRAIN_PROBE_INTERVAL) == 0;
+    if (__wt_atomic_load_bool_relaxed(&btree->drain_disabled))
+        should_drain = pass_gen >=
+          __wt_atomic_load_uint64_relaxed(&btree->drain_next_probe_gen);
     else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         /*
          * The ring is leaf-only, so only the walker queues internal pages. When the drain has
@@ -1673,6 +1663,12 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     else
         should_drain = true;
 
+    if (should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
+      F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES) &&
+      __evict_drain_stable_blocked(session, btree)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_stable_lag);
+        should_drain = false;
+    }
     if (should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
       F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
         if (F_ISSET(evict, WT_EVICT_CACHE_NOKEEP)) {
@@ -1701,8 +1697,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
                     __wt_atomic_store_bool(&btree->drain_disabled, false);
             } else if (!WT_BTREE_SYNCING(btree) &&
               __wt_atomic_add_uint32(&btree->drain_consecutive_empty, 1) >=
-                WTI_DRAIN_EMPTY_THRESHOLD)
+                WTI_DRAIN_EMPTY_THRESHOLD) {
                 __wt_atomic_store_bool(&btree->drain_disabled, true);
+                __wt_atomic_store_uint64_relaxed(
+                  &btree->drain_next_probe_gen, pass_gen + WTI_DRAIN_PROBE_INTERVAL);
+            }
         }
     }
     if (drain_queued >= target_pages) {

@@ -76,6 +76,8 @@ struct __wti_evict_entry {
 #define WTI_DIRTY_BP_BLOCKED UINT32_MAX
 #define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
 #define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
+#define WTI_DIRTY_INDEX_IS_DISAGG(btree) \
+    F_ISSET((btree), WT_BTREE_DISAGGREGATED | WT_BTREE_GARBAGE_COLLECT)
 
 /*
  * Adaptive drain scheduling. After EMPTY_THRESHOLD consecutive empty drains the per-btree drain
