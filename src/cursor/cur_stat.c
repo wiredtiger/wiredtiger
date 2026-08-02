@@ -505,116 +505,143 @@ err:
 
 /*
  * __curstat_size_local --
- *     Fast-path size retrieval for a local file. Returns WT_NOTFOUND if the file does not exist.
+ *     Fast-path size retrieval for a local file. *was_fast is true if the lookup is successful, or
+ *     false if the file is missing.
  */
 static int
-__curstat_size_local(WT_SESSION_IMPL *session, const char *filename, int64_t *sizep)
+__curstat_size_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fastp, int64_t *sizep)
 {
+    *was_fastp = false;
+
     bool file_exists = false;
     WT_RET(__wt_fs_exist(session, filename, &file_exists));
     if (!file_exists)
-        return (WT_NOTFOUND);
+        return (0);
 
     wt_off_t size = 0;
-    WT_RET(__wt_block_manager_named_size(session, filename, &size));
+    const int ret = __wt_block_manager_named_size(session, filename, &size);
+
+    /* Treat a concurrent file removal the same as the file not originally existing. */
+    if (ret == ENOENT)
+        return (0);
+    WT_RET(ret);
+
+    *was_fastp = true;
     *sizep = (int64_t)size;
     return (0);
 }
 
 /*
- * __curstat_size_disagg --
- *     Fast-path size retrieval for a disaggregated file URI. Returns ENOENT if its metadata entry
- *     does not exist. An existing metadata entry with no checkpoints has a size of zero.
+ * __curstat_file_size --
+ *     Fast-path size retrieval for a file URI. On a disaggregated connection, use file metadata to
+ *     select the size source. Returns WT_NOTFOUND on metadata failure (does not exist or could not
+ *     be parsed).
  */
 static int
-__curstat_size_disagg(WT_SESSION_IMPL *session, const char *file_uri, int64_t *sizep)
+__curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fastp, int64_t *sizep)
 {
+    const char *filename = file_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
+
+    *was_fastp = false;
+
+    if (!__wt_conn_is_disagg(session))
+        return (__curstat_size_local(session, filename, was_fastp, sizep));
+
     char *file_config = NULL;
-    int ret = __wt_metadata_search(session, file_uri, &file_config);
+    WT_RET(__wt_metadata_search(session, file_uri, &file_config));
 
-    /*
-     * Map a missing metadata entry to ENOENT. Returning WT_NOTFOUND would send the caller to the
-     * dhandle slow path, which disaggregated lookups must never take.
-     */
-    if (ret == WT_NOTFOUND)
-        return (__wt_set_return(session, ENOENT));
-    WT_RET(ret);
+    WT_DECL_RET;
+    const char *config[] = {WT_CONFIG_BASE(session, file_meta), file_config, NULL};
+    bool shared = false;
 
-    uint64_t checkpoint_size = 0;
-    ret = __wt_ckpt_last_size(session, file_config, &checkpoint_size);
+    /* Use the block manager to classify if the file is disagg or not. */
+    WT_ERR(__wt_btree_shared(session, file_uri, config, &shared));
+
+    if (shared) {
+        /* A shared file without a checkpoint entry has a size of zero. */
+        uint64_t checkpoint_size = 0;
+        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, file_config, &checkpoint_size), false);
+        *was_fastp = true;
+        *sizep = (int64_t)checkpoint_size;
+    } else
+        WT_ERR(__curstat_size_local(session, filename, was_fastp, sizep));
+
+err:
     __wt_free(session, file_config);
-
-    /* No checkpoint entries is considered a zero size case. */
-    WT_RET_NOTFOUND_OK(ret);
-    *sizep = (int64_t)checkpoint_size;
-    return (0);
+    return (ret);
 }
 
 /*
  * __curstat_table_size --
- *     Fast-path size retrieval for a simple table URI.
+ *     Fast-path size retrieval for a simple table URI. Returns WT_NOTFOUND on metadata failure
+ *     (does not exist or could not be parsed).
  */
 static int
-__curstat_table_size(WT_SESSION_IMPL *session, const char *table_uri, int64_t *sizep)
+__curstat_table_size(
+  WT_SESSION_IMPL *session, const char *table_uri, bool *was_fastp, int64_t *sizep)
 {
     const char *table_name = table_uri;
     WT_PREFIX_SKIP_REQUIRED(session, table_name, "table:");
 
+    *was_fastp = false;
+
     WT_DECL_RET;
     WT_CONFIG_ITEM column_config = {0};
-    WT_ITEM name_buffer = {0};
+    WT_ITEM uri_buffer = {0};
     bool simple = false;
     char *table_config = NULL;
 
-    /* The fast path only works for tables without named columns. */
+    /* Only tables that are "simple" (no named columns) can use the fast path. */
     WT_RET(__wt_metadata_search(session, table_uri, &table_config));
     WT_ERR(__wt_config_getones(session, table_config, "columns", &column_config));
     WT_ERR(__wt_is_simple_table(session, &column_config, &simple));
-    if (!simple) {
-        ret = WT_NOTFOUND;
+    if (!simple)
         goto err;
-    }
 
+    /* Only probe for a stable file on a connection that can create one. */
     if (__wt_conn_is_disagg(session)) {
-        WT_ERR(__wt_buf_fmt(session, &name_buffer, "file:%s.wt_stable", table_name));
-        ret = __curstat_size_disagg(session, name_buffer.data, sizep);
-
-        /* A missing stable metadata entry falls back to the local file. */
-        if (ret != ENOENT)
-            goto err;
+        WT_ERR(__wt_buf_fmt(session, &uri_buffer, "file:%s.wt_stable", table_name));
+        WT_ERR_NOTFOUND_OK(__curstat_file_size(session, uri_buffer.data, was_fastp, sizep), false);
     }
 
-    WT_ERR(__wt_buf_fmt(session, &name_buffer, "%s.wt", table_name));
-    ret = __curstat_size_local(session, name_buffer.data, sizep);
+    /* At this point, disagg or not, fall back to the local non-layered file. */
+    if (!*was_fastp) {
+        WT_ERR(__wt_buf_fmt(session, &uri_buffer, "file:%s.wt", table_name));
+        WT_ERR_NOTFOUND_OK(__curstat_file_size(session, uri_buffer.data, was_fastp, sizep), false);
+    }
 
 err:
     __wt_free(session, table_config);
-    __wt_buf_free(session, &name_buffer);
+    __wt_buf_free(session, &uri_buffer);
     return (ret);
 }
 
 /*
  * __curstat_size --
- *     Fast-path size retrieval for a file or simple table URI.
+ *     Fast-path size retrieval for a file or table URI.
  */
 static int
-__curstat_size(WT_SESSION_IMPL *session, const char *uri, int64_t *sizep)
+__curstat_size(WT_SESSION_IMPL *session, const char *uri, bool *was_fastp, int64_t *sizep)
 {
     WT_ASSERT(session, uri != NULL);
+    WT_ASSERT(session, was_fastp != NULL);
     WT_ASSERT(session, sizep != NULL);
 
+    *was_fastp = false;
     *sizep = 0;
 
     if (WT_PREFIX_MATCH(uri, "table:"))
-        return (__curstat_table_size(session, uri, sizep));
+        return (__curstat_table_size(session, uri, was_fastp, sizep));
 
-    const char *filename = uri;
-    WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
+    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
 
-    if (__wt_conn_is_disagg(session) && WT_SUFFIX_MATCH(uri, ".wt_stable"))
-        return (__curstat_size_disagg(session, uri, sizep));
+    /* Checkpoint-view URIs require the slow path. */
+    if (WT_URI_IS_STABLE_CHECKPOINT(uri))
+        return (0);
 
-    return (__curstat_size_local(session, filename, sizep));
+    return (__curstat_file_size(session, uri, was_fastp, sizep));
 }
 
 /*
@@ -705,10 +732,6 @@ __curstat_session_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 int
 __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
 {
-    WT_DECL_RET;
-    int64_t size = 0;
-    const char *dsrc_uri = NULL;
-
     if (strcmp(uri, "statistics:") == 0) {
         __curstat_conn_init(session, cst);
         return (0);
@@ -716,22 +739,21 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
 
     /* Data source statistics are only available after recovery completes. */
     WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_RECOVERY_COMPLETE));
-    dsrc_uri = uri + strlen("statistics:");
+    const char *dsrc_uri = uri + strlen("statistics:");
 
-    /*
-     * Resolve size-only statistics from local files or metadata before falling back to dhandle
-     * statistics or schema operations.
-     */
+    /* Resolve file or simple-table sizes without opening dhandles or performing schema ops. */
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE) &&
       (WT_PREFIX_MATCH(dsrc_uri, "file:") || WT_PREFIX_MATCH(dsrc_uri, "table:"))) {
-        ret = __curstat_size(session, dsrc_uri, &size);
-        if (ret == 0) {
+        bool was_fast = false;
+        int64_t size = 0;
+        WT_RET(__curstat_size(session, dsrc_uri, &was_fast, &size));
+
+        if (was_fast) {
             __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
             cst->u.dsrc_stats.block_size = size;
             __wt_curstat_dsrc_final(cst);
             return (0);
         }
-        WT_RET_NOTFOUND_OK(ret);
     }
 
     if (strcmp(dsrc_uri, "session") == 0) {
