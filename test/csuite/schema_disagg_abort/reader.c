@@ -68,6 +68,8 @@ thread_reader_run(void *arg)
         case EVENT_CREATE:
         case EVENT_DROP:
         case EVENT_INSERT:
+        case EVENT_PUBLISH_CREATE:
+        case EVENT_PUBLISH_DROP:
             workload_enqueue(state, &ev);
             break;
         case EVENT_CKPT:
@@ -87,6 +89,10 @@ thread_reader_run(void *arg)
             __wt_atomic_store_bool(&state->handover_received, true);
             running = false;
             break;
+        case EVENT_NONE:
+            /* Never emitted; a zeroed event means the framing lost its way. */
+            testutil_die(
+              EINVAL, "Node %" PRIu32 ": empty event read from the source pipe", cfg->node_id);
         }
     }
 

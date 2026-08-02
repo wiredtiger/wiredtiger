@@ -49,10 +49,9 @@ parse_record_uri(
 
 /*
  * parse_schema_records --
- *     Record thread t's last durable operation per slot, plus the data inserted for its last
- *     create. durable_epoch is the highest schema epoch that survived recovery; records above it
- *     never reached a checkpoint before the crash and are ignored, as are records for other
- *     threads.
+ *     Fold one record file into thread t's last durable operation per slot, plus the data inserted
+ *     for its last create. Records above durable_epoch never reached a checkpoint before the crash,
+ *     so they carry no expectation. Folding is idempotent, so overlapping files may both be fed in.
  */
 static void
 parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t durable_epoch,
@@ -61,8 +60,6 @@ parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t dura
     FILE *fp;
     testutil_assert_errno((fp = fopen(fname, "r")) != NULL);
 
-    /* Zero state is fully valid: invalid slot, no durable insert (DATA_COMMIT_TS_NONE). */
-    memset(states, 0, sizeof(SLOT_STATE) * pool_size);
     char line[256];
     while (fgets(line, sizeof(line), fp) != NULL) {
         char op[16];
@@ -84,12 +81,13 @@ parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t dura
             if (!parse_record_uri(rec_uri, node, t, pool_size, &s))
                 continue;
             /*
-             * The insert belongs to the slot's current create: the per-thread records are in apply
-             * order and an insert immediately follows its create. A cut-off create cannot capture a
-             * stray insert - a commit's value always exceeds its table's create epoch, so the
-             * durability cutoff above already dropped the insert too.
+             * A generation's values lie between its create and the next, and the newest insert
+             * wrote the values the table holds. Both tests also make the fold order-independent.
              */
-            if (states[s].valid && states[s].is_create) {
+            const bool newest_for_create = states[s].valid && states[s].is_create &&
+              commit_ts > states[s].epoch && commit_ts > states[s].commit_ts;
+
+            if (newest_for_create) {
                 states[s].commit_ts = commit_ts;
                 states[s].key_min = key_min;
                 states[s].key_max = key_max;
@@ -193,11 +191,8 @@ check_data_rows(WT_SESSION *session, const SLOT_STATE states[MAX_POOL_SIZE], uin
  * verify_schema_state --
  *     Verify schema and data state after recovery.
  *
- * Reads every node's per-thread leader record files (each node logs only its own operations while
- *     it leads; the shared page log makes all of them visible to any recovered node) and takes
- *     last_disaggregated_schema_epoch as the highest durable schema epoch. Asserts that every table
- *     whose last durable operation was a create exists and holds the right rows, and every one last
- *     dropped is gone. Aborts on the first mismatch.
+ * Every node's records are checked against the recovered database, since the shared page log makes
+ *     all of them visible to any node. last_disaggregated_schema_epoch is the durability cutoff.
  */
 void
 verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
@@ -218,19 +213,29 @@ verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
 
     for (uint32_t n = 0; n < MAX_NODES; n++)
         for (uint32_t t = 0; t < cfg->nth; t++) {
-            char fname[128];
-            testutil_snprintf(fname, sizeof(fname), LEADER_RECORDS_FILE, n, t);
+            char lname[128], mname[128];
+            testutil_snprintf(lname, sizeof(lname), LEADER_RECORDS_FILE, n, t);
+            /* The peer's follower file mirrors what node n originated on this thread. */
+            testutil_snprintf(mname, sizeof(mname), FOLLOWER_RECORDS_FILE, 1 - n, t);
 
             /*
-             * A missing record file means there are no expectations to verify for this thread:
-             * record files are created lazily, so a thread that never got to operate (or a node
-             * that never led) leaves none.
+             * Union the node's own records with the peer's mirror of them: a node relays before it
+             * records, so a SIGKILL can leave the last operation recorded only on the peer - the
+             * survivor whose checkpoints can then make that operation durable. Either file may be
+             * missing; they are created lazily.
              */
-            if (!testutil_exists(NULL, fname))
+            const bool have_own = testutil_exists(NULL, lname);
+            const bool have_mirror = testutil_exists(NULL, mname);
+            if (!have_own && !have_mirror)
                 continue;
 
+            /* Zero state is fully valid: invalid slot, no durable insert (DATA_COMMIT_TS_NONE). */
             SLOT_STATE states[MAX_POOL_SIZE];
-            parse_schema_records(fname, n, t, durable_epoch, states, cfg->pool_size);
+            memset(states, 0, sizeof(SLOT_STATE) * cfg->pool_size);
+            if (have_own)
+                parse_schema_records(lname, n, t, durable_epoch, states, cfg->pool_size);
+            if (have_mirror)
+                parse_schema_records(mname, n, t, durable_epoch, states, cfg->pool_size);
             check_schema_presence(session, states, cfg->pool_size);
             check_data_rows(session, states, cfg->pool_size, last_ckpt_ts);
         }
@@ -239,13 +244,54 @@ verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg)
 }
 
 /*
- * verify_relay_prefix --
- *     Check the integrity of the event relay: everything a node recorded while following must be an
- *     exact prefix of what its peer recorded while leading, per thread.
+ * verify_relay_pair --
+ *     Check one follower record file against the peer's leader file for the same thread: the
+ *     follower's lines must match the leader's, line for line.
  *
- * The leader writes its own record before relaying the event, and the pipe preserves order, so any
- *     divergence or reordering is a relay bug. A SIGKILL can truncate the recorder's final line, so
- *     a partial trailing line is accepted if it is a prefix of the peer's line.
+ * A SIGKILL can truncate either side's final line, and can cost the leader's file the one event in
+ *     flight between the relay and the record. Both show up as a mismatch on what must then be the
+ *     last line; anything past that is a relay bug.
+ */
+static void
+verify_relay_pair(const char *follower_fname, const char *leader_fname)
+{
+    FILE *ffp, *sfp;
+    testutil_assert_errno((ffp = fopen(follower_fname, "r")) != NULL);
+    testutil_assert_errno((sfp = fopen(leader_fname, "r")) != NULL);
+
+    char fline[256], sline[256];
+    uint32_t lineno = 0;
+    while (fgets(fline, sizeof(fline), ffp) != NULL) {
+        ++lineno;
+        /* The leader may lack this line: killed after relaying the event, before recording it. */
+        if (fgets(sline, sizeof(sline), sfp) == NULL)
+            break;
+        if (strcmp(fline, sline) == 0)
+            continue;
+        /*
+         * Only a truncated final line may differ, so the shorter must prefix the longer: two
+         * complete lines are prefixes of each other only when they are equal.
+         */
+        testutil_assertfmt(strncmp(fline, sline, WT_MIN(strlen(fline), strlen(sline))) == 0,
+          "%s diverges from %s at line %" PRIu32 ": \"%s\" vs \"%s\"", follower_fname, leader_fname,
+          lineno, fline, sline);
+        break;
+    }
+    /* Whatever ended the comparison was an end-of-file effect, so nothing may follow it. */
+    testutil_assertfmt(fgets(fline, sizeof(fline), ffp) == NULL,
+      "%s runs past %s after line %" PRIu32, follower_fname, leader_fname, lineno);
+
+    (void)fclose(ffp);
+    (void)fclose(sfp);
+}
+
+/*
+ * verify_relay_prefix --
+ *     Check the integrity of the event relay: everything a node recorded while following must match
+ *     what its peer recorded while leading, per thread.
+ *
+ * The leader relays each event before writing its own record, so a record on disk implies the peer
+ *     holds the event, and the pipe preserves order: any divergence or reordering is a relay bug.
  */
 void
 verify_relay_prefix(const TEST_CONFIG *cfg)
@@ -263,32 +309,7 @@ verify_relay_prefix(const TEST_CONFIG *cfg)
             testutil_assertfmt(testutil_exists(NULL, leader_fname),
               "%s exists but the peer's %s does not", follower_fname, leader_fname);
 
-            FILE *ffp, *sfp;
-            testutil_assert_errno((ffp = fopen(follower_fname, "r")) != NULL);
-            testutil_assert_errno((sfp = fopen(leader_fname, "r")) != NULL);
-
-            char fline[256], sline[256];
-            uint32_t lineno = 0;
-            while (fgets(fline, sizeof(fline), ffp) != NULL) {
-                ++lineno;
-                testutil_assertfmt(fgets(sline, sizeof(sline), sfp) != NULL,
-                  "%s line %" PRIu32 " has no counterpart in %s", follower_fname, lineno,
-                  leader_fname);
-
-                const size_t flen = strlen(fline);
-                if (flen > 0 && fline[flen - 1] == '\n')
-                    testutil_assertfmt(strcmp(fline, sline) == 0,
-                      "%s diverges from %s at line %" PRIu32 ": \"%s\" vs \"%s\"", follower_fname,
-                      leader_fname, lineno, fline, sline);
-                else
-                    /* Partial trailing line: the recorder was killed mid-write. */
-                    testutil_assertfmt(strncmp(sline, fline, flen) == 0,
-                      "%s truncated line %" PRIu32 " is not a prefix of %s: \"%s\" vs \"%s\"",
-                      follower_fname, lineno, leader_fname, fline, sline);
-            }
-
-            (void)fclose(ffp);
-            (void)fclose(sfp);
+            verify_relay_pair(follower_fname, leader_fname);
             ++checked;
         }
 

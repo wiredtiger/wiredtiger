@@ -42,7 +42,7 @@
 
 /* Tunables. */
 #define MAX_CKPT_INVL 4
-#define INSERT_ODDS 64
+#define INSERT_ODDS 64          /* generate an insert: 1 in N visits to an insertable slot */
 #define GEN_APPLY_RATE_FLOOR 30 /* generator: applied values/second, the multi-node worst case */
 #define GEN_LEAD_MIN 64         /* generator: lead floor, so the workers stay fed */
 #define SCHEMA_EPOCH_BOOTSTRAP 1
@@ -93,34 +93,54 @@ typedef enum { KILL_LONE = 0, KILL_LEADER, KILL_FOLLOWER } KILL_TARGET;
 #define KILL_TARGETS 3
 
 /*
- * Events, the single currency both roles run on. A leader's generator produces CREATE/DROP/INSERT
- * events; the leader executes them and relays them to its peer, which executes them identically.
- * EVENT_CKPT makes the leader produce a checkpoint (and relay the event) and the follower pick it
- * up.
+ * Events, the single currency both roles run on: the leader executes each one and relays it to its
+ * peer, which executes it identically. A schema operation is split in two - the operation, then a
+ * publish at a fresh epoch - so the independently paced checkpoints land between them, the window
+ * this test targets.
  *
- * EVENT_SWITCH is the final event of a leadership term's stream: it directs the receiving node to
- * step up, and carries the term's final counter value as a relay-integrity check, which the
- * receiver's own counter must equal once it has drained the stream. Schema epochs and commit
- * timestamps come from that one shared counter, so a commit's value always exceeds its table's
- * create epoch.
+ * EVENT_SWITCH ends a term's stream, carrying the term's final counter value as a relay-integrity
+ * check the receiver asserts against its own once drained.
  */
-typedef enum { EVENT_CREATE, EVENT_DROP, EVENT_INSERT, EVENT_CKPT, EVENT_SWITCH } EVENT_TYPE;
+typedef enum {
+    EVENT_NONE = 0,
+    EVENT_CREATE,
+    EVENT_DROP,
+    EVENT_INSERT,
+    EVENT_PUBLISH_CREATE,
+    EVENT_PUBLISH_DROP,
+    EVENT_CKPT,
+    EVENT_SWITCH
+} EVENT_TYPE;
 
 typedef struct {
     EVENT_TYPE type;
     uint32_t thread_id;
     /*
-     * The event's value from the single monotonic allocator: the value whose completion the event
-     * represents. CREATE/DROP carry the schema epoch the operation publishes at; INSERT carries the
-     * commit timestamp (and the inserted rows are valued with it); EVENT_SWITCH carries the ending
-     * term's final counter value, which the receiver's drained counter must match. Unused by
-     * EVENT_CKPT.
+     * The value from the single monotonic allocator whose completion this event represents: a
+     * publish epoch, an insert's commit timestamp (also the row value), or a term's final counter.
+     * CREATE/DROP carry none - a schema operation completes with its publish.
      */
     uint64_t event_ts;
     uint32_t key_min;
     uint32_t key_max;
     char uri[64];
 } SCHEMA_EVENT;
+
+/*
+ * The generator's per-slot position in the table lifecycle, valid transitions only. The waiting
+ * states hold the slot until a completed checkpoint covers the value in table_wait_ts; the
+ * unpublished states linger a random number of visits before the publish (or a cancelling drop),
+ * widening the op-publish window the checkpoints land in.
+ */
+typedef enum {
+    TABLE_NONE = 0,         /* slot free: no local table, nothing unpublished */
+    TABLE_CREATED,          /* created; the publish may be delayed */
+    TABLE_CREATE_PUBLISHED, /* create published, awaiting checkpoint coverage of its epoch */
+    TABLE_DIRTY,            /* data committed, awaiting checkpoint coverage of the commit */
+    TABLE_DURABLE,          /* create and all data covered: the slot is droppable */
+    TABLE_DROPPED,          /* dropped; the publish may be delayed */
+    TABLE_DROP_PUBLISHED    /* drop published, awaiting checkpoint coverage of its epoch */
+} TABLE_STATE;
 
 /* Test-wide configuration, built from the command line by every role independently. */
 typedef struct {
@@ -160,7 +180,7 @@ typedef struct {
 /*
  * Workload-engine state, one per node process, owned by node.c.
  */
-typedef struct __workload_state {
+typedef struct {
     TEST_CONFIG *cfg;    /* bound at creation */
     WT_CONNECTION *conn; /* owned here; the control loop and the role transitions keep it
                             current: a step-down closes it, a follower reopen replaces it */
@@ -175,15 +195,14 @@ typedef struct __workload_state {
     bool generator_stop;    /* the engine directs the generator to exit; atomic access */
     bool handover_received; /* the term was handed over this phase; atomic access */
     /*
-     * The highest schema epoch a completed checkpoint made durable, republished by the timestamp
-     * thread from the connection's last_disaggregated_schema_epoch. A dirty table's drop stays
-     * EBUSY until a checkpoint persists its data, and the event stream cannot be reordered, so an
-     * uncovered drop would wedge its worker (and, through the full queue, the reader and the
-     * checkpoints that would unwedge it). The generator therefore emits a DROP for a slot holding
-     * data only once its insert is at or below this value. Atomic access.
+     * The coverage the slot machine's waiting states wait for, republished by the timestamp thread
+     * from the connection's last_disaggregated_schema_epoch. Dropping an uncovered table wedges its
+     * worker in EBUSY, and through the full queue the checkpoints that would unwedge it. Atomic
+     * access.
      */
     uint64_t ckpt_covered_ts;
-    uint32_t switch_gen; /* how many role transitions this node has completed */
+    uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on reopen */
+    uint32_t switch_gen;       /* how many role transitions this node has completed */
     /*
      * Single monotonic allocator for schema epochs AND commit timestamps. One counter makes
      * causality an ordering property: a commit into a table always draws a higher value than the
@@ -199,7 +218,7 @@ typedef struct __workload_state {
     uint64_t emitted; /* generator only */
     uint64_t applied; /* atomic access: every worker adds to it */
     uint32_t nth_workers;
-    /* Per-worker state, owned by worker.c; the queue is filled by the reader. */
+    /* Per-worker-thread state; the reader fills the queue, the slot model is the generator's. */
     struct {
         EVENT_QUEUE evq; /* this worker's inbound events */
         bool busy;       /* the worker is mid-apply; atomic access */
@@ -210,6 +229,10 @@ typedef struct __workload_state {
          * sets the stable timestamp and stable schema epoch to that minimum.
          */
         uint64_t completed_ts;
+        /* Carried across phases, so each leader phase resumes its namespace where the last ended.
+         */
+        TABLE_STATE table_state[MAX_POOL_SIZE];
+        uint64_t table_wait_ts[MAX_POOL_SIZE]; /* waiting states: the value coverage must reach */
     } workers[MAX_TH];
     /*
      * The generator's random streams, owned by generator.c: one per worker, driving the stream of
@@ -217,14 +240,6 @@ typedef struct __workload_state {
      * workload_start on every phase, generating or not, so they stay in step across role switches.
      */
     WT_RAND_STATE gen_rnd[MAX_TH + 1];
-    /*
-     * The generator's per-thread slot model, carried across phases so each leader phase resumes its
-     * own namespace where the last ended: whether the slot's table exists, and the commit timestamp
-     * of its insert, which a checkpoint must cover before the slot may be dropped. Zero means the
-     * table is clean (no insert), and a clean table can be dropped at any time.
-     */
-    bool table_exists[MAX_TH][MAX_POOL_SIZE];
-    uint64_t table_commit_ts[MAX_TH][MAX_POOL_SIZE];
 } WORKLOAD_STATE;
 
 /*
@@ -246,8 +261,7 @@ typedef struct {
  * enter() completes the transition into it, both carrying the ending term's final counter mark;
  * checkpoint() handles one checkpoint event, producing it or picking it up.
  */
-typedef struct __node_role NODE_ROLE;
-struct __node_role {
+typedef struct {
     const char *name;         /* also the disaggregated connection mode string */
     const char *close_config; /* connection close configuration for a graceful stop */
     bool leads;               /* this role generates events and checkpoints */
@@ -255,7 +269,7 @@ struct __node_role {
     void (*enter)(WORKLOAD_STATE *state, uint64_t final_counter);
     void (*checkpoint)(
       WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt, const SCHEMA_EVENT *ev);
-};
+} NODE_ROLE;
 
 /* main.c */
 void println(const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 1, 2)));

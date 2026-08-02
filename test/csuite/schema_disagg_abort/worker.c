@@ -40,15 +40,19 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
     int ret = 0;
 
     switch (ev->type) {
-    case EVENT_CREATE:
-    case EVENT_DROP:
-        ret = fprintf(fp, "%s %" PRIu64 " %s\n", ev->type == EVENT_CREATE ? "CREATE" : "DROP",
-          ev->event_ts, ev->uri);
+    case EVENT_PUBLISH_CREATE:
+    case EVENT_PUBLISH_DROP:
+        /* A schema operation is recorded when its publish fixes the epoch, not when it ran. */
+        ret = fprintf(fp, "%s %" PRIu64 " %s\n",
+          ev->type == EVENT_PUBLISH_CREATE ? "CREATE" : "DROP", ev->event_ts, ev->uri);
         break;
     case EVENT_INSERT:
         ret = fprintf(fp, "INSERT %" PRIu64 " %" PRIu32 " %" PRIu32 " %s\n", ev->event_ts,
           ev->key_min, ev->key_max, ev->uri);
         break;
+    case EVENT_NONE:
+    case EVENT_CREATE:
+    case EVENT_DROP:
     case EVENT_CKPT:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected record event type: %d", ev->type);
@@ -108,8 +112,8 @@ schema_op_execute(WT_SESSION *session, const SCHEMA_EVENT *ev)
               ev->uri, MAX_STARTUP);
         __wt_yield();
     }
-    testutil_assertfmt(ret == 0, "%s %s (ts %" PRIu64 "): %s", is_create ? "CREATE" : "DROP",
-      ev->uri, ev->event_ts, wiredtiger_strerror(ret));
+    testutil_assertfmt(
+      ret == 0, "%s %s: %s", is_create ? "CREATE" : "DROP", ev->uri, wiredtiger_strerror(ret));
 }
 
 /*
@@ -172,17 +176,14 @@ worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
 /*
  * apply_event --
  *     Apply one event on this node, identically for both roles and exactly as the source stream
- *     fixed it - same operation, same epoch, same commit timestamp: execute the schema operation or
- *     the insert, record the event, publish a schema operation, relay it to the peer when leading,
- *     and mark it completed.
+ *     fixed it: execute it, record it, relay it to the peer when leading, and mark its value
+ *     completed. A schema operation is unvalued - its epoch, record and completion all belong to
+ *     its later publish event.
  *
- * The ordering is load-bearing. A schema operation is recorded before it is published, so the
- *     record reaches the file before a checkpoint can make the epoch durable (a record without a
- *     durable epoch is ignored by the verifier, the reverse would be a hole). The relay precedes
- *     the completion store, which is what lets the stable frontier advance past this operation,
- *     what lets a checkpoint cover it, and what lets the checkpoint thread send that checkpoint's
- *     pipe event: the peer holds every event at or below a checkpoint's stable frontier by the time
- *     it sees that checkpoint's event.
+ * The order within an event is load-bearing (README invariant 1): relay before record, so a record
+ *     on disk implies the peer holds the event; record before publish, so no checkpoint can make an
+ *     unrecorded epoch durable; relay before the completion store, so the stable frontier only ever
+ *     covers already-relayed events.
  */
 static void
 apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const SCHEMA_EVENT *ev)
@@ -195,20 +196,28 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
     switch (ev->type) {
     case EVENT_INSERT:
         schema_op_insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
-        record_event_line(ctx->record_fp, ev);
         if (relay)
             (void)node_event_send(state->cfg, ev);
+        record_event_line(ctx->record_fp, ev);
         worker_complete(state, thread_index, ev->event_ts);
         break;
     case EVENT_CREATE:
     case EVENT_DROP:
         schema_op_execute(ctx->session, ev);
-        record_event_line(ctx->record_fp, ev);
-        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
         if (relay)
             (void)node_event_send(state->cfg, ev);
+        /* Unvalued: count it applied, but the completion mark belongs to the publish. */
+        (void)__wt_atomic_add_uint64(&state->applied, 1);
+        break;
+    case EVENT_PUBLISH_CREATE:
+    case EVENT_PUBLISH_DROP:
+        if (relay)
+            (void)node_event_send(state->cfg, ev);
+        record_event_line(ctx->record_fp, ev);
+        schema_op_publish(ctx->session, ev->uri, ev->event_ts);
         worker_complete(state, thread_index, ev->event_ts);
         break;
+    case EVENT_NONE:
     case EVENT_CKPT:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected apply event type: %d", ev->type);
