@@ -283,6 +283,34 @@ TEST_CASE_METHOD(dirty_index_fixture,
 }
 
 TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: retirement clears a ref whose page lost its back-pointer", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF retiring{};
+    page.modify = &modify;
+    retiring.home = &page;
+    retiring.page = &page;
+    F_SET(&retiring, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&retiring, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(__wt_dirty_index_insert(session, btree, &retiring));
+    WTI_DIRTY_INDEX *index = btree->dirty_index;
+
+    /*
+     * The back-pointer is one word per page and anyone who gives up a claim on it clears it -- a
+     * split unblocking a page it retained, a drain that dropped its claim but kept its slot. The
+     * slot outlives that, so an absent back-pointer must not be read as an absent ring entry.
+     */
+    page.dirty_index_slot = WTI_DIRTY_BP_NONE;
+
+    __wt_dirty_index_block_page(session, btree, &retiring, &page);
+    REQUIRE(index->slots[0].ref == nullptr);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+}
+
+TEST_CASE_METHOD(dirty_index_fixture,
   "Dirty index: page teardown clears a ref the back-pointer does not name", "[dirty_index]")
 {
     WT_PAGE page{};

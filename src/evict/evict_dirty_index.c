@@ -299,15 +299,18 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
         }
         if (bp == WTI_DIRTY_BP_NONE) {
             if (__wt_atomic_cas_uint32(
-                  &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_BLOCKED))
+                  &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_BLOCKED)) {
                 /*
-                 * No back-pointer means no live ring entry for this page. The one window where a
-                 * slot still holds the ref is a drain that has cleared the back-pointer but not yet
-                 * emptied the slot, and it holds a hazard pointer throughout, which is what stops
-                 * the eviction driving this retirement. No scan needed, which matters because a
-                 * page that never entered the ring takes this path.
+                 * An absent back-pointer does not mean an absent ring entry. It is one word per
+                 * page, cleared by whoever gave up its claim -- a drain that has dropped its claim
+                 * on the page but not yet emptied its slot, a split unblocking a page it retained,
+                 * a producer abandoning a reservation -- while slots are per ref and outlive all of
+                 * that. The scan is what makes this path safe, and it is the common path: a page
+                 * that never entered the ring arrives here too, which is why the span is bounded.
                  */
+                __evict_dirty_index_scan_clear(idx, slots, ref);
                 return;
+            }
             WT_PAUSE();
             continue;
         }
@@ -427,7 +430,12 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     WTI_DIRTY_INDEX_SLOT *slots, *slotp;
     uint32_t bp;
 
-    /* Check the page's own back-pointer first: zero means it never entered the ring. */
+    /*
+     * An absent back-pointer is taken to mean no slot names this page, which holds only because
+     * retirement clears the ring before it unblocks a page it retained: a page reaching teardown
+     * therefore has no slot left over from an earlier ref. Retirement cannot assume the same and
+     * searches instead, but this runs on every page discard, where a search would not pay.
+     */
     if (page == NULL ||
       (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == WTI_DIRTY_BP_NONE)
         return;

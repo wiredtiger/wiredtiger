@@ -119,6 +119,32 @@ class test_eviction08(wttest.WiredTigerTestCase):
         self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_drain_scanned, uri), 0)
         self.assertGreater(drain_consumed, 0)
 
+    def test_dirty_index_split_retirement(self):
+        # Retiring a ref has to drop it from the ring before the split stash frees it. The ref the
+        # drain is racing is created by an in-memory split, so the shape that matters is append-only
+        # inserts into one page (which is what splits in memory) under enough dirty pressure that
+        # the drain is running at the same time.
+        #
+        # A leftover ring entry is a dangling pointer the drain dereferences, so this only fails
+        # outright under a sanitizer; on an ordinary build it stands as a smoke test that the
+        # produce and drain sides survive heavy splitting.
+        uri = 'table:test_eviction08_split'
+        self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB,memory_page_max=32KB')
+
+        self.conn.reconfigure('cache_size=20MB,'
+                              'eviction_dirty_target=2,eviction_dirty_trigger=5')
+
+        # Append in ascending key order so each page splits in memory rather than being rewritten,
+        # then rewrite the same range to keep those pages dirty and in the ring.
+        value = 'x' * self.value_size
+        for pass_num in range(3):
+            self._write_rows(uri, pass_num * self.nrows, self.nrows, value)
+
+        self.assertGreater(self.get_stat(stat.dsrc.cache_eviction_dirty_index_insert, uri), 0)
+        # The retiring refs the fix is about are the ones in-memory splits create, so a run that
+        # never split would not be exercising this at all.
+        self.assertGreater(self.get_stat(stat.dsrc.cache_inmem_split, uri), 0)
+
     def test_dirty_index_duplicate_suppression(self):
         uri = 'table:test_eviction08_duplicate'
         self.session.create(uri, 'key_format=i,value_format=S,leaf_page_max=4KB')
