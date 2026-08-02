@@ -92,20 +92,17 @@ follower_leave(WORKLOAD_STATE *state, uint64_t final_counter)
 
 /*
  * follower_enter --
- *     Step down: the connection was closed to release the page log's writer slot, so reopen it in
- *     the follower role and put it back in the epoch world.
+ *     Land in the follower role; leader_leave already reconfigured the connection.
  */
 static void
 follower_enter(WORKLOAD_STATE *state, uint64_t final_counter)
 {
-    node_open(state->cfg, node_role_follower.name, &state->conn);
-    /* A fresh connection has adopted nothing. */
+    /* This node produced its checkpoints rather than adopting them; nothing to skip. */
     state->adopted_ckpt_lsn = 0;
 
     /*
-     * The reopened connection starts outside the epoch world, and this node keeps publishing the
-     * operations it applies for the new leader, so restore the frontier at the term's final counter
-     * value. Everything the new leader relays was allocated above it.
+     * This node keeps publishing the operations it applies for the new leader, so its frontier must
+     * cover the whole term. Everything the new leader relays was allocated above it.
      */
     set_frontier(state->conn, final_counter);
 }
