@@ -1177,7 +1177,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_CONNECTION_IMPL *conn = S2C(session);
-    F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
@@ -1244,7 +1243,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
 
 err:
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 0);
-    F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
     return (ret);
 }
 
