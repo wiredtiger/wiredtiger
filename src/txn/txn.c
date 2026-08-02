@@ -1906,15 +1906,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * We're between transactions, if we need to block for eviction, it's a good time to do so. The
      * return must reflect the transaction state, ignore any error returned, and clear the
      * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
-     *
-     * Bound the wait. The transaction is resolved, so nothing remains that could be rolled back to
-     * relieve the pressure, and holding the thread here stops the application from advancing the
-     * timestamps that would let dirty content beyond the stable timestamp drain.
      */
     if (!readonly) {
         bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, true, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }
@@ -2271,15 +2267,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
      * We're between transactions, if we need to block for eviction, it's a good time to do so. The
      * return must reflect the transaction state, ignore any error returned, and clear the
      * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
-     *
-     * Bound the wait. The transaction is resolved, so nothing remains that could be rolled back to
-     * relieve the pressure, and holding the thread here stops the application from advancing the
-     * timestamps that would let dirty content beyond the stable timestamp drain.
      */
     if (!readonly) {
         bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, true, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }
