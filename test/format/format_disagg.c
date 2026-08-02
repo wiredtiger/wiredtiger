@@ -70,8 +70,8 @@ disagg_teardown_multi_node(void)
         g.follower_pid = 0;
     }
     close(g.disagg_multi_sync_socket);
-    testutil_check(munmap(g.disagg_multi_shared, sizeof(DISAGG_MULTI_SHARED)));
-    g.disagg_multi_shared = NULL;
+    testutil_check(munmap(g.disagg_multi_db_hash, sizeof(DISAGG_MULTI_DB_HASH)));
+    g.disagg_multi_db_hash = NULL;
 }
 
 /*
@@ -106,9 +106,9 @@ disagg_setup_multi_node(void)
      * Allocate a shared memory region to hold hash values shared between leader and follower
      * processes, used by disagg multi node tests to validate data consistency.
      */
-    g.disagg_multi_shared = mmap(
-      NULL, sizeof(DISAGG_MULTI_SHARED), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    testutil_assert_errno(g.disagg_multi_shared != MAP_FAILED);
+    g.disagg_multi_db_hash = mmap(NULL, sizeof(DISAGG_MULTI_DB_HASH), PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    testutil_assert_errno(g.disagg_multi_db_hash != MAP_FAILED);
 
     /* Create a socket pair for leader-follower synchronization.*/
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1)
@@ -157,30 +157,6 @@ disagg_multi_sync_point(void)
 }
 
 /*
- * disagg_sync_ops_base --
- *     Agree on a common predictable-replay operations base across the leader and follower.
- */
-void
-disagg_sync_ops_base(void)
-{
-    wt_timestamp_t base;
-
-    if (!disagg_is_multi_node() || !GV(RUNS_PREDICTABLE_REPLAY))
-        return;
-
-    if (g.disagg_leader)
-        g.disagg_multi_shared->leader_ops_base = g.timestamp;
-    else
-        g.disagg_multi_shared->follower_ops_base = g.timestamp;
-
-    disagg_multi_sync_point();
-
-    base = WT_MAX(g.disagg_multi_shared->leader_ops_base, g.disagg_multi_shared->follower_ops_base);
-    testutil_assert(base >= g.timestamp);
-    g.replay_ops_base = base;
-}
-
-/*
  * disagg_sync_multi_node --
  *     Synchronization point in disagg multi-node setup for leader-follower data validation.
  */
@@ -194,9 +170,9 @@ disagg_sync_multi_node(WT_SESSION *session)
     if (GV(DISAGG_MULTI_VALIDATION)) {
         hash = checksum_database(session);
         if (g.disagg_leader)
-            g.disagg_multi_shared->leader_hash = hash;
+            g.disagg_multi_db_hash->leader_hash = hash;
         else
-            g.disagg_multi_shared->follower_hash = hash;
+            g.disagg_multi_db_hash->follower_hash = hash;
     }
 
     /* Initial synchronization between leader and follower processes. */
@@ -209,7 +185,7 @@ disagg_sync_multi_node(WT_SESSION *session)
          */
 
         bool hash_match =
-          g.disagg_multi_shared->leader_hash == g.disagg_multi_shared->follower_hash;
+          g.disagg_multi_db_hash->leader_hash == g.disagg_multi_db_hash->follower_hash;
         if (!hash_match && GV(DISAGG_PRESERVE))
             testutil_disagg_preserve(session->connection, "preserve", g.stable_timestamp);
 
