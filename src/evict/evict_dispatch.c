@@ -397,6 +397,7 @@ __wti_evict_app_assist_worker(
         if (bounded) {
             uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
             if (__evict_bounded_wait_remaining_us(elapsed_us) == 0) {
+                session->cache_wait_at_txn_begin = true;
                 WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
                 break;
             }
@@ -414,6 +415,7 @@ __wti_evict_app_assist_worker(
                 uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
                 uint64_t remaining_us = __evict_bounded_wait_remaining_us(elapsed_us);
                 if (remaining_us == 0) {
+                    session->cache_wait_at_txn_begin = true;
                     WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
                     break;
                 }
