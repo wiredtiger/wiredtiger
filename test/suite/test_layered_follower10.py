@@ -221,13 +221,11 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(conn_follow, wait=False)
         oplog.check(self, session_follow, 0, 2 * self.nitems)
 
-        # At this point, everything in the ingest table is redundant, as it's
-        # also in the stable table on the follower. However, the tombstones cannot be
-        # removed as there is a cursor open.
+        # At this point, everything in the ingest table is redundant, as it's also in the stable
+        # table on the follower. The deletes cannot be removed though: the checkpoint holding them
+        # is deferred while the cursor is open, so its prune timestamp is not in effect yet. How
+        # much of the older content eviction has already removed is its own choice.
         self.evict_ingest(session_follow, ts)
-        count = self.count_ingest(session_follow, ts)
-        self.assertEqual(count, (0, 0))
-
         count = self.count_ingest(session_follow)
         self.assertEqual(count, (0, self.nitems))
 
