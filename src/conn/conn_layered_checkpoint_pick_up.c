@@ -108,19 +108,34 @@ err:
 
 /*
  * __disagg_replace_checkpoint --
- *     Rebuild a metadata config string, substituting the checkpoint= value.
+ *     Rebuild a metadata config string, substituting only the last checkpoint= value. Earlier
+ *     duplicates are left unchanged.
  */
 static int
 __disagg_replace_checkpoint(
   WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
 {
     WT_CONFIG cparser;
-    WT_CONFIG_ITEM k, v;
+    WT_CONFIG_ITEM k, last_ckpt_key, v;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    bool found = false;
 
     *config_ret = NULL;
+    WT_CLEAR(last_ckpt_key);
+
+    /* Find the last checkpoint= key; config lookups already take that final match. */
+    __wt_config_init(session, &cparser, base);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_RET_MSG(
+              session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
+        if (WT_CONFIG_LIT_MATCH("checkpoint", k))
+            last_ckpt_key = k;
+    }
+    WT_RET_NOTFOUND_OK(ret);
+    if (last_ckpt_key.str == NULL)
+        return (WT_NOTFOUND);
+
     WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 32, &tmp));
 
     __wt_config_init(session, &cparser, base);
@@ -128,10 +143,9 @@ __disagg_replace_checkpoint(
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             WT_ERR_MSG(
               session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
-        if (WT_CONFIG_LIT_MATCH("checkpoint", k)) {
+        if (k.str == last_ckpt_key.str)
             v = *new_ckpt;
-            found = true;
-        } else {
+        else {
             if (k.type == WT_CONFIG_ITEM_STRING)
                 WT_CONFIG_PRESERVE_QUOTES(session, &k);
             if (v.type == WT_CONFIG_ITEM_STRING)
@@ -140,11 +154,9 @@ __disagg_replace_checkpoint(
         WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
-    if (!found)
-        WT_ERR(WT_NOTFOUND);
 
-    if (tmp->size != 0)
-        --tmp->size;
+    /* Each entry was emitted with a trailing comma; drop the final one. */
+    --tmp->size;
     WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
 
 err:

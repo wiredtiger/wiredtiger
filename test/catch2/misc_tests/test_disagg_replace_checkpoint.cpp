@@ -58,14 +58,14 @@ TEST_CASE("Disagg replace checkpoint", "[disagg][replace_checkpoint]")
         __wt_free(s, replaced);
     }
 
-    SECTION("Duplicate checkpoint keys are all substituted")
+    SECTION("Only the last of duplicate checkpoint keys is substituted")
     {
         char *replaced = nullptr;
         WT_CONFIG_ITEM val = make_item("(new)", WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT);
 
         REQUIRE(__ut_disagg_replace_checkpoint(
                   s, "checkpoint=(one),a=1,checkpoint=(two)", &val, &replaced) == 0);
-        REQUIRE(strcmp(replaced, "checkpoint=(new),a=1,checkpoint=(new)") == 0);
+        REQUIRE(strcmp(replaced, "checkpoint=(one),a=1,checkpoint=(new)") == 0);
         __wt_free(s, replaced);
     }
 
@@ -136,6 +136,16 @@ TEST_CASE("Disagg replace checkpoint", "[disagg][replace_checkpoint]")
 
         REQUIRE(__ut_disagg_replace_checkpoint(s, "checkpoint=(),b=2", &long_val, &replaced) == 0);
         REQUIRE(strcmp(replaced, "checkpoint=(11111111111111111111),b=2") == 0);
+        __wt_free(s, replaced);
+    }
+
+    SECTION("Bare sibling keys must not be rewritten")
+    {
+        char *replaced = nullptr;
+        WT_CONFIG_ITEM val = make_item("(new)", WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT);
+
+        REQUIRE(__ut_disagg_replace_checkpoint(s, "a,checkpoint,b=2", &val, &replaced) == 0);
+        REQUIRE(strcmp(replaced, "a=,checkpoint=(new),b=2") == 0);
         __wt_free(s, replaced);
     }
 
