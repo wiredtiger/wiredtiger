@@ -49,9 +49,11 @@ parse_record_uri(
 
 /*
  * parse_schema_records --
- *     Fold one record file into thread t's last durable operation per slot, plus the data inserted
- *     for its last create. Records above durable_epoch never reached a checkpoint before the crash,
- *     so they carry no expectation. Folding is idempotent, so overlapping files may both be fed in.
+ *     Read a record file and accumulate the last durable operation per slot. Records above
+ *     durable_epoch never reached a checkpoint before the crash, so they are ignored.
+ *
+ * This function is called for both leader's and follower's record files to recreate the last
+ *     durable state of the database after recovery.
  */
 static void
 parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t durable_epoch,
@@ -62,49 +64,56 @@ parse_schema_records(const char *fname, uint32_t node, uint32_t t, uint64_t dura
 
     char line[256];
     while (fgets(line, sizeof(line), fp) != NULL) {
+        /* A worker killed mid-write leaves a partial line, which can only be the file's last. */
+        const bool torn = strchr(line, '\n') == NULL;
+
         char op[16];
-        if (sscanf(line, "%15s", op) != 1)
-            continue;
 
-        uint64_t entry_epoch;
-        uint32_t s;
-        char rec_uri[128];
-
-        if (strcmp(op, "INSERT") == 0) {
-            uint64_t commit_ts;
-            uint32_t key_max, key_min;
-            if (sscanf(line, "%*s %" SCNu64 " %" SCNu32 " %" SCNu32 " %127s", &commit_ts, &key_min,
-                  &key_max, rec_uri) != 4)
-                continue;
-            if (commit_ts > durable_epoch)
-                continue;
-            if (!parse_record_uri(rec_uri, node, t, pool_size, &s))
-                continue;
-            /*
-             * A generation's values lie between its create and the next, and the newest insert
-             * wrote the values the table holds. Both tests also make the fold order-independent.
-             */
-            const bool newest_for_create = states[s].valid && states[s].is_create &&
-              commit_ts > states[s].epoch && commit_ts > states[s].commit_ts;
-
-            if (newest_for_create) {
-                states[s].commit_ts = commit_ts;
-                states[s].key_min = key_min;
-                states[s].key_max = key_max;
-            }
+        if (sscanf(line, "%15s", op) != 1) {
+            testutil_assertfmt(torn, "%s: unreadable record \"%s\"", fname, line);
             continue;
         }
 
-        if (sscanf(line, "%*s %" SCNu64 " %127s", &entry_epoch, rec_uri) != 2)
+        char rec_uri[128];
+        uint64_t op_ts; /* the publish epoch, or an insert's commit timestamp */
+        uint32_t key_max = 0, key_min = 0, s;
+        bool parsed = false;
+
+        /* Every record is "<op> <op_ts> [<key range>] <uri>". */
+        if (strcmp(op, "CREATE") == 0 || strcmp(op, "DROP") == 0)
+            parsed = sscanf(line, "%*s %" SCNu64 " %127s", &op_ts, rec_uri) == 2;
+        else if (strcmp(op, "INSERT") == 0)
+            parsed = sscanf(line, "%*s %" SCNu64 " %" SCNu32 " %" SCNu32 " %127s", &op_ts, &key_min,
+                       &key_max, rec_uri) == 4;
+        else
+            testutil_assertfmt(false, "%s: unknown record op \"%s\"", fname, op);
+
+        if (!parsed) {
+            testutil_assertfmt(torn, "%s: malformed record \"%s\"", fname, line);
             continue;
-        if (!parse_record_uri(rec_uri, node, t, pool_size, &s))
+        }
+
+        /* Skip non-durable ops: values a checkpoint never covered, other slots. */
+        if (op_ts > durable_epoch || !parse_record_uri(rec_uri, node, t, pool_size, &s))
             continue;
-        if (entry_epoch > durable_epoch)
-            continue;
-        if (entry_epoch > states[s].epoch) {
-            states[s].epoch = entry_epoch;
+
+        if (strcmp(op, "INSERT") == 0) {
+            /*
+             * Each CREATE may be followed by several rounds of INSERT's, keep only the latest one
+             * because earlier values are overwritten.
+             */
+            const bool latest_insert = states[s].valid && states[s].is_create &&
+              op_ts > states[s].epoch && op_ts > states[s].commit_ts;
+
+            if (latest_insert) {
+                states[s].commit_ts = op_ts;
+                states[s].key_min = key_min;
+                states[s].key_max = key_max;
+            }
+        } else if (op_ts > states[s].epoch) { /* most recent CREATE or DROP */
+            states[s].epoch = op_ts;
             states[s].commit_ts = DATA_COMMIT_TS_NONE;
-            states[s].is_create = (strcmp(op, "CREATE") == 0);
+            states[s].is_create = strcmp(op, "CREATE") == 0;
             states[s].valid = true;
             testutil_snprintf(states[s].uri, sizeof(states[s].uri), "%s", rec_uri);
         }
