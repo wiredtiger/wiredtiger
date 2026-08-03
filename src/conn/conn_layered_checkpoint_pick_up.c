@@ -108,29 +108,46 @@ err:
 
 /*
  * __disagg_replace_checkpoint --
- *     Replace the checkpoint= value in a metadata config string.
+ *     Rebuild a metadata config string, substituting the checkpoint= value.
  */
 static int
 __disagg_replace_checkpoint(
   WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
 {
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    bool found = false;
+
     *config_ret = NULL;
+    WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 32, &tmp));
 
-    WT_CONFIG_ITEM v;
-    WT_RET(__wt_config_getones(session, base, "checkpoint", &v));
-    /*
-     * A key with no value parses to a shared literal rather than a slice of base, leaving nothing
-     * to splice over.
-     */
-    if (!WT_CONFIG_STRING_WITHIN_DEFAULT(v.str, base))
-        WT_RET_MSG(session, EINVAL, "checkpoint key has no value to replace");
+    __wt_config_init(session, &cparser, base);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
+        if (WT_CONFIG_LIT_MATCH("checkpoint", k)) {
+            v = *new_ckpt;
+            found = true;
+        } else {
+            if (k.type == WT_CONFIG_ITEM_STRING)
+                WT_CONFIG_PRESERVE_QUOTES(session, &k);
+            if (v.type == WT_CONFIG_ITEM_STRING)
+                WT_CONFIG_PRESERVE_QUOTES(session, &v);
+        }
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+    if (!found)
+        WT_ERR(WT_NOTFOUND);
 
-    WT_ITEM *tmp;
-    WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 1, &tmp));
-    int ret = __wt_buf_fmt(session, tmp, "%.*s%.*s%s", (int)WT_PTRDIFF(v.str, base), base,
-      (int)new_ckpt->len, new_ckpt->str, v.str + v.len);
-    if (ret == 0)
-        ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
+    if (tmp->size != 0)
+        --tmp->size;
+    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
+
+err:
     __wt_scr_free(session, &tmp);
     return (ret);
 }

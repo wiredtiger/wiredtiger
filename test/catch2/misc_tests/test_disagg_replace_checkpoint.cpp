@@ -58,15 +58,14 @@ TEST_CASE("Disagg replace checkpoint", "[disagg][replace_checkpoint]")
         __wt_free(s, replaced);
     }
 
-    SECTION("Duplicate checkpoint keys replace only the last occurrence")
+    SECTION("Duplicate checkpoint keys are all substituted")
     {
         char *replaced = nullptr;
         WT_CONFIG_ITEM val = make_item("(new)", WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT);
 
-        /* getones returns the final value; the splice only rewrites that occurrence. */
         REQUIRE(__ut_disagg_replace_checkpoint(
                   s, "checkpoint=(one),a=1,checkpoint=(two)", &val, &replaced) == 0);
-        REQUIRE(strcmp(replaced, "checkpoint=(one),a=1,checkpoint=(new)") == 0);
+        REQUIRE(strcmp(replaced, "checkpoint=(new),a=1,checkpoint=(new)") == 0);
         __wt_free(s, replaced);
     }
 
@@ -140,12 +139,23 @@ TEST_CASE("Disagg replace checkpoint", "[disagg][replace_checkpoint]")
         __wt_free(s, replaced);
     }
 
-    SECTION("Bare checkpoint key with no value returns EINVAL")
+    SECTION("Bare checkpoint key is given the new value")
     {
         char *replaced = nullptr;
         WT_CONFIG_ITEM val = make_item("(new)", WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT);
 
-        REQUIRE(__ut_disagg_replace_checkpoint(s, "a=1,checkpoint,b=2", &val, &replaced) == EINVAL);
-        REQUIRE(replaced == nullptr);
+        REQUIRE(__ut_disagg_replace_checkpoint(s, "a=1,checkpoint,b=2", &val, &replaced) == 0);
+        REQUIRE(strcmp(replaced, "a=1,checkpoint=(new),b=2") == 0);
+        __wt_free(s, replaced);
+    }
+
+    SECTION("Empty checkpoint= value is replaced")
+    {
+        char *replaced = nullptr;
+        WT_CONFIG_ITEM val = make_item("(new)", WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT);
+
+        REQUIRE(__ut_disagg_replace_checkpoint(s, "a=1,checkpoint=,b=2", &val, &replaced) == 0);
+        REQUIRE(strcmp(replaced, "a=1,checkpoint=(new),b=2") == 0);
+        __wt_free(s, replaced);
     }
 }
