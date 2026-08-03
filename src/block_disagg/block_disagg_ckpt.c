@@ -117,6 +117,38 @@ __wti_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root
 }
 
 /*
+ * __block_disagg_create_is_pending --
+ *     Return whether the table's CREATE is still pending at the checkpoint schema epoch.
+ */
+static bool
+__block_disagg_create_is_pending(
+  WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t schema_epoch)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    bool unpublished = false;
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    WT_DISAGG_METADATA_OP *entry;
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
+            continue;
+
+        bool create_pending = entry->deferred ||
+          (schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > schema_epoch);
+
+        if (create_pending && strcmp(entry->table_name, table_name) == 0) {
+            unpublished = true;
+            break;
+        }
+    }
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (unpublished);
+}
+
+/*
  * __block_disagg_checkpoint_resolve --
  *     Resolve the checkpoint. Assumes that the relevant locks are already acquired.
  */
@@ -195,6 +227,10 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
         } else
             /* This can happen if the "file:" is created without a suffix in our tests. */
             WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
+
+        /* A pending CREATE for this table must publish before any checkpoint UPDATE for it. */
+        if (__block_disagg_create_is_pending(session, table_name, schema_epoch))
+            goto err;
 
         /*
          * Update the metadata of the stable/shared table in the current schema epoch.

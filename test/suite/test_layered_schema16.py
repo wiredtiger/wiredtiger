@@ -30,7 +30,8 @@
 #
 # A table's publish status is decided from its latest create/remove entry in the metadata queue.
 
-import wttest
+import wiredtiger, wttest
+from contextlib import closing
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
 
@@ -86,6 +87,63 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # Assert neither constituent survived, so a partial resurrection cannot slip through.
         self.assertFalse(self.uri_stable_exists(self.conn, self.uri))
         self.assertFalse(self.uri_in_local_metadata(self.conn, self.uri))
+
+    def test_checkpoint_skips_pending_recreate_update(self):
+        """
+        A checkpoint must apply only metadata-queue entries at or below its
+        schema epoch. A drop/recreate queued above the epoch must leave the
+        original table's checkpoint intact.
+        """
+        self.conn.set_timestamp(
+            "stable_timestamp=" + self.timestamp_str(1)
+            + ",oldest_timestamp=" + self.timestamp_str(1)
+        )
+
+        # Seed a row that fingerprints the original table; its survival after
+        # recovery confirms we restored the right checkpoint.
+        self.session.create(self.uri, self.table_config)
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            with self.transaction(commit_timestamp=2):
+                cursor[1] = "durable"
+
+        # Put the original table's checkpoint on shared storage; this is the
+        # state recovery must return to.
+        self.leader_checkpoint(3)
+
+        # Queue a drop and recreate above the checkpoint epoch. The queue's
+        # latest entry now describes the new table, which the checkpoint must
+        # not adopt.
+        self.session.drop(self.uri)
+        self.session.create(self.uri, self.table_config)
+        self.set_stable_epoch(3)
+        self.publish(self.uri, 4)
+
+        # This canary row exists only on the newly created table; recovery must
+        # not find it. If it did, then the CREATE leaked into the checkpoint.
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            with self.transaction(commit_timestamp=5):
+                cursor[2] = "future"
+
+        # The checkpoint under test: the CREATE queued at epoch 4 is still
+        # above this epoch and must be skipped.
+        self.leader_checkpoint(3)
+
+        # Recover from shared storage alone, since local files could mask a
+        # wrong checkpoint.
+        self.restart_without_local_files(step_up=True)
+        self.conn.set_timestamp(
+            "stable_timestamp="
+            + self.timestamp_str(3)
+            + ",oldest_timestamp="
+            + self.timestamp_str(1)
+        )
+
+        # Key 1 must survive (original checkpoint restored).
+        # Key 2 must be absent (the pending CREATE did not leak).
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            self.assertEqual(cursor[1], "durable")
+            cursor.set_key(2)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
     def test_unpublished_table_holds_unstable_data(self):
         """
