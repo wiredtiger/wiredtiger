@@ -101,7 +101,7 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
         cursor.close()
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, 20)
+        self.check(value_a, uri, nrows, None, 20)
 
         session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         cursor = session.open_cursor(uri)
@@ -120,6 +120,5 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # Verify all data is invisible.
-        self.check(value_a, uri, 0, 20)
-        self.check(value_b, uri, 0, 30)
-
+        self.check(value_a, uri, 0, None, 20)
+        self.check(value_b, uri, 0, None, 30)
