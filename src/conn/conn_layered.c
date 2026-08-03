@@ -325,6 +325,7 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
   const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
   bool deferred)
 {
+    WT_CONFIG_ITEM id_cval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -357,6 +358,15 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "layered:", table_name, &entry->layered_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
+
+    /*
+     * Record which generation of the table this entry describes. Parse it here rather than while
+     * scanning the queue, where a failure could not be reported.
+     */
+    if (entry->stable_value != NULL) {
+        WT_ERR(__wt_config_getones(session, entry->stable_value, "id", &id_cval));
+        entry->btree_id = (uint32_t)id_cval.val;
+    }
 
     /*
      * Schema operations (create, drop) start deferred: at the start of each checkpoint, while the
@@ -568,6 +578,34 @@ err:
 }
 
 /*
+ * __layered_update_has_pending_create --
+ *     Return true when the CREATE for the generation this UPDATE describes is not being applied in
+ *     the current checkpoint. Publishing the UPDATE on its own would point the table name at a
+ *     generation no checkpoint has made visible, which recovery would then reconstruct.
+ *
+ * The whole queue is scanned because a CREATE is enqueued when its publish runs while an UPDATE is
+ *     enqueued during the checkpoint itself, so neither order is guaranteed.
+ */
+static bool
+__layered_update_has_pending_create(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
+  WT_DISAGG_METADATA_OP *update_entry, wt_timestamp_t cur_schema_epoch)
+{
+    WT_DISAGG_METADATA_OP *tmp;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (tmp, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (tmp->metadata_op == WT_SHARED_METADATA_CREATE &&
+          tmp->btree_id == update_entry->btree_id &&
+          strcmp(tmp->stable_uri, update_entry->stable_uri) == 0 &&
+          (tmp->deferred ||
+            (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && tmp->schema_epoch > cur_schema_epoch)))
+            return (true);
+
+    return (false);
+}
+
+/*
  * __disagg_handle_create_remove_pairing --
  *     Resolve a follower-side CREATE/REMOVE pair during queue processing. A CREATE with no stable
  *     value is follower-side: the stable constituent is built only on step-up, so a leader CREATE
@@ -710,6 +748,17 @@ __wt_disagg_shared_metadata_queue_process(
               "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
               entry->schema_epoch);
+            WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_unstable);
+            continue;
+        }
+
+        /* Hold back an UPDATE whose generation this checkpoint is not publishing. */
+        if (entry->metadata_op == WT_SHARED_METADATA_UPDATE &&
+          __layered_update_has_pending_create(session, conn, entry, cur_schema_epoch)) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Defer metadata operation UPDATE for table \"%s\" with btree ID %" PRIu32
+              ": its CREATE is not in this checkpoint",
+              entry->table_name, entry->btree_id);
             WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_unstable);
             continue;
         }
