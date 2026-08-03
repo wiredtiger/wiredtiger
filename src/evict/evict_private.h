@@ -27,7 +27,7 @@
  * back, so an unbounded wait ends only when eviction succeeds, and blocking them can stop the
  * application from advancing the timestamps that would make the cache reclaimable.
  */
-#define WTI_EVICT_BOUNDED_WAIT_US (10 * WT_THOUSAND)
+#define WTI_EVICT_BOUNDED_WAIT_US (50 * WT_THOUSAND)
 
 /* True if there are eviction worker threads beyond the server thread itself. */
 #define WT_EVICT_HAS_WORKERS(s) \

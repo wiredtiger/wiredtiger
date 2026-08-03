@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import threading
 import time
 import wttest
 from wiredtiger import stat
@@ -35,7 +36,9 @@ from wtscenario import make_scenarios
 # wait. The assist normally spins until the cache drops below its triggers, which never happens when
 # the dirty content cannot be reconciled away - here because another session is holding it
 # uncommitted. The resolving thread pins no transaction state, so nothing can roll it back to
-# relieve the pressure and it must be released on its own.
+# relieve the pressure and it must be released on its own. The deferred wait is then paid at the
+# start of that session's next transaction instead, so an exhausted resolution does not let more
+# work into a cache it never relieved.
 class test_eviction07(wttest.WiredTigerTestCase):
     uri = 'table:test_eviction07'
     cache_bytes = 50 * 1024 * 1024
@@ -50,9 +53,42 @@ class test_eviction07(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all),' \
         'eviction_dirty_target=1,eviction_dirty_trigger=5,eviction=(threads_max=1)'
 
+    def _pin_dirty_content(self, pin_session, pin_cursor):
+        # Hold dirty content above the trigger in an uncommitted transaction. Reconciliation has to
+        # restore these updates to the page, so eviction cannot reclaim them.
+        pin_session.begin_transaction()
+        value = 'a' * 4096
+        for i in range(1500):
+            pin_cursor[i] = value
+
+    def _resolve_until_bounded_wait(self, cursor, stat_session):
+        # Resolve modified transactions while the pinned transaction prevents eviction from
+        # reducing the dirty cache pressure. The bounded-wait statistic increasing across a
+        # resolution proves that the commit or rollback stopped assisting at its time limit.
+        value = 'a' * 4096
+        bounded_resolution_time = None
+        for i in range(100000, 100500):
+            self.session.begin_transaction()
+            cursor[i] = value
+
+            bounded_waits = self.get_stat(
+                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+            start = time.monotonic()
+            if self.rollback:
+                self.session.rollback_transaction()
+            else:
+                self.session.commit_transaction()
+            elapsed = time.monotonic() - start
+
+            bounded_waits_after = self.get_stat(
+                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+            if bounded_waits_after > bounded_waits:
+                bounded_resolution_time = elapsed
+                break
+        return bounded_resolution_time
+
     def test_bounded_assist_at_transaction_resolution(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        value = 'a' * 4096
         stat_session = pin_session = None
         pin_cursor = cursor = None
         pin_txn_active = resolution_txn_active = False
@@ -62,44 +98,19 @@ class test_eviction07(wttest.WiredTigerTestCase):
             # assist, so read them from a session that never waits for the cache.
             stat_session = self.conn.open_session('cache_max_wait_ms=1')
 
-            # Hold dirty content above the trigger in an uncommitted transaction. Reconciliation
-            # has to restore these updates to the page, so eviction cannot reclaim them.
             pin_session = self.conn.open_session()
             pin_cursor = pin_session.open_cursor(self.uri)
-            pin_session.begin_transaction()
+            self._pin_dirty_content(pin_session, pin_cursor)
             pin_txn_active = True
-            for i in range(1500):
-                pin_cursor[i] = value
 
             dirty_trigger = self.cache_bytes * self.dirty_trigger_pct // 100
             dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
             self.assertGreater(dirty, dirty_trigger)
 
-            # Resolve modified transactions while the pinned transaction prevents eviction from
-            # reducing the dirty cache pressure. The bounded-wait statistic increasing across a
-            # resolution proves that the commit or rollback stopped assisting at its time limit.
             cursor = self.session.open_cursor(self.uri)
-            bounded_resolution_time = None
-            for i in range(100000, 100500):
-                self.session.begin_transaction()
-                resolution_txn_active = True
-                cursor[i] = value
-
-                bounded_waits = self.get_stat(
-                    stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
-                start = time.monotonic()
-                if self.rollback:
-                    self.session.rollback_transaction()
-                else:
-                    self.session.commit_transaction()
-                elapsed = time.monotonic() - start
-                resolution_txn_active = False
-
-                bounded_waits_after = self.get_stat(
-                    stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
-                if bounded_waits_after > bounded_waits:
-                    bounded_resolution_time = elapsed
-                    break
+            resolution_txn_active = True
+            bounded_resolution_time = self._resolve_until_bounded_wait(cursor, stat_session)
+            resolution_txn_active = False
 
             self.assertIsNotNone(bounded_resolution_time)
             self.assertLess(bounded_resolution_time, 1.0)
@@ -109,6 +120,72 @@ class test_eviction07(wttest.WiredTigerTestCase):
             dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
             self.assertGreater(dirty, dirty_trigger)
         finally:
+            if pin_txn_active:
+                pin_session.rollback_transaction()
+            if resolution_txn_active:
+                self.session.rollback_transaction()
+            if cursor is not None:
+                cursor.close()
+            if pin_cursor is not None:
+                pin_cursor.close()
+            if pin_session is not None:
+                pin_session.close()
+            if stat_session is not None:
+                stat_session.close()
+
+    def test_bounded_assist_defers_to_next_begin(self):
+        # An exhausted resolution must not let the same session start more work into a cache it
+        # never relieved: the next begin_transaction pays the deferred wait before the transaction
+        # is allowed to start. Unlike the resolution wait, this one is not bounded - the session
+        # holds no snapshot or hazard pointers at begin, so blocking here cannot reproduce the
+        # resolution-time deadlock - and it must keep blocking for as long as the pressure persists,
+        # the same as any other transaction beginning against a full cache.
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        stat_session = pin_session = None
+        pin_cursor = cursor = None
+        pin_txn_active = resolution_txn_active = False
+        begin_thread = None
+
+        def begin_on_session():
+            self.session.begin_transaction()
+
+        try:
+            stat_session = self.conn.open_session('cache_max_wait_ms=1')
+
+            pin_session = self.conn.open_session()
+            pin_cursor = pin_session.open_cursor(self.uri)
+            self._pin_dirty_content(pin_session, pin_cursor)
+            pin_txn_active = True
+
+            dirty_trigger = self.cache_bytes * self.dirty_trigger_pct // 100
+            dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
+            self.assertGreater(dirty, dirty_trigger)
+
+            cursor = self.session.open_cursor(self.uri)
+            resolution_txn_active = True
+            bounded_resolution_time = self._resolve_until_bounded_wait(cursor, stat_session)
+            resolution_txn_active = False
+            self.assertIsNotNone(bounded_resolution_time)
+
+            # The pressure the resolution could not relieve must still be there.
+            dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
+            self.assertGreater(dirty, dirty_trigger)
+
+            # The deferred wait blocks the next begin_transaction while the pressure persists.
+            begin_thread = threading.Thread(target=begin_on_session)
+            begin_thread.start()
+            begin_thread.join(2.0)
+            self.assertTrue(begin_thread.is_alive())
+
+            # Releasing the pin relieves the pressure, and the blocked begin_transaction completes.
+            pin_session.rollback_transaction()
+            pin_txn_active = False
+            begin_thread.join(20.0)
+            self.assertFalse(begin_thread.is_alive())
+            resolution_txn_active = True
+        finally:
+            if begin_thread is not None and begin_thread.is_alive():
+                begin_thread.join(20.0)
             if pin_txn_active:
                 pin_session.rollback_transaction()
             if resolution_txn_active:

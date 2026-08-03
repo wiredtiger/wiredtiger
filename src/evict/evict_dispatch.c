@@ -417,6 +417,7 @@ __wti_evict_app_assist_worker(
                 if (remaining_us == 0) {
                     session->cache_wait_at_txn_begin = true;
                     WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
+                    ret = 0;
                     break;
                 }
                 wait_us = WT_MIN(wait_us, remaining_us);
