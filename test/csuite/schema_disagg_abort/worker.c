@@ -108,6 +108,10 @@ schema_op_execute(WT_SESSION *session, const SCHEMA_EVENT *ev)
               ev->uri, MAX_STARTUP);
         __wt_yield();
     }
+    /* The checkpoint pick-up may have already applied this drop, so a missing table is success. */
+    if (!is_create && ret == ENOENT)
+        ret = 0;
+
     testutil_assertfmt(ret == 0, "%s %s (ts %" PRIu64 "): %s", is_create ? "CREATE" : "DROP",
       ev->uri, ev->event_ts, wiredtiger_strerror(ret));
 }
