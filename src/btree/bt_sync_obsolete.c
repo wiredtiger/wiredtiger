@@ -389,10 +389,21 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 static bool
 __checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
 {
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP));
+}
+
+/*
+ * __checkpoint_cleanup_walk_continue --
+ *     Return whether an in-flight cleanup walk should continue. Discontinue on disagg role
+ *     transition as step-up/step-down drains on checkpoint cleanup before changing the role.
+ */
+static bool
+__checkpoint_cleanup_walk_continue(WT_SESSION_IMPL *session)
+{
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    return (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP) &&
+    return (__checkpoint_cleanup_run_chk(session) &&
       !F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN));
 }
 
@@ -543,7 +554,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         WT_ERR(ret);
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        if (!__checkpoint_cleanup_walk_continue(session))
             break;
     }
 
@@ -790,11 +801,12 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
               S2C(session)->cc_cleanup.file_wait_ms, (char *)uri->data);
 
             __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-              S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND, __checkpoint_cleanup_run_chk);
+              S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND,
+              __checkpoint_cleanup_walk_continue);
         }
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_run_chk(session))
+        if (!__checkpoint_cleanup_walk_continue(session))
             break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
