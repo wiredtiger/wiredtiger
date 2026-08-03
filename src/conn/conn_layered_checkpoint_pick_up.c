@@ -329,6 +329,126 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
 }
 
 /*
+ * __disagg_meta_skip_field --
+ *     Return true if the configuration field is excluded from the metadata comparison: it either
+ *     legitimately changes across checkpoints, holds node-local state, or can be changed at runtime
+ *     via WT_SESSION::alter.
+ */
+static bool
+__disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
+{
+    static const char *const skip[] = {"access_pattern_hint", "app_metadata", "assert",
+      "cache_resident", "checkpoint", "checkpoint_backup_info", "checkpoint_lsn", "live_restore",
+      "log", "os_cache_dirty_max", "os_cache_max", "verbose", "write_timestamp_usage", NULL};
+    u_int i;
+
+    for (i = 0; skip[i] != NULL; i++)
+        if (WT_CONFIG_MATCH(skip[i], *key))
+            return (true);
+    return (false);
+}
+
+/*
+ * __disagg_check_meta_fields --
+ *     Merge two sorted configuration strings, panicking when a field present on both sides has
+ *     different values. Nested categories recurse, because comparing a category as a single string
+ *     would flag a mismatch whenever either side gains a subconfig. A field present on only one
+ *     side is ignored, since the two nodes may run binaries with different field sets.
+ */
+static int
+__disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char *prefix,
+  WT_CONFIG *md_parser, WT_CONFIG *sh_parser)
+{
+    WT_CONFIG md_sub, sh_sub;
+    WT_CONFIG_ITEM md_ckey, md_cval, sh_ckey, sh_cval;
+    WT_DECL_ITEM(child);
+    WT_DECL_RET;
+    int cmp, md_ret, sh_ret;
+
+    sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
+    md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
+    while (sh_ret == 0 && md_ret == 0) {
+        cmp = __wt_string_slice_cmp(sh_ckey.str, sh_ckey.len, md_ckey.str, md_ckey.len);
+        if (cmp < 0) {
+            sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
+            continue;
+        }
+        if (cmp > 0) {
+            md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
+            continue;
+        }
+
+        /* The skip list names top-level fields only. */
+        if (prefix[0] != '\0' || !__disagg_meta_skip_field(&sh_ckey)) {
+            if (sh_cval.type == WT_CONFIG_ITEM_STRUCT && md_cval.type == WT_CONFIG_ITEM_STRUCT) {
+                if (child == NULL)
+                    WT_ERR(__wt_scr_alloc(session, 0, &child));
+                WT_ERR(
+                  __wt_buf_fmt(session, child, "%s%.*s.", prefix, (int)sh_ckey.len, sh_ckey.str));
+                __wt_config_subinit(session, &sh_sub, &sh_cval);
+                __wt_config_subinit(session, &md_sub, &md_cval);
+                WT_ERR(__disagg_check_meta_fields(session, uri, child->data, &md_sub, &sh_sub));
+            } else if (__wt_string_slice_cmp(sh_cval.str, sh_cval.len, md_cval.str, md_cval.len) !=
+              0)
+                WT_ERR_PANIC(session, EINVAL,
+                  "checkpoint pickup metadata mismatch for \"%s\": the value of \"%s%.*s\" differs "
+                  "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
+                  uri, prefix, (int)sh_ckey.len, sh_ckey.str, (int)md_cval.len, md_cval.str,
+                  (int)sh_cval.len, sh_cval.str);
+        }
+
+        sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
+        md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
+    }
+
+    /*
+     * Whichever side is not exhausted keeps its trailing fields unread: they are present on one
+     * side only, which is not a mismatch.
+     */
+    WT_ERR_NOTFOUND_OK(sh_ret, false);
+    WT_ERR_NOTFOUND_OK(md_ret, false);
+
+err:
+    __wt_scr_free(session, &child);
+    return (ret);
+}
+
+/*
+ * __disagg_check_meta_match --
+ *     Verify that the immutable configuration fields of a metadata entry agree between the local
+ *     and the shared metadata. A divergence means the checkpoint would be interpreted under the
+ *     wrong schema or btree identity, silently corrupting reads, so panic instead.
+ */
+static int
+__disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
+{
+    WT_CONFIG md_parser, sh_parser;
+    const char *md_key, *md_value, *sh_key, *sh_value;
+
+    WT_RET(sh_cursor->get_key(sh_cursor, &sh_key));
+    WT_RET(md_cursor->get_key(md_cursor, &md_key));
+    WT_ASSERT(session, strcmp(sh_key, md_key) == 0);
+
+    /*
+     * Skip system tables with fixed identities: their local entries are created on each node rather
+     * than copied from the shared metadata, so their fields can legitimately differ.
+     */
+    if (WT_IS_URI_METADATA(sh_key) || strcmp(sh_key, WT_HS_URI_SHARED) == 0)
+        return (0);
+
+    WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
+    WT_RET(md_cursor->get_value(md_cursor, &md_value));
+
+    /*
+     * Metadata rows are stored in sorted key order, so merge the two configurations rather than
+     * looking every field up in the other.
+     */
+    __wt_config_init(session, &sh_parser, sh_value);
+    __wt_config_init(session, &md_parser, md_value);
+    return (__disagg_check_meta_fields(session, sh_key, "", &md_parser, &sh_parser));
+}
+
+/*
  * __disagg_insert_meta --
  *     Copy the current entry from a shared metadata cursor into the local metadata table.
  */
@@ -416,8 +536,6 @@ __disagg_update_file_meta(
     /*
      * Mark any matching data handles associated with the previous checkpoint to be out of date. Any
      * new opens will get the new metadata.
-     *
-     * FIXME-WT-14730: Check that the other parts of the metadata are identical.
      *
      * FIXME-WT-16494: How to decide two checkpoints are different if they are written by different
      * nodes?
@@ -619,6 +737,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 }
             }
         }
+
+        /* Verify that the immutable metadata fields agree before adopting the new checkpoint. */
+        for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
+            if (md_has[i] && sh_has[i])
+                WT_ERR(__disagg_check_meta_match(session, sh_cursors[i], md_cursors[i]));
 
         /*
          * Reconcile entries for this URI scheme and table.
