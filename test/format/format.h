@@ -475,7 +475,6 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET follower(void *);
-WT_THREAD_RET follower_read_no_ts(void *);
 WT_THREAD_RET disagg_key_rotation(void *);
 void disagg_key_push_initial(WT_CONNECTION *, bool);
 void disagg_key_history_clear(void);
