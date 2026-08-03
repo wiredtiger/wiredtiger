@@ -543,7 +543,7 @@ functions:
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
           rm -rf RUNDIR
-          ./t -c ../../../test/format/${config|CONFIG.disagg} ${format_args|} ${extra_arg|} || fail
+          ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} || fail
           if [ ${reopen|true} = true ]; then
             ./t -R $format_args ${extra_args|} || fail
           fi
