@@ -37,8 +37,8 @@ leader_checkpoint(
     if (covered == 0) {
         struct timespec now;
         __wt_epoch(NULL, &now);
-        if (WT_TIMEDIFF_SEC(now, ckpt->phase_start) > MAX_STARTUP)
-            testutil_die(ETIMEDOUT, "stable timestamp not set after %d seconds", MAX_STARTUP);
+        if (WT_TIMEDIFF_SEC(now, ckpt->phase_start) > MAX_OP_WAIT)
+            testutil_die(ETIMEDOUT, "stable timestamp not set after %d seconds", MAX_OP_WAIT);
         return;
     }
 
