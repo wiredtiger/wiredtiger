@@ -1609,6 +1609,12 @@ variables:
 # the number of runs adjusted to provide approximately six hours of testing.
 #########################################################################################
 
+  - &format-stress-idle-timeout
+    command: timeout.update
+    params:
+      # If the task does not produce any output for this amount of time, it will be terminated.
+      timeout_secs: 10800 # 3 hours
+
   - &format-stress-test
     exec_timeout_secs: 25200
     commands:
@@ -1623,6 +1629,7 @@ variables:
   - &format-stress-asan-ppc-test
     exec_timeout_secs: 25200
     commands:
+      - *format-stress-idle-timeout
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -1637,6 +1644,7 @@ variables:
   - &format-stress-asan-test
     exec_timeout_secs: 25200
     commands:
+      - *format-stress-idle-timeout
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -1649,6 +1657,7 @@ variables:
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
     commands:
+      - *format-stress-idle-timeout
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
