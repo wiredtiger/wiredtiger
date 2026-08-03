@@ -5371,18 +5371,19 @@ tasks:
     name: format-stress-test-disagg-switch-pull-request-stepdown-async-2
     tags: ["pull_request"]
 
+# FIXME-WT-18245: Enable multi-node on release variants after fixing hangs/timeouts.
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-1
-    tags: ["stress-test-disagg"]
+    tags: ["stress-test-disagg-multi"]
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-2
-    tags: ["stress-test-disagg"]
+    tags: ["stress-test-disagg-multi"]
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-3
-    tags: ["stress-test-disagg"]
+    tags: ["stress-test-disagg-multi"]
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-4
-    tags: ["stress-test-disagg"]
+    tags: ["stress-test-disagg-multi"]
   - <<: *format-stress-test-disagg-multi-pull-request
     name: format-stress-test-disagg-multi-pull-request-1
     tags: ["pull_request"]
@@ -7130,6 +7131,7 @@ buildvariants:
     - name: live-restore-long
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
       distros: ubuntu2004-large
     - name: ".unit_test_xsan"
     - name: ".unit_test_disagg"
@@ -7278,6 +7280,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
       distros: ubuntu2004-large
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
@@ -7302,6 +7305,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
     - name: checkpoint-stress-test-tiered
     - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
@@ -7642,6 +7646,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
       distros: ubuntu2004-large
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -7696,6 +7701,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
     - name: format-stress-disagg-leader-long-running
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -7785,6 +7791,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
     - name: format-stress-disagg-leader-long-running
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -7883,6 +7890,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
     - name: schema-abort-predictable-test
@@ -7926,6 +7934,7 @@ buildvariants:
     - name: live-restore-long
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
       distros: amazon2023.3-arm64-large
     - name: ".unit_test"
     - name: ".unit_test_disagg"
@@ -8052,6 +8061,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
+    - name: ".stress-test-disagg-multi"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
