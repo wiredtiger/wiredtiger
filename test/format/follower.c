@@ -113,13 +113,10 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
     testutil_check(__wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata));
     testutil_assert(metadata.oldest_timestamp != WT_TS_NONE);
     /*
-     * Honor the delivery contract the snapshot-consistency design relies on: checkpoint metadata
-     * may only be delivered once the checkpoint's content has been replayed, so a snapshot
-     * established after the delivery covers it. Skip the pickup until every replay operation up to
-     * the checkpoint's timestamp has committed on this node; the stable timestamp is not a
-     * substitute, since it advances on the replay schedule rather than with application. The
-     * watermark only exists under predictable replay; in other modes (a role switch picking up the
-     * node's own checkpoint) there is no replayed content to wait for.
+     * Checkpoint metadata may only be delivered once its content has been replayed, so wait for
+     * replay to reach the checkpoint's timestamp; the stable timestamp is no substitute, advancing
+     * on the replay schedule rather than with application. The watermark only exists under
+     * predictable replay.
      */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         replayed_ts = replay_maximum_committed();
@@ -198,18 +195,12 @@ WT_THREAD_RET
 follower_read_no_ts(void *arg)
 {
     SAP sap;
-    TABLE *table;
     WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_ITEM key, value;
     WT_ITEM keys[FOLLOWER_READ_ROWS], values[FOLLOWER_READ_ROWS];
-    WT_ITEM start_key;
     WT_SESSION *session;
-    uint64_t iterations, start_keyno;
-    u_int count, i, pass;
-    int exact;
-    bool failed;
+    uint64_t iterations;
+    u_int i;
 
     (void)(arg); /* Unused parameter */
     conn = g.wts_conn;
@@ -228,19 +219,24 @@ follower_read_no_ts(void *arg)
 
     printf("--- [Follower] snapshot read stress running ---\n");
     for (iterations = 0; !g.workers_finished; ++iterations) {
-        table = table_select_type(ROW, false);
+        TABLE *table = table_select_type(ROW, false);
+        WT_ITEM start_key;
+        u_int count = 0;
+        bool failed = false;
+
         if (table == NULL)
             break;
         testutil_check(session->begin_transaction(session, "isolation=snapshot"));
 
         /* Scan from a random position, so updates anywhere in the table are candidates. */
-        start_keyno = mmrand(&g.extra_rnd, 1, table->rows_current);
         key_gen_init(&start_key);
-        key_gen(table, &start_key, start_keyno);
+        key_gen(table, &start_key, mmrand(&g.extra_rnd, 1, table->rows_current));
 
-        count = 0;
-        failed = false;
-        for (pass = 0; pass < FOLLOWER_READ_PASSES && !failed && !g.workers_finished; ++pass) {
+        for (u_int pass = 0; pass < FOLLOWER_READ_PASSES && !failed && !g.workers_finished;
+          ++pass) {
+            WT_CURSOR *cursor;
+            int exact;
+
             /*
              * Hold the snapshot across pickups: the first pass records the baseline and the later
              * passes re-read it every few hundred milliseconds, so most transactions span an
@@ -293,6 +289,8 @@ follower_read_no_ts(void *arg)
                           i, count);
                     break;
                 }
+                WT_ITEM key, value;
+
                 testutil_check(cursor->get_key(cursor, &key));
                 testutil_check(cursor->get_value(cursor, &value));
                 if (pass == 0) {
@@ -325,6 +323,9 @@ follower_read_no_ts(void *arg)
          * both paths are verified.
          */
         if (!failed && count > 0 && !g.workers_finished) {
+            WT_CURSOR *cursor;
+            WT_ITEM value;
+
             wt_wrap_open_cursor(session, table->uri, NULL, &cursor);
             for (i = 0; i < count; ++i) {
                 cursor->set_key(cursor, &keys[i]);
