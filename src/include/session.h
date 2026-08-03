@@ -133,7 +133,6 @@ struct __wt_session_impl {
     uint32_t id;        /* UID, offset in session array */
 
     uint64_t cache_wait_us;        /* Wait time for cache for current operation */
-    bool cache_wait_at_txn_begin;  /* Wait for cache before starting another transaction */
     uint64_t operation_start_us;   /* Operation start */
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
     u_int api_call_counter;        /* Depth of api calls */
@@ -282,6 +281,8 @@ struct __wt_session_impl {
 
     /* Sync support. */
     bool syncing;
+
+    bool cache_wait_at_txn_begin; /* Wait for cache before starting another transaction */
 
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_conn_bucket;     /* Statistics connection bucket offset */
