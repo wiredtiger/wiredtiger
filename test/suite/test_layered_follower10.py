@@ -91,7 +91,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
         # Create the follower and create its table
         # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower",checkpoint_deferral=false)')
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
         return (oplog, t, conn_follow, session_follow)
@@ -123,9 +123,10 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         hold_cursor = session_follow2.open_cursor(self.uri)
         hold_cursor.next()
 
-        # Take a checkpoint and advance it, make sure everything is still good
+        # Take a checkpoint and advance it, make sure everything is still good. The positioned
+        # cursor's snapshot defers the adoption, so there is nothing to wait for.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         oplog.check(self, session_follow, 0, self.nitems)
 
         # At this point, everything in the ingest table is redundant, as it's
@@ -181,9 +182,10 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         hold_cursor = session_follow2.open_cursor(self.uri)
         hold_cursor.next()
 
-        # Take a checkpoint and advance it, make sure everything is still good
+        # Take a checkpoint and advance it, make sure everything is still good. The positioned
+        # cursor's snapshot defers the adoption, so there is nothing to wait for.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         oplog.check(self, session_follow, 0, 2 * self.nitems)
 
         # At this point, the inserts in the ingest table are redundant but the deletes are not.
@@ -196,15 +198,13 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         count = self.count_ingest(session_follow)
         self.assertEqual(count, (0, self.nitems))
 
-        # Close the cursor held open.
+        # Close the cursor held open: the deferred checkpoint is adopted once its snapshot ends.
         hold_cursor.close()
+        self.disagg_await_checkpoint_adoption(conn_follow)
 
-        # Eviction can now remove the inserts, but still cannot remove all the records from the
-        # ingest table because the deletes are not in the stable table.
+        # Eviction may now remove the inserts covered by the adopted checkpoint (how many is its
+        # choice), but it cannot remove the deletes: they are not in the stable table.
         self.evict_ingest(session_follow, ts)
-        count = self.count_ingest(session_follow, ts)
-        self.assertEqual(count, (self.nitems, 0))
-
         count = self.count_ingest(session_follow)
         self.assertEqual(count, (0, self.nitems))
 
@@ -218,16 +218,14 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         # Take a new checkpoint and advance it, make sure everything is still good
         self.session.checkpoint()
         session_follow.breakpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         oplog.check(self, session_follow, 0, 2 * self.nitems)
 
-        # At this point, everything in the ingest table is redundant, as it's
-        # also in the stable table on the follower. However, the tombstones cannot be
-        # removed as there is a cursor open.
+        # At this point, everything in the ingest table is redundant, as it's also in the stable
+        # table on the follower. The deletes cannot be removed though: the checkpoint holding them
+        # is deferred while the cursor is open, so its prune timestamp is not in effect yet. How
+        # much of the older content eviction has already removed is its own choice.
         self.evict_ingest(session_follow, ts)
-        count = self.count_ingest(session_follow, ts)
-        self.assertEqual(count, (0, 0))
-
         count = self.count_ingest(session_follow)
         self.assertEqual(count, (0, self.nitems))
 
@@ -275,8 +273,9 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         hold_cursor = session_follow2.open_cursor(self.uri)
         hold_cursor.next()
 
-        # Take a checkpoint and advance it, make sure everything is still good
-        self.disagg_advance_checkpoint(conn_follow)
+        # Take a checkpoint and advance it, make sure everything is still good. The positioned
+        # cursor's snapshot defers the adoption, so there is nothing to wait for.
+        self.disagg_advance_checkpoint(conn_follow, wait=False)
         oplog.check(self, session_follow, 0, self.nitems)
 
         # At this point, everything in the ingest table is redundant, as it's

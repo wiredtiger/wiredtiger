@@ -29,7 +29,7 @@
 
 import re
 import wiredtiger
-import functools, json, os, shutil, subprocess, wttest
+import functools, json, os, shutil, subprocess, time, wttest
 from run import wt_builddir
 
 # These routines help run the various page log sources used by disaggregated storage.
@@ -225,10 +225,41 @@ class DisaggConfigMixin:
         (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
-    # Let the follower pick up the latest checkpoint
-    def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
+    # Wait until the follower has adopted the delivered checkpoint: adoption is asynchronous when
+    # active transaction snapshots predate the checkpoint. Wait for the given LSN, or for the
+    # newest delivered one.
+    def disagg_await_checkpoint_adoption(self, conn_follower, target_lsn=None):
+        adopted_lsn = None
+        for _ in range(2000):
+            # Call the base class explicitly: tests are free to define their own get_stat.
+            try:
+                adopted_lsn = wttest.WiredTigerTestCase.get_stat(
+                    self, wiredtiger.stat.conn.disagg_checkpoint_meta_lsn, conn=conn_follower)
+                target = target_lsn if target_lsn is not None else wttest.WiredTigerTestCase.get_stat(
+                    self, wiredtiger.stat.conn.disagg_checkpoint_delivered_lsn, conn=conn_follower)
+            except wiredtiger.WiredTigerError:
+                # Adoption is only observable through statistics. Without them, rely on the
+                # adoption being synchronous when no snapshot defers it.
+                self.ignoreStderrPatternIfExists('statistics configuration')
+                return
+            if adopted_lsn >= target:
+                return
+            time.sleep(0.005)
+        raise Exception(
+            f'checkpoint adoption did not reach LSN {target_lsn} (at {adopted_lsn})')
+
+    # Let the follower pick up the latest checkpoint. Adopting the delivered checkpoint is
+    # asynchronous when active transaction snapshots predate it, so by default wait until the
+    # adoption lands; pass wait=False when the caller intentionally keeps such a snapshot open.
+    def disagg_advance_checkpoint(self, conn_follower, conn_leader=None, wait=True):
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
+        if not wait:
+            return
+        lsn_match = re.search(r'metadata_lsn=(\d+)', m)
+        if lsn_match is None:
+            return
+        self.disagg_await_checkpoint_adoption(conn_follower, int(lsn_match.group(1)))
 
     # Switch the leader and the follower
     def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
@@ -818,7 +849,7 @@ class DisaggSchemaEpochMixin:
         session.close()
         return found
 
-    def uri_in_local_metadata(self, conn, uri):
+    def uri_stable_exists(self, conn, uri):
         """Return True if uri's stable constituent is present in conn's local metadata."""
         session = conn.open_session('')
         exists = True
@@ -829,6 +860,29 @@ class DisaggSchemaEpochMixin:
             exists = False
         session.close()
         return exists
+
+    def uri_in_local_metadata(self, conn, uri, leader=False):
+        """
+        Return True if uri is present in conn's local metadata.
+
+        On a follower, checks the ingest constituent. On a leader, checks both the ingest and
+        stable constituents.
+        """
+        tablename = uri[len('layered:'):]
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        if leader:
+            cursor.set_key('file:' + tablename + '.wt_ingest')
+            ingest_found = cursor.search() == 0
+            cursor.set_key('file:' + tablename + '.wt_stable')
+            stable_found = cursor.search() == 0
+            found = ingest_found and stable_found
+        else:
+            cursor.set_key('file:' + tablename + '.wt_ingest')
+            found = cursor.search() == 0
+        cursor.close()
+        session.close()
+        return found
 
     def open_follower(self):
         """Open a follower, pick up the latest leader checkpoint, and open a session on it."""

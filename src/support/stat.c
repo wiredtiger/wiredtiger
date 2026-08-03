@@ -2203,6 +2203,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server slept, because we did not make progress with eviction",
   "cache: eviction server unable to reach eviction goal",
   "cache: eviction server waiting for a leaf page",
+  "cache: eviction server walks trees within their walk period because they dominate the cache",
+  "cache: eviction server walks trees within their walk period because they dominate the cache but "
+  "queues no pages",
   "cache: eviction state",
   "cache: eviction threshold cache full target multiplied by 100 for precision",
   "cache: eviction threshold cache full trigger multiplied by 100 for precision",
@@ -2624,10 +2627,12 @@ static const char *const __stats_connection_desc[] = {
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
+  "disagg: most recently adopted checkpoint metadata LSN",
+  "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
   "disagg: role leader",
-  "disagg: snapshots rebuilt after racing a checkpoint pick-up",
+  "disagg: snapshots rebuilt after racing a checkpoint pick-up or role change",
   "disagg: step down in progress",
   "disagg: step down most recent time (msecs)",
   "disagg: step up in progress",
@@ -3075,7 +3080,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable disaggregated schema epoch calls",
   "transaction: set timestamp stable disaggregated schema epoch updates",
   "transaction: set timestamp stable updates",
-  "transaction: set timestamp step down updates",
+  "transaction: step-down timestamp is currently set",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction global checkpoint timestamp",
@@ -3099,6 +3104,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transactions committed",
   "transaction: transactions rolled back",
   "transaction: update conflicts",
+  "transaction: write transactions rolled back for straddling the step-down timestamp setting "
+  "boundary",
 };
 
 int
@@ -3317,6 +3324,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_slept = 0;
     stats->eviction_slow = 0;
     stats->eviction_walk_leaf_notfound = 0;
+    stats->eviction_server_walk_dominating_cache = 0;
+    stats->eviction_server_walk_dominating_cache_unproductive = 0;
     /* not clearing eviction_state */
     stats->eviction_threshold_cache_full_target = 0;
     stats->eviction_threshold_cache_full_trigger = 0;
@@ -3718,10 +3727,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
+    /* not clearing disagg_checkpoint_meta_lsn */
+    /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
     stats->disagg_role_leader = 0;
-    stats->disagg_snapshot_pin_retry = 0;
+    stats->disagg_snapshot_rebuild = 0;
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
     /* not clearing disagg_step_up_in_progress */
@@ -4155,7 +4166,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_disagg_epoch = 0;
     stats->txn_set_ts_stable_disagg_epoch_upd = 0;
     stats->txn_set_ts_stable_upd = 0;
-    stats->txn_set_ts_step_down_upd = 0;
+    /* not clearing txn_stepdown_ts_set */
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_global_checkpoint_timestamp */
@@ -4179,6 +4190,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
     stats->txn_update_conflict = 0;
+    stats->txn_rollback_stepdown = 0;
 }
 
 void
@@ -4438,6 +4450,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_server_slept += WT_STAT_CONN_READ(from, eviction_server_slept);
     to->eviction_slow += WT_STAT_CONN_READ(from, eviction_slow);
     to->eviction_walk_leaf_notfound += WT_STAT_CONN_READ(from, eviction_walk_leaf_notfound);
+    to->eviction_server_walk_dominating_cache +=
+      WT_STAT_CONN_READ(from, eviction_server_walk_dominating_cache);
+    to->eviction_server_walk_dominating_cache_unproductive +=
+      WT_STAT_CONN_READ(from, eviction_server_walk_dominating_cache_unproductive);
     to->eviction_state += WT_STAT_CONN_READ(from, eviction_state);
     to->eviction_threshold_cache_full_target +=
       WT_STAT_CONN_READ(from, eviction_threshold_cache_full_target);
@@ -4928,11 +4944,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_updated);
+    to->disagg_checkpoint_meta_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_meta_lsn);
+    to->disagg_checkpoint_delivered_lsn += WT_STAT_CONN_READ(from, disagg_checkpoint_delivered_lsn);
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
-    to->disagg_snapshot_pin_retry += WT_STAT_CONN_READ(from, disagg_snapshot_pin_retry);
+    to->disagg_snapshot_rebuild += WT_STAT_CONN_READ(from, disagg_snapshot_rebuild);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
@@ -5494,7 +5512,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_disagg_epoch_upd +=
       WT_STAT_CONN_READ(from, txn_set_ts_stable_disagg_epoch_upd);
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
-    to->txn_set_ts_step_down_upd += WT_STAT_CONN_READ(from, txn_set_ts_step_down_upd);
+    to->txn_stepdown_ts_set += WT_STAT_CONN_READ(from, txn_stepdown_ts_set);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);
     to->txn_global_checkpoint_timestamp += WT_STAT_CONN_READ(from, txn_global_checkpoint_timestamp);
@@ -5522,6 +5540,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_commit += WT_STAT_CONN_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_CONN_READ(from, txn_rollback);
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
+    to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
 }
 
 static const char *const __stats_session_desc[] = {

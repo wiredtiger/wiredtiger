@@ -9,6 +9,31 @@
 #include "wt_internal.h"
 
 /*
+ * __schema_worker_awaits_publish --
+ *     Set skip if the URI maps to an already-open tree that is awaiting publication. Only a
+ *     resident handle is inspected: opening one here to read the flag would fault on the corrupted
+ *     table verify is meant to diagnose.
+ */
+static int
+__schema_worker_awaits_publish(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    *skipp = false;
+    ret = __wt_conn_dhandle_find(session, uri, NULL);
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+
+    dhandle = session->dhandle;
+    *skipp = F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
+      F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_AWAITS_PUBLISH);
+    WT_DHANDLE_CLEAR(session);
+    return (0);
+}
+
+/*
  * __wti_execute_handle_operation --
  *     Apply a function to a handle, getting exclusive access if requested.
  */
@@ -17,6 +42,19 @@ __wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[], uint32_t open_flags)
 {
     WT_DECL_RET;
+    bool skip;
+
+    /*
+     * A tree awaiting publication has no on-disk data to verify, and the exclusive open would
+     * discard its in-memory content. Skip it.
+     */
+    if (FLD_ISSET(open_flags, WT_BTREE_VERIFY)) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(
+          session, ret = __schema_worker_awaits_publish(session, uri, &skip));
+        WT_RET(ret);
+        if (skip)
+            return (0);
+    }
 
     /*
      * If the operation requires exclusive access, close any open file handles, including
@@ -137,6 +175,13 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
 
     /* We don't verify the ingest table on a follower. */
     if (!conn->layered_table_manager.leader)
+        return (0);
+
+    /*
+     * While a step-down timestamp is set, the leader directs writes to ingest, so it is expected to
+     * hold the post-cutoff content rather than be empty.
+     */
+    if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
         return (0);
 
     /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */

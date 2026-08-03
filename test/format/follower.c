@@ -223,7 +223,7 @@ follower_read_no_ts(void *arg)
     if (i > ntables)
         return (WT_THREAD_RET_VALUE);
 
-    memset(&sap, 0, sizeof(sap));
+    WT_CLEAR(sap);
     wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
 
     printf("--- [Follower] snapshot read stress running ---\n");
@@ -349,7 +349,27 @@ follower_read_no_ts(void *arg)
         key_gen_teardown(&start_key);
         testutil_check(session->rollback_transaction(session, NULL));
     }
-    printf("--- [Follower] snapshot read stress: %" PRIu64 " transactions ---\n", iterations);
+    /*
+     * Report whether the intended race ran: how many pick-ups the readers deferred and how many
+     * were adopted. Configurations with long checkpoint intervals or short timers may legitimately
+     * record zero, so this is diagnostic rather than asserted.
+     */
+    {
+        WT_CURSOR *stat_cursor;
+        int64_t adopted, deferred;
+
+        wt_wrap_open_cursor(session, "statistics:", NULL, &stat_cursor);
+        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER);
+        testutil_check(stat_cursor->search(stat_cursor));
+        testutil_check(stat_cursor->get_value(stat_cursor, NULL, NULL, &deferred));
+        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN);
+        testutil_check(stat_cursor->search(stat_cursor));
+        testutil_check(stat_cursor->get_value(stat_cursor, NULL, NULL, &adopted));
+        testutil_check(stat_cursor->close(stat_cursor));
+        printf("--- [Follower] snapshot read stress: %" PRIu64 " transactions, %" PRId64
+               " pick-ups deferred, adopted LSN %" PRId64 " ---\n",
+          iterations, deferred, adopted);
+    }
 
     for (i = 0; i < FOLLOWER_READ_ROWS; ++i) {
         __wt_buf_free((WT_SESSION_IMPL *)session, &keys[i]);

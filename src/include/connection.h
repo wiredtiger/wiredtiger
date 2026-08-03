@@ -145,6 +145,10 @@ struct __wt_layered_table_manager {
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
     size_t entries_allocated_bytes;
 
+    /*
+     * FIXME-WT-18205: written on role reconfigure while other threads read it unsynchronised;
+     * convert to atomic accesses.
+     */
     bool leader;
 };
 
@@ -213,6 +217,18 @@ struct __wt_disagg_pending_crypt_key {
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
 /*
+ * The checkpoint generation encoding of an LSN: the LSN plus one. The generation manager starts
+ * connection generations at one and reserves zero in a session slot for "not entered", so the
+ * initial generation is exactly the encoding of "no checkpoint" and a published pin of an
+ * un-delivered node covers nothing. A pin covers an LSN when its generation exceeds it, and a
+ * generation-active query at an LSN finds exactly the pins that do not cover it.
+ */
+#define WT_DISAGG_CKPT_GEN(lsn) ((lsn) + 1)
+
+/* The backoff between retries of a blocked checkpoint adoption. */
+#define WT_DISAGG_RETRY_SLEEP_USECS (100 * WT_THOUSAND)
+
+/*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
  *      A relationship between the checkpoint order number and the history timestamp.
  */
@@ -278,9 +294,9 @@ struct __wt_repair {
  *      active.
  */
 struct __wt_disagg_deferred_ckpt {
-    char *meta;   /* Checkpoint metadata configuration */
     uint64_t lsn; /* Checkpoint metadata LSN */
-    WT_DISAGG_DEFERRED_CKPT *newer;
+    char *meta;   /* Checkpoint metadata configuration */
+    TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
 };
 
 /*
@@ -299,13 +315,6 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     /*
-     * Incremented on every role change. What the stable table is (an adopted checkpoint or the live
-     * btree) changes with the role, so a transactional snapshot established under one role cannot
-     * bind the stable table under another.
-     */
-    wt_shared uint64_t role_change_gen;
-
-    /*
      * The LSN of the newest checkpoint received, published before its adoption begins. A snapshot
      * established after a checkpoint's arrival may pin it even though the adoption has not
      * completed: arrival implies the checkpoint's content is already replayed into the ingest
@@ -317,21 +326,18 @@ struct __wt_disaggregated_storage {
      * Checkpoints whose adoption is deferred while transactional snapshots that predate them are
      * active, oldest first. Keeping every checkpoint not yet adopted lets the node adopt
      * incrementally up to the newest one no active snapshot predates, so a reader only ever blocks
-     * the checkpoints newer than its own snapshot. Protected by the checkpoint lock; the timeout is
-     * set at configuration time.
+     * the checkpoints newer than its own snapshot.
      */
     WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
-    WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_oldest;
-    WT_DISAGG_DEFERRED_CKPT *deferred_ckpt_newest;
-    bool checkpoint_deferral;
+    TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
 
     /*
      * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until
-     * a pinning transaction finishes or a checkpoint is deferred, and owns the deferral deadline.
+     * a pinning transaction finishes or a checkpoint is deferred.
      */
+    WT_CONDVAR *deferred_pickup_cond;
     WT_SESSION_IMPL *deferred_pickup_session;
     wt_thread_t deferred_pickup_tid;
-    WT_CONDVAR *deferred_pickup_cond;
     bool deferred_pickup_tid_set;
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
@@ -1348,9 +1354,8 @@ struct __wt_connection_impl {
 #define WT_CONN_PANIC 0x01000u
 #define WT_CONN_READY 0x02000u
 #define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
-#define WT_CONN_RECONFIGURING_STEP_DOWN 0x08000u
-#define WT_CONN_RECONFIGURING_STEP_UP 0x10000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
+#define WT_CONN_RECONFIGURING_STEP_UP 0x08000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
 

@@ -604,6 +604,8 @@ struct __wt_connection_stats {
     int64_t eviction_server_slept;
     int64_t eviction_slow;
     int64_t eviction_walk_leaf_notfound;
+    int64_t eviction_server_walk_dominating_cache;
+    int64_t eviction_server_walk_dominating_cache_unproductive;
     int64_t eviction_state;
     int64_t eviction_threshold_cache_full_target;
     int64_t eviction_threshold_cache_full_trigger;
@@ -1005,10 +1007,12 @@ struct __wt_connection_stats {
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
+    int64_t disagg_checkpoint_meta_lsn;
+    int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;
-    int64_t disagg_snapshot_pin_retry;
+    int64_t disagg_snapshot_rebuild;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_in_progress;
@@ -1442,7 +1446,7 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_disagg_epoch;
     int64_t txn_set_ts_stable_disagg_epoch_upd;
     int64_t txn_set_ts_stable_upd;
-    int64_t txn_set_ts_step_down_upd;
+    int64_t txn_stepdown_ts_set;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_global_checkpoint_timestamp;
@@ -1466,6 +1470,7 @@ struct __wt_connection_stats {
     int64_t txn_commit;
     int64_t txn_rollback;
     int64_t txn_update_conflict;
+    int64_t txn_rollback_stepdown;
 };
 
 /*

@@ -31,6 +31,8 @@
     "A newer checkpoint was adopted after the transaction snapshot was established"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
     "Transaction has the oldest pinned transaction ID"
+#define WT_TXN_ROLLBACK_REASON_STEP_DOWN \
+    "Write transaction straddled the step-down timestamp setting boundary"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
@@ -144,16 +146,6 @@ struct __wt_txn_shared {
      */
     wt_shared wt_timestamp_t read_timestamp;
 
-    /*
-     * The disaggregated checkpoint this transaction's snapshot is consistent with, stored as the
-     * checkpoint metadata LSN plus one so that zero means no pinned snapshot. Content adopted from
-     * a checkpoint carries no local transaction ids, so a snapshot established before an adoption
-     * must not read the adopted content; a checkpoint pickup uses this field to find such readers.
-     * Only set for snapshots without a read timestamp: timestamped readers stay consistent through
-     * the history store.
-     */
-    wt_shared uint64_t disagg_pinned_lsn;
-
     wt_shared volatile uint8_t is_allocating;
     WT_CACHE_LINE_PAD_END
 };
@@ -225,6 +217,14 @@ struct __wt_txn_global {
 
     /* Protects logging, checkpoints and transaction visibility. */
     WT_RWLOCK visibility_rwlock;
+
+    /*
+     * Protects the step-down timestamp: writers set or clear it, readers sample it at transaction
+     * begin and check it when a write transaction commits. A committing write transaction either
+     * observes the timestamp and rolls back, or its writes happen before the timestamp store and
+     * are visible to every transaction that begins with the timestamp set.
+     */
+    WT_RWLOCK step_down_lock;
 
     /*
      * Track information about the running checkpoint. The transaction snapshot used when
@@ -417,13 +417,13 @@ struct __wt_txn {
     uint32_t forced_iso; /* Isolation is currently forced. */
 
     /*
-     * The disaggregated role and role-change generation observed when the snapshot was established.
-     * A snapshot established under one role must not bind a layered table's stable content under
-     * another. A bind compares both: the role catches a transition racing the bind without needing
-     * a lock (the dispatch and the comparison use one read of one variable), and the generation
-     * catches a role that changed away and back.
+     * The disaggregated role observed when the snapshot was established; the role-change generation
+     * it was established under is published in the session's generation slot. A snapshot
+     * established under one role must not bind a layered table's stable content under another. A
+     * bind compares both: the role catches a transition racing the bind without needing a lock (the
+     * dispatch and the comparison use one read of one variable), and the generation catches a role
+     * that changed away and back.
      */
-    uint64_t disagg_role_gen;
     bool disagg_role_leader;
 
     WT_TXN_LOG txn_log;
@@ -439,6 +439,13 @@ struct __wt_txn {
      * on the public list of committed timestamps.
      */
     wt_timestamp_t first_commit_timestamp;
+
+    /*
+     * True if the step-down timestamp was set when this transaction began. Used to redirect the
+     * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
+     * straddlers.
+     */
+    bool stepdown_ts_set;
 
     /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and
