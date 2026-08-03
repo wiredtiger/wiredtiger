@@ -123,7 +123,7 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
      */
     if (GV(RUNS_PREDICTABLE_REPLAY)) {
         replayed_ts = replay_maximum_committed();
-        if (replayed_ts == WT_TS_NONE || replayed_ts < checkpoint_ts) {
+        if (replayed_ts < checkpoint_ts) {
             printf("--- [Follower] Skipping checkpoint pickup: checkpoint_timestamp(hex)=%" PRIx64
                    " > replayed_timestamp(hex)=%" PRIx64 " ---\n",
               checkpoint_ts, replayed_ts);
@@ -197,8 +197,6 @@ follower_read_latest_checkpoint(void)
 WT_THREAD_RET
 follower_read_no_ts(void *arg)
 {
-#define FOLLOWER_READ_ROWS 200
-#define FOLLOWER_READ_PASSES 12
     SAP sap;
     TABLE *table;
     WT_CONNECTION *conn;
@@ -305,8 +303,12 @@ follower_read_no_ts(void *arg)
                     count = i + 1;
                 } else {
                     /* The second pass must observe exactly the first pass's rows. */
-                    testutil_assertfmt(i < count && key.size == keys[i].size &&
-                        memcmp(key.data, keys[i].data, key.size) == 0,
+                    testutil_assertfmt(i < count,
+                      "follower_read_no_ts: snapshot row count changed within a transaction (more "
+                      "than %u rows)",
+                      count);
+                    testutil_assertfmt(
+                      key.size == keys[i].size && memcmp(key.data, keys[i].data, key.size) == 0,
                       "follower_read_no_ts: snapshot key changed within a transaction (row %u)", i);
                     testutil_assertfmt(value.size == values[i].size &&
                         memcmp(value.data, values[i].data, value.size) == 0,

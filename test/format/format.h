@@ -87,6 +87,9 @@
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
+#define FOLLOWER_READ_ROWS 200  /* rows one follower snapshot read scans */
+#define FOLLOWER_READ_PASSES 12 /* times it re-reads them */
+
 #define FORMAT_PAD_BYTE '-'  /* modify pad byte */
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 #define REALLOC_MAX_TABLES 5 /* maximum number of tables with realloc_exact and realloc_malloc */
