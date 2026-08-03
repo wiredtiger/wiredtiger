@@ -198,6 +198,9 @@ struct __wt_disagg_metadata_op {
     WT_SHARED_METADATA_OP metadata_op; /* The type of the metadata operation. */
     wt_timestamp_t schema_epoch;       /* The schema epoch of the metadata operation. */
 
+    /* A reused table name maps to several generations, so the id is what tells them apart. */
+    uint32_t btree_id;
+
     /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
 
