@@ -43,14 +43,16 @@
 /* Tunables. */
 #define MAX_CKPT_INVL 4
 #define INSERT_ODDS 64          /* generate an insert: 1 in N visits to an insertable slot */
+#define EBUSY_CKPT_ATTEMPTS 50  /* worker: retries of a blocked op before it checkpoints itself */
 #define GEN_APPLY_RATE_FLOOR 30 /* generator: applied values/second, the multi-node worst case */
 #define GEN_LEAD_MIN 64         /* generator: lead floor, so the workers stay fed */
 #define SCHEMA_EPOCH_BOOTSTRAP 1
 #define MAX_NODES 2
+#define MAX_OP_WAIT 30 /* in-node: a retried op gives up, before the parent stops waiting */
 #define MAX_POOL_SIZE 64
-#define MAX_STARTUP 60
 #define MAX_TH 12
 #define MAX_TIME 40
+#define MAX_WAIT 60 /* parent: a child starting, stopping, or posting a sentinel */
 #define MIN_POOL_SIZE 2
 #define MIN_TH 2
 #define MIN_TIME 10
@@ -178,6 +180,17 @@ typedef struct {
 } EVENT_QUEUE;
 
 /*
+ * The phase's shutdown stages, in the order the threads must go: the generator first so the stream
+ * ends, then the reader, then the workers draining what it delivered, and last the timestamp
+ * thread, whose frontier the checkpoints a draining worker takes for itself are bounded by.
+ */
+#define STAGE_NONE 0
+#define STAGE_GENERATOR 1
+#define STAGE_READER 2
+#define STAGE_WORKERS 3
+#define STAGE_TS 4
+
+/*
  * Workload-engine state, one per node process, owned by node.c.
  */
 typedef struct {
@@ -190,10 +203,8 @@ typedef struct {
      */
     bool leads;
     bool generates;         /* this phase generates events into the self-pipe; fixed per phase */
-    bool stop_phase;        /* set to quiesce all worker threads between phases; atomic access */
-    bool reader_stop;       /* the engine directs the reader to exit; atomic access */
-    bool generator_stop;    /* the engine directs the generator to exit; atomic access */
     bool handover_received; /* the term was handed over this phase; atomic access */
+    uint32_t stop_stage;    /* how far the phase's shutdown has progressed; atomic access */
     /*
      * The coverage the slot machine's waiting states wait for, republished by the timestamp thread
      * from the connection's last_disaggregated_schema_epoch. Dropping an uncovered table wedges its
@@ -297,7 +308,7 @@ bool node_switch_request_consume(void);
 WORKLOAD_STATE *workload_state_create(TEST_CONFIG *cfg);
 void workload_start(WORKLOAD_STATE *state, bool as_leader);
 void workload_stop(WORKLOAD_STATE *state);
-bool workload_running(WORKLOAD_STATE *state);
+bool workload_active(WORKLOAD_STATE *state, uint32_t stage);
 void workload_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev);
 bool workload_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev);
 bool workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index);
@@ -313,11 +324,11 @@ bool pipe_wait_readable(int fd);
 
 /* generator.c: the generator stage - the node's command stream, and all switch triggering. */
 void node_generator_start(WORKLOAD_STATE *state);
-void node_generator_stop(WORKLOAD_STATE *state);
+void node_generator_join(void);
 
 /* reader.c: the reader stage - demuxing the source pipe to the workers. */
 void node_reader_start(WORKLOAD_STATE *state);
-void node_reader_stop(WORKLOAD_STATE *state);
+void node_reader_join(void);
 
 /* worker.c: the worker stage - executing events and recording them. */
 void node_workers_start(WORKLOAD_STATE *state);

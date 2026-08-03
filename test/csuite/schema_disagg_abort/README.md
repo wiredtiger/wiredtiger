@@ -146,20 +146,22 @@ published leaves no record and no expectation.
 
 ## Threads (per phase)
 
-Every workload thread is per-phase: `workload_start` creates them, `workload_stop` joins them
-in dependency order — the generator first if the phase had one, then the reader, then
-`stop_phase` quiesces the workers, which drain their queues. The main thread runs the
-`node_run` loop: `workload_start` → `node_trigger_wait` (1 s poll on
+Every workload thread is per-phase: `workload_start` creates them and `workload_stop` walks them
+down through the `STAGE_*` ladder — generator, then workers, then reader, then timestamp — one
+atomic `stop_stage` that each loop compares against its own stage, so the order lives in the data.
+The workers drain while the reader and the timestamp thread still run, since a queued drop can be
+waiting on a checkpoint; the generator's parting event on a stop is an `EVENT_CKPT` to supply one.
+The main thread runs the `node_run` loop: `workload_start` → `node_trigger_wait` (1 s poll on
 `handover_received`/`stop_run`) → `workload_stop` → transition or exit.
 
 | Thread | Count | Does |
 |---|---|---|
 | generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, absorb coverage, emit one valid move at random or none; an empty round sleeps 1 ms</br>- `EVENT_CKPT` every random 0–3 s</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
-| reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `CKPT` → **leader**: `leader_checkpoint` (skipped while stable=0, MAX_STARTUP watchdog); **follower**: drain barrier → `follower_pick_up_checkpoint`</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
+| reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `CKPT` → **leader**: `leader_checkpoint` (skipped while stable=0, MAX_OP_WAIT watchdog); **follower**: drain barrier → `follower_pick_up_checkpoint`</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
 | worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, unvalued), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark valued events completed |
 | timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts`; set oldest/stable/stable-schema-epoch to it (never backwards) |
 
-Coordination is lock-free by design: `stop_phase` quiesces every loop, per-worker SPSC rings plus `busy` flags connect
+Coordination is lock-free by design: `stop_stage` quiesces every loop, per-worker SPSC rings plus `busy` flags connect
 reader to workers, and `completed_ts[]` feeds the frontier.
 
 ## Control loop and transitions
@@ -251,7 +253,7 @@ step-down has no peer to hand over to).
    WiredTiger's shared-metadata queue and URIs are origin-namespaced, so one left behind could
    never be published by anyone. The old leader closes its connection before the switch is sent
    (one writer per page log).
-5. **Uniform EBUSY policy**: workers retry the same operation with a MAX_STARTUP bound; the
+5. **Uniform EBUSY policy**: workers retry the same operation with a MAX_OP_WAIT bound; the
    stream is fixed at generation time and the slot model flips when the generator emits, so
    the executed state converges to the model.
 

@@ -18,16 +18,6 @@
 #include "schema_disagg_abort.h"
 
 /*
- * generator_running --
- *     The generator's loop condition: true until the engine directs it to exit.
- */
-static bool
-generator_running(WORKLOAD_STATE *state)
-{
-    return (!__wt_atomic_load_bool(&state->generator_stop) && workload_running(state));
-}
-
-/*
  * generator_emit --
  *     Write one event to the node's self-pipe, blocking while it is full: the workers' consumption
  *     rate backpressures the generator through the pipe and the queues.
@@ -84,9 +74,9 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
     const uint32_t slot = __wt_random(rnd) % state->cfg->pool_size;
     TABLE_STATE *slot_state = &state->workers[t].table_state[slot];
     uint64_t *wait = &state->workers[t].table_wait_ts[slot];
+    const uint64_t covered = __wt_atomic_load_uint64(&state->ckpt_covered_ts);
 
-    *slot_state = table_state_after_checkpoint(
-      *slot_state, *wait, __wt_atomic_load_uint64(&state->ckpt_covered_ts));
+    *slot_state = table_state_after_checkpoint(*slot_state, *wait, covered);
 
     SCHEMA_EVENT ev = {0}; /* EVENT_NONE until a move is taken */
     switch (*slot_state) {
@@ -180,7 +170,7 @@ generator_round(WORKLOAD_STATE *state, uint64_t lead_max)
 
     bool emitted = false;
 
-    for (uint32_t t = 0; t < state->nth_workers && generator_running(state); t++)
+    for (uint32_t t = 0; t < state->nth_workers && workload_active(state, STAGE_GENERATOR); t++)
         if (generator_op(state, t))
             emitted = true;
     return (emitted);
@@ -292,7 +282,7 @@ thread_generator_run(void *arg)
     GENERATOR_PACING pacing;
     generator_pacing_init(&pacing, state->cfg, &state->gen_rnd[state->nth_workers]);
 
-    while (generator_running(state)) {
+    while (workload_active(state, STAGE_GENERATOR)) {
         if (!generator_round(state, pacing.lead_max))
             __wt_sleep(0, WT_THOUSAND);
 
@@ -333,16 +323,15 @@ node_generator_start(WORKLOAD_STATE *state)
 }
 
 /*
- * node_generator_stop --
- *     Stop and join the generator thread, if one is running. First of the phase's threads to go,
- *     while the reader still drains the self-pipe it may be blocked on.
+ * node_generator_join --
+ *     Join the generator thread, if one is running. The stage it exits on is the caller's to set.
  */
 void
-node_generator_stop(WORKLOAD_STATE *state)
+node_generator_join(void)
 {
     if (!generator_started)
         return;
-    __wt_atomic_store_bool(&state->generator_stop, true);
+
     testutil_check(__wt_thread_join(NULL, &generator_thr));
     generator_started = false;
 }
