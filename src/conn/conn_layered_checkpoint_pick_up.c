@@ -457,6 +457,10 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
     WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
     WT_RET(md_cursor->get_value(md_cursor, &md_value));
 
+    /* Fast path: identical values need no field comparison. */
+    if (strcmp(sh_value, md_value) == 0)
+        return (0);
+
     /*
      * Merge the two configurations in a single pass rather than looking every field up in the
      * other; both entries list their common fields in the same relative order.
