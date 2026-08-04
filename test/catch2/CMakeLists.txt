@@ -18,6 +18,7 @@ else()
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_dirty_index.cpp
+        misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
