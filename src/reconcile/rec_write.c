@@ -27,23 +27,6 @@ static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
- * __rec_scrub_image_budget --
- *     Return true if the cache has room for another checkpoint-scrub image.
- */
-static WT_INLINE bool
-__rec_scrub_image_budget(WT_SESSION_IMPL *session)
-{
-    WT_CACHE *cache;
-    uint64_t image_max_bytes;
-
-    cache = S2C(session)->cache;
-    image_max_bytes = (S2C(session)->cache_size / 100) *
-      __wt_atomic_load_uint8_relaxed(&cache->cache_eviction_controls.checkpoint_scrub_image_max);
-
-    return (__wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image) < image_max_bytes);
-}
-
-/*
  * __rec_save_disk_image --
  *     Return true if reconciliation should save a disk image for in-memory re-instantiation.
  */
@@ -117,17 +100,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
-    /* The swap-eviction path only works with a row-store leaf image, so clear the request here. */
-    if (page->type != WT_PAGE_ROW_LEAF)
-        LF_CLR(WT_REC_SAVE_IMAGE_CLEAN);
-
-    /*
-     * Bound the cache consumed by retained images. The budget is checked here, as the image is
-     * about to be built: parallel checkpoint queues pages to reconcile, and pages waiting on that
-     * queue have not yet consumed anything.
-     */
-    if (LF_ISSET(WT_REC_SAVE_IMAGE_CLEAN) && !__rec_scrub_image_budget(session))
-        LF_CLR(WT_REC_SAVE_IMAGE_CLEAN);
+    WT_ASSERT(session, !LF_ISSET(WT_REC_SAVE_IMAGE_CLEAN) || page->type == WT_PAGE_ROW_LEAF);
 
     /* The caller decides whether to retain a clean image for scrub eviction. */
     if (LF_ISSET(WT_REC_SAVE_IMAGE_CLEAN))

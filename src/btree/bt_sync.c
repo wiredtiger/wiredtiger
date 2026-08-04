@@ -33,10 +33,28 @@ __sync_scrub_checkpoint_enabled(WT_SESSION_IMPL *session)
         return (false);
     case WT_CACHE_CHECKPOINT_SCRUB_EVICT_ON:
         return (true);
-    default: /* WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO */
+    default:
+        /* WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO: only retain an image while eviction is scrubbing. */
         return (
           F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
     }
+}
+
+/*
+ * __sync_page_rec_flags --
+ *     Add a scrub-image request to a page's reconciliation flags. Only a row-store leaf can be
+ *     swapped for its image, and the cache budget is re-read per page because pages queued for a
+ *     reconciliation worker have not consumed their image yet.
+ */
+static uint32_t
+__sync_page_rec_flags(
+  WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t rec_flags, bool checkpoint_scrub)
+{
+    if (checkpoint_scrub && page->type == WT_PAGE_ROW_LEAF &&
+      __wt_cache_scrub_image_budget_ok(session))
+        FLD_SET(rec_flags, WT_REC_SAVE_IMAGE_CLEAN);
+
+    return (rec_flags);
 }
 
 /*
@@ -208,7 +226,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     /* Don't bump page read generations. */
     flags = WT_READ_INTERNAL_OP;
 
-    /* The scrub-eviction decision is fixed for the checkpoint; evaluate it once here. */
+    /*
+     * The scrub-eviction configuration is fixed for the checkpoint, but whether a given page gets
+     * an image also depends on its type and on the cache budget, so that is decided per page.
+     */
     checkpoint_scrub = __sync_scrub_checkpoint_enabled(session);
 
     internal_bytes = leaf_bytes = 0;
@@ -246,8 +267,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             LF_SET(WT_READ_VISIBLE_ALL);
 
         rec_flags = WT_REC_CHECKPOINT;
-        if (checkpoint_scrub)
-            rec_flags |= WT_REC_SAVE_IMAGE_CLEAN;
 
         for (;;) {
             WT_ERR(__wt_tree_walk(session, &walk, flags));
@@ -267,7 +286,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 leaf_bytes += __wt_atomic_load_size_relaxed(&page->memory_footprint);
                 ++leaf_pages;
                 reconcile_start = __wt_clock(session);
-                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+                WT_ERR(__wt_reconcile(session, walk, NULL,
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub)));
                 reconcile_time += __wt_clock(session) - reconcile_start;
             }
         }
@@ -320,8 +340,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;
-        if (checkpoint_scrub)
-            rec_flags |= WT_REC_SAVE_IMAGE_CLEAN;
         if (!is_hs && !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle))
             rec_flags |= WT_REC_HS;
 
@@ -448,10 +466,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                  */
                 WT_REF *walk_dup = NULL;
                 WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
-                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup, rec_flags, flags));
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup,
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), flags));
             } else {
                 reconcile_start = __wt_clock(session);
-                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+                WT_ERR(__wt_reconcile(session, walk, NULL,
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub)));
                 reconcile_time += __wt_clock(session) - reconcile_start;
             }
 

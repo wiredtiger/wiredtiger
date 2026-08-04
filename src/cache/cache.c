@@ -273,6 +273,12 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
           __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl) +
             __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf),
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
+
+    /*
+     * Every page has been discarded and every dhandle closed by this point, so any image checkpoint
+     * scrub retained has been freed with its page. A non-zero count means a path freed an image
+     * without releasing its accounting.
+     */
     if (__wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image) != 0 ||
       __wt_atomic_load_uint64_relaxed(&cache->pages_scrub_image) != 0)
         __wt_errx(session,

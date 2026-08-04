@@ -525,6 +525,24 @@ __wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size)
 }
 
 /*
+ * __wt_cache_scrub_image_budget_ok --
+ *     Return true if the cache has room for another checkpoint-scrub image. Checkpoint checks this
+ *     immediately before reconciling a page.
+ */
+static WT_INLINE bool
+__wt_cache_scrub_image_budget_ok(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    uint64_t image_max_bytes;
+
+    cache = S2C(session)->cache;
+    image_max_bytes = (S2C(session)->cache_size / 100) *
+      __wt_atomic_load_uint8_relaxed(&cache->cache_eviction_controls.checkpoint_scrub_image_max);
+
+    return (__wt_atomic_load_uint64_relaxed(&cache->bytes_scrub_image) < image_max_bytes);
+}
+
+/*
  * __wt_page_image_discard --
  *     Free a page's retained re-instantiation image, releasing scrub accounting if it was tracked.
  */
