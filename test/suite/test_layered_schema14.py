@@ -49,27 +49,42 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
+    # The restart scenario needs local metadata to survive, so it cannot skip file system syncs.
+    conn_config_follower_durable = conn_base_config + 'disaggregated=(role="follower")'
 
     uri = f'layered:{test_name}'
     uri2 = f'layered:{test_name}_2'
     uri3 = f'layered:{test_name}_3'
     decoy_uri = f'file:{test_name}_decoy.wt_stable'
+    # A decoy that is shared by configuration rather than by name, so its ID lands in the
+    # shared namespace while the file is called .wt.
+    shared_wt_decoy_uri = f'file:{test_name}_shared_decoy.wt'
 
     table_config = 'key_format=i,value_format=S'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def panic_regex(self):
+    def panic_regex(self, first_uri, second_uri):
         """
         The panic must report the shared ID and name both conflicting files. Equal IDs sort
         in an unspecified order, so accept either arrangement of the pair.
         """
-        decoy = re.escape(self.decoy_uri)
-        incoming = re.escape(self.stable_uri(self.uri2))
+        first = re.escape(first_uri)
+        second = re.escape(second_uri)
         return (f'/checkpoint pickup would leave btree ID \\d+ shared by '
-                f'("{decoy}" and "{incoming}"|"{incoming}" and "{decoy}") '
+                f'("{first}" and "{second}"|"{second}" and "{first}") '
                 f'in the local metadata/')
+
+    def recovery_conflict_regex(self, first_uri, second_uri):
+        """
+        Recovery indexes files by ID and refuses to open metadata holding two on one ID, so a
+        node cannot come back up while the conflict is still there.
+        """
+        first = re.escape(first_uri)
+        second = re.escape(second_uri)
+        return (f'/metadata corruption: files ({first} and {second}|{second} and {first}) '
+                f'have the same file ID \\d+/')
 
 
     # Subprocess bodies for the panic tests below. These must not be named test_*: the runner
@@ -119,6 +134,48 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
 
+    def subprocess_shared_wt_file_conflict_panics(self):
+        """Subprocess body for the shared .wt conflict test; expected to panic/abort."""
+        self.session.create(self.uri, self.table_config)
+        self.leader_checkpoint(10)
+
+        conn_follow, session_follow = self.open_follower()
+
+        self.session.create(self.uri2, self.table_config)
+        self.leader_checkpoint(20)
+
+        # The decoy carries the incoming table's shared ID under a .wt name, which is what a
+        # file configured with the disaggregated block manager looks like.
+        self.inject_stable_entry(conn_follow, self.shared_wt_decoy_uri,
+            self.stable_config(self.conn, self.uri2))
+
+        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+
+    def subprocess_restart_after_conflict_panics(self):
+        """Subprocess body for the restart test; expected to panic/abort."""
+        self.session.create(self.uri, self.table_config)
+        self.leader_checkpoint(10)
+
+        conn_follow = self.wiredtiger_open('follower',
+            self.extensionsConfig() + ',create,' + self.conn_config_follower_durable)
+        self.disagg_advance_checkpoint(conn_follow)
+        session_follow = conn_follow.open_session('')
+
+        # Duplicate an ID the follower already holds, then shut down cleanly so the
+        # conflicting pair is what the node comes back up with.
+        self.inject_stable_entry(conn_follow, self.decoy_uri,
+            self.stable_config(conn_follow, self.uri))
+        session_follow.close()
+        conn_follow.close()
+
+        # A pickup is only attempted for a checkpoint the node has not already applied.
+        self.leader_checkpoint(20)
+
+        # Recovery reads the local metadata before any pickup runs, and stops here.
+        conn_follow = self.wiredtiger_open('follower',
+            self.extensionsConfig() + ',create,' + self.conn_config_follower_durable)
+        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+
 
     # Positive test: an ordinary pickup assigns distinct IDs and does not panic.
     def test_pickup_unique_ids(self):
@@ -158,7 +215,8 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         # Initialize self.conn so the test fixture can close it cleanly; the real test runs
         # in a subprocess so that the panic/abort does not kill the test runner.
         self.leader_checkpoint(1)
-        self.run_panic_subprocess('new_table_id_conflict_panics', self.panic_regex())
+        self.run_panic_subprocess('new_table_id_conflict_panics',
+            self.panic_regex(self.decoy_uri, self.stable_uri(self.uri2)))
 
     def test_published_table_id_conflict_panics(self):
         """
@@ -168,4 +226,27 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         # Initialize self.conn so the test fixture can close it cleanly; the real test runs
         # in a subprocess so that the panic/abort does not kill the test runner.
         self.leader_checkpoint(1)
-        self.run_panic_subprocess('published_table_id_conflict_panics', self.panic_regex())
+        self.run_panic_subprocess('published_table_id_conflict_panics',
+            self.panic_regex(self.decoy_uri, self.stable_uri(self.uri2)))
+
+    def test_shared_wt_file_conflict_panics(self):
+        """
+        A file is shared because of its ID's namespace, not its name, so a .wt file holding a
+        shared ID must be caught colliding with a stable file just the same.
+        """
+        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
+        # in a subprocess so that the panic/abort does not kill the test runner.
+        self.leader_checkpoint(1)
+        self.run_panic_subprocess('shared_wt_file_conflict_panics',
+            self.panic_regex(self.shared_wt_decoy_uri, self.stable_uri(self.uri2)))
+
+    def test_restart_after_conflict_panics(self):
+        """
+        A node that halts on a conflict cannot come back up while the conflict is still in its
+        local metadata: recovery indexes files by ID and refuses the duplicate.
+        """
+        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
+        # in a subprocess so that the panic/abort does not kill the test runner.
+        self.leader_checkpoint(1)
+        self.run_panic_subprocess('restart_after_conflict_panics',
+            self.recovery_conflict_regex(self.decoy_uri, self.stable_uri(self.uri)))
