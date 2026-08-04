@@ -523,9 +523,9 @@ __curstat_size_local(
     const int ret = __wt_block_manager_named_size(session, filename, &size);
 
     /* Treat a concurrent file removal the same as the file not originally existing. */
+    WT_RET_ERROR_OK(ret, ENOENT);
     if (ret == ENOENT)
         return (0);
-    WT_RET(ret);
 
     *was_fastp = true;
     *sizep = (int64_t)size;
@@ -559,18 +559,18 @@ __curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fa
 
     *was_fastp = false;
 
-    if (!__wt_conn_is_disagg(session))
-        return (__curstat_size_local(session, filename, was_fastp, sizep));
-
-    char *file_config = NULL;
-    WT_RET(__wt_metadata_search(session, file_uri, &file_config));
-
     WT_DECL_RET;
-    const char *config[] = {WT_CONFIG_BASE(session, file_meta), file_config, NULL};
+    char *file_config = NULL;
     bool shared = false;
 
-    /* Use the block manager to classify if the file is disagg or not. */
-    WT_ERR(__wt_btree_shared(session, file_uri, config, &shared));
+    if (__wt_conn_is_disagg(session)) {
+        WT_ERR(__wt_metadata_search(session, file_uri, &file_config));
+        const char *config[] = {WT_CONFIG_BASE(session, file_meta), file_config, NULL};
+
+        /* Use the block manager to classify if the file is disagg or not. */
+        WT_ERR(__wt_btree_shared(session, file_uri, config, &shared));
+    }
+
     if (shared) {
         WT_ERR(__curstat_size_shared(session, file_config, sizep));
         *was_fastp = true;
