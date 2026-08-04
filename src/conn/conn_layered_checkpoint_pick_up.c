@@ -1437,12 +1437,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
 
     /*
      * Part 3: Do the bookkeeping.
-     *
-     * The merge is complete: from here a failure would leave the local metadata resolving to the
-     * new checkpoint while the published LSN still admits only the old one, and there is no
-     * compensation short of completing the adoption, so it is fatal.
      */
     __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
+
+    /*
+     * The merge is complete: a failure from here leaves the local metadata resolving to the new
+     * checkpoint while the published LSN still admits only the old one, and there is no
+     * compensation short of completing the adoption, so it is fatal.
+     */
     if ((ret = __disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata)) != 0)
         WT_ERR_PANIC(
           session, ret, "failed to adopt a checkpoint after completing its metadata merge");
