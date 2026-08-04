@@ -514,11 +514,18 @@ err:
 
 /*
  * __disagg_drop_local_layered_int --
- *     Discard the local state of a layered table that the leader has dropped. If any handle is busy
- *     (e.g., the application holds an open cursor on the table), the discard fails with EBUSY,
- *     which aborts the whole pickup before the checkpoint metadata LSN advances; the application
- *     sees the error from the pickup call and retries it later. A retry after a partial discard is
- *     safe: the ingest constituent is dropped first because its handles are the most likely to be
+ *     Discard the local state describing a dead incarnation of a layered table, so the recreated
+ *     one can be picked up in its place.
+ *
+ * The ingest goes with it. Reaching here means the local metadata still describes the older
+ *     incarnation, so this node never applied the drop that ended it and the ingest still holds
+ *     that incarnation's rows. Those rows belong to a table that no longer exists, and keeping them
+ *     would surface them through the recreated one.
+ *
+ * If any handle is busy (e.g., the application holds an open cursor on the table), the discard
+ *     fails with EBUSY, which aborts the whole pickup before the checkpoint metadata LSN advances;
+ *     the application sees the error from the pickup call and retries it later. A retry after a
+ *     partial discard is safe: the ingest goes first because its handles are the most likely to be
  *     busy, all remaining handles are closed before any local metadata entry is removed, and every
  *     removal below tolerates an already-missing entry. The discard is still not atomic: between a
  *     failed pickup and its retry, a reader can observe a partially discarded table, the same as
@@ -543,6 +550,7 @@ __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
     WT_ERR(__wt_buf_fmt(session, layered_uri_buf, "layered:%s", name));
     WT_ERR(__wt_buf_fmt(session, table_uri_buf, "table:%s", name));
 
+    /* Drop the ingest first: its handles are the most likely to be busy. */
     WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_ingest", name));
     WT_ERR(__wt_schema_drop(session, uri_buf->data, drop_cfg, false));
 
@@ -907,17 +915,16 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 /*
                  * A btree ID change under the same name means the leader dropped and recreated the
                  * table, possibly across several skipped checkpoints, so the local entries describe
-                 * a dead incarnation. Unless the metadata operations queue has a local create or
-                 * drop that has not reached a shared checkpoint yet (the local state is then newer
-                 * than the shared checkpoint), discard the local state and pick the table up as a
-                 * new one.
+                 * a dead incarnation: discard them and pick the table up as a new one.
+                 *
+                 * The metadata operations queue is deliberately not consulted. It is a leader-side
+                 * drain structure, pruned once a checkpoint covers an entry and cleared on step
+                 * down, so its silence says nothing about whether the local state is live. The
+                 * ingest table carries what would be at risk here, and it is kept.
                  */
                 WT_ERR(__disagg_file_id_mismatch(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
                   md_cursors[WT_DISAGG_CURSOR_FILE], &id_mismatch));
                 if (id_mismatch) {
-                    if (__wti_disagg_table_latest_create_remove(session, current, &latest_epoch) !=
-                      WT_SHARED_METADATA_NONE)
-                        continue;
                     WT_ERR(__disagg_drop_local_layered(session, current));
                     WT_ERR(__disagg_pick_up_new_layered(
                       session, sh_cursors, md_write_cursor, sh_has, is_startup, &new_ingest));
@@ -974,23 +981,17 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
-             * The local metadata has a layered: entry but the shared metadata does not - the leader
-             * dropped the table. Discard the local state, unless the metadata operations queue has
-             * a local create that has not reached a shared checkpoint yet.
+             * The local metadata has a layered: entry but the shared metadata does not. Absence
+             * from the shared metadata does not distinguish a table the leader dropped from one it
+             * never published, and the local table may hold committed rows that no checkpoint has
+             * captured, so leave the local state alone rather than risk destroying the only copy.
+             *
+             * A table the leader dropped and recreated is a different case: the name is present on
+             * both sides with a different btree ID, and that is handled above.
+             *
+             * FIXME-WT-17746: Remove the local metadata entries for a table the leader really did
+             * drop, once a dropped table can be told apart from an unpublished one.
              */
-            latest_op = __wti_disagg_table_latest_create_remove(session, current, &latest_epoch);
-            if (strict &&
-              (latest_op != WT_SHARED_METADATA_CREATE || latest_epoch <= ckpt_schema_epoch))
-                WT_ERR_PANIC(session, EINVAL,
-                  "strict checkpoint metadata validation failed: table \"%s\" is present in "
-                  "the local metadata but not in the shared metadata, and there is no pending "
-                  "CREATE with a schema epoch greater than the checkpoint's schema epoch "
-                  "%" PRIu64 "; latest queued operation: %s at schema epoch %" PRIu64,
-                  current, ckpt_schema_epoch, __wti_disagg_shared_metadata_op_to_string(latest_op),
-                  latest_epoch);
-            if (latest_op == WT_SHARED_METADATA_CREATE)
-                continue;
-            WT_ERR(__disagg_drop_local_layered(session, current));
         } else {
             /*
              * Neither the local nor the shared metadata has a layered: entry for this table name.

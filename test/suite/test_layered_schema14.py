@@ -78,6 +78,9 @@ class test_layered_schema14(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         # metadata operation queue stays empty and the pickup relies entirely on the shared vs.
         # local metadata diff.
 
+        # Publishing requires a stable schema epoch, and every later publish sits above it.
+        self.set_stable_epoch(1)
+
         # Leader creates the table, writes the first generation of data, and checkpoints.
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 10)
@@ -102,11 +105,16 @@ class test_layered_schema14(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(25)
         self.leader_checkpoint(20)
 
-        # Follower picks up the post-drop checkpoint. The table is gone from the shared metadata
-        # and the pickup must discard it from the follower's local metadata as well.
+        # Follower picks up the post-drop checkpoint. The table is gone from the shared metadata,
+        # but the pickup leaves the follower's local entries in place: absence from the shared
+        # metadata does not distinguish a dropped table from one that was never published, and a
+        # local table can hold rows no checkpoint has captured.
+        #
+        # FIXME-WT-17746: The local entries should go once a dropped table can be told apart from
+        # an unpublished one.
         self.disagg_advance_checkpoint(conn_follow)
         self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri))
-        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri))
 
         # Leader recreates the table under the same name. It gets a fresh btree ID and a new
         # generation of data.
@@ -130,13 +138,17 @@ class test_layered_schema14(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         conn_follow.close('debug=(skip_checkpoint=true)')
 
     def test_pickup_keeps_locally_published_create(self):
+        # Publishing requires a stable schema epoch, and every later publish sits above it.
+        self.set_stable_epoch(1)
+
         # Leader creates a first table and checkpoints so the follower has something to pick up.
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 10)
         self.set_stable_epoch(10)
         self.leader_checkpoint(10)
 
-        conn_follow, session_follow = self.open_follower()
+        # The follower publishes here too, so it needs a stable schema epoch of its own.
+        conn_follow, session_follow = self.open_follower_epoch(10)
 
         # Both nodes create a second table at epoch 25 (the follower applies the same operation
         # through the publish API), but the leader checkpoints with the stable epoch still at 10,

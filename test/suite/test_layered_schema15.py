@@ -119,11 +119,16 @@ class test_layered_schema15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.drop(self.uri)
         self.leader_checkpoint(20)
 
-        # Follower picks up the post-drop checkpoint. The table is gone from the shared metadata
-        # and the pickup must discard it from the follower's local metadata as well.
+        # Follower picks up the post-drop checkpoint. The table is gone from the shared metadata,
+        # but the pickup leaves the follower's local entries in place: absence from the shared
+        # metadata does not distinguish a dropped table from one that was never published, and a
+        # local table can hold rows no checkpoint has captured.
+        #
+        # FIXME-WT-17746: The local entries should go once a dropped table can be told apart from
+        # an unpublished one.
         self.disagg_advance_checkpoint(conn_follow)
         self.assertFalse(self.uri_in_shared_metadata(conn_follow))
-        self.assertFalse(self.uri_in_local_metadata(conn_follow))
+        self.assertTrue(self.uri_in_local_metadata(conn_follow))
 
         # Leader recreates the table under the same name. It gets a fresh btree ID and a new
         # generation of data.

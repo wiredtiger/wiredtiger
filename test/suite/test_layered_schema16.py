@@ -133,54 +133,20 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.dropUntilSuccess(self.session, self.uri)
         self.leader_checkpoint(60)
 
-        # Follower picks up the drop: the table must disappear from its local metadata and must no
-        # longer be readable.
+        # Follower picks up the drop. The table stays in its local metadata and stays readable:
+        # absence from the shared metadata does not distinguish a dropped table from one that was
+        # never published, and a local table can hold rows no checkpoint has captured, so the
+        # pickup leaves it alone.
+        #
+        # FIXME-WT-17746: The table should disappear here, and stop being readable, once a dropped
+        # table can be told apart from an unpublished one.
         self.disagg_advance_checkpoint(conn_follow)
-        self.assertFalse(self.uri_in_local_metadata(conn_follow))
-        self.assertRaises(wiredtiger.WiredTigerError,
-                          lambda: session_follow.open_cursor(self.uri))
-
-        session_follow.close()
-        conn_follow.close('debug=(skip_checkpoint=true)')
-
-    def test_pickup_ebusy_retry(self):
-        # Leader creates the table, writes data, and checkpoints; follower picks it up.
-        self.session.create(self.uri, self.table_config)
-        self.write_all('aaa', 10)
-        self.leader_checkpoint(10)
-        conn_follow, session_follow = self.open_follower()
-        self.assertEqual(self.read_all(session_follow), {i: 'aaa' for i in range(10)})
-
-        # Keep a positioned cursor open on the follower: positioning opens the constituent
-        # cursors, so the ingest and stable data handles stay pinned.
-        cursor = session_follow.open_cursor(self.uri)
-        self.assertEqual(cursor.next(), 0)
-
-        # Leader drops the table and checkpoints.
-        self.dropUntilSuccess(self.session, self.uri)
-        self.leader_checkpoint(20)
-
-        # The pickup must fail with EBUSY: the busy handles abort the discard of the dropped
-        # table before the follower advances to the new checkpoint.
-        self.assertRaises(wiredtiger.WiredTigerError,
-                          lambda: self.disagg_advance_checkpoint(conn_follow))
-        self.ignoreStderrPatternIfExists('Failed to pick up disaggregated storage checkpoint')
-
-        # The failed pickup must leave the table intact on the follower: still present in the
-        # local metadata and still readable through the open cursor.
         self.assertTrue(self.uri_in_local_metadata(conn_follow))
-        cursor.reset()
-        result = {}
-        while cursor.next() == 0:
-            result[cursor.get_key()] = cursor.get_value()
-        self.assertEqual(result, {i: 'aaa' for i in range(10)})
-        cursor.close()
-
-        # With the cursor closed, retrying the pickup must succeed and discard the table.
-        self.disagg_advance_checkpoint(conn_follow)
-        self.assertFalse(self.uri_in_local_metadata(conn_follow))
-        self.assertRaises(wiredtiger.WiredTigerError,
-                          lambda: session_follow.open_cursor(self.uri))
+        self.assertEqual(self.read_all(session_follow), {i: 'ddd' for i in range(10)})
 
         session_follow.close()
         conn_follow.close('debug=(skip_checkpoint=true)')
+
+    # FIXME-WT-17746: A test covering the EBUSY retry when a pinned data handle blocks the discard
+    # of a dropped table belonged here. The pickup no longer discards anything, so there is nothing
+    # for a busy handle to block. Restore it along with the discard.

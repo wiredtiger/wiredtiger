@@ -29,9 +29,13 @@
 # Test the disaggregated=(strict_checkpoint_metadata) connection option.
 #
 # When strict mode is on, checkpoint pickup panics if a layered table is
-# present in only one of the local and shared metadata and the difference is
-# not explained by a pending metadata-queue CREATE/REMOVE with a schema epoch
+# present in the shared metadata but not the local one and the difference is
+# not explained by a pending metadata-queue REMOVE with a schema epoch
 # greater than the picked-up checkpoint's schema epoch.
+#
+# FIXME-WT-17746: The other direction, a table present only in the local metadata, is
+# tolerated. It cannot be told apart from a table holding rows no checkpoint has captured,
+# so validating it would panic on a legitimate state.
 #
 # Strict mode is enabled on the follower only after its startup pickup (the
 # startup pickup populates an empty local metadata from the checkpoint, which
@@ -221,8 +225,16 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.setup_leader_empty()
         self.run_panic_subprocess('shared_only_panics')
 
-    def subprocess_stale_create_panics(self):
-        """Subprocess body for the stale-create panic test; expected to panic/abort."""
+    def test_strict_stale_create_tolerated(self):
+        """
+        A local-only table whose latest queued CREATE has an epoch at or below the
+        picked-up checkpoint's epoch is tolerated, and the table is left alone.
+
+        FIXME-WT-17746: This was an unexplained difference that strict pickup panicked on.
+        A local-only table cannot be told apart from one holding rows no checkpoint has
+        captured, so neither the panic nor the discard it guarded is safe. Restore both
+        once the two cases can be distinguished.
+        """
         # Seed the leader with uri: pickup applies the shared metadata (and hence
         # validates) only when the shared metadata table has been checkpointed.
         self.setup_leader_with_table()
@@ -230,25 +242,18 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_follow, session_follow = self.open_strict_follower()
 
         # Publish the follower's CREATE at epoch 30, then pick up a checkpoint at
-        # epoch 40: the CREATE should already be reflected in that checkpoint, so the
-        # table being local-only is unexplained.
+        # epoch 40, by which point the CREATE has been pruned from the queue.
         session_follow.create(self.uri2, self.table_config)
         self.publish(self.uri2, 30, session_follow)
         session_follow.close()
 
         self.leader_checkpoint_at_epoch(40, 2)
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertTrue(self.uri_in_local_metadata(conn_follow, self.uri2))
+        self.assertFalse(self.uri_in_shared_metadata(conn_follow, self.uri2))
 
-    def test_strict_stale_create_panics(self):
-        """
-        A local-only table whose latest queued CREATE has an epoch at or below the
-        picked-up checkpoint's epoch is an unexplained difference: strict pickup panics.
-        """
-        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
-        # in a subprocess so that the panic/abort does not kill the test runner.
-        self.setup_leader_empty()
-        self.run_panic_subprocess('stale_create_panics')
+        conn_follow.close('debug=(skip_checkpoint=true)')
 
     def subprocess_stale_remove_panics(self):
         """Subprocess body for the stale-remove panic test; expected to panic/abort."""
@@ -334,23 +339,22 @@ class test_layered_schema17(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         session_lead.close()
         return conn_follow
 
-    def subprocess_step_down_pending_create_panics(self):
-        """Subprocess body for the step-down panic test; expected to panic/abort."""
+    def test_strict_step_down_pending_create_tolerated(self):
+        """
+        A node that steps down with a created-but-unpublished table passes strict
+        validation, and the table is left alone.
+
+        FIXME-WT-17746: The cleared queue leaves the local-only table unexplained, which
+        strict pickup panicked on. It cannot be told apart from a table holding rows no
+        checkpoint has captured, so restore the panic once it can.
+        """
         conn_lead = self.step_down_with_unpublished_table()
 
         self.conn.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
-        self.disagg_advance_checkpoint(self.conn, conn_lead)  # Expected to panic.
+        self.disagg_advance_checkpoint(self.conn, conn_lead)
+        self.assertTrue(self.uri_in_local_metadata(self.conn, self.uri2, leader=True))
 
-    def test_strict_step_down_pending_create_panics(self):
-        """
-        A node that steps down with a created-but-unpublished table cannot pass
-        strict validation: the queue was cleared on step-down, so the local-only
-        table is unexplained and picking up the new leader's checkpoint panics.
-        """
-        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
-        # in a subprocess so that the panic/abort does not kill the test runner.
-        self.setup_leader_empty()
-        self.run_panic_subprocess('step_down_pending_create_panics')
+        conn_lead.close('debug=(skip_checkpoint=true)')
 
     def test_strict_step_down_drop_then_pickup(self):
         """
