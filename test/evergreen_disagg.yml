@@ -650,7 +650,7 @@ variables:
           format_args: >-
             disagg.multi=1 disagg.multi_validation=1 disagg.snapshot_read=1
             runs.predictable_replay=1 runs.rows=50000:200000 runs.ops=500000:2000000
-            ops.pct.delete=10 ops.pct.insert=15 ops.pct.modify=0 ops.pct.read=60
+            ops.pct.delete=10 ops.pct.insert=15 ops.pct.modify=10 ops.pct.read=50
             ops.pct.write=15
           times: 10
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
