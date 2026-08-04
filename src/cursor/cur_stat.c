@@ -533,10 +533,23 @@ __curstat_size_local(
 }
 
 /*
+ * __curstat_size_shared --
+ *     Fast-path size retrieval from shared-file metadata. Metadata with no checkpoint entry has a
+ *     size of zero.
+ */
+static int
+__curstat_size_shared(WT_SESSION_IMPL *session, const char *file_config, int64_t *sizep)
+{
+    uint64_t checkpoint_size = 0;
+    WT_RET_NOTFOUND_OK(__wt_ckpt_last_size(session, file_config, &checkpoint_size));
+    *sizep = (int64_t)checkpoint_size;
+    return (0);
+}
+
+/*
  * __curstat_file_size --
  *     Fast-path size retrieval for a file URI. On a disaggregated connection, use file metadata to
- *     select the size source. Returns WT_NOTFOUND on metadata failure (does not exist or could not
- *     be parsed).
+ *     select the size source. A missing metadata entry returns WT_NOTFOUND.
  */
 static int
 __curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fastp, int64_t *sizep)
@@ -558,13 +571,9 @@ __curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fa
 
     /* Use the block manager to classify if the file is disagg or not. */
     WT_ERR(__wt_btree_shared(session, file_uri, config, &shared));
-
     if (shared) {
-        /* A shared file without a checkpoint entry has a size of zero. */
-        uint64_t checkpoint_size = 0;
-        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, file_config, &checkpoint_size), false);
+        WT_ERR(__curstat_size_shared(session, file_config, sizep));
         *was_fastp = true;
-        *sizep = (int64_t)checkpoint_size;
     } else
         WT_ERR(__curstat_size_local(session, filename, was_fastp, sizep));
 
@@ -575,8 +584,8 @@ err:
 
 /*
  * __curstat_table_size --
- *     Fast-path size retrieval for a simple table URI. Returns WT_NOTFOUND on metadata failure
- *     (does not exist or could not be parsed).
+ *     Fast-path size retrieval for a simple table URI. A missing table metadata entry returns
+ *     WT_NOTFOUND.
  */
 static int
 __curstat_table_size(
@@ -591,6 +600,7 @@ __curstat_table_size(
     WT_CONFIG_ITEM column_config = {0};
     WT_ITEM uri_buffer = {0};
     bool simple = false;
+    char *stable_config = NULL;
     char *table_config = NULL;
 
     /* Only tables that are "simple" (no named columns) can use the fast path. */
@@ -600,10 +610,15 @@ __curstat_table_size(
     if (!simple)
         goto err;
 
-    /* Only probe for a stable file on a connection that can create one. */
+    /* A stable file is always shared, so read its metadata directly. */
     if (__wt_conn_is_disagg(session)) {
         WT_ERR(__wt_buf_fmt(session, &uri_buffer, "file:%s.wt_stable", table_name));
-        WT_ERR_NOTFOUND_OK(__curstat_file_size(session, uri_buffer.data, was_fastp, sizep), false);
+        ret = __wt_metadata_search(session, uri_buffer.data, &stable_config);
+        if (ret == 0) {
+            WT_ERR(__curstat_size_shared(session, stable_config, sizep));
+            *was_fastp = true;
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
 
     /* At this point, disagg or not, fall back to the local non-layered file. */
@@ -613,6 +628,7 @@ __curstat_table_size(
     }
 
 err:
+    __wt_free(session, stable_config);
     __wt_free(session, table_config);
     __wt_buf_free(session, &uri_buffer);
     return (ret);
