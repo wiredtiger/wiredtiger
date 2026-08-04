@@ -37,8 +37,8 @@ extern bool __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool w
 extern bool __wt_is_valid_sub_level_error(int sub_level_err)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_ispo2(uint32_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_metadata_btree_ids_find_duplicate(uint32_t *ids, size_t count, uint32_t *dup_idp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_metadata_btree_ids_find_duplicate(uint32_t *btree_ids, size_t count,
+  uint32_t *dup_idp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_modify_idempotent(const void *modify)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)

@@ -329,8 +329,8 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
 }
 
 /*
- * The btree IDs of the shared files the local metadata holds once the merge completes, gathered as
- * the merge walks so that checking them costs no extra metadata scan.
+ * The btree IDs of every shared file the local metadata will hold once this pickup has applied the
+ * checkpoint, collected as the walk over the local and shared metadata passes each entry.
  */
 typedef struct {
     uint32_t *ids;
@@ -340,7 +340,8 @@ typedef struct {
 
 /*
  * __disagg_shared_btree_ids_add --
- *     Record the btree ID of a metadata entry, ignoring files shared storage does not address.
+ *     Record a metadata entry's btree ID, skipping files whose pages shared storage does not
+ *     address by ID and so cannot collide.
  */
 static int
 __disagg_shared_btree_ids_add(WT_SESSION_IMPL *session,
@@ -643,8 +644,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
 
         /*
-         * Track the IDs the local metadata already holds. Merging never rewrites one, so together
-         * with the IDs we insert below these are the IDs in effect once the walk finishes.
+         * Collect the IDs the local metadata already holds. Applying a checkpoint only ever moves a
+         * file's checkpoint forward, never its ID, so these survive the walk unchanged.
          */
         if (md_has[WT_DISAGG_CURSOR_FILE]) {
             WT_ERR(md_cursors[WT_DISAGG_CURSOR_FILE]->get_value(

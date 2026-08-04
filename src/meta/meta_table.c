@@ -391,11 +391,11 @@ err:
 static int
 __btree_id_cmp(const void *a, const void *b)
 {
-    uint32_t ia, ib;
+    uint32_t id_a, id_b;
 
-    ia = *(const uint32_t *)a;
-    ib = *(const uint32_t *)b;
-    return (ia < ib ? -1 : (ia == ib ? 0 : 1));
+    id_a = *(const uint32_t *)a;
+    id_b = *(const uint32_t *)b;
+    return (id_a < id_b ? -1 : (id_a == id_b ? 0 : 1));
 }
 
 /*
@@ -404,16 +404,16 @@ __btree_id_cmp(const void *a, const void *b)
  *     ID when they are.
  */
 bool
-__wt_metadata_btree_ids_find_duplicate(uint32_t *ids, size_t count, uint32_t *dup_idp)
+__wt_metadata_btree_ids_find_duplicate(uint32_t *btree_ids, size_t count, uint32_t *dup_idp)
 {
     size_t i;
 
     *dup_idp = 0;
 
-    __wt_qsort(ids, count, sizeof(uint32_t), __btree_id_cmp);
+    __wt_qsort(btree_ids, count, sizeof(uint32_t), __btree_id_cmp);
     for (i = 0; i + 1 < count; ++i)
-        if (ids[i] == ids[i + 1]) {
-            *dup_idp = ids[i];
+        if (btree_ids[i] == btree_ids[i + 1]) {
+            *dup_idp = btree_ids[i];
             return (true);
         }
 
