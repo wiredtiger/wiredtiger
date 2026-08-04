@@ -1778,6 +1778,7 @@ struct
 structs
 su
 subcommand
+subcommands
 subconfig
 subconfigs
 subconfiguration
