@@ -172,7 +172,7 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         # The survive scenario keeps its transaction open across the pickup, deferring the
         # adoption, so there is nothing to wait for.
-        self.disagg_advance_checkpoint(conn_follow, wait=(self.txn_mode != 'survive'))
+        self.disagg_advance_checkpoint(conn_follow)
 
         if self.txn_mode != 'survive':
             session_follow.begin_transaction()

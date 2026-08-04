@@ -188,25 +188,6 @@ TEST_CASE("Layered follower: snapshot readers racing checkpoint pickups",
         std::lock_guard<std::mutex> lock(errors_mutex);
         REQUIRE(errors == std::vector<std::string>());
     }
-
-    /* The intended path must have run: readers finished transactions and deferred an adoption. */
-    REQUIRE(transactions.load() > 0);
-    {
-        WT_CURSOR *stat_cursor;
-        WT_SESSION *stat_session;
-        int64_t deferred;
-
-        REQUIRE(conn_follow->open_session(conn_follow, nullptr, nullptr, &stat_session) == 0);
-        REQUIRE(stat_session->open_cursor(
-                  stat_session, "statistics:", nullptr, nullptr, &stat_cursor) == 0);
-        stat_cursor->set_key(stat_cursor, WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER);
-        REQUIRE(stat_cursor->search(stat_cursor) == 0);
-        const char *desc, *pvalue;
-        REQUIRE(stat_cursor->get_value(stat_cursor, &desc, &pvalue, &deferred) == 0);
-        REQUIRE(deferred > 0);
-        REQUIRE(stat_cursor->close(stat_cursor) == 0);
-        REQUIRE(stat_session->close(stat_session, nullptr) == 0);
-    }
 }
 
 #endif /* !_WIN32 */

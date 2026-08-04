@@ -26,8 +26,7 @@ search=`sed -n '/^struct/,/^}/p' ../src/include/stat.h | sed \
     -e d |
     sort`
 
-# There are some fields that are used, but we can't detect it. Fields whose only users are in a
-# change that has not landed yet are listed here too, and removed when it does.
+# There are some fields that are used, but we can't detect it.
 cat << UNUSED_STAT_FIELDS
 btree_clean_checkpoint_timer
 checkpoints_total_failed

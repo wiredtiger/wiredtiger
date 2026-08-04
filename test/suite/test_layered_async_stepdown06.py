@@ -370,7 +370,7 @@ class test_layered_async_stepdown06(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # The follower picks up the step-down checkpoint under the open snapshot; an
         # untimestamped snapshot defers the adoption, so do not wait for it.
-        self.disagg_advance_checkpoint(conn_follow, wait=(begin_config is not None))
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Both a fresh cursor and the original one must still answer from the snapshot.
         fcur2 = fsession.open_cursor(self.uri, None, None)

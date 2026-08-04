@@ -933,7 +933,6 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
     entry->meta = *meta_strp;
     *meta_strp = NULL;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
-    WT_STAT_CONN_INCR(session, disagg_checkpoint_defer);
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
     return (0);
 }
@@ -1232,7 +1231,6 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
     /* Publish the adopted LSN as a statistic: adoption is asynchronous when deferred. */
-    WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)ckpt_meta->metadata_lsn);
 
     /* The adoption satisfies any pending deferred pickup this checkpoint covers. */
     __wti_disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
@@ -1596,9 +1594,6 @@ __wti_disagg_pick_up_checkpoint_meta(
     }
     /* Advance the checkpoint generation snapshots pin. */
     __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, WT_DISAGG_CKPT_GEN(ckpt_meta.metadata_lsn));
-    /* Publish the delivered LSN as a statistic; the adopted LSN is published separately. */
-    WT_STAT_CONN_SET(session, disagg_checkpoint_delivered_lsn,
-      (int64_t)__wt_atomic_load_uint64_relaxed(&disagg->pending_checkpoint_meta_lsn));
 
     /*
      * Defer adopting a newer checkpoint while transactional snapshots that predate it are active,

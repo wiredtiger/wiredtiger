@@ -126,7 +126,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         # Take a checkpoint and advance it, make sure everything is still good. The positioned
         # cursor's snapshot defers the adoption, so there is nothing to wait for.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, self.nitems)
 
         # At this point, everything in the ingest table is redundant, as it's
@@ -185,7 +185,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         # Take a checkpoint and advance it, make sure everything is still good. The positioned
         # cursor's snapshot defers the adoption, so there is nothing to wait for.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 2 * self.nitems)
 
         # At this point, the inserts in the ingest table are redundant but the deletes are not.
@@ -200,7 +200,9 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
         # Close the cursor held open: the deferred checkpoint is adopted once its snapshot ends.
         hold_cursor.close()
-        self.disagg_await_checkpoint_adoption(conn_follow)
+        # With the snapshot gone, a freshly delivered checkpoint is adopted synchronously.
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Eviction may now remove the inserts covered by the adopted checkpoint (how many is its
         # choice), but it cannot remove the deletes: they are not in the stable table.
@@ -218,7 +220,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         # Take a new checkpoint and advance it, make sure everything is still good
         self.session.checkpoint()
         session_follow.breakpoint()
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 2 * self.nitems)
 
         # At this point, everything in the ingest table is redundant, as it's also in the stable
@@ -275,7 +277,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
         # Take a checkpoint and advance it, make sure everything is still good. The positioned
         # cursor's snapshot defers the adoption, so there is nothing to wait for.
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, self.nitems)
 
         # At this point, everything in the ingest table is redundant, as it's
