@@ -355,8 +355,7 @@ static int __disagg_check_meta_fields(
 /*
  * __disagg_check_meta_field --
  *     Compare a single configuration field present in both the local and the shared metadata,
- *     panicking when the types or the values differ. Nested categories recurse, because comparing
- *     a category as a single string would flag a mismatch whenever either side gains a subconfig.
+ *     recursing into nested categories and panicking when the types or the values differ.
  */
 static int
 __disagg_check_meta_field(WT_SESSION_IMPL *session, const char *uri, const char *prefix,
@@ -376,14 +375,14 @@ __disagg_check_meta_field(WT_SESSION_IMPL *session, const char *uri, const char 
         WT_ERR_PANIC(session, EINVAL,
           "checkpoint pickup metadata mismatch for \"%s\": the type of \"%s%.*s\" differs "
           "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
-          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str,
-          (int)sh_cval->len, sh_cval->str);
+          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str, (int)sh_cval->len,
+          sh_cval->str);
     else if (__wt_string_slice_cmp(sh_cval->str, sh_cval->len, md_cval->str, md_cval->len) != 0)
         WT_ERR_PANIC(session, EINVAL,
           "checkpoint pickup metadata mismatch for \"%s\": the value of \"%s%.*s\" differs "
           "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
-          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str,
-          (int)sh_cval->len, sh_cval->str);
+          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str, (int)sh_cval->len,
+          sh_cval->str);
 
 err:
     __wt_scr_free(session, &child);
@@ -394,9 +393,7 @@ err:
  * __disagg_check_meta_fields --
  *     Merge two configuration strings, panicking when a field present on both sides has different
  *     values. The merge relies on both entries listing their common fields in the same relative
- *     order, which holds because they share a copy lineage; if that ever breaks, fields are
- *     silently skipped rather than falsely flagged. A field present on only one side is ignored,
- *     since the two nodes may run binaries with different field sets.
+ *     order; a field present on only one side is ignored.
  */
 static int
 __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char *prefix,
@@ -411,21 +408,19 @@ __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char
     md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
     while (sh_ret == 0 && md_ret == 0) {
         cmp = __wt_string_slice_cmp(sh_ckey.str, sh_ckey.len, md_ckey.str, md_ckey.len);
-        if (cmp < 0) {
+        if (cmp < 0)
             sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
-            continue;
-        }
-        if (cmp > 0) {
+        else if (cmp > 0)
             md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
-            continue;
+        else {
+            /* The skip list names top-level fields only. */
+            if (!top_level || !__disagg_meta_skip_field(&sh_ckey))
+                WT_RET(
+                  __disagg_check_meta_field(session, uri, prefix, &sh_ckey, &md_cval, &sh_cval));
+
+            sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
+            md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
         }
-
-        /* The skip list names top-level fields only. */
-        if (!top_level || !__disagg_meta_skip_field(&sh_ckey))
-            WT_RET(__disagg_check_meta_field(session, uri, prefix, &sh_ckey, &md_cval, &sh_cval));
-
-        sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
-        md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
     }
 
     /*
