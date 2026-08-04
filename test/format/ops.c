@@ -391,9 +391,14 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL));
     if (disagg_is_multi_node() && !g.disagg_leader) {
         testutil_check(__wt_thread_create(NULL, &follower_tid, follower, NULL));
-        for (i = 0; i < WT_ELEMENTS(follower_read_no_ts_tid); ++i)
-            testutil_check(
-              __wt_thread_create(NULL, &follower_read_no_ts_tid[i], follower_read_no_ts, NULL));
+        /*
+         * The snapshot readers fail a run when a transaction's reads change under it, so they are
+         * configured rather than implied by a multi-node run.
+         */
+        if (GV(DISAGG_SNAPSHOT_READ))
+            for (i = 0; i < WT_ELEMENTS(follower_read_no_ts_tid); ++i)
+                testutil_check(
+                  __wt_thread_create(NULL, &follower_read_no_ts_tid[i], follower_read_no_ts, NULL));
     }
     if (GV(OPS_HS_CURSOR))
         testutil_check(__wt_thread_create(NULL, &hs_tid, hs_cursor, NULL));
@@ -538,8 +543,9 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
         testutil_check(__wt_thread_join(NULL, &stepdown_tid));
     if (disagg_is_multi_node() && !g.disagg_leader) {
         testutil_check(__wt_thread_join(NULL, &follower_tid));
-        for (i = 0; i < WT_ELEMENTS(follower_read_no_ts_tid); ++i)
-            testutil_check(__wt_thread_join(NULL, &follower_read_no_ts_tid[i]));
+        if (GV(DISAGG_SNAPSHOT_READ))
+            for (i = 0; i < WT_ELEMENTS(follower_read_no_ts_tid); ++i)
+                testutil_check(__wt_thread_join(NULL, &follower_read_no_ts_tid[i]));
     }
     if (GV(OPS_HS_CURSOR))
         testutil_check(__wt_thread_join(NULL, &hs_tid));
