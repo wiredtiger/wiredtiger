@@ -377,32 +377,6 @@ __disagg_file_id_mismatch(
 }
 
 /*
- * __disagg_drop_local_ingest_hs --
- *     Truncate the history store for a dropped ingest table, mirroring what a regular drop of the
- *     ingest file would do. Best-effort: a failure only delays the cleanup.
- */
-static void
-__disagg_drop_local_ingest_hs(WT_SESSION_IMPL *session, const char *uri)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    char *metadata_cfg;
-
-    conn = S2C(session);
-    metadata_cfg = NULL;
-
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || !F_ISSET_ATOMIC_32(conn, WT_CONN_READY))
-        return;
-
-    if (__wt_metadata_search(session, uri, &metadata_cfg) == 0 &&
-      __wt_config_getones(session, metadata_cfg, "id", &cval) == 0)
-        if (__wt_hs_btree_truncate(session, (uint32_t)cval.val) != 0)
-            __wt_verbose_warning(
-              session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);
-    __wt_free(session, metadata_cfg);
-}
-
-/*
  * __disagg_drop_local_layered_int --
  *     Discard the local state of a layered table that the leader has dropped. The data handles are
  *     not closed here. A close requires exclusive access and would fail with EBUSY whenever the
@@ -411,7 +385,7 @@ __disagg_drop_local_ingest_hs(WT_SESSION_IMPL *session, const char *uri)
  *     the recreated table may reuse, and let sweep discard them once their references drain. A
  *     reader still holding an old handle keeps reading the dropped incarnation, the same as reading
  *     a table being concurrently dropped. The ingest constituent needs no further teardown, as
- *     ingest tables are in-memory only.
+ *     ingest tables are in-memory only and never write to the history store.
  */
 static int
 __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
@@ -423,7 +397,6 @@ __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
 
     WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_ingest", name));
     WT_ERR(__wti_conn_dhandle_drop_outdated(session, uri_buf->data));
-    __disagg_drop_local_ingest_hs(session, uri_buf->data);
     WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, uri_buf->data), false);
 
     WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", name));
