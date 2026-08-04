@@ -59,7 +59,7 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
 
     # Write a key on the leader at the given timestamp, checkpoint, and pull it into the follower's
     # stable constituent. Each call publishes a new checkpoint for the follower to pick up.
-    def write_stable(self, key, value, ts, wait=True):
+    def write_stable(self, key, value, ts):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cursor[key] = value
@@ -67,7 +67,7 @@ class test_layered_cursor24(wttest.WiredTigerTestCase):
         cursor.close()
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(self.conn_follow, wait=wait)
+        self.disagg_advance_checkpoint(self.conn_follow)
 
     # The running count of stable btree reopens on the follower.
     def reopen_stable_count(self):

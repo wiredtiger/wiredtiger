@@ -214,7 +214,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.put_data(value_prefix4)
 
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Check the continuation of each scan in the follower. Pure cursor scans should be insulated from state changes.
         #
@@ -226,7 +226,9 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         # Now check that after closing, we get the new value; closing the cursors ends the
         # snapshots deferring the adoption.
         self.close_cursors(follower_cursors)
-        self.disagg_await_checkpoint_adoption(conn_follow)
+        # With the snapshots gone, a freshly delivered checkpoint is adopted synchronously.
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(conn_follow)
         follower_cursors = self.scan_data_follower(value_prefix4, uris=self.layered_uris)
 
         #
@@ -239,7 +241,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.put_data(value_prefix5)
 
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Reset cursors before stepping up -- positioned cursors across a role change are illegal.
         self.reset_cursors(follower_cursors)

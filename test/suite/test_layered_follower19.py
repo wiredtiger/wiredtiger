@@ -109,7 +109,7 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, self.table_config)
         self.put(session_follow, self.uri, {'key': 'old value'}, 10)
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Leader: update the existing table and create a new one, then seal
         # both into a second checkpoint, so that adopting it must both update
@@ -126,7 +126,7 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         metadata_before = self.metadata(conn_follow)
         conn_follow.reconfigure('timing_stress_for_test=[failpoint_disagg_checkpoint_apply]')
         try:
-            self.disagg_advance_checkpoint(conn_follow, wait=False)
+            self.disagg_advance_checkpoint(conn_follow)
             self.fail('checkpoint pickup unexpectedly succeeded with the failpoint enabled')
         except wiredtiger.WiredTigerError as e:
             self.assertTrue('busy' in str(e).lower(), str(e))
@@ -147,7 +147,7 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         # Retrying the same checkpoint with the fault cleared succeeds and
         # makes both tables' checkpoint content visible.
         conn_follow.reconfigure('timing_stress_for_test=[]')
-        self.disagg_advance_checkpoint(conn_follow, wait=False)
+        self.disagg_advance_checkpoint(conn_follow)
         self.assertNotEqual(self.metadata(conn_follow), metadata_before,
             'the successful adoption did not update local metadata')
         self.assertEqual(self.read(conn_follow, self.uri, 'key'), (0, 'new value'))

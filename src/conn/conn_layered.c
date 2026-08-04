@@ -1318,10 +1318,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
     uint64_t retries, time_start, time_stop;
-    bool leader, picked_up, role_change_started, was_leader;
+    bool leader, picked_up, was_leader;
 
     conn = S2C(session);
-    role_change_started = false;
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
@@ -1404,7 +1403,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * Adopt any checkpoint whose pickup was deferred before stepping up: the new leader must
          * continue from the newest adopted checkpoint, or its own first checkpoint would fork the
          * shared checkpoint lineage from an older ancestor. Retry while in-flight work blocks the
-         * adoption, the one condition that clears on its own.
+         * adoption, the one condition that clears on its own; anything else is fatal, since a node
+         * that cannot adopt the newest checkpoint cannot lead from it.
          */
         for (retries = 0;; ++retries) {
             ret = __wti_disagg_deferred_pickup_retry(session, true);
@@ -1420,21 +1420,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
             __wt_sleep(0, WT_DISAGG_RETRY_SLEEP_USECS);
         }
-        if (ret != 0) {
-            /*
-             * An adoption that failed unrolled its metadata merge completely, so the node is still
-             * the follower it was: restore the pickup server the step-up stopped and report the
-             * failure rather than panicking. Only the role era ended above, which costs the
-             * snapshots spanning it a rollback and nothing else. An adoption that got far enough to
-             * be unable to unroll panics the connection itself, and no partially adopted checkpoint
-             * survives either way, so leave a panicked connection alone.
-             */
-            if (WT_CONN_CHECK_PANIC(conn) == 0)
-                WT_TRET(__wti_disagg_deferred_pickup_server_create(session));
-            WT_ERR_MSG(session, ret, "failed to adopt a deferred checkpoint before step-up");
-        }
-
-        role_change_started = true;
+        WT_ERR_MSG_CHK(session, ret, "failed to adopt a deferred checkpoint before step-up");
 
         /* Follower step-up. */
         time_start = __wt_clock(session);
@@ -1447,7 +1433,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     } else if (was_leader && !leader) {
         /* Leader step-down. */
         time_start = __wt_clock(session);
-        role_change_started = true;
         ret = __disagg_step_down(session);
         time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step down to the follower role");
@@ -1597,13 +1582,12 @@ err:
         __wt_error_log_to_handler(session);
 
     /*
-     * A failure once the role transition has started leaves the node in an inconsistent
-     * half-transitioned state; a failure before that returns normally, with the node still fully in
-     * its old role.
+     * A failure during a role transition leaves the node in an inconsistent half-transitioned
+     * state, including a failure to adopt the checkpoint the new role must continue from.
      */
-    if (ret != 0 && role_change_started && !was_leader && leader)
+    if (ret != 0 && reconfig && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
-    if (ret != 0 && role_change_started && was_leader && !leader)
+    if (ret != 0 && reconfig && was_leader && !leader)
         return (__wt_panic(session, ret, "failed to step-down as primary"));
     return (ret);
 }

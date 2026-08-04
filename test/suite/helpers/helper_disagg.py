@@ -225,41 +225,12 @@ class DisaggConfigMixin:
         (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
-    # Wait until the follower has adopted the delivered checkpoint: adoption is asynchronous when
-    # active transaction snapshots predate the checkpoint. Wait for the given LSN, or for the
-    # newest delivered one.
-    def disagg_await_checkpoint_adoption(self, conn_follower, target_lsn=None):
-        adopted_lsn = None
-        for _ in range(2000):
-            # Call the base class explicitly: tests are free to define their own get_stat.
-            try:
-                adopted_lsn = wttest.WiredTigerTestCase.get_stat(
-                    self, wiredtiger.stat.conn.disagg_checkpoint_meta_lsn, conn=conn_follower)
-                target = target_lsn if target_lsn is not None else wttest.WiredTigerTestCase.get_stat(
-                    self, wiredtiger.stat.conn.disagg_checkpoint_delivered_lsn, conn=conn_follower)
-            except wiredtiger.WiredTigerError:
-                # Adoption is only observable through statistics. Without them, rely on the
-                # adoption being synchronous when no snapshot defers it.
-                self.ignoreStderrPatternIfExists('statistics configuration')
-                return
-            if adopted_lsn >= target:
-                return
-            time.sleep(0.005)
-        raise Exception(
-            f'checkpoint adoption did not reach LSN {target_lsn} (at {adopted_lsn})')
-
-    # Let the follower pick up the latest checkpoint. Adopting the delivered checkpoint is
-    # asynchronous when active transaction snapshots predate it, so by default wait until the
-    # adoption lands; pass wait=False when the caller intentionally keeps such a snapshot open.
-    def disagg_advance_checkpoint(self, conn_follower, conn_leader=None, wait=True):
+    # Deliver the newest checkpoint to the follower. Adopting it is asynchronous while transaction
+    # snapshots that predate it are active, so a caller that needs the adoption observed must end
+    # those snapshots and deliver again.
+    def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
-        if not wait:
-            return
-        lsn_match = re.search(r'metadata_lsn=(\d+)', m)
-        if lsn_match is None:
-            return
-        self.disagg_await_checkpoint_adoption(conn_follower, int(lsn_match.group(1)))
 
     # Switch the leader and the follower
     def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
