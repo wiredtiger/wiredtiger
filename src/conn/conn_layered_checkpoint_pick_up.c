@@ -332,8 +332,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
  * __disagg_meta_skip_field --
  *     Return true if the configuration field is excluded from the metadata comparison: it either
  *     legitimately changes across checkpoints, holds node-local state, or can be changed at runtime
- *     via WT_SESSION::alter. The list holds top-level field names only and must be matched at the
- *     top level: a skipped category is skipped as a whole, before descending into its subfields.
+ *     via WT_SESSION::alter. The list holds top-level field names only.
  */
 static bool
 __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
