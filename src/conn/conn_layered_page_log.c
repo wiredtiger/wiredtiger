@@ -869,10 +869,15 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     /*
      * A leader's own checkpoint is never delivered to itself, so nothing else advances the
-     * checkpoint generation for it: do it here, so a snapshot established after a step-down pins
-     * this checkpoint rather than an older one. Advance it before publishing the LSN, matching a
-     * delivery, which advances the generation before the adoption publishes the LSN: a pin is then
-     * never older than the LSN a stable bind compares it against.
+     * checkpoint generation for it. Without this, a node that steps down would answer reads from
+     * this checkpoint while the generation still named an older one, and the first snapshot
+     * established before any checkpoint arrives would pin less than the node has adopted: the
+     * stable bind check then fails. Waiting for the next delivery to advance it is not enough,
+     * because the node serves reads in the meantime.
+     *
+     * Advance it before publishing the LSN, matching a delivery, which advances the generation
+     * before the adoption publishes the LSN: a pin is then never older than the LSN a stable bind
+     * compares it against.
      */
     __wt_gen_advance(session, WT_GEN_DISAGG_CKPT, WT_DISAGG_CKPT_GEN(lsn));
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, lsn);
