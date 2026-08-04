@@ -338,7 +338,6 @@ struct __wt_disaggregated_storage {
     WT_CONDVAR *deferred_pickup_cond;
     WT_SESSION_IMPL *deferred_pickup_session;
     wt_thread_t deferred_pickup_tid;
-    bool deferred_pickup_tid_set;
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
@@ -402,6 +401,9 @@ struct __wt_disaggregated_storage {
      * (really, per block-manager) so it's easy to accidentally miss a file when doing it that way,
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
+    /* Set while the deferred pickup server thread exists; placed here to pack with the flags. */
+    bool deferred_pickup_tid_set;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
 #define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x2u
