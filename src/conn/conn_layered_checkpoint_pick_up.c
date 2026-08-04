@@ -329,33 +329,45 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
 }
 
 /*
- * The btree IDs of the stable files the local metadata holds once the merge completes, gathered as
+ * The btree IDs of the shared files the local metadata holds once the merge completes, gathered as
  * the merge walks so that checking them costs no extra metadata scan.
  */
 typedef struct {
     uint32_t *ids;
     size_t allocated;
     size_t count;
-} WT_DISAGG_STABLE_IDS;
+} WT_DISAGG_SHARED_BTREE_IDS;
 
 /*
- * __disagg_stable_ids_add --
- *     Record the btree ID of a metadata entry. Anything that is not a stable file is ignored, as
- *     only stable files are addressed by ID in shared storage.
+ * __disagg_shared_btree_ids_add --
+ *     Record the btree ID of a metadata entry, ignoring files shared storage does not address.
  */
 static int
-__disagg_stable_ids_add(
-  WT_SESSION_IMPL *session, WT_DISAGG_STABLE_IDS *stable_ids, const char *key, const char *value)
+__disagg_shared_btree_ids_add(WT_SESSION_IMPL *session,
+  WT_DISAGG_SHARED_BTREE_IDS *shared_btree_ids, const char *key, const char *value)
 {
     WT_CONFIG_ITEM id_val;
+    WT_DECL_RET;
+    uint32_t id;
 
-    if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
+    if (!WT_PREFIX_MATCH(key, "file:"))
         return (0);
 
-    WT_RET(__wt_config_getones(session, value, "id", &id_val));
-    WT_RET(
-      __wt_realloc_def(session, &stable_ids->allocated, stable_ids->count + 1, &stable_ids->ids));
-    stable_ids->ids[stable_ids->count++] = (uint32_t)id_val.val;
+    WT_RET_NOTFOUND_OK(ret = __wt_config_getones(session, value, "id", &id_val));
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    /*
+     * The namespace in the ID decides this, not the file name: the disaggregated block manager can
+     * be configured on a file called anything, and shared storage addresses it by ID all the same.
+     */
+    id = (uint32_t)id_val.val;
+    if (!WT_BTREE_ID_SHARED(id))
+        return (0);
+
+    WT_RET(__wt_realloc_def(
+      session, &shared_btree_ids->allocated, shared_btree_ids->count + 1, &shared_btree_ids->ids));
+    shared_btree_ids->ids[shared_btree_ids->count++] = id;
 
     return (0);
 }
@@ -366,7 +378,7 @@ __disagg_stable_ids_add(
  */
 static int
 __disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor,
-  WT_DISAGG_STABLE_IDS *stable_ids)
+  WT_DISAGG_SHARED_BTREE_IDS *shared_btree_ids)
 {
     WT_DECL_RET;
     const char *key, *value;
@@ -382,7 +394,7 @@ __disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_inserted);
 
     /* Track from here so that every path that adopts a leader-assigned ID is covered. */
-    WT_ERR(__disagg_stable_ids_add(session, stable_ids, key, value));
+    WT_ERR(__disagg_shared_btree_ids_add(session, shared_btree_ids, key, value));
 
 err:
     return (ret);
@@ -499,7 +511,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
-    WT_DISAGG_STABLE_IDS stable_ids;
+    WT_DISAGG_SHARED_BTREE_IDS shared_btree_ids;
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
@@ -516,7 +528,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
     md_write_cursor = NULL;
-    WT_CLEAR(stable_ids);
+    WT_CLEAR(shared_btree_ids);
 
     metadata_checkpoint_name = NULL;
     first_uri = layered_ingest_uri = second_uri = NULL;
@@ -637,8 +649,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         if (md_has[WT_DISAGG_CURSOR_FILE]) {
             WT_ERR(md_cursors[WT_DISAGG_CURSOR_FILE]->get_value(
               md_cursors[WT_DISAGG_CURSOR_FILE], &metadata_value));
-            WT_ERR(__disagg_stable_ids_add(
-              session, &stable_ids, md_keys[WT_DISAGG_CURSOR_FILE], metadata_value));
+            WT_ERR(__disagg_shared_btree_ids_add(
+              session, &shared_btree_ids, md_keys[WT_DISAGG_CURSOR_FILE], metadata_value));
         }
 
         /* Log the reconciliation state for this table across all URI schemes. */
@@ -693,7 +705,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * the stable component.
                  */
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &stable_ids));
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &shared_btree_ids));
             ++existing_tables;
         } else if (!md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -747,15 +759,15 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 layered_ingest_uri = NULL;
             }
             WT_ERR(__disagg_insert_meta(
-              session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], md_write_cursor, &stable_ids));
+              session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], md_write_cursor, &shared_btree_ids));
             WT_ERR(__disagg_insert_meta(
-              session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &stable_ids));
+              session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &shared_btree_ids));
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor, &stable_ids));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP],
+                  md_write_cursor, &shared_btree_ids));
             if (sh_has[WT_DISAGG_CURSOR_TABLE])
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor, &stable_ids));
+                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor, &shared_btree_ids));
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -800,7 +812,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * because we don't currently support the publish API for non-layered tables.
                  */
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor, &stable_ids));
+                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor, &shared_btree_ids));
             else if (!sh_has[WT_DISAGG_CURSOR_TABLE] && md_has[WT_DISAGG_CURSOR_TABLE])
                 /*
                  * The local metadata has a table: entry but the shared metadata does not. This
@@ -818,8 +830,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * This is not supported by the publish API, but we should still handle it gracefully.
              */
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP] && !md_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor, &stable_ids));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP],
+                  md_write_cursor, &shared_btree_ids));
 
             /*
              * Update the file: entry's checkpoint information and insert any entries that are in
@@ -833,7 +845,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * metadata.
                  */
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &stable_ids));
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &shared_btree_ids));
                 ++new_tables;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
@@ -863,8 +875,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * A shared ID is the leader's key into shared storage, so a follower can neither renumber the
      * incoming table nor drop the local one it collides with. Halt before either handle is opened.
      */
-    if (__wt_metadata_btree_ids_find_duplicate(stable_ids.ids, stable_ids.count, &dup_id)) {
-        WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
+    if (__wt_metadata_btree_ids_find_duplicate(
+          shared_btree_ids.ids, shared_btree_ids.count, &dup_id)) {
+        WT_ERR(__wt_metadata_uris_for_btree_id(session, dup_id, &first_uri, &second_uri));
         WT_ERR_PANIC(session, EINVAL,
           "checkpoint pickup would leave btree ID %" PRIu32
           " shared by \"%s\" and \"%s\" in the local metadata",
@@ -880,7 +893,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
 done:
 err:
-    __wt_free(session, stable_ids.ids);
+    __wt_free(session, shared_btree_ids.ids);
     __wt_free(session, first_uri);
     __wt_free(session, second_uri);
     __wt_free(session, metadata_checkpoint_name);
