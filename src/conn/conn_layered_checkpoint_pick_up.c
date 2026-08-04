@@ -332,7 +332,8 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
  * __disagg_meta_skip_field --
  *     Return true if the configuration field is excluded from the metadata comparison: it either
  *     legitimately changes across checkpoints, holds node-local state, or can be changed at runtime
- *     via WT_SESSION::alter.
+ *     via WT_SESSION::alter. The list holds top-level field names only and must be matched at the
+ *     top level: a skipped category is skipped as a whole, before descending into its subfields.
  */
 static bool
 __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
@@ -348,23 +349,64 @@ __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
     return (false);
 }
 
+static int __disagg_check_meta_fields(
+  WT_SESSION_IMPL *, const char *, const char *, WT_CONFIG *, WT_CONFIG *);
+
+/*
+ * __disagg_check_meta_field --
+ *     Compare a single configuration field present in both the local and the shared metadata,
+ *     panicking when the types or the values differ. Nested categories recurse, because comparing
+ *     a category as a single string would flag a mismatch whenever either side gains a subconfig.
+ */
+static int
+__disagg_check_meta_field(WT_SESSION_IMPL *session, const char *uri, const char *prefix,
+  const WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *md_cval, WT_CONFIG_ITEM *sh_cval)
+{
+    WT_CONFIG md_sub, sh_sub;
+    WT_DECL_ITEM(child);
+    WT_DECL_RET;
+
+    if (sh_cval->type == WT_CONFIG_ITEM_STRUCT && md_cval->type == WT_CONFIG_ITEM_STRUCT) {
+        WT_ERR(__wt_scr_alloc(session, 0, &child));
+        WT_ERR(__wt_buf_fmt(session, child, "%s%.*s.", prefix, (int)key->len, key->str));
+        __wt_config_subinit(session, &sh_sub, sh_cval);
+        __wt_config_subinit(session, &md_sub, md_cval);
+        WT_ERR(__disagg_check_meta_fields(session, uri, child->data, &md_sub, &sh_sub));
+    } else if (sh_cval->type == WT_CONFIG_ITEM_STRUCT || md_cval->type == WT_CONFIG_ITEM_STRUCT)
+        WT_ERR_PANIC(session, EINVAL,
+          "checkpoint pickup metadata mismatch for \"%s\": the type of \"%s%.*s\" differs "
+          "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
+          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str,
+          (int)sh_cval->len, sh_cval->str);
+    else if (__wt_string_slice_cmp(sh_cval->str, sh_cval->len, md_cval->str, md_cval->len) != 0)
+        WT_ERR_PANIC(session, EINVAL,
+          "checkpoint pickup metadata mismatch for \"%s\": the value of \"%s%.*s\" differs "
+          "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
+          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str,
+          (int)sh_cval->len, sh_cval->str);
+
+err:
+    __wt_scr_free(session, &child);
+    return (ret);
+}
+
 /*
  * __disagg_check_meta_fields --
- *     Merge two sorted configuration strings, panicking when a field present on both sides has
- *     different values. Nested categories recurse, because comparing a category as a single string
- *     would flag a mismatch whenever either side gains a subconfig. A field present on only one
- *     side is ignored, since the two nodes may run binaries with different field sets.
+ *     Merge two configuration strings, panicking when a field present on both sides has different
+ *     values. The merge relies on both entries listing their common fields in the same relative
+ *     order, which holds because they share a copy lineage; if that ever breaks, fields are
+ *     silently skipped rather than falsely flagged. A field present on only one side is ignored,
+ *     since the two nodes may run binaries with different field sets.
  */
 static int
 __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char *prefix,
   WT_CONFIG *md_parser, WT_CONFIG *sh_parser)
 {
-    WT_CONFIG md_sub, sh_sub;
     WT_CONFIG_ITEM md_ckey, md_cval, sh_ckey, sh_cval;
-    WT_DECL_ITEM(child);
-    WT_DECL_RET;
     int cmp, md_ret, sh_ret;
+    bool top_level;
 
+    top_level = prefix[0] == '\0';
     sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
     md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
     while (sh_ret == 0 && md_ret == 0) {
@@ -379,23 +421,8 @@ __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char
         }
 
         /* The skip list names top-level fields only. */
-        if (prefix[0] != '\0' || !__disagg_meta_skip_field(&sh_ckey)) {
-            if (sh_cval.type == WT_CONFIG_ITEM_STRUCT && md_cval.type == WT_CONFIG_ITEM_STRUCT) {
-                if (child == NULL)
-                    WT_ERR(__wt_scr_alloc(session, 0, &child));
-                WT_ERR(
-                  __wt_buf_fmt(session, child, "%s%.*s.", prefix, (int)sh_ckey.len, sh_ckey.str));
-                __wt_config_subinit(session, &sh_sub, &sh_cval);
-                __wt_config_subinit(session, &md_sub, &md_cval);
-                WT_ERR(__disagg_check_meta_fields(session, uri, child->data, &md_sub, &sh_sub));
-            } else if (__wt_string_slice_cmp(sh_cval.str, sh_cval.len, md_cval.str, md_cval.len) !=
-              0)
-                WT_ERR_PANIC(session, EINVAL,
-                  "checkpoint pickup metadata mismatch for \"%s\": the value of \"%s%.*s\" differs "
-                  "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
-                  uri, prefix, (int)sh_ckey.len, sh_ckey.str, (int)md_cval.len, md_cval.str,
-                  (int)sh_cval.len, sh_cval.str);
-        }
+        if (!top_level || !__disagg_meta_skip_field(&sh_ckey))
+            WT_RET(__disagg_check_meta_field(session, uri, prefix, &sh_ckey, &md_cval, &sh_cval));
 
         sh_ret = __wt_config_next(sh_parser, &sh_ckey, &sh_cval);
         md_ret = __wt_config_next(md_parser, &md_ckey, &md_cval);
@@ -405,12 +432,9 @@ __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char
      * Whichever side is not exhausted keeps its trailing fields unread: they are present on one
      * side only, which is not a mismatch.
      */
-    WT_ERR_NOTFOUND_OK(sh_ret, false);
-    WT_ERR_NOTFOUND_OK(md_ret, false);
-
-err:
-    __wt_scr_free(session, &child);
-    return (ret);
+    WT_RET_NOTFOUND_OK(sh_ret);
+    WT_RET_NOTFOUND_OK(md_ret);
+    return (0);
 }
 
 /*
@@ -433,15 +457,15 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
      * Skip system tables with fixed identities: their local entries are created on each node rather
      * than copied from the shared metadata, so their fields can legitimately differ.
      */
-    if (WT_IS_URI_METADATA(sh_key) || strcmp(sh_key, WT_HS_URI_SHARED) == 0)
+    if (WT_IS_URI_METADATA(sh_key) || WT_IS_URI_HS(sh_key))
         return (0);
 
     WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
     WT_RET(md_cursor->get_value(md_cursor, &md_value));
 
     /*
-     * Metadata rows are stored in sorted key order, so merge the two configurations rather than
-     * looking every field up in the other.
+     * Merge the two configurations in a single pass rather than looking every field up in the
+     * other; both entries list their common fields in the same relative order.
      */
     __wt_config_init(session, &sh_parser, sh_value);
     __wt_config_init(session, &md_parser, md_value);
@@ -800,7 +824,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR_MSG(session, EINVAL,
                   "Unexpected local metadata entries for new layered table \"%s\"", current);
 
-            /* FIXME-WT-14730: Verify that there is no btree ID conflict. */
             WT_ERR(sh_cursors[WT_DISAGG_CURSOR_LAYERED]->get_value(
               sh_cursors[WT_DISAGG_CURSOR_LAYERED], &metadata_value));
             WT_ERR(__wt_config_getones(session, metadata_value, "ingest", &cval));
