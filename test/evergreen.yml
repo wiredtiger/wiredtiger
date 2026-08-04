@@ -5673,31 +5673,31 @@ tasks:
 
   - <<: *schema-disagg-abort-test-disagg
     name: schema-disagg-abort-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-switch-test-disagg
     name: schema-disagg-abort-switch-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-crash-test-disagg
     name: schema-disagg-abort-crash-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-multi-test-disagg
     name: schema-disagg-abort-multi-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-multi-crash-test-disagg
     name: schema-disagg-abort-multi-crash-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-multi-switch-test-disagg
     name: schema-disagg-abort-multi-switch-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-multi-switch-crash-test-disagg
     name: schema-disagg-abort-multi-switch-crash-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-follower-stepup-test-disagg
     name: schema-disagg-abort-follower-stepup-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
   - <<: *schema-disagg-abort-smoke-test-disagg
     name: schema-disagg-abort-smoke-test-disagg-1
-    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    tags: ["stress-test-disagg"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
