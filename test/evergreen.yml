@@ -1122,6 +1122,20 @@ functions:
             ./t -R $format_args ${extra_args|} || fail
           fi
         done
+  "timestamp abort disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
+        for i in $(seq ${times|1}); do
+          echo Iteration $i/${times}
+          ./test_timestamp_abort -G -s
+        done
   "many dbs test":
     command: shell.exec
     params:
@@ -1843,6 +1857,271 @@ variables:
         vars:
           format_args: disagg.mode=switch disagg.stepdown_async=1 ops.prepare=0 ops.truncate=0 ops.random_cursor=0 runs.timer=3
           times: 1
+
+  # Failure-expected disagg workloads are kept separate from the regular stress tests.
+  - &format-stress-test-disagg-switch-fast-truncate
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17380: Enable prepare for switch mode once failures are resolved.
+          format_args: disagg.mode=switch debug.disagg_slow_truncate_follower=off runs.timer=10:15 ops.prepare=0 ops.verify=1 runs.mirror=1
+          times: 5
+
+  - &format-stress-test-disagg-multi
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
+          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000 ops.pct.delete=0
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  - &format-stress-test-disagg-multi-data-validation
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 disagg.preserve=1 runs.ops=500000:2000000 ops.pct.delete=0
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
+  - &format-stress-test-disagg-multi-delete-enabled
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
+  - &format-stress-test-disagg-multi-delete-enabled-data-validation
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 disagg.preserve=1 runs.ops=500000:2000000
+          times: 5
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  - &timestamp-abort-test-disagg
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "timestamp abort disagg"
+        vars:
+          times: 50
+
+  - &schema-disagg-abort-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # One node leading throughout. Max out the schema threads (-T) and the per-thread
+              # URI pool (-u) for maximum schema churn.
+              ./test_schema_disagg_abort -b "$build_dir" -r l -T 12 -u 64 -t 300
+            done
+
+  - &schema-disagg-abort-switch-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # One node stepping down and back up every 30 seconds (-s).
+              ./test_schema_disagg_abort -b "$build_dir" -r l -s 30 -T 12 -u 64 -t 300
+            done
+
+  - &schema-disagg-abort-crash-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # SIGKILL the lone node at 150s (-k), then recover and verify at the timeout.
+              ./test_schema_disagg_abort -b "$build_dir" -r l -k 150 -T 12 -u 64 -t 300
+            done
+
+  - &schema-disagg-abort-multi-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # Leader and follower (-r lf): the follower applies the relayed stream and picks up
+              # the leader's checkpoints.
+              ./test_schema_disagg_abort -b "$build_dir" -r lf -T 12 -u 64 -t 300
+            done
+
+  - &schema-disagg-abort-multi-crash-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # Kill the leader at 100s and the follower at 200s; each survivor carries on alone.
+              ./test_schema_disagg_abort -b "$build_dir" -r lf -k l100 -k f200 -T 12 -u 64 -t 300
+            done
+
+  # Two-node role switches. A step-up over a table the peer created.
+  - &schema-disagg-abort-multi-switch-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # The two nodes swap roles every 30 seconds.
+              ./test_schema_disagg_abort -b "$build_dir" -r lf -s 30 -T 12 -u 64 -t 300
+            done
+
+  # Same step-up exposure as above, with a kill on top.
+  - &schema-disagg-abort-multi-switch-crash-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # Swap roles every 30s and kill whoever leads at 150s; the survivor keeps switching
+              # by sentinel.
+              ./test_schema_disagg_abort -b "$build_dir" -r lf -s 30 -k l150 -T 12 -u 64 -t 300
+            done
+
+  - &schema-disagg-abort-follower-stepup-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            build_dir=$(cd ../../../ && pwd)
+            for i in $(seq ${times|10}); do
+              echo "Iteration $i/${times|10}"
+              # A lone follower generates its own workload and never checkpoints, then steps up over
+              # the operations it accumulated: the way a fresh node bootstraps its own tables before
+              # taking leadership.
+              ./test_schema_disagg_abort -b "$build_dir" -r f -s 30 -T 12 -u 64 -t 300
+            done
+
+  - &schema-disagg-abort-smoke-test-disagg
+    depends_on:
+      - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # The full mode matrix in short runs: single node, lone follower, role switches,
+            # kills, and both two-node topologies. The two-node switch modes at the end are
+            # EXPECTED to fail until FIXME-WT-18068 and FIXME-WT-17746 land.
+            bash ./smoke.sh
 
 #######################################
 #               Tasks                 #
@@ -5355,6 +5634,69 @@ tasks:
   - <<: *format-stress-test-disagg-switch-pull-request-stepdown-async
     name: format-stress-test-disagg-switch-pull-request-stepdown-async-2
     tags: ["pull_request"]
+
+  - <<: *format-stress-test-disagg-switch-fast-truncate
+    name: format-stress-test-disagg-switch-fast-truncate-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-data-validation
+    name: format-stress-test-disagg-multi-validation-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-data-validation
+    name: format-stress-test-disagg-multi-validation-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled
+    name: format-stress-test-disagg-multi-delete-enabled-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled
+    name: format-stress-test-disagg-multi-delete-enabled-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled-data-validation
+    name: format-stress-test-disagg-multi-delete-enabled-validation-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-delete-enabled-data-validation
+    name: format-stress-test-disagg-multi-delete-enabled-validation-2
+    tags: ["stress-test-disagg-fail"]
+
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-2
+    tags: ["stress-test-disagg-fail"]
+
+  - <<: *schema-disagg-abort-test-disagg
+    name: schema-disagg-abort-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-switch-test-disagg
+    name: schema-disagg-abort-switch-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-crash-test-disagg
+    name: schema-disagg-abort-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-multi-test-disagg
+    name: schema-disagg-abort-multi-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-multi-crash-test-disagg
+    name: schema-disagg-abort-multi-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-multi-switch-test-disagg
+    name: schema-disagg-abort-multi-switch-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-multi-switch-crash-test-disagg
+    name: schema-disagg-abort-multi-switch-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-follower-stepup-test-disagg
+    name: schema-disagg-abort-follower-stepup-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *schema-disagg-abort-smoke-test-disagg
+    name: schema-disagg-abort-smoke-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
 
   - name: format-stress-test-disagg-follower-pull-request
     tags: ["pull_request"]
