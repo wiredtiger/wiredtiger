@@ -92,7 +92,7 @@ follower_leave(WORKLOAD_STATE *state, uint64_t final_counter)
 
 /*
  * follower_enter --
- *     Land in the follower role; leader_leave already reconfigured the connection.
+ *     This method is called when the node enters the follower role.
  */
 static void
 follower_enter(WORKLOAD_STATE *state, uint64_t final_counter)
