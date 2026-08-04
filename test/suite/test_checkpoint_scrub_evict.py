@@ -87,6 +87,21 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
             cursor[i] = val
         cursor.close()
 
+    def _settle(self, nrows, value_size):
+        """Lay the tree out as disk-shaped leaf pages, then dirty them again.
+
+        A freshly inserted tree is one oversized in-memory page that checkpoint reconciliation
+        splits, and an image is only retained for a 1-for-1 page swap."""
+        self._populate(nrows, value_size)
+        self.session.checkpoint()
+        cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
+        for i in range(nrows):
+            cursor.set_key(i)
+            cursor.search()
+            cursor.reset()
+        cursor.close()
+        self._populate(nrows, value_size)
+
     def _verify_reads(self, nrows, value_size):
         """Read back all rows and verify values are intact."""
         cursor = self.session.open_cursor(self.uri)
@@ -292,7 +307,7 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
         if self.precise:
             self.conn.set_timestamp('stable_timestamp=1')
 
-        self._populate(nrows, self.vsize)
+        self._settle(nrows, self.vsize)
         self.session.checkpoint()
 
         pages = self.get_stat(stat.conn.cache_scrub_image_pages)
@@ -535,6 +550,17 @@ class test_checkpoint_scrub_image_gauge(wttest.WiredTigerTestCase):
     def test_gauge_tracks_retained_images(self):
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.conn.set_timestamp('stable_timestamp=1')
+
+        # Settle the tree into disk-shaped pages before dirtying it again: an image is only
+        # retained for a 1-for-1 page swap, and a freshly inserted tree splits at checkpoint.
+        self._populate()
+        self.session.checkpoint()
+        cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
+        for i in range(self.nrows):
+            cursor.set_key(i)
+            cursor.search()
+            cursor.reset()
+        cursor.close()
 
         self._populate()
         self.session.checkpoint()

@@ -133,8 +133,13 @@ __wt_page_evict_swap(WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
 
+    /*
+     * The disk image shares a union with the multi-block array, so the reconciliation result has to
+     * be checked before the image pointer is read.
+     */
     return (!WT_PAGE_IS_INTERNAL(page) && (mod = page->modify) != NULL &&
-      !__wt_page_is_modified(page) && mod->rec_result != 0 && mod->mod_disk_image != NULL);
+      !__wt_page_is_modified(page) && mod->rec_result == WT_PM_REC_REPLACE &&
+      mod->mod_disk_image != NULL);
 }
 
 /*
