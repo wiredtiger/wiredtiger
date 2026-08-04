@@ -374,14 +374,11 @@ __wt_btree_shared_base_name(
 }
 
 /*
- * __cache_page_inmem_incr --
- *     Increment a page's memory footprint in the cache. When track_updates is false the bytes are
- *     kept out of the updates target (but still counted as dirty if the page is dirty), used for
- *     memory that is not application update data.
+ * __wt_cache_page_inmem_incr --
+ *     Increment a page's memory footprint in the cache.
  */
 static WT_INLINE void
-__cache_page_inmem_incr(
-  WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update, bool track_updates)
+__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -405,7 +402,7 @@ __cache_page_inmem_incr(
 
     if (__wt_tsan_suppress_load_wt_page_modify_ptr(&page->modify) != NULL) {
         __txn_incr_bytes_dirty(session, size, new_update);
-        if (track_updates && !WT_PAGE_IS_INTERNAL(page)) {
+        if (!WT_PAGE_IS_INTERNAL(page)) {
             WT_CACHE_INCR(is_disagg, btree, cache, bytes_updates, size);
             (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_updates, size);
             (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_updates, size);
@@ -424,24 +421,24 @@ __cache_page_inmem_incr(
 }
 
 /*
- * __wt_cache_page_inmem_incr --
- *     Increment a page's memory footprint in the cache.
+ * __wt_cache_page_footprint_incr --
+ *     Add memory to a leaf page's footprint in the cache. The dirty and updates totals are left
+ *     alone.
  */
 static WT_INLINE void
-__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
+__wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
-    __cache_page_inmem_incr(session, page, size, new_update, true);
-}
+    WT_BTREE *btree;
+    WT_CACHE *cache;
 
-/*
- * __wt_cache_page_inmem_incr_no_update_target --
- *     Increment a page's memory footprint in the cache without counting the bytes against the
- *     updates target. The bytes are still counted as dirty when the page is dirty.
- */
-static WT_INLINE void
-__wt_cache_page_inmem_incr_no_update_target(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
-{
-    __cache_page_inmem_incr(session, page, size, false, false);
+    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page) && size < WT_EXABYTE);
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    WT_CACHE_INCR(__wt_conn_is_disagg(session), btree, cache, bytes_inmem, size);
+    (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_inmem, size);
+    (void)__wt_atomic_add_size_relaxed(&page->memory_footprint, size);
 }
 
 /*
@@ -649,12 +646,11 @@ __wt_cache_page_byte_updates_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_
 }
 
 /*
- * __cache_page_inmem_decr --
- *     Decrement a page's memory footprint in the cache. When track_updates is false the bytes are
- *     kept out of the updates target, mirroring __cache_page_inmem_incr.
+ * __wt_cache_page_inmem_decr --
+ *     Decrement a page's memory footprint in the cache.
  */
 static WT_INLINE void
-__cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool track_updates)
+__wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -669,11 +665,10 @@ __cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bo
     __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
     __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
     WT_CACHE_DECR(session, is_disagg, btree, cache, bytes_inmem, size);
-    if (track_updates && page->modify != NULL && !WT_PAGE_IS_INTERNAL(page))
+    if (page->modify != NULL && !WT_PAGE_IS_INTERNAL(page))
         __wt_cache_page_byte_updates_decr(session, page, size);
-    if (__wt_page_is_modified(page)) {
+    if (__wt_page_is_modified(page))
         __wt_cache_page_byte_dirty_decr(session, page, size);
-    }
     /* Track internal size in cache. */
     if (WT_PAGE_IS_INTERNAL(page)) {
         __wt_cache_decr_check_uint64(
@@ -683,24 +678,23 @@ __cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bo
 }
 
 /*
- * __wt_cache_page_inmem_decr --
- *     Decrement a page's memory footprint in the cache.
+ * __wt_cache_page_footprint_decr --
+ *     Remove engine-owned memory from a page's footprint, reversing footprint incr.
  */
 static WT_INLINE void
-__wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+__wt_cache_page_footprint_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
-    __cache_page_inmem_decr(session, page, size, true);
-}
+    WT_BTREE *btree;
+    WT_CACHE *cache;
 
-/*
- * __wt_cache_page_inmem_decr_no_update_target --
- *     Decrement a page's memory footprint in the cache without touching the updates target,
- *     reversing __wt_cache_page_inmem_incr_no_update_target.
- */
-static WT_INLINE void
-__wt_cache_page_inmem_decr_no_update_target(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
-{
-    __cache_page_inmem_decr(session, page, size, false);
+    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page) && size < WT_EXABYTE);
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
+    __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
+    WT_CACHE_DECR(session, __wt_conn_is_disagg(session), btree, cache, bytes_inmem, size);
 }
 
 /*

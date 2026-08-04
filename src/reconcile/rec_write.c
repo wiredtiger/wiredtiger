@@ -82,7 +82,7 @@ __rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     mod->scrub_image_bytes = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
     __wt_cache_scrub_image_incr(session, mod->scrub_image_bytes);
-    __wt_cache_page_inmem_incr_no_update_target(session, r->page, mod->scrub_image_bytes);
+    __wt_cache_page_footprint_incr(session, r->page, mod->scrub_image_bytes);
 }
 
 /*
@@ -3213,7 +3213,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
-        __wt_cache_page_inmem_decr_no_update_target(session, page, mod->scrub_image_bytes);
+        __wt_cache_page_footprint_decr(session, page, mod->scrub_image_bytes);
         __wt_page_image_discard(session, mod);
         break;
     default:
@@ -3476,7 +3476,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.cumulative_size = 0;
         __wt_free(session, page->modify->mod_replace.block_cookie);
         page->modify->mod_replace.block_cookie_size = 0;
-        __wt_cache_page_inmem_decr_no_update_target(session, page, page->modify->scrub_image_bytes);
+        __wt_cache_page_footprint_decr(session, page, page->modify->scrub_image_bytes);
         __wt_page_image_discard(session, page->modify);
         /*
          * ref->addr still carries a cookie for the now-dead page id; a later wrapup that tries to
