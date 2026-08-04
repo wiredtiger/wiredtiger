@@ -34,7 +34,10 @@ __sync_scrub_checkpoint_enabled(WT_SESSION_IMPL *session)
     case WT_CACHE_CHECKPOINT_SCRUB_EVICT_ON:
         return (true);
     default:
-        /* WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO: only retain an image while eviction is scrubbing. */
+        /*
+         * WT_CACHE_CHECKPOINT_SCRUB_EVICT_AUTO: only retain an image while eviction is in scrub
+         * mode.
+         */
         return (
           F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && F_ISSET(conn->evict, WT_EVICT_CACHE_SCRUB));
     }
