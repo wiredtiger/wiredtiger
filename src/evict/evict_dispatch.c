@@ -279,15 +279,18 @@ __wti_evict_page(WT_SESSION_IMPL *session, bool is_server)
 /*
  * __evict_txn_too_large_for_cache --
  *     Check whether this session's own unresolved dirty content is by itself enough to hold the
- *     cache above the updates trigger.
+ *     cache above either the updates trigger or the dirty trigger.
  */
 static bool
 __evict_txn_too_large_for_cache(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+    double trigger;
     uint64_t bytes_max;
 
     conn = S2C(session);
+    evict = conn->evict;
 
     /* Prepared transactions cannot be rolled back, so there is nothing to be gained here. */
     if (F_ISSET(session->txn, WT_TXN_PREPARE))
@@ -303,14 +306,16 @@ __evict_txn_too_large_for_cache(WT_SESSION_IMPL *session)
         return (false);
 
     /*
-     * Compare against the updates trigger rather than the dirty trigger: it is the lower of the two
-     * by default, and uncommitted content is accounted for in both.
+     * Uncommitted content counts toward both the updates and dirty triggers, but the two are not
+     * guaranteed to be ordered: the updates trigger only defaults to half the dirty trigger and
+     * neither is validated against the other. Use whichever is lower so a transaction that alone
+     * holds the cache above either threshold gets caught.
      */
+    trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
+      __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
+
     bytes_max = conn->cache_size + 1;
-    return (session->txn->bytes_dirty >
-      (uint64_t)(__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
-        bytes_max) /
-        100);
+    return (session->txn->bytes_dirty > (uint64_t)(trigger * bytes_max) / 100);
 }
 
 /*

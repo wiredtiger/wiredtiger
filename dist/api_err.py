@@ -203,9 +203,9 @@ sub_errors = [
     Error('WT_TXN_TOO_LARGE_FOR_CACHE', -32016,
         "Transaction dirty content alone exceeds the eviction updates trigger", '''
         This sub-level error indicates that a single transaction has dirtied more cache
-        than the eviction updates trigger allows. Eviction cannot reclaim content pinned
-        by an uncommitted transaction, so the transaction cannot succeed against the
-        configured cache size and has been rolled back.'''),
+        than the eviction updates trigger or the eviction dirty trigger allows. Eviction
+        cannot reclaim content pinned by an uncommitted transaction, so the transaction
+        cannot succeed against the configured cache size and has been rolled back.'''),
 ]
 
 # Update the #defines in the wiredtiger.h.in file.

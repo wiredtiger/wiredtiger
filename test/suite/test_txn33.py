@@ -30,11 +30,11 @@ import wiredtiger, wttest
 from error_info_util import error_info_util
 
 # test_txn33.py
-# A transaction that dirties more than the eviction updates trigger allows can never bring the cache
-# back under that trigger, because eviction cannot reclaim content pinned by an unresolved
-# transaction. Such a transaction is doomed: it is conscripted into eviction on every operation and
-# then cannot be released at commit, where rollback is no longer possible. Check that it is rolled
-# back while it still can be.
+# A transaction that dirties more than the eviction updates trigger (or the dirty trigger, whichever
+# is lower) allows can never bring the cache back under that trigger, because eviction cannot
+# reclaim content pinned by an unresolved transaction. Such a transaction is doomed: it is
+# conscripted into eviction on every operation and then cannot be released at commit, where rollback
+# is no longer possible. Check that it is rolled back while it still can be.
 class test_txn33(error_info_util):
     uri = "table:test_txn33"
 
