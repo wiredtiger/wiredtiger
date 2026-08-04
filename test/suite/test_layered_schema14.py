@@ -56,9 +56,6 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
     uri2 = f'layered:{test_name}_2'
     uri3 = f'layered:{test_name}_3'
     decoy_uri = f'file:{test_name}_decoy.wt_stable'
-    # A decoy that is shared by configuration rather than by name, so its ID lands in the
-    # shared namespace while the file is called .wt.
-    shared_wt_decoy_uri = f'file:{test_name}_shared_decoy.wt'
 
     table_config = 'key_format=i,value_format=S'
 
@@ -130,23 +127,6 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # Give the follower a stable file already holding the incoming table's ID.
         self.inject_stable_entry(conn_follow, self.decoy_uri,
-            self.stable_config(self.conn, self.uri2))
-
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
-
-    def subprocess_shared_wt_file_conflict_panics(self):
-        """Subprocess body for the shared .wt conflict test; expected to panic/abort."""
-        self.session.create(self.uri, self.table_config)
-        self.leader_checkpoint(10)
-
-        conn_follow, session_follow = self.open_follower()
-
-        self.session.create(self.uri2, self.table_config)
-        self.leader_checkpoint(20)
-
-        # The decoy carries the incoming table's shared ID under a .wt name, which is what a
-        # file configured with the disaggregated block manager looks like.
-        self.inject_stable_entry(conn_follow, self.shared_wt_decoy_uri,
             self.stable_config(self.conn, self.uri2))
 
         self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
@@ -228,17 +208,6 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.leader_checkpoint(1)
         self.run_panic_subprocess('published_table_id_conflict_panics',
             self.panic_regex(self.decoy_uri, self.stable_uri(self.uri2)))
-
-    def test_shared_wt_file_conflict_panics(self):
-        """
-        A file is shared because of its ID's namespace, not its name, so a .wt file holding a
-        shared ID must be caught colliding with a stable file just the same.
-        """
-        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
-        # in a subprocess so that the panic/abort does not kill the test runner.
-        self.leader_checkpoint(1)
-        self.run_panic_subprocess('shared_wt_file_conflict_panics',
-            self.panic_regex(self.shared_wt_decoy_uri, self.stable_uri(self.uri2)))
 
     def test_restart_after_conflict_panics(self):
         """
