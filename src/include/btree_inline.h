@@ -525,30 +525,15 @@ __wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size)
 }
 
 /*
- * __wt_page_scrub_image_size --
- *     Return the size of a page's retained checkpoint-scrub image, or zero if it isn't tracked.
- */
-static WT_INLINE uint32_t
-__wt_page_scrub_image_size(WT_PAGE_MODIFY *mod)
-{
-    if (mod->mod_disk_image == NULL || mod->rec_image_state != WT_REC_IMAGE_SCRUB_CLEAN)
-        return (0);
-    return (((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size);
-}
-
-/*
  * __wt_page_image_discard --
  *     Free a page's retained re-instantiation image, releasing scrub accounting if it was tracked.
  */
 static WT_INLINE void
 __wt_page_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
 {
-    WT_PAGE_HEADER *dsk;
-
-    if (mod->mod_disk_image != NULL && mod->rec_image_state == WT_REC_IMAGE_SCRUB_CLEAN) {
-        dsk = (WT_PAGE_HEADER *)mod->mod_disk_image;
-        __wt_cache_scrub_image_decr(session, dsk->mem_size);
-        mod->rec_image_state = WT_REC_IMAGE_NONE;
+    if (mod->scrub_image_bytes != 0) {
+        __wt_cache_scrub_image_decr(session, mod->scrub_image_bytes);
+        mod->scrub_image_bytes = 0;
     }
     __wt_free(session, mod->mod_disk_image);
 }

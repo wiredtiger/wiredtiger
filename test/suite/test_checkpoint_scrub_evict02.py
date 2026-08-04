@@ -30,8 +30,8 @@
 #
 # Cache accounting for the disk images checkpoint retains for scrub eviction.
 #
-# An image is charged to cache->bytes_scrub_image, cache->pages_scrub_image and the page's memory
-# footprint when checkpoint reconciliation retains it, and released when eviction consumes it, a
+# An image counts towards cache->bytes_scrub_image, cache->pages_scrub_image and the page's memory
+# footprint while checkpoint reconciliation keeps it, and is released when eviction consumes it, a
 # later reconciliation replaces it, or the page is freed. These tests drive each of those release
 # paths and check the counters return to zero. A diagnostic build aborts on an accounting
 # underflow, and the cache reports non-zero counters when it is destroyed.
@@ -145,9 +145,10 @@ class test_checkpoint_scrub_evict02(wttest.WiredTigerTestCase):
     def test_images_released_by_later_reconciliation(self):
         """A page dirtied and reconciled again releases the image its last checkpoint retained.
 
-        The image bytes are added to the page while it is still dirty, dropped when the page is
-        marked clean, and charged again by the next dirtying, so the reconciliation that replaces
-        the image has to remove them from a different dirty epoch than the one that added them."""
+        Nothing counts the image as dirty when it is retained, because the page is clean by then.
+        Dirtying the page later counts its whole footprint, image included, and the reconciliation
+        that replaces the image is what takes those bytes back out. Three different points, so
+        they are easy to get out of step."""
         self.settle()
 
         for cycle in range(5):
@@ -221,10 +222,10 @@ class test_checkpoint_scrub_evict02(wttest.WiredTigerTestCase):
     def test_updates_concurrent_with_checkpoint(self):
         """Accounting must survive pages being re-dirtied under a running checkpoint.
 
-        The image bytes are charged to the page while reconciliation still has it marked dirty, so
-        whether the page is clean or dirty at the increment, at the decrement, and at the
-        clean-page transition in between all depend on this race. The cache verifies its counters
-        when the connection closes, which the test framework surfaces as unexpected stderr."""
+        Reconciliation accounts for the image after settling the page's state, so a page dirtied
+        mid-reconciliation takes the other branch: the image lands in the dirty totals and stays
+        there until it is released. The cache verifies its counters when the connection closes,
+        which the test framework surfaces as unexpected stderr."""
         self.settle()
 
         stop = threading.Event()

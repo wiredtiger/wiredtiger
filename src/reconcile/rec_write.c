@@ -81,19 +81,25 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
 
 /*
  * __rec_track_saved_image --
- *     Record that a clean checkpoint-scrub image is now retained on the page and account for its
- *     memory. Eviction-mandated (WT_REC_SAVE_IMAGE_ALWAYS) images are consumed by the eviction that
- *     reconciled the page, so they are not tracked here.
+ *     Account for a clean image retained by checkpoint scrub. Called after the page's clean or
+ *     dirty state is final, so the image lands in the totals matching that state. Images eviction
+ *     asked for are consumed by that eviction, so they are not tracked.
  */
 static WT_INLINE void
-__rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_MODIFY *mod)
+__rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
-    if (F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN) && mod->mod_disk_image != NULL) {
-        mod->rec_image_state = WT_REC_IMAGE_SCRUB_CLEAN;
-        __wt_cache_scrub_image_incr(session, __wt_page_scrub_image_size(mod));
-        __wt_cache_page_inmem_incr_no_update_target(
-          session, r->page, __wt_page_scrub_image_size(mod));
-    }
+    WT_PAGE_MODIFY *mod;
+
+    mod = r->page->modify;
+
+    /* The disk image shares a union with the multi-block array, so check the result first. */
+    if (!F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN) || mod->rec_result != WT_PM_REC_REPLACE ||
+      mod->mod_disk_image == NULL)
+        return;
+
+    mod->scrub_image_bytes = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
+    __wt_cache_scrub_image_incr(session, mod->scrub_image_bytes);
+    __wt_cache_page_inmem_incr_no_update_target(session, r->page, mod->scrub_image_bytes);
 }
 
 /*
@@ -476,6 +482,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
+    __rec_track_saved_image(session, r);
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(
           session, session_table_compact_bytes_rewrite_inmem, page->memory_footprint);
@@ -3233,7 +3240,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
-        __wt_cache_page_inmem_decr_no_update_target(session, page, __wt_page_scrub_image_size(mod));
+        __wt_cache_page_inmem_decr_no_update_target(session, page, mod->scrub_image_bytes);
         __wt_page_image_discard(session, mod);
         break;
     default:
@@ -3317,7 +3324,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
-                __rec_track_saved_image(session, r, mod);
                 if (page->disagg_info != NULL)
                     page->disagg_info->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
@@ -3333,7 +3339,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS | WT_REC_SAVE_IMAGE_CLEAN)) {
                     mod->mod_disk_image = r->multi->disk_image;
                     r->multi->disk_image = NULL;
-                    __rec_track_saved_image(session, r, mod);
                 } else
                     WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT));
             }
@@ -3498,8 +3503,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.cumulative_size = 0;
         __wt_free(session, page->modify->mod_replace.block_cookie);
         page->modify->mod_replace.block_cookie_size = 0;
-        __wt_cache_page_inmem_decr_no_update_target(
-          session, page, __wt_page_scrub_image_size(page->modify));
+        __wt_cache_page_inmem_decr_no_update_target(session, page, page->modify->scrub_image_bytes);
         __wt_page_image_discard(session, page->modify);
         /*
          * ref->addr still carries a cookie for the now-dead page id; a later wrapup that tries to
