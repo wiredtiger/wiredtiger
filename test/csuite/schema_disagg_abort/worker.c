@@ -129,6 +129,11 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
         /* Back off rather than spin: a checkpoint needs the locks a retry keeps taking. */
         __wt_sleep(0, 10 * WT_THOUSAND);
     }
+
+    /* The checkpoint pick-up may have already applied this drop, so a missing table is success. */
+    if (!is_create && ret == ENOENT)
+        ret = 0;
+
     testutil_assertfmt(ret == 0, "node%" PRIu32 " %s %s: %s", state->cfg->node_id,
       is_create ? "CREATE" : "DROP", ev->uri, wiredtiger_strerror(ret));
 }
