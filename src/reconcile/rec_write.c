@@ -83,9 +83,9 @@ __rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_MODI
 {
     if (F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN) && mod->mod_disk_image != NULL) {
         mod->rec_image_state = WT_REC_IMAGE_SCRUB_CLEAN;
-        __wt_cache_scrub_image_incr(session, __wt_rec_scrub_image_size(mod));
+        __wt_cache_scrub_image_incr(session, __wt_page_scrub_image_size(mod));
         __wt_cache_page_inmem_incr_no_update_target(
-          session, r->page, __wt_rec_scrub_image_size(mod));
+          session, r->page, __wt_page_scrub_image_size(mod));
     }
 }
 
@@ -3226,8 +3226,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
-        __wt_cache_page_inmem_decr_no_update_target(session, page, __wt_rec_scrub_image_size(mod));
-        __wt_rec_image_discard(session, mod);
+        __wt_cache_page_inmem_decr_no_update_target(session, page, __wt_page_scrub_image_size(mod));
+        __wt_page_image_discard(session, mod);
         break;
     default:
         return (__wt_illegal_value(session, mod->rec_result));
@@ -3502,8 +3502,8 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         __wt_free(session, page->modify->mod_replace.block_cookie);
         page->modify->mod_replace.block_cookie_size = 0;
         __wt_cache_page_inmem_decr_no_update_target(
-          session, page, __wt_rec_scrub_image_size(page->modify));
-        __wt_rec_image_discard(session, page->modify);
+          session, page, __wt_page_scrub_image_size(page->modify));
+        __wt_page_image_discard(session, page->modify);
         /*
          * ref->addr still carries a cookie for the now-dead page id; a later wrapup that tries to
          * free it would produce a second discard in the chain and fail. Clear the stale reference

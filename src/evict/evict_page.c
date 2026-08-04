@@ -761,7 +761,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * retained image and take the clean eviction path.
          */
         if (closing)
-            __wt_rec_image_discard(session, mod);
+            __wt_page_image_discard(session, mod);
         if (mod->mod_disk_image == NULL) {
             /*
              * 1-for-1 page swap: Update the parent to reference the replacement page.
@@ -803,7 +803,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              * we need to link the new disk image back to the old disk image.
              */
             tmp = mod->mod_disk_image;
-            scrub_size = __wt_rec_scrub_image_size(mod);
+            scrub_size = __wt_page_scrub_image_size(mod);
             mod->mod_disk_image = NULL;
             ret = __wt_split_rewrite(session, ref, &multi);
             __wt_free(session, multi.block_meta);

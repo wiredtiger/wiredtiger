@@ -228,7 +228,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * Therefore, no need to reconcile the page again if it remains clean.
          */
         __wt_free(session, mod->mod_replace.block_cookie);
-        __wt_rec_image_discard(session, mod);
+        __wt_page_image_discard(session, mod);
         break;
     }
 

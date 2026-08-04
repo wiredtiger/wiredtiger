@@ -525,11 +525,11 @@ __wt_cache_scrub_image_decr(WT_SESSION_IMPL *session, uint32_t image_size)
 }
 
 /*
- * __wt_rec_scrub_image_size --
+ * __wt_page_scrub_image_size --
  *     Return the size of a page's retained checkpoint-scrub image, or zero if it isn't tracked.
  */
 static WT_INLINE uint32_t
-__wt_rec_scrub_image_size(WT_PAGE_MODIFY *mod)
+__wt_page_scrub_image_size(WT_PAGE_MODIFY *mod)
 {
     if (mod->mod_disk_image == NULL || mod->rec_image_state != WT_REC_IMAGE_SCRUB_CLEAN)
         return (0);
@@ -537,11 +537,11 @@ __wt_rec_scrub_image_size(WT_PAGE_MODIFY *mod)
 }
 
 /*
- * __wt_rec_image_discard --
+ * __wt_page_image_discard --
  *     Free a page's retained re-instantiation image, releasing scrub accounting if it was tracked.
  */
 static WT_INLINE void
-__wt_rec_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
+__wt_page_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
 {
     WT_PAGE_HEADER *dsk;
 
