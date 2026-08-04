@@ -227,9 +227,9 @@ __verify_disagg_accumulate_size(
 
 /*
  * __verify_unique_btree_ids --
- *     Verify that no two stable constituent files in the local metadata share the same btree ID.
- *     Only called for .wt_stable files, where the verify session's exclusive lock is on the stable
- *     file not the metadata file so a shared metadata cursor can be opened directly.
+ *     Verify that no two shared files in the local metadata share the same btree ID. Only called
+ *     for .wt_stable files, where the verify session's exclusive lock is on the stable file not the
+ *     metadata file so a shared metadata cursor can be opened directly.
  */
 static int
 __verify_unique_btree_ids(WT_SESSION_IMPL *session)
@@ -251,17 +251,24 @@ __verify_unique_btree_ids(WT_SESSION_IMPL *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
-        if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
+        if (!WT_PREFIX_MATCH(key, "file:"))
             continue;
         WT_ERR(cursor->get_value(cursor, &value));
-        WT_ERR(__wt_config_getones(session, value, "id", &id_val));
+        /*
+         * The namespace in the ID decides this, not the file name: the disaggregated block manager
+         * can be configured on a file called anything, and shared storage addresses it by ID all
+         * the same.
+         */
+        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, value, "id", &id_val), true);
+        if (ret == WT_NOTFOUND || !WT_BTREE_ID_SHARED((uint32_t)id_val.val))
+            continue;
         WT_ERR(__wt_realloc_def(session, &allocated, count + 1, &ids));
         ids[count++] = (uint32_t)id_val.val;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
     if (__wt_metadata_btree_ids_find_duplicate(ids, count, &dup_id)) {
-        WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
+        WT_ERR(__wt_metadata_uris_for_btree_id(session, dup_id, &first_uri, &second_uri));
         __wt_verbose_error(session, WT_VERB_VERIFY,
           "metadata corruption: btree ID %" PRIu32 " is shared by %s and %s", dup_id, first_uri,
           second_uri);

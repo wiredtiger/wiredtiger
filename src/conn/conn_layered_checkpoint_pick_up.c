@@ -329,11 +329,44 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
 }
 
 /*
+ * The btree IDs of the stable files the local metadata holds once the merge completes, gathered as
+ * the merge walks so that checking them costs no extra metadata scan.
+ */
+typedef struct {
+    uint32_t *ids;
+    size_t allocated;
+    size_t count;
+} WT_DISAGG_STABLE_IDS;
+
+/*
+ * __disagg_stable_ids_add --
+ *     Record the btree ID of a metadata entry. Anything that is not a stable file is ignored, as
+ *     only stable files are addressed by ID in shared storage.
+ */
+static int
+__disagg_stable_ids_add(
+  WT_SESSION_IMPL *session, WT_DISAGG_STABLE_IDS *stable_ids, const char *key, const char *value)
+{
+    WT_CONFIG_ITEM id_val;
+
+    if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
+        return (0);
+
+    WT_RET(__wt_config_getones(session, value, "id", &id_val));
+    WT_RET(
+      __wt_realloc_def(session, &stable_ids->allocated, stable_ids->count + 1, &stable_ids->ids));
+    stable_ids->ids[stable_ids->count++] = (uint32_t)id_val.val;
+
+    return (0);
+}
+
+/*
  * __disagg_insert_meta --
  *     Copy the current entry from a shared metadata cursor into the local metadata table.
  */
 static int
-__disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
+__disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor,
+  WT_DISAGG_STABLE_IDS *stable_ids)
 {
     WT_DECL_RET;
     const char *key, *value;
@@ -347,6 +380,9 @@ __disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Inserted new key to the local metadata \"%s\": \"%s\"", key, value);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_inserted);
+
+    /* Track from here so that every path that adopts a leader-assigned ID is covered. */
+    WT_ERR(__disagg_stable_ids_add(session, stable_ids, key, value));
 
 err:
     return (ret);
@@ -463,14 +499,15 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
+    WT_DISAGG_STABLE_IDS stable_ids;
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
     uint64_t apply_elapsed_ms;
-    uint32_t existing_tables, new_tables, new_ingest;
+    uint32_t dup_id, existing_tables, new_tables, new_ingest;
     size_t current_len;
     int i;
-    char *layered_ingest_uri;
+    char *first_uri, *layered_ingest_uri, *second_uri;
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
     const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
@@ -479,9 +516,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
     md_write_cursor = NULL;
+    WT_CLEAR(stable_ids);
 
     metadata_checkpoint_name = NULL;
-    layered_ingest_uri = NULL;
+    first_uri = layered_ingest_uri = second_uri = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
     /* Whether to check that the local and shared metadata contain the same layered tables. */
@@ -592,6 +630,17 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             sh_has[i] = __disagg_key_at_table(sh_keys[i], i, current, current_len);
         }
 
+        /*
+         * Track the IDs the local metadata already holds. Merging never rewrites one, so together
+         * with the IDs we insert below these are the IDs in effect once the walk finishes.
+         */
+        if (md_has[WT_DISAGG_CURSOR_FILE]) {
+            WT_ERR(md_cursors[WT_DISAGG_CURSOR_FILE]->get_value(
+              md_cursors[WT_DISAGG_CURSOR_FILE], &metadata_value));
+            WT_ERR(__disagg_stable_ids_add(
+              session, &stable_ids, md_keys[WT_DISAGG_CURSOR_FILE], metadata_value));
+        }
+
         /* Log the reconciliation state for this table across all URI schemes. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_2)) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -644,7 +693,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * the stable component.
                  */
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &stable_ids));
             ++existing_tables;
         } else if (!md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -677,7 +726,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR_MSG(session, EINVAL,
                   "Unexpected local metadata entries for new layered table \"%s\"", current);
 
-            /* FIXME-WT-14730: Verify that there is no btree ID conflict. */
             WT_ERR(sh_cursors[WT_DISAGG_CURSOR_LAYERED]->get_value(
               sh_cursors[WT_DISAGG_CURSOR_LAYERED], &metadata_value));
             WT_ERR(__wt_config_getones(session, metadata_value, "ingest", &cval));
@@ -698,16 +746,16 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 __wt_free(session, layered_ingest_uri);
                 layered_ingest_uri = NULL;
             }
-            WT_ERR(
-              __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], md_write_cursor));
-            WT_ERR(
-              __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+            WT_ERR(__disagg_insert_meta(
+              session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], md_write_cursor, &stable_ids));
+            WT_ERR(__disagg_insert_meta(
+              session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &stable_ids));
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
+                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor, &stable_ids));
             if (sh_has[WT_DISAGG_CURSOR_TABLE])
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor));
+                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor, &stable_ids));
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -752,7 +800,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * because we don't currently support the publish API for non-layered tables.
                  */
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor));
+                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor, &stable_ids));
             else if (!sh_has[WT_DISAGG_CURSOR_TABLE] && md_has[WT_DISAGG_CURSOR_TABLE])
                 /*
                  * The local metadata has a table: entry but the shared metadata does not. This
@@ -771,7 +819,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              */
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP] && !md_has[WT_DISAGG_CURSOR_COLGROUP])
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
+                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor, &stable_ids));
 
             /*
              * Update the file: entry's checkpoint information and insert any entries that are in
@@ -785,7 +833,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * metadata.
                  */
                 WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor, &stable_ids));
                 ++new_tables;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
@@ -811,6 +859,18 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
     }
 
+    /*
+     * A shared ID is the leader's key into shared storage, so a follower can neither renumber the
+     * incoming table nor drop the local one it collides with. Halt before either handle is opened.
+     */
+    if (__wt_metadata_btree_ids_find_duplicate(stable_ids.ids, stable_ids.count, &dup_id)) {
+        WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
+        WT_ERR_PANIC(session, EINVAL,
+          "checkpoint pickup would leave btree ID %" PRIu32
+          " shared by \"%s\" and \"%s\" in the local metadata",
+          dup_id, first_uri, second_uri);
+    }
+
     __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
     WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -820,6 +880,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
 done:
 err:
+    __wt_free(session, stable_ids.ids);
+    __wt_free(session, first_uri);
+    __wt_free(session, second_uri);
     __wt_free(session, metadata_checkpoint_name);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &current_buf);

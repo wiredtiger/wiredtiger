@@ -421,13 +421,13 @@ __wt_metadata_btree_ids_find_duplicate(uint32_t *ids, size_t count, uint32_t *du
 }
 
 /*
- * __wt_metadata_stable_uris_for_id --
- *     Find the two stable files in the metadata carrying the given btree ID, returning WT_NOTFOUND
+ * __wt_metadata_uris_for_btree_id --
+ *     Find the two shared files in the metadata carrying the given btree ID, returning WT_NOTFOUND
  *     if fewer than two do. Callers only ask in order to name a conflict they have already
  *     detected, so the scan falls on a path that is already failing.
  */
 int
-__wt_metadata_stable_uris_for_id(
+__wt_metadata_uris_for_btree_id(
   WT_SESSION_IMPL *session, uint32_t btree_id, char **first_urip, char **second_urip)
 {
     WT_CONFIG_ITEM id_val;
@@ -441,11 +441,11 @@ __wt_metadata_stable_uris_for_id(
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
-        if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
+        if (!WT_PREFIX_MATCH(key, "file:"))
             continue;
         WT_ERR(cursor->get_value(cursor, &value));
-        WT_ERR(__wt_config_getones(session, value, "id", &id_val));
-        if ((uint32_t)id_val.val != btree_id)
+        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, value, "id", &id_val), true);
+        if (ret == WT_NOTFOUND || (uint32_t)id_val.val != btree_id)
             continue;
         WT_ERR(__wt_strdup(session, key, *first_urip == NULL ? first_urip : second_urip));
         if (*second_urip != NULL)
