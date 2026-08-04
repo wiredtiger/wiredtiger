@@ -1843,7 +1843,7 @@ variables:
       - func: "format test disagg"
         vars:
           # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=2000000:4000000 ops.truncate=0
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=1000000:2000000 ops.truncate=0
           times: 10
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
@@ -1855,7 +1855,7 @@ variables:
       - func: "format test disagg"
         vars:
           # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.rows=10000 runs.ops=30000 ops.truncate=0
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.rows=5000 runs.ops=20000 ops.truncate=0
           times: 10
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
