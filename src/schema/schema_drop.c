@@ -143,6 +143,16 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
 
     WT_BTREE *btree = S2BT(session);
 
+    /*
+     * A table awaiting publication has never been checkpointed, so closing its handle loses any
+     * committed data it holds. Refuse the drop until a checkpoint has persisted the data, so this
+     * table behaves like a regular table, which returns EBUSY when it holds uncheckpointed data.
+     */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+      __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+        WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
+          "the table has unpublished data and must be checkpointed before it can be dropped");
+
     if (btree->page_log == NULL)
         WT_ERR(ENOTSUP);
 
@@ -573,7 +583,7 @@ __wt_schema_drop(
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_ASSERT_NO_SCHEMA_OP_DURING_ROLE_TRANSITION(session);
+    WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);

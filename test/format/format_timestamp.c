@@ -151,7 +151,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
          */
         WT_ACQUIRE_READ_WITH_BARRIER(stop_timestamp, g.stop_timestamp);
         if (stable_timestamp > stop_timestamp && stop_timestamp != WT_TS_NONE)
-            stable_timestamp = WT_MAX(stop_timestamp, g.stable_timestamp);
+            stable_timestamp = stop_timestamp;
 
         /*
          * For predictable replay, we need the oldest timestamp to lag when the process exits. That
@@ -160,7 +160,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
         if (stable_timestamp > 10 * WT_THOUSAND)
             oldest_timestamp = WT_MAX(stable_timestamp - 10 * WT_THOUSAND, g.oldest_timestamp);
         else
-            oldest_timestamp = WT_MAX(stable_timestamp / 2, g.oldest_timestamp);
+            oldest_timestamp = stable_timestamp / 2;
     } else if (!final) {
         /*
          * If lag is permitted, update the oldest timestamp halfway to the largest timestamp that's

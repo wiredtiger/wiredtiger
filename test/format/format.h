@@ -229,9 +229,7 @@ extern u_int ntables;
 typedef struct {
     wt_shared uint64_t leader_hash;
     wt_shared uint64_t follower_hash;
-    wt_shared uint64_t leader_ops_base;
-    wt_shared uint64_t follower_ops_base;
-} DISAGG_MULTI_SHARED;
+} DISAGG_MULTI_DB_HASH;
 
 typedef struct {
     WT_CONNECTION *wts_conn;
@@ -290,7 +288,6 @@ typedef struct {
 
     wt_timestamp_t replay_cached_committed; /* Our committed timestamp, cached */
     uint32_t replay_calculate_committed;    /* Times before recalculating cached committed */
-    wt_timestamp_t replay_ops_base;         /* Timestamp the operations phase started from */
     wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
     FILE *replay_op_log;                    /* Predictable replay per-run operation log */
     wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
@@ -343,9 +340,9 @@ typedef struct {
 
     bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
     pid_t follower_pid; /* For multi-node disagg follower process */
-    char checkpoint_metadata[FILENAME_MAX];   /* Last checkpoint metadata picked up by follower. */
-    DISAGG_MULTI_SHARED *disagg_multi_shared; /* Leader/follower shared validation state */
-    int disagg_multi_sync_socket;             /* Socket for leader-follower sync */
+    char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
+    DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
+    int disagg_multi_sync_socket;               /* Socket for leader-follower sync */
 
     wt_timestamp_t key_push_history[KEY_PUSH_HISTORY_MAX]; /* Push-mode key rotation: timestamps */
     size_t key_push_count; /* Number of pushed timestamps recorded */
@@ -508,7 +505,6 @@ void disagg_setup_multi_node(void);
 void disagg_switch_roles(void);
 void disagg_teardown_multi_node(void);
 void disagg_sync_multi_node(WT_SESSION *);
-void disagg_sync_ops_base(void);
 const char *session_prefetch_cfg(void);
 void fclose_and_clear(FILE **);
 void follower_read_latest_checkpoint(void);
