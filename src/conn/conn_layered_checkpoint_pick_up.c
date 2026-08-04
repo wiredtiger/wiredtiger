@@ -517,19 +517,21 @@ err:
  *     Discard the local state describing a dead incarnation of a layered table, so the recreated
  *     one can be picked up in its place.
  *
- * The ingest goes with it. Reaching here means the local metadata still describes the older
- *     incarnation, so this node never applied the drop that ended it and the ingest still holds
- *     that incarnation's rows. Those rows belong to a table that no longer exists, and keeping them
- *     would surface them through the recreated one.
+ * The ingest is left behind. Reaching here means this node never applied the drop that ended the
+ *     older incarnation, so the ingest still holds that incarnation's rows and they can surface
+ *     through the recreated table. Removing it needs exclusive access to a table the application is
+ *     still reading, which this function cannot get while the pickup holds the checkpoint and
+ *     schema locks.
+ *
+ * FIXME-WT-17746: Retire the ingest through a path that does not require exclusive access here.
  *
  * If any handle is busy (e.g., the application holds an open cursor on the table), the discard
  *     fails with EBUSY, which aborts the whole pickup before the checkpoint metadata LSN advances;
  *     the application sees the error from the pickup call and retries it later. A retry after a
- *     partial discard is safe: the ingest goes first because its handles are the most likely to be
- *     busy, all remaining handles are closed before any local metadata entry is removed, and every
- *     removal below tolerates an already-missing entry. The discard is still not atomic: between a
- *     failed pickup and its retry, a reader can observe a partially discarded table, the same as
- *     reading a table being concurrently dropped.
+ *     partial discard is safe: all handles are closed before any local metadata entry is removed,
+ *     and every removal below tolerates an already-missing entry. The discard is still not atomic:
+ *     between a failed pickup and its retry, a reader can observe a partially discarded table, the
+ *     same as reading a table being concurrently dropped.
  */
 static int
 __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
@@ -539,7 +541,6 @@ __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
     WT_DECL_ITEM(table_uri_buf);
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
-    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
 
     WT_ERR(__wt_scr_alloc(session, 0, &layered_uri_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -549,10 +550,6 @@ __disagg_drop_local_layered_int(WT_SESSION_IMPL *session, const char *name)
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", name));
     WT_ERR(__wt_buf_fmt(session, layered_uri_buf, "layered:%s", name));
     WT_ERR(__wt_buf_fmt(session, table_uri_buf, "table:%s", name));
-
-    /* Drop the ingest first: its handles are the most likely to be busy. */
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_ingest", name));
-    WT_ERR(__wt_schema_drop(session, uri_buf->data, drop_cfg, false));
 
     /*
      * Close all data handles before removing any local metadata. Followers read the stable

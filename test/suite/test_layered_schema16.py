@@ -148,5 +148,6 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.close('debug=(skip_checkpoint=true)')
 
     # FIXME-WT-17746: A test covering the EBUSY retry when a pinned data handle blocks the discard
-    # of a dropped table belonged here. The pickup no longer discards anything, so there is nothing
-    # for a busy handle to block. Restore it along with the discard.
+    # of a dropped table belonged here. The discard no longer touches the ingest, whose handles are
+    # the ones a reader keeps pinned, so a busy handle no longer blocks it. Restore the coverage once
+    # the ingest is retired again.
