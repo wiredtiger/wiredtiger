@@ -48,7 +48,7 @@ __rec_scrub_image_budget(WT_SESSION_IMPL *session)
  *     Return true if reconciliation should save a disk image for in-memory re-instantiation.
  */
 static WT_INLINE bool
-__rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
+__rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi, bool last_block)
 {
     /*
      * Save the image if configured to always do that, or reconciliation saved updates that will
@@ -58,6 +58,13 @@ __rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *mult
         return (true);
 
     if (!F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN))
+        return (false);
+
+    /*
+     * Only a 1-for-1 page swap should save an image. Check this is the final block and no earlier
+     * block was written.
+     */
+    if (!last_block || r->multi_next != 1)
         return (false);
 
     /*
@@ -2782,7 +2789,7 @@ copy_image:
      * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
      * copy of the disk image.
      */
-    if (__rec_save_disk_image(session, r, multi))
+    if (__rec_save_disk_image(session, r, multi, last_block))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
@@ -3347,16 +3354,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_STAT_CONN_DSRC_INCR(session, rec_multiblock_internal);
         else
             WT_STAT_CONN_DSRC_INCR(session, rec_multiblock_leaf);
-
-        /*
-         * Discard chunk images on a multi-chunk reconciliation otherwise eviction of this page
-         * instantiates every chunk in memory instead of leaving the parent pointing at the on-disk
-         * blocks.
-         */
-        if (F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN) && !F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS))
-            for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-                if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
-                    __wt_free(session, multi->disk_image);
 
         /* Optionally display the actual split keys in verbose mode. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_SPLIT, WT_VERBOSE_DEBUG_2))

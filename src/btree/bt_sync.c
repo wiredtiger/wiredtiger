@@ -23,7 +23,7 @@ __sync_scrub_checkpoint_enabled(WT_SESSION_IMPL *session)
     if (F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT))
         return (false);
 
-    /* Skip the metadata so counters drain to zero after dropping the table. */
+    /* Skip the metadata file when generating images. */
     if (WT_IS_METADATA(S2BT(session)->dhandle) || WT_IS_DISAGG_META(S2BT(session)->dhandle))
         return (false);
 
