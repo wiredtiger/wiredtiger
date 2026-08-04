@@ -201,7 +201,7 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
 
     WT_ERR(__disagg_replace_checkpoint(session, cfg_current_copy, &new_ckpt, &cfg_new));
 
-    /* Put in our new config. */
+    /* Put in our new config: a tracked update, so a failed merge unrolls it. */
     WT_ERR(__wt_metadata_update(session, metadata_key, cfg_new));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -393,6 +393,7 @@ __disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor)
 
     WT_ERR(sh_cursor->get_key(sh_cursor, &key));
     WT_ERR(sh_cursor->get_value(sh_cursor, &value));
+    /* A tracked insert, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_insert(session, key, value),
       "Failed to insert metadata for key \"%s\"", key);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -446,6 +447,7 @@ __disagg_update_file_meta(
      */
     WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &cval, &cfg_ret));
 
+    /* A tracked update, so a failed merge unrolls it. */
     WT_ERR_MSG_CHK(session, __wt_metadata_update(session, sh_file_key, cfg_ret),
       "Failed to update metadata for key \"%s\"", sh_file_key);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_updated);

@@ -75,6 +75,16 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         session.close()
         return value
 
+    def metadata(self, conn):
+        # The whole local metadata, keyed by URI: the reference for what a
+        # failed checkpoint adoption must restore.
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        entries = {k: v for k, v in cursor}
+        cursor.close()
+        session.close()
+        return entries
+
     def read(self, conn, uri, key):
         session = conn.open_session('')
         session.begin_transaction()
@@ -111,7 +121,9 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         self.put(session_follow, self.uri, {'key': 'new value'}, 20)
 
         # Adopting the second checkpoint fails on the injected fault and is
-        # reported as retryable.
+        # reported as retryable. The local metadata before the attempt is the
+        # reference for what the unroll must restore.
+        metadata_before = self.metadata(conn_follow)
         conn_follow.reconfigure('timing_stress_for_test=[failpoint_disagg_checkpoint_apply]')
         try:
             self.disagg_advance_checkpoint(conn_follow)
@@ -122,9 +134,12 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(self.get_stat(conn_follow,
             stat.conn.layered_table_manager_checkpoints_disagg_pick_up_failed), 1)
 
-        # The failed adoption must leave no trace: the new table's metadata
-        # must not exist, and a fresh transaction reads through the follower's
-        # ingest as before.
+        # The failed adoption must leave no trace. Comparing the whole local
+        # metadata is what distinguishes a full unroll from a partial apply: a
+        # checkpoint entry left behind for the existing table shows up here,
+        # while the table's value reads the same either way.
+        self.assertEqual(self.metadata(conn_follow), metadata_before,
+            'the failed adoption left local metadata behind')
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: session_follow.open_cursor(self.new_uri))
         self.assertEqual(self.read(conn_follow, self.uri, 'key'), (0, 'new value'))
@@ -133,6 +148,8 @@ class test_layered_follower19(wttest.WiredTigerTestCase):
         # makes both tables' checkpoint content visible.
         conn_follow.reconfigure('timing_stress_for_test=[]')
         self.disagg_advance_checkpoint(conn_follow)
+        self.assertNotEqual(self.metadata(conn_follow), metadata_before,
+            'the successful adoption did not update local metadata')
         self.assertEqual(self.read(conn_follow, self.uri, 'key'), (0, 'new value'))
         self.assertEqual(self.read(conn_follow, self.new_uri, 'key2'), (0, 'value2'))
 
