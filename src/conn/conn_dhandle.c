@@ -300,9 +300,10 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
                  * span eras and sweep keeps them alive for readers and the checkpoint tracking
                  * logic. A live stable handle must be reopened fresh instead -- draining through an
                  * outdated one hits resident inserts or unresolved prepared updates left by the
-                 * previous leader era.
+                 * previous leader era. A dropped handle is never reused: a recreated table restarts
+                 * its checkpoint numbering, so the same name can refer to a different btree.
                  */
-                if (WT_DHANDLE_BTREE(dhandle) &&
+                if (WT_DHANDLE_BTREE(dhandle) && !F_ISSET(dhandle, WT_DHANDLE_DROPPED) &&
                   F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
                     if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0 ||
                       !WT_URI_IS_STABLE_CHECKPOINT(dhandle->name))
@@ -355,6 +356,47 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
         WT_RET(ret);
 
     return (0);
+}
+
+/*
+ * __conn_dhandle_drop_outdated_walk --
+ *     Mark all data handles matching a name or a name prefix as dropped and outdated. The caller
+ *     must hold the handle list lock.
+ */
+static void
+__conn_dhandle_drop_outdated_walk(WT_SESSION_IMPL *session, const char *uri, const char *prefix)
+{
+    WT_DATA_HANDLE *dhandle;
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST));
+
+    TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q)
+        if (strcmp(dhandle->name, uri) == 0 || WT_PREFIX_MATCH(dhandle->name, prefix))
+            F_SET(dhandle, WT_DHANDLE_DROPPED | WT_DHANDLE_OUTDATED);
+}
+
+/*
+ * __wti_conn_dhandle_drop_outdated --
+ *     Mark every data handle for a URI, including its checkpoint views ("<uri>/<checkpoint>"), as
+ *     dropped and outdated. The underlying object was dropped and its name may be reused by a
+ *     recreated object, so no handle may ever be found under this name again. Sweep discards the
+ *     handles once their references drain. Unlike a close, this cannot fail with EBUSY.
+ */
+int
+__wti_conn_dhandle_drop_outdated(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_ITEM(prefix_buf);
+    WT_DECL_RET;
+
+    WT_RET(__wt_scr_alloc(session, 0, &prefix_buf));
+    WT_ERR(__wt_buf_fmt(session, prefix_buf, "%s/", uri));
+
+    WT_WITH_HANDLE_LIST_READ_LOCK(
+      session, __conn_dhandle_drop_outdated_walk(session, uri, prefix_buf->data));
+
+err:
+    __wt_scr_free(session, &prefix_buf);
+    return (ret);
 }
 
 /*

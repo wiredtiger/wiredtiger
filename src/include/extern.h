@@ -1452,6 +1452,8 @@ extern int __wti_conn_dhandle_discard(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mark_dead)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_conn_dhandle_drop_outdated(WT_SESSION_IMPL *session, const char *uri)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_conn_ext_init(WT_SESSION_IMPL *session)
