@@ -154,10 +154,9 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 30), {'below', 'at'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
 
-    # A straddler's uncommitted delete on stable and a later remove of the same key land on
-    # different constituents with no shared update chain; the conflict probe must still find the
-    # collision and roll back, even with no read timestamp.
-    def test_remove_conflicts_with_uncommitted_straddler_delete(self):
+    # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
+    # same key, which routes to ingest with no shared update chain.
+    def probe_remove_against_straddler_delete(self, read_config=None):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -175,12 +174,20 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.set_step_down_ts(20)
 
-        # The later remove routes to ingest and its snapshot excludes the straddler; the probe
-        # must find the uncommitted delete on stable.
-        self.session.begin_transaction()
+        # The probing snapshot excludes the straddler, so the conflict check must reach across to
+        # the uncommitted delete on stable.
+        self.session.begin_transaction(read_config)
         cursor.set_key('victim')
         self.expect_conflict_rollback(cursor.remove)
         self.session.rollback_transaction()
+
+        return cursor, straddler_session, straddler_cursor
+
+    # The conflict is caught with no read timestamp, and once the straddler is gone the retry
+    # commits into ingest.
+    def test_remove_conflicts_with_uncommitted_straddler_delete(self):
+        cursor, straddler_session, straddler_cursor = \
+            self.probe_remove_against_straddler_delete()
 
         # The straddler dies at commit.
         self.assert_step_down_rollback(lambda: straddler_session.commit_transaction(
@@ -201,26 +208,9 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
     # The same conflict with a read timestamp stays caught.
     def test_remove_conflicts_with_read_timestamp(self):
-        self.set_global_ts(1, 1)
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-        cursor['victim'] = 'alive'
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-
-        straddler_session = self.conn.open_session()
-        straddler_cursor = straddler_session.open_cursor(self.uri, None, None)
-        straddler_session.begin_transaction()
-        straddler_cursor.set_key('victim')
-        self.assertEqual(straddler_cursor.remove(), 0)
-
-        self.set_step_down_ts(20)
-
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
-        cursor.set_key('victim')
-        self.expect_conflict_rollback(cursor.remove)
-        self.session.rollback_transaction()
+        cursor, straddler_session, straddler_cursor = \
+            self.probe_remove_against_straddler_delete(
+                'read_timestamp=' + self.timestamp_str(15))
         cursor.close()
 
         straddler_session.rollback_transaction()
