@@ -1194,10 +1194,12 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 
     /*
      * A concurrent pickup may have adopted this checkpoint, or a newer one, between the copy above
-     * and the adoption; the deferred pickup is then satisfied regardless of what the adoption
-     * returned.
+     * and the adoption, which leaves the deferred pickup satisfied. That race has two outcomes: the
+     * adoption rejects the now-older checkpoint (EINVAL), or its metadata merge conflicts with the
+     * winner and unrolls (EBUSY). Anything else is a real failure, and a panic in particular must
+     * not be swallowed here just because the winner published its LSN first.
      */
-    if (ret != 0 &&
+    if ((ret == EINVAL || ret == EBUSY) &&
       __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn) >= deferred_lsn) {
         /*
          * Prune the superseded entries: the copy above is not atomic with adoptions, so an entry
