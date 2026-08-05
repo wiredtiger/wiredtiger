@@ -1225,7 +1225,6 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
     WT_TXN_SNAPSHOT *snap;
     uint64_t snap_gen;
     uint32_t snap_idx;
-    bool copied;
 
     conn = S2C(session);
 
@@ -1234,7 +1233,7 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
      * drains this generation after swapping, so holding it stops the buffer named here from being
      * recycled while we read it.
      */
-    WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+    __wt_session_gen_enter(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
     snap = &conn->ckpt_eviction_snap[snap_idx];
     snap_gen = __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap_gen[snap_idx]);
@@ -1253,25 +1252,27 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
      * In this order step 4 compares the stamp of 47 against the current generation of 48 and
      * declines. The generation only moves forwards, so reading it last is always the stricter test.
      */
-    copied = snap_gen == __wt_gen(session, WT_GEN_CHECKPOINT);
-    if (copied) {
-        session->txn->snapshot_data.snap_min = snap->snap_min;
-        session->txn->snapshot_data.snap_max = snap->snap_max;
-        session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
-        if (snap->snapshot_count > 0)
-            memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
-              snap->snapshot_count * sizeof(snap->snapshot[0]));
-        F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    } else
+    if (snap_gen != __wt_gen(session, WT_GEN_CHECKPOINT)) {
         /*
          * The buffer holds no snapshot the running checkpoint published: either a new checkpoint
          * has not published one yet, or the checkpoint that did has retired it. A buffer no
          * checkpoint has ever published is stamped zero, which no generation matches.
          */
         WT_STAT_CONN_INCR(session, eviction_ckpt_snapshot_declined);
-    WT_LEAVE_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+        __wt_session_gen_leave(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+        return (false);
+    }
 
-    return (copied);
+    session->txn->snapshot_data.snap_min = snap->snap_min;
+    session->txn->snapshot_data.snap_max = snap->snap_max;
+    session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
+    if (snap->snapshot_count > 0)
+        memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
+          snap->snapshot_count * sizeof(snap->snapshot[0]));
+    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+
+    __wt_session_gen_leave(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+    return (true);
 }
 
 /*
