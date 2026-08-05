@@ -45,8 +45,14 @@
 #include "test_util.h"
 
 /* Tunables. */
-#define MAX_CKPT_INVL 4         /* checkpoint thread: upper bound on the interval, in seconds */
-#define INSERT_ODDS 64          /* generate an insert: 1 in N visits to an insertable slot */
+#define MAX_CKPT_INVL 4 /* checkpoint thread: upper bound on the interval, in seconds */
+#define INSERT_ODDS 64  /* generate an insert: 1 in N visits to a published slot */
+/*
+ * Generate a drop: 1 in N visits to a published slot. It is the dwell in the published state, so it
+ * governs how much data a table accumulates before it is dropped - keep it well above INSERT_ODDS
+ * or tables are dropped empty and the verifier has nothing to check.
+ */
+#define DROP_ODDS 48
 #define GEN_APPLY_RATE_FLOOR 30 /* generator: applied values/second, the multi-node worst case */
 #define GEN_LEAD_MIN 64         /* generator: lead floor, so the workers stay fed */
 #define SCHEMA_EPOCH_BOOTSTRAP 1
@@ -136,19 +142,16 @@ typedef struct {
 } SCHEMA_EVENT;
 
 /*
- * The generator's per-slot position in the table lifecycle, valid transitions only. The waiting
- * states hold the slot until a completed checkpoint covers the value in table_wait_ts; the
- * unpublished states linger a random number of visits before the publish (or a cancelling drop),
- * widening the op-publish window the checkpoints land in.
+ * The generator's per-slot position in the table lifecycle, valid transitions only. Every state
+ * lingers a random number of visits before its next move, widening the windows a checkpoint can
+ * land in: between a schema operation and its publish, and between a publish and the drop that
+ * follows.
  */
 typedef enum {
-    TABLE_NONE = 0,         /* slot free: no local table, nothing unpublished */
-    TABLE_CREATED,          /* created; the publish may be delayed */
-    TABLE_CREATE_PUBLISHED, /* create published, awaiting checkpoint coverage of its epoch */
-    TABLE_DIRTY,            /* data committed, awaiting checkpoint coverage of the commit */
-    TABLE_DURABLE,          /* create and all data covered: the slot is droppable */
-    TABLE_DROPPED,          /* dropped; the publish may be delayed */
-    TABLE_DROP_PUBLISHED    /* drop published, awaiting checkpoint coverage of its epoch */
+    TABLE_NONE = 0,  /* slot free: no local table, nothing unpublished */
+    TABLE_CREATED,   /* created; the publish may be delayed */
+    TABLE_PUBLISHED, /* create published; may take data, and is droppable */
+    TABLE_DROPPED    /* dropped; the publish may be delayed */
 } TABLE_STATE;
 
 /* Test-wide configuration, built from the command line by every role independently. */
@@ -211,16 +214,9 @@ typedef struct {
      * than picked up, and every applied event is relayed to the peer. Fixed per phase.
      */
     bool leads;
-    bool generates;         /* this phase generates events into the self-pipe; fixed per phase */
-    bool handover_received; /* the term was handed over this phase; atomic access */
-    uint32_t stop_stage;    /* how far the phase's shutdown has progressed; atomic access */
-    /*
-     * The coverage the slot machine's waiting states wait for, republished by the timestamp thread
-     * from the connection's last_disaggregated_schema_epoch. Dropping an uncovered table leaves its
-     * worker retrying in EBUSY until a checkpoint covers the table, so the slot machine keeps the
-     * drop back instead. Atomic access.
-     */
-    uint64_t ckpt_covered_ts;
+    bool generates;            /* this phase generates events into the self-pipe; fixed per phase */
+    bool handover_received;    /* the term was handed over this phase; atomic access */
+    uint32_t stop_stage;       /* how far the phase's shutdown has progressed; atomic access */
     uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on reopen */
     uint32_t switch_gen;       /* how many role transitions this node has completed */
     /*
@@ -231,10 +227,7 @@ typedef struct {
      * previous leader's final counter.
      */
     uint64_t current_ts;
-    /*
-     * In flight is emitted minus applied. Counted rather than derived from the completed frontier:
-     * a worker whose picks are all gated never reports one.
-     */
+    /* In flight is emitted minus applied, bounding the lead the generator builds. */
     uint64_t emitted; /* generator only */
     uint64_t applied; /* atomic access: every worker adds to it */
     uint32_t nth_workers;
@@ -252,7 +245,6 @@ typedef struct {
         /* Carried across phases, so each leader phase resumes its namespace where the last ended.
          */
         TABLE_STATE table_state[MAX_POOL_SIZE];
-        uint64_t table_wait_ts[MAX_POOL_SIZE]; /* waiting states: the value coverage must reach */
     } workers[MAX_TH];
     /*
      * The phase's random streams: one per worker, driving the stream of operations the generator

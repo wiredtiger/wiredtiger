@@ -80,9 +80,10 @@ ring and stalls the reader, so a stream-borne checkpoint could never reach it. I
 its own rather than riding the timestamp thread because a checkpoint runs up to ~1 s at `-T 12`,
 which would freeze the frontier for that long.
 
-A peerless follower therefore creates and publishes tables of its own but never checkpoints, so
-its slots pile up in the waiting states until it steps up and its first checkpoints cover them —
-the way a fresh node bootstraps before taking leadership.
+A peerless follower therefore runs the full lifecycle on tables of its own — creating, publishing,
+populating and dropping them — while nothing it does ever becomes durable, since only a leader
+checkpoints. Its first term as leader inherits all of it, the way a fresh node bootstraps before
+taking leadership.
 
 A schema operation is split into two events: `EVENT_CREATE`/`EVENT_DROP` execute it, and a later
 `EVENT_PUBLISH_CREATE`/`EVENT_PUBLISH_DROP` publishes it at a fresh schema epoch, so the
@@ -107,47 +108,48 @@ stateDiagram-v2
 
     state "NONE — slot free, nothing pending" as NONE
     state "CREATED — table exists locally, create not published" as CREATED
-    state "CREATE_PUBLISHED — create published, awaiting a covering checkpoint" as CREATE_PUB
-    state "DIRTY — data committed, awaiting a covering checkpoint" as DIRTY
-    state "DURABLE — create and data covered, the table is droppable" as DURABLE
+    state "PUBLISHED — create published; takes data, and is droppable" as PUBLISHED
     state "DROPPED — table dropped locally, drop not published" as DROPPED
-    state "DROP_PUBLISHED — drop published, awaiting a covering checkpoint" as DROP_PUB
 
     [*] --> NONE
     NONE --> CREATED : create
     CREATED --> CREATED : linger, widening the window
-    CREATED --> CREATE_PUB : publish the create
+    CREATED --> PUBLISHED : publish the create
     CREATED --> NONE : drop, cancelling the create
-    CREATE_PUB --> DIRTY : insert
-    CREATE_PUB --> DURABLE : checkpoint covers the create
-    DIRTY --> DURABLE : checkpoint covers the data
-    DURABLE --> DIRTY : insert
-    DURABLE --> DROPPED : drop
+    PUBLISHED --> PUBLISHED : insert (1 in INSERT_ODDS), or linger
+    PUBLISHED --> DROPPED : drop (1 in DROP_ODDS)
     DROPPED --> DROPPED : linger, widening the window
-    DROPPED --> DROP_PUB : publish the drop
-    DROP_PUB --> NONE : checkpoint covers the drop
-    DROP_PUB --> CREATED : create, reusing the slot early
+    DROPPED --> NONE : publish the drop, freeing the slot
 
     classDef settled fill:#e8f4e8,stroke:#2e7d32
     classDef pending fill:#fff8e1,stroke:#b26a00
-    class NONE,DURABLE settled
-    class CREATED,CREATE_PUB,DIRTY,DROPPED,DROP_PUB pending
+    class NONE settled
+    class CREATED,PUBLISHED,DROPPED pending
 ```
 
-Most transitions are events the generator emits; the *checkpoint covers …* ones are not — a
-checkpoint is global, and per slot it shows up only as coverage arriving. Green states are settled;
+Every transition is an event the generator emits — the machine no longer tracks checkpoint
+coverage, because a checkpoint is global and arrives on its own thread. Green states are settled;
 amber states hold something the shared storage does not know about yet, and are where the
-interesting crashes happen.
+interesting crashes happen. `DROP_ODDS` is the dwell in `PUBLISHED`: it decides how many visits a
+table gets to accumulate data before it is dropped, so it belongs well above `INSERT_ODDS`.
 
-Three moves are left out on purpose:
+A dropped table's slot is freed as soon as the drop publishes, whether or not a checkpoint has
+covered it — so `NONE → CREATED` is routinely a *re-*create over a still-uncovered remove, which is
+the create/drop/create-above-the-stable-epoch case (WT-18099 territory) this test wants to provoke.
+
+Two moves are left out on purpose:
 
 - **Insert before the create is published** — the commit would fall below the create's epoch,
-  letting a checkpoint make data stable under an unpublished table.
-- **Drop before a checkpoint covers the table** — the drop blocks the worker until a checkpoint
-  covers it. The checkpoint thread supplies one within `MAX_CKPT_INVL`, so this is survivable
-  rather than fatal, but the slot machine keeps it back anyway to leave the workers unblocked.
+  letting a checkpoint make data stable under an unpublished table. That one is fatal
+  (`__checkpoint_disagg_maybe_publish` fails the checkpoint with *stable data checkpointed for
+  unpublished table*), so the ordering is load-bearing rather than merely tidy.
 - **Create over an unpublished drop** — the next publish would sweep the drop up with the new
   create, so the drop would never be recorded and its absence never verified.
+
+Dropping a published table that no checkpoint covers yet is **not** excluded any more: WiredTiger
+refuses it with `EBUSY`, the worker retries, and the checkpoint thread clears it within
+`MAX_CKPT_INVL`. That is deliberate — the gate that used to hold those drops back also hid the
+publish-and-drop straddling a checkpoint from the test.
 
 The machine assumes the stable schema epoch is set before any event runs, and that pending
 publishes are flushed before a role switch. A crash in any state is safe: an operation that never
@@ -165,10 +167,10 @@ on `handover_received`/`stop_run`) → `workload_stop` → transition or exit.
 
 | Thread | Count | Does |
 |---|---|---|
-| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, absorb coverage, emit one valid move at random or none; an empty round sleeps 1 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
+| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, emit one valid move at random or none; an empty round sleeps 1 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
 | reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
 | worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, unvalued), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark valued events completed |
-| timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- then republish `ckpt_covered_ts` from the connection's durable schema epoch</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
+| timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
 | checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_pick_up_checkpoint`, with the workers still running |
 
 Coordination is lock-free by design: `stop_stage` quiesces every loop, per-worker SPSC rings plus `busy` flags connect
@@ -249,14 +251,11 @@ step-down has no peer to hand over to).
    died between the two, and the verifier would demand a table nobody published); record before
    publish, so no checkpoint can make an unrecorded epoch durable; relay before the completion
    store, so a checkpoint only ever covers already-relayed events.
-2. **Drop coverage gating**: a table may be dropped only while *unpublished* — the drop cancels
-   the create and leaves no durable trace — or once a checkpoint covers its create and any data
-   (`ckpt_covered_ts`). WiredTiger refuses to drop a published but uncheckpointed table, and the
-   stream cannot be reordered, so an uncovered drop parks its worker in an EBUSY retry until the
-   checkpoint thread's next checkpoint clears it. That resolves on its own now that checkpoints do
-   not travel the ring behind the blocked worker, so the gate is about keeping the workers moving
-   rather than about deadlock; the slot machine makes it structural — a waiting slot emits nothing
-   until coverage arrives.
+2. **Insert only after the create published**: an insert's commit must exceed its table's create
+   epoch, or a checkpoint makes data stable under an unpublished table — which WiredTiger treats as
+   an API violation and fails the checkpoint on. The slot machine makes this structural: `INSERT` is
+   reachable only from `PUBLISHED`. Nothing else about the lifecycle waits on a checkpoint; a drop
+   WiredTiger refuses with `EBUSY` is simply retried until the checkpoint thread clears it.
 3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `leader_leave`
    advances oldest/stable/stable-epoch to the term's counter before its step-down checkpoint
    (a publish that checkpoint does not carry is lost when the step-down clears the shared-metadata

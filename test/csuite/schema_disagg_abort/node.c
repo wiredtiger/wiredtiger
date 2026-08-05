@@ -291,11 +291,8 @@ workers_min(WORKLOAD_STATE *state)
 /*
  * thread_ts_run --
  *     Advances the oldest and stable timestamps and the stable schema epoch to the workers'
- *     completed frontier, keeping stable data on published tables only. Runs in both roles.
- *
- * It also republishes the connection's durable schema epoch, the gate the generator drops dirty
- *     tables behind. Taking it from the connection keeps one owner for the value and keeps it right
- *     across role transitions: a follower's pickups advance it too.
+ *     completed frontier, keeping stable data on published tables only. Runs in both roles, and
+ *     holds nothing slow: the checkpoint duty has a thread of its own so it cannot freeze this one.
  */
 static WT_THREAD_RET
 thread_ts_run(void *arg)
@@ -315,9 +312,6 @@ thread_ts_run(void *arg)
             if (frontier >= cur_stable)
                 set_frontier(state->conn, frontier);
         }
-
-        const uint64_t durable_epoch = query_ts(state->conn, "last_disaggregated_schema_epoch");
-        __wt_atomic_store_uint64(&state->ckpt_covered_ts, durable_epoch);
 
         __wt_sleep(0, 100 * WT_THOUSAND);
     }
@@ -346,8 +340,6 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->generates = as_leader || !cfg->peer_alive;
     state->stop_stage = STAGE_NONE;
     state->handover_received = false;
-    /* Start gated: the timestamp thread republishes the connection's durable epoch immediately. */
-    state->ckpt_covered_ts = 0;
     state->emitted = state->applied = 0;
 
     for (uint32_t i = 0; i < cfg->nth; i++) {
