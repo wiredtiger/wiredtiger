@@ -277,48 +277,6 @@ __wti_evict_page(WT_SESSION_IMPL *session, bool is_server)
 }
 
 /*
- * __evict_txn_too_large_for_cache --
- *     Check whether this session's own unresolved dirty content is by itself enough to hold the
- *     cache above either the updates trigger or the dirty trigger.
- */
-static bool
-__evict_txn_too_large_for_cache(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_EVICT *evict;
-    double trigger;
-    uint64_t bytes_max;
-
-    conn = S2C(session);
-    evict = conn->evict;
-
-    /* Prepared transactions cannot be rolled back, so there is nothing to be gained here. */
-    if (F_ISSET(session->txn, WT_TXN_PREPARE))
-        return (false);
-
-    /*
-     * Only consider transactions that have made a modification. A transaction that has not written
-     * anything can still be charged dirty bytes, because instantiating a fast-truncated page while
-     * reading it allocates updates against whichever transaction happens to touch the page, and
-     * rolling a reader back over that is both useless and unsupported by the callers.
-     */
-    if (session->txn->mod_count == 0)
-        return (false);
-
-    /*
-     * Uncommitted content counts toward both the updates and dirty triggers, but the two are not
-     * guaranteed to be ordered: the updates trigger only defaults to half the dirty trigger and
-     * neither is validated against the other. Use whichever is lower so a transaction that alone
-     * holds the cache above either threshold gets caught.
-     */
-    trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
-      __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
-
-    bytes_max = conn->cache_size + 1;
-    return (session->txn->bytes_dirty > (uint64_t)(trigger * bytes_max) / 100);
-}
-
-/*
  * __wti_evict_app_assist_worker --
  *     Worker function for __wt_evict_app_assist_worker_check: evict pages if the cache crosses
  *     eviction trigger thresholds.
@@ -367,40 +325,18 @@ __wti_evict_app_assist_worker(
     for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);;
       ret = 0) {
         /*
-         * If eviction is stuck, check if this thread is likely causing problems and should be
-         * rolled back. Ignore if in recovery, those transactions can't be rolled back.
+         * Check if this thread is likely causing problems and should be rolled back.
+         * __wt_txn_is_blocking ignores recovery and prepared transactions itself, and only applies
+         * its cache-stuck-dependent checks once eviction is actually stuck.
          */
-        if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
-            ret = __wt_txn_is_blocking(session);
-            if (ret == WT_ROLLBACK) {
-                __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
-                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                      session->err_info.err_msg);
-            }
-            WT_ERR(ret);
-        }
-
-        /*
-         * A transaction holding more unresolved dirty content than the updates trigger allows can
-         * never bring the cache back under that trigger, however long it stays here: eviction
-         * cannot reclaim bytes pinned by an unresolved transaction, so the total can only stay
-         * above its own contribution. Roll back while doing so is still legal, rather than carry a
-         * transaction that cannot succeed through to its resolution, where it can no longer be
-         * rolled back.
-         *
-         * This deliberately follows the check above: when eviction is stuck that check already
-         * releases the thread, and it reports the more specific reason.
-         */
-        if (!F_ISSET(conn, WT_CONN_RECOVERING) && __evict_txn_too_large_for_cache(session)) {
-            WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
-            __wt_session_set_last_error(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
-              WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
+        ret = __wt_txn_is_blocking(session);
+        if (ret == WT_ROLLBACK) {
+            __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
             if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
                 __wt_verbose_debug1(
                   session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
-            WT_ERR(WT_ROLLBACK);
         }
+        WT_ERR(ret);
 
         /*
          * Check if we've exceeded our operation timeout, this would also get called from the
