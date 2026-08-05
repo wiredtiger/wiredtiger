@@ -322,8 +322,8 @@ __wti_evict_app_assist_worker(
      * namely, the busy return and empty eviction queue. We do not need the calling functions to
      * have to deal with internal eviction return codes.
      */
-    uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
-    for (;;) {
+    for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
+      ;) {
         /*
          * Check if this thread is likely causing problems and should be rolled back. Recovery and
          * prepared transactions are skipped internally, and the cache-stuck-dependent checks only
