@@ -1295,7 +1295,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         __wt_atomic_store_uint64_release(
           &conn->ckpt_eviction_snap_gen[new_idx], __wt_gen(session, WT_GEN_CHECKPOINT));
 
-        __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, true);
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         /*
          * Wait for eviction threads still copying from the retiring buffer before it can be reused.
@@ -1708,7 +1707,8 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+    /* The checkpoint published this index itself, and checkpoints do not overlap. */
+    snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
     __wt_atomic_store_uint64_release(&conn->ckpt_eviction_snap_gen[snap_idx], 0);
 }
 
