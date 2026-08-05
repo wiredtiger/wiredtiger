@@ -519,11 +519,7 @@ open:
         goto err;
     }
 
-    /*
-     * Disaggregated storage exposes data through a page log rather than local files. Reject global
-     * flags that only apply to the classic block-manager or local-log path, and reject subcommands
-     * that aren't in the disagg allowlist, before touching any data.
-     */
+    /* Reject commands that are not supported in disaggregated storage mode. */
     if (util_conn_is_disagg(conn)) {
         const char *bad_flag = NULL;
         if (backward_compatible)
