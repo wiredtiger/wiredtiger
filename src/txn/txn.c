@@ -2750,7 +2750,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     double trigger;
-    uint64_t bytes_max, global_oldest;
+    uint64_t global_oldest;
     bool is_txn_id_global_oldest;
 
     conn = S2C(session);
@@ -2813,8 +2813,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (txn->mod_count != 0) {
         trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
           __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
-        bytes_max = conn->cache_size + 1;
-        if (txn->bytes_dirty > (uint64_t)(trigger * bytes_max) / 100) {
+        if (txn->bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
             WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
             WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
               WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
