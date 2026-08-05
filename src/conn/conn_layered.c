@@ -673,9 +673,14 @@ err:
  */
 static void
 __disagg_requeue_skipped_creates(
-  WT_CONNECTION_IMPL *conn, struct __wt_disagg_shared_metadata_qh *skipped_creates)
+  WT_SESSION_IMPL *session, struct __wt_disagg_shared_metadata_qh *skipped_creates)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *skipped;
+
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     while (!TAILQ_EMPTY(skipped_creates)) {
         skipped = TAILQ_LAST(skipped_creates, __wt_disagg_shared_metadata_qh);
@@ -759,14 +764,17 @@ __wt_disagg_shared_metadata_queue_process(
          * epoch-less mode reaches this: with schema epochs the entry is still unpublished, which
          * the epoch check above already defers.
          */
-        if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE) {
-            __disagg_requeue_skipped_creates(conn, &skipped_creates);
-        } else {
+        if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+            __disagg_requeue_skipped_creates(session, &skipped_creates);
+        else {
             /*
              * Otherwise the stable epoch falls between the CREATE and DROP epochs, so this
              * checkpoint must include the table in shared metadata. But the table was dropped and
              * its stable constituent was never created, so we have no data to write. Publish CREATE
              * and DROP at the same epoch to avoid this window.
+             *
+             * FIXME-WT-18272: Confirm a pending DROP for the same table really is queued behind the
+             * parked CREATE before panicking, and report the epoch of that DROP in the message.
              */
             TAILQ_FOREACH (skipped, &skipped_creates, q)
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -786,7 +794,7 @@ err:
      * attempts to create a checkpoint again.
      */
     if (ret != 0)
-        __disagg_requeue_skipped_creates(conn, &skipped_creates);
+        __disagg_requeue_skipped_creates(session, &skipped_creates);
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     while (!TAILQ_EMPTY(&skipped_creates)) {

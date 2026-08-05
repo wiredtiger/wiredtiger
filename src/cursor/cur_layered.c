@@ -379,9 +379,9 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_RET(__clayered_update_stable(clayered, flags, role));
 
     /*
-     * A leader table with no stable constituent was created after the step-down timestamp, so every
-     * operation runs in the follower shape over the ingest constituent, whichever era the
-     * transaction began in.
+     * A table created after the step-down timestamp never gets a stable constituent. A leader
+     * cursor on such a table has nothing to read, so it falls back to the ingest constituent that a
+     * leader otherwise keeps closed.
      */
     if (role == WTI_CLAYERED_ROLE_LEADER && clayered->stable_cursor == NULL &&
       !LF_ISSET(CLAYERED_ENTER_OPEN_INGEST)) {
@@ -887,6 +887,7 @@ __clayered_open_stable_first(
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     ret = __clayered_open_stable(clayered, false, role);
+    /* A leader misses here legitimately: a table created after the step-down has no stable. */
     if (__clayered_ignore_missing_stable(session, role, ret))
         ret = 0;
     WT_RET(ret);

@@ -818,7 +818,7 @@ class DisaggSchemaEpochMixin:
         session = conn.open_session('')
         cursor = session.open_cursor('metadata:')
         cursor.set_key(self.stable_uri(uri))
-        found = cursor.search() == 0
+        found = cursor.search() != wiredtiger.WT_NOTFOUND
         cursor.close()
         session.close()
         return found

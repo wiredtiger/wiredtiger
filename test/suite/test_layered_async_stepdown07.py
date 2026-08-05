@@ -44,18 +44,16 @@ class test_layered_async_stepdown07(
 
     table_config = 'key_format=S,value_format=S'
 
-    # The epoch world runs with precise checkpoints, the configuration schema epochs are used with.
-    # The epoch-less world runs without them. The follower only reads back what a checkpoint
-    # published, so it keeps one configuration in both worlds.
-    epoch_base = 'statistics=(all),precise_checkpoint=true,'
-    legacy_base = 'statistics=(all),'
+    # Both worlds run with precise checkpoints, which disaggregated storage expects even from
+    # clients that never publish. Only the schema epochs differ between the two worlds.
+    base = 'statistics=(all),precise_checkpoint=true,'
     leader = 'disaggregated=(role="leader",lose_all_my_data=true)'
-    conn_config_follower = epoch_base + 'disaggregated=(role="follower",lose_all_my_data=true)'
+    conn_config_follower = base + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     worlds = [
-      ('epoch', dict(use_epochs=True, conn_config=epoch_base + leader)),
-      ('legacy', dict(use_epochs=False, conn_config=legacy_base + leader)),
+      ('epoch', dict(use_epochs=True, conn_config=base + leader)),
+      ('legacy', dict(use_epochs=False, conn_config=base + leader)),
     ]
     scenarios = make_scenarios(disagg_storages, worlds)
 
