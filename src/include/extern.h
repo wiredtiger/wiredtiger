@@ -2756,6 +2756,14 @@ extern int __ut_block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MODS *blk_mod,
   wt_off_t offset, wt_off_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_curstat_file_size(WT_SESSION_IMPL *session, const char *file_uri, bool *was_fastp,
+  int64_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_curstat_size_local(WT_SESSION_IMPL *session, const char *filename, bool *was_fastp,
+  int64_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_curstat_size_shared(WT_SESSION_IMPL *session, const char *file_config,
+  int64_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_curstat_table_size(WT_SESSION_IMPL *session, const char *table_uri, bool *was_fastp,
+  int64_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_parse_version_and_check(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
   WT_DISAGG_METADATA *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_replace_checkpoint(

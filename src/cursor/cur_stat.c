@@ -540,6 +540,8 @@ __curstat_size_local(
 static int
 __curstat_size_shared(WT_SESSION_IMPL *session, const char *file_config, int64_t *sizep)
 {
+    WT_ASSERT(session, file_config != NULL);
+
     uint64_t checkpoint_size = 0;
     WT_RET_NOTFOUND_OK(__wt_ckpt_last_size(session, file_config, &checkpoint_size));
     *sizep = (int64_t)checkpoint_size;
@@ -958,3 +960,32 @@ err:
 
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_curstat_size_local(
+  WT_SESSION_IMPL *session, const char *filename, bool *was_fastp, int64_t *sizep)
+{
+    return (__curstat_size_local(session, filename, was_fastp, sizep));
+}
+
+int
+__ut_curstat_size_shared(WT_SESSION_IMPL *session, const char *file_config, int64_t *sizep)
+{
+    return (__curstat_size_shared(session, file_config, sizep));
+}
+
+int
+__ut_curstat_file_size(
+  WT_SESSION_IMPL *session, const char *file_uri, bool *was_fastp, int64_t *sizep)
+{
+    return (__curstat_file_size(session, file_uri, was_fastp, sizep));
+}
+
+int
+__ut_curstat_table_size(
+  WT_SESSION_IMPL *session, const char *table_uri, bool *was_fastp, int64_t *sizep)
+{
+    return (__curstat_table_size(session, table_uri, was_fastp, sizep));
+}
+#endif
