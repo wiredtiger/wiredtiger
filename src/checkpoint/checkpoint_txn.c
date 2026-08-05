@@ -1805,15 +1805,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_generation, generation);
 
     /*
-     * The eviction snapshot this checkpoint publishes below is not available yet, so an eviction
-     * starting here sees the new generation paired with the previous checkpoint's snapshot. Widen
-     * the window to expose eviction that consumes the retired snapshot.
-     */
-    tsp.tv_sec = 0;
-    tsp.tv_nsec = WT_MILLION * 250;
-    __wt_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_EVICTION_SNAPSHOT_DELAY, &tsp);
-
-    /*
      * We want to skip checkpointing clean handles whenever possible. That is, when the checkpoint
      * is not named or forced. However, we need to take care about ordering with respect to the
      * checkpoint transaction.

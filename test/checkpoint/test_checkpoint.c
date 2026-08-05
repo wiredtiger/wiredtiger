@@ -106,7 +106,7 @@ main(int argc, char *argv[])
     g.failpoint_rec_before_wrapup = false;
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
-    g.checkpoint_eviction_snapshot_timing_stress = false;
+    g.prepare_checkpoint_delay_timing_stress = false;
     g.no_ts_deletes = false;
     g.precise_checkpoint = false;
     g.predictable_replay = false;
@@ -178,7 +178,7 @@ main(int argc, char *argv[])
                 g.failpoint_rec_before_wrapup = true;
                 break;
             case '9':
-                g.checkpoint_eviction_snapshot_timing_stress = true;
+                g.prepare_checkpoint_delay_timing_stress = true;
                 break;
             default:
                 return (usage());
@@ -412,9 +412,9 @@ wt_connect(const char *config_open)
     if (g.evict_reposition_timing_stress || g.sweep_stress || g.failpoint_eviction_split ||
       g.failpoint_hs_delete_key_from_ts || g.failpoint_rec_before_wrapup ||
       g.hs_checkpoint_timing_stress || g.checkpoint_slow_timing_stress ||
-      g.checkpoint_eviction_snapshot_timing_stress) {
+      g.prepare_checkpoint_delay_timing_stress) {
         testutil_snprintf(buf, sizeof(buf), ",timing_stress_for_test=[%s%s%s%s%s%s%s%s]",
-          g.checkpoint_eviction_snapshot_timing_stress ? "checkpoint_eviction_snapshot_delay" : "",
+          g.prepare_checkpoint_delay_timing_stress ? "prepare_checkpoint_delay" : "",
           g.checkpoint_slow_timing_stress ? "checkpoint_slow" : "",
           g.evict_reposition_timing_stress ? "evict_reposition" : "",
           g.failpoint_eviction_split ? "failpoint_eviction_split" : "",
@@ -620,7 +620,7 @@ usage(void)
       "\t\t6: evict_reposition_timing_stress\n"
       "\t\t7: failpoint_eviction_split\n"
       "\t\t8: failpoint_rec_before_wrapup\n"
-      "\t\t9: checkpoint_eviction_snapshot_delay\n"
+      "\t\t9: prepare_checkpoint_delay\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row )\n"
       "\t-v verify only\n"
