@@ -71,10 +71,17 @@ differs is where the source is.
   source is the peer's relay (one pipe per direction, each named for the node that reads it).
   Nothing is relayed onward.
 
-A peerless follower therefore runs the full lifecycle on tables of its own — creating, publishing,
-populating and dropping them — while nothing it does ever becomes durable, since only a leader
-checkpoints. Its first term as leader inherits all of it, the way a fresh node bootstraps before
-taking leadership.
+Checkpoints are **not** events and never travel the pipeline. A dedicated **checkpoint** thread
+paces them, producing one while leading and adopting the page log's latest while following. That
+independence is what puts a checkpoint anywhere between an operation and its publish, and what
+keeps checkpoints coming while a worker sits blocked waiting for one — a blocked worker fills its
+ring and stalls the reader, so a stream-borne checkpoint could never reach it. It has a thread of
+its own rather than riding the timestamp thread because a checkpoint runs up to ~1 s at `-T 12`,
+which would freeze the frontier for that long.
+
+A peerless follower therefore creates and publishes tables of its own but never checkpoints, so
+its slots pile up in the waiting states until it steps up and its first checkpoints cover them —
+the way a fresh node bootstraps before taking leadership.
 
 A schema operation is split into two events: `EVENT_CREATE`/`EVENT_DROP` execute it, and a later
 `EVENT_PUBLISH_CREATE`/`EVENT_PUBLISH_DROP` publishes it at a fresh schema epoch, so the
@@ -125,7 +132,15 @@ a table gets to accumulate data before it is dropped, so it belongs well above `
 A dropped table's slot is freed as soon as the drop publishes, whether or not a checkpoint has
 covered it — so `NONE → CREATED` is routinely a *re-*create over a still-uncovered remove.
 
-Note: The machine assumes the stable schema epoch is set before any event runs, and that pending
+- **Insert before the create is published** — the commit would fall below the create's epoch,
+  letting a checkpoint make data stable under an unpublished table.
+- **Drop before a checkpoint covers the table** — the drop blocks the worker until a checkpoint
+  covers it. The checkpoint thread supplies one within `MAX_CKPT_INVL`, so this is survivable
+  rather than fatal, but the slot machine keeps it back anyway to leave the workers unblocked.
+- **Create over an unpublished drop** — the next publish would sweep the drop up with the new
+  create, so the drop would never be recorded and its absence never verified.
+
+The machine assumes the stable schema epoch is set before any event runs, and that pending
 publishes are flushed before a role switch. A crash in any state is safe: an operation that never
 published leaves no record and no expectation.
 
@@ -133,18 +148,19 @@ published leaves no record and no expectation.
 
 Every workload thread is per-phase: `workload_start` creates them and `workload_stop` walks them
 down through the `STAGE_*` ladder — generator, then reader, then workers, then checkpoint, then
-timestamp. The last two go after the workers because a queued drop can be waiting on a
+timestamp — one atomic `stop_stage` that each loop compares against its own stage, so the order
+lives in the data. The last two go after the workers because a queued drop can be waiting on a
 checkpoint, and those two threads are what supply it: a frontier that advances, and a checkpoint
 over it. The main thread runs the `node_run` loop: `workload_start` → `node_trigger_wait` (1 s poll
 on `handover_received`/`stop_run`) → `workload_stop` → transition or exit.
 
 | Thread | Count | Does |
 |---|---|---|
-| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, emit one valid move at random or none; an empty round sleeps 10 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
+| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, absorb coverage, emit one valid move at random or none; an empty round sleeps 1 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
 | reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
-| worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, no timestamp), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark completed timestamps |
-| timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
-| checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_checkpoint`, with the workers still running |
+| worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, unvalued), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark valued events completed |
+| timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- then republish `ckpt_covered_ts` from the connection's durable schema epoch</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
+| checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_pick_up_checkpoint`, with the workers still running |
 
 Coordination is lock-free by design: `stop_stage` quiesces every loop, per-worker SPSC rings plus `busy` flags connect
 reader to workers, and `completed_ts[]` feeds the frontier.
@@ -171,10 +187,10 @@ capacity.
         │            (skip while stable=0; 1st: leader_ready)          │
         └──────────────────────────────────────────────────────────────┘
   stop_run ──▶ quiesce → close(NULL: closing checkpoint) → exit(0)
-  handover ──▶ quiesce → node_step_down: arm step-down at counter,
-               stable := counter → step-down checkpoint
-               → reconfigure(role=follower)
-               → send SWITCH(counter) [peer alive] ──▶ FOLLOWER
+  handover ──▶ quiesce → LEAVE: arm step-down at counter, stable := counter
+               → step-down checkpoint → reconfigure(role=follower)
+               → send SWITCH(counter) [peer alive]
+               ENTER follower: restore frontier ──▶ FOLLOWER
   EPIPE on relay ──▶ peer_alive = false (lone leader keeps producing)
 
         ┌──────────────────────── FOLLOWER ────────────────────────────┐
@@ -190,7 +206,8 @@ capacity.
         │            (workers keep running; 1st: follower_ready)       │
         └──────────────────────────────────────────────────────────────┘
   stop_run ──▶ quiesce → close(skip_checkpoint) → exit(0)
-  handover ──▶ quiesce → node_step_up: adopt latest checkpoint first
+  handover ──▶ quiesce → LEAVE: nothing
+               ENTER leader: adopt latest checkpoint first
                → reconfigure(role=leader) → seed + restore frontier
                from the own counter ──▶ LEADER
 ```
@@ -200,10 +217,11 @@ capacity.
 | Aspect | Leader | Follower |
 |---|---|---|
 | Event source | own generator → self-pipe | peer's relay → in-pipe; its own generator when lone |
-| Counter | generator *allocates* `event_ts` values | *adopts* them from events (`workload_counter_advance`) |
+| Counter | generator *allocates* `event_ts` values | *adopts* them from events (`counter_advance`) |
 | Checkpoint duty | checkpoint thread produces one every 0–4 s (no barrier: it races the workload) | checkpoint thread adopts the page log's latest, workers still running |
 | Relay | workers relay applied events | — |
-| Hand-over transition | `node_step_down`: arm the step-down at the term's counter, advance stable to it, step-down checkpoint, **`reconfigure(role=follower)`**, send `EVENT_SWITCH` | `node_step_up`: adopt-latest, **`reconfigure(role=leader)`**, seed the counter + restore the frontier |
+| `leave()` | heavy: arm the step-down at the term's counter, advance stable to it, step-down checkpoint, **`reconfigure(role=follower)`**, hand over | empty |
+| `enter()` | adopt-latest, then reconfigure + seed counter + restore frontier | restore the frontier |
 | Graceful close | `close(NULL)` — closing checkpoint | `close(skip_checkpoint)` |
 | Readiness / records | `leader_ready`; `node*-leader-*` | `follower_ready`; `node*-follower-*` |
 | Peer-death signal | EPIPE while relaying | pipe EOF |
@@ -222,13 +240,15 @@ own workload instead of consuming a peer's, and the transition reports `switch_d
    died between the two, and the verifier would demand a table nobody published); record before
    publish, so no checkpoint can make an unrecorded epoch durable; relay before the completion
    store, so a checkpoint only ever covers already-relayed events.
-2. **Insert only after the create published**: an insert's commit must exceed its table's create
-   epoch, or a checkpoint makes data stable under an unpublished table — which WiredTiger treats as
-   an API violation and fails the checkpoint on. The slot machine makes this structural: `INSERT` is
-   reachable only from `PUBLISHED`. Nothing else about the lifecycle waits on a checkpoint; a drop
-   WiredTiger refuses with `EBUSY` is simply retried until the checkpoint thread clears it — only a
-   leader is ever refused, since the dirty-table check guards the stable constituent's trim.
-3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `node_step_down`
+2. **Drop coverage gating**: a table may be dropped only while *unpublished* — the drop cancels
+   the create and leaves no durable trace — or once a checkpoint covers its create and any data
+   (`ckpt_covered_ts`). WiredTiger refuses to drop a published but uncheckpointed table, and the
+   stream cannot be reordered, so an uncovered drop parks its worker in an EBUSY retry until the
+   checkpoint thread's next checkpoint clears it. That resolves on its own now that checkpoints do
+   not travel the ring behind the blocked worker, so the gate is about keeping the workers moving
+   rather than about deadlock; the slot machine makes it structural — a waiting slot emits nothing
+   until coverage arrives.
+3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `leader_leave`
    advances oldest/stable/stable-epoch to the term's counter before its step-down checkpoint
    (a publish that checkpoint does not carry is lost when the step-down clears the shared-metadata
    queue), and `node_step_up` restores the same frontier so an early checkpoint of the new term

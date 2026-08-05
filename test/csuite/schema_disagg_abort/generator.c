@@ -31,15 +31,41 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
 }
 
 /*
+ * table_state_expects_checkpoint --
+ *     Report whether a state waits for a checkpoint to cover the slot's value before it can move
+ *     on.
+ */
+static bool
+table_state_expects_checkpoint(TABLE_STATE cur)
+{
+    return (cur == TABLE_CREATE_PUBLISHED || cur == TABLE_DIRTY || cur == TABLE_DROP_PUBLISHED);
+}
+
+/*
+ * table_state_after_checkpoint --
+ *     The state a waiting slot moves to once a completed checkpoint has covered the value it waits
+ *     on: a covered create or insert makes the table durable, a covered drop frees the slot.
+ *     Anything else stays put.
+ */
+static TABLE_STATE
+table_state_after_checkpoint(TABLE_STATE cur, uint64_t wait, uint64_t covered)
+{
+    if ((cur == TABLE_CREATE_PUBLISHED || cur == TABLE_DIRTY) && covered >= wait)
+        return (TABLE_DURABLE);
+    if (cur == TABLE_DROP_PUBLISHED && covered >= wait)
+        return (TABLE_NONE);
+    return (cur);
+}
+
+/*
  * generator_op --
  *     Advance one slot of the given worker thread through the table lifecycle, taking one of its
  *     state's valid moves at random. Reports whether an event was emitted; taking no move is valid,
- *     and lingering widens the window a checkpoint can land in.
+ *     and lingering in the unpublished states widens the window checkpoints land in.
  *
- * One gate keeps every move safe to execute: an insert only after its table's create published, so
- *     its commit exceeds the create's epoch. A published table with data that no checkpoint covers
- *     yet is left droppable on purpose - the drop retries in EBUSY until the checkpoint thread's
- *     next checkpoint clears it.
+ * Two gates keep every move safe to execute: an insert only after its table's create published, so
+ *     its commit exceeds the create's epoch, and a drop only once a checkpoint covers the table,
+ *     since an uncovered drop wedges its worker in EBUSY.
  */
 static bool
 generator_op(WORKLOAD_STATE *state, uint32_t t)
@@ -47,6 +73,10 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
     WT_RAND_STATE *rnd = &state->gen_rnd[t];
     const uint32_t slot = __wt_random(rnd) % state->cfg->pool_size;
     TABLE_STATE *slot_state = &state->workers[t].table_state[slot];
+    uint64_t *wait = &state->workers[t].table_wait_ts[slot];
+    const uint64_t covered = __wt_atomic_load_uint64(&state->ckpt_covered_ts);
+
+    *slot_state = table_state_after_checkpoint(*slot_state, *wait, covered);
 
     SCHEMA_EVENT ev = {0}; /* EVENT_NONE until a move is taken */
     switch (*slot_state) {
@@ -59,7 +89,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
         switch (__wt_random(rnd) % 3) {
         case 0: /* publish the create */
             ev.type = EVENT_PUBLISH_CREATE;
-            *slot_state = TABLE_PUBLISHED;
+            *slot_state = TABLE_CREATE_PUBLISHED;
             break;
         case 1: /* cancel it: an unpublished create dropped again leaves no trace */
             ev.type = EVENT_DROP;
@@ -69,35 +99,58 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
             break;
         }
         break;
-    case TABLE_PUBLISHED:
-        /* Take (more) data, drop the table, or linger. */
-        if (__wt_random(rnd) % INSERT_ODDS == 0)
+    case TABLE_CREATE_PUBLISHED:
+        /* Waiting for the create's coverage; meanwhile the table may take data. */
+        if (__wt_random(rnd) % INSERT_ODDS == 0) {
             ev.type = EVENT_INSERT;
-        else if (__wt_random(rnd) % DROP_ODDS == 0) {
+            *slot_state = TABLE_DIRTY;
+        }
+        break;
+    case TABLE_DIRTY:
+        /* Nothing to do: waiting for the data's coverage. */
+        break;
+    case TABLE_DURABLE:
+        /* Covered, so droppable - or take (more) data first, and wait again. */
+        if (__wt_random(rnd) % INSERT_ODDS == 0) {
+            ev.type = EVENT_INSERT;
+            *slot_state = TABLE_DIRTY;
+        } else {
             ev.type = EVENT_DROP;
             *slot_state = TABLE_DROPPED;
         }
         break;
     case TABLE_DROPPED:
-        /* Publish the drop, which frees the slot, or linger in the window. */
+        /* Publish the drop, or linger in the window. */
         if (__wt_random(rnd) % 2 == 0) {
             ev.type = EVENT_PUBLISH_DROP;
-            *slot_state = TABLE_NONE;
+            *slot_state = TABLE_DROP_PUBLISHED;
+        }
+        break;
+    case TABLE_DROP_PUBLISHED:
+        /* Wait the drop's coverage out, or recreate the slot over the pending remove. */
+        if (__wt_random(rnd) % 2 == 0) {
+            ev.type = EVENT_CREATE;
+            *slot_state = TABLE_CREATED;
         }
         break;
     }
     if (ev.type == EVENT_NONE)
         return (false);
 
+    /* A slot left waiting gets the value a checkpoint must cover. */
     ev.thread_id = t;
     testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
     if (ev.type == EVENT_INSERT) {
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
     }
-    /* This event needs a timestamp. */
-    if (ev.type == EVENT_INSERT || ev.type == EVENT_PUBLISH_CREATE || ev.type == EVENT_PUBLISH_DROP)
-        ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
+    if (table_state_expects_checkpoint(*slot_state)) {
+        /* Only a valued event may leave a slot waiting. */
+        testutil_assertfmt(ev.type == EVENT_INSERT || ev.type == EVENT_PUBLISH_CREATE ||
+            ev.type == EVENT_PUBLISH_DROP,
+          "state %d waits on event type %d, which carries no value", *slot_state, ev.type);
+        *wait = ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
+    }
 
     generator_emit(state, &ev);
     return (true);
@@ -184,7 +237,9 @@ generator_flush_publishes(WORKLOAD_STATE *state)
             testutil_snprintf(
               ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
 
-            *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_NONE;
+            *slot_state =
+              *slot_state == TABLE_CREATED ? TABLE_CREATE_PUBLISHED : TABLE_DROP_PUBLISHED;
+            state->workers[t].table_wait_ts[slot] = ev.event_ts;
             generator_emit(state, &ev);
         }
 }
@@ -194,7 +249,7 @@ generator_flush_publishes(WORKLOAD_STATE *state)
  *     The generator thread: feeds workload rounds into the self-pipe and, once the parent requests
  *     a switch, the hand-over event that ends the stream and the phase.
  */
-WT_THREAD_RET
+static WT_THREAD_RET
 thread_generator_run(void *arg)
 {
     WORKLOAD_STATE *state = arg;
@@ -204,7 +259,7 @@ thread_generator_run(void *arg)
 
     while (workload_active(state, STAGE_GENERATOR)) {
         if (!generator_round(state, pacing.lead_max))
-            __wt_sleep(0, 10 * WT_THOUSAND); /* 10 ms */
+            __wt_sleep(0, WT_THOUSAND);
 
         if (generator_switch_requested(&pacing)) {
             generator_flush_publishes(state);
@@ -217,4 +272,35 @@ thread_generator_run(void *arg)
         }
     }
     return (WT_THREAD_RET_VALUE);
+}
+
+/* The generator thread's handle; its state lives in the workload state. */
+static wt_thread_t generator_thr;
+static bool generator_started = false;
+
+/*
+ * node_generator_start --
+ *     Start the generator thread for a phase that produces its own stream. Started last of the
+ *     phase's threads, once the machinery consuming the stream is up.
+ */
+void
+node_generator_start(WORKLOAD_STATE *state)
+{
+    testutil_assert(!generator_started);
+    testutil_check(__wt_thread_create(NULL, &generator_thr, thread_generator_run, state));
+    generator_started = true;
+}
+
+/*
+ * node_generator_join --
+ *     Join the generator thread, if one is running. The stage it exits on is the caller's to set.
+ */
+void
+node_generator_join(void)
+{
+    if (!generator_started)
+        return;
+
+    testutil_check(__wt_thread_join(NULL, &generator_thr));
+    generator_started = false;
 }

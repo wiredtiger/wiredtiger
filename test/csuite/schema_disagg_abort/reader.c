@@ -21,7 +21,7 @@
  *     the phase. Pipe EOF can only happen on a peer-fed pipe: it marks the peer dead and turns this
  *     node into a lone follower.
  */
-WT_THREAD_RET
+static WT_THREAD_RET
 thread_reader_run(void *arg)
 {
     WORKLOAD_STATE *state = arg;
@@ -48,11 +48,11 @@ thread_reader_run(void *arg)
         case EVENT_INSERT:
         case EVENT_PUBLISH_CREATE:
         case EVENT_PUBLISH_DROP:
-            evq_enqueue(state, &ev);
+            workload_enqueue(state, &ev);
             break;
         case EVENT_SWITCH:
             /* The final event of the term's stream: this node must step up. */
-            evq_drain_barrier(state);
+            workload_drain_barrier(state);
             /*
              * Relay-integrity check: the drained counter must equal the sender's final counter.
              * Every counter value the term allocated rides an event that precedes the switch in the
@@ -72,4 +72,35 @@ thread_reader_run(void *arg)
     }
 
     return (WT_THREAD_RET_VALUE);
+}
+
+/* The reader thread's handle; its context and results live in the workload state. */
+static wt_thread_t reader_thr;
+static bool reader_started = false;
+
+/*
+ * node_reader_start --
+ *     Start the reader thread for a phase with an event source: any leader phase (the self-pipe),
+ *     or a follower phase with a live peer. The per-phase hand-over and stop fields were reset by
+ *     workload_start.
+ */
+void
+node_reader_start(WORKLOAD_STATE *state)
+{
+    testutil_assert(!reader_started);
+    testutil_check(__wt_thread_create(NULL, &reader_thr, thread_reader_run, state));
+    reader_started = true;
+}
+
+/*
+ * node_reader_join --
+ *     Join the reader thread, if one is running. The stage it exits on is the caller's to set.
+ */
+void
+node_reader_join(void)
+{
+    if (!reader_started)
+        return;
+    testutil_check(__wt_thread_join(NULL, &reader_thr));
+    reader_started = false;
 }
