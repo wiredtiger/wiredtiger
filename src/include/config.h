@@ -214,7 +214,6 @@ extern const char __WT_CONFIG_CHOICE_cache_walk[];
 extern const char __WT_CONFIG_CHOICE_checkpoint[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_cleanup[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_evict_page[];
-extern const char __WT_CONFIG_CHOICE_checkpoint_eviction_snapshot_delay[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_handle[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_progress[];
 extern const char __WT_CONFIG_CHOICE_checkpoint_slow[];
