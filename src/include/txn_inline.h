@@ -1007,7 +1007,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * retain all data on the ingest btree up to that point.
      */
     if (__wt_conn_is_disagg(session) &&
-      (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
+      (!conn->layered_table_manager.leader ||
         F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
         checkpoint_ts =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
