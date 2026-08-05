@@ -1223,16 +1223,25 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_SNAPSHOT *snap;
+    uint64_t ckpt_gen;
     uint32_t snap_idx;
-    bool published;
+    bool copied, published;
 
     conn = S2C(session);
+    copied = false;
+
+    /*
+     * Read the generation before the snapshot: a checkpoint starting after this point publishes
+     * with a newer generation, which the check below rejects rather than silently accepting either.
+     */
+    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
     snap = &conn->ckpt_eviction_snap[snap_idx];
-    WT_ACQUIRE_READ_WITH_BARRIER(published, conn->ckpt_eviction_snap_published);
-    if (published) {
+    published = __wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published);
+    if (published &&
+      __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap_gen[snap_idx]) == ckpt_gen) {
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
@@ -1240,10 +1249,11 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
             memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
               snap->snapshot_count * sizeof(snap->snapshot[0]));
         F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+        copied = true;
     }
     WT_LEAVE_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
 
-    return (published);
+    return (copied);
 }
 
 /*

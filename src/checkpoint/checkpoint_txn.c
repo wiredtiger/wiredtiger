@@ -1288,7 +1288,14 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        WT_RELEASE_WRITE_WITH_BARRIER(conn->ckpt_eviction_snap_published, true);
+        /*
+         * Stamp the buffer with this checkpoint's generation before publishing it, so a reader can
+         * reject a snapshot an earlier checkpoint retired.
+         */
+        __wt_atomic_store_uint64_release(
+          &conn->ckpt_eviction_snap_gen[new_idx], __wt_gen(session, WT_GEN_CHECKPOINT));
+
+        __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, true);
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         /*
          * Wait for eviction threads still copying from the retiring buffer before it can be reused.
@@ -1798,6 +1805,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_generation, generation);
 
     /*
+     * The eviction snapshot this checkpoint publishes below is not available yet, so an eviction
+     * starting here sees the new generation paired with the previous checkpoint's snapshot. Widen
+     * the window to expose eviction that consumes the retired snapshot.
+     */
+    tsp.tv_sec = 0;
+    tsp.tv_nsec = WT_MILLION * 250;
+    __wt_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_EVICTION_SNAPSHOT_DELAY, &tsp);
+
+    /*
      * We want to skip checkpointing clean handles whenever possible. That is, when the checkpoint
      * is not named or forced. However, we need to take care about ordering with respect to the
      * checkpoint transaction.
@@ -2123,6 +2139,12 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RELEASE_BARRIER();
 
     ret = __checkpoint_db_internal(session, cfg);
+
+    /*
+     * Retire the published eviction snapshot: with no checkpoint running there is nothing for
+     * eviction to bound itself to, and the snapshot only falls further behind from here.
+     */
+    __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, false);
 
     __wt_atomic_store_bool_v_release(&txn_global->checkpoint_running, false);
 

@@ -2697,6 +2697,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn->ckpt_eviction_snap[0].snap_min = WT_TXN_NONE;
     conn->ckpt_eviction_snap[1].snap_min = WT_TXN_NONE;
+    conn->ckpt_eviction_snap_gen[0] = conn->ckpt_eviction_snap_gen[1] = 0;
 
     return (0);
 }

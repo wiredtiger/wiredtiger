@@ -28,6 +28,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
   {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
   {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
+  {"checkpoint_eviction_snapshot_delay", WT_TIMING_STRESS_CHECKPOINT_EVICTION_SNAPSHOT_DELAY},
   {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
   {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
   {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
