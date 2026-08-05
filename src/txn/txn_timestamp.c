@@ -526,6 +526,14 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
 set:
+    /*
+     * The step-down timestamp changes how schema operations behave, so publish it under the schema
+     * lock: an operation runs entirely before or entirely after the boundary, never astride it. The
+     * raw spinlock stands in for the schema-lock macro because the shared default session cannot
+     * track lock ownership.
+     */
+    if (has_step_down)
+        __wt_spin_lock_track(session, &S2C(session)->schema_lock);
     __wt_writelock(session, &txn_global->rwlock);
     /*
      * This method can be called from multiple threads, check that we are moving the global
@@ -607,6 +615,8 @@ set:
     }
 
     __wt_writeunlock(session, &txn_global->rwlock);
+    if (has_step_down)
+        __wt_spin_unlock(session, &S2C(session)->schema_lock);
 
     if (has_oldest || has_stable)
         __wt_txn_update_pinned_timestamp(session, force);
