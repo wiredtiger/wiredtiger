@@ -145,6 +145,7 @@ class test_eviction07(wttest.WiredTigerTestCase):
         evict_cursor.close()
         self.session.commit_transaction()
 
+    @wttest.skip_for_hook("disagg", "Layout and eviction targets differ under disaggregated storage.")
     def test_bounded_assist_defers_to_next_write(self):
         # An exhausted resolution must not let the same session start more work into a cache it
         # never relieved. The deferred debt is paid unbounded when this session's own writer next
