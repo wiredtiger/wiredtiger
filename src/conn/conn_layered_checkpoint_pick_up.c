@@ -475,8 +475,8 @@ __disagg_check_meta_all_fields(
     md_merge = sh_merge = NULL;
 
     /*
-     * The metadata writers do not sort configuration fields, so canonicalize both entries into
-     * sorted order at every nesting level before merging them in a single pass.
+     * The metadata writers do not sort configuration fields, so merge both entries into sorted
+     * order at every nesting level before merging them in a single pass.
      */
     cfg[0] = md_value;
     cfg[1] = NULL;

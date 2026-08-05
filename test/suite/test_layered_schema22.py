@@ -28,8 +28,8 @@
 
 # Validate immutable metadata configuration fields on checkpoint pickup.
 # A matched pickup passes; a table dropped and recreated on the leader (new btree id), a table
-# created with different key formats on the two nodes, and a divergent nested subfield all panic.
-# By default only the btree id of file entries is validated; the full field comparison runs with
+# created with different key formats on the two nodes, and a divergent nested field all panic. By
+# default only the btree id of file entries is validated; the full field comparison runs with
 # extra_diagnostics=[checkpoint_validate].
 
 import os
@@ -136,7 +136,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.run_panic_subprocess('mismatched_format_panics', 'the value of "key_format"')
 
     def subprocess_mismatched_nested_panics(self):
-        """Subprocess body for the nested subfield mismatch test; expected to panic/abort."""
+        """Subprocess body for the nested field mismatch test; expected to panic/abort."""
         self.enable_full_validation()
         self.session.create(self.uri, self.table_config + ',encryption=(name=none,keyid=first)')
         self.leader_checkpoint(1)
@@ -151,7 +151,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)
 
     def test_mismatched_nested_panics(self):
-        """A nested configuration subfield differing between the nodes: pickup panics."""
+        """A nested configuration field differing between the nodes: pickup panics."""
         self.run_panic_subprocess('mismatched_nested_panics', 'encryption.keyid')
 
     def test_default_format_mismatch_tolerated(self):
