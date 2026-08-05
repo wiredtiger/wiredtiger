@@ -145,6 +145,62 @@ class test_layered_schema16(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             cursor.set_key(2)
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
+    def test_checkpoint_update_not_skipped_for_other_pending_create(self):
+        """
+        A pending CREATE gates only its own table's checkpoint UPDATE. A CREATE
+        queued above the checkpoint epoch for a different table must not block
+        the UPDATE of a published table.
+        """
+        other_uri = self.uri + "_other"
+
+        self.conn.set_timestamp(
+            "stable_timestamp=" + self.timestamp_str(1)
+            + ",oldest_timestamp=" + self.timestamp_str(1)
+        )
+
+        # Seed a row that fingerprints the original checkpoint; its survival
+        # after recovery confirms we restored the right checkpoint.
+        self.session.create(self.uri, self.table_config)
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            with self.transaction(commit_timestamp=2):
+                cursor[1] = "durable"
+
+        # Put the original table's checkpoint on shared storage.
+        self.leader_checkpoint(3)
+
+        # Queue a CREATE for a different table above the checkpoint epoch. It
+        # is the decoy: the UPDATE skip must match on table name, not merely
+        # on the presence of any pending CREATE.
+        self.session.create(other_uri, self.table_config)
+        self.set_stable_epoch(3)
+        self.publish(other_uri, 4)
+
+        # A second stable row on the primary table; recovery must find it. If
+        # it did not, the decoy CREATE blocked this table's UPDATE.
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            with self.transaction(commit_timestamp=5):
+                cursor[2] = "durable"
+
+        # The checkpoint under test: the decoy CREATE queued at epoch 4 is
+        # above the schema epoch (3) and must not affect the primary table's
+        # UPDATE.
+        self.leader_checkpoint(5)
+
+        # Recover from shared storage alone, since local files could mask a
+        # skipped UPDATE.
+        self.restart_without_local_files(step_up=True)
+        self.conn.set_timestamp(
+            "stable_timestamp="
+            + self.timestamp_str(5)
+            + ",oldest_timestamp="
+            + self.timestamp_str(1)
+        )
+
+        # Both keys must survive: the decoy CREATE did not block the UPDATE.
+        with closing(self.session.open_cursor(self.uri)) as cursor:
+            self.assertEqual(cursor[1], "durable")
+            self.assertEqual(cursor[2], "durable")
+
     def test_unpublished_table_holds_unstable_data(self):
         """
         An unpublished table may legitimately hold unstable data. The checkpoint skips it without
