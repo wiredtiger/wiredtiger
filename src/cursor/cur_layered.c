@@ -378,6 +378,17 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
 
+    /*
+     * A leader table with no stable constituent was created after the step-down timestamp, so every
+     * operation runs in the follower shape over the ingest constituent, whichever era the
+     * transaction began in.
+     */
+    if (role == WTI_CLAYERED_ROLE_LEADER && clayered->stable_cursor == NULL &&
+      !LF_ISSET(CLAYERED_ENTER_OPEN_INGEST)) {
+        LF_SET(CLAYERED_ENTER_OPEN_INGEST);
+        WT_RET(__clayered_update_ingest(clayered, flags));
+    }
+
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
 
@@ -835,6 +846,27 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 }
 
 /*
+ * __clayered_ignore_missing_stable --
+ *     Return whether a failed first open of the live stable constituent can be ignored, leaving the
+ *     cursor closed like a follower's missing checkpoint. A table created after the step-down
+ *     timestamp has no stable constituent, and a step-down completing mid-operation leaves the
+ *     resolved leader role stale.
+ */
+static bool
+__clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Only a leader-mode open of a live constituent can miss, and only on a missing file. */
+    if (role != WTI_CLAYERED_ROLE_LEADER || (ret != ENOENT && ret != WT_NOTFOUND))
+        return (false);
+
+    /* The resolved role is stale if the step-down timestamp is set or the role already changed. */
+    return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
+      !conn->layered_table_manager.leader);
+}
+
+/*
  * __clayered_open_stable_first --
  *     Open the stable constituent for the first time and record its checkpoint LSN. A follower the
  *     table has no checkpoint for leaves the stable cursor NULL. The caller reads the connection's
@@ -846,6 +878,7 @@ static int
 __clayered_open_stable_first(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role, uint64_t conn_lsn)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *const session = CUR2S(clayered);
 
     if (clayered->stable_cursor != NULL ||
@@ -853,7 +886,11 @@ __clayered_open_stable_first(
         return (0);
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    WT_RET(__clayered_open_stable(clayered, false, role));
+    ret = __clayered_open_stable(clayered, false, role);
+    if (__clayered_ignore_missing_stable(session, role, ret))
+        ret = 0;
+    WT_RET(ret);
+
     WT_RET(__clayered_copy_bounds(clayered));
     clayered->stable_checkpoint_meta_lsn = conn_lsn;
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);

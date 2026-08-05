@@ -422,62 +422,6 @@ __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __disagg_shared_metadata_queue_verify --
- *     Validate the queue that survives step-down: every entry is an uncovered create or remove
- *     intent (schema epoch above the last checkpoint), and never a transient update --
- *     an update exists only inside an in-flight checkpoint, and none runs during step-down.
- */
-static void
-__disagg_shared_metadata_queue_verify(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t stable_schema_epoch;
-
-    conn = S2C(session);
-    stable_schema_epoch =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        WT_ASSERT(session,
-          entry->metadata_op == WT_SHARED_METADATA_CREATE ||
-            entry->metadata_op == WT_SHARED_METADATA_REMOVE);
-        /* An uncovered intent sits above the last checkpoint, except in epoch-less legacy mode. */
-        WT_ASSERT(session,
-          stable_schema_epoch == WT_SCHEMA_EPOCH_NONE ||
-            entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
-            entry->schema_epoch > stable_schema_epoch);
-    }
-
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-}
-
-#endif
-
-/*
- * __disagg_step_down_reconcile_queue --
- *     Step-down handling for the shared metadata queue. The create and remove intents are
- *     role-independent, so they survive with their captured stable values intact and a later
- *     step-up publishes them. Legacy mode has no epochs to mark coverage, so its queue cannot be
- *     replayed: discard it and let a later step-up rebuild it from a local metadata scan.
- */
-static void
-__disagg_step_down_reconcile_queue(WT_SESSION_IMPL *session)
-{
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-
-    /*
-     * Test the configured epoch, not the last checkpoint's, so a node not yet checkpointed still
-     * counts as using epochs.
-     */
-    if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
-        __disagg_shared_metadata_queue_clear(session);
-}
-
 /*
  * __wti_disagg_shared_metadata_queue_prune --
  *     Prune the shared metadata queue of any entries that are older than the given checkpoint.
@@ -723,6 +667,24 @@ err:
 }
 
 /*
+ * __disagg_requeue_skipped_creates --
+ *     Return parked create entries to the head of the shared metadata queue, restoring their
+ *     original order, so a later checkpoint revisits them.
+ */
+static void
+__disagg_requeue_skipped_creates(
+  WT_CONNECTION_IMPL *conn, struct __wt_disagg_shared_metadata_qh *skipped_creates)
+{
+    WT_DISAGG_METADATA_OP *skipped;
+
+    while (!TAILQ_EMPTY(skipped_creates)) {
+        skipped = TAILQ_LAST(skipped_creates, __wt_disagg_shared_metadata_qh);
+        TAILQ_REMOVE(skipped_creates, skipped, q);
+        TAILQ_INSERT_HEAD(&conn->disaggregated_storage.shared_metadata_qh, skipped, q);
+    }
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list, returning the total checkpoint size of the tables actually
  *     dropped so the caller can reduce the database size accordingly.
@@ -790,22 +752,32 @@ __wt_disagg_shared_metadata_queue_process(
         __disagg_shared_metadata_queue_free(session, &entry);
     }
 
-    /*
-     * Any unmatched parked CREATE entry is an API violation: the stable epoch falls between the
-     * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata. But the
-     * table was dropped and its stable constituent was never created, so we have no data to write.
-     * Publish CREATE and DROP at the same epoch to avoid this window.
-     */
     if (!TAILQ_EMPTY(&skipped_creates)) {
-        TAILQ_FOREACH (skipped, &skipped_creates, q)
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
-              " and DROP at a later epoch. This checkpoint must include the table in shared "
-              "metadata, but the table was dropped and we have no data to write.",
-              skipped->table_name, skipped->schema_epoch);
-        WT_ERR_PANIC(session, EINVAL,
-          "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
-          cur_schema_epoch);
+        /*
+         * A parked CREATE left while a step-down timestamp is set belongs to the follower era the
+         * pending step-down begins, so put it back for a later leader era to complete. Only the
+         * epoch-less mode reaches this: with schema epochs the entry is still unpublished, which
+         * the epoch check above already defers.
+         */
+        if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE) {
+            __disagg_requeue_skipped_creates(conn, &skipped_creates);
+        } else {
+            /*
+             * Otherwise the stable epoch falls between the CREATE and DROP epochs, so this
+             * checkpoint must include the table in shared metadata. But the table was dropped and
+             * its stable constituent was never created, so we have no data to write. Publish CREATE
+             * and DROP at the same epoch to avoid this window.
+             */
+            TAILQ_FOREACH (skipped, &skipped_creates, q)
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+                  " and DROP at a later epoch. This checkpoint must include the table in shared "
+                  "metadata, but the table was dropped and we have no data to write.",
+                  skipped->table_name, skipped->schema_epoch);
+            WT_ERR_PANIC(session, EINVAL,
+              "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
+              cur_schema_epoch);
+        }
     }
 
 err:
@@ -814,11 +786,7 @@ err:
      * attempts to create a checkpoint again.
      */
     if (ret != 0)
-        while (!TAILQ_EMPTY(&skipped_creates)) {
-            skipped = TAILQ_LAST(&skipped_creates, __wt_disagg_shared_metadata_qh);
-            TAILQ_REMOVE(&skipped_creates, skipped, q);
-            TAILQ_INSERT_HEAD(&conn->disaggregated_storage.shared_metadata_qh, skipped, q);
-        }
+        __disagg_requeue_skipped_creates(conn, &skipped_creates);
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     while (!TAILQ_EMPTY(&skipped_creates)) {
@@ -1222,6 +1190,10 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 /*
  * __disagg_step_down_int --
  *     Step down to the follower mode. The session must hold the checkpoint and schema locks.
+ *
+ * FIXME-WT-17746: An uncovered stable constituent's local metadata row survives the step-down, so a
+ *     checkpoint pick-up of a same-named table recreated by another leader keeps this node's stale
+ *     btree ID.
  */
 static int
 __disagg_step_down_int(WT_SESSION_IMPL *session)
@@ -1252,22 +1224,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     WT_WITH_HANDLE_LIST_READ_LOCK(
       session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
     WT_ERR(ret);
-
-    /*
-     * Reconcile the shared metadata queue for the follower role. The queue survives the role
-     * change: its create and remove intents are role-independent and a later step-up still needs
-     * them. Stable constituents are left alone. A create serialized after the step-down timestamp
-     * builds none, and one that predates the timestamp leaves a constituent no checkpoint covers,
-     * which a later step-up reuses.
-     *
-     * FIXME-WT-17746: An uncovered constituent's local metadata row survives, so a checkpoint
-     * pick-up of a same-named table recreated by another leader keeps this node's stale btree ID.
-     */
-    __disagg_step_down_reconcile_queue(session);
-
-#ifdef HAVE_DIAGNOSTIC
-    __disagg_shared_metadata_queue_verify(session);
-#endif
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had

@@ -1219,7 +1219,14 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
     __wt_free(session, constituent_cfg);
 
-    if (conn->layered_table_manager.leader) {
+    /*
+     * Once the step-down timestamp is set, all writes go to the ingest constituent, so a stable
+     * constituent would stay empty. Create the table in the follower shape instead and let the next
+     * leader era build the constituent from the create intent. A leader checkpoint therefore covers
+     * only the tables created below the boundary.
+     */
+    if (conn->layered_table_manager.leader &&
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) == WT_TS_NONE) {
         stable_cfg[1] = disagg_config->data;
 
         /* Disable logging on the stable table to ensure we have timestamps. */
