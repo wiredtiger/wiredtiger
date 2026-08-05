@@ -377,6 +377,7 @@ conn_stats = [
     EvictStat('eviction_app_dirty_fail', 'modified page evict failures by application threads'),
     EvictStat('eviction_app_fail', 'page evict failures by application threads'),
     EvictStat('eviction_app_time', 'application thread time evicting (usecs)'),
+    EvictStat('eviction_ckpt_snapshot_declined', 'evictions that found no snapshot published by the running checkpoint'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
