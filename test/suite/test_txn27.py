@@ -34,11 +34,11 @@ from wtdataset import SimpleDataSet
 class test_txn27(error_info_util):
     conn_config = 'cache_size=1MB'
 
-    # The oldest-for-eviction reason requires eviction to be reported globally stuck. Under the
-    # disagg hook, the layered table's ingest btree keeps making enough eviction progress on its
-    # own that the cache is never reported stuck, so this path is unreachable there.
-    # FIXME-WT-15058
-    @wttest.skip_for_hook("disagg", "Fails due to incorrect cursor logic.")
+    # The oldest-for-eviction reason needs ~2s of stalled eviction progress before it fires; the
+    # newer updates/dirty-trigger check needs no such stall and can win the race instead. Locally
+    # the older check still wins, but under the slower disagg-leader-tsan hook the race tips the
+    # other way, so this test's specific reason assertion is not reliable there.
+    @wttest.skip_for_hook("disagg", "Races with the updates/dirty-trigger check under tsan slowdown.")
     def test_rollback_reason(self):
         uri = "table:txn27"
 

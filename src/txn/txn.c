@@ -2806,9 +2806,9 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * bring the cache back under that trigger by staying alive, so roll it back now while that is
      * still legal.
      *
-     * Requires an actual modification: instantiating a fast-truncated page while reading it charges
-     * dirty bytes to whichever transaction happens to touch the page, and rolling back a reader
-     * over that would be both useless and unsupported.
+     * Requires an actual modification: instantiating a fast-truncated column-store page while
+     * reading it charges dirty bytes to whichever transaction happens to touch the page
+     * (FIXME-WT-18271), and rolling back a reader over that would be both useless and unsupported.
      */
     if (txn->mod_count != 0) {
         trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
