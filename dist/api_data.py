@@ -1046,6 +1046,7 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
+        'failpoint_disagg_checkpoint_apply',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -2363,9 +2364,14 @@ methods = {
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
     Config('step_down_timestamp', '', r'''
-        the cutover timestamp for a planned step-down of disaggregated storage: committed writes
-        after this timestamp are directed to the ingest constituent and writes at or before it to
-        the stable constituent. Only valid on a leader'''),
+        the timestamp that prepares for a planned step-down in disaggregated storage. The
+        application must ensure the timestamp is newer than every commit timestamp
+        already allocated, and that no new timestamp is allocated until this call returns. Once
+        set, write transactions that start after it is set are kept locally so their content
+        survives the step-down, and their commit timestamps must be after this timestamp;
+        in-flight write transactions are rolled back for the application to retry. Before stepping
+        down, the application must advance the stable timestamp to equal it and checkpoint at that
+        boundary. Cannot be changed while set; only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([

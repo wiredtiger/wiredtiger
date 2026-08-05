@@ -17,10 +17,12 @@ else()
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
+        misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_page_delta_merge_empty_value.cpp
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
@@ -35,6 +37,7 @@ else()
         misc_tests/test_txn_config.cpp
         misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
+        misc_tests/test_verify_progress.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp

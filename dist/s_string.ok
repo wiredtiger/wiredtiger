@@ -45,7 +45,9 @@ BIGENDIAN
 BLKCACHE
 BLmpqRrSVv
 BOOL
+BSON
 BSR
+BT
 BTREE
 BTree
 BUF
@@ -166,6 +168,7 @@ ENOSPC
 ENOTSUP
 ENUM
 EOF
+EPIPE
 EQ
 ERANGE
 ETIME
@@ -248,6 +251,7 @@ INCR
 INIT
 INMEM
 INPROGRESS
+INSERT's
 INSN
 INTL
 INTRINSICS
@@ -366,6 +370,7 @@ Og
 Optane
 Outfmt
 PALI
+PALITE
 PALite
 PDEATHSIG
 PFX
@@ -406,12 +411,14 @@ Py
 QQQS
 QSQ
 Qsort
+Quiesce
 RCPC
 RCpc
 RDNOLOCK
 RDONLY
 RDWR
 READGEN
+README
 READONLY
 REALLOC
 RECNO
@@ -450,6 +457,9 @@ SDK
 SIGABRT
 SIGBUS
 SIGKILL
+SIGKILLed
+SIGKILLs
+SIGPIPE
 SIGSEGV
 SIMD
 SLS
@@ -503,6 +513,7 @@ TSan
 TTY
 TW
 TXN
+TerminateProcess
 TestSuiteConnection
 Testcases
 ThreadList
@@ -544,6 +555,7 @@ UnmapViewOfFile
 Unmount
 Unpositioned
 Unreferenced
+Unvalued
 Uryyb
 VARCHAR
 VLCS
@@ -643,6 +655,7 @@ ajn
 al
 alloc
 allocator
+allocator's
 allocators
 allocfile
 allocsize
@@ -676,6 +689,7 @@ bInheritHandle
 backends
 backlink
 backoff
+backpressures
 badsize
 bal
 basecfg
@@ -747,6 +761,7 @@ cX
 cacheable
 calc
 calloc
+cancelling
 cas
 catfmt
 cb
@@ -805,6 +820,7 @@ collatorp
 collist
 columngroup
 commandline
+commit's
 committime
 compactUntilSuccess
 comparator
@@ -836,6 +852,7 @@ cppsuite
 cpu
 cpuid
 crc
+create's
 createsets
 crypto
 cryptobad
@@ -871,6 +888,7 @@ cutlim
 cutover
 cv
 cval
+cwait
 cx
 cxa
 cygwin
@@ -912,6 +930,9 @@ deflateEnd
 deflateInit
 del
 deletable
+demuxes
+demuxing
+dequeue
 dequeued
 der
 deref
@@ -954,6 +975,7 @@ dmb
 dmsg
 drealloc
 dropUntilSuccess
+droppable
 dryrun
 ds
 dsb
@@ -1012,6 +1034,7 @@ ev
 evd
 eventv
 evictable
+evq
 ewma
 exactp
 exc
@@ -1022,6 +1045,7 @@ extern
 extlist
 extlists
 extraconfig
+fN
 fadvise
 fahrenheit
 failover
@@ -1033,6 +1057,7 @@ fclose
 fcntl
 fd
 fdatasync
+fds
 feffff
 fextend
 ffc
@@ -1191,6 +1216,7 @@ inlock
 inmem
 inmemory
 inorder
+insertable
 insertedp
 inserters
 instantiation
@@ -1247,6 +1273,7 @@ kp
 kv
 kvraw
 kvs
+lN
 lang
 las
 latin
@@ -1389,6 +1416,7 @@ namespace
 namespaced
 namespaces
 nbits
+nclose
 nclr
 nd
 needkey
@@ -1478,6 +1506,7 @@ oplog
 optrack
 optwt
 optype
+orchestrator
 ord
 ori
 origcnt
@@ -1507,6 +1536,7 @@ perf
 pfx
 pid
 pindexp
+pipefail
 plh
 pluggable
 pmem
@@ -1546,6 +1576,7 @@ presync
 prev
 prevlsn
 printf
+println
 printlog
 priv
 probabilistically
@@ -1596,6 +1627,7 @@ readtime
 readunlock
 realloc
 reallocations
+realpath
 rebalancing
 recency
 recno
@@ -1624,6 +1656,7 @@ reproducibility
 requeue
 resizable
 ret
+retryable
 reverify
 revint
 rf
@@ -1696,6 +1729,7 @@ softptr
 somename
 sortable
 sp
+spawnv
 spinlock
 spinlocks
 sqlite
@@ -1744,6 +1778,7 @@ struct
 structs
 su
 subcommand
+subcommands
 subconfig
 subconfigs
 subconfiguration
@@ -1759,6 +1794,7 @@ subinit
 sublicense
 sublist
 suboptimal
+subproc
 subprocess
 subprocesses
 substring
@@ -1825,6 +1861,7 @@ tombstoned
 toml
 toolchain
 toolchains
+topologies
 totalsec
 tp
 traceapi
@@ -1876,12 +1913,15 @@ underflowed
 underflowing
 underflows
 underfull
+unemitted
 unencoded
 unencrypted
 unesc
 unescape
 unescaped
 unflatten
+unflushed
+ungated
 unhandled
 unicode
 uninstantiated
@@ -1905,9 +1945,14 @@ unredacts
 unreferenced
 unsetting
 unsized
+unspawned
+unsynchronised
 unterminated
 untyped
+unvalued
 unvisited
+unwedge
+up's
 upd
 uri
 uri's
@@ -1943,6 +1988,7 @@ vdata
 vec
 vectorized
 verifier
+verifier's
 verifyLayered
 vers
 vfprintf
@@ -1955,6 +2001,7 @@ vpmsumd
 vprintf
 vsize
 vsnprintf
+vtable
 vthread
 vunpack
 vxr

@@ -417,7 +417,8 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t ckpt_epoch, ckpt_timestamp;
+    WT_SHARED_METADATA_OP latest_op;
+    wt_timestamp_t ckpt_epoch, ckpt_timestamp, latest_epoch;
     bool published;
 
     conn = S2C(session);
@@ -430,15 +431,25 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
         return (0);
 
-    published = false;
+    /*
+     * Publish only when the table's latest create/remove is a CREATE at or below the checkpoint's
+     * schema epoch.
+     *
+     * FIXME-WT-18187: This walks the whole queue once per awaiting-publish btree. Caching the
+     * create schema epoch on WT_BTREE would make this an O(1) field read.
+     */
+    latest_op = WT_SHARED_METADATA_NONE;
+    latest_epoch = WT_SCHEMA_EPOCH_NONE;
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-          strcmp(entry->stable_uri, dhandle->name) == 0 && entry->schema_epoch <= ckpt_epoch) {
-            published = true;
-            break;
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->stable_uri, dhandle->name) == 0) {
+            latest_op = entry->metadata_op;
+            latest_epoch = entry->schema_epoch;
         }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    published = latest_op == WT_SHARED_METADATA_CREATE && latest_epoch <= ckpt_epoch;
 
     if (!published) {
         ckpt_timestamp = conn->txn_global.checkpoint_timestamp;
@@ -631,8 +642,10 @@ __checkpoint_update_evict_triggers_start(
      * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
      * though these values can be absolute).
      */
-    saved_triggers->new_dirty_trigger = WT_MIN(40.0, evict->eviction_dirty_trigger * 1.3);
-    saved_triggers->new_updates_trigger = WT_MIN(40.0, evict->eviction_updates_trigger * 2.0);
+    saved_triggers->new_dirty_trigger =
+      WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) * 1.3);
+    saved_triggers->new_updates_trigger =
+      WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) * 2.0);
     __wt_atomic_store_double_relaxed(
       &evict->eviction_dirty_trigger, saved_triggers->new_dirty_trigger);
     __wt_atomic_store_double_relaxed(
@@ -2793,6 +2806,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
+    uint64_t max_write_gen;
 
     btree = S2BT(session);
 
@@ -2808,6 +2822,24 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
         }
+
+    /*
+     * Keep the connection-wide high-water mark of write generations current. A tree's write
+     * generation only becomes durable through a checkpoint, so updating it here (once per tree, not
+     * per page) is sufficient. A disaggregated leader persists this so a follower can lift its base
+     * write generation past the leader's generations.
+     */
+    do {
+        max_write_gen = __wt_atomic_load_uint64_relaxed(&S2C(session)->max_write_gen);
+        if (btree->write_gen <= max_write_gen)
+            break;
+    } while (
+      !__wt_atomic_cas_uint64(&S2C(session)->max_write_gen, max_write_gen, btree->write_gen));
+
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->base_write_gen) <=
+        __wt_atomic_load_uint64_relaxed(&S2C(session)->max_write_gen),
+      "base_write_gen exceeds max_write_gen");
 
     /*
      * During RTS, recovery, or shutdown reset the maximum timestamp used for reconciliation to a
