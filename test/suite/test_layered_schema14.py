@@ -30,15 +30,16 @@
 # follower's local metadata already uses. The disaggregated block manager addresses every
 # page by that ID, so the second handle would read the first table's blocks and history
 # store entries. The follower cannot renumber the incoming table (the ID is the leader's
-# key into shared storage) and cannot drop the table it collides with, so pickup panics.
+# key into shared storage) and cannot drop the table it collides with, so pickup fails the
+# merge, which unrolls it and leaves the node on the checkpoint it already had.
 #
-# Each panic scenario injects a decoy stable file entry into the follower's local metadata
+# Each conflict scenario injects a decoy stable file entry into the follower's local metadata
 # carrying the ID the next pickup is about to bring in, covering both paths that adopt an
 # incoming ID: a table that is entirely new to the follower, and a table the follower
 # already published locally and is only missing the stable constituent of.
 
 import re
-import wttest
+import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -62,9 +63,9 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def panic_regex(self, first_uri, second_uri):
+    def conflict_error_regex(self, first_uri, second_uri):
         """
-        The panic must report the shared ID and name both conflicting files. Equal IDs sort
+        The error must report the shared ID and name both conflicting files. Equal IDs sort
         in an unspecified order, so accept either arrangement of the pair.
         """
         first = re.escape(first_uri)
@@ -84,10 +85,10 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
                 f'have the same file ID \\d+/')
 
 
-    # Subprocess bodies for the panic tests below. These must not be named test_*: the runner
-    # would collect them and the panic would abort the test process itself.
-    def subprocess_new_table_id_conflict_panics(self):
-        """Subprocess body for the new-table conflict test; expected to panic/abort."""
+    # Subprocess bodies for the negative tests. They must not be named test_*, the runner would
+    # collect them, and running here lets each test assert the message from the subprocess stderr.
+    def subprocess_new_table_id_conflict_fails(self):
+        """Subprocess body for the new-table conflict test; expected to fail the pickup."""
         self.session.create(self.uri, self.table_config)
         self.leader_checkpoint(10)
 
@@ -102,10 +103,10 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.inject_stable_entry(conn_follow, self.decoy_uri,
             self.stable_config(self.conn, self.uri2))
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint(conn_follow)  # Expected to fail.
 
-    def subprocess_published_table_id_conflict_panics(self):
-        """Subprocess body for the published-table conflict test; expected to panic/abort."""
+    def subprocess_published_table_id_conflict_fails(self):
+        """Subprocess body for the published-table conflict test; expected to fail the pickup."""
         self.set_stable_epoch(1)
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 10)
@@ -129,7 +130,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.inject_stable_entry(conn_follow, self.decoy_uri,
             self.stable_config(self.conn, self.uri2))
 
-        self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
+        self.disagg_advance_checkpoint(conn_follow)  # Expected to fail.
 
     def subprocess_restart_after_conflict_panics(self):
         """Subprocess body for the restart test; expected to panic/abort."""
@@ -157,7 +158,7 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.disagg_advance_checkpoint(conn_follow)  # Expected to panic.
 
 
-    # Positive test: an ordinary pickup assigns distinct IDs and does not panic.
+    # Positive test: an ordinary pickup assigns distinct IDs and is adopted cleanly.
     def test_pickup_unique_ids(self):
         """Picking up tables whose IDs are unused locally leaves the follower readable."""
         self.session.create(self.uri, self.table_config)
@@ -185,29 +186,29 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_follow.close('debug=(skip_checkpoint=true)')
 
 
-    # Negative tests: an ID the local metadata already uses panics. Each scenario runs in
-    # a subprocess because the panic aborts the process.
-    def test_new_table_id_conflict_panics(self):
+    # Negative tests: an ID the local metadata already uses stops the pickup. The merge unrolls,
+    # so the node keeps the checkpoint it had rather than adopting metadata it cannot open.
+    def test_new_table_id_conflict_fails(self):
         """
-        A layered table that is new to the follower must not be picked up when its btree
-        ID is already used by a local stable file.
+        A layered table that is new to the follower must not be picked up when its btree ID is
+        already used by a local stable file; the merge fails and unrolls instead.
         """
-        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
-        # in a subprocess so that the panic/abort does not kill the test runner.
+        # Initialize self.conn so the test fixture can close it cleanly; the scenario itself runs
+        # in a subprocess so the failure message can be asserted from its stderr.
         self.leader_checkpoint(1)
-        self.run_panic_subprocess('new_table_id_conflict_panics',
-            self.panic_regex(self.decoy_uri, self.stable_uri(self.uri2)))
+        self.run_failing_subprocess('new_table_id_conflict_fails',
+            self.conflict_error_regex(self.decoy_uri, self.stable_uri(self.uri2)))
 
-    def test_published_table_id_conflict_panics(self):
+    def test_published_table_id_conflict_fails(self):
         """
-        A locally published table whose stable constituent arrives through pickup must not
-        adopt a btree ID that is already used by a local stable file.
+        A locally published table whose stable constituent arrives through pickup must not adopt
+        a btree ID already used by a local stable file; the merge fails and unrolls instead.
         """
-        # Initialize self.conn so the test fixture can close it cleanly; the real test runs
-        # in a subprocess so that the panic/abort does not kill the test runner.
+        # Initialize self.conn so the test fixture can close it cleanly; the scenario itself runs
+        # in a subprocess so the failure message can be asserted from its stderr.
         self.leader_checkpoint(1)
-        self.run_panic_subprocess('published_table_id_conflict_panics',
-            self.panic_regex(self.decoy_uri, self.stable_uri(self.uri2)))
+        self.run_failing_subprocess('published_table_id_conflict_fails',
+            self.conflict_error_regex(self.decoy_uri, self.stable_uri(self.uri2)))
 
     def test_restart_after_conflict_panics(self):
         """
@@ -217,5 +218,33 @@ class test_layered_schema14(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         # Initialize self.conn so the test fixture can close it cleanly; the real test runs
         # in a subprocess so that the panic/abort does not kill the test runner.
         self.leader_checkpoint(1)
-        self.run_panic_subprocess('restart_after_conflict_panics',
+        self.run_failing_subprocess('restart_after_conflict_panics',
             self.recovery_conflict_regex(self.decoy_uri, self.stable_uri(self.uri)))
+
+    def test_failed_pickup_leaves_metadata_unchanged(self):
+        """
+        The merge unrolls on a conflict, so the node keeps exactly the local metadata it had
+        rather than adopting part of a checkpoint it cannot open.
+        """
+        self.session.create(self.uri, self.table_config)
+        self.leader_checkpoint(10)
+
+        conn_follow, session_follow = self.open_follower()
+
+        self.session.create(self.uri2, self.table_config)
+        self.leader_checkpoint(20)
+        self.inject_stable_entry(conn_follow, self.decoy_uri,
+            self.stable_config(self.conn, self.uri2))
+
+        # Comparing the whole local metadata is what separates a full unroll from a partial
+        # apply: a single leftover entry from the abandoned merge shows up here.
+        metadata_before = self.local_metadata(conn_follow)
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.disagg_advance_checkpoint(conn_follow), '/Invalid argument/')
+        self.assertEqual(self.local_metadata(conn_follow), metadata_before,
+            'the failed pickup left local metadata behind')
+        # The failed pickup logs the conflict and the unwind behind it; all of it is expected.
+        self.ignoreStderrPatternIfExists(r'\[ERROR\]')
+
+        session_follow.close()
+        conn_follow.close('debug=(skip_checkpoint=true)')

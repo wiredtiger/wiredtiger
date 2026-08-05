@@ -893,10 +893,21 @@ class DisaggSchemaEpochMixin:
         cursor.close()
         session.close()
 
-    def run_panic_subprocess(self, name, expected_message):
+    def local_metadata(self, conn):
+        """Return a node's entire local metadata as a URI to config dict."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        entries = {}
+        while cursor.next() == 0:
+            entries[cursor.get_key()] = cursor.get_value()
+        cursor.close()
+        session.close()
+        return entries
+
+    def run_failing_subprocess(self, name, expected_message):
         """
-        Run subprocess_<name> in a subprocess and assert it died from the expected panic rather
-        than an unrelated failure. Requires the test class to mix in suite_subprocess.
+        Run subprocess_<name> in a subprocess and assert it failed for the expected reason rather
+        than an unrelated one. Requires the test class to mix in suite_subprocess.
         """
         [returncode, home] = self.run_subprocess_function(f'SUBPROCESS_{name}',
             f'{self.test_name}.{self.test_name}.subprocess_{name}', silent=True)

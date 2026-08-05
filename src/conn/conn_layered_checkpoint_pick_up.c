@@ -906,12 +906,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     /*
      * A stable ID is the leader's key into shared storage, so a follower can neither renumber the
-     * incoming table nor drop the local one it collides with. Halt before either handle is opened.
+     * incoming table nor drop the local one it collides with. Fail the merge so it unrolls and the
+     * node keeps the checkpoint it already had, rather than adopting metadata it cannot open.
      */
     if (__wt_metadata_btree_ids_find_duplicate(
           stable_btree_ids.ids, stable_btree_ids.count, &dup_id)) {
         WT_ERR(__wt_metadata_stable_uris_for_id(session, dup_id, &first_uri, &second_uri));
-        WT_ERR_PANIC(session, EINVAL,
+        WT_ERR_MSG(session, EINVAL,
           "checkpoint pickup would leave btree ID %" PRIu32
           " shared by \"%s\" and \"%s\" in the local metadata",
           dup_id, first_uri, second_uri);

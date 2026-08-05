@@ -424,7 +424,8 @@ __wt_metadata_btree_ids_find_duplicate(uint32_t *btree_ids, size_t count, uint32
  * __wt_metadata_stable_uris_for_id --
  *     Find the two stable files in the metadata carrying the given btree ID, returning WT_NOTFOUND
  *     if fewer than two do. Callers only ask in order to name a conflict they have already
- *     detected, so the scan falls on a path that is already failing.
+ *     detected, so the scan falls on a path that is already failing. Uses a private cursor: a
+ *     caller failing mid-transaction may need the session's cached one to unroll.
  */
 int
 __wt_metadata_stable_uris_for_id(
@@ -438,7 +439,7 @@ __wt_metadata_stable_uris_for_id(
     *first_urip = *second_urip = NULL;
     cursor = NULL;
 
-    WT_ERR(__wt_metadata_cursor(session, &cursor));
+    WT_ERR(__wt_metadata_cursor_open(session, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
         if (!WT_PREFIX_MATCH(key, "file:") || !WT_URI_IS_STABLE(key))
