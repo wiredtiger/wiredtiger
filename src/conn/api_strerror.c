@@ -83,7 +83,7 @@ __wt_wiredtiger_error(int error)
     case WT_TXN_TOO_LARGE_FOR_CACHE:
         return (
           "WT_TXN_TOO_LARGE_FOR_CACHE: Transaction dirty content alone exceeds the eviction "
-          "updates trigger");
+          "updates or dirty trigger");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

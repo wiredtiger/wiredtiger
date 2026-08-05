@@ -4513,7 +4513,7 @@ const char *wiredtiger_repair(WT_CONNECTION *connection, const char *config)
  */
 #define	WT_STEP_DOWN	(-32015)
 /*!
- * Transaction dirty content alone exceeds the eviction updates trigger.
+ * Transaction dirty content alone exceeds the eviction updates or dirty trigger.
  * This sub-level error indicates that a single transaction has dirtied more
  * cache than the eviction updates trigger or the eviction dirty trigger allows.
  * Eviction cannot reclaim content pinned by an uncommitted transaction, so the
@@ -9192,7 +9192,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_ROLLBACK			2037
 /*!
  * transaction: transactions rolled back because their own dirty content
- * exceeds the eviction updates trigger
+ * exceeds the eviction updates or dirty trigger
  */
 #define	WT_STAT_CONN_TXN_ROLLBACK_TOO_LARGE_FOR_CACHE	2038
 /*! transaction: update conflicts */

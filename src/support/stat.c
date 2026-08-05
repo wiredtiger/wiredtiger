@@ -3094,7 +3094,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transactions committed",
   "transaction: transactions rolled back",
   "transaction: transactions rolled back because their own dirty content exceeds the eviction "
-  "updates trigger",
+  "updates or dirty trigger",
   "transaction: update conflicts",
   "transaction: write transactions rolled back for straddling the step-down timestamp setting "
   "boundary",

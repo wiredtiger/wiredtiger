@@ -32,7 +32,7 @@
 #define WT_TXN_ROLLBACK_REASON_STEP_DOWN \
     "Write transaction straddled the step-down timestamp setting boundary"
 #define WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE \
-    "Transaction dirty content alone exceeds the eviction updates trigger"
+    "Transaction dirty content alone exceeds the eviction updates or dirty trigger"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u

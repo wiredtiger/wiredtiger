@@ -71,7 +71,7 @@ class test_txn33(error_info_util):
                 self.max_inserts, self.value_size))
 
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_TXN_TOO_LARGE_FOR_CACHE,
-            "Transaction dirty content alone exceeds the eviction updates trigger")
+            "Transaction dirty content alone exceeds the eviction updates or dirty trigger")
 
         self.session.rollback_transaction()
 
@@ -81,7 +81,7 @@ class test_txn33(error_info_util):
         self.assertGreater(rollbacks, 0)
 
         self.ignoreStdoutPatternIfExists(
-            "Transaction dirty content alone exceeds the eviction updates trigger")
+            "Transaction dirty content alone exceeds the eviction updates or dirty trigger")
 
     def test_txn_within_cache_succeeds(self):
         """
