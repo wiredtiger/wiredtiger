@@ -408,7 +408,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
   uint64_t *metadata_pinnedp, WT_SESSION_IMPL **oldest_sessionp)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *oldest_session;
+    WT_SESSION_IMPL *last_running_session, *oldest_session;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
@@ -416,7 +416,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    oldest_session = NULL;
+    last_running_session = oldest_session = NULL;
 
     /* The oldest ID cannot change while we are holding the scan lock. */
     prev_oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
@@ -447,6 +447,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
                 WT_ACQUIRE_BARRIER();
                 if (id == __wt_atomic_load_uint64_v_relaxed(&s->id)) {
                     last_running = id;
+                    last_running_session = &WT_CONN_SESSIONS_GET(conn)[i];
                     break;
                 }
             }
@@ -474,8 +475,10 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     }
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
-    if (last_running < oldest_id)
+    if (last_running < oldest_id) {
         oldest_id = last_running;
+        oldest_session = last_running_session;
+    }
 
     /* The metadata pinned ID can't move past the oldest ID. */
     if (oldest_id < metadata_pinned)
@@ -759,6 +762,7 @@ err:
          */
         txn->flags = 0;
         txn->time_point.flags = 0;
+        txn->operation_timeout_us = 0;
     }
     return (ret);
 }
@@ -1520,7 +1524,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
     uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t step_down_ts;
     uint32_t prepare_count;
+    bool wrote_ingest, wrote_stable;
 #endif
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
@@ -1533,6 +1539,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
+    wrote_ingest = wrote_stable = false;
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     recno = WT_RECNO_OOB;
@@ -1589,6 +1597,31 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * While the step-down timestamp is set, a committing transaction's layered content must sit
+         * on one side of the boundary: ingest content strictly above the timestamp, stable content
+         * at or below it, and never both constituents from one transaction. Checked per operation
+         * here to fold the boundary check into the pass this loop already makes.
+         */
+        if (step_down_ts != WT_TS_NONE && !prepare && op->type != WT_TXN_OP_NONE &&
+          op->btree != NULL) {
+            if (WT_URI_IS_INGEST(op->btree->dhandle->name)) {
+                wrote_ingest = true;
+                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+                    WT_ASSERT_ALWAYS(session, txn->first_commit_timestamp > step_down_ts,
+                      "ingest content committing at or below the step-down timestamp");
+            } else if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+                wrote_stable = true;
+                if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
+                    WT_ASSERT_ALWAYS(session, txn->time_point.commit_timestamp <= step_down_ts,
+                      "stable content committing above the step-down timestamp");
+            }
+            WT_ASSERT_ALWAYS(session, !(wrote_ingest && wrote_stable),
+              "transaction committing while the step-down timestamp is set wrote both layered "
+              "constituents");
+        }
+#endif
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
@@ -1930,6 +1963,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
+
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE,
+      "prepared transactions are not supported while the step-down timestamp is set");
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
@@ -2381,15 +2418,15 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_CONNECTION_STATS **stats;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_timestamp, checkpoint_pinned_ts_lag;
-    wt_timestamp_t durable_timestamp;
+    wt_timestamp_t durable_timestamp, durable_oldest_lag;
     wt_timestamp_t oldest_active_read_timestamp, oldest_reader_lag;
-    wt_timestamp_t oldest_timestamp;
+    wt_timestamp_t oldest_timestamp, pinned_ts_lag;
     wt_timestamp_t pinned_timestamp;
     uint64_t checkpoint_pinned;
 
     conn = S2C(session);
     checkpoint_pinned = WT_TXN_NONE;
-    checkpoint_pinned_ts_lag = oldest_reader_lag = WT_TS_NONE;
+    checkpoint_pinned_ts_lag = durable_oldest_lag = oldest_reader_lag = pinned_ts_lag = WT_TS_NONE;
     checkpoint_timestamp = WT_TS_NONE;
     txn_global = &conn->txn_global;
     stats = conn->stats;
@@ -2412,8 +2449,9 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         pinned_timestamp = checkpoint_timestamp;
 
     /* Represents the lag of the pinned timestamp with respect to the oldest timestamp.*/
-    WT_STATP_CONN_SET(
-      session, stats, txn_pinned_timestamp_lag, oldest_timestamp - pinned_timestamp);
+    if (oldest_timestamp > pinned_timestamp)
+        pinned_ts_lag = oldest_timestamp - pinned_timestamp;
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_lag, pinned_ts_lag);
 
     /* Represents the lag of the checkpoint timestamp with respect to the oldest timestamp.*/
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < oldest_timestamp)
@@ -2422,8 +2460,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(
       session, stats, txn_pinned_timestamp_checkpoint_lag, checkpoint_pinned_ts_lag);
 
-    WT_STATP_CONN_SET(
-      session, stats, txn_pinned_timestamp_oldest, durable_timestamp - oldest_timestamp);
+    /* Represents how far the durable timestamp leads the oldest timestamp. */
+    if (durable_timestamp > oldest_timestamp)
+        durable_oldest_lag = durable_timestamp - oldest_timestamp;
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_oldest, durable_oldest_lag);
 
     __wti_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
     if (oldest_active_read_timestamp != WT_TS_NONE &&
@@ -2511,6 +2551,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
+    WT_RET(__wt_rwlock_init(session, &txn_global->step_down_lock));
 
     WT_RET(__wt_calloc_def(session, conn->session_array.size, &txn_global->txn_shared_list));
 
@@ -2544,6 +2585,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 
     __wt_rwlock_destroy(session, &txn_global->rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
+    __wt_rwlock_destroy(session, &txn_global->step_down_lock);
     __wt_free(session, txn_global->txn_shared_list);
 }
 
@@ -2767,7 +2809,7 @@ __wt_verbose_dump_txn_one(
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
-    uint32_t i, buf_len;
+    uint32_t i;
     char ckpt_lsn_str[WT_MAX_LSN_STRING];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
@@ -2787,11 +2829,10 @@ __wt_verbose_dump_txn_one(
       !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
 
-    buf_len = 512;
-    WT_RET(__wt_scr_alloc(session, buf_len, &buf));
+    WT_RET(__wt_scr_alloc(session, 0, &buf));
 
     const char *session_name = __wt_atomic_load_ptr_relaxed(&txn_session->name);
-    WT_ERR(__wt_snprintf((char *)buf->data, buf_len,
+    WT_ERR(__wt_buf_fmt(session, buf,
       "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
       ", metadata pinned ID: %" PRIu64 ", name: %s",
       txn_session->id, __wt_atomic_load_uint64_v_relaxed(&txn_shared->id),
@@ -2829,10 +2870,7 @@ __wt_verbose_dump_txn_one(
         WT_ERR(__wt_buf_catfmt(
           session, snapshot_buf, "%s%" PRIu64, i == 0 ? "" : ", ", txn->snapshot_data.snapshot[i]));
     WT_ERR(__wt_buf_catfmt(session, snapshot_buf, "%s", "]\0"));
-    buf_len = (uint32_t)snapshot_buf->size + 512;
-    if (txn_err_info->err_msg != NULL)
-        buf_len += strlen(txn_err_info->err_msg);
-    WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
     WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
 
@@ -2841,7 +2879,7 @@ __wt_verbose_dump_txn_one(
      * error message.
      */
     WT_ERR(
-      __wt_snprintf((char *)buf->data, buf_len,
+      __wt_buf_fmt(session, buf,
         "transaction id: %" PRIu64 ", mod count: %u"
         ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
         ", snapshot: %s"

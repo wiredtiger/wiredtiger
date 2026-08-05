@@ -451,8 +451,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
 err:
-    if (ret != 0)
+    if (ret != 0) {
+        /*
+         * The reconcile-local block array is normally freed by cleanup when wrapping up the
+         * reconciliation, which this path skips. If cleanup has not run, free it here.
+         */
+        if (r->multi != NULL)
+            WT_TRET(__rec_cleanup(session, r));
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
+    }
     return (ret);
 }
 
@@ -2725,7 +2732,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
      * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
      * code for a discussion.
      */
-    if (!btree->original)
+    if (!__wt_atomic_load_uint8_relaxed(&btree->original))
         WT_RET_MSG(session, EINVAL, "bulk-load is only possible for newly created trees");
 
     /*

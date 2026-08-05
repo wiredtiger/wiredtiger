@@ -515,7 +515,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         goto err;
 
     /* Ignore tables that are empty or is currently in a bulk-load phase. */
-    if (btree->original)
+    if (__wt_atomic_load_uint8_relaxed(&btree->original))
         goto err;
 
     /* Walk the tree. */
@@ -640,7 +640,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * counters upon restart. Transaction IDs from a previous run can be detected using the write
      * generation number.
      */
-    if (write_gen < S2C(session)->base_write_gen)
+    if (write_gen < __wt_atomic_load_uint64_relaxed(&S2C(session)->base_write_gen))
         newest_txn = WT_TXN_NONE;
 
     /*

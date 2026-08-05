@@ -27,6 +27,10 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define SALVAGE "salvage=true"
 #define VERIFY_METADATA "verify_metadata=true"
 
+typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
+static util_func_t disagg_supported[] = {
+  util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
+
 /*
  * wt_explicit_zero --
  *     Clear a buffer, with precautions against being optimized away.
@@ -139,9 +143,22 @@ done:
  *     read_corrupt.
  */
 static bool
-util_func_supports_read_corrupt(int (*func)(WT_SESSION *, int, char *[]))
+util_func_supports_read_corrupt(util_func_t util_func)
 {
-    return (func == util_dump || func == util_read || func == util_stat);
+    return (util_func == util_dump || util_func == util_read || util_func == util_stat);
+}
+
+/*
+ * util_func_allowed_disagg --
+ *     Whether a wt subcommand is allowed in disaggregated storage mode.
+ */
+static bool
+util_func_allowed_disagg(util_func_t util_func)
+{
+    for (size_t i = 0; i < WT_ELEMENTS(disagg_supported); i++)
+        if (util_func == disagg_supported[i])
+            return (true);
+    return (false);
 }
 
 /*
@@ -504,8 +521,8 @@ open:
 
     /*
      * Disaggregated storage exposes data through a page log rather than local files. Reject global
-     * flags that only apply to the classic block-manager or local-log path before touching any
-     * data.
+     * flags that only apply to the classic block-manager or local-log path, and reject subcommands
+     * that aren't in the disagg allowlist, before touching any data.
      */
     if (util_conn_is_disagg(conn)) {
         const char *bad_flag = NULL;
@@ -530,6 +547,11 @@ open:
              * Treat the flag as a no-op rather than an error so scripts that probe flag
              * availability aren't broken; the message on stderr is enough signal.
              */
+            goto done;
+        }
+        if (func != NULL && !util_func_allowed_disagg(func)) {
+            fprintf(
+              stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
             goto done;
         }
     }

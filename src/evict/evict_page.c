@@ -10,6 +10,7 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
+static bool __evict_page_victim_cache_eligible(WT_SESSION_IMPL *, WT_REF *);
 static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
@@ -79,47 +80,47 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  */
 
 /*
- * __evict_page_victim_cache --
- *     Check eligibility and put page in victim cache if applicable.
+ * __evict_page_victim_cache_eligible --
+ *     Check whether a page is eligible to be put in the victim cache.
  */
-static void
-__evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
+static bool
+__evict_page_victim_cache_eligible(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        return;
+        return (false);
 
     WT_BM *bm = S2BT(session)->bm;
     if (bm == NULL)
-        return;
+        return (false);
 
     WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     if (block_disagg == NULL)
-        return;
+        return (false);
 
     WT_PAGE_LOG_HANDLE *plh = block_disagg->plhandle;
     if (plh == NULL)
-        return;
+        return (false);
 
     if (plh->plh_cache_put == NULL || plh->plh_cache_available == NULL ||
       !plh->plh_cache_available(plh, &session->iface))
-        return;
+        return (false);
 
     WT_PAGE *page = ref->page;
 
     /* Only cache clean pages without modify. */
     if (__wt_page_is_modified(page))
-        return;
+        return (false);
 
     /* Must be a leaf page with disagg info and disk image. */
     if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL || page->dsk == NULL)
-        return;
+        return (false);
 
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
-        return;
+        return (false);
 
     /* Cannot cache root pages. */
     if (__wt_ref_is_root(ref))
-        return;
+        return (false);
 
     /*
      * Pages from cold collections must never enter the victim cache: caching cold data wastes
@@ -128,8 +129,25 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
         WT_STAT_CONN_INCR(session, block_cache_cold_not_cached);
-        return;
+        return (false);
     }
+
+    return (true);
+}
+
+/*
+ * __evict_page_victim_cache --
+ *     Check eligibility and put page in victim cache if applicable.
+ */
+static void
+__evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (!__evict_page_victim_cache_eligible(session, ref))
+        return;
+
+    /* Eligibility has already confirmed the disagg page log handle exists. */
+    WT_PAGE_LOG_HANDLE *plh = ((WT_BLOCK_DISAGG *)S2BT(session)->bm->block)->plhandle;
+    WT_PAGE *page = ref->page;
 
     /*
      * Time the victim-cache work - compression, checksum and put - and count the pages cached.
@@ -450,12 +468,22 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     }
 
     /*
-     * Dirty pages on an outdated disaggregated read-only btree can never be written to shared
-     * storage. Clear the dirty flag so eviction discards the page cleanly instead of attempting
-     * reconciliation.
+     * A page on an outdated disaggregated read-only btree that is not clean-evictable carries
+     * content that can never be written to shared storage nor read back from it. While the previous
+     * generation's readers still hold the handle, keep such a page resident so a reader positioned
+     * elsewhere on the tree can navigate back to it; the stepdown is only elegant if reads survive
+     * it. Once the last reader releases the handle, discard the page cleanly rather than routing it
+     * to a dirty split that would fail against shared storage. A clean-evictable page is exempt
+     * from the gate: its disk image is fully described by the page's address, so it can be re-read
+     * from storage and eviction may discard it normally even with readers present.
      */
-    if (__wt_btree_is_stale_disagg(session))
+    if (__wt_btree_is_stale_disagg(session) && !__wt_page_evict_clean(page)) {
+        if (__wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 0) {
+            ret = __wt_set_return(session, EBUSY);
+            goto err;
+        }
         __wt_page_modify_clear(session, page);
+    }
 
     if (__wt_page_is_modified(page))
         is_dirty = true;
@@ -507,8 +535,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_internal);
 
-    /* Figure out whether reconciliation was done on the page */
-    if (__wt_page_evict_clean(page)) {
+    /*
+     * Figure out whether reconciliation was done on the page. A stale disaggregated page has had
+     * its dirty flag cleared above, but a non-zero reconciliation result left over from the leader
+     * era keeps the clean check false and would route the page to a dirty split that can never
+     * write back to shared storage. Force clean eviction so the page is discarded instead of
+     * trapped in cache.
+     */
+    if (__wt_page_evict_clean(page) || __wt_btree_is_stale_disagg(session)) {
         evict_clean = true;
         FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
     }
