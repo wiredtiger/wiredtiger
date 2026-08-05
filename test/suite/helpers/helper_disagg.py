@@ -808,6 +808,33 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         return 'file:' + tablename + '.wt_stable'
 
+    def stable_in_local_metadata(self, conn, uri):
+        """
+        Return True if uri's stable constituent has a row in conn's local metadata.
+
+        This reads the metadata table directly, so unlike opening a cursor on the constituent the
+        answer cannot be confused with a transactional failure.
+        """
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        cursor.set_key(self.stable_uri(uri))
+        found = cursor.search() == 0
+        cursor.close()
+        session.close()
+        return found
+
+    def step_down(self, conn=None):
+        """Reconfigure the given (or main) connection to the follower role."""
+        if conn is None:
+            conn = self.conn
+        conn.reconfigure('disaggregated=(role="follower")')
+
+    def step_up(self, conn=None):
+        """Reconfigure the given (or main) connection to the leader role."""
+        if conn is None:
+            conn = self.conn
+        conn.reconfigure('disaggregated=(role="leader")')
+
     def uri_in_shared_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in the shared metadata table."""
         session = conn.open_session('')
@@ -862,6 +889,12 @@ class DisaggSchemaEpochMixin:
         self.disagg_advance_checkpoint(conn)
         session = conn.open_session('')
         return conn, session
+
+    def close_follower(self, conn, session=None):
+        """Close a follower opened by open_follower without taking a final checkpoint."""
+        if session is not None:
+            session.close()
+        conn.close('debug=(skip_checkpoint=true)')
 
     def open_follower_epoch(self, epoch=1):
         """Open a follower already in epoch world (stable schema epoch set), ready to publish."""
