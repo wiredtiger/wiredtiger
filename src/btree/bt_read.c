@@ -558,6 +558,16 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
     /*
+     * Pay off a deferred bounded-resolution wait only once this transaction has modified something
+     * itself, so a later, unrelated transaction reusing this session never inherits another
+     * transaction's dirty debt.
+     */
+    if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) && txn->mod_count != 0 && session->cache_wait_deferred)
+        WT_RET_ERROR_OK(
+          __wt_evict_app_assist_worker_check(session, false, false, true, false, NULL),
+          WT_ROLLBACK);
+
+    /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */

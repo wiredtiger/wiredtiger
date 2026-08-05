@@ -881,16 +881,16 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
-     * A transaction that owes a deferred bounded-resolution wait pays it off at its own next chance
-     * to work, bypassing the busy protection below: it is bounded here regardless of the caller
-     * instead, so it cannot pin the oldest ID for an unbounded time the way an ordinary busy caller
-     * is protected against.
+     * A transaction that owes a deferred bounded-resolution wait pays it off unbounded, at its own
+     * next chance to work, bypassing the busy protection below: it already holds a live transaction
+     * ID (mod_count != 0), so unlike an ordinary busy caller it is rollback-eligible if it turns
+     * out to be stuck, rather than something that has to be released on its own.
      */
     bool paying_deferred_debt = session->cache_wait_deferred && session->txn->mod_count != 0;
     if (paying_deferred_debt) {
         session->cache_wait_deferred = false;
         busy = false;
-        bounded = true;
+        bounded = false;
     } else {
         /* Every other bounded caller is at a transaction boundary, with nothing left to roll back.
          */

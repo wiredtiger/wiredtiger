@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
+import wiredtiger
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -146,12 +147,11 @@ class test_eviction07(wttest.WiredTigerTestCase):
 
     def test_bounded_assist_defers_to_next_write(self):
         # An exhausted resolution must not let the same session start more work into a cache it
-        # never relieved. The deferred debt is paid at this session's next write, but by then the
-        # transaction already holds a published transaction ID, so paying it is bounded the same
-        # way the resolution wait was, rather than blocking indefinitely - a read-only transaction
-        # must never pay it at all just because it reused the same session (as MongoDB pools
-        # sessions across unrelated operations); only the transaction that owes it can be made to
-        # pay it.
+        # never relieved. The deferred debt is paid unbounded when this session's own writer next
+        # faults in a page: by then it holds a published transaction ID, so eviction can roll it
+        # back to release it, which is what the resolution assist had no way to do. A read-only
+        # transaction must never pay it at all just because it reused the same session (as MongoDB
+        # pools sessions across unrelated operations); only the transaction that owes it pays.
         self.session.create(self.uri, 'key_format=i,value_format=S')
         value = 'a' * 4096
         read_key, write_key = 500000, 500001
@@ -205,25 +205,18 @@ class test_eviction07(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[read_key], value)
             self.session.rollback_transaction()
 
-            # A transaction that has written, then faults in a page from disk, pays the debt: it
-            # is bounded, just like the resolution wait, rather than blocked until the pressure
-            # clears - the bounded-wait statistic increasing again proves it hit that same limit.
-            bounded_waits = self.get_stat(
-                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+            # A transaction that has written, then faults in a page from disk, pays the debt. The
+            # wait is not bounded, so it blocks against pressure that cannot be relieved - but
+            # unlike the resolution assist it has modified something, so eviction rolls it back to
+            # release it rather than leaving it stuck.
             self._evict_key(write_key)
             self.session.begin_transaction()
             resolution_txn_active = True
             mod_cursor[0] = value
-            start = time.monotonic()
-            self.assertEqual(cursor[write_key], value)
-            elapsed = time.monotonic() - start
-            self.session.commit_transaction()
+            self.assertRaisesException(
+                wiredtiger.WiredTigerError, lambda: cursor[write_key], '/conflict/')
+            self.session.rollback_transaction()
             resolution_txn_active = False
-
-            self.assertLess(elapsed, 1.0)
-            bounded_waits_after = self.get_stat(
-                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
-            self.assertGreater(bounded_waits_after, bounded_waits)
         finally:
             if pin_txn_active:
                 pin_session.rollback_transaction()
