@@ -26,8 +26,12 @@
  * Cap the wait for callers that pin no transaction state: the stuck-cache escape cannot roll them
  * back, so an unbounded wait ends only when eviction succeeds, and blocking them can stop the
  * application from advancing the timestamps that would make the cache reclaimable.
+ *
+ * Used only when the caller set no operation timeout of its own. Keep it generous: a shorter cap
+ * cuts these callers out of the assist while the cache is still draining, and they are the only
+ * application threads that help with nothing pinned, so the work is not made up elsewhere.
  */
-#define WTI_EVICT_BOUNDED_WAIT_US (50 * WT_THOUSAND)
+#define WTI_EVICT_BOUNDED_WAIT_US (60 * WT_MILLION)
 
 /* True if there are eviction worker threads beyond the server thread itself. */
 #define WT_EVICT_HAS_WORKERS(s) \
@@ -69,8 +73,7 @@ struct __wti_evict_queue {
 extern bool __wti_evict_push_candidate(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue,
   WTI_EVICT_ENTRY *evict_entry, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,
-  bool interruptible, bool bounded, bool ignore_busy)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool interruptible, bool bounded) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)

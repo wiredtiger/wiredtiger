@@ -64,8 +64,8 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Set transaction's update amount to 1 and ID to be equal to the oldest transaction ID.
         session_impl->txn->mod_count = 1;
         WT_SESSION_TXN_SHARED(session_impl)->id = S2C(session)->txn_global.oldest_id;
-        CHECK(__wti_evict_app_assist_worker(session_impl, false, false, true, false, false) ==
-          WT_ROLLBACK);
+        CHECK(
+          __wti_evict_app_assist_worker(session_impl, false, false, true, false) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
           "Transaction has the oldest pinned transaction ID");
 
@@ -90,8 +90,8 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         cursor->set_key(cursor, "key");
         cursor->set_value(cursor, "value");
 
-        CHECK(__wti_evict_app_assist_worker(session_impl, false, false, true, false, false) ==
-          WT_ROLLBACK);
+        CHECK(
+          __wti_evict_app_assist_worker(session_impl, false, false, true, false) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
 
         // Drop the table.

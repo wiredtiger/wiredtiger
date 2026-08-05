@@ -284,8 +284,8 @@ __wti_evict_page(WT_SESSION_IMPL *session, bool is_server)
  * The function returns an error code from either __wti_evict_page or __wt_txn_is_blocking.
  */
 int
-__wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,
-  bool interruptible, bool bounded, bool ignore_busy)
+__wti_evict_app_assist_worker(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool bounded)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -303,6 +303,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
      * with the rest of the enclosing API call and is not tracked at all for internal sessions.
      */
     uint64_t bound_start = bounded ? __wt_clock(session) : 0;
+    uint64_t bound_limit_us = bounded ? __evict_bounded_wait_limit_us(session) : 0;
 
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
@@ -343,6 +344,17 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
                       session->err_info.err_msg);
             }
             WT_ERR(ret);
+
+            /*
+             * A bounded caller has nothing to roll back, so the check above cannot release it. Stop
+             * assisting instead of serving out the rest of the bound: the cache is not recovering,
+             * and this thread returning is what lets the application advance the timestamps that
+             * would make the dirty content reclaimable.
+             */
+            if (bounded) {
+                WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_cache_stuck);
+                break;
+            }
         }
 
         /*
@@ -370,8 +382,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
          * below 100%, limit the work to 5 evictions and return. If that's not the case, we can do
          * more.
          */
-        if (!ignore_busy && !busy &&
-          __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
+        if (!busy && __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
           __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
             __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id))
             busy = true;
@@ -394,8 +405,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
          */
         if (bounded) {
             uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
-            if (__evict_bounded_wait_remaining_us(elapsed_us) == 0) {
-                session->cache_wait_deferred = true;
+            if (__evict_bounded_wait_remaining_us(elapsed_us, bound_limit_us) == 0) {
                 WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
                 break;
             }
@@ -411,9 +421,9 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
             uint64_t wait_us = 10 * WT_THOUSAND;
             if (bounded) {
                 uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
-                uint64_t remaining_us = __evict_bounded_wait_remaining_us(elapsed_us);
+                uint64_t remaining_us =
+                  __evict_bounded_wait_remaining_us(elapsed_us, bound_limit_us);
                 if (remaining_us == 0) {
-                    session->cache_wait_deferred = true;
                     WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
                     ret = 0;
                     break;

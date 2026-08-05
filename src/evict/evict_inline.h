@@ -9,13 +9,36 @@
 #pragma once
 
 /*
+ * __evict_bounded_wait_limit_us --
+ *     Return how long a bounded caller may wait.
+ */
+static WT_INLINE uint64_t
+__evict_bounded_wait_limit_us(WT_SESSION_IMPL *session)
+{
+    uint64_t elapsed_us;
+
+    /*
+     * Prefer what remains of the caller's own operation timeout: it has already agreed to wait that
+     * long, and returning sooner only pushes the cache work onto threads that cannot do as much of
+     * it. The transaction timer is cleared by transaction release, but the session's copy belongs
+     * to the enclosing API call and is still running here.
+     */
+    if (session->operation_timeout_us == 0 || session->operation_start_us == 0)
+        return (WTI_EVICT_BOUNDED_WAIT_US);
+
+    elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), session->operation_start_us);
+    return (
+      elapsed_us > session->operation_timeout_us ? 0 : session->operation_timeout_us - elapsed_us);
+}
+
+/*
  * __evict_bounded_wait_remaining_us --
  *     Return the remaining bounded eviction wait time.
  */
 static WT_INLINE uint64_t
-__evict_bounded_wait_remaining_us(uint64_t elapsed_us)
+__evict_bounded_wait_remaining_us(uint64_t elapsed_us, uint64_t limit_us)
 {
-    return (elapsed_us > WTI_EVICT_BOUNDED_WAIT_US ? 0 : WTI_EVICT_BOUNDED_WAIT_US - elapsed_us);
+    return (elapsed_us > limit_us ? 0 : limit_us - elapsed_us);
 }
 
 /* !!!
@@ -880,27 +903,13 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    /*
-     * A transaction that owes a deferred bounded-resolution wait pays it off unbounded, at its own
-     * next chance to work, bypassing the busy protection below: it already holds a live transaction
-     * ID (mod_count != 0), so unlike an ordinary busy caller it is rollback-eligible if it turns
-     * out to be stuck, rather than something that has to be released on its own.
-     */
-    bool paying_deferred_debt = session->cache_wait_deferred && session->txn->mod_count != 0;
-    if (paying_deferred_debt) {
-        session->cache_wait_deferred = false;
-        busy = false;
-        bounded = false;
-    } else {
-        /* Every other bounded caller is at a transaction boundary, with nothing left to roll back.
-         */
-        WT_ASSERT(session, !bounded || session->txn->mod_count == 0);
-        busy = busy || __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE ||
-          session->hazards.num_active > 0 ||
-          (__wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
-            __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
-              __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
-    }
+    /* A bounded caller is at a transaction boundary, with nothing left to roll back. */
+    WT_ASSERT(session, !bounded || session->txn->mod_count == 0);
+    busy = busy || __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE ||
+      session->hazards.num_active > 0 ||
+      (__wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
+        __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
+          __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
 
     /*
      * Don't block the thread for eviction when holding the handle list, schema or table locks
@@ -976,8 +985,7 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
     if (didworkp != NULL)
         *didworkp = true;
 
-    return (__wti_evict_app_assist_worker(
-      session, busy, readonly, interruptible, bounded, paying_deferred_debt));
+    return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible, bounded));
 }
 
 /*

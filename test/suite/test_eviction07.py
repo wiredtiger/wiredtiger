@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
-import wiredtiger
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -36,14 +35,13 @@ from wtscenario import make_scenarios
 # wait. The assist normally spins until the cache drops below its triggers, which never happens when
 # the dirty content cannot be reconciled away - here because another session is holding it
 # uncommitted. The resolving thread pins no transaction state, so nothing can roll it back to
-# relieve the pressure and it must be released on its own. The deferred wait is then paid the next
-# time that session's own writer transaction faults in a page from disk, so an exhausted resolution
-# does not let more work into a cache it never relieved, without saddling an unrelated read-only
-# transaction that later reuses the same session with another transaction's debt.
+# relieve the pressure and it must be released on its own. The bound is what remains of the caller's
+# own operation timeout, so the test configures a short one rather than waiting out the default cap.
 class test_eviction07(wttest.WiredTigerTestCase):
     uri = 'table:test_eviction07'
     cache_bytes = 50 * 1024 * 1024
     dirty_trigger_pct = 5
+    operation_timeout_ms = 500
 
     resolution_values = [
         ('commit', dict(rollback=False)),
@@ -69,7 +67,10 @@ class test_eviction07(wttest.WiredTigerTestCase):
         value = 'a' * 4096
         bounded_resolution_time = None
         for i in range(100000, 100500):
-            self.session.begin_transaction()
+            # The assist bounds itself by what is left of the operation timeout, so give the
+            # resolution a short one instead of waiting out the much larger default cap.
+            self.session.begin_transaction(
+                'operation_timeout_ms=%d' % self.operation_timeout_ms)
             cursor[i] = value
 
             bounded_waits = self.get_stat(
@@ -120,104 +121,6 @@ class test_eviction07(wttest.WiredTigerTestCase):
             # drained.
             dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
             self.assertGreater(dirty, dirty_trigger)
-        finally:
-            if pin_txn_active:
-                pin_session.rollback_transaction()
-            if resolution_txn_active:
-                self.session.rollback_transaction()
-            if cursor is not None:
-                cursor.close()
-            if pin_cursor is not None:
-                pin_cursor.close()
-            if pin_session is not None:
-                pin_session.close()
-            if stat_session is not None:
-                stat_session.close()
-
-    def _evict_key(self, key):
-        # Force the page holding key back out to disk, so the next access on it must fault it in
-        # from disk rather than finding it already in cache.
-        self.session.begin_transaction()
-        evict_cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        evict_cursor.set_key(key)
-        evict_cursor.search()
-        evict_cursor.reset()
-        evict_cursor.close()
-        self.session.commit_transaction()
-
-    @wttest.skip_for_hook("disagg", "Layout and eviction targets differ under disaggregated storage.")
-    def test_bounded_assist_defers_to_next_write(self):
-        # An exhausted resolution must not let the same session start more work into a cache it
-        # never relieved. The deferred debt is paid unbounded when this session's own writer next
-        # faults in a page: by then it holds a published transaction ID, so eviction can roll it
-        # back to release it, which is what the resolution assist had no way to do. A read-only
-        # transaction must never pay it at all just because it reused the same session (as MongoDB
-        # pools sessions across unrelated operations); only the transaction that owes it pays.
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        value = 'a' * 4096
-        read_key, write_key = 500000, 500001
-
-        setup_cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        setup_cursor[read_key] = value
-        setup_cursor[write_key] = value
-        self.session.commit_transaction()
-        setup_cursor.close()
-
-        # A separate table, small and never evicted, so writing to it can raise this session's
-        # mod_count without itself needing a page fault, on a page distinct from write_key's.
-        mod_uri = 'table:test_eviction07_mod'
-        self.session.create(mod_uri, 'key_format=i,value_format=S')
-        mod_cursor = self.session.open_cursor(mod_uri)
-        self.session.begin_transaction()
-        mod_cursor[0] = value
-        self.session.commit_transaction()
-
-        stat_session = pin_session = None
-        pin_cursor = cursor = None
-        pin_txn_active = resolution_txn_active = False
-
-        try:
-            stat_session = self.conn.open_session('cache_max_wait_ms=1')
-
-            pin_session = self.conn.open_session()
-            pin_cursor = pin_session.open_cursor(self.uri)
-            self._pin_dirty_content(pin_session, pin_cursor)
-            pin_txn_active = True
-
-            dirty_trigger = self.cache_bytes * self.dirty_trigger_pct // 100
-            dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
-            self.assertGreater(dirty, dirty_trigger)
-
-            cursor = self.session.open_cursor(self.uri)
-            resolution_txn_active = True
-            bounded_resolution_time = self._resolve_until_bounded_wait(cursor, stat_session)
-            resolution_txn_active = False
-            self.assertIsNotNone(bounded_resolution_time)
-
-            # The pressure the resolution could not relieve must still be there.
-            dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
-            self.assertGreater(dirty, dirty_trigger)
-
-            # A read-only transaction faulting in a page from disk must not block: it never
-            # modified anything on this session, so it cannot owe the deferred debt.
-            self._evict_key(read_key)
-            self.session.begin_transaction()
-            self.assertEqual(cursor[read_key], value)
-            self.session.rollback_transaction()
-
-            # A transaction that has written, then faults in a page from disk, pays the debt. The
-            # wait is not bounded, so it blocks against pressure that cannot be relieved - but
-            # unlike the resolution assist it has modified something, so eviction rolls it back to
-            # release it rather than leaving it stuck.
-            self._evict_key(write_key)
-            self.session.begin_transaction()
-            resolution_txn_active = True
-            mod_cursor[0] = value
-            self.assertRaisesException(
-                wiredtiger.WiredTigerError, lambda: cursor[write_key], '/conflict/')
-            self.session.rollback_transaction()
-            resolution_txn_active = False
         finally:
             if pin_txn_active:
                 pin_session.rollback_transaction()
