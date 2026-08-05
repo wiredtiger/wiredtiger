@@ -1928,6 +1928,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg.name, ckpt_cfg.name_len));
 
+    /*
+     * Stop eviction adopting this checkpoint's snapshot before the snapshot stops pinning updates.
+     * Once released, the oldest id can advance past the snapshot, and an eviction still bounded by
+     * it would judge every update in the tree invisible - the generation stamp cannot catch that,
+     * because the buffer still carries the current checkpoint generation.
+     */
+    __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, false);
+
     /* Release the snapshot so we aren't pinning updates in cache. */
     WT_ERR(__wti_checkpoint_parallel_release_snapshot(session));
     __wt_txn_release_snapshot(session);
@@ -2132,8 +2140,8 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
     ret = __checkpoint_db_internal(session, cfg);
 
     /*
-     * Retire the published eviction snapshot: with no checkpoint running there is nothing for
-     * eviction to bound itself to, and the snapshot only falls further behind from here.
+     * The checkpoint retires its published eviction snapshot before releasing it. Repeat that here
+     * to cover the paths that fail before reaching it.
      */
     __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, false);
 
