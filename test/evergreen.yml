@@ -5377,17 +5377,8 @@ tasks:
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-2
     tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-multi
-    name: format-stress-test-disagg-multi-3
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-multi
-    name: format-stress-test-disagg-multi-4
-    tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-multi-pull-request
-    name: format-stress-test-disagg-multi-pull-request-1
-    tags: ["pull_request"]
-  - <<: *format-stress-test-disagg-multi-pull-request
-    name: format-stress-test-disagg-multi-pull-request-2
+    name: format-stress-test-disagg-multi-pull-request
     tags: ["pull_request"]
 
   - name: format-stress-test-disagg-follower-pull-request
