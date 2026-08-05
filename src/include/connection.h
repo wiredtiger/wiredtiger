@@ -1123,8 +1123,6 @@ struct __wt_connection_impl {
      */
     wt_shared uint64_t ckpt_eviction_snap_gen[2];
     wt_shared uint32_t ckpt_eviction_snap_idx;
-    wt_shared bool
-      ckpt_eviction_snap_published; /* true while the running checkpoint's snapshot is published */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {

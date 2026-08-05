@@ -51,7 +51,7 @@ class test_checkpoint39(wttest.WiredTigerTestCase):
 
     # Enough batches to keep writes, checkpoints and eviction overlapping for a while.
     nrows = 200
-    nbatches = 20
+    nbatches = 120
     value = 'v' * 400
 
     def get_stat(self, stat_name):
