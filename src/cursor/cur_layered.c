@@ -572,6 +572,9 @@ __clayered_open_stable(
         __clayered_open_stable_follower(clayered, checkpoint_expected));
 }
 
+static int __clayered_reopen_stable(
+  WT_SESSION_IMPL *session, WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role);
+
 /*
  * __clayered_ingest_prepare_stalled --
  *     Determine if the ingest cursor is on a prepare conflict.
@@ -836,17 +839,17 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 
 /*
  * __clayered_open_stable_first --
- *     Open the stable constituent for the first time and record its checkpoint LSN. A follower the
- *     table has no checkpoint for leaves the stable cursor NULL. The caller reads the connection's
- *     LSN before the open, so a checkpoint picked up in between makes the recorded LSN older than
- *     the checkpoint actually opened: that only costs a later reopen, it never claims a newer
- *     checkpoint than the cursor holds.
+ *     Open the stable constituent for the first time and record its checkpoint LSN. A follower that
+ *     has no checkpoint leaves the stable cursor NULL. If a checkpoint is picked up while opening,
+ *     reopen until the cursor corresponds to the current checkpoint.
  */
 static int
 __clayered_open_stable_first(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role, uint64_t conn_lsn)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
+    WT_CONNECTION_IMPL *const conn = S2C(session);
+    uint64_t current_lsn;
 
     if (clayered->stable_cursor != NULL ||
       (role == WTI_CLAYERED_ROLE_FOLLOWER && conn_lsn == WT_DISAGG_LSN_NONE))
@@ -855,6 +858,14 @@ __clayered_open_stable_first(
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     WT_RET(__clayered_open_stable(clayered, false, role));
     WT_RET(__clayered_copy_bounds(clayered));
+
+    while (role == WTI_CLAYERED_ROLE_FOLLOWER &&
+      (current_lsn = __wt_atomic_load_uint64_acquire(
+         &conn->disaggregated_storage.last_checkpoint_meta_lsn)) != conn_lsn) {
+        WT_RET(__clayered_reopen_stable(session, clayered, role));
+        conn_lsn = current_lsn;
+    }
+
     clayered->stable_checkpoint_meta_lsn = conn_lsn;
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
     return (0);
@@ -3418,65 +3429,6 @@ err:
 }
 
 /*
- * __clayered_modify_try_ingest --
- *     Attempt a raw modify on the ingest constituent, given the cursor is already positioned there
- *     with the base value in hand.
- */
-static int
-__clayered_modify_try_ingest(
-  WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, WT_ITEM *value, bool *need_full_updatep)
-{
-    WTI_CURSOR_LAYERED *clayered = op->clayered;
-    WT_SESSION_IMPL *session = CUR2S(clayered);
-    WT_CURSOR *c_ingest = op->ingest;
-    WT_DECL_RET;
-
-    *need_full_updatep = false;
-
-    /*
-     * A tombstone is a special value in the ingest table, so it cannot be used as a base value for
-     * a modify operation. Similarly, a delete-encoded value alters the original value and also
-     * cannot serve as the base value for a modify. In these cases, perform a full update instead.
-     *
-     * FIXME-WT-17827: a lookup returns WT_NOTFOUND for a deleted key, so the tombstone case is only
-     * reachable if the modify skips the lookup on an already-positioned cursor. Revisit whether
-     * that can happen.
-     */
-    if (__wt_clayered_deleted(&c_ingest->value) ||
-      __clayered_value_in_tombstone_namespace(&c_ingest->value, false /* decode */)) {
-        __clayered_deleted_decode(session, &c_ingest->value);
-        WT_RET(__wt_modify_apply_api(c_ingest, entries, nentries));
-        *need_full_updatep = true;
-        return (0);
-    }
-
-    WT_RET_NOTFOUND_OK(ret = c_ingest->modify(c_ingest, entries, nentries));
-
-    /*
-     * Even if the ingest key was found and pinned during the lookup, it may still have been evicted
-     * during modify(), in which case WT_NOTFOUND is returned. That's not a problem for insert() and
-     * update() since they always do a full update. If this has occurred, the key must now exist in
-     * the stable table, so a second lookup is guaranteed to locate it.
-     */
-    if (ret == WT_NOTFOUND) {
-        if (op->stable == NULL)
-            WT_RET(__clayered_lookup_lazy_stable_open(op));
-        WT_RET_NOTFOUND_OK(ret = __clayered_lookup_constituent(op, op->stable, value));
-        WT_ASSERT_ALWAYS(
-          session, ret != WT_NOTFOUND, "ingest modify evicted the key, now it should be in stable");
-        return (0);
-    }
-
-    /*
-     * A plain modify stores its result unescaped. If the modify moved the value into the tombstone
-     * namespace, re-escape it with a full update so it decodes back unchanged.
-     */
-    *need_full_updatep =
-      __clayered_value_in_tombstone_namespace(&c_ingest->value, true /* encode */);
-    return (0);
-}
-
-/*
  * __clayered_modify_ingest --
  *     Apply a set of modifications to the ingest table.
  */
@@ -3487,7 +3439,6 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *cursor = &clayered->iface;
     WT_CURSOR *c_ingest = op->ingest;
-    WT_CURSOR *c_stable;
     bool need_full_update = false;
     WT_DECL_RET;
     WT_DECL_ITEM(buf);
@@ -3503,11 +3454,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     else
         WT_ITEM_SET(value, cursor->value);
 
-    if (clayered->current_cursor == c_ingest)
-        WT_ERR(__clayered_modify_try_ingest(op, entries, nentries, &value, &need_full_update));
-
-    c_stable = op->stable;
-    if (clayered->current_cursor == c_stable) {
+    if (clayered->current_cursor != c_ingest) {
         /*
          * Cursor is positioned on the stable table. Compute a full value and write it to the ingest
          * table.
@@ -3517,6 +3464,31 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         WT_ITEM_SET(c_ingest->value, value);
         WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
         need_full_update = true;
+    } else {
+        /*
+         * A tombstone is a special value in the ingest table, so it cannot be used as a base value
+         * for a modify operation. Similarly, a delete-encoded value alters the original value and
+         * also cannot serve as the base value for a modify. In these cases, perform a full update
+         * instead.
+         *
+         * FIXME-WT-17827: a lookup returns WT_NOTFOUND for a deleted key, so the tombstone case is
+         * only reachable if the modify skips the lookup on an already-positioned cursor. Revisit
+         * whether that can happen.
+         */
+        if (__wt_clayered_deleted(&c_ingest->value) ||
+          __clayered_value_in_tombstone_namespace(&c_ingest->value, false /* decode */)) {
+            __clayered_deleted_decode(session, &c_ingest->value);
+            WT_ERR(__wt_modify_apply_api(c_ingest, entries, nentries));
+            need_full_update = true;
+        } else {
+            WT_ERR(c_ingest->modify(c_ingest, entries, nentries));
+            /*
+             * A plain modify stores its result unescaped. If the modify moved the value into the
+             * tombstone namespace, re-escape it with a full update so it decodes back unchanged.
+             */
+            need_full_update =
+              __clayered_value_in_tombstone_namespace(&c_ingest->value, true /* encode */);
+        }
     }
 
     if (need_full_update) {
