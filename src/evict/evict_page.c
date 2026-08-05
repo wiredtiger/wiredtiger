@@ -1223,38 +1223,39 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_SNAPSHOT *snap;
-    uint64_t ckpt_gen;
+    uint64_t snap_gen;
     uint32_t snap_idx;
-    bool copied, published;
+    bool copied;
 
     conn = S2C(session);
     copied = false;
 
     /*
-     * Read the checkpoint generation before the buffer's stamp. A stamp published after this read
-     * is newer than what we compare against, so the check below rejects it; the reverse order could
-     * pair a generation read late with a buffer published early and accept it.
-     */
-    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-
-    /*
-     * Enter the generation before reading the index. The publisher writes the inactive buffer and
-     * drains this generation after swapping, so holding it is what stops the buffer read below from
-     * being recycled underneath us.
+     * Hold the generation across the reads below. The publisher writes the inactive buffer and
+     * drains this generation after swapping, so holding it stops the buffer named here from being
+     * recycled while we read it.
      */
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
     snap = &conn->ckpt_eviction_snap[snap_idx];
-    published = __wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published);
+    snap_gen = __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap_gen[snap_idx]);
 
     /*
-     * The stamp alone decides whether the snapshot is usable, which is why the index may be read
-     * before the published flag: an index read before a swap, paired with a flag read after it,
-     * still fails the comparison. Acquiring the index pairs with the publisher's release of it, so
-     * the contents copied below are those written before the swap.
+     * Read the buffer's stamp before the checkpoint generation, never after. Reading the generation
+     * first accepts a retired snapshot on this interleaving:
+     *
+     * 1. Read the generation: 47.
+     * 2. Checkpoint 47 completes; checkpoint 48 starts, bumps the generation to 48 and publishes
+     *    into the other buffer.
+     * 3. Read the index: it can still name checkpoint 47's buffer, stamped 47.
+     * 4. 47 equals the generation read in step 1, so eviction adopts a finished checkpoint's
+     *    snapshot - the bug this check exists to prevent.
+     *
+     * In this order step 4 compares the stamp of 47 against the current generation of 48 and
+     * declines. The generation only moves forwards, so reading it last is always the stricter test.
      */
-    if (published &&
-      __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap_gen[snap_idx]) == ckpt_gen) {
+    if (__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published) &&
+      snap_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
