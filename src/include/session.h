@@ -282,7 +282,7 @@ struct __wt_session_impl {
     /* Sync support. */
     bool syncing;
 
-    bool cache_wait_at_txn_begin; /* Wait for cache before starting another transaction */
+    bool cache_wait_deferred; /* Owed cache wait from a bounded resolution assist that ran out */
 
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_conn_bucket;     /* Statistics connection bucket offset */

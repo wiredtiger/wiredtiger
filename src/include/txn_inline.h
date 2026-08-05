@@ -2077,21 +2077,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
     /*
-     * Do not let a bounded transaction-resolution assist release more work into a full cache
-     * unchecked: pay the deferred wait now instead. Unlike the resolution sites, this call is not
-     * bounded: this session holds no snapshot or hazard pointers yet (mod_count is 0), so it cannot
-     * be the thing eviction is stuck behind, and waiting here can never reproduce the
-     * resolution-time deadlock. That makes it safe to block for as long as the cache stays over its
-     * trigger, the same as any other transaction beginning against a full cache.
-     */
-    if (session->cache_wait_at_txn_begin) {
-        session->cache_wait_at_txn_begin = false;
-        WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, false, true, false, NULL),
-          WT_ROLLBACK);
-    }
-
-    /*
      * Allocate a snapshot if required or update the existing snapshot. Do not update the existing
      * snapshot of autocommit transactions because they are committed at the end of the operation.
      */

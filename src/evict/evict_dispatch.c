@@ -284,8 +284,8 @@ __wti_evict_page(WT_SESSION_IMPL *session, bool is_server)
  * The function returns an error code from either __wti_evict_page or __wt_txn_is_blocking.
  */
 int
-__wti_evict_app_assist_worker(
-  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool bounded)
+__wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  bool interruptible, bool bounded, bool ignore_busy)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -306,9 +306,6 @@ __wti_evict_app_assist_worker(
 
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
-
-    /* A bounded caller is at a transaction boundary, with nothing left to roll back. */
-    WT_ASSERT(session, !bounded || session->txn->mod_count == 0);
 
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
@@ -373,7 +370,8 @@ __wti_evict_app_assist_worker(
          * below 100%, limit the work to 5 evictions and return. If that's not the case, we can do
          * more.
          */
-        if (!busy && __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
+        if (!ignore_busy && !busy &&
+          __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
           __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
             __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id))
             busy = true;
@@ -397,7 +395,7 @@ __wti_evict_app_assist_worker(
         if (bounded) {
             uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
             if (__evict_bounded_wait_remaining_us(elapsed_us) == 0) {
-                session->cache_wait_at_txn_begin = true;
+                session->cache_wait_deferred = true;
                 WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
                 break;
             }
@@ -415,7 +413,7 @@ __wti_evict_app_assist_worker(
                 uint64_t elapsed_us = WT_CLOCKDIFF_US(__wt_clock(session), bound_start);
                 uint64_t remaining_us = __evict_bounded_wait_remaining_us(elapsed_us);
                 if (remaining_us == 0) {
-                    session->cache_wait_at_txn_begin = true;
+                    session->cache_wait_deferred = true;
                     WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_exceeded);
                     ret = 0;
                     break;

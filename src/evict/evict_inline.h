@@ -879,11 +879,28 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
      */
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
-    busy = busy || __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE ||
-      session->hazards.num_active > 0 ||
-      (__wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
-        __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
-          __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
+
+    /*
+     * A transaction that owes a deferred bounded-resolution wait pays it off at its own next chance
+     * to work, bypassing the busy protection below: it is bounded here regardless of the caller
+     * instead, so it cannot pin the oldest ID for an unbounded time the way an ordinary busy caller
+     * is protected against.
+     */
+    bool paying_deferred_debt = session->cache_wait_deferred && session->txn->mod_count != 0;
+    if (paying_deferred_debt) {
+        session->cache_wait_deferred = false;
+        busy = false;
+        bounded = true;
+    } else {
+        /* Every other bounded caller is at a transaction boundary, with nothing left to roll back.
+         */
+        WT_ASSERT(session, !bounded || session->txn->mod_count == 0);
+        busy = busy || __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE ||
+          session->hazards.num_active > 0 ||
+          (__wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
+            __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
+              __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
+    }
 
     /*
      * Don't block the thread for eviction when holding the handle list, schema or table locks
@@ -959,7 +976,8 @@ __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy, bool rea
     if (didworkp != NULL)
         *didworkp = true;
 
-    return (__wti_evict_app_assist_worker(session, busy, readonly, interruptible, bounded));
+    return (__wti_evict_app_assist_worker(
+      session, busy, readonly, interruptible, bounded, paying_deferred_debt));
 }
 
 /*

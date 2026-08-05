@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading
 import time
 import wttest
 from wiredtiger import stat
@@ -36,9 +35,10 @@ from wtscenario import make_scenarios
 # wait. The assist normally spins until the cache drops below its triggers, which never happens when
 # the dirty content cannot be reconciled away - here because another session is holding it
 # uncommitted. The resolving thread pins no transaction state, so nothing can roll it back to
-# relieve the pressure and it must be released on its own. The deferred wait is then paid at the
-# start of that session's next transaction instead, so an exhausted resolution does not let more
-# work into a cache it never relieved.
+# relieve the pressure and it must be released on its own. The deferred wait is then paid the next
+# time that session's own writer transaction faults in a page from disk, so an exhausted resolution
+# does not let more work into a cache it never relieved, without saddling an unrelated read-only
+# transaction that later reuses the same session with another transaction's debt.
 class test_eviction07(wttest.WiredTigerTestCase):
     uri = 'table:test_eviction07'
     cache_bytes = 50 * 1024 * 1024
@@ -133,21 +133,48 @@ class test_eviction07(wttest.WiredTigerTestCase):
             if stat_session is not None:
                 stat_session.close()
 
-    def test_bounded_assist_defers_to_next_begin(self):
+    def _evict_key(self, key):
+        # Force the page holding key back out to disk, so the next access on it must fault it in
+        # from disk rather than finding it already in cache.
+        self.session.begin_transaction()
+        evict_cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
+        evict_cursor.set_key(key)
+        evict_cursor.search()
+        evict_cursor.reset()
+        evict_cursor.close()
+        self.session.commit_transaction()
+
+    def test_bounded_assist_defers_to_next_write(self):
         # An exhausted resolution must not let the same session start more work into a cache it
-        # never relieved: the next begin_transaction pays the deferred wait before the transaction
-        # is allowed to start. Unlike the resolution wait, this one is not bounded - the session
-        # holds no snapshot or hazard pointers at begin, so blocking here cannot reproduce the
-        # resolution-time deadlock - and it must keep blocking for as long as the pressure persists,
-        # the same as any other transaction beginning against a full cache.
+        # never relieved. The deferred debt is paid at this session's next write, but by then the
+        # transaction already holds a published transaction ID, so paying it is bounded the same
+        # way the resolution wait was, rather than blocking indefinitely - a read-only transaction
+        # must never pay it at all just because it reused the same session (as MongoDB pools
+        # sessions across unrelated operations); only the transaction that owes it can be made to
+        # pay it.
         self.session.create(self.uri, 'key_format=i,value_format=S')
+        value = 'a' * 4096
+        read_key, write_key = 500000, 500001
+
+        setup_cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        setup_cursor[read_key] = value
+        setup_cursor[write_key] = value
+        self.session.commit_transaction()
+        setup_cursor.close()
+
+        # A separate table, small and never evicted, so writing to it can raise this session's
+        # mod_count without itself needing a page fault, on a page distinct from write_key's.
+        mod_uri = 'table:test_eviction07_mod'
+        self.session.create(mod_uri, 'key_format=i,value_format=S')
+        mod_cursor = self.session.open_cursor(mod_uri)
+        self.session.begin_transaction()
+        mod_cursor[0] = value
+        self.session.commit_transaction()
+
         stat_session = pin_session = None
         pin_cursor = cursor = None
         pin_txn_active = resolution_txn_active = False
-        begin_thread = None
-
-        def begin_on_session():
-            self.session.begin_transaction()
 
         try:
             stat_session = self.conn.open_session('cache_max_wait_ms=1')
@@ -171,21 +198,33 @@ class test_eviction07(wttest.WiredTigerTestCase):
             dirty = self.get_stat(stat.conn.cache_bytes_dirty, session=stat_session)
             self.assertGreater(dirty, dirty_trigger)
 
-            # The deferred wait blocks the next begin_transaction while the pressure persists.
-            begin_thread = threading.Thread(target=begin_on_session)
-            begin_thread.start()
-            begin_thread.join(2.0)
-            self.assertTrue(begin_thread.is_alive())
+            # A read-only transaction faulting in a page from disk must not block: it never
+            # modified anything on this session, so it cannot owe the deferred debt.
+            self._evict_key(read_key)
+            self.session.begin_transaction()
+            self.assertEqual(cursor[read_key], value)
+            self.session.rollback_transaction()
 
-            # Releasing the pin relieves the pressure, and the blocked begin_transaction completes.
-            pin_session.rollback_transaction()
-            pin_txn_active = False
-            begin_thread.join(20.0)
-            self.assertFalse(begin_thread.is_alive())
+            # A transaction that has written, then faults in a page from disk, pays the debt: it
+            # is bounded, just like the resolution wait, rather than blocked until the pressure
+            # clears - the bounded-wait statistic increasing again proves it hit that same limit.
+            bounded_waits = self.get_stat(
+                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+            self._evict_key(write_key)
+            self.session.begin_transaction()
             resolution_txn_active = True
+            mod_cursor[0] = value
+            start = time.monotonic()
+            self.assertEqual(cursor[write_key], value)
+            elapsed = time.monotonic() - start
+            self.session.commit_transaction()
+            resolution_txn_active = False
+
+            self.assertLess(elapsed, 1.0)
+            bounded_waits_after = self.get_stat(
+                stat.conn.eviction_app_bounded_wait_exceeded, session=stat_session)
+            self.assertGreater(bounded_waits_after, bounded_waits)
         finally:
-            if begin_thread is not None and begin_thread.is_alive():
-                begin_thread.join(20.0)
             if pin_txn_active:
                 pin_session.rollback_transaction()
             if resolution_txn_active:
