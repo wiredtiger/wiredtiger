@@ -137,9 +137,14 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
     if (ev.type == EVENT_NONE)
         return (false);
 
+    /* A create draws the thread's next table id, retiring the slot's previous name for good. */
+    if (ev.type == EVENT_CREATE)
+        state->workers[t].table_id[slot] = ++state->workers[t].table_seq;
+
     /* A slot left waiting gets the value a checkpoint must cover. */
     ev.thread_id = t;
-    testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
+    testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot,
+      state->workers[t].table_id[slot]);
     if (ev.type == EVENT_INSERT) {
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
@@ -257,8 +262,8 @@ generator_flush_publishes(WORKLOAD_STATE *state)
             ev.type = *slot_state == TABLE_CREATED ? EVENT_PUBLISH_CREATE : EVENT_PUBLISH_DROP;
             ev.thread_id = t;
             ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
-            testutil_snprintf(
-              ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t, slot);
+            testutil_snprintf(ev.uri, sizeof(ev.uri), SCHEMA_TABLE_FMT, state->cfg->node_id, t,
+              slot, state->workers[t].table_id[slot]);
 
             *slot_state =
               *slot_state == TABLE_CREATED ? TABLE_CREATE_PUBLISHED : TABLE_DROP_PUBLISHED;

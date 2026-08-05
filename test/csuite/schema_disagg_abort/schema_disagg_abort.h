@@ -64,7 +64,13 @@
 /* URI / file name patterns; tables and record files are namespaced by owning node. */
 #define DATA_KEY_MIN 0
 #define DATA_KEY_MAX 9
-#define SCHEMA_TABLE_FMT "table:schema_%" PRIu32 "_%" PRIu32 "_%" PRIu32 /* node, thread, slot */
+/*
+ * Every create names a table the run has never used, so a name is created once and dropped once.
+ * The trailing counter is what makes it unique; the slot is carried so a record can be attributed
+ * back to the slot that produced it.
+ */
+#define SCHEMA_TABLE_FMT \
+    "table:schema_%" PRIu32 "_%" PRIu32 "_%" PRIu32 "_%" PRIu32 /* node, thread, slot, table id */
 
 /*
  * Per-node, per-thread record files: "<records dir>/node<node>-<role>-<thread>", named for the role
@@ -245,6 +251,13 @@ typedef struct {
          */
         TABLE_STATE table_state[MAX_POOL_SIZE];
         uint64_t table_wait_ts[MAX_POOL_SIZE]; /* waiting states: the value coverage must reach */
+        /*
+         * Table names come from one counter per thread, so no name is ever used twice. A slot keeps
+         * the value it drew, since its later publishes and its drop have to name the table the
+         * create made.
+         */
+        uint32_t table_seq;
+        uint32_t table_id[MAX_POOL_SIZE];
     } workers[MAX_TH];
     /*
      * The generator's random streams, owned by generator.c: one per worker, driving the stream of
