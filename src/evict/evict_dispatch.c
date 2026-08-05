@@ -325,9 +325,9 @@ __wti_evict_app_assist_worker(
     for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
       ;) {
         /*
-         * Check if this thread is likely causing problems and should be rolled back.
-         * __wt_txn_is_blocking ignores recovery and prepared transactions itself, and only applies
-         * its cache-stuck-dependent checks once eviction is actually stuck.
+         * Check if this thread is likely causing problems and should be rolled back. Recovery and
+         * prepared transactions are skipped internally, and the cache-stuck-dependent checks only
+         * apply once eviction is actually stuck.
          */
         ret = __wt_txn_is_blocking(session);
         if (ret == WT_ROLLBACK) {

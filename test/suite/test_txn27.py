@@ -34,9 +34,9 @@ from wtdataset import SimpleDataSet
 class test_txn27(error_info_util):
     conn_config = 'cache_size=1MB'
 
-    # The oldest-for-eviction reason is only reachable once eviction reports itself stuck, which
-    # requires eviction to stop making progress globally. Under this hook the layered table's ingest
-    # constituent stays evictable, so progress continues and that state is never reached.
+    # The oldest-for-eviction reason requires eviction to be reported globally stuck. Under the
+    # disagg hook, the layered table's ingest btree keeps making enough eviction progress on its
+    # own that the cache is never reported stuck, so this path is unreachable there.
     # FIXME-WT-15058
     @wttest.skip_for_hook("disagg", "Fails due to incorrect cursor logic.")
     def test_rollback_reason(self):

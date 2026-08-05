@@ -2801,26 +2801,14 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     }
 
     /*
-     * A transaction holding more unresolved dirty content than the updates trigger (or the dirty
-     * trigger, whichever is lower) allows can never bring the cache back under that trigger,
-     * however long it stays here: eviction cannot reclaim bytes pinned by an unresolved
-     * transaction, so the total can only stay above its own contribution. Roll back while doing so
-     * is still legal, rather than carry a transaction that cannot succeed through to its
-     * resolution, where it can no longer be rolled back.
+     * A transaction whose own unresolved dirty content already exceeds the updates trigger (or the
+     * dirty trigger, whichever is lower, since the two are not guaranteed to be ordered) can never
+     * bring the cache back under that trigger by staying alive, so roll it back now while that is
+     * still legal.
      *
-     * Uncommitted content counts toward both the updates and dirty triggers, but the two are not
-     * guaranteed to be ordered: the updates trigger only defaults to half the dirty trigger and
-     * neither is validated against the other. Use whichever is lower so a transaction that alone
-     * holds the cache above either threshold gets caught.
-     *
-     * This deliberately follows the check above: when eviction is stuck that check already releases
-     * the thread, and, unlike this one, does not need to wait for the cache to be reported stuck.
-     *
-     * Unlike the guard at the top of this function, this check requires an actual modification,
-     * full stop: instantiating a fast-truncated page while reading it allocates updates charged to
-     * whichever transaction happens to touch the page, so a transaction that has made no
-     * modification of its own can still accumulate dirty bytes this way, even one running
-     * explicitly. Rolling a reader back over that is both useless and unsupported by the callers.
+     * Requires an actual modification: instantiating a fast-truncated page while reading it charges
+     * dirty bytes to whichever transaction happens to touch the page, and rolling back a reader
+     * over that would be both useless and unsupported.
      */
     if (txn->mod_count != 0) {
         trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
