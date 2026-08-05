@@ -318,95 +318,105 @@ __wti_evict_app_assist_worker(
         time_start = __wt_clock(session);
 
     /*
-     * Note that this for loop is designed to reset expected eviction error codes before exiting,
+     * Note that this loop is designed to reset expected eviction error codes before exiting,
      * namely, the busy return and empty eviction queue. We do not need the calling functions to
      * have to deal with internal eviction return codes.
+     *
+     * initial_progress is scoped to this block, rather than declared above it, so that its scope
+     * ends before the err label below: an earlier WT_ERR jumps there, and some compilers warn about
+     * a jump that skips the initialization of a variable still in scope at the target.
      */
-    for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
-      ;) {
-        /*
-         * Check if this thread is likely causing problems and should be rolled back. Recovery and
-         * prepared transactions are skipped internally, and the cache-stuck-dependent checks only
-         * apply once eviction is actually stuck.
-         */
-        ret = __wt_txn_is_blocking(session);
-        if (ret == WT_ROLLBACK) {
-            __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
-            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                __wt_verbose_debug1(
-                  session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
-        }
-        WT_ERR(ret);
-
-        /*
-         * Check if we've exceeded our operation timeout, this would also get called from the
-         * previous txn is blocking call, however it won't pickup transactions that have been
-         * committed or rolled back as their mod count is 0, and that txn needs to be the oldest.
-         *
-         * Additionally we don't return rollback which could confuse the caller.
-         */
-        if (__wt_op_timer_fired(session))
-            break;
-
-        /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
-        if (time_start != 0 && cache_max_wait_us != 0) {
-            uint64_t time_stop = __wt_clock(session);
-            if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
-                break;
-        }
-
-        /*
-         * Check if we have become busy.
-         *
-         * If we're busy (because of the transaction check we just did or because our caller is
-         * waiting on a longer-than-usual event such as a page read), and the cache level drops
-         * below 100%, limit the work to 5 evictions and return. If that's not the case, we can do
-         * more.
-         */
-        if (!busy && __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
-          __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
-            __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id))
-            busy = true;
-        uint64_t max_progress = busy ? 5 : 20;
-
-        /* See if eviction is still needed. */
-        double pct_full;
-        if (!__wt_evict_needed(session, busy, readonly, true, &pct_full) ||
-          (pct_full < 100.0 &&
-            (__wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress) >
-              initial_progress + max_progress)))
-            break;
-
-        if (!__evict_check_user_ok_with_eviction(session, interruptible))
-            break;
-
-        /* Evict a page. */
-        ret = __wti_evict_page(session, false);
-        if (ret == 0) {
-            /* If the caller holds resources, we can stop after a successful eviction. */
-            if (busy)
-                break;
-        } else if (ret == WT_NOTFOUND) {
-            /* Allow the queue to re-populate before retrying. */
-            __wt_cond_wait(session, conn->evict_config.threads.wait_cond, 10 * WT_THOUSAND, NULL);
-            __wt_tsan_suppress_add_uint64(&evict->app_waits, 1);
-        } else if (ret != EBUSY)
+    {
+        uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
+        while (true) {
+            /*
+             * Check if this thread is likely causing problems and should be rolled back. Recovery
+             * and prepared transactions are skipped internally, and the cache-stuck-dependent
+             * checks only apply once eviction is actually stuck.
+             */
+            ret = __wt_txn_is_blocking(session);
+            if (ret == WT_ROLLBACK) {
+                __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
+                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                      session->err_info.err_msg);
+            }
             WT_ERR(ret);
 
-        /* Update elapsed cache metrics. */
-        if (time_start != 0) {
-            uint64_t time_stop = __wt_clock(session);
-            uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
-            if (!interruptible) {
-                WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
-                WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
-            } else {
-                WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
-                WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+            /*
+             * Check if we've exceeded our operation timeout, this would also get called from the
+             * previous txn is blocking call, however it won't pickup transactions that have been
+             * committed or rolled back as their mod count is 0, and that txn needs to be the
+             * oldest.
+             *
+             * Additionally we don't return rollback which could confuse the caller.
+             */
+            if (__wt_op_timer_fired(session))
+                break;
+
+            /* Check if we have exceeded the global or the session timeout for waiting on the cache.
+             */
+            if (time_start != 0 && cache_max_wait_us != 0) {
+                uint64_t time_stop = __wt_clock(session);
+                if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) >
+                  cache_max_wait_us)
+                    break;
             }
-            session->cache_wait_us += elapsed;
-            time_start = time_stop;
+
+            /*
+             * Check if we have become busy.
+             *
+             * If we're busy (because of the transaction check we just did or because our caller is
+             * waiting on a longer-than-usual event such as a page read), and the cache level drops
+             * below 100%, limit the work to 5 evictions and return. If that's not the case, we can
+             * do more.
+             */
+            if (!busy && __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE &&
+              __wt_atomic_load_uint64_v_relaxed(&txn_global->current) !=
+                __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id))
+                busy = true;
+            uint64_t max_progress = busy ? 5 : 20;
+
+            /* See if eviction is still needed. */
+            double pct_full;
+            if (!__wt_evict_needed(session, busy, readonly, true, &pct_full) ||
+              (pct_full < 100.0 &&
+                (__wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress) >
+                  initial_progress + max_progress)))
+                break;
+
+            if (!__evict_check_user_ok_with_eviction(session, interruptible))
+                break;
+
+            /* Evict a page. */
+            ret = __wti_evict_page(session, false);
+            if (ret == 0) {
+                /* If the caller holds resources, we can stop after a successful eviction. */
+                if (busy)
+                    break;
+            } else if (ret == WT_NOTFOUND) {
+                /* Allow the queue to re-populate before retrying. */
+                __wt_cond_wait(
+                  session, conn->evict_config.threads.wait_cond, 10 * WT_THOUSAND, NULL);
+                __wt_tsan_suppress_add_uint64(&evict->app_waits, 1);
+            } else if (ret != EBUSY)
+                WT_ERR(ret);
+
+            /* Update elapsed cache metrics. */
+            if (time_start != 0) {
+                uint64_t time_stop = __wt_clock(session);
+                uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+                WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+                if (!interruptible) {
+                    WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+                    WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
+                } else {
+                    WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+                    WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+                }
+                session->cache_wait_us += elapsed;
+                time_start = time_stop;
+            }
         }
     }
 
