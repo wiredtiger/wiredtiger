@@ -1929,10 +1929,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg.name, ckpt_cfg.name_len));
 
     /*
-     * Stop eviction adopting this checkpoint's snapshot before the snapshot stops pinning updates.
-     * Once released, the oldest id can advance past the snapshot, and an eviction still bounded by
-     * it would judge every update in the tree invisible - the generation stamp cannot catch that,
-     * because the buffer still carries the current checkpoint generation.
+     * Retire the published snapshot before any of this checkpoint's transaction state is torn down:
+     * the snapshot stops pinning updates immediately below, the pinned id goes with it, and the
+     * transaction id follows at commit. Eviction that declines a snapshot falls back to bounding
+     * itself with exactly that state, so a snapshot left published while it disappears is the worst
+     * of both - eviction keeps using a snapshot nothing pins, with the oldest id free to advance
+     * past it, and the generation stamp cannot tell because the buffer still carries this
+     * checkpoint's generation.
      */
     __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, false);
 
