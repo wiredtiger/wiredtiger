@@ -546,6 +546,8 @@ __wt_cache_scrub_image_budget_ok(WT_SESSION_IMPL *session)
 /*
  * __wt_page_image_discard --
  *     Free a page's retained re-instantiation image, releasing scrub accounting if it was tracked.
+ *     A caller whose page stays in cache must also shrink the page's footprint by the image; a page
+ *     being discarded must not, its footprint is subtracted as a whole before it is freed.
  */
 static WT_INLINE void
 __wt_page_image_discard(WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)

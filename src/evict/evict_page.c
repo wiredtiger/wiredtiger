@@ -709,7 +709,6 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     WT_DECL_RET;
     WT_MULTI multi;
     WT_PAGE_MODIFY *mod;
-    uint32_t scrub_size;
     bool closing;
     void *tmp;
 
@@ -803,19 +802,17 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              * we need to link the new disk image back to the old disk image.
              */
             tmp = mod->mod_disk_image;
-            scrub_size = mod->scrub_image_bytes;
             mod->mod_disk_image = NULL;
-            mod->scrub_image_bytes = 0;
             ret = __wt_split_rewrite(session, ref, &multi);
             __wt_free(session, multi.block_meta);
             if (ret != 0) {
                 mod->mod_disk_image = tmp;
-                mod->scrub_image_bytes = scrub_size;
                 return (ret);
             }
-            /* The image was consumed by the re-instantiated page; release its scrub accounting. */
-            if (scrub_size != 0)
-                __wt_cache_scrub_image_decr(session, scrub_size);
+            /*
+             * The new page owns the image now. Discarding the old page releases the accounting for
+             * it, so we don't need to decr image byte count here.
+             */
             WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
         }
 

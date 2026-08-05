@@ -455,7 +455,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
-    __rec_track_saved_image(session, r);
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(
           session, session_table_compact_bytes_rewrite_inmem, page->memory_footprint);
@@ -531,7 +530,8 @@ err:
 
 /*
  * __rec_write_page_status --
- *     Set the page status after reconciliation.
+ *     Set the page status after reconciliation, and account for any image retained by checkpoint
+ *     scrub: that accounting depends on the clean or dirty state settled here.
  */
 static void
 __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
@@ -634,6 +634,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_ASSERT_ALWAYS(
               session, !F_ISSET(r, WT_REC_EVICT), "Page state has been modified during eviction");
     }
+
+    __rec_track_saved_image(session, r);
 }
 
 /*
