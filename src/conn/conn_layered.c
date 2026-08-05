@@ -1517,6 +1517,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         WT_ERR(__wti_layered_table_manager_init(session));
 
+        /* Static capability descriptors: what this binary writes and supports. */
+        WT_STAT_CONN_SET(
+          session, disagg_checkpoint_binary_version, WT_DISAGG_CHECKPOINT_META_VERSION);
+        WT_STAT_CONN_SET(session, disagg_checkpoint_binary_compatible_version,
+          WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED);
+
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
         if (leader) {
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_abandon_checkpoint(session));

@@ -1282,6 +1282,11 @@ __wti_disagg_pick_up_checkpoint_meta(
       internal_session, ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta));
     WT_ERR(ret);
 
+    /* Record the picked-up checkpoint's version fields; a failed pickup leaves them unchanged. */
+    WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta.version);
+    WT_STAT_CONN_SET(
+      session, disagg_checkpoint_storage_compatible_version, ckpt_meta.compatible_version);
+
 err:
     /* A failed pickup must not leave the failed checkpoint's encoding mode adopted. */
     if (ret != 0) {

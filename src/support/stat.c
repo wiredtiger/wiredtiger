@@ -2618,6 +2618,11 @@ static const char *const __stats_connection_desc[] = {
   "disagg: abandon checkpoints failed",
   "disagg: abandon checkpoints succeeded",
   "disagg: apply checkpoint metadata most recent time (msecs)",
+  "disagg: checkpoint metadata compatible version of the most recently picked up checkpoint: 0 "
+  "none",
+  "disagg: checkpoint metadata compatible version this binary supports",
+  "disagg: checkpoint metadata version of the most recently picked up checkpoint: 0 none",
+  "disagg: checkpoint metadata version this binary writes",
   "disagg: connection reconfiguration",
   "disagg: database size",
   "disagg: existing file metadata entries updated during checkpoint pick-up",
@@ -3715,6 +3720,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_abandon_checkpoint_failed = 0;
     stats->disagg_abandon_checkpoint_succeed = 0;
     stats->disagg_apply_checkpoint_meta_time = 0;
+    /* not clearing disagg_checkpoint_storage_compatible_version */
+    /* not clearing disagg_checkpoint_binary_compatible_version */
+    /* not clearing disagg_checkpoint_storage_version */
+    /* not clearing disagg_checkpoint_binary_version */
     stats->disagg_conn_reconfig = 0;
     stats->disagg_database_size = 0;
     stats->disagg_pick_up_file_meta_updated = 0;
@@ -4928,6 +4937,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, disagg_abandon_checkpoint_succeed);
     to->disagg_apply_checkpoint_meta_time +=
       WT_STAT_CONN_READ(from, disagg_apply_checkpoint_meta_time);
+    to->disagg_checkpoint_storage_compatible_version +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_storage_compatible_version);
+    to->disagg_checkpoint_binary_compatible_version +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_binary_compatible_version);
+    to->disagg_checkpoint_storage_version +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_storage_version);
+    to->disagg_checkpoint_binary_version +=
+      WT_STAT_CONN_READ(from, disagg_checkpoint_binary_version);
     to->disagg_conn_reconfig += WT_STAT_CONN_READ(from, disagg_conn_reconfig);
     to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_pick_up_file_meta_updated +=

@@ -87,14 +87,30 @@ class tombstone_upgrade_base(wttest.WiredTigerTestCase):
         rc.close()
         s.close()
 
-    # The statistic recording the mode: 0 not yet determined, 1 escaped, 2 unescaped.
-    def encoding_stat(self, conn):
+    def conn_stat(self, conn, stat_id):
         s = conn.open_session()
         c = s.open_cursor('statistics:')
-        value = c[stat.conn.disagg_stable_tombstone_encoding][2]
+        value = c[stat_id][2]
         c.close()
         s.close()
         return value
+
+    # The statistic recording the mode: 0 not yet determined, 1 escaped, 2 unescaped.
+    def encoding_stat(self, conn):
+        return self.conn_stat(conn, stat.conn.disagg_stable_tombstone_encoding)
+
+    # Assert the checkpoint version statistics: the binary's capability descriptors are
+    # compile-time constants, and the storage fields are the most recently picked-up checkpoint's
+    # (0 before any pickup).
+    def assert_version_stats(self, conn, storage_version, storage_compat):
+        self.assertEqual(self.conn_stat(conn, stat.conn.disagg_checkpoint_binary_version), 2)
+        self.assertEqual(
+            self.conn_stat(conn, stat.conn.disagg_checkpoint_binary_compatible_version), 2)
+        self.assertEqual(
+            self.conn_stat(conn, stat.conn.disagg_checkpoint_storage_version), storage_version)
+        self.assertEqual(
+            self.conn_stat(conn, stat.conn.disagg_checkpoint_storage_compatible_version),
+            storage_compat)
 
 @disagg_test_class
 class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
@@ -120,8 +136,10 @@ class test_layered_tombstone_upgrade_escaped(tombstone_upgrade_base):
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
         # No checkpoint has been picked up yet, so the mode is not yet determined.
         self.assertEqual(self.encoding_stat(conn_follow), 0)
+        self.assert_version_stats(conn_follow, 0, 0)
         self.disagg_advance_checkpoint(conn_follow)
         self.assertEqual(self.encoding_stat(conn_follow), 1)
+        self.assert_version_stats(conn_follow, 2, 1)
         self.assert_reads(conn_follow, self.collide)
         conn_follow.close()
 
@@ -210,6 +228,7 @@ class test_layered_tombstone_upgrade_new_database(tombstone_upgrade_base):
         conn_follow = self.wiredtiger_open('follower', self.follower_config())
         self.disagg_advance_checkpoint(conn_follow)
         self.assertEqual(self.encoding_stat(conn_follow), 2)
+        self.assert_version_stats(conn_follow, 2, 2)
         self.assert_reads(conn_follow, self.collide)
         conn_follow.close()
 
