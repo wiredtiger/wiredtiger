@@ -514,7 +514,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * follower are never modified, and should never be reconciled.
      */
     if (!tree_dead && is_dirty) {
-        WT_ASSERT(session, ref->page->disagg_info == NULL || conn->layered_table_manager.leader);
+        WT_ASSERT(session,
+          ref->page->disagg_info == NULL ||
+            __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
         WT_ERR(__evict_reconcile(session, ref, flags));
     }
 
