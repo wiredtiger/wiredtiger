@@ -431,6 +431,10 @@ __wt_cache_page_footprint_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t s
     WT_BTREE *btree;
     WT_CACHE *cache;
 
+    /* Callers reach this with nothing to move when the page has no retained image. */
+    if (size == 0)
+        return;
+
     WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page) && size < WT_EXABYTE);
 
     btree = S2BT(session);
@@ -686,6 +690,10 @@ __wt_cache_page_footprint_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t s
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
+
+    /* Callers reach this with nothing to move when the page has no retained image. */
+    if (size == 0)
+        return;
 
     WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page) && size < WT_EXABYTE);
 
