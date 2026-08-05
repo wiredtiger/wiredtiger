@@ -2788,7 +2788,6 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * Once eviction is stuck, check if either the transaction's ID or its pinned ID is equal to the
      * oldest transaction ID: it is likely to be the reason the cache is stuck full.
      */
-    is_txn_id_global_oldest = false;
     if (__wt_evict_cache_stuck(session) &&
       (((is_txn_id_global_oldest =
            __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) == global_oldest)) ||
