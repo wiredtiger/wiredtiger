@@ -12,9 +12,10 @@
  *
  * One pipeline serves both roles, coordinating without locks: a generator produces the node's
  * command stream into a self-pipe, a reader demuxes the source pipe - the self-pipe, or a live
- * peer's - to N workers that apply the events, and a timestamp thread advances the frontier. Each
- * stage lives in its own file behind a start/stop pair; the role specifics live in leader.c and
- * follower.c behind the NODE_ROLE operations.
+ * peer's - to N workers that apply the events, a timestamp thread advances the frontier, and a
+ * checkpoint thread checkpoints on a cadence of its own. Each stage lives in its own file behind a
+ * start/stop pair; the role specifics live in leader.c and follower.c behind the NODE_ROLE
+ * operations.
  */
 
 #include "schema_disagg_abort.h"
@@ -252,10 +253,10 @@ workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index)
 
 /*
  * workload_drain_barrier --
- *     Wait until every worker has applied everything queued so far. The follower's reader runs this
- *     before a checkpoint pickup and before a hand-over: everything at or below the checkpoint's
- *     stable frontier must be applied locally before its metadata is adopted, so later publishes
- *     and commits stay above the adopted stable values.
+ *     Wait until every worker has applied everything queued so far. Only the reader may call it: it
+ *     is the sole producer for the queues, so nothing new can arrive while it waits here. It runs
+ *     this before a hand-over, so the counter it asserts against the sender's covers every event of
+ *     the term.
  */
 void
 workload_drain_barrier(WORKLOAD_STATE *state)
@@ -290,14 +291,11 @@ workers_min(WORKLOAD_STATE *state)
 /*
  * thread_ts_run --
  *     Advances the oldest and stable timestamps and the stable schema epoch to the workers'
- *     completed frontier, keeping stable data on published tables only. Runs in both roles; on a
- *     follower, checkpoint pickups may adopt stable values ahead of the local frontier, so the
- *     thread never moves the stable timestamp backwards.
+ *     completed frontier, keeping stable data on published tables only. Runs in both roles.
  *
  * It also republishes the connection's durable schema epoch, the gate the generator drops dirty
- *     tables behind. Taking it from the connection rather than from the checkpoint call site keeps
- *     one owner for the value and keeps it right across role transitions: a follower's pickups
- *     advance it too.
+ *     tables behind. Taking it from the connection keeps one owner for the value and keeps it right
+ *     across role transitions: a follower's pickups advance it too.
  */
 static WT_THREAD_RET
 thread_ts_run(void *arg)
@@ -308,7 +306,8 @@ thread_ts_run(void *arg)
         /*
          * The single frontier serves both axes: everything at or below it is published and
          * committed, and any commit below it lands in a table created (and published) at a lower
-         * value still.
+         * value still. It only ever moves forward - a role transition sets it to the term's final
+         * counter, which is ahead of anything a fresh phase's workers have completed.
          */
         const uint64_t frontier = workers_min(state);
         if (frontier != 0) {
@@ -331,9 +330,9 @@ static wt_thread_t ts_thr;
 /*
  * workload_start --
  *     Start one phase's threads, the same set in either role: N event-processing workers, the
- *     timestamp thread, the reader (when the phase has an event source), and the generator. Only
- *     the event source differs by role: a leader phase consumes its own generated stream, a
- *     follower phase consumes the peer's.
+ *     timestamp thread, the checkpoint thread, the reader (when the phase has an event source), and
+ *     the generator. Only the event source differs by role: a leader phase consumes its own
+ *     generated stream, a follower phase consumes the peer's.
  */
 void
 workload_start(WORKLOAD_STATE *state, bool as_leader)
@@ -361,8 +360,9 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     }
 
     /*
-     * Reseed the generator's streams: the worker streams first, then its own pacing stream. Every
-     * phase draws, whether it generates or not, so the streams stay in step across role switches.
+     * Reseed the phase's streams: the generator's worker streams first, then the timestamp thread's
+     * checkpoint cadence. Every phase draws, whether it generates or not, so the streams stay in
+     * step across role switches.
      */
     for (uint32_t i = 0; i <= cfg->nth; i++)
         testutil_random_from_random(
@@ -370,6 +370,9 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
 
     testutil_check(__wt_thread_create(NULL, &ts_thr, thread_ts_run, state));
     node_workers_start(state);
+
+    /* Every phase checkpoints or adopts checkpoints, independent of the event stream. */
+    node_ckpt_start(state);
 
     /* Every phase has a source: this node's own generator, or a live peer's relay. */
     node_reader_start(state);
@@ -382,9 +385,9 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
 
 /*
  * workload_stop --
- *     Quiesce and join the phase's threads, walking the shutdown stages in order. A draining worker
- *     needing a checkpoint takes one itself, so nothing here has to outlive it but the timestamp
- *     thread, which bounds what those checkpoints cover.
+ *     Quiesce and join the phase's threads, walking the shutdown stages in order. The checkpoint
+ *     and timestamp threads outlive the workers for a reason: a draining worker blocked on a drop
+ *     is waiting for exactly what those two do, a frontier that advances and a checkpoint over it.
  */
 void
 workload_stop(WORKLOAD_STATE *state)
@@ -397,6 +400,9 @@ workload_stop(WORKLOAD_STATE *state)
 
     __wt_atomic_store_uint32(&state->stop_stage, STAGE_WORKERS);
     node_workers_join(state);
+
+    __wt_atomic_store_uint32(&state->stop_stage, STAGE_CKPT);
+    node_ckpt_join();
 
     __wt_atomic_store_uint32(&state->stop_stage, STAGE_TS);
     testutil_check(__wt_thread_join(NULL, &ts_thr));

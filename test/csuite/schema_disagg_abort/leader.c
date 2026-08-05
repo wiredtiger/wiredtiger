@@ -11,26 +11,19 @@
  * the term's tail durable, releases the page log's single writer slot, and hands the term over to
  * the peer; stepping up continues the previous term's counter.
  *
- * Everything a running leader does (generating, executing, and relaying events, checkpointing) is
- * the generic engine in node.c with role->leads set.
+ * Everything a running leader does - generating, executing and relaying events, and checkpointing -
+ * is the generic engine, node.c and its stages, with role->leads set.
  */
 
 #include "schema_disagg_abort.h"
 
 /*
  * leader_checkpoint --
- *     Produce one checkpoint in response to a checkpoint event, then relay the event so the peer
- *     picks the checkpoint up. The first produced checkpoint reports leader readiness.
- *
- * Nothing is checkpointed while no stable timestamp exists yet: such a checkpoint would cover
- *     nothing, and the pipe delivers another event shortly. That is only legitimate early in the
- *     phase, so the wait is bounded. There is no drain barrier either: the checkpoint must keep
- *     racing the in-flight workload, and use_timestamp bounds it to the stable frontier, which only
- *     covers applied, and therefore already relayed, events.
+ *     Produce one checkpoint. The first one reports leader readiness. Nothing is checkpointed while
+ *     no stable timestamp exists yet.
  */
 static void
-leader_checkpoint(
-  WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt, const SCHEMA_EVENT *ev)
+leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
     /* The stable value this checkpoint is bound to cover; it can only advance mid-checkpoint. */
     const uint64_t covered = query_ts(state->conn, "stable_timestamp");
@@ -50,9 +43,6 @@ leader_checkpoint(
      * connection's durable schema epoch, which this checkpoint has just advanced.
      */
 
-    /* Tell the peer a new checkpoint is available in the page log. */
-    (void)node_event_send(state->cfg, ev);
-
     println("Node %" PRIu32 ": checkpoint %d complete", state->cfg->node_id, ++ckpt->produced);
 
     /* A stable frontier implies every worker published, so this checkpoint has a schema op. */
@@ -64,9 +54,8 @@ leader_checkpoint(
  * leader_leave --
  *     Step down: take the step-down checkpoint so the term's tail is durable, reconfigure into the
  *     follower role before the peer steps up (the page log allows one writer), then hand the term
- *     over - a checkpoint event first, so the peer picks that checkpoint up through the normal
- *     path, then the switch event carrying the term's final counter value, which it must continue
- *     from. Without a live peer there is nothing to send: this node continues both sides itself.
+ *     over with the switch event, carrying the final counter value the next leader must continue
+ *     from.
  */
 static void
 leader_leave(WORKLOAD_STATE *state, uint64_t final_counter)
@@ -90,12 +79,9 @@ leader_leave(WORKLOAD_STATE *state, uint64_t final_counter)
     testutil_check(conn->reconfigure(conn, "disaggregated=(role=follower)"));
 
     SCHEMA_EVENT ev = {0};
-    ev.type = EVENT_CKPT;
-    if (node_event_send(state->cfg, &ev)) {
-        ev.type = EVENT_SWITCH;
-        ev.event_ts = final_counter;
-        testutil_assert(node_event_send(state->cfg, &ev));
-    }
+    ev.type = EVENT_SWITCH;
+    ev.event_ts = final_counter;
+    (void)node_event_send(state->cfg, &ev);
 }
 
 /*
@@ -106,12 +92,8 @@ leader_leave(WORKLOAD_STATE *state, uint64_t final_counter)
 static void
 leader_enter(WORKLOAD_STATE *state, uint64_t final_counter)
 {
-    /*
-     * A lone step-up first adopts the latest checkpoint from the page log; with a live peer the
-     * reader already picked up the hand-over checkpoint through the normal path.
-     */
-    if (!state->cfg->peer_alive)
-        follower_adopt_latest(state);
+    /* Adopt the latest checkpoint from the page log first. */
+    follower_adopt_latest(state);
 
     testutil_check(state->conn->reconfigure(state->conn, "disaggregated=(role=leader)"));
     workload_seed_counter(state, final_counter);

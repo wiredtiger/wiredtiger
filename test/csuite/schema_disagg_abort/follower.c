@@ -54,9 +54,7 @@ follower_pick_up_checkpoint(
 
 /*
  * follower_adopt_latest --
- *     Adopt the latest complete checkpoint from the page log, if there is one: the last act of
- *     following before a lone step-up. A node without a live peer has no reader picking checkpoints
- *     up, and must not lead over a stale or empty view of the database.
+ *     Adopt the latest complete checkpoint from the page log, if there is one.
  */
 void
 follower_adopt_latest(WORKLOAD_STATE *state)
@@ -109,17 +107,11 @@ follower_enter(WORKLOAD_STATE *state, uint64_t final_counter)
 
 /*
  * follower_checkpoint --
- *     Adopt the leader's checkpoint. The drain barrier comes first, so everything at or below the
- *     checkpoint's stable frontier is applied locally before its metadata is adopted; later
- *     publishes and commits then stay above the adopted stable values.
+ *     Adopt the latest checkpoint the page log holds. The workers keep running through it.
  */
 static void
-follower_checkpoint(
-  WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt, const SCHEMA_EVENT *ev)
+follower_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
-    WT_UNUSED(ev); /* A follower adopts what the page log holds; the event is only the trigger. */
-
-    workload_drain_barrier(state);
     follower_pick_up_checkpoint(state, session, ckpt->page_log, &ckpt->picked_up);
 }
 

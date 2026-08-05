@@ -53,7 +53,6 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
     case EVENT_NONE:
     case EVENT_CREATE:
     case EVENT_DROP:
-    case EVENT_CKPT:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected record event type: %d", ev->type);
     }
@@ -89,8 +88,9 @@ worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
  *     is the peer the operation already succeeded there), with a bound so a wedged operation fails
  *     the test instead of hanging it.
  *
- * Retrying alone is not enough for an operation blocked on unwritten data: this thread checkpoints
- *     to clear it.
+ * Retrying alone is enough. A drop blocked on unwritten data clears once a checkpoint covers the
+ *     table, and the checkpoint thread takes those on a cadence of its own - well inside the bound,
+ *     and it keeps taking them while this thread waits, including through a phase's final drain.
  */
 static void
 schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT *ev)
@@ -102,7 +102,7 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
     __wt_epoch(NULL, &start);
 
     int ret;
-    for (uint32_t attempt = 0;; ++attempt) {
+    for (;;) {
         ret = is_create ? session->create(session, ev->uri, SCHEMA_TABLE_CONFIG) :
                           session->drop(session, ev->uri, "force=false,lock_wait=true");
         if (ret != EBUSY)
@@ -119,14 +119,8 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
               is_create ? "CREATE" : "DROP", ev->uri, MAX_OP_WAIT, err_msg);
         }
 
-        /*
-         * The table is dirty (contains unflushed data), so DROP cannot progress. Unblock it by
-         * checkpointing, which flushes the table and releases the locks.
+        /* Back off rather than spin: the checkpoint that clears this needs the locks a retry takes.
          */
-        if (attempt > 0 && attempt % EBUSY_CKPT_ATTEMPTS == 0)
-            testutil_check(session->checkpoint(session, "use_timestamp=true"));
-
-        /* Back off rather than spin: a checkpoint needs the locks a retry keeps taking. */
         __wt_sleep(0, 10 * WT_THOUSAND);
     }
 
@@ -240,7 +234,6 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
         worker_complete(state, thread_index, ev->event_ts);
         break;
     case EVENT_NONE:
-    case EVENT_CKPT:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected apply event type: %d", ev->type);
     }

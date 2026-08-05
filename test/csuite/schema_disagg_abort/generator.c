@@ -177,15 +177,12 @@ generator_round(WORKLOAD_STATE *state, uint64_t lead_max)
 }
 
 /*
- * A leading generator's pacing state: the checkpoint cadence, the sentinel poll throttle, and the
- * lead it may build over its workers.
+ * A leading generator's pacing state: the sentinel poll throttle, and the lead it may build over
+ * its workers.
  */
 typedef struct {
-    WT_RAND_STATE *rnd; /* the generator's own rnd stream, used for the checkpoint intervals */
-    struct timespec last_ckpt;
     struct timespec last_poll;
-    uint64_t ckpt_wait; /* seconds until the next checkpoint event is due */
-    uint64_t lead_max;  /* events that may be in flight; UINT64_MAX when nothing bounds it */
+    uint64_t lead_max; /* events that may be in flight; UINT64_MAX when nothing bounds it */
 } GENERATOR_PACING;
 
 /*
@@ -193,33 +190,13 @@ typedef struct {
  *     Initialize the pacing state at the start of a leading phase.
  */
 static void
-generator_pacing_init(GENERATOR_PACING *pacing, const TEST_CONFIG *cfg, WT_RAND_STATE *rnd)
+generator_pacing_init(GENERATOR_PACING *pacing, const TEST_CONFIG *cfg)
 {
-    pacing->rnd = rnd;
-    __wt_epoch(NULL, &pacing->last_ckpt);
-    pacing->last_poll = pacing->last_ckpt;
-    pacing->ckpt_wait = __wt_random(rnd) % MAX_CKPT_INVL;
+    __wt_epoch(NULL, &pacing->last_poll);
     /* Bound the lead so a hand-over drains inside one switch period; no switches, no bound. */
     pacing->lead_max = cfg->switch_interval == 0 ?
       UINT64_MAX :
       WT_MAX(cfg->switch_interval * GEN_APPLY_RATE_FLOOR, GEN_LEAD_MIN);
-}
-
-/*
- * generator_ckpt_due --
- *     Pace the stream's checkpoint events: true when the current random interval has elapsed,
- *     starting the next one.
- */
-static bool
-generator_ckpt_due(GENERATOR_PACING *pacing)
-{
-    struct timespec now;
-    __wt_epoch(NULL, &now);
-    if ((uint64_t)WT_TIMEDIFF_SEC(now, pacing->last_ckpt) < pacing->ckpt_wait)
-        return (false);
-    pacing->last_ckpt = now;
-    pacing->ckpt_wait = __wt_random(pacing->rnd) % MAX_CKPT_INVL;
-    return (true);
 }
 
 /*
@@ -269,28 +246,20 @@ generator_flush_publishes(WORKLOAD_STATE *state)
 
 /*
  * thread_generator_run --
- *     The generator thread: feeds workload rounds into the self-pipe, a checkpoint event whenever
- *     one is due, and, once the parent requests a switch, the hand-over event that ends the stream
- *     and the phase.
+ *     The generator thread: feeds workload rounds into the self-pipe and, once the parent requests
+ *     a switch, the hand-over event that ends the stream and the phase.
  */
 static WT_THREAD_RET
 thread_generator_run(void *arg)
 {
     WORKLOAD_STATE *state = arg;
 
-    /* The pacing stream is the one past the workers' streams. */
     GENERATOR_PACING pacing;
-    generator_pacing_init(&pacing, state->cfg, &state->gen_rnd[state->nth_workers]);
+    generator_pacing_init(&pacing, state->cfg);
 
     while (workload_active(state, STAGE_GENERATOR)) {
         if (!generator_round(state, pacing.lead_max))
             __wt_sleep(0, WT_THOUSAND);
-
-        if (generator_ckpt_due(&pacing)) {
-            SCHEMA_EVENT ev = {0};
-            ev.type = EVENT_CKPT;
-            generator_emit(state, &ev);
-        }
 
         if (generator_switch_requested(&pacing)) {
             generator_flush_publishes(state);

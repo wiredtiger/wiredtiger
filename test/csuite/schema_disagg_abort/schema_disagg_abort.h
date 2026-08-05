@@ -19,11 +19,15 @@
  *
  * Events are the single currency, and both node roles run the identical pipeline: a source writes
  * events to a pipe, the reader demuxes them to per-thread queues, and the workers execute them. A
- * leader's source is its own generator thread writing the full stream (the workload, checkpoint
- * events, and the switch event that ends a term) to a self-pipe; a follower's source is the peer's
- * relay. The remaining role differences: on a checkpoint event a leader produces the checkpoint
- * (and relays the event), a follower picks it up; and a leader relays every applied event to the
- * peer. A follower with no event source (no peer, or the peer died) simply idles in role.
+ * leader's source is its own generator thread writing the full stream (the workload and the switch
+ * event that ends a term) to a self-pipe; a follower's source is the peer's relay. The only role
+ * difference in the pipeline is that a leader relays every applied event to the peer. A follower
+ * with no event source (no peer, or the peer died) simply idles in role.
+ *
+ * Checkpoints are deliberately not part of the stream: a checkpoint thread paces them on its own,
+ * producing them while leading and adopting the latest one while following. That independence is
+ * what lets a checkpoint land anywhere between an operation and its publish, and what keeps
+ * checkpoints coming while a worker sits blocked waiting for one.
  *
  * Nodes switch roles on the switch event: the leader's generator emits it when the parent drops the
  * switch-request sentinel, and the hand-over relays it to the peer; a lone follower's generator
@@ -41,14 +45,17 @@
 #include "test_util.h"
 
 /* Tunables. */
-#define MAX_CKPT_INVL 4
+#define MAX_CKPT_INVL 4         /* checkpoint thread: upper bound on the interval, in seconds */
 #define INSERT_ODDS 64          /* generate an insert: 1 in N visits to an insertable slot */
-#define EBUSY_CKPT_ATTEMPTS 50  /* worker: retries of a blocked op before it checkpoints itself */
 #define GEN_APPLY_RATE_FLOOR 30 /* generator: applied values/second, the multi-node worst case */
 #define GEN_LEAD_MIN 64         /* generator: lead floor, so the workers stay fed */
 #define SCHEMA_EPOCH_BOOTSTRAP 1
 #define MAX_NODES 2
-#define MAX_OP_WAIT 30 /* in-node: a retried op gives up, before the parent stops waiting */
+/*
+ * In-node: a retried op gives up, before the parent stops waiting. A blocked drop waits for the
+ * checkpoint thread's next checkpoint, so this has to stay well above MAX_CKPT_INVL.
+ */
+#define MAX_OP_WAIT 30
 #define MAX_POOL_SIZE 64
 #define MAX_TH 12
 #define MAX_TIME 40
@@ -111,7 +118,6 @@ typedef enum {
     EVENT_INSERT,
     EVENT_PUBLISH_CREATE,
     EVENT_PUBLISH_DROP,
-    EVENT_CKPT,
     EVENT_SWITCH
 } EVENT_TYPE;
 
@@ -182,14 +188,16 @@ typedef struct {
 
 /*
  * The phase's shutdown stages, in the order the threads must go: the generator first so the stream
- * ends, then the reader, then the workers draining what it delivered, and last the timestamp
- * thread, whose frontier the checkpoints a draining worker takes for itself are bounded by.
+ * ends, then the reader, then the workers draining what it delivered, and last the checkpoint and
+ * timestamp threads. Those two go after the workers because a draining worker blocked on a drop is
+ * waiting for exactly what they do - a frontier that advances, and a checkpoint over it.
  */
 #define STAGE_NONE 0
 #define STAGE_GENERATOR 1
 #define STAGE_READER 2
 #define STAGE_WORKERS 3
-#define STAGE_TS 4
+#define STAGE_CKPT 4
+#define STAGE_TS 5
 
 /*
  * Workload-engine state, one per node process, owned by node.c.
@@ -208,9 +216,9 @@ typedef struct {
     uint32_t stop_stage;    /* how far the phase's shutdown has progressed; atomic access */
     /*
      * The coverage the slot machine's waiting states wait for, republished by the timestamp thread
-     * from the connection's last_disaggregated_schema_epoch. Dropping an uncovered table wedges its
-     * worker in EBUSY, and through the full queue the checkpoints that would unwedge it. Atomic
-     * access.
+     * from the connection's last_disaggregated_schema_epoch. Dropping an uncovered table leaves its
+     * worker retrying in EBUSY until a checkpoint covers the table, so the slot machine keeps the
+     * drop back instead. Atomic access.
      */
     uint64_t ckpt_covered_ts;
     uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on reopen */
@@ -247,17 +255,17 @@ typedef struct {
         uint64_t table_wait_ts[MAX_POOL_SIZE]; /* waiting states: the value coverage must reach */
     } workers[MAX_TH];
     /*
-     * The generator's random streams, owned by generator.c: one per worker, driving the stream of
-     * operations generated for that worker, plus its own pacing stream one past them. Reseeded by
+     * The phase's random streams: one per worker, driving the stream of operations the generator
+     * makes for that worker, plus one past them for the checkpoint thread's cadence. Reseeded by
      * workload_start on every phase, generating or not, so they stay in step across role switches.
      */
     WT_RAND_STATE gen_rnd[MAX_TH + 1];
 } WORKLOAD_STATE;
 
 /*
- * The reader thread's checkpoint bookkeeping for one phase. Thread-local: it lives on the reader's
- * stack and is handed to the role's checkpoint operation, so the engine holds no per-role state.
- * Each field belongs to one role only.
+ * The checkpoint thread's bookkeeping for one phase. Thread-local: it lives on that thread's stack
+ * and is handed to the role's checkpoint operation, so the engine holds no per-role state. Each
+ * field belongs to one role only.
  */
 typedef struct {
     WT_PAGE_LOG *page_log;       /* following: the page log checkpoints are picked up from */
@@ -271,16 +279,15 @@ typedef struct {
  * node.c) runs the phases, and the role differences that are behavior rather than a choice of data
  * dispatch through these operations. leave() steps out of the role once a switch is triggered and
  * enter() completes the transition into it, both carrying the ending term's final counter mark;
- * checkpoint() handles one checkpoint event, producing it or picking it up.
+ * checkpoint() is one turn of the checkpoint thread's duty, producing one or adopting one.
  */
 typedef struct {
     const char *name;         /* also the disaggregated connection mode string */
     const char *close_config; /* connection close configuration for a graceful stop */
-    bool leads;               /* this role generates events and checkpoints */
+    bool leads;               /* this role generates events and produces checkpoints */
     void (*leave)(WORKLOAD_STATE *state, uint64_t final_counter);
     void (*enter)(WORKLOAD_STATE *state, uint64_t final_counter);
-    void (*checkpoint)(
-      WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt, const SCHEMA_EVENT *ev);
+    void (*checkpoint)(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt);
 } NODE_ROLE;
 
 /* main.c */
@@ -331,6 +338,10 @@ void node_generator_join(void);
 /* reader.c: the reader stage - demuxing the source pipe to the workers. */
 void node_reader_start(WORKLOAD_STATE *state);
 void node_reader_join(void);
+
+/* ckpt.c: the checkpoint stage - the role's checkpoint duty, paced independently of the stream. */
+void node_ckpt_start(WORKLOAD_STATE *state);
+void node_ckpt_join(void);
 
 /* worker.c: the worker stage - executing events and recording them. */
 void node_workers_start(WORKLOAD_STATE *state);
