@@ -269,7 +269,8 @@ functions:
         # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
         # the case of patch builds, it is possible that the developer has a branch name that doesn't
         # adhere to naming rules, therefore derive the base branch name from git.
-        branch=$(git branch --contains | grep -e "mongodb" -e "develop" -e "evg-pr-test-")
+        # Include the temporary project branch so it falls through to the master default.
+        branch=$(git branch --contains | grep -e "mongodb" -e "develop" -e "evg-pr-test-" -e "spm-4546-feature-branch")
         mongo_repo=https://github.com/mongodb/mongo
         if [[ $branch =~ "mongodb-" ]]; then
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
