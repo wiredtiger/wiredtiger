@@ -433,7 +433,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
-    if (!S2C(session)->layered_table_manager.leader) {
+    if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         /*
          * On a follower the stable's pages are not resident in the local cache, so its non-walk
          * stats are ~0 - except the block size, which we read from the checkpoint metadata directly

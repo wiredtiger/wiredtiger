@@ -1378,7 +1378,7 @@ err:
 
     if (ret == 0) {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-        if (!conn->layered_table_manager.leader)
+        if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
             WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_follower);
     } else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);

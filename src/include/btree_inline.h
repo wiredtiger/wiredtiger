@@ -23,14 +23,14 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * Once a tree is no longer empty, eviction should pay attention to it, and it's no longer
      * possible to bulk-load into it.
      */
-    if (!__wt_atomic_load_uint8_acquire(&btree->original))
+    if (!__wt_atomic_load_uint8_relaxed(&btree->original))
         return;
 
     /*
      * We use a compare-and-swap here to avoid races among the first inserts into a tree. Eviction
      * is disabled when an empty tree is opened, and it must only be enabled once.
      */
-    if (__wt_atomic_cas_uint8(&btree->original, 1, 0)) {
+    if (__wt_atomic_cas_uint8_relaxed(&btree->original, 1, 0)) {
         btree->evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
@@ -856,7 +856,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -967,8 +968,9 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
 
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -1069,7 +1071,8 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
@@ -1109,7 +1112,8 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
         return (0);
 
     WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
+        __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
@@ -2185,7 +2189,7 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
     if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return (true);
 
-    if (!conn->layered_table_manager.leader)
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         return (true);
 
     rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);

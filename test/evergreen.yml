@@ -1883,6 +1883,18 @@ variables:
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
+  - &format-stress-test-disagg-multi-pull-request
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-16732: Enable truncate for multi node once predictable replay supports it.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.rows=20000 runs.ops=100000 ops.truncate=0
+          times: 10
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
   - &format-stress-test-disagg-multi-data-validation
     depends_on:
       - name: compile
@@ -5645,6 +5657,9 @@ tasks:
   - <<: *format-stress-test-disagg-multi
     name: format-stress-test-disagg-multi-2
     tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-pull-request
+    name: format-stress-test-disagg-multi-pull-request
+    tags: ["pull_request"]
   - <<: *format-stress-test-disagg-multi-data-validation
     name: format-stress-test-disagg-multi-validation-1
     tags: ["stress-test-disagg-fail"]
