@@ -354,7 +354,7 @@ static int __disagg_check_meta_fields(
 /*
  * __disagg_check_meta_field --
  *     Compare a single configuration field present in both the local and the shared metadata,
- *     recursing into nested categories and panicking when the types or the values differ.
+ *     descending into nested categories and panicking when the types or the values differ.
  */
 static int
 __disagg_check_meta_field(WT_SESSION_IMPL *session, const char *uri, const char *prefix,

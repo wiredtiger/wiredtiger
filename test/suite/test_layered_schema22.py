@@ -27,12 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # Validate immutable metadata configuration fields on checkpoint pickup.
-#
-# When an entry exists in both the local and the shared metadata, its immutable
-# configuration fields (btree id, key/value formats, block parameters, ...) must
-# agree; only fields such as the checkpoint information legitimately differ. A
-# divergence would make the follower interpret the shared checkpoint under the
-# wrong schema or btree identity, silently corrupting reads, so pickup panics.
+# A matched pickup passes; a table dropped and recreated on the leader (new btree id) and a table
+# created with different key formats on the two nodes both panic.
 
 import os
 import wiredtiger, wttest
@@ -56,7 +52,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
     def run_panic_subprocess(self, name):
         """
         Run subprocess_<name> in a subprocess and assert it died from the metadata
-        mismatch panic (not from an unrelated failure).
+        mismatch panic.
         """
         [returncode, home] = self.run_subprocess_function(f'SUBPROCESS_{name}',
             f'{self.test_name}.{self.test_name}.subprocess_{name}', silent=True)
@@ -91,9 +87,8 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_follow, session_follow = self.open_follower()
         session_follow.close()
 
-        # Drop and recreate the table on the leader with an identical configuration: the
-        # new incarnation gets a new btree id. The follower never applies the drop, so its
-        # stale entry carries the old id. Expected to panic.
+        # Drop and recreate the table on the leader with an identical configuration: the new table
+        # gets a new btree id. The follower never applies the drop, expected to panic.
         self.dropUntilSuccess(self.session, self.uri)
         self.session.create(self.uri, self.table_config)
         self.leader_checkpoint(2)
