@@ -2816,14 +2816,22 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      *
      * This deliberately follows the check above: when eviction is stuck that check already releases
      * the thread, and, unlike this one, does not need to wait for the cache to be reported stuck.
+     *
+     * Unlike the guard at the top of this function, this check requires an actual modification,
+     * full stop: instantiating a fast-truncated page while reading it allocates updates charged to
+     * whichever transaction happens to touch the page, so a transaction that has made no
+     * modification of its own can still accumulate dirty bytes this way, even one running
+     * explicitly. Rolling a reader back over that is both useless and unsupported by the callers.
      */
-    trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
-      __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
-    bytes_max = conn->cache_size + 1;
-    if (txn->bytes_dirty > (uint64_t)(trigger * bytes_max) / 100) {
-        WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
-        WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
-          WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
+    if (txn->mod_count != 0) {
+        trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
+          __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
+        bytes_max = conn->cache_size + 1;
+        if (txn->bytes_dirty > (uint64_t)(trigger * bytes_max) / 100) {
+            WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
+            WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
+              WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
+        }
     }
     return (0);
 }
