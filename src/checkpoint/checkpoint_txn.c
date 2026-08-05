@@ -1697,6 +1697,22 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 }
 
 /*
+ * __checkpoint_eviction_snapshot_retire --
+ *     Retire the eviction snapshot this checkpoint published.
+ */
+static void
+__checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t snap_idx;
+
+    conn = S2C(session);
+
+    snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+    __wt_atomic_store_uint64_release(&conn->ckpt_eviction_snap_gen[snap_idx], 0);
+}
+
+/*
  * __checkpoint_db_internal --
  *     Checkpoint a database or a list of objects in the database.
  */
@@ -1932,12 +1948,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Retire the published snapshot before any of this checkpoint's transaction state is torn down:
      * the snapshot stops pinning updates immediately below, the pinned id goes with it, and the
      * transaction id follows at commit. Eviction that declines a snapshot falls back to bounding
-     * itself with exactly that state, so a snapshot left published while it disappears is the worst
-     * of both - eviction keeps using a snapshot nothing pins, with the oldest id free to advance
-     * past it, and the generation stamp cannot tell because the buffer still carries this
-     * checkpoint's generation.
+     * itself with exactly that state, so a snapshot left usable while it disappears is the worst of
+     * both - eviction keeps using a snapshot nothing pins, with the oldest id free to advance past
+     * it. Clearing the generation stamp is what retires it: the generation is never zero once a
+     * checkpoint has run, so no reader can match it.
      */
-    __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, false);
+    __checkpoint_eviction_snapshot_retire(session);
 
     /* Release the snapshot so we aren't pinning updates in cache. */
     WT_ERR(__wti_checkpoint_parallel_release_snapshot(session));
@@ -2146,7 +2162,7 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
      * The checkpoint retires its published eviction snapshot before releasing it. Repeat that here
      * to cover the paths that fail before reaching it.
      */
-    __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, false);
+    __checkpoint_eviction_snapshot_retire(session);
 
     __wt_atomic_store_bool_v_release(&txn_global->checkpoint_running, false);
 

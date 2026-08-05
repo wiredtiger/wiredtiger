@@ -1254,16 +1254,24 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
      * In this order step 4 compares the stamp of 47 against the current generation of 48 and
      * declines. The generation only moves forwards, so reading it last is always the stricter test.
      */
-    if (__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published) &&
-      snap_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
-        session->txn->snapshot_data.snap_min = snap->snap_min;
-        session->txn->snapshot_data.snap_max = snap->snap_max;
-        session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
-        if (snap->snapshot_count > 0)
-            memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
-              snap->snapshot_count * sizeof(snap->snapshot[0]));
-        F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-        copied = true;
+    if (__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published)) {
+        if (snap_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+            session->txn->snapshot_data.snap_min = snap->snap_min;
+            session->txn->snapshot_data.snap_max = snap->snap_max;
+            session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
+            if (snap->snapshot_count > 0)
+                memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
+                  snap->snapshot_count * sizeof(snap->snapshot[0]));
+            F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+            copied = true;
+        } else
+            /*
+             * A snapshot exists but is not the running checkpoint's, either because a new
+             * checkpoint has not published yet or because the checkpoint that published it retired
+             * it. Finding nothing published at all happens only before the first checkpoint, which
+             * is not a decline worth reporting.
+             */
+            WT_STAT_CONN_INCR(session, eviction_ckpt_snapshot_declined);
     }
     WT_LEAVE_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
 

@@ -2256,6 +2256,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walks started from saved location in tree",
   "cache: eviction worker thread active",
   "cache: eviction worker thread stable number",
+  "cache: evictions that found no snapshot published by the running checkpoint",
   "cache: files with active eviction walks",
   "cache: files with new eviction walks started",
   "cache: forced eviction - do not retry count to evict pages selected to evict during "
@@ -3391,6 +3392,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_walk_saved_pos = 0;
     /* not clearing eviction_active_workers */
     /* not clearing eviction_stable_state_workers */
+    stats->eviction_ckpt_snapshot_declined = 0;
     /* not clearing eviction_walks_active */
     stats->eviction_walks_started = 0;
     stats->eviction_force_no_retry = 0;
@@ -4550,6 +4552,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_walk_saved_pos += WT_STAT_CONN_READ(from, eviction_walk_saved_pos);
     to->eviction_active_workers += WT_STAT_CONN_READ(from, eviction_active_workers);
     to->eviction_stable_state_workers += WT_STAT_CONN_READ(from, eviction_stable_state_workers);
+    to->eviction_ckpt_snapshot_declined += WT_STAT_CONN_READ(from, eviction_ckpt_snapshot_declined);
     to->eviction_walks_active += WT_STAT_CONN_READ(from, eviction_walks_active);
     to->eviction_walks_started += WT_STAT_CONN_READ(from, eviction_walks_started);
     to->eviction_force_no_retry += WT_STAT_CONN_READ(from, eviction_force_no_retry);
