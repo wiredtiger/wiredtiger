@@ -332,7 +332,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
  * __disagg_meta_skip_field --
  *     Return true if the configuration field is excluded from the metadata comparison: it either
  *     legitimately changes across checkpoints, holds node-local state, or can be changed at runtime
- *     via WT_SESSION::alter. The list holds top-level field names only.
+ *     via WT_SESSION::alter. The list holds top-level field names only, sorted alphabetically.
  */
 static bool
 __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
@@ -341,10 +341,16 @@ __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
       "cache_resident", "checkpoint", "checkpoint_backup_info", "checkpoint_lsn", "live_restore",
       "log", "os_cache_dirty_max", "os_cache_max", "verbose", "write_timestamp_usage", NULL};
     u_int i;
+    int cmp;
 
-    for (i = 0; skip[i] != NULL; i++)
-        if (WT_CONFIG_MATCH(skip[i], *key))
+    for (i = 0; skip[i] != NULL; i++) {
+        cmp = __wt_string_slice_cmp(key->str, key->len, skip[i], strlen(skip[i]));
+        if (cmp == 0)
             return (true);
+        /* The list is sorted: no later entry can match a key that sorts before this one. */
+        if (cmp < 0)
+            return (false);
+    }
     return (false);
 }
 
@@ -390,9 +396,9 @@ err:
 
 /*
  * __disagg_check_meta_fields --
- *     Merge two configuration strings, panicking when a field present on both sides has different
- *     values. The merge relies on both entries listing their common fields in the same relative
- *     order; a field present on only one side is ignored.
+ *     Walk two configuration strings in lockstep, panicking when a field present on both sides has
+ *     different values. Both strings must list their fields in sorted order, a field present on
+ *     only one side is ignored.
  */
 static int
 __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char *prefix,
@@ -432,6 +438,63 @@ __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char
 }
 
 /*
+ * __disagg_check_meta_id --
+ *     Compare the btree id of a file entry between the local and the shared metadata, panicking
+ *     when they differ.
+ */
+static int
+__disagg_check_meta_id(
+  WT_SESSION_IMPL *session, const char *uri, const char *md_value, const char *sh_value)
+{
+    WT_CONFIG_ITEM md_cval, sh_cval;
+
+    WT_RET(__wt_config_getones(session, sh_value, "id", &sh_cval));
+    WT_RET(__wt_config_getones(session, md_value, "id", &md_cval));
+
+    /* An id mismatch means the checkpoint would be read under the wrong btree identity. */
+    if (sh_cval.val != md_cval.val)
+        WT_RET_PANIC(session, EINVAL,
+          "checkpoint pickup metadata mismatch for \"%s\": the value of \"id\" differs between "
+          "the local (\"%.*s\") and the shared (\"%.*s\") metadata",
+          uri, (int)md_cval.len, md_cval.str, (int)sh_cval.len, sh_cval.str);
+    return (0);
+}
+
+/*
+ * __disagg_check_meta_all_fields --
+ *     Compare every configuration field between the local and the shared metadata entries.
+ */
+static int
+__disagg_check_meta_all_fields(
+  WT_SESSION_IMPL *session, const char *uri, const char *md_value, const char *sh_value)
+{
+    WT_CONFIG md_parser, sh_parser;
+    WT_DECL_RET;
+    const char *cfg[2], *md_merge, *sh_merge;
+
+    md_merge = sh_merge = NULL;
+
+    /*
+     * The metadata writers do not sort configuration fields, so canonicalize both entries into
+     * sorted order at every nesting level before merging them in a single pass.
+     */
+    cfg[0] = md_value;
+    cfg[1] = NULL;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, &md_merge));
+    cfg[0] = sh_value;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, &sh_merge));
+
+    __wt_config_init(session, &sh_parser, sh_merge);
+    __wt_config_init(session, &md_parser, md_merge);
+    ret = __disagg_check_meta_fields(session, uri, "", &md_parser, &sh_parser);
+
+err:
+    __wt_free(session, md_merge);
+    __wt_free(session, sh_merge);
+    return (ret);
+}
+
+/*
  * __disagg_check_meta_match --
  *     Verify that the immutable configuration fields of a metadata entry agree between the local
  *     and the shared metadata. A divergence means the checkpoint would be interpreted under the
@@ -440,8 +503,8 @@ __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char
 static int
 __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
 {
-    WT_CONFIG md_parser, sh_parser;
     const char *md_key, *md_value, *sh_key, *sh_value;
+    bool check_all_fields;
 
     WT_RET(sh_cursor->get_key(sh_cursor, &sh_key));
     WT_RET(md_cursor->get_key(md_cursor, &md_key));
@@ -454,6 +517,14 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
     if (WT_IS_URI_METADATA(sh_key) || WT_IS_URI_HS(sh_key))
         return (0);
 
+    /*
+     * By default only validate the btree id of file entries. The full field comparison runs when
+     * extra diagnostics are enabled.
+     */
+    check_all_fields = EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE);
+    if (!check_all_fields && !WT_PREFIX_MATCH(sh_key, "file:"))
+        return (0);
+
     WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
     WT_RET(md_cursor->get_value(md_cursor, &md_value));
 
@@ -461,13 +532,8 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
     if (strcmp(sh_value, md_value) == 0)
         return (0);
 
-    /*
-     * Merge the two configurations in a single pass rather than looking every field up in the
-     * other; both entries list their common fields in the same relative order.
-     */
-    __wt_config_init(session, &sh_parser, sh_value);
-    __wt_config_init(session, &md_parser, md_value);
-    return (__disagg_check_meta_fields(session, sh_key, "", &md_parser, &sh_parser));
+    return (check_all_fields ? __disagg_check_meta_all_fields(session, sh_key, md_value, sh_value) :
+                               __disagg_check_meta_id(session, sh_key, md_value, sh_value));
 }
 
 /*
