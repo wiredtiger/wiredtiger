@@ -353,6 +353,8 @@ CONFIG configuration_list[] = {
 
 {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages", C_BOOL, 2, 0, 0}
 
+{"stress.checkpoint_eviction_snapshot", "stress delay between the checkpoint generation bump and the eviction snapshot publish", C_BOOL, 20, 0, 0}
+
 {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0}
 
 {"stress.compact_slow", "stress compact", C_BOOL, 2, 0, 0}

@@ -383,6 +383,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.checkpoint_evict_page", "stress force checkpoint to evict all reconciling pages", C_BOOL,
     2, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_EVICT_PAGE},
 
+  {"stress.checkpoint_eviction_snapshot",
+    "stress delay between the checkpoint generation bump and the eviction snapshot publish", C_BOOL,
+    20, 0, 0, V_GLOBAL_STRESS_CHECKPOINT_EVICTION_SNAPSHOT},
+
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_CHECKPOINT_PREPARE},
 

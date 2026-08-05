@@ -175,6 +175,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",checkpoint_slow");
     if (GV(STRESS_CHECKPOINT_EVICT_PAGE))
         CONFIG_APPEND(*p, ",checkpoint_evict_page");
+    if (GV(STRESS_CHECKPOINT_EVICTION_SNAPSHOT))
+        CONFIG_APPEND(*p, ",checkpoint_eviction_snapshot_delay");
     if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
     if (GV(STRESS_COMPACT_SLOW))
