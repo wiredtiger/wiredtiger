@@ -134,8 +134,8 @@ __block_disagg_create_is_pending(
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
 
-        bool create_pending = entry->deferred ||
-          (schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > schema_epoch);
+        bool create_pending =
+          (schema_epoch != WT_SCHEMA_EPOCH_NONE) && (entry->schema_epoch > schema_epoch);
 
         if (create_pending && strcmp(entry->table_name, table_name) == 0) {
             unpublished = true;
