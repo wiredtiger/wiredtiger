@@ -309,6 +309,32 @@ main(int argc, char *argv[])
         fprintf(stderr, "-R and -S cannot be used with -r\n");
         goto err;
     }
+    /*
+     * Reject the global flags that don't apply in disaggregated storage mode before wiredtiger_open
+     * runs, so recovery, salvage, live-restore and the compat-3.3 reconfigure never execute.
+     * Detection is based on -C only; a database whose disaggregated configuration lives solely in
+     * WiredTiger.basecfg is not detected here.
+     */
+    if (cmd_config != NULL && strstr(cmd_config, "disaggregated=") != NULL) {
+        const char *unsupported = NULL;
+        if (backward_compatible)
+            unsupported = "-B";
+        else if (secretkey != NULL)
+            unsupported = "-E";
+        else if (logoff)
+            unsupported = "-L";
+        else if (live_restore_path != NULL)
+            unsupported = "-l";
+        else if (recover)
+            unsupported = "-R";
+        else if (salvage)
+            unsupported = "-S";
+        if (unsupported != NULL) {
+            fprintf(stderr, "%s: %s is not supported in disaggregated storage mode\n", progname,
+              unsupported);
+            goto err;
+        }
+    }
     argc -= __wt_optind;
     argv += __wt_optind;
 
