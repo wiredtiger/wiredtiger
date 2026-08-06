@@ -48,11 +48,11 @@ thread_reader_run(void *arg)
         case EVENT_INSERT:
         case EVENT_PUBLISH_CREATE:
         case EVENT_PUBLISH_DROP:
-            workload_enqueue(state, &ev);
+            evq_enqueue(state, &ev);
             break;
         case EVENT_SWITCH:
             /* The final event of the term's stream: this node must step up. */
-            workload_drain_barrier(state);
+            evq_drain_barrier(state);
             /*
              * Relay-integrity check: the drained counter must equal the sender's final counter.
              * Every counter value the term allocated rides an event that precedes the switch in the

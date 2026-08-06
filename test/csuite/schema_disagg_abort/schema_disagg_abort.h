@@ -225,7 +225,7 @@ typedef struct {
     bool generates;            /* this phase generates events into the self-pipe; fixed per phase */
     bool handover_received;    /* the term was handed over this phase; atomic access */
     uint32_t stop_stage;       /* how far the phase's shutdown has progressed; atomic access */
-    uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on reopen */
+    uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on role change */
     uint32_t switch_gen;       /* how many role transitions this node has completed */
 
     /* Single monotonic timestamp for schema epochs AND commit timestamps. */
@@ -264,18 +264,13 @@ typedef struct {
 } CKPT_CTX;
 
 /*
- * A node role, in the C flavor of a vtable: the node's single control loop (the state machine in
- * node.c) runs the phases, and the role differences that are behavior rather than a choice of data
- * dispatch through these operations. leave() steps out of the role once a switch is triggered and
- * enter() completes the transition into it, both carrying the ending term's final counter mark;
- * checkpoint() is one turn of the checkpoint thread's duty, producing one or adopting one.
+ * A node role: leader or follower. The role's checkpoint operation is the only behavior that
+ * differs between them, everything else is shared.
  */
 typedef struct {
     const char *name;         /* also the disaggregated connection mode string */
     const char *close_config; /* connection close configuration for a graceful stop */
     bool leads;               /* this role generates events and produces checkpoints */
-    void (*leave)(WORKLOAD_STATE *state, uint64_t final_counter);
-    void (*enter)(WORKLOAD_STATE *state, uint64_t final_counter);
     void (*checkpoint)(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt);
 } NODE_ROLE;
 
@@ -285,12 +280,6 @@ uint64_t query_ts(WT_CONNECTION *conn, const char *name);
 void set_ts(WT_CONNECTION *conn, const char *name, uint64_t ts);
 void set_frontier(WT_CONNECTION *conn, uint64_t ts);
 
-/* leader.c: the leader specifics - checkpoint production and the role transitions. */
-extern const NODE_ROLE node_role_leader;
-
-/* follower.c: the follower specifics - checkpoint adoption and the role transitions. */
-extern const NODE_ROLE node_role_follower;
-
 /* parent.c */
 void parent_main(TEST_CONFIG *cfg, const char *self_path);
 
@@ -299,23 +288,21 @@ void parent_main(TEST_CONFIG *cfg, const char *self_path);
  * engine's state and per-phase lifecycle, the worker event queues, and the timestamp thread.
  */
 int node_main(TEST_CONFIG *cfg);
-void node_open(TEST_CONFIG *cfg, const char *disagg_mode, WT_CONNECTION **connp);
+const NODE_ROLE *node_role(bool leads);
 void disagg_opts_init(const TEST_CONFIG *cfg);
 bool node_switch_request_consume(void);
-WORKLOAD_STATE *workload_state_create(TEST_CONFIG *cfg);
-void workload_start(WORKLOAD_STATE *state, bool as_leader);
-void workload_stop(WORKLOAD_STATE *state);
 bool workload_active(WORKLOAD_STATE *state, uint32_t stage);
 bool node_stage_stopped(WORKLOAD_STATE *state, uint32_t stage);
-void workload_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev);
-bool workload_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev);
-bool workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index);
-void workload_drain_barrier(WORKLOAD_STATE *state);
-void workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts);
 void workload_counter_advance(WORKLOAD_STATE *state, uint64_t v);
 
+/* evq.c: the per-worker event queues - the reader produces, its worker consumes. */
+void evq_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev);
+bool evq_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev);
+bool evq_is_empty(WORKLOAD_STATE *state, uint32_t thread_index);
+void evq_drain_barrier(WORKLOAD_STATE *state);
+
 /* event_pipe.c: the event framing every pipe shares. */
-bool node_event_send(TEST_CONFIG *cfg, const SCHEMA_EVENT *ev);
+bool pipe_relay_event(TEST_CONFIG *cfg, const SCHEMA_EVENT *ev);
 void pipe_event_write(int fd, const SCHEMA_EVENT *ev);
 bool pipe_event_read(int fd, SCHEMA_EVENT *ev);
 bool pipe_wait_readable(int fd);
@@ -326,11 +313,12 @@ WT_THREAD_RET thread_generator_run(void *arg);
 /* reader.c: the reader stage - demuxing the source pipe to the workers. */
 WT_THREAD_RET thread_reader_run(void *arg);
 
-/* ckpt.c: the checkpoint and timestamps - running independently of the workload. */
+/* ckpt.c: the checkpoint and timestamps - running independently of the workload - and the roles. */
 WT_THREAD_RET thread_ckpt_run(void *arg);
 WT_THREAD_RET thread_ts_run(void *arg);
-bool ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session, WT_PAGE_LOG *page_log);
 void ckpt_adopt_latest(WORKLOAD_STATE *state);
+void leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt);
+void follower_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt);
 
 /* worker.c: the worker stage - executing events and recording them. */
 void node_workers_start(WORKLOAD_STATE *state);

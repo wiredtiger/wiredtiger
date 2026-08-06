@@ -97,9 +97,8 @@ if(ENABLE_PALITE AND WT_POSIX)
         SOURCES
             schema_disagg_abort/ckpt.c
             schema_disagg_abort/event_pipe.c
-            schema_disagg_abort/follower.c
+            schema_disagg_abort/evq.c
             schema_disagg_abort/generator.c
-            schema_disagg_abort/leader.c
             schema_disagg_abort/main.c
             schema_disagg_abort/node.c
             schema_disagg_abort/parent.c
