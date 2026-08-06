@@ -12,6 +12,7 @@ else()
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_skip.cpp
+        misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_ebusy.cpp

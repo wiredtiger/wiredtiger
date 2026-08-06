@@ -49,9 +49,12 @@ class test_checkpoint39(wttest.WiredTigerTestCase):
     )
     uri = 'table:checkpoint39'
 
-    # Enough batches to keep writes, checkpoints and eviction overlapping for a while.
+    # Keep writes, checkpoints and eviction overlapping until enough declines have accumulated.
+    # A single decline is within the noise of how many trees eviction happens to visit in a window;
+    # the batch cap bounds the runtime when the target is not reached.
     nrows = 200
-    nbatches = 120
+    nbatches = 1500
+    declines_wanted = 10
     value = 'v' * 400
 
     def get_stat(self, stat_name):
@@ -75,8 +78,11 @@ class test_checkpoint39(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         ckpt.start()
 
+        batches_written = 0
+        declined = 0
         try:
             for batch in range(1, self.nbatches + 1):
+                batches_written = batch
                 for i in range(self.nrows):
                     ts += 1
                     self.session.begin_transaction()
@@ -88,22 +94,26 @@ class test_checkpoint39(wttest.WiredTigerTestCase):
                 # and the history store does not grow without bound.
                 self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts) +
                                         ',stable_timestamp=' + self.timestamp_str(ts))
+
+                declined = self.get_stat(stat.conn.eviction_ckpt_snapshot_declined)
+                if declined >= self.declines_wanted:
+                    break
         finally:
             done.set()
             ckpt.join()
 
-        # Eviction must have turned down a snapshot that no running checkpoint published. Without
+        # Eviction must have turned down snapshots that no running checkpoint published. Without
         # the generation stamp and the retire, eviction adopts those snapshots instead and this
-        # count stays at zero.
-        self.assertGreater(self.get_stat(stat.conn.eviction_ckpt_snapshot_declined), 0,
-            'eviction never declined a snapshot, so it is adopting snapshots that do not belong '
-            'to the running checkpoint')
+        # count stays at zero however long the loop above runs.
+        self.assertGreaterEqual(declined, self.declines_wanted,
+            'eviction declined only {} snapshots over {} batches, so it is adopting snapshots '
+            'that do not belong to the running checkpoint'.format(declined, batches_written))
 
         # Every value written above must still be readable. A reconciliation that could select
         # nothing would have written the on-disk cells forward in place of these updates.
         cursor.close()
         cursor = self.session.open_cursor(self.uri)
-        for batch in range(1, self.nbatches + 1):
+        for batch in range(1, batches_written + 1):
             for i in range(0, self.nrows, 37):
                 self.assertEqual(cursor[batch * self.nrows + i], self.value)
         cursor.close()

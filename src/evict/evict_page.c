@@ -1215,8 +1215,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 /*
  * __evict_precise_ckpt_copy_snapshot --
  *     Copy the published checkpoint snapshot into the session's transaction snapshot so that
- *     reconciliation can use it for precise checkpoint eviction visibility. Returns true if the
- *     snapshot was copied, false if no snapshot has been published yet.
+ *     reconciliation can use it for precise checkpoint eviction visibility. Returns false if the
+ *     running checkpoint has not published a snapshot.
  */
 static bool
 __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
@@ -1235,18 +1235,9 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
      * recycled while we read it.
      */
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
-    snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
-    snap = &conn->ckpt_eviction_snap[snap_idx].snap;
-
-    /*
-     * Take the buffer only when the checkpoint that published it is the one still running: the
-     * checkpoint generation is bumped before the running checkpoint publishes, so until it does the
-     * buffer is still the previous checkpoint's. A buffer no checkpoint has published, or one a
-     * finished checkpoint retired, is stamped zero, which no generation matches. The generation
-     * read by the caller can only be stale, and a stale generation matching the stamp read here
-     * means that checkpoint had not retired its snapshot at this point - it is still pinned.
-     */
-    if (__wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap[snap_idx].gen) == ckpt_gen) {
+    /* Take the buffer only when the checkpoint that published it is the one still running. */
+    if (__wt_ckpt_eviction_snap_current(session, ckpt_gen, &snap_idx)) {
+        snap = &conn->ckpt_eviction_snap[snap_idx].snap;
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
