@@ -288,9 +288,8 @@ void set_frontier(WT_CONNECTION *conn, uint64_t ts);
 /* leader.c: the leader specifics - checkpoint production and the role transitions. */
 extern const NODE_ROLE node_role_leader;
 
-/* follower.c: the follower specifics - checkpoint pickup and the role transitions. */
+/* follower.c: the follower specifics - checkpoint adoption and the role transitions. */
 extern const NODE_ROLE node_role_follower;
-void follower_adopt_latest(WORKLOAD_STATE *state);
 
 /* parent.c */
 void parent_main(TEST_CONFIG *cfg, const char *self_path);
@@ -330,6 +329,8 @@ WT_THREAD_RET thread_reader_run(void *arg);
 /* ckpt.c: the checkpoint and timestamps - running independently of the workload. */
 WT_THREAD_RET thread_ckpt_run(void *arg);
 WT_THREAD_RET thread_ts_run(void *arg);
+bool ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session, WT_PAGE_LOG *page_log);
+void ckpt_adopt_latest(WORKLOAD_STATE *state);
 
 /* worker.c: the worker stage - executing events and recording them. */
 void node_workers_start(WORKLOAD_STATE *state);

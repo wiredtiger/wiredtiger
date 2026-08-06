@@ -27,6 +27,59 @@ node_current_role(const WORKLOAD_STATE *state)
 }
 
 /*
+ * ckpt_pick_up --
+ *     Pick up the latest complete checkpoint onto this connection.
+ *     Returns true if a checkpoint was adopted, false if the page log has no new checkpoint.
+ */
+bool
+ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session, WT_PAGE_LOG *page_log)
+{
+    WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS ckpt_args = {0};
+
+    const int ret = page_log->pl_get_complete_checkpoint(page_log, session, &ckpt_args);
+    if (ret == WT_NOTFOUND)
+        return (false);
+    testutil_check(ret);
+
+    if (ckpt_args.checkpoint_lsn == state->adopted_ckpt_lsn) {
+        free(ckpt_args.checkpoint_metadata.mem);
+        return (false);
+    }
+
+    WT_CONNECTION *conn = session->connection;
+    char meta_config[4096];
+    testutil_snprintf(meta_config, sizeof(meta_config), "disaggregated=(checkpoint_meta=\"%.*s\")",
+      (int)ckpt_args.checkpoint_metadata.size, (const char *)ckpt_args.checkpoint_metadata.data);
+    testutil_check(conn->reconfigure(conn, meta_config));
+    free(ckpt_args.checkpoint_metadata.mem);
+    state->adopted_ckpt_lsn = ckpt_args.checkpoint_lsn;
+    return (true);
+}
+
+/*
+ * ckpt_adopt_latest --
+ *     Adopt the latest complete checkpoint.
+ */
+void
+ckpt_adopt_latest(WORKLOAD_STATE *state)
+{
+    WT_CONNECTION *conn = state->conn;
+
+    WT_SESSION *session;
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+    WT_PAGE_LOG *page_log;
+    testutil_check(conn->get_page_log(conn, "palite", &page_log));
+
+    (void)ckpt_pick_up(state, session, page_log);
+
+    testutil_check(page_log->terminate(page_log, NULL));
+    testutil_check(session->close(session, NULL));
+
+    println("Node %" PRIu32 ": adopted the latest checkpoint before step-up", state->cfg->node_id);
+}
+
+/*
  * thread_ckpt_run --
  *     Take one checkpoint per random interval for as long as the phase runs. The interval runs from
  *     the previous checkpoint's completion, so slow checkpoints do not chain back to back.
