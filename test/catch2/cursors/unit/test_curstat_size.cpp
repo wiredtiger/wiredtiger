@@ -8,14 +8,8 @@
 
 #include <catch2/catch.hpp>
 
-#include <cstdarg>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <unordered_map>
-#include <variant>
-
 #include "wt_internal.h"
+#include "../../wrappers/mock_metadata_cursor.h"
 #include "../../wrappers/mock_session.h"
 
 namespace {
@@ -24,100 +18,6 @@ constexpr auto filename = "test.wt";
 constexpr auto file_uri = "file:test.wt";
 constexpr auto table_uri = "table:test";
 constexpr auto stable_uri = "file:test.wt_stable";
-
-class mock_metadata_cursor {
-    using metadata_result = std::variant<std::string, int>;
-
-public:
-    mock_metadata_cursor()
-    {
-        _cursor.lang_private = this;
-        _cursor.set_key = set_key;
-        _cursor.search = search;
-        _cursor.get_value = get_value;
-        _cursor.reset = reset;
-    }
-
-    [[nodiscard]] WT_CURSOR &
-    cursor()
-    {
-        return _cursor;
-    }
-
-    void
-    insert_metadata(std::string_view uri, std::string_view value)
-    {
-        _metadata.insert_or_assign(std::string(uri), std::string(value));
-    }
-
-    void
-    insert_metadata_error(std::string_view uri, int error)
-    {
-        _metadata.insert_or_assign(std::string(uri), error);
-    }
-
-private:
-    static mock_metadata_cursor &
-    to_mock_cursor(WT_CURSOR *cursor)
-    {
-        return *static_cast<mock_metadata_cursor *>(cursor->lang_private);
-    }
-
-    static void
-    set_key(WT_CURSOR *cursor, ...)
-    {
-        va_list ap;
-        va_start(ap, cursor);
-        to_mock_cursor(cursor)._search_key = va_arg(ap, const char *);
-        va_end(ap);
-    }
-
-    static int
-    search(WT_CURSOR *cursor)
-    {
-        auto &mock = to_mock_cursor(cursor);
-        mock._search_result.reset();
-
-        const auto it = mock._metadata.find(mock._search_key);
-        if (it == mock._metadata.end())
-            return WT_NOTFOUND;
-
-        const auto *value = std::get_if<std::string>(&it->second);
-        if (value == nullptr)
-            return std::get<int>(it->second);
-
-        mock._search_result = *value;
-        return 0;
-    }
-
-    static int
-    get_value(WT_CURSOR *cursor, ...)
-    {
-        const auto &mock = to_mock_cursor(cursor);
-        if (!mock._search_result.has_value())
-            return EINVAL;
-
-        va_list ap;
-        va_start(ap, cursor);
-        *va_arg(ap, const char **) = mock._search_result->c_str();
-        va_end(ap);
-        return 0;
-    }
-
-    static int
-    reset(WT_CURSOR *cursor)
-    {
-        auto &mock = to_mock_cursor(cursor);
-        mock._search_key = {};
-        mock._search_result.reset();
-        return 0;
-    }
-
-    WT_CURSOR _cursor{};
-    std::unordered_map<std::string, metadata_result> _metadata;
-    std::string _search_key;
-    std::optional<std::string> _search_result;
-};
 
 int
 fs_exist_default(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *existp)

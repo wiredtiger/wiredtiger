@@ -120,6 +120,7 @@ set(unittest_sources
     wrappers/connection_wrapper.cpp
     wrappers/item_wrapper.cpp
     wrappers/mock_connection.cpp
+    wrappers/mock_metadata_cursor.cpp
     wrappers/mock_session.cpp
     truncate/truncate_list_helpers.cpp
     ${unittests}
