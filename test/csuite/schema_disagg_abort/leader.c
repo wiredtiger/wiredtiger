@@ -93,7 +93,7 @@ static void
 leader_enter(WORKLOAD_STATE *state, uint64_t final_counter)
 {
     /* Adopt the latest checkpoint from the page log first. */
-    follower_adopt_latest(state);
+    ckpt_adopt_latest(state);
 
     testutil_check(state->conn->reconfigure(state->conn, "disaggregated=(role=leader)"));
     workload_seed_counter(state, final_counter);
