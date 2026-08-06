@@ -716,13 +716,8 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
     /*
-     * A create inside the step-down window skips the stable constituent, so a leader cursor has
-     * nothing to read until the next leader era builds one. Record that on the handle, and cursors
-     * route to ingest instead of attempting an open that cannot succeed.
-     *
-     * Only the window is recorded. The constituent is missing for a table a follower created too,
-     * and during a step-up until the pass that rebuilds the skipped ones runs, but neither of those
-     * states ends in the step-down that clears this.
+     * A create after the step-down timestamp skips the stable constituent, so mark the handle and
+     * cursors route to ingest rather than attempting an open that cannot succeed.
      */
     conn = S2C(session);
     if (conn->layered_table_manager.leader &&

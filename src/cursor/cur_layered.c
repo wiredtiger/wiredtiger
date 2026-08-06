@@ -242,19 +242,17 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 
 /*
  * __clayered_no_stable --
- *     Return whether the table has no stable constituent for this operation to read. The record on
- *     the handle is only meaningful for a leader still inside the step-down window that set it: a
- *     follower gains the constituent at any checkpoint pick-up, and the next leader era builds the
- *     ones the window skipped.
+ *     Return whether the table was created inside the step-down window and so has no stable
+ *     constituent to read. The mark only means anything to a leader still inside that window.
  */
 static WT_INLINE bool
 __clayered_no_stable(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
 {
-    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_CONNECTION_IMPL *conn = S2C(CUR2S(clayered));
 
     return (role == WTI_CLAYERED_ROLE_LEADER &&
       F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE);
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE);
 }
 
 /*
@@ -857,10 +855,8 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 
 /*
  * __clayered_ignore_missing_stable --
- *     Return whether a failed first open of the live stable constituent can be ignored, leaving the
- *     cursor closed like a follower's missing checkpoint. A table created after the step-down
- *     timestamp has no stable constituent, and a step-down completing mid-operation leaves the
- *     resolved leader role stale.
+ *     Return whether a failed open of the live stable constituent can be ignored, leaving the
+ *     cursor closed like a follower's missing checkpoint.
  */
 static bool
 __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret)
@@ -897,7 +893,7 @@ __clayered_open_stable_first(
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     ret = __clayered_open_stable(clayered, false, role);
-    /* A leader misses here legitimately: a table created after the step-down has no stable. */
+    /* A leader can miss here legitimately: a table created after the step-down has no stable. */
     if (__clayered_ignore_missing_stable(session, role, ret))
         ret = 0;
     WT_RET(ret);

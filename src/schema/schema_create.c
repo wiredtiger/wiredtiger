@@ -1223,9 +1223,9 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
 
     /*
      * Once the step-down timestamp is set, all writes go to the ingest constituent, so a stable
-     * constituent would stay empty. Create the table in the follower shape instead and let the next
-     * leader era build the constituent from the create intent. A leader checkpoint therefore covers
-     * only the tables created below the boundary.
+     * constituent would stay empty. Create the table in the follower shape instead, and the next
+     * step-up creates the missing constituent. A leader checkpoint therefore covers only the tables
+     * created below the boundary.
      */
     step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
     if (conn->layered_table_manager.leader) {

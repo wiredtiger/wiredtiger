@@ -1025,6 +1025,33 @@ err:
     return (ret);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __layered_assert_step_down_created_clear --
+ *     Assert the step-down left no table marked. The mark is only ever set by a leader with the
+ *     step-down timestamp set, and the step-down clears every one of them, so a survivor would go
+ *     on to hide the stable constituent of a table that has one.
+ */
+static void
+__layered_assert_step_down_created_clear(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+
+    conn = S2C(session);
+
+    for (dhandle = NULL;;) {
+        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        if (dhandle == NULL)
+            break;
+
+        WT_ASSERT(session,
+          dhandle->type != WT_DHANDLE_TYPE_LAYERED ||
+            !F_ISSET((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED));
+    }
+}
+#endif
+
 /*
  * __disagg_step_up --
  *     Step up to the node to the leader mode.
@@ -1162,10 +1189,7 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
-        /*
-         * Stepping up again rebuilds every stable constituent the window skipped, so the window's
-         * record of a table without one must not outlive this role change.
-         */
+        /* Clear the mark on tables created during the step-down window. */
         if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
             F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
             continue;
@@ -1207,10 +1231,6 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
 /*
  * __disagg_step_down_int --
  *     Step down to the follower mode. The session must hold the checkpoint and schema locks.
- *
- * FIXME-WT-17746: An uncovered stable constituent's local metadata row survives the step-down, so a
- *     checkpoint pick-up of a same-named table recreated by another leader keeps this node's stale
- *     btree ID.
  */
 static int
 __disagg_step_down_int(WT_SESSION_IMPL *session)
@@ -1282,6 +1302,10 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, __layered_assert_step_down_created_clear(session));
+#endif
 
 err:
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 0);
