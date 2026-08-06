@@ -174,11 +174,25 @@ disaggregated_config_common = [
         by layered tables to back their stable component in shared/object based storage''',
         type='string', undoc=True),
 ]
+# Disaggregated options accepted only at wiredtiger_open, never at reconfigure.
+connection_disaggregated_config_open = [
+    Config('legacy_tombstone_encoding_break_glass', '', r'''
+        break-glass override for whether values written to the stable table that begin with
+        the reserved ingest tombstone marker are escaped on disk. Do not set this in normal
+        operation: the mode is detected from the data, adopted from the picked-up checkpoint's
+        compatible version (a checkpoint predating the unescaped format used the legacy escaped
+        encoding), and a new database stores values unescaped. An explicit setting forces the
+        mode for the life of the connection, overriding detection with a warning when the two
+        disagree; forcing the wrong mode corrupts reads of marker-prefixed values. For testing
+        and for recovering from faulty format detection only. Ingest-table encoding is
+        unaffected''',
+        choices=['false', 'true'], undoc=True),
+]
 connection_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this connection''',
         type='category', subconfig=connection_disaggregated_config_common +\
-              disaggregated_config_common),
+              connection_disaggregated_config_open + disaggregated_config_common),
 ]
 table_disaggregated_config = [
     Config('storage_tier', 'none', r'''
@@ -791,6 +805,17 @@ connection_runtime_config = [
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
                 min=1, max=64),
+            Config('checkpoint_scrub_eviction', 'auto',
+                r'''Control whether checkpoint replaces a reconciled leaf page in cache with a clean
+                copy of its just-written on-disk image. \c on always attempts the replacement,
+                \c off never does, and \c auto lets eviction decide based on cache pressure.
+                Most applications should leave this at \c auto.''',
+                choices=['auto', 'off', 'on']),
+            Config('checkpoint_scrub_image_max', '10', r'''
+                maximum percentage of the cache that checkpoint may consume with the clean
+                images it retains for that replacement. Checkpoint stops retaining new images
+                once the limit is reached; a value of \c 0 disables retention entirely''',
+                min=0, max=100),
             Config('evict_sample_inmem', 'true', r'''
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',

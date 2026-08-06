@@ -545,6 +545,7 @@ URIs
 USECS
 UTF
 UltraSparc
+Unadopted
 Unbuffered
 Uncomment
 Unencrypted
@@ -1901,6 +1902,7 @@ uintAny
 ulock
 umount
 un
+unadopted
 unallocated
 unbare
 unbuffered
