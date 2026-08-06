@@ -494,7 +494,7 @@ __disagg_check_meta_id(
           uri, (int)md_cval.len, md_cval.str, (int)sh_cval.len, sh_cval.str);
     return (0);
 }
-#endif
+#endif /* HAVE_DIAGNOSTIC */
 
 /*
  * __disagg_check_meta_match --
