@@ -332,14 +332,6 @@ __wti_evict_app_assist_worker(
     for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);;
       ret = 0) {
         /*
-         * Ask the application before the exits below: a bounded caller can leave through the
-         * stuck-cache exit without ever reaching the check further down, and that notification is
-         * how the application accounts for an operation it has already interrupted.
-         */
-        if (bounded && !__evict_check_user_ok_with_eviction(session, interruptible))
-            break;
-
-        /*
          * If eviction is stuck, check if this thread is likely causing problems and should be
          * rolled back. Ignore if in recovery, those transactions can't be rolled back.
          */
@@ -352,17 +344,6 @@ __wti_evict_app_assist_worker(
                       session->err_info.err_msg);
             }
             WT_ERR(ret);
-
-            /*
-             * A bounded caller has nothing to roll back, so the check above cannot release it. Stop
-             * assisting instead of serving out the rest of the bound: the cache is not recovering,
-             * and this thread returning is what lets the application advance the timestamps that
-             * would make the dirty content reclaimable.
-             */
-            if (bounded) {
-                WT_STAT_CONN_INCR(session, eviction_app_bounded_wait_cache_stuck);
-                break;
-            }
         }
 
         /*
@@ -404,8 +385,7 @@ __wti_evict_app_assist_worker(
               initial_progress + max_progress)))
             break;
 
-        /* A bounded caller already asked at the top of the loop. */
-        if (!bounded && !__evict_check_user_ok_with_eviction(session, interruptible))
+        if (!__evict_check_user_ok_with_eviction(session, interruptible))
             break;
 
         /*

@@ -530,7 +530,6 @@ struct __wt_connection_stats {
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
     int64_t block_first_srch_walk_time;
-    int64_t eviction_app_bounded_wait_cache_stuck;
     int64_t eviction_app_bounded_wait_exceeded;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
