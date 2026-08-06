@@ -42,9 +42,9 @@ WT_TEST.foo.SAVE/                 copy of the home, taken just before verificati
 - **`PALITE/`** — shared by both nodes, and the only durable state that matters. Leader
   checkpoints write pages and checkpoint metadata into it; followers adopt from it via
   `pl_get_complete_checkpoint` → `reconfigure(checkpoint_meta)`. Single-writer is enforced by
-  protocol ordering: step-down closes the connection before the peer steps up.
-- **`WT_NODE<i>/`** — a node's local database, kept across its role switches; a follower
-  reopen does not wipe it. Verification does: it opens with
+  protocol ordering: the old leader completes its step-down before the peer steps up.
+- **`WT_NODE<i>/`** — a node's local database, kept across its role switches; both transitions are
+  in-place reconfigures of a connection that stays open. Verification does wipe it: it opens with
   `disaggregated=(lose_all_my_data=true)`, deleting the local files and rebuilding the home
   from the page log — hence the `.SAVE` copy, taken first and replaced on every rerun.
 - **`records/`** — named for the origin of what they log: `leader` files for the operations the
@@ -184,9 +184,10 @@ capacity.
         │            inserts commit+record → relay ▶ peer pipe         │
         └──────────────────────────────────────────────────────────────┘
   stop_run ──▶ quiesce → close(NULL: closing checkpoint) → exit(0)
-  handover ──▶ quiesce → LEAVE: stable := counter → final checkpoint
-               → CLOSE conn → send CKPT + SWITCH(counter) [peer alive]
-               ENTER follower: reopen conn ──▶ FOLLOWER
+  handover ──▶ quiesce → LEAVE: arm step-down at counter, stable := counter
+               → step-down checkpoint → reconfigure(role=follower)
+               → send CKPT + SWITCH(counter) [peer alive]
+               ENTER follower: restore frontier ──▶ FOLLOWER
   EPIPE on relay ──▶ peer_alive = false (lone leader keeps producing)
 
         ┌──────────────────────── FOLLOWER ────────────────────────────┐
@@ -215,8 +216,8 @@ capacity.
 | Counter | generator *allocates* `event_ts` values | *adopts* them from events (`counter_advance`) |
 | `EVENT_CKPT` | reader produces the checkpoint, then relays the event (no barrier: it races the workload) | reader barriers, then picks the checkpoint up |
 | Relay | workers relay applied events; reader relays `EVENT_CKPT` | — |
-| `leave()` | heavy: advance stable to the term's counter, final checkpoint, **close the connection**, hand over | empty |
-| `enter()` | reconfigure + seed counter + restore frontier (+ adopt-latest when lone) | reopen the connection |
+| `leave()` | heavy: arm the step-down at the term's counter, advance stable to it, step-down checkpoint, **`reconfigure(role=follower)`**, hand over | empty |
+| `enter()` | reconfigure + seed counter + restore frontier (+ adopt-latest when lone) | restore the frontier |
 | Graceful close | `close(NULL)` — closing checkpoint | `close(skip_checkpoint)` |
 | Readiness / records | `leader_ready`; `node*-leader-*` | `follower_ready`; `node*-follower-*` |
 | Peer-death signal | EPIPE while relaying | pipe EOF |
@@ -243,16 +244,17 @@ step-down has no peer to hand over to).
    the full ring, the checkpoints that would unwedge it. The slot machine makes this structural —
    a waiting slot emits nothing until coverage arrives.
 3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `leader_leave`
-   advances oldest/stable/stable-epoch to the term's counter before its final checkpoint
-   (publishes above that epoch would die with the closed connection), and `leader_enter`
-   restores the same frontier so an early checkpoint of the new term cannot regress the
-   shared epoch.
+   advances oldest/stable/stable-epoch to the term's counter before its step-down checkpoint
+   (a publish that checkpoint does not carry is lost when the step-down clears the shared-metadata
+   queue), and `leader_enter` restores the same frontier so an early checkpoint of the new term
+   cannot regress the shared epoch.
 4. **Hand-over integrity**: `EVENT_SWITCH` is a term's last event; the receiver drains everything
    before acting and asserts its counter equals the event's, since every allocated value rides an
    event preceding the switch. The generator flushes pending publishes first — a step-down clears
    WiredTiger's shared-metadata queue and URIs are origin-namespaced, so one left behind could
-   never be published by anyone. The old leader closes its connection before the switch is sent
-   (one writer per page log).
+   never be published by anyone. That counter is also the boundary the step-down is armed at, which
+   the preceding drain makes safe, and the old leader completes the step-down before the switch is
+   sent (one writer per page log).
 5. **Uniform EBUSY policy**: workers retry the same operation with a MAX_OP_WAIT bound; the
    stream is fixed at generation time and the slot model flips when the generator emits, so
    the executed state converges to the model.
