@@ -1060,17 +1060,18 @@ struct __wt_connection_impl {
      * visibility without holding any lock. Two buffers alternate so eviction always has a valid
      * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
      */
-    WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
-    uint64_t *ckpt_eviction_snap_array[2];
-    size_t ckpt_eviction_snap_capacity[2];
-    /*
-     * The checkpoint generation that published each buffer. A reader compares it against the
-     * current generation to tell a snapshot belonging to the running checkpoint from one an earlier
-     * checkpoint retired: the generation is bumped before the running checkpoint takes its
-     * snapshot, so for part of every checkpoint the published buffer is still the previous
-     * checkpoint's.
-     */
-    wt_shared uint64_t ckpt_eviction_snap_gen[2];
+    struct __wt_ckpt_eviction_snap {
+        WT_TXN_SNAPSHOT snap;
+        uint64_t *snap_array;
+        size_t snap_capacity;
+        /*
+         * The generation of the checkpoint that published this buffer, zero once retired. The
+         * generation is bumped before the running checkpoint takes its snapshot, so for part of a
+         * checkpoint the published buffer is still the previous checkpoint's: a reader compares the
+         * stamp against the current generation to tell the two apart.
+         */
+        wt_shared uint64_t gen;
+    } ckpt_eviction_snap[2];
     wt_shared uint32_t ckpt_eviction_snap_idx;
 
     /* Record the important timestamps of each stage in recovery. */
