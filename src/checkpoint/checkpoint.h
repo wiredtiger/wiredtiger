@@ -246,10 +246,10 @@ struct __wt_checkpoint_reconcile_threads {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern WT_TXN_SNAPSHOT *__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen,
-  uint32_t *snap_idxp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)

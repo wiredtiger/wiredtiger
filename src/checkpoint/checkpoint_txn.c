@@ -1694,19 +1694,18 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 
 /*
  * __wt_ckpt_eviction_snap_current --
- *     Check whether the published eviction snapshot belongs to the given checkpoint generation,
- *     returning the buffer holding it.
+ *     Return the published eviction snapshot if the given checkpoint generation published it, else
+ *     NULL. Callers must hold the checkpoint snapshot generation across this call and any use of
+ *     the result.
  */
-bool
-__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen, uint32_t *snap_idxp)
+WT_TXN_SNAPSHOT *
+__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
 {
-    WT_CONNECTION_IMPL *conn;
+    WT_CKPT_EVICTION_SNAP *buf;
     uint32_t snap_idx;
 
-    conn = S2C(session);
-
-    snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
-    *snap_idxp = snap_idx;
+    snap_idx = __wt_atomic_load_uint32_acquire(&S2C(session)->ckpt_eviction_snap_idx);
+    buf = &S2C(session)->ckpt_eviction_snap[snap_idx];
 
     /*
      * The checkpoint generation is bumped before the running checkpoint publishes, so until it does
@@ -1714,8 +1713,10 @@ __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen, uin
      * published, or one a finished checkpoint retired, is stamped 0. The caller's generation can
      * only be stale, and means that checkpoint had not retired its snapshot at this point.
      */
-    return (ckpt_gen != 0 &&
-      __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap[snap_idx].gen) == ckpt_gen);
+    if (ckpt_gen == 0 || __wt_atomic_load_uint64_acquire(&buf->gen) != ckpt_gen)
+        return (NULL);
+
+    return (&buf->snap);
 }
 
 /*
@@ -1971,10 +1972,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg.name, ckpt_cfg.name_len));
 
     /*
-     * Retire the published snapshot before this checkpoint's transaction state is torn down below.
-     * Eviction that declines a snapshot bounds itself with that same state, so leaving the snapshot
-     * usable past this point leaves a snapshot nothing pins with the oldest id free to advance past
-     * it.
+     * Retire the snapshot before releasing it. Once it is released nothing pins these ids and the
+     * oldest id can advance past them, so eviction must stop using it first.
      */
     __checkpoint_eviction_snapshot_retire(session);
 
