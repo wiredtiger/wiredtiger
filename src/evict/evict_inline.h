@@ -615,7 +615,7 @@ __wt_evict_needed(
          * work that cannot succeed. Log a message if the cache fills with updates or dirty pages.
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
-          (!conn->layered_table_manager.leader ||
+          (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
             F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP) ||
             __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)) {
             double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;

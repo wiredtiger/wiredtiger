@@ -2715,7 +2715,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * real leader, the storage layer services should return an error as it is not allowed to
          * write.
          */
-        if (!skip_checkpoint && (!conn_is_disagg || conn->layered_table_manager.leader)) {
+        if (!skip_checkpoint &&
+          (!conn_is_disagg || __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
             if (s != NULL) {
                 const char *checkpoint_cfg[] = {

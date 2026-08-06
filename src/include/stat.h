@@ -552,11 +552,13 @@ struct __wt_connection_stats {
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_other;
+    int64_t cache_scrub_image_bytes;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t cache_bytes_hs_dirty;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_server_evict_attempt;
@@ -764,9 +766,11 @@ struct __wt_connection_stats {
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t eviction_fail_ingest;
     int64_t eviction_walk;
+    int64_t cache_scrub_image_pages;
     int64_t cache_eviction_multiblock_checkpoint_flagged;
     int64_t cache_eviction_multiblock_split_re_reconciled;
     int64_t cache_write;
+    int64_t cache_write_restore_scrub_checkpoint;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
     int64_t cache_overhead;
@@ -1564,6 +1568,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t eviction_fail;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
@@ -1648,6 +1653,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_multiblock_checkpoint_flagged;
     int64_t cache_eviction_multiblock_split_re_reconciled;
     int64_t cache_write;
+    int64_t cache_write_restore_scrub_checkpoint;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
     int64_t cache_eviction_blocked_precise_checkpoint;
