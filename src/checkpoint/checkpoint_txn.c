@@ -193,7 +193,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
              * dirty to ensure it participates in the checkpoint process, even if clean.
              */
             btree = S2BT(session);
-            if (btree->original) {
+            if (__wt_atomic_load_uint8_relaxed(&btree->original)) {
                 WT_STAT_CONN_INCR(session, flush_tier_skipped);
                 WT_ERR(__wt_session_release_dhandle(session));
                 release = false;
@@ -642,8 +642,10 @@ __checkpoint_update_evict_triggers_start(
      * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
      * though these values can be absolute).
      */
-    saved_triggers->new_dirty_trigger = WT_MIN(40.0, evict->eviction_dirty_trigger * 1.3);
-    saved_triggers->new_updates_trigger = WT_MIN(40.0, evict->eviction_updates_trigger * 2.0);
+    saved_triggers->new_dirty_trigger =
+      WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) * 1.3);
+    saved_triggers->new_updates_trigger =
+      WT_MIN(40.0, __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) * 2.0);
     __wt_atomic_store_double_relaxed(
       &evict->eviction_dirty_trigger, saved_triggers->new_dirty_trigger);
     __wt_atomic_store_double_relaxed(
@@ -3082,8 +3084,12 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * the same name; in order to keep from having two checkpoints with the same name you would have
      * to use the bulk-load's fake checkpoint to delete a physical checkpoint, and that will end in
      * tears.
+     *
+     * FIXME-WT-18266: this decision doesn't check the tree's dirty state, so a concurrent clearer
+     * of "original" outside the schema lock (for example, a live-restore worker) can race with a
+     * stale read here and cause checkpoint to skip reconciling an already-dirty tree.
      */
-    if (is_checkpoint && btree->original) {
+    if (is_checkpoint && __wt_atomic_load_uint8_relaxed(&btree->original)) {
         __wt_checkpoint_tree_reconcile_update(session, &ta);
 
         fake_ckpt = true;

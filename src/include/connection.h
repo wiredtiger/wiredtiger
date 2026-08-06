@@ -159,8 +159,16 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 2
 #define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+/*
+ * A checkpoint whose stable tables omit tombstone encoding cannot be read by a node that still
+ * strips the escape byte; such readers are version 2 or newer. Checkpoints that keep the encoding
+ * stay compatible with every reader. The compatible version doubles as the format indicator: a
+ * reader below this version would strip escape bytes that are not there, so a checkpoint at or
+ * above it carries raw stable values and an older one carries escaped values.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED 2
 
 /*
  * Turtle/checkpoint metadata version constants:
@@ -335,6 +343,32 @@ struct __wt_disaggregated_storage {
     bool base_write_gen_missing;
 
     /*
+     * !!!
+     * Stable tombstone encoding mode transitions, per connection. The mode itself lives in the
+     * WT_DISAGG_STABLE_TOMBSTONE_ENCODING flag; the decision tree below has no other transitions,
+     * and reconfigure never changes the mode: the break-glass option is not part of the
+     * reconfigure schema. The states are in-memory; the durable truth is each checkpoint's
+     * compatible version ("compat" below: < 2 escaped, >= 2 unescaped, absent fields default 1).
+     *
+     * wiredtiger_open:
+     * - break_glass=true -> Forced legacy (escaped);
+     *   break_glass=false -> Forced new (unescaped):
+     *   - fixed for the connection's life; any pickup keeps the mode, a disagreeing pickup warns.
+     * - option unset -> Unadopted (encoding off), then the first of:
+     *   - pickup with compat < 2, OR with absent version fields -> Adopted legacy (escaped);
+     *   - pickup with compat >= 2, OR a leader starting on empty storage (a new database)
+     *     -> Adopted new (unescaped);
+     *   and on every later pickup:
+     *   - the same compat side -> re-adopt, a no-op;
+     *   - the other compat side -> PANIC: the storage was rewritten in the other format, and a
+     *     restart re-detects from the data.
+     *
+     * This flag records the adoption: true once automatic mode has adopted from a pickup or a new
+     * database. Unused while the mode is forced (WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED).
+     */
+    bool stable_tombstone_encoding_adopted;
+
+    /*
      * Total size of all stable tables in the database, along with other components such as the KEK
      * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
      */
@@ -355,7 +389,9 @@ struct __wt_disaggregated_storage {
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
-#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x2u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING 0x2u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED 0x4u
+#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -1201,35 +1237,36 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_COMPACT_SLOW 0x00000000200ull
 #define WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION 0x00000000400ull
 #define WT_TIMING_STRESS_EVICT_REPOSITION 0x00000000800ull
-#define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN 0x00000001000ull
-#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x00000002000ull
-#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x00000004000ull
-#define WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT 0x00000008000ull
-#define WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP 0x00000010000ull
-#define WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE 0x00000020000ull
-#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00000040000ull
-#define WT_TIMING_STRESS_HS_SEARCH 0x00000080000ull
-#define WT_TIMING_STRESS_HS_SWEEP 0x00000100000ull
-#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x00000200000ull
-#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x00000400000ull
-#define WT_TIMING_STRESS_PREFETCH_1 0x00000800000ull
-#define WT_TIMING_STRESS_PREFETCH_2 0x00001000000ull
-#define WT_TIMING_STRESS_PREFETCH_3 0x00002000000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00004000000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00008000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00010000000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00020000000ull
-#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x00040000000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00080000000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x00100000000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x00200000000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x00400000000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x00800000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x01000000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x02000000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x04000000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x08000000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x10000000000ull
+#define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY 0x00000001000ull
+#define WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_QUEUE_DRAIN 0x00000002000ull
+#define WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT 0x00000004000ull
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x00000008000ull
+#define WT_TIMING_STRESS_FAILPOINT_PAGE_LOG_HANDLE_PUT 0x00000010000ull
+#define WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP 0x00000020000ull
+#define WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE 0x00000040000ull
+#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00000080000ull
+#define WT_TIMING_STRESS_HS_SEARCH 0x00000100000ull
+#define WT_TIMING_STRESS_HS_SWEEP 0x00000200000ull
+#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x00000400000ull
+#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x00000800000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x00001000000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x00002000000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x00004000000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x00008000000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00010000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x00020000000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x00040000000ull
+#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x00080000000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x00100000000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x00200000000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x00400000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x00800000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x01000000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x02000000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x04000000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x08000000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x10000000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x20000000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -1303,9 +1340,8 @@ struct __wt_connection_impl {
 #define WT_CONN_PANIC 0x01000u
 #define WT_CONN_READY 0x02000u
 #define WT_CONN_RECONFIGURING_CACHE_POOL 0x04000u
-#define WT_CONN_RECONFIGURING_STEP_DOWN 0x08000u
-#define WT_CONN_RECONFIGURING_STEP_UP 0x10000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x20000u
+#define WT_CONN_RECONFIGURING_STEP_UP 0x08000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
 

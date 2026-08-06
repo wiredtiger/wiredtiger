@@ -356,6 +356,8 @@ extern int __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURS
   const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_clayered_range_truncate_stable_replay(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_clayered_stable_to_ingest_value(WT_SESSION_IMPL *session, const WT_ITEM *value,
+  WT_ITEM *final_value, WT_ITEM **tmpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_close_connection_close(WT_SESSION_IMPL *session)
@@ -1556,6 +1558,8 @@ extern int __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_disagg_adopt_stable_tombstone_encoding(WT_SESSION_IMPL *session, bool encoding,
+  const char *how) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1785,6 +1789,7 @@ extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
 extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
 extern void __wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session);
+extern void __wt_clayered_ingest_to_stable_value(WT_SESSION_IMPL *session, WT_ITEM *value);
 extern void __wt_clayered_stable_value_stat(
   WT_SESSION_IMPL *session, const void *data, size_t size);
 extern void __wt_cond_auto_wait(
@@ -2742,6 +2747,9 @@ extern int __ut_ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MO
   wt_off_t offset, wt_off_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_parse_version_and_check(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
   WT_DISAGG_METADATA *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_disagg_replace_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session,
   const char *meta_str, uint32_t *out_version, uint32_t *out_compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

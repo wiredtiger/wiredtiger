@@ -112,18 +112,77 @@ err:
 }
 
 /*
+ * __disagg_replace_checkpoint --
+ *     Rebuild a metadata config string, substituting only the last checkpoint= value. Earlier
+ *     duplicates are left unchanged.
+ */
+static int
+__disagg_replace_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, last_ckpt_key, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+
+    *config_ret = NULL;
+    WT_CLEAR(last_ckpt_key);
+
+    /* Find the last checkpoint= key; config lookups already take that final match. */
+    __wt_config_init(session, &cparser, base);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_RET_MSG(
+              session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
+        if (WT_CONFIG_LIT_MATCH("checkpoint", k))
+            last_ckpt_key = k;
+    }
+    WT_RET_NOTFOUND_OK(ret);
+    if (last_ckpt_key.str == NULL)
+        return (WT_NOTFOUND);
+
+    WT_RET(__wt_scr_alloc(session, strlen(base) + new_ckpt->len + 32, &tmp));
+
+    __wt_config_init(session, &cparser, base);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
+        if (k.str == last_ckpt_key.str)
+            v = *new_ckpt;
+        else {
+            if (k.type == WT_CONFIG_ITEM_STRING)
+                WT_CONFIG_PRESERVE_QUOTES(session, &k);
+            if (v.type == WT_CONFIG_ITEM_STRING)
+                WT_CONFIG_PRESERVE_QUOTES(session, &v);
+        }
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    /* Each entry was emitted with a trailing comma; drop the final one. */
+    --tmp->size;
+    WT_ERR(__wt_strndup(session, tmp->data, tmp->size, config_ret));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
  * __disagg_save_checkpoint_meta_local --
  *     Update the local metadata entry with the supplied checkpoint configuration.
  */
 static int
 __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata)
 {
+    WT_CONFIG_ITEM new_ckpt = {
+      metadata->checkpoint, metadata->checkpoint_len, 0, WT_CONFIG_ITEM_STRUCT};
     WT_CURSOR *md_cursor;
-    WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     char *cfg_current_copy, *cfg_new;
-    const char *cfg[3], *checkpoint_name, *cfg_current, *metadata_key;
+    const char *checkpoint_name, *cfg_current, *metadata_key;
     bool discard;
 
     cfg_current_copy = cfg_new = NULL;
@@ -132,8 +191,11 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     md_cursor = NULL;
     metadata_key = WT_DISAGG_METADATA_URI;
 
-    /* Open up a metadata cursor pointing at our table */
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+    /*
+     * Open a private metadata cursor, leaving the session's cached one free for the tracked
+     * metadata update below.
+     */
+    WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_cursor));
 
     /* Pull the value out. */
     md_cursor->set_key(md_cursor, metadata_key);
@@ -142,18 +204,10 @@ __disagg_save_checkpoint_meta_local(WT_SESSION_IMPL *session, const WT_DISAGG_ME
     /* Copy the value since we don't own the memory after calling get_value(). */
     WT_ERR(__wt_strdup(session, cfg_current, &cfg_current_copy));
 
-    /* Create the new checkpoint config string. */
-    WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
-    WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)metadata->checkpoint_len,
-      metadata->checkpoint));
+    WT_ERR(__disagg_replace_checkpoint(session, cfg_current_copy, &new_ckpt, &cfg_new));
 
-    cfg[0] = cfg_current_copy;
-    cfg[1] = metadata_cfg->data;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, &cfg_new));
-
-    /* Put in our new config. */
-    WT_ERR(__wt_metadata_insert(session, metadata_key, cfg_new));
+    /* Put in our new config: a tracked update, so a failed merge unrolls it. */
+    WT_ERR(__wt_metadata_update(session, metadata_key, cfg_new));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Updated the local metadata for key \"%s\" to include the new checkpoint: \"%.*s\"",
@@ -173,11 +227,10 @@ err:
     __wt_free(session, cfg_current_copy);
     __wt_free(session, cfg_new);
     __wt_free(session, checkpoint_name);
-    __wt_scr_free(session, &metadata_cfg);
     __wt_scr_free(session, &old_uri_buf);
 
     if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+        WT_TRET(md_cursor->close(md_cursor));
     return (ret);
 }
 
@@ -546,17 +599,16 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
  *     Copy the current entry from a shared metadata cursor into the local metadata table.
  */
 static int
-__disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
+__disagg_insert_meta(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor)
 {
     WT_DECL_RET;
     const char *key, *value;
 
     WT_ERR(sh_cursor->get_key(sh_cursor, &key));
     WT_ERR(sh_cursor->get_value(sh_cursor, &value));
-    md_cursor->set_key(md_cursor, key);
-    md_cursor->set_value(md_cursor, value);
-    WT_ERR_MSG_CHK(
-      session, md_cursor->insert(md_cursor), "Failed to insert metadata for key \"%s\"", key);
+    /* A tracked insert, so a failed merge unrolls it. */
+    WT_ERR_MSG_CHK(session, __wt_metadata_insert(session, key, value),
+      "Failed to insert metadata for key \"%s\"", key);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Inserted new key to the local metadata \"%s\": \"%s\"", key, value);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_inserted);
@@ -575,11 +627,10 @@ __disagg_update_file_meta(
   WT_SESSION_IMPL *session, WT_CURSOR *sh_file_cursor, WT_CURSOR *md_file_cursor)
 {
     WT_CONFIG_ITEM cval, cval_cur;
-    WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     char *cfg_ret, *current_value_copy;
-    const char *cfg[3], *checkpoint_name, *current_value;
+    const char *checkpoint_name, *current_value;
     const char *md_file_key, *metadata_value, *sh_file_key;
     bool discard;
 
@@ -587,38 +638,30 @@ __disagg_update_file_meta(
     checkpoint_name = NULL;
     discard = false;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
     WT_ERR(sh_file_cursor->get_key(sh_file_cursor, &sh_file_key));
     WT_ERR(sh_file_cursor->get_value(sh_file_cursor, &metadata_value));
     WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
-    WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)cval.len, cval.str));
 
     /* Check that the local metadata cursor is positioned at the same key. */
     WT_ERR(md_file_cursor->get_key(md_file_cursor, &md_file_key));
     WT_ASSERT(session, strcmp(md_file_key, sh_file_key) == 0);
 
-    /* Merge the new checkpoint metadata into the current table metadata. */
     WT_ERR(md_file_cursor->get_value(md_file_cursor, &current_value));
-    /* Copy the value since we don't own the memory after calling get_value(). */
+    /* Copy before further cursor ops; also used as discard-check input. */
     WT_ERR(__wt_strdup(session, current_value, &current_value_copy));
-
-    /*
-     * Extract the checkpoint information from the current value and compare it to the new
-     * checkpoint. If they are the same, there is no need to proceed further.
-     */
-    WT_ERR(__wt_config_getones(session, current_value, "checkpoint", &cval_cur));
+    WT_ERR(__wt_config_getones(session, current_value_copy, "checkpoint", &cval_cur));
+    /* Nothing to do if the local checkpoint already matches the shared one. */
     if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
         goto err;
 
-    /* Overwrite the checkpoint field in the local metadata with the one from shared storage. */
-    cfg[0] = current_value_copy;
-    cfg[1] = metadata_cfg->data;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+    /*
+     * Only the checkpoint field changes on this path (see FIXME-WT-14730).
+     */
+    WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &cval, &cfg_ret));
 
-    md_file_cursor->set_value(md_file_cursor, cfg_ret);
-    WT_ERR_MSG_CHK(session, md_file_cursor->update(md_file_cursor),
+    /* A tracked update, so a failed merge unrolls it. */
+    WT_ERR_MSG_CHK(session, __wt_metadata_update(session, sh_file_key, cfg_ret),
       "Failed to update metadata for key \"%s\"", sh_file_key);
     WT_STAT_CONN_INCR(session, disagg_pick_up_file_meta_updated);
 
@@ -652,7 +695,6 @@ __disagg_update_file_meta(
     WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"", sh_file_key);
 
 err:
-    __wt_scr_free(session, &metadata_cfg);
     __wt_scr_free(session, &old_uri_buf);
     __wt_free(session, current_value_copy);
     __wt_free(session, cfg_ret);
@@ -732,10 +774,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      * iteration, then processes all four local/shared pairs for that name before advancing.
      */
 
-    /* Open the metadata cursors on the local metadata table. */
+    /*
+     * Open private metadata cursors on the local metadata table, leaving the session's cached one
+     * free for the tracked metadata updates the merge makes.
+     */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
-        WT_ERR(__wt_metadata_cursor(session, &md_cursors[i]));
-    WT_ERR(__wt_metadata_cursor(session, &md_write_cursor));
+        WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_cursors[i]));
+    WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_write_cursor));
 
     /* Open the cursors on the shared metadata table. */
     WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
@@ -859,8 +904,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * We already have the layered table in the local metadata; we are just picking up
                  * the stable component.
                  */
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE]));
             ++existing_tables;
         } else if (!md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -913,16 +957,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 __wt_free(session, layered_ingest_uri);
                 layered_ingest_uri = NULL;
             }
-            WT_ERR(
-              __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_LAYERED], md_write_cursor));
-            WT_ERR(
-              __disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+            WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_LAYERED]));
+            WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE]));
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP]));
             if (sh_has[WT_DISAGG_CURSOR_TABLE])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_TABLE]));
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -966,8 +1006,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * We do not check the metadata operations queue as we do for layered tables,
                  * because we don't currently support the publish API for non-layered tables.
                  */
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_TABLE], md_write_cursor));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_TABLE]));
             else if (!sh_has[WT_DISAGG_CURSOR_TABLE] && md_has[WT_DISAGG_CURSOR_TABLE])
                 /*
                  * The local metadata has a table: entry but the shared metadata does not. This
@@ -985,8 +1024,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * This is not supported by the publish API, but we should still handle it gracefully.
              */
             if (sh_has[WT_DISAGG_CURSOR_COLGROUP] && !md_has[WT_DISAGG_CURSOR_COLGROUP])
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP], md_write_cursor));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_COLGROUP]));
 
             /*
              * Update the file: entry's checkpoint information and insert any entries that are in
@@ -999,8 +1037,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                  * The shared metadata table has an entry for this file. Add it to the local
                  * metadata.
                  */
-                WT_ERR(__disagg_insert_meta(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_write_cursor));
+                WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_FILE]));
                 ++new_tables;
             } else if (sh_has[WT_DISAGG_CURSOR_FILE] && md_has[WT_DISAGG_CURSOR_FILE]) {
                 /*
@@ -1026,6 +1063,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
     }
 
+    /* Fail the merge on the failpoint to exercise the unroll and retry paths. */
+    if (__wt_failpoint(
+          session, WT_TIMING_STRESS_FAILPOINT_DISAGG_CHECKPOINT_APPLY, 10 * WT_THOUSAND))
+        WT_ERR(EBUSY);
+
     __wt_timer_evaluate_ms(session, &apply_timer, &apply_elapsed_ms);
     WT_STAT_CONN_SET(session, disagg_apply_checkpoint_meta_time, apply_elapsed_ms);
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -1040,9 +1082,11 @@ err:
     __wt_scr_free(session, &current_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
-    WT_TRET(__wt_metadata_cursor_release(session, &md_write_cursor));
+    if (md_write_cursor != NULL)
+        WT_TRET(md_write_cursor->close(md_write_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursors[i]));
+        if (md_cursors[i] != NULL)
+            WT_TRET(md_cursors[i]->close(md_cursors[i]));
         if (sh_cursors[i] != NULL)
             WT_TRET(sh_cursors[i]->close(sh_cursors[i]));
     }
@@ -1115,6 +1159,33 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     WT_WITH_SCHEMA_LOCK(session, __raise_next_file_id(session, metadata));
 
 err:
+    return (ret);
+}
+
+/*
+ * __disagg_adopt_checkpoint_meta --
+ *     Merge the checkpoint's metadata into the local metadata as one tracked unit: on failure the
+ *     tracking unrolls every update already made, including any ingest tables created along the
+ *     way, so the merge either completes or leaves no trace.
+ */
+static int
+__disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  const WT_DISAGG_METADATA *metadata, bool is_startup)
+{
+    WT_DECL_RET;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    WT_RET(__wt_meta_track_on(session));
+
+    /* Update our local metadata with the new checkpoint entry. */
+    WT_ERR(__disagg_save_checkpoint_meta_local(session, metadata));
+
+    /* Apply the metadata for the other tables from the shared metadata table. */
+    WT_ERR(__disagg_apply_checkpoint_meta(session, ckpt_meta, metadata->schema_epoch, is_startup));
+
+err:
+    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
     return (ret);
 }
 
@@ -1192,7 +1263,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     }
 
     /*
-     * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
+     * Part 1: Get the metadata of the shared metadata table.
      */
 
     WT_ERR(__wti_disagg_fetch_shared_meta(session, ckpt_meta, &metadata_buf));
@@ -1238,20 +1309,23 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__wti_disagg_load_crypt_key(session, &metadata));
 
-    /* Update our local metadata with the new checkpoint entry. */
-    WT_ERR(__disagg_save_checkpoint_meta_local(session, &metadata));
-
     /*
-     * Part 2: Apply the metadata for other tables from the shared metadata table.
+     * Part 2: Merge the checkpoint's metadata into the local metadata. The merge runs under
+     * metadata tracking, so a failure unrolls the updates already made and leaves the node on its
+     * previous checkpoint, retryable; a crash mid-merge relies on the node discarding its local
+     * state on restart. Data handles marked outdated along the way stay marked across an unroll,
+     * which only costs reopening them.
      */
-
-    /* Apply the metadata from the checkpoint. */
-    WT_WITH_SCHEMA_LOCK(session,
-      ret = __disagg_apply_checkpoint_meta(session, ckpt_meta, metadata.schema_epoch, is_startup));
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __disagg_adopt_checkpoint_meta(session, ckpt_meta, &metadata, is_startup));
     WT_ERR(ret);
 
     /*
      * Part 3: Do the bookkeeping.
+     *
+     * The merge is complete: from here a failure would leave the local metadata resolving to the
+     * new checkpoint while the published LSN still admits only the old one, and there is no
+     * compensation short of completing the adoption, so it is fatal.
      */
 
     /*
@@ -1263,7 +1337,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.schema_epoch != WT_SCHEMA_EPOCH_NONE ||
         __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE);
     __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
-    WT_ERR(__disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata));
+    if ((ret = __disagg_finalize_checkpoint_meta(session, ckpt_meta, &metadata)) != 0)
+        WT_ERR_PANIC(
+          session, ret, "failed to adopt a checkpoint after completing its metadata merge");
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_timer_evaluate_ms(session, &pickup_timer, &pickup_elapsed_ms);
@@ -1274,6 +1350,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       ckpt_meta->metadata_lsn, pickup_elapsed_ms);
 
 err:
+    /* A write conflict unrolled the merge cleanly; report it as retryable. */
+    if (ret == WT_ROLLBACK)
+        ret = EBUSY;
+
     if (ret == 0) {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
         if (!conn->layered_table_manager.leader)
@@ -1351,14 +1431,19 @@ __wti_disagg_pick_up_checkpoint_meta(
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
     WT_SESSION_IMPL *internal_session;
     uint64_t metadata_checksum;
     char *meta_str;
+    bool encoding, prev_adopted, prev_encoding;
 
     WT_CLEAR(ckpt_meta);
+    disagg = &S2C(session)->disaggregated_storage;
     meta_str = NULL;
     internal_session = NULL;
+    prev_encoding = F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    prev_adopted = disagg->stable_tombstone_encoding_adopted;
 
     /* Extract the item into a string. */
     WT_ERR(__wt_strndup(session, meta_data, meta_data_size, &meta_str));
@@ -1390,6 +1475,21 @@ __wti_disagg_pick_up_checkpoint_meta(
     /* Parse and validate version and compatible_version fields. */
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
+    /*
+     * Derive the stable tombstone encoding mode from the checkpoint's compatible version and adopt
+     * it: in automatic mode the data on disk decides how stable values are decoded. A checkpoint
+     * predating the unescaped format (including one predating the version fields entirely) carries
+     * escaped stable values. A break-glass-forced mode wins over the derivation: the adopt call
+     * keeps the forced mode and warns when the checkpoint disagrees.
+     *
+     * FIXME-WT-18206: once no supported checkpoint carries escaped stable values, drop the
+     * derivation and the escaped mode.
+     */
+    encoding = ckpt_meta.compatible_version < WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED;
+    WT_ERR(__wti_disagg_adopt_stable_tombstone_encoding(session, encoding,
+      encoding ? "a checkpoint compatible version predating the unescaped format" :
+                 "the checkpoint compatible version"));
+
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     /* Now actually pick up the checkpoint. */
@@ -1397,7 +1497,24 @@ __wti_disagg_pick_up_checkpoint_meta(
       internal_session, ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta));
     WT_ERR(ret);
 
+    /* Record the picked-up checkpoint's version fields; a failed pickup leaves them unchanged. */
+    WT_STAT_CONN_SET(session, disagg_checkpoint_storage_version, ckpt_meta.version);
+    WT_STAT_CONN_SET(
+      session, disagg_checkpoint_storage_compatible_version, ckpt_meta.compatible_version);
+
 err:
+    /* A failed pickup must not leave the failed checkpoint's encoding mode adopted. */
+    if (ret != 0) {
+        if (prev_encoding)
+            F_SET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        else
+            F_CLR(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        disagg->stable_tombstone_encoding_adopted = prev_adopted;
+        WT_STAT_CONN_SET(session, disagg_stable_tombstone_encoding,
+          prev_adopted || F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED) ?
+            (prev_encoding ? 1 : 2) :
+            0);
+    }
     if (internal_session != NULL)
         WT_TRET(__wt_session_close_internal(internal_session));
     __wt_free(session, meta_str);
@@ -1426,5 +1543,16 @@ __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const cha
     *out_compatible_version = ckpt_meta.compatible_version;
 
     return (0);
+}
+
+/*
+ * __ut_disagg_replace_checkpoint --
+ *     Unit test wrapper for __disagg_replace_checkpoint.
+ */
+int
+__ut_disagg_replace_checkpoint(
+  WT_SESSION_IMPL *session, const char *base, const WT_CONFIG_ITEM *new_ckpt, char **config_ret)
+{
+    return (__disagg_replace_checkpoint(session, base, new_ckpt, config_ret));
 }
 #endif
