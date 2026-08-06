@@ -170,6 +170,8 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         # Make the delete globally visible
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(30)},oldest_timestamp={self.timestamp_str(22)}')
 
+        restores = self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
+
         # Verify checkpoint writes no prepared to disk
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
@@ -205,12 +207,14 @@ class test_layered_prepare05(test_prepare_preserve_prepare_base):
         # set; that tombstone gets re-saved and causes one extra write here.
         #
         # Precise-checkpoint scrub can re-instantiate a page still in cache from its retained disk
-        # image, dropping the in-memory tombstone the same way eviction does. On a full-image
-        # (non-delta) table that produces the same one-off rewrite even when the page was not
-        # explicitly evicted.
+        # image, dropping the in-memory tombstone the same way eviction does and costing the same
+        # one-off write. It depends on eviction state this test does not control, so measure it
+        # here rather than assume it: the swap can happen at any point up to this checkpoint.
+        scrub_rewrote = (not self.delta and
+          self.get_stat(wiredtiger.stat.conn.cache_scrub_restore) > restores)
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
-            stat: self.evict or not self.delta,
+            stat: self.evict or scrub_rewrote,
         }, self.uri)
 
         # Make stable timestamp equal to prepare timestamp - this should allow checkpoint to reconcile prepared update
