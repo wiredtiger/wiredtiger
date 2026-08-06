@@ -54,7 +54,7 @@ public:
         conn->ckpt_eviction_snap_idx = new_idx;
     }
 
-    /* Ask the question eviction asks: may a page being evicted adopt the published snapshot? */
+    /* Check if a page being evicted adopts the published snapshot */
     bool
     adoptable(uint64_t ckpt_gen)
     {
@@ -106,7 +106,7 @@ TEST_CASE("Checkpoint eviction snapshot: the stamp decides whether eviction may 
     {
         /*
          * The generation has moved to 48 but checkpoint 48 has not published yet, so the buffer is
-         * still checkpoint 47's. This is the window WT-18114 was reached through.
+         * still checkpoint 47's.
          */
         env.publish(47);
         REQUIRE(env.adoptable(48) == false);
