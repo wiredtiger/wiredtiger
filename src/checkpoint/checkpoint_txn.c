@@ -1267,7 +1267,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
      * the retiring buffer once.
      */
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        struct __wt_ckpt_eviction_snap *buf;
+        WT_CKPT_EVICTION_SNAP *buf;
         WT_TXN_SNAPSHOT *dst, *src;
         uint32_t capacity, count, cur_idx, new_idx;
 
@@ -1693,6 +1693,32 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 }
 
 /*
+ * __wt_ckpt_eviction_snap_current --
+ *     Check whether the published eviction snapshot belongs to the given checkpoint generation,
+ *     returning the buffer holding it.
+ */
+bool
+__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen, uint32_t *snap_idxp)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t snap_idx;
+
+    conn = S2C(session);
+
+    snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
+    *snap_idxp = snap_idx;
+
+    /*
+     * The checkpoint generation is bumped before the running checkpoint publishes, so until it does
+     * the published buffer is still the previous checkpoint's. A buffer no checkpoint has
+     * published, or one a finished checkpoint retired, is stamped 0. The caller's generation can
+     * only be stale, and means that checkpoint had not retired its snapshot at this point.
+     */
+    return (ckpt_gen != 0 &&
+      __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap[snap_idx].gen) == ckpt_gen);
+}
+
+/*
  * __checkpoint_eviction_snapshot_retire --
  *     Retire the eviction snapshot this checkpoint published.
  */
@@ -1944,7 +1970,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg.name, ckpt_cfg.name_len));
 
-    /* Retire the published snapshot before this checkpoint's transaction state is torn down below.
+    /*
+     * Retire the published snapshot before this checkpoint's transaction state is torn down below.
+     * Eviction that declines a snapshot bounds itself with that same state, so leaving the snapshot
+     * usable past this point leaves a snapshot nothing pins with the oldest id free to advance past
+     * it.
      */
     __checkpoint_eviction_snapshot_retire(session);
 
@@ -2775,6 +2805,12 @@ bool
 __ut_checkpoint_skip_ckptlist(WT_CKPT *ckptbase)
 {
     return (__checkpoint_skip_ckptlist(ckptbase, NULL));
+}
+
+void
+__ut_checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
+{
+    __checkpoint_eviction_snapshot_retire(session);
 }
 #endif
 
