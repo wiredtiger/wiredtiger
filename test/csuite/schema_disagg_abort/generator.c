@@ -95,7 +95,7 @@ generator_op(WORKLOAD_STATE *state, uint32_t t)
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
     }
-    /* A valued event draws from the allocator; a schema operation is valued by its publish. */
+    /* This event needs a timestamp. */
     if (ev.type == EVENT_INSERT || ev.type == EVENT_PUBLISH_CREATE || ev.type == EVENT_PUBLISH_DROP)
         ev.event_ts = __wt_atomic_add_uint64(&state->current_ts, 1);
 
@@ -194,7 +194,7 @@ generator_flush_publishes(WORKLOAD_STATE *state)
  *     The generator thread: feeds workload rounds into the self-pipe and, once the parent requests
  *     a switch, the hand-over event that ends the stream and the phase.
  */
-static WT_THREAD_RET
+WT_THREAD_RET
 thread_generator_run(void *arg)
 {
     WORKLOAD_STATE *state = arg;
@@ -204,7 +204,7 @@ thread_generator_run(void *arg)
 
     while (workload_active(state, STAGE_GENERATOR)) {
         if (!generator_round(state, pacing.lead_max))
-            __wt_sleep(0, WT_THOUSAND);
+            __wt_sleep(0, 10 * WT_THOUSAND); /* 10 ms */
 
         if (generator_switch_requested(&pacing)) {
             generator_flush_publishes(state);
@@ -217,35 +217,4 @@ thread_generator_run(void *arg)
         }
     }
     return (WT_THREAD_RET_VALUE);
-}
-
-/* The generator thread's handle; its state lives in the workload state. */
-static wt_thread_t generator_thr;
-static bool generator_started = false;
-
-/*
- * node_generator_start --
- *     Start the generator thread for a phase that produces its own stream. Started last of the
- *     phase's threads, once the machinery consuming the stream is up.
- */
-void
-node_generator_start(WORKLOAD_STATE *state)
-{
-    testutil_assert(!generator_started);
-    testutil_check(__wt_thread_create(NULL, &generator_thr, thread_generator_run, state));
-    generator_started = true;
-}
-
-/*
- * node_generator_join --
- *     Join the generator thread, if one is running. The stage it exits on is the caller's to set.
- */
-void
-node_generator_join(void)
-{
-    if (!generator_started)
-        return;
-
-    testutil_check(__wt_thread_join(NULL, &generator_thr));
-    generator_started = false;
 }

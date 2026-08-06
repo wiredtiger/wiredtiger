@@ -149,8 +149,8 @@ schema_op_publish(WT_SESSION *session, const char *uri, uint64_t epoch)
 /*
  * schema_op_insert_data --
  *     Populate a table with rows keyed key_min..key_max at the given commit timestamp; each row is
- *     valued with the commit timestamp, so the verifier can tell which generation of a reused table
- *     name wrote the data.
+ *     set to the commit timestamp, so the verifier can tell which generation of a reused table name
+ *     wrote the data.
  */
 static void
 schema_op_insert_data(
@@ -178,8 +178,8 @@ schema_op_insert_data(
 
 /*
  * worker_complete --
- *     Mark one allocator value fully completed by a worker: track it in the counter (a no-op for
- *     freshly allocated values) and publish it as the thread's completed frontier mark.
+ *     Mark one timestamp fully completed by a worker: adopt it - only a consuming phase needs that,
+ *     a generating one allocated it already - and publish the thread's completed frontier.
  */
 static void
 worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
@@ -193,8 +193,8 @@ worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
  * apply_event --
  *     Apply one event on this node, identically for both roles and exactly as the source stream
  *     fixed it: execute it, record it, relay it to the peer when leading, and mark its value
- *     completed. A schema operation is unvalued - its epoch, record and completion all belong to
- *     its later publish event.
+ *     completed. A schema operation carries no timestamp - its epoch, record and completion belong
+ *     to its later publish event.
  *
  * The order within an event is load-bearing (README invariant 1): relay before record, so a record
  *     on disk implies the peer holds the event; record before publish, so no checkpoint can make an
@@ -222,7 +222,7 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
         schema_op_execute(state, ctx->session, ev);
         if (relay)
             (void)node_event_send(state->cfg, ev);
-        /* Unvalued: count it applied, but the completion mark belongs to the publish. */
+        /* No timestamp: count it applied, but the completion belongs to the publish. */
         (void)__wt_atomic_add_uint64(&state->applied, 1);
         break;
     case EVENT_PUBLISH_CREATE:
@@ -285,10 +285,6 @@ thread_worker_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
-/* Thread handles have process lifetime; phases join and restart them but never free them. */
-static wt_thread_t worker_thr[MAX_TH];
-static THREAD_ARG worker_arg[MAX_TH];
-
 /*
  * node_workers_start --
  *     Start this phase's worker threads.
@@ -296,21 +292,30 @@ static THREAD_ARG worker_arg[MAX_TH];
 void
 node_workers_start(WORKLOAD_STATE *state)
 {
+    /* One argument per worker, alive for as long as its thread; the handles live in the state. */
+    static THREAD_ARG worker_arg[MAX_TH];
+
     for (uint32_t i = 0; i < state->nth_workers; i++) {
         worker_arg[i].state = state;
         worker_arg[i].thread_index = i;
-        testutil_check(__wt_thread_create(NULL, &worker_thr[i], thread_worker_run, &worker_arg[i]));
+        testutil_check(
+          __wt_thread_create(NULL, &state->workers[i].thr, thread_worker_run, &worker_arg[i]));
     }
 }
 
 /*
- * node_workers_join --
- *     Join the worker threads. The engine has already directed the phase to quiesce, which the
- *     workers answer by draining whatever the reader delivered before exiting.
+ * node_workers_stop --
+ *     Stop the worker stage. The workers complete the stage by draining whatever the reader
+ *     delivered before they exit.
  */
 void
-node_workers_join(WORKLOAD_STATE *state)
+node_workers_stop(WORKLOAD_STATE *state)
 {
+    /* Previous stage must have stopped. */
+    testutil_assert(node_stage_stopped(state, STAGE_WORKERS - 1));
+
+    /* Stop the current stage. */
+    __wt_atomic_store_uint32(&state->stop_stage, STAGE_WORKERS);
     for (uint32_t i = 0; i < state->nth_workers; i++)
-        testutil_check(__wt_thread_join(NULL, &worker_thr[i]));
+        testutil_check(__wt_thread_join(NULL, &state->workers[i].thr));
 }
