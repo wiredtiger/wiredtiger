@@ -1221,12 +1221,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 static bool
 __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_TXN_SNAPSHOT *snap;
-    uint32_t snap_idx;
     bool copied;
 
-    conn = S2C(session);
     copied = false;
 
     /*
@@ -1236,8 +1233,7 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
      */
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     /* Take the buffer only when the checkpoint that published it is the one still running. */
-    if (__wt_ckpt_eviction_snap_current(session, ckpt_gen, &snap_idx)) {
-        snap = &conn->ckpt_eviction_snap[snap_idx].snap;
+    if ((snap = __wt_ckpt_eviction_snap_current(session, ckpt_gen)) != NULL) {
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;

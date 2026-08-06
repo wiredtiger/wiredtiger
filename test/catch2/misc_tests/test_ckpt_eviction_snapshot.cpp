@@ -58,9 +58,14 @@ public:
     bool
     adoptable(uint64_t ckpt_gen)
     {
-        uint32_t snap_idx = UINT32_MAX;
+        return (__wt_ckpt_eviction_snap_current(session, ckpt_gen) != NULL);
+    }
 
-        return (__wt_ckpt_eviction_snap_current(session, ckpt_gen, &snap_idx));
+    /* The snapshot the index currently points at. */
+    WT_TXN_SNAPSHOT *
+    published()
+    {
+        return (&conn->ckpt_eviction_snap[conn->ckpt_eviction_snap_idx].snap);
     }
 
     uint64_t
@@ -141,14 +146,13 @@ TEST_CASE("Checkpoint eviction snapshot: the reader sees the published buffer's 
   "[ckpt_eviction_snapshot]")
 {
     snapshot_test_env env(true);
-    uint32_t snap_idx = UINT32_MAX;
 
     env.publish(47);
 
-    REQUIRE(__wt_ckpt_eviction_snap_current(env.session, 47, &snap_idx) == true);
-    REQUIRE(snap_idx == env.conn->ckpt_eviction_snap_idx);
-    REQUIRE(env.conn->ckpt_eviction_snap[snap_idx].snap.snap_min == 100);
-    REQUIRE(env.conn->ckpt_eviction_snap[snap_idx].snap.snap_max == 200);
+    WT_TXN_SNAPSHOT *snap = __wt_ckpt_eviction_snap_current(env.session, 47);
+    REQUIRE(snap == env.published());
+    REQUIRE(snap->snap_min == 100);
+    REQUIRE(snap->snap_max == 200);
 }
 
 TEST_CASE("Checkpoint eviction snapshot: retire clears only the published buffer",
