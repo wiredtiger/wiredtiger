@@ -655,9 +655,6 @@ __disagg_update_file_meta(
     if (__wt_string_slice_cmp(cval_cur.str, cval_cur.len, cval.str, cval.len) == 0)
         goto err;
 
-    /*
-     * Only the checkpoint field changes on this path (see FIXME-WT-14730).
-     */
     WT_ERR(__disagg_replace_checkpoint(session, current_value_copy, &cval, &cfg_ret));
 
     /* A tracked update, so a failed merge unrolls it. */
