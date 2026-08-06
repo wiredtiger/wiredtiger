@@ -1228,19 +1228,21 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * only the tables created below the boundary.
      */
     step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
-    if (conn->layered_table_manager.leader && step_down_ts == WT_TS_NONE) {
-        stable_cfg[1] = disagg_config->data;
+    if (conn->layered_table_manager.leader) {
+        if (step_down_ts == WT_TS_NONE) {
+            stable_cfg[1] = disagg_config->data;
 
-        /* Disable logging on the stable table to ensure we have timestamps. */
-        stable_cfg[3] = "log=(enabled=false)";
-        WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
-        __wt_free(session, constituent_cfg);
-    } else if (conn->layered_table_manager.leader) {
-        WT_STAT_CONN_INCR(session, disagg_step_down_window_creates);
-        __wt_verbose_info(session, WT_VERB_LAYERED,
-          "%s: created without a stable constituent, the step-down timestamp %s is set", uri,
-          __wt_timestamp_to_string(step_down_ts, ts_string));
+            /* Disable logging on the stable table to ensure we have timestamps. */
+            stable_cfg[3] = "log=(enabled=false)";
+            WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+            WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+            __wt_free(session, constituent_cfg);
+        } else {
+            WT_STAT_CONN_INCR(session, disagg_step_down_window_creates);
+            __wt_verbose_info(session, WT_VERB_LAYERED,
+              "%s: created without a stable constituent, the step-down timestamp %s is set", uri,
+              __wt_timestamp_to_string(step_down_ts, ts_string));
+        }
     }
 
     /*
