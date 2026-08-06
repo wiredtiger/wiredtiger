@@ -40,7 +40,8 @@ __disagg_get_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     if (count == 1)
         return (0);
 
-    WT_RET_MSG(session, EIO, "Page ID %" PRIu64 " not found in disaggregated storage", page_id);
+    WT_RET_MSG(session, EIO,
+      "Page ID %" PRIu64 ", LSN %" PRIu64 " not found in disaggregated storage", page_id, lsn);
 }
 
 /*
