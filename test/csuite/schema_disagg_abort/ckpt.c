@@ -16,22 +16,11 @@
 #include "schema_disagg_abort.h"
 
 /*
- * node_current_role --
- *     Return the role this phase runs. The engine tracks the role as a single bool, so the role
- *     instance is derived from it rather than stored: one source of truth, no invariant to keep.
- */
-static const NODE_ROLE *
-node_current_role(const WORKLOAD_STATE *state)
-{
-    return (state->leads ? &node_role_leader : &node_role_follower);
-}
-
-/*
  * ckpt_pick_up --
- *     Pick up the latest complete checkpoint onto this connection.
- *     Returns true if a checkpoint was adopted, false if the page log has no new checkpoint.
+ *     Pick up the latest complete checkpoint onto this connection. Returns true if a checkpoint was
+ *     adopted, false if the page log has no new checkpoint.
  */
-bool
+static bool
 ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session, WT_PAGE_LOG *page_log)
 {
     WT_PAGE_LOG_GET_COMPLETE_CHECKPOINT_ARGS ckpt_args = {0};
@@ -111,7 +100,7 @@ thread_ckpt_run(void *arg)
             continue;
         }
 
-        node_current_role(state)->checkpoint(state, session, &ckpt);
+        node_role(state->leads)->checkpoint(state, session, &ckpt);
 
         __wt_epoch(NULL, &last);
         wait = __wt_random(rnd) % MAX_CKPT_INVL;
@@ -168,4 +157,51 @@ thread_ts_run(void *arg)
         __wt_sleep(0, 100 * WT_THOUSAND);
     }
     return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * leader_checkpoint --
+ *     Produce one checkpoint. The first one reports leader readiness. Nothing is checkpointed while
+ *     no stable timestamp exists yet.
+ */
+void
+leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
+{
+    /* The stable value this checkpoint is bound to cover; it can only advance mid-checkpoint. */
+    const uint64_t covered = query_ts(state->conn, "stable_timestamp");
+    if (covered == 0) {
+        struct timespec now;
+        __wt_epoch(NULL, &now);
+        if (WT_TIMEDIFF_SEC(now, ckpt->phase_start) > MAX_OP_WAIT)
+            testutil_die(ETIMEDOUT, "stable timestamp not set after %d seconds", MAX_OP_WAIT);
+        return;
+    }
+
+    /* The timestamp thread owns the stable epoch and timestamps; just checkpoint. */
+    testutil_check(session->checkpoint(session, "use_timestamp=true"));
+
+    /*
+     * The generator's drop gate is not published here: the timestamp thread republishes it from the
+     * connection's durable schema epoch, which this checkpoint has just advanced.
+     */
+
+    println("Node %" PRIu32 ": checkpoint %d complete", state->cfg->node_id, ++ckpt->produced);
+
+    /* A stable frontier implies every worker published, so this checkpoint has a schema op. */
+    if (ckpt->produced == 1)
+        testutil_sentinel(NULL, LEADER_READY_FILE);
+}
+
+/*
+ * follower_checkpoint --
+ *     Adopt the latest checkpoint the page log holds. The workers keep running through it. The
+ *     first adoption reports follower readiness.
+ */
+void
+follower_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
+{
+    if (ckpt_pick_up(state, session, ckpt->page_log) && !ckpt->picked_up) {
+        testutil_sentinel(NULL, FOLLOWER_READY_FILE);
+        ckpt->picked_up = true;
+    }
 }

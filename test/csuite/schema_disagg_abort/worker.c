@@ -213,7 +213,7 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
     case EVENT_INSERT:
         schema_op_insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
         if (relay)
-            (void)node_event_send(state->cfg, ev);
+            (void)pipe_relay_event(state->cfg, ev);
         record_event_line(ctx->record_fp, ev);
         worker_complete(state, thread_index, ev->event_ts);
         break;
@@ -221,14 +221,14 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
     case EVENT_DROP:
         schema_op_execute(state, ctx->session, ev);
         if (relay)
-            (void)node_event_send(state->cfg, ev);
+            (void)pipe_relay_event(state->cfg, ev);
         /* No timestamp: count it applied, but the completion belongs to the publish. */
         (void)__wt_atomic_add_uint64(&state->applied, 1);
         break;
     case EVENT_PUBLISH_CREATE:
     case EVENT_PUBLISH_DROP:
         if (relay)
-            (void)node_event_send(state->cfg, ev);
+            (void)pipe_relay_event(state->cfg, ev);
         record_event_line(ctx->record_fp, ev);
         schema_op_publish(ctx->session, ev->uri, ev->event_ts);
         worker_complete(state, thread_index, ev->event_ts);
@@ -249,11 +249,11 @@ worker_apply_loop(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index)
 {
     bool *busyp = &state->workers[thread_index].busy;
 
-    while (workload_active(state, STAGE_WORKERS) || !workload_queue_empty(state, thread_index)) {
+    while (workload_active(state, STAGE_WORKERS) || !evq_is_empty(state, thread_index)) {
         /* Publish busy before checking the queue so the drain barrier never races an apply. */
         __wt_atomic_store_bool(busyp, true);
         SCHEMA_EVENT ev;
-        const bool popped = workload_dequeue(state, thread_index, &ev);
+        const bool popped = evq_dequeue(state, thread_index, &ev);
         if (popped)
             apply_event(state, ctx, thread_index, &ev);
         __wt_atomic_store_bool(busyp, false);

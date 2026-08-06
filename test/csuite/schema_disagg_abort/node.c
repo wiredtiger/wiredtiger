@@ -27,7 +27,7 @@
  *     Return the node's workload state, zeroed and bound to the configuration. The state has
  *     process lifetime; the control loop and the role transitions keep its connection current.
  */
-WORKLOAD_STATE *
+static WORKLOAD_STATE *
 workload_state_create(TEST_CONFIG *cfg)
 {
     static WORKLOAD_STATE state;
@@ -41,7 +41,7 @@ workload_state_create(TEST_CONFIG *cfg)
  *     Seed the node's timestamps from the previous leader's final timestamp, so a node stepping up
  *     continues the sequence.
  */
-void
+static void
 workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts)
 {
     testutil_assert(state->current_ts <= ts);
@@ -90,7 +90,7 @@ disagg_opts_init(const TEST_CONFIG *cfg)
  * node_open --
  *     Open this node's WiredTiger connection in the given disaggregated mode.
  */
-void
+static void
 node_open(TEST_CONFIG *cfg, const char *disagg_mode, WT_CONNECTION **connp)
 {
     char node_home[32];
@@ -176,99 +176,6 @@ node_transition_done(const TEST_CONFIG *cfg, WORKLOAD_STATE *state, bool complet
 }
 
 /*
- * evq_push --
- *     Try to append one event to a worker's ring; false when full.
- */
-static bool
-evq_push(EVENT_QUEUE *q, const SCHEMA_EVENT *ev)
-{
-    const uint64_t tail = q->tail; /* single producer */
-    if (tail - __wt_atomic_load_uint64(&q->head) >= EVQ_SIZE)
-        return (false);
-    q->ev[tail % EVQ_SIZE] = *ev;
-    __wt_atomic_store_uint64(&q->tail, tail + 1);
-    return (true);
-}
-
-/*
- * evq_pop --
- *     Try to take one event off a worker's ring; false when empty.
- */
-static bool
-evq_pop(EVENT_QUEUE *q, SCHEMA_EVENT *ev)
-{
-    const uint64_t head = q->head; /* single consumer */
-    if (head == __wt_atomic_load_uint64(&q->tail))
-        return (false);
-    *ev = q->ev[head % EVQ_SIZE];
-    __wt_atomic_store_uint64(&q->head, head + 1);
-    return (true);
-}
-
-/*
- * evq_empty --
- *     Report whether a worker's ring is empty.
- */
-static bool
-evq_empty(EVENT_QUEUE *q)
-{
-    return (__wt_atomic_load_uint64(&q->head) == __wt_atomic_load_uint64(&q->tail));
-}
-
-/*
- * workload_enqueue --
- *     Queue one received schema event for its worker thread, blocking while the ring is full: the
- *     stalled reader stops draining the pipe, which backpressures the leader. Gives up when the
- *     phase is stopping.
- */
-void
-workload_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
-{
-    testutil_assert(ev->thread_id < state->nth_workers);
-
-    EVENT_QUEUE *q = &state->workers[ev->thread_id].evq;
-    while (!evq_push(q, ev) && workload_active(state, STAGE_WORKERS))
-        __wt_sleep(0, WT_THOUSAND);
-}
-
-/*
- * workload_dequeue --
- *     Take the next event queued for one worker; false when nothing is queued for it.
- */
-bool
-workload_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev)
-{
-    return (evq_pop(&state->workers[thread_index].evq, ev));
-}
-
-/*
- * workload_queue_empty --
- *     Report whether one worker's queue is empty.
- */
-bool
-workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index)
-{
-    return (evq_empty(&state->workers[thread_index].evq));
-}
-
-/*
- * workload_drain_barrier --
- *     Wait until every worker has applied everything queued so far. Only the reader may call it: it
- *     is the sole producer for the queues, so nothing new can arrive while it waits here. It runs
- *     this before a hand-over, so the counter it asserts against the sender's covers every event of
- *     the term.
- */
-void
-workload_drain_barrier(WORKLOAD_STATE *state)
-{
-    for (uint32_t t = 0; t < state->nth_workers; t++)
-        while (
-          (!evq_empty(&state->workers[t].evq) || __wt_atomic_load_bool(&state->workers[t].busy)) &&
-          workload_active(state, STAGE_WORKERS))
-            __wt_sleep(0, WT_THOUSAND);
-}
-
-/*
  * node_stage_stopped --
  *     Whether every thread of a stage has been joined. STAGE_WORKERS is nth_workers threads wide,
  *     the other stages are one thread each, and STAGE_NONE is no thread at all.
@@ -319,7 +226,7 @@ node_aux_stop(WORKLOAD_STATE *state, uint32_t stage)
  *     the generator. Only the event source differs by role: a leader phase consumes its own
  *     generated stream, a follower phase consumes the peer's.
  */
-void
+static void
 workload_start(WORKLOAD_STATE *state, bool as_leader)
 {
     TEST_CONFIG *cfg = state->cfg;
@@ -366,7 +273,7 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
  *     and timestamp threads outlive the workers for a reason: a draining worker blocked on a drop
  *     is waiting for exactly what those two do, a frontier that advances and a checkpoint over it.
  */
-void
+static void
 workload_stop(WORKLOAD_STATE *state)
 {
     node_aux_stop(state, STAGE_GENERATOR);
@@ -387,8 +294,8 @@ workload_stop(WORKLOAD_STATE *state)
  *     already be a follower before the peer is told to step up. Without a live peer there is
  *     nothing to send and this node continues both sides itself.
  */
-static const NODE_ROLE *
-node_switch_role(const NODE_ROLE *role)
+static void
+node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
 {
     WT_CONNECTION *conn = state->conn;
     WT_SESSION *session;
@@ -469,15 +376,17 @@ node_run(TEST_CONFIG *cfg, WORKLOAD_STATE *state, const NODE_ROLE *role)
 
         if (trigger == TRIGGER_SWITCH) {
             /*
-             * The counter the ending term finished on. The workload is quiesced and drained, so the
-             * node's own counter holds every value the term allocated or adopted - on a peered
-             * hand-over the reader asserted it equals the sender's final counter.
+             * The timestamp the ending term finished on. The workload is quiesced and drained, so
+             * this node holds every timestamp the term allocated or adopted - on a peered hand-over
+             * the reader asserted it equals the sender's final timestamp.
              */
-            const uint64_t final_counter = state->current_ts;
+            const uint64_t final_ts = state->current_ts;
 
-            role->leave(state, final_counter);
-            role = node_switch_role(role);
-            role->enter(state, final_counter);
+            if (role->leads)
+                node_step_down(state, final_ts);
+            else
+                node_step_up(state, final_ts);
+            role = node_role(!role->leads);
             println("Node %" PRIu32 ": now %s", cfg->node_id, role->name);
             /* The swap-completing transition: entering leadership, or a lone node's only one. */
             node_transition_done(cfg, state, role->leads || !cfg->peer_alive);
@@ -516,7 +425,7 @@ node_main(TEST_CONFIG *cfg)
 
     WORKLOAD_STATE *state = workload_state_create(cfg);
 
-    const NODE_ROLE *role = cfg->start_leader ? &node_role_leader : &node_role_follower;
+    const NODE_ROLE *role = node_role(cfg->start_leader);
     node_open(cfg, role->name, &state->conn);
     /*
      * Enter the epoch world before the workload can publish anything, on either role: a follower
