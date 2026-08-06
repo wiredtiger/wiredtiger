@@ -907,22 +907,16 @@ __raise_next_file_id(WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadat
 static int
 __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t lsn)
 {
+    WT_DECL_RET;
     WT_DISAGG_DEFERRED_CKPT *entry, *newest;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
-
-    /* Allocate outside the lock; the metadata string moves into the entry, not copied. */
-    WT_RET(__wt_calloc_one(session, &entry));
-    entry->lsn = lsn;
 
     __wt_spin_lock(session, &disagg->deferred_ckpt_lock);
 
     /* A checkpoint at or behind the newest deferred one carries nothing new. */
     newest = TAILQ_LAST(&disagg->deferred_ckpt_qh, __wt_disagg_deferred_ckpt_qh);
-    if (newest != NULL && lsn <= newest->lsn) {
-        __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
-        __wt_free(session, entry);
-        return (0);
-    }
+    if (newest != NULL && lsn <= newest->lsn)
+        goto err;
 
     /*
      * Remember every checkpoint not yet adopted, oldest first: a reader only blocks the checkpoints
@@ -930,11 +924,15 @@ __disagg_defer_checkpoint(WT_SESSION_IMPL *session, char **meta_strp, uint64_t l
      * newest checkpoint its readers permit instead of waiting for all of them to finish. Adopting
      * an entry discards all older ones, which bounds the queue.
      */
+    WT_ERR(__wt_calloc_one(session, &entry));
+    entry->lsn = lsn;
     entry->meta = *meta_strp;
     *meta_strp = NULL;
     TAILQ_INSERT_TAIL(&disagg->deferred_ckpt_qh, entry, q);
+
+err:
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1130,7 +1128,7 @@ __wti_disagg_deferred_pickup_server_destroy(WT_SESSION_IMPL *session)
  *     predates. The walk relies on ordering along the oldest-first queue: a snapshot predating a
  *     checkpoint predates every newer one, so it stops at the first blocked entry, having
  *     remembered the newest one that passed. The queue has its own lock, so the copy never waits
- *     behind an adoption.
+ *     behind an adoption. Returns WT_NOTFOUND when no entry may be adopted.
  */
 static int
 __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint64_t *lsnp)
@@ -1158,8 +1156,14 @@ __disagg_deferred_copy(WT_SESSION_IMPL *session, bool force, char **metap, uint6
             break;
         selected = entry;
     }
-    if (selected != NULL) {
+    if (selected == NULL)
+        ret = WT_NOTFOUND;
+    else {
         *lsnp = selected->lsn;
+        /*
+         * Copy the metadata: the adoption runs without this lock, and a concurrent adoption's
+         * pruning may free the entry meanwhile.
+         */
         ret = __wt_strdup(session, selected->meta, metap);
     }
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
@@ -1181,9 +1185,11 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
 
     deferred_lsn = WT_DISAGG_LSN_NONE;
 
-    WT_RET(__disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn));
-    if (meta_copy == NULL)
+    /* Having nothing to adopt is the common case, not a failure. */
+    ret = __disagg_deferred_copy(session, force, &meta_copy, &deferred_lsn);
+    if (ret == WT_NOTFOUND)
         return (0);
+    WT_RET(ret);
 
     /*
      * Skip the deferral check in the adoption: the selection above already decided this checkpoint
