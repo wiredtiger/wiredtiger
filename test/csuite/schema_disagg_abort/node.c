@@ -38,8 +38,8 @@ workload_state_create(TEST_CONFIG *cfg)
 
 /*
  * workload_seed_counter --
- *     Seed the monotonic allocator from the previous leader's final counter, so a node stepping up
- *     continues the global epoch/timestamp sequence.
+ *     Seed the node's timestamps from the previous leader's final timestamp, so a node stepping up
+ *     continues the sequence.
  */
 void
 workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts)
@@ -50,8 +50,8 @@ workload_seed_counter(WORKLOAD_STATE *state, uint64_t ts)
 
 /*
  * workload_counter_advance --
- *     Advance the monotonic allocator to at least the given applied value, so a follower's counter
- *     tracks everything it applied.
+ *     Advance the node's timestamp to at least the one applied, so a follower tracks every
+ *     timestamp it applied.
  */
 void
 workload_counter_advance(WORKLOAD_STATE *state, uint64_t v)
@@ -269,57 +269,48 @@ workload_drain_barrier(WORKLOAD_STATE *state)
 }
 
 /*
- * workers_min --
- *     Return the minimum completed value across all worker threads: the frontier with no unfinished
- *     publish or commit at or below it. Returns 0 if any worker has not yet completed an operation
- *     this phase.
+ * node_stage_stopped --
+ *     Whether every thread of a stage has been joined. STAGE_WORKERS is nth_workers threads wide,
+ *     the other stages are one thread each, and STAGE_NONE is no thread at all.
  */
-static uint64_t
-workers_min(WORKLOAD_STATE *state)
+bool
+node_stage_stopped(WORKLOAD_STATE *state, uint32_t stage)
 {
-    uint64_t min_val = UINT64_MAX;
-    for (uint32_t i = 0; i < state->nth_workers; i++) {
-        const uint64_t val = __wt_atomic_load_uint64(&state->workers[i].completed_ts);
-        if (val == 0)
-            return (0);
-        if (val < min_val)
-            min_val = val;
-    }
-    return (min_val);
+    if (stage != STAGE_WORKERS)
+        return (!state->aux_thr[stage].created);
+
+    for (uint32_t i = 0; i < state->nth_workers; i++)
+        if (state->workers[i].thr.created)
+            return (false);
+    return (true);
 }
 
 /*
- * thread_ts_run --
- *     Advances the oldest and stable timestamps and the stable schema epoch to the workers'
- *     completed frontier, keeping stable data on published tables only. Runs in both roles, and
- *     holds nothing slow: the checkpoint duty has a thread of its own so it cannot freeze this one.
+ * node_aux_start --
+ *     Start an auxiliary thread for a given stage.
  */
-static WT_THREAD_RET
-thread_ts_run(void *arg)
+static void
+node_aux_start(WORKLOAD_STATE *state, uint32_t stage, WT_THREAD_RET (*func)(void *))
 {
-    WORKLOAD_STATE *state = arg;
-
-    while (workload_active(state, STAGE_TS)) {
-        /*
-         * The single frontier serves both axes: everything at or below it is published and
-         * committed, and any commit below it lands in a table created (and published) at a lower
-         * value still. It only ever moves forward - a role transition sets it to the term's final
-         * counter, which is ahead of anything a fresh phase's workers have completed.
-         */
-        const uint64_t frontier = workers_min(state);
-        if (frontier != 0) {
-            const uint64_t cur_stable = query_ts(state->conn, "stable_timestamp");
-            if (frontier >= cur_stable)
-                set_frontier(state->conn, frontier);
-        }
-
-        __wt_sleep(0, 100 * WT_THOUSAND);
-    }
-    return (WT_THREAD_RET_VALUE);
+    testutil_check(__wt_thread_create(NULL, &state->aux_thr[stage], func, state));
 }
 
-/* The timestamp thread's handle; phases join and restart it but never free it. */
-static wt_thread_t ts_thr;
+/*
+ * node_aux_stop --
+ *     Stop an auxiliary thread for a given stage.
+ */
+static void
+node_aux_stop(WORKLOAD_STATE *state, uint32_t stage)
+{
+    testutil_assert(0 < stage && stage < AUX_THR_COUNT);
+
+    /* Previous stage must have stopped. */
+    testutil_assert(node_stage_stopped(state, stage - 1));
+
+    /* Stop the current stage. */
+    __wt_atomic_store_uint32(&state->stop_stage, stage);
+    testutil_check(__wt_thread_join(NULL, &state->aux_thr[stage]));
+}
 
 /*
  * workload_start --
@@ -342,10 +333,8 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->handover_received = false;
     state->emitted = state->applied = 0;
 
+    /* Reset workers' state. Note: tables' state survives role transitioning. */
     for (uint32_t i = 0; i < cfg->nth; i++) {
-        /*
-         * The stable frontier must wait for this phase's workers, not trust the previous phase's.
-         */
         state->workers[i].completed_ts = 0;
         state->workers[i].busy = false;
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
@@ -360,18 +349,14 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
         testutil_random_from_random(
           &state->gen_rnd[i], i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
 
-    testutil_check(__wt_thread_create(NULL, &ts_thr, thread_ts_run, state));
+    node_aux_start(state, STAGE_TS, thread_ts_run);
     node_workers_start(state);
-
-    /* Every phase checkpoints or adopts checkpoints, independent of the event stream. */
-    node_ckpt_start(state);
-
-    /* Every phase has a source: this node's own generator, or a live peer's relay. */
-    node_reader_start(state);
+    node_aux_start(state, STAGE_CKPT, thread_ckpt_run);
+    node_aux_start(state, STAGE_READER, thread_reader_run);
 
     /* Start the generator last, once the machinery consuming its stream is up. */
     if (state->generates)
-        node_generator_start(state);
+        node_aux_start(state, STAGE_GENERATOR, thread_generator_run);
     fflush(stdout);
 }
 
@@ -384,20 +369,11 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
 void
 workload_stop(WORKLOAD_STATE *state)
 {
-    __wt_atomic_store_uint32(&state->stop_stage, STAGE_GENERATOR);
-    node_generator_join();
-
-    __wt_atomic_store_uint32(&state->stop_stage, STAGE_READER);
-    node_reader_join();
-
-    __wt_atomic_store_uint32(&state->stop_stage, STAGE_WORKERS);
-    node_workers_join(state);
-
-    __wt_atomic_store_uint32(&state->stop_stage, STAGE_CKPT);
-    node_ckpt_join();
-
-    __wt_atomic_store_uint32(&state->stop_stage, STAGE_TS);
-    testutil_check(__wt_thread_join(NULL, &ts_thr));
+    node_aux_stop(state, STAGE_GENERATOR);
+    node_aux_stop(state, STAGE_READER);
+    node_workers_stop(state);
+    node_aux_stop(state, STAGE_CKPT);
+    node_aux_stop(state, STAGE_TS);
 }
 
 /*
@@ -544,7 +520,7 @@ node_main(TEST_CONFIG *cfg)
     node_open(cfg, role->name, &state->conn);
     /*
      * Enter the epoch world before the workload can publish anything, on either role: a follower
-     * publishes the operations it applies too. The allocator starts at the same value, so the first
+     * publishes the operations it applies too. Timestamps start at the same point, so the first
      * event's epoch is above the stable one.
      */
     workload_seed_counter(state, SCHEMA_EPOCH_BOOTSTRAP);

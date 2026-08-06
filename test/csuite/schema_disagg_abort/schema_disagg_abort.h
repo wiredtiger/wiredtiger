@@ -131,9 +131,9 @@ typedef struct {
     EVENT_TYPE type;
     uint32_t thread_id;
     /*
-     * The value from the single monotonic allocator whose completion this event represents: a
-     * publish epoch, an insert's commit timestamp (also the row value), or a term's final counter.
-     * CREATE/DROP carry none - a schema operation completes with its publish.
+     * The timestamp whose completion this event represents: a publish epoch, an insert's commit
+     * timestamp (which the rows also hold), or a term's final timestamp. CREATE/DROP carry none - a
+     * schema operation completes with its publish.
      */
     uint64_t event_ts;
     uint32_t key_min;
@@ -189,11 +189,15 @@ typedef struct {
     uint64_t tail; /* producer position; atomic access */
 } EVENT_QUEUE;
 
-/*
- * The phase's shutdown stages, in the order the threads must go: the generator first so the stream
- * ends, then the reader, then the workers draining what it delivered, and last the checkpoint and
- * timestamp threads. Those two go after the workers because a draining worker blocked on a drop is
- * waiting for exactly what they do - a frontier that advances, and a checkpoint over it.
+/*-
+ * The phase's shutdown stages:
+ *    1. the generator first so the stream ends,
+ *    2. then the reader,
+ *    3. then the workers draining what it delivered,
+ *    4. and last the checkpoint and timestamp threads.
+ *
+ * Checkpoint and timestamp threads go after the workers because a draining worker may be blocked on
+ * a DROP waiting for durable state.
  */
 #define STAGE_NONE 0
 #define STAGE_GENERATOR 1
@@ -201,14 +205,18 @@ typedef struct {
 #define STAGE_WORKERS 3
 #define STAGE_CKPT 4
 #define STAGE_TS 5
+/*
+ * Stage index is also the count of auxiliary threads. One slot per stage; STAGE_NONE and
+ * STAGE_WORKERS are unused.
+ */
+#define AUX_THR_COUNT (STAGE_TS + 1)
 
 /*
  * Workload-engine state, one per node process, owned by node.c.
  */
 typedef struct {
     TEST_CONFIG *cfg;    /* bound at creation */
-    WT_CONNECTION *conn; /* owned here; open for the node's whole life, since both role
-                            transitions are in-place reconfigures */
+    WT_CONNECTION *conn; /* owned here; open for the node's life */
     /*
      * This phase leads: the generator produces the workload, checkpoint events are produced rather
      * than picked up, and every applied event is relayed to the peer. Fixed per phase.
@@ -219,38 +227,27 @@ typedef struct {
     uint32_t stop_stage;       /* how far the phase's shutdown has progressed; atomic access */
     uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on reopen */
     uint32_t switch_gen;       /* how many role transitions this node has completed */
-    /*
-     * Single monotonic allocator for schema epochs AND commit timestamps. One counter makes
-     * causality an ordering property: a commit into a table always draws a higher value than the
-     * table's create, so one stable frontier is consistent on both axes by construction. A follower
-     * advances it to every value it applies, and a node stepping up mid-test seeds it from the
-     * previous leader's final counter.
-     */
+
+    /* Single monotonic timestamp for schema epochs AND commit timestamps. */
     uint64_t current_ts;
-    /* In flight is emitted minus applied, bounding the lead the generator builds. */
-    uint64_t emitted; /* generator only */
-    uint64_t applied; /* atomic access: every worker adds to it */
+    uint64_t emitted; /* generator: how many events have been emitted */
+    uint64_t applied; /* worker: how many events have been applied; atomic access */
     uint32_t nth_workers;
+
     /* Per-worker-thread state; the reader fills the queue, the slot model is the generator's. */
     struct {
-        EVENT_QUEUE evq; /* this worker's inbound events */
-        bool busy;       /* the worker is mid-apply; atomic access */
-        /*
-         * The highest allocator value the thread has fully completed (published or committed). The
-         * thread's single in-flight operation always holds a higher value, so the minimum across
-         * all workers is a frontier with nothing unfinished at or below it; the timestamp thread
-         * sets the stable timestamp and stable schema epoch to that minimum.
-         */
-        uint64_t completed_ts;
-        /* Carried across phases, so each leader phase resumes its namespace where the last ended.
-         */
+        wt_thread_t thr;       /* this worker's handle */
+        EVENT_QUEUE evq;       /* this worker's inbound events */
+        bool busy;             /* the worker is mid-apply; atomic access */
+        uint64_t completed_ts; /* the latest published or committed timestamp; atomic access */
+        /* Table state is carried across leader-follower transitions. */
         TABLE_STATE table_state[MAX_POOL_SIZE];
     } workers[MAX_TH];
-    /*
-     * The phase's random streams: one per worker, driving the stream of operations the generator
-     * makes for that worker, plus one past them for the checkpoint thread's cadence. Reseeded by
-     * workload_start on every phase, generating or not, so they stay in step across role switches.
-     */
+
+    /* The single-threaded stages, indexed by stage: generator, reader, checkpoint, timestamp. */
+    wt_thread_t aux_thr[AUX_THR_COUNT];
+
+    /* Random streams: one per worker, plus one for the checkpoint thread's cadence. */
     WT_RAND_STATE gen_rnd[MAX_TH + 1];
 } WORKLOAD_STATE;
 
@@ -310,6 +307,7 @@ WORKLOAD_STATE *workload_state_create(TEST_CONFIG *cfg);
 void workload_start(WORKLOAD_STATE *state, bool as_leader);
 void workload_stop(WORKLOAD_STATE *state);
 bool workload_active(WORKLOAD_STATE *state, uint32_t stage);
+bool node_stage_stopped(WORKLOAD_STATE *state, uint32_t stage);
 void workload_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev);
 bool workload_dequeue(WORKLOAD_STATE *state, uint32_t thread_index, SCHEMA_EVENT *ev);
 bool workload_queue_empty(WORKLOAD_STATE *state, uint32_t thread_index);
@@ -324,20 +322,18 @@ bool pipe_event_read(int fd, SCHEMA_EVENT *ev);
 bool pipe_wait_readable(int fd);
 
 /* generator.c: the generator stage - the node's command stream, and all switch triggering. */
-void node_generator_start(WORKLOAD_STATE *state);
-void node_generator_join(void);
+WT_THREAD_RET thread_generator_run(void *arg);
 
 /* reader.c: the reader stage - demuxing the source pipe to the workers. */
-void node_reader_start(WORKLOAD_STATE *state);
-void node_reader_join(void);
+WT_THREAD_RET thread_reader_run(void *arg);
 
-/* ckpt.c: the checkpoint stage - the role's checkpoint duty, paced independently of the stream. */
-void node_ckpt_start(WORKLOAD_STATE *state);
-void node_ckpt_join(void);
+/* ckpt.c: the checkpoint and timestamps - running independently of the workload. */
+WT_THREAD_RET thread_ckpt_run(void *arg);
+WT_THREAD_RET thread_ts_run(void *arg);
 
 /* worker.c: the worker stage - executing events and recording them. */
 void node_workers_start(WORKLOAD_STATE *state);
-void node_workers_join(WORKLOAD_STATE *state);
+void node_workers_stop(WORKLOAD_STATE *state);
 
 /* verify.c */
 void verify_schema_state(WT_CONNECTION *conn, const TEST_CONFIG *cfg);

@@ -72,14 +72,6 @@ differs is where the source is.
   source is the peer's relay (one pipe per direction, each named for the node that reads it).
   Nothing is relayed onward.
 
-Checkpoints are **not** events and never travel the pipeline. A dedicated **checkpoint** thread
-paces them, producing one while leading and adopting the page log's latest while following. That
-independence is what puts a checkpoint anywhere between an operation and its publish, and what
-keeps checkpoints coming while a worker sits blocked waiting for one — a blocked worker fills its
-ring and stalls the reader, so a stream-borne checkpoint could never reach it. It has a thread of
-its own rather than riding the timestamp thread because a checkpoint runs up to ~1 s at `-T 12`,
-which would freeze the frontier for that long.
-
 A peerless follower therefore runs the full lifecycle on tables of its own — creating, publishing,
 populating and dropping them — while nothing it does ever becomes durable, since only a leader
 checkpoints. Its first term as leader inherits all of it, the way a fresh node bootstraps before
@@ -87,12 +79,12 @@ taking leadership.
 
 A schema operation is split into two events: `EVENT_CREATE`/`EVENT_DROP` execute it, and a later
 `EVENT_PUBLISH_CREATE`/`EVENT_PUBLISH_DROP` publishes it at a fresh schema epoch, so the
-independently paced checkpoints land on either side of the pair — the window this test targets.
+independently paced checkpoints land on either side of the pair.
 What a slot may emit, and when, is the [slot lifecycle](#slot-lifecycle) below.
 
-Valued events carry an `event_ts` from the node-wide monotonic allocator (`current_ts`): a publish
-epoch, or an insert's commit timestamp, which also values the rows. One counter for both axes makes
-causality an ordering property — an insert is generated only after its table's create published —
+Events with a timestamp carry an `event_ts` from the node-wide monotonic counter (`current_ts`):
+a publish epoch, or an insert's commit timestamp. One counter for both schema and data operations makes
+coordination easier — an insert is generated only after its table's create published —
 so a single frontier serves the stable timestamp and the stable schema epoch alike. Backpressure is
 end-to-end: a full ring blocks the reader, a full pipe blocks the producer.
 
@@ -127,31 +119,14 @@ stateDiagram-v2
     class CREATED,PUBLISHED,DROPPED pending
 ```
 
-Every transition is an event the generator emits — the machine no longer tracks checkpoint
-coverage, because a checkpoint is global and arrives on its own thread. Green states are settled;
-amber states hold something the shared storage does not know about yet, and are where the
-interesting crashes happen. `DROP_ODDS` is the dwell in `PUBLISHED`: it decides how many visits a
-table gets to accumulate data before it is dropped, so it belongs well above `INSERT_ODDS`.
+Green states are covered by a checkpoint; amber states hold something the shared storage does not
+know about yet, and are where the interesting crashes happen. `DROP_ODDS` determines how many visits
+a table gets to accumulate data before it is dropped, so it belongs well above `INSERT_ODDS`.
 
 A dropped table's slot is freed as soon as the drop publishes, whether or not a checkpoint has
-covered it — so `NONE → CREATED` is routinely a *re-*create over a still-uncovered remove, which is
-the create/drop/create-above-the-stable-epoch case (WT-18099 territory) this test wants to provoke.
+covered it — so `NONE → CREATED` is routinely a *re-*create over a still-uncovered remove.
 
-Two moves are left out on purpose:
-
-- **Insert before the create is published** — the commit would fall below the create's epoch,
-  letting a checkpoint make data stable under an unpublished table. That one is fatal
-  (`__checkpoint_disagg_maybe_publish` fails the checkpoint with *stable data checkpointed for
-  unpublished table*), so the ordering is load-bearing rather than merely tidy.
-- **Create over an unpublished drop** — the next publish would sweep the drop up with the new
-  create, so the drop would never be recorded and its absence never verified.
-
-Dropping a published table that no checkpoint covers yet is **not** excluded any more: WiredTiger
-refuses it with `EBUSY`, the worker retries, and the checkpoint thread clears it within
-`MAX_CKPT_INVL`. That is deliberate — the gate that used to hold those drops back also hid the
-publish-and-drop straddling a checkpoint from the test.
-
-The machine assumes the stable schema epoch is set before any event runs, and that pending
+Note: The machine assumes the stable schema epoch is set before any event runs, and that pending
 publishes are flushed before a role switch. A crash in any state is safe: an operation that never
 published leaves no record and no expectation.
 
@@ -159,17 +134,16 @@ published leaves no record and no expectation.
 
 Every workload thread is per-phase: `workload_start` creates them and `workload_stop` walks them
 down through the `STAGE_*` ladder — generator, then reader, then workers, then checkpoint, then
-timestamp — one atomic `stop_stage` that each loop compares against its own stage, so the order
-lives in the data. The last two go after the workers because a queued drop can be waiting on a
+timestamp. The last two go after the workers because a queued drop can be waiting on a
 checkpoint, and those two threads are what supply it: a frontier that advances, and a checkpoint
 over it. The main thread runs the `node_run` loop: `workload_start` → `node_trigger_wait` (1 s poll
 on `handover_received`/`stop_run`) → `workload_stop` → transition or exit.
 
 | Thread | Count | Does |
 |---|---|---|
-| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, emit one valid move at random or none; an empty round sleeps 1 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
+| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, emit one valid move at random or none; an empty round sleeps 10 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
 | reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
-| worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, unvalued), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark valued events completed |
+| worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, no timestamp), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark completed timestamps |
 | timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
 | checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_pick_up_checkpoint`, with the workers still running |
 
@@ -244,7 +218,7 @@ step-down has no peer to hand over to).
 
 ## Invariants
 
-1. **`apply_event` ordering**: a schema operation is unvalued — its epoch, record and completion
+1. **`apply_event` ordering**: a schema operation carries no timestamp — its epoch, record and completion
    all belong to its later publish — so the frontier cannot pass an operation whose publish has
    not applied. Within an event: relay before record, so a record on disk implies the peer holds
    the event (otherwise a surviving peer could advance the durability cutoff past a publish that
@@ -265,7 +239,7 @@ step-down has no peer to hand over to).
    before acting and asserts its counter equals the event's, since every allocated value rides an
    event preceding the switch. The generator flushes pending publishes first — a step-down clears
    WiredTiger's shared-metadata queue and URIs are origin-namespaced, so one left behind could
-   never be published by anyone. That counter is also the boundary the step-down is armed at, which
+   never be published by anyone. That timestamp is also the step-down timestamp, which
    the preceding drain makes safe, and the old leader completes the step-down before the switch is
    sent (one writer per page log).
 5. **Uniform EBUSY policy**: workers retry the same operation with a MAX_OP_WAIT bound; the
@@ -282,7 +256,7 @@ only on its survivor:
 - `last_disaggregated_schema_epoch` is the durability cutoff: records above it never reached
   a checkpoint and carry no expectations.
 - Presence: a slot whose last durable operation was CREATE must exist; DROP must be absent.
-- Data: for durable creates the recorded key range must be present, each row valued by its
+- Data: for durable creates the recorded key range must be present, each row holding its
   commit timestamp (a mismatch means another generation's data); inserts above the last
   checkpoint timestamp are skipped.
 - `verify_relay_prefix`: what a node recorded as follower must match what its peer recorded as

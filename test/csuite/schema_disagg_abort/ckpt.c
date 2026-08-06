@@ -31,7 +31,7 @@ node_current_role(const WORKLOAD_STATE *state)
  *     Take one checkpoint per random interval for as long as the phase runs. The interval runs from
  *     the previous checkpoint's completion, so slow checkpoints do not chain back to back.
  */
-static WT_THREAD_RET
+WT_THREAD_RET
 thread_ckpt_run(void *arg)
 {
     WORKLOAD_STATE *state = arg;
@@ -70,25 +70,49 @@ thread_ckpt_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
-/* The checkpoint thread's handle; its bookkeeping lives on the thread's own stack. */
-static wt_thread_t ckpt_thr;
-
 /*
- * node_ckpt_start --
- *     Start the checkpoint thread for a phase. Every phase has one, in either role.
+ * workers_min --
+ *     Return the minimum completed timestamp across all worker threads: the frontier with no
+ *     unfinished publish or commit at or below it. Returns 0 if any worker has not yet completed an
+ *     operation this phase.
  */
-void
-node_ckpt_start(WORKLOAD_STATE *state)
+static uint64_t
+workers_min(WORKLOAD_STATE *state)
 {
-    testutil_check(__wt_thread_create(NULL, &ckpt_thr, thread_ckpt_run, state));
+    uint64_t min_val = UINT64_MAX;
+    for (uint32_t i = 0; i < state->nth_workers; i++) {
+        const uint64_t val = __wt_atomic_load_uint64(&state->workers[i].completed_ts);
+        if (val == 0)
+            return (0);
+        if (val < min_val)
+            min_val = val;
+    }
+    return (min_val);
 }
 
 /*
- * node_ckpt_join --
- *     Join the checkpoint thread. The stage it exits on is the caller's to set.
+ * thread_ts_run --
+ *     Advances the oldest and stable timestamps and the stable schema epoch to the workers'
+ *     completed frontier, keeping stable data on published tables only.
  */
-void
-node_ckpt_join(void)
+WT_THREAD_RET
+thread_ts_run(void *arg)
 {
-    testutil_check(__wt_thread_join(NULL, &ckpt_thr));
+    WORKLOAD_STATE *state = arg;
+
+    while (workload_active(state, STAGE_TS)) {
+        /*
+         * The single frontier serves both schema and data operations: everything at or below it is
+         * published and committed.
+         */
+        const uint64_t frontier = workers_min(state);
+        if (frontier != 0) {
+            const uint64_t cur_stable = query_ts(state->conn, "stable_timestamp");
+            if (frontier >= cur_stable)
+                set_frontier(state->conn, frontier);
+        }
+
+        __wt_sleep(0, 100 * WT_THOUSAND);
+    }
+    return (WT_THREAD_RET_VALUE);
 }
