@@ -3416,6 +3416,14 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * so the next reconciliation's wrapup sees no address to free.
          */
         __wt_ref_addr_free(session, r->ref);
+        /*
+         * The page has no address left, in the replacement or in the reference, so it can no longer
+         * claim a replacement result: the parent's reconciliation reads the reference address for
+         * such a child and would write an address cell from nothing. Present the page as never
+         * reconciled instead. It stays dirty, so the parent leaves it out of the current checkpoint
+         * and a later reconciliation gives it an address again.
+         */
+        page->modify->rec_result = 0;
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
