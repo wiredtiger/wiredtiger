@@ -9,6 +9,7 @@
 #include <catch2/catch.hpp>
 
 #include <cstdarg>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -25,9 +26,9 @@ constexpr auto table_uri = "table:test";
 constexpr auto stable_uri = "file:test.wt_stable";
 
 class mock_metadata_cursor {
-public:
-    using response = std::variant<std::string, int>;
+    using metadata_result = std::variant<std::string, int>;
 
+public:
     mock_metadata_cursor()
     {
         _cursor.lang_private = this;
@@ -46,18 +47,18 @@ public:
     void
     insert_metadata(std::string_view uri, std::string_view value)
     {
-        _responses.insert_or_assign(std::string(uri), response{std::string(value)});
+        _metadata.insert_or_assign(std::string(uri), std::string(value));
     }
 
     void
     insert_metadata_error(std::string_view uri, int error)
     {
-        _responses.insert_or_assign(std::string(uri), response{error});
+        _metadata.insert_or_assign(std::string(uri), error);
     }
 
 private:
     static mock_metadata_cursor &
-    self(WT_CURSOR *cursor)
+    to_mock_cursor(WT_CURSOR *cursor)
     {
         return *static_cast<mock_metadata_cursor *>(cursor->lang_private);
     }
@@ -67,59 +68,55 @@ private:
     {
         va_list ap;
         va_start(ap, cursor);
-        self(cursor)._key = va_arg(ap, const char *);
+        to_mock_cursor(cursor)._search_key = va_arg(ap, const char *);
         va_end(ap);
-    }
-
-    [[nodiscard]] const response *
-    find_response() const
-    {
-        const auto it = _responses.find(_key);
-        if (it == _responses.end())
-            return nullptr;
-
-        return &it->second;
     }
 
     static int
     search(WT_CURSOR *cursor)
     {
-        const auto *response = self(cursor).find_response();
-        if (response == nullptr)
+        auto &mock = to_mock_cursor(cursor);
+        mock._search_result.reset();
+
+        const auto it = mock._metadata.find(mock._search_key);
+        if (it == mock._metadata.end())
             return WT_NOTFOUND;
 
-        const auto *error = std::get_if<int>(response);
-        return error == nullptr ? 0 : *error;
+        const auto *value = std::get_if<std::string>(&it->second);
+        if (value == nullptr)
+            return std::get<int>(it->second);
+
+        mock._search_result = *value;
+        return 0;
     }
 
     static int
     get_value(WT_CURSOR *cursor, ...)
     {
-        const auto *response = self(cursor).find_response();
-        if (response == nullptr)
-            return WT_NOTFOUND;
-
-        const auto *value = std::get_if<std::string>(response);
-        if (value == nullptr)
-            return WT_NOTFOUND;
+        const auto &mock = to_mock_cursor(cursor);
+        if (!mock._search_result.has_value())
+            return EINVAL;
 
         va_list ap;
         va_start(ap, cursor);
-        *va_arg(ap, const char **) = value->c_str();
+        *va_arg(ap, const char **) = mock._search_result->c_str();
         va_end(ap);
         return 0;
     }
 
     static int
-    reset(WT_CURSOR *)
+    reset(WT_CURSOR *cursor)
     {
+        auto &mock = to_mock_cursor(cursor);
+        mock._search_key = {};
+        mock._search_result.reset();
         return 0;
     }
 
     WT_CURSOR _cursor{};
-
-    std::unordered_map<std::string, response> _responses;
-    std::string _key;
+    std::unordered_map<std::string, metadata_result> _metadata;
+    std::string _search_key;
+    std::optional<std::string> _search_result;
 };
 
 int
@@ -147,9 +144,8 @@ public:
         REQUIRE(connection->setup_block_manager(session_impl) == 0);
 
         // Metadata searches need both session and shared transaction state.
-        REQUIRE(__wt_calloc_one(session_impl, &_txn) == 0);
+        REQUIRE(__wt_calloc_one(session_impl, &session_impl->txn) == 0);
         conn->txn_global.txn_shared_list = &_txn_shared;
-        session_impl->txn = _txn;
 
         conn->file_system->fs_exist = fs_exist_default;
         conn->file_system->fs_size = fs_size_default;
@@ -165,9 +161,9 @@ public:
 
         // Detach test state before the mock session is destroyed.
         session_impl->meta_cursor = nullptr;
-        session_impl->txn = nullptr;
         conn->txn_global.txn_shared_list = nullptr;
-        __wt_free(session_impl, _txn);
+        __wt_free(session_impl, session_impl->txn);
+        session_impl->txn = nullptr;
 
         // Reset optional disaggregated configuration.
         conn->disaggregated_storage.page_log_meta = nullptr;
@@ -207,277 +203,157 @@ public:
 private:
     std::shared_ptr<mock_session> _mock;
     mock_metadata_cursor _metadata_cursor;
-    WT_TXN *_txn = nullptr;
     WT_TXN_SHARED _txn_shared{};
     WT_PAGE_LOG_HANDLE _page_log_handle{};
 };
 
 } // namespace
 
-SCENARIO_METHOD(curstat_size_fixture, "local size propagates a file system error", "[curstat_size]")
+TEST_CASE_METHOD(curstat_size_fixture, "local size", "[curstat_size]")
 {
-    GIVEN("a file system that returns an existence-check error")
+    SECTION("propagates a file system error")
     {
         constexpr auto expected_error = EIO;
         file_system().fs_exist = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *) {
-            return expected_error;
+            return EIO;
         };
 
-        WHEN("the local size is requested")
-        {
-            bool was_fast = true;
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
+        bool was_fast = true;
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
 
-            THEN("it returns the file system error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "local size reports a missing file", "[curstat_size]")
-{
-    GIVEN("a file system that reports the file does not exist")
+    SECTION("reports a missing file")
     {
         file_system().fs_exist = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *existp) {
             *existp = false;
             return 0;
         };
 
-        WHEN("the local size is requested")
-        {
-            bool was_fast = true;
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
+        bool was_fast = true;
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path did not resolve the size")
-            {
-                REQUIRE_FALSE(was_fast);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE_FALSE(was_fast);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "local size propagates a size error", "[curstat_size]")
-{
-    GIVEN("a file system that returns a size-check error")
+    SECTION("propagates a size error")
     {
         constexpr auto expected_error = EIO;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *) {
-            return expected_error;
+            return EIO;
         };
 
-        WHEN("the local size is requested")
-        {
-            bool was_fast = true;
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
+        bool was_fast = true;
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
 
-            THEN("it returns the size error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(
-  curstat_size_fixture, "local size treats a concurrent removal as missing", "[curstat_size]")
-{
-    GIVEN("a file system whose size check returns ENOENT")
+    SECTION("treats a concurrent removal as missing")
     {
-        constexpr auto expected_error = ENOENT;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *) {
-            return expected_error;
+            return ENOENT;
         };
 
-        WHEN("the local size is requested")
-        {
-            bool was_fast = true;
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
+        bool was_fast = true;
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path did not resolve the size")
-            {
-                REQUIRE_FALSE(was_fast);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE_FALSE(was_fast);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "local size reports a valid size", "[curstat_size]")
-{
-    GIVEN("a file system that reports an existing file with a valid size")
+    SECTION("reports a valid size")
     {
         constexpr wt_off_t expected_size = 5678;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *sizep) {
-            *sizep = expected_size;
+            *sizep = 5678;
             return 0;
         };
 
-        WHEN("the local size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_local(session(), filename, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path resolved the size")
-            {
-                REQUIRE(was_fast);
-            }
-
-            AND_THEN("it reports the file size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(was_fast);
+        REQUIRE(size == expected_size);
     }
 }
 
-SCENARIO_METHOD(curstat_size_fixture, "shared size propagates a checkpoint error", "[curstat_size]")
+TEST_CASE_METHOD(curstat_size_fixture, "shared size", "[curstat_size]")
 {
-    GIVEN("shared-file metadata with a checkpoint missing its order")
+    SECTION("propagates a checkpoint error")
     {
         constexpr auto expected_error = WT_ERROR;
         constexpr auto config =
           "checkpoint=(WiredTigerCheckpoint.1=(addr=\"\",order=,time=1,size=0,write_gen=1))";
 
-        WHEN("the shared size is requested")
-        {
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_shared(session(), config, &size);
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_shared(session(), config, &size);
 
-            THEN("it returns the checkpoint error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "shared size reports zero when there is no checkpoint entry",
-  "[curstat_size]")
-{
-    GIVEN("shared-file metadata with an empty checkpoint list")
+    SECTION("reports zero when there is no checkpoint entry")
     {
         constexpr auto config = "checkpoint=()";
 
-        WHEN("the shared size is requested")
-        {
-            int64_t size = 1;
-            const auto result = __ut_curstat_size_shared(session(), config, &size);
+        int64_t size = 1;
+        const auto result = __ut_curstat_size_shared(session(), config, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it reports a zero size")
-            {
-                REQUIRE(size == 0);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(size == 0);
     }
-}
 
-SCENARIO_METHOD(
-  curstat_size_fixture, "shared size reports a zero-sized checkpoint", "[curstat_size]")
-{
-    GIVEN("shared-file metadata with a zero-sized checkpoint")
+    SECTION("reports a zero-sized checkpoint")
     {
         constexpr auto config =
           "checkpoint=(WiredTigerCheckpoint.1=(addr=\"\",order=1,time=1,size=0,write_gen=1))";
 
-        WHEN("the shared size is requested")
-        {
-            int64_t size = 1;
-            const auto result = __ut_curstat_size_shared(session(), config, &size);
+        int64_t size = 1;
+        const auto result = __ut_curstat_size_shared(session(), config, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it reports a zero size")
-            {
-                REQUIRE(size == 0);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(size == 0);
     }
-}
 
-SCENARIO_METHOD(
-  curstat_size_fixture, "shared size reports a nonzero checkpoint size", "[curstat_size]")
-{
-    GIVEN("shared-file metadata with a nonzero checkpoint size")
+    SECTION("reports a nonzero checkpoint size")
     {
         constexpr int64_t expected_size = 5678;
         constexpr auto config =
           "checkpoint=(WiredTigerCheckpoint.1=(addr=\"\",order=1,time=1,size=5678,write_gen=1))";
 
-        WHEN("the shared size is requested")
-        {
-            int64_t size = 0;
-            const auto result = __ut_curstat_size_shared(session(), config, &size);
+        int64_t size = 0;
+        const auto result = __ut_curstat_size_shared(session(), config, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it reports the checkpoint size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(size == expected_size);
     }
 }
 
-SCENARIO_METHOD(curstat_size_fixture, "file size propagates a metadata search error",
-  "[curstat_size][curstat_file_size]")
+TEST_CASE_METHOD(curstat_size_fixture, "file size", "[curstat_size][curstat_file_size]")
 {
-    GIVEN("a disaggregated connection whose metadata search returns an error")
+    SECTION("propagates a metadata search error")
     {
         enable_disaggregated_storage();
 
         constexpr auto expected_error = EIO;
         metadata_cursor().insert_metadata_error(file_uri, expected_error);
 
-        WHEN("the file size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
 
-            THEN("it returns the metadata search error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "file size propagates a block manager classification error",
-  "[curstat_size][curstat_file_size]")
-{
-    GIVEN("a disaggregated connection with invalid block manager metadata")
+    SECTION("propagates a block manager classification error")
     {
         enable_disaggregated_storage();
 
@@ -485,24 +361,14 @@ SCENARIO_METHOD(curstat_size_fixture, "file size propagates a block manager clas
         constexpr auto file_config = "block_manager=(";
         metadata_cursor().insert_metadata(file_uri, file_config);
 
-        WHEN("the file size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
 
-            THEN("it returns the block manager classification error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "file size propagates an error from shared sizing",
-  "[curstat_size][curstat_file_size]")
-{
-    GIVEN("a disaggregated connection with invalid shared-file checkpoint metadata")
+    SECTION("propagates an error from shared sizing")
     {
         enable_disaggregated_storage();
 
@@ -511,24 +377,14 @@ SCENARIO_METHOD(curstat_size_fixture, "file size propagates an error from shared
           "checkpoint=(WiredTigerCheckpoint.1=(addr=\"\",order=))";
         metadata_cursor().insert_metadata(file_uri, file_config);
 
-        WHEN("the file size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
 
-            THEN("it returns the shared sizing error")
-            {
-                REQUIRE(result == WT_ERROR);
-            }
-        }
+        REQUIRE(result == WT_ERROR);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "file size retrieves the shared checkpoint size",
-  "[curstat_size][curstat_file_size]")
-{
-    GIVEN("a disaggregated connection with shared-file metadata")
+    SECTION("retrieves the shared checkpoint size")
     {
         enable_disaggregated_storage();
 
@@ -539,266 +395,140 @@ SCENARIO_METHOD(curstat_size_fixture, "file size retrieves the shared checkpoint
           "addr=\"\",order=1,time=1,size=5678,write_gen=1))";
         metadata_cursor().insert_metadata(file_uri, file_config);
 
-        WHEN("the file size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path resolved the size")
-            {
-                REQUIRE(was_fast);
-            }
-
-            AND_THEN("it reports the shared checkpoint size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(was_fast);
+        REQUIRE(size == expected_size);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "file size propagates an error from local sizing",
-  "[curstat_size][curstat_file_size]")
-{
-    GIVEN("a local connection whose file system size check returns an error")
+    SECTION("propagates an error from local sizing")
     {
         constexpr auto expected_error = EIO;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *) {
-            return expected_error;
+            return EIO;
         };
 
-        WHEN("the file size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
 
-            THEN("it returns the local sizing error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "file size retrieves the local file size",
-  "[curstat_size][curstat_file_size]")
-{
-    GIVEN("a local connection with an existing file")
+    SECTION("retrieves the local file size")
     {
         constexpr wt_off_t expected_size = 4321;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *sizep) {
-            *sizep = expected_size;
+            *sizep = 4321;
             return 0;
         };
 
-        WHEN("the file size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_file_size(session(), file_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path resolved the size")
-            {
-                REQUIRE(was_fast);
-            }
-
-            AND_THEN("it reports the local file size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(was_fast);
+        REQUIRE(size == expected_size);
     }
 }
 
-SCENARIO_METHOD(curstat_size_fixture, "table size reports missing table metadata",
-  "[curstat_size][curstat_table_size]")
+TEST_CASE_METHOD(curstat_size_fixture, "table size", "[curstat_size][curstat_table_size]")
 {
-    GIVEN("no metadata for the table")
+    SECTION("reports missing table metadata")
     {
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns not found")
-            {
-                REQUIRE(result == WT_NOTFOUND);
-            }
-        }
+        REQUIRE(result == WT_NOTFOUND);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size propagates a metadata search error",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a table metadata search that returns an error")
+    SECTION("propagates a metadata search error")
     {
         constexpr auto expected_error = EIO;
         metadata_cursor().insert_metadata_error(table_uri, expected_error);
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns the metadata search error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size propagates a columns lookup error",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("table metadata without a columns configuration")
+    SECTION("propagates a columns lookup error")
     {
         metadata_cursor().insert_metadata(table_uri, "key_format=S");
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns the columns lookup error")
-            {
-                REQUIRE(result == WT_NOTFOUND);
-            }
-        }
+        REQUIRE(result == WT_NOTFOUND);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size propagates a simple-table classification error",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("table metadata with malformed columns")
+    SECTION("propagates a simple-table classification error")
     {
         metadata_cursor().insert_metadata(table_uri, "columns=\"(\"");
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns the simple-table classification error")
-            {
-                REQUIRE(result == EINVAL);
-            }
-        }
+        REQUIRE(result == EINVAL);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size skips the fast path for a non-simple table",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("table metadata with named columns")
+    SECTION("skips the fast path for a non-simple table")
     {
         metadata_cursor().insert_metadata(table_uri, "columns=(key,value)");
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = true;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = true;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path did not resolve the size")
-            {
-                REQUIRE_FALSE(was_fast);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE_FALSE(was_fast);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture,
-  "table size propagates an error from the backing file size lookup",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table whose backing file size lookup returns an error")
+    SECTION("propagates an error from the backing file size lookup")
     {
         metadata_cursor().insert_metadata(table_uri, "columns=()");
 
         constexpr auto expected_error = EIO;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *) {
-            return expected_error;
+            return EIO;
         };
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns the backing file size lookup error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size retrieves its backing file size",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table backed by a local file")
+    SECTION("retrieves its backing file size")
     {
         metadata_cursor().insert_metadata(table_uri, "columns=()");
 
         constexpr wt_off_t expected_size = 4321;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *sizep) {
-            *sizep = expected_size;
+            *sizep = 4321;
             return 0;
         };
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path resolved the size")
-            {
-                REQUIRE(was_fast);
-            }
-
-            AND_THEN("it reports the backing file size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(was_fast);
+        REQUIRE(size == expected_size);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size propagates a stable metadata search error",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table whose stable metadata search returns an error")
+    SECTION("propagates a stable metadata search error")
     {
         enable_disaggregated_storage();
 
@@ -807,24 +537,14 @@ SCENARIO_METHOD(curstat_size_fixture, "table size propagates a stable metadata s
         constexpr auto expected_error = EIO;
         metadata_cursor().insert_metadata_error(stable_uri, expected_error);
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns the stable metadata search error")
-            {
-                REQUIRE(result == expected_error);
-            }
-        }
+        REQUIRE(result == expected_error);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size propagates an error from shared sizing",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table with invalid stable checkpoint metadata")
+    SECTION("propagates an error from shared sizing")
     {
         enable_disaggregated_storage();
 
@@ -833,24 +553,14 @@ SCENARIO_METHOD(curstat_size_fixture, "table size propagates an error from share
         constexpr auto stable_config = "checkpoint=(WiredTigerCheckpoint.1=(addr=\"\",order=))";
         metadata_cursor().insert_metadata(stable_uri, stable_config);
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns the shared sizing error")
-            {
-                REQUIRE(result == WT_ERROR);
-            }
-        }
+        REQUIRE(result == WT_ERROR);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture, "table size retrieves the shared checkpoint size",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table with stable checkpoint metadata")
+    SECTION("retrieves the shared checkpoint size")
     {
         enable_disaggregated_storage();
 
@@ -863,64 +573,30 @@ SCENARIO_METHOD(curstat_size_fixture, "table size retrieves the shared checkpoin
 
         metadata_cursor().insert_metadata(stable_uri, stable_config);
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path resolved the size")
-            {
-                REQUIRE(was_fast);
-            }
-
-            AND_THEN("it reports the shared checkpoint size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(was_fast);
+        REQUIRE(size == expected_size);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture,
-  "table size defers to the slow path when stable and local file metadata are missing",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table without stable or local file metadata")
+    SECTION("defers to the slow path when stable and local file metadata are missing")
     {
         enable_disaggregated_storage();
 
         metadata_cursor().insert_metadata(table_uri, "columns=()");
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = true;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = true;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path did not resolve the size")
-            {
-                REQUIRE_FALSE(was_fast);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE_FALSE(was_fast);
     }
-}
 
-SCENARIO_METHOD(curstat_size_fixture,
-  "table size falls back to its local backing file when stable metadata is missing",
-  "[curstat_size][curstat_table_size]")
-{
-    GIVEN("a simple table without stable metadata")
+    SECTION("falls back to its local backing file when stable metadata is missing")
     {
         enable_disaggregated_storage();
 
@@ -931,30 +607,16 @@ SCENARIO_METHOD(curstat_size_fixture,
 
         constexpr wt_off_t expected_size = 4321;
         file_system().fs_size = [](WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *sizep) {
-            *sizep = expected_size;
+            *sizep = 4321;
             return 0;
         };
 
-        WHEN("the table size is requested")
-        {
-            bool was_fast = false;
-            int64_t size = 0;
-            const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
+        bool was_fast = false;
+        int64_t size = 0;
+        const auto result = __ut_curstat_table_size(session(), table_uri, &was_fast, &size);
 
-            THEN("it returns zero")
-            {
-                REQUIRE(result == 0);
-            }
-
-            AND_THEN("it indicates that the fast path resolved the size")
-            {
-                REQUIRE(was_fast);
-            }
-
-            AND_THEN("it reports the local backing file size")
-            {
-                REQUIRE(size == expected_size);
-            }
-        }
+        REQUIRE(result == 0);
+        REQUIRE(was_fast);
+        REQUIRE(size == expected_size);
     }
 }
