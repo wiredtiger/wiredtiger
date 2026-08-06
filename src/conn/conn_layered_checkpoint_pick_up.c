@@ -8,6 +8,11 @@
 
 #include "wt_internal.h"
 
+#ifdef HAVE_DIAGNOSTIC
+static int __disagg_check_meta_fields(
+  WT_SESSION_IMPL *, const char *, const char *, WT_CONFIG *, WT_CONFIG *);
+#endif
+
 /*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
@@ -328,6 +333,7 @@ __disagg_key_at_table(const char *key, int idx, const char *current, size_t curr
     return (__wt_string_slice_cmp(name, name_len, current, current_len) == 0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __disagg_meta_skip_field --
  *     Return true if the configuration field is excluded from the metadata comparison: it either
@@ -354,9 +360,6 @@ __disagg_meta_skip_field(const WT_CONFIG_ITEM *key)
     return (false);
 }
 
-static int __disagg_check_meta_fields(
-  WT_SESSION_IMPL *, const char *, const char *, WT_CONFIG *, WT_CONFIG *);
-
 /*
  * __disagg_check_meta_field --
  *     Compare a single configuration field present in both the local and the shared metadata,
@@ -370,19 +373,17 @@ __disagg_check_meta_field(WT_SESSION_IMPL *session, const char *uri, const char 
     WT_DECL_ITEM(child);
     WT_DECL_RET;
 
-    if (sh_cval->type == WT_CONFIG_ITEM_STRUCT && md_cval->type == WT_CONFIG_ITEM_STRUCT) {
+    WT_ASSERT_ALWAYS(session, sh_cval->type == md_cval->type,
+      "checkpoint pickup metadata mismatch for \"%s\": the type of \"%s%.*s\" differs between the "
+      "local and the shared metadata",
+      uri, prefix, (int)key->len, key->str);
+    if (sh_cval->type == WT_CONFIG_ITEM_STRUCT) {
         WT_ERR(__wt_scr_alloc(session, 0, &child));
         WT_ERR(__wt_buf_fmt(session, child, "%s%.*s.", prefix, (int)key->len, key->str));
         __wt_config_subinit(session, &sh_sub, sh_cval);
         __wt_config_subinit(session, &md_sub, md_cval);
         WT_ERR(__disagg_check_meta_fields(session, uri, child->data, &md_sub, &sh_sub));
-    } else if (sh_cval->type == WT_CONFIG_ITEM_STRUCT || md_cval->type == WT_CONFIG_ITEM_STRUCT)
-        WT_ERR_PANIC(session, EINVAL,
-          "checkpoint pickup metadata mismatch for \"%s\": the type of \"%s%.*s\" differs "
-          "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
-          uri, prefix, (int)key->len, key->str, (int)md_cval->len, md_cval->str, (int)sh_cval->len,
-          sh_cval->str);
-    else if (__wt_string_slice_cmp(sh_cval->str, sh_cval->len, md_cval->str, md_cval->len) != 0)
+    } else if (__wt_string_slice_cmp(sh_cval->str, sh_cval->len, md_cval->str, md_cval->len) != 0)
         WT_ERR_PANIC(session, EINVAL,
           "checkpoint pickup metadata mismatch for \"%s\": the value of \"%s%.*s\" differs "
           "between the local (\"%.*s\") and the shared (\"%.*s\") metadata",
@@ -438,29 +439,6 @@ __disagg_check_meta_fields(WT_SESSION_IMPL *session, const char *uri, const char
 }
 
 /*
- * __disagg_check_meta_id --
- *     Compare the btree id of a file entry between the local and the shared metadata, panicking
- *     when they differ.
- */
-static int
-__disagg_check_meta_id(
-  WT_SESSION_IMPL *session, const char *uri, const char *md_value, const char *sh_value)
-{
-    WT_CONFIG_ITEM md_cval, sh_cval;
-
-    WT_RET(__wt_config_getones(session, sh_value, "id", &sh_cval));
-    WT_RET(__wt_config_getones(session, md_value, "id", &md_cval));
-
-    /* An id mismatch means the checkpoint would be read under the wrong btree identity. */
-    if (sh_cval.val != md_cval.val)
-        WT_RET_PANIC(session, EINVAL,
-          "checkpoint pickup metadata mismatch for \"%s\": the value of \"id\" differs between "
-          "the local (\"%.*s\") and the shared (\"%.*s\") metadata",
-          uri, (int)md_cval.len, md_cval.str, (int)sh_cval.len, sh_cval.str);
-    return (0);
-}
-
-/*
  * __disagg_check_meta_all_fields --
  *     Compare every configuration field between the local and the shared metadata entries.
  */
@@ -493,6 +471,30 @@ err:
     __wt_free(session, sh_merge);
     return (ret);
 }
+#else
+/*
+ * __disagg_check_meta_id --
+ *     Compare the btree id of a file entry between the local and the shared metadata, panicking
+ *     when they differ.
+ */
+static int
+__disagg_check_meta_id(
+  WT_SESSION_IMPL *session, const char *uri, const char *md_value, const char *sh_value)
+{
+    WT_CONFIG_ITEM md_cval, sh_cval;
+
+    WT_RET(__wt_config_getones(session, sh_value, "id", &sh_cval));
+    WT_RET(__wt_config_getones(session, md_value, "id", &md_cval));
+
+    /* An id mismatch means the checkpoint would be read under the wrong btree identity. */
+    if (sh_cval.val != md_cval.val)
+        WT_RET_PANIC(session, EINVAL,
+          "checkpoint pickup metadata mismatch for \"%s\": the value of \"id\" differs between "
+          "the local (\"%.*s\") and the shared (\"%.*s\") metadata",
+          uri, (int)md_cval.len, md_cval.str, (int)sh_cval.len, sh_cval.str);
+    return (0);
+}
+#endif
 
 /*
  * __disagg_check_meta_match --
@@ -504,7 +506,6 @@ static int
 __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
 {
     const char *md_key, *md_value, *sh_key, *sh_value;
-    bool check_all_fields;
 
     WT_RET(sh_cursor->get_key(sh_cursor, &sh_key));
     WT_RET(md_cursor->get_key(md_cursor, &md_key));
@@ -518,12 +519,13 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
         return (0);
 
     /*
-     * By default only validate the btree id of file entries. The full field comparison runs when
-     * extra diagnostics are enabled.
+     * Non-diagnostic builds validate only the btree id of file entries; diagnostic builds compare
+     * every field of every entry.
      */
-    check_all_fields = EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE);
-    if (!check_all_fields && !WT_PREFIX_MATCH(sh_key, "file:"))
+#ifndef HAVE_DIAGNOSTIC
+    if (!WT_PREFIX_MATCH(sh_key, "file:"))
         return (0);
+#endif
 
     WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
     WT_RET(md_cursor->get_value(md_cursor, &md_value));
@@ -532,8 +534,11 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
     if (strcmp(sh_value, md_value) == 0)
         return (0);
 
-    return (check_all_fields ? __disagg_check_meta_all_fields(session, sh_key, md_value, sh_value) :
-                               __disagg_check_meta_id(session, sh_key, md_value, sh_value));
+#ifdef HAVE_DIAGNOSTIC
+    return (__disagg_check_meta_all_fields(session, sh_key, md_value, sh_value));
+#else
+    return (__disagg_check_meta_id(session, sh_key, md_value, sh_value));
+#endif
 }
 
 /*

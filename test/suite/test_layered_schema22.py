@@ -28,9 +28,9 @@
 
 # Validate immutable metadata configuration fields on checkpoint pickup.
 # A matched pickup passes; a table dropped and recreated on the leader (new btree id), a table
-# created with different key formats on the two nodes, and a divergent nested field all panic. By
-# default only the btree id of file entries is validated; the full field comparison runs with
-# extra_diagnostics=[checkpoint_validate].
+# created with different key formats on the two nodes, and a divergent nested field all panic.
+# Non-diagnostic builds validate only the btree id of file entries; the full field comparison
+# runs on diagnostic builds.
 
 import os
 import wiredtiger, wttest
@@ -63,14 +63,6 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
             'checkpoint pickup metadata mismatch')
         if fragment is not None:
             self.check_file_contains(os.path.join(home, 'stderr.txt'), fragment)
-
-    def enable_full_validation(self):
-        """
-        Opt the follower into the full metadata comparison on release builds; diagnostic
-        builds always run it and reject the configuration option.
-        """
-        if not wiredtiger.diagnostic_build():
-            self.conn_config_follower += ',extra_diagnostics=[checkpoint_validate]'
 
     def test_matched_pickup_ok(self):
         """Repeated pickups of an unchanged table configuration pass the validation."""
@@ -128,16 +120,16 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
     def subprocess_mismatched_format_panics(self):
         """Subprocess body for the key format mismatch test; expected to panic/abort."""
-        self.enable_full_validation()
         self.make_mismatched_format()
 
     def test_mismatched_format_panics(self):
         """The same table created with different key formats on each node: pickup panics."""
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('the full metadata comparison runs on diagnostic builds only')
         self.run_panic_subprocess('mismatched_format_panics', 'the value of "key_format"')
 
     def subprocess_mismatched_nested_panics(self):
         """Subprocess body for the nested field mismatch test; expected to panic/abort."""
-        self.enable_full_validation()
         self.session.create(self.uri, self.table_config + ',encryption=(name=none,keyid=first)')
         self.leader_checkpoint(1)
 
@@ -152,11 +144,13 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
     def test_mismatched_nested_panics(self):
         """A nested configuration field differing between the nodes: pickup panics."""
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('the full metadata comparison runs on diagnostic builds only')
         self.run_panic_subprocess('mismatched_nested_panics', 'encryption.keyid')
 
     def test_default_format_mismatch_tolerated(self):
-        """Without extra diagnostics only the btree id is validated: a format mismatch does not
-        panic. Diagnostic builds cannot disable the full comparison, so skip them."""
+        """Non-diagnostic builds validate only the btree id: a format mismatch does not panic.
+        Diagnostic builds run the full comparison and would panic instead, so skip them."""
         if wiredtiger.diagnostic_build():
             self.skipTest('diagnostic builds always run the full metadata comparison')
 
