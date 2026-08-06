@@ -241,6 +241,23 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ROLE_CHANGE (CLAYERED_ENTER_STEP_DOWN | CLAYERED_ENTER_STEP_UP)
 
 /*
+ * __clayered_no_stable --
+ *     Return whether the table has no stable constituent for this operation to read. The record on
+ *     the handle is only meaningful for a leader still inside the step-down window that set it: a
+ *     follower gains the constituent at any checkpoint pick-up, and the next leader era builds the
+ *     ones the window skipped.
+ */
+static WT_INLINE bool
+__clayered_no_stable(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
+{
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+
+    return (role == WTI_CLAYERED_ROLE_LEADER &&
+      F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE);
+}
+
+/*
  * __clayered_skip_stable --
  *     Return whether the operation can start without an open stable constituent.
  */
@@ -300,11 +317,15 @@ __clayered_enter_flags(
      * A transaction that started with the step-down timestamp set behaves like a follower: it reads
      * and writes the ingest constituent over the still-live stable table.
      *
+     * A table created inside the step-down window has no stable constituent at all, so its cursors
+     * use ingest whenever the transaction began. That covers a transaction from before the
+     * timestamp was set, which would otherwise read stable alone and find nothing to open.
+     *
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
      * by contract.
      */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
-      mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+      __clayered_no_stable(clayered, role) || mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
@@ -377,17 +398,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
     WT_RET(__clayered_update_stable(clayered, flags, role));
-
-    /*
-     * A table created after the step-down timestamp never gets a stable constituent. A leader
-     * cursor on such a table has nothing to read, so it falls back to the ingest constituent that a
-     * leader otherwise keeps closed.
-     */
-    if (role == WTI_CLAYERED_ROLE_LEADER && clayered->stable_cursor == NULL &&
-      !LF_ISSET(CLAYERED_ENTER_OPEN_INGEST)) {
-        LF_SET(CLAYERED_ENTER_OPEN_INGEST);
-        WT_RET(__clayered_update_ingest(clayered, flags));
-    }
 
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
@@ -914,8 +924,9 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
       WT_DISAGG_LSN_NONE;
 
     if (clayered->stable_cursor == NULL) {
-        /* Open stable the first time if needed. */
-        if (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
+        /* Open stable the first time if needed, unless the constituent does not exist yet. */
+        if (!__clayered_no_stable(clayered, role) &&
+          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {

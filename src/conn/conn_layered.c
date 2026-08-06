@@ -1162,6 +1162,15 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
+        /*
+         * Stepping up again rebuilds every stable constituent the window skipped, so the window's
+         * record of a table without one must not outlive this role change.
+         */
+        if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
+            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+            continue;
+        }
+
         /* Only care about open disaggregated btree dhandles. */
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
             continue;

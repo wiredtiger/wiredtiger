@@ -685,8 +685,12 @@ __schema_open_layered(WT_SESSION_IMPL *session)
 int
 __wt_schema_open_layered(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
+    char *stable_value;
+
+    stable_value = NULL;
 
     if (!__wt_conn_is_disagg(session)) {
         __wt_err(session, EINVAL, "layered table is only supported for disaggregated storage");
@@ -710,6 +714,24 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_RET(ret);
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
+
+    /*
+     * A create inside the step-down window skips the stable constituent, so a leader cursor has
+     * nothing to read until the next leader era builds one. Record that on the handle, and cursors
+     * route to ingest instead of attempting an open that cannot succeed.
+     *
+     * Only the window is recorded. The constituent is missing for a table a follower created too,
+     * and during a step-up until the pass that rebuilds the skipped ones runs, but neither of those
+     * states ends in the step-down that clears this.
+     */
+    conn = S2C(session);
+    if (conn->layered_table_manager.leader &&
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE) {
+        WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, layered->stable_uri, &stable_value));
+        if (ret == WT_NOTFOUND)
+            F_SET(layered, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+        __wt_free(session, stable_value);
+    }
 
     F_SET(layered, WT_LAYERED_TABLE_OPEN);
 
