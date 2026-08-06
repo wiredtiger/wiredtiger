@@ -1267,7 +1267,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
      * the retiring buffer once.
      */
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        WT_TXN_SNAPSHOT *src, *dst;
+        struct __wt_ckpt_eviction_snap *buf;
+        WT_TXN_SNAPSHOT *dst, *src;
         uint32_t capacity, count, cur_idx, new_idx;
 
         src = &txn->snapshot_data;
@@ -1276,24 +1277,20 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
 
         cur_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
         new_idx = 1 - cur_idx;
+        buf = &conn->ckpt_eviction_snap[new_idx];
 
-        WT_ERR(__wt_realloc_def(session, &conn->ckpt_eviction_snap_capacity[new_idx], capacity,
-          &conn->ckpt_eviction_snap_array[new_idx]));
+        WT_ERR(__wt_realloc_def(session, &buf->snap_capacity, capacity, &buf->snap_array));
 
-        dst = &conn->ckpt_eviction_snap[new_idx];
+        dst = &buf->snap;
         dst->snap_min = src->snap_min;
         dst->snap_max = src->snap_max;
         dst->snapshot_count = count;
-        dst->snapshot = conn->ckpt_eviction_snap_array[new_idx];
+        dst->snapshot = buf->snap_array;
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        /*
-         * Stamp the buffer with this checkpoint's generation before publishing it, so a reader can
-         * reject a snapshot an earlier checkpoint retired.
-         */
-        __wt_atomic_store_uint64_release(
-          &conn->ckpt_eviction_snap_gen[new_idx], __wt_gen(session, WT_GEN_CHECKPOINT));
+        /* Stamp the buffer before publishing it, so a reader can reject a retired snapshot. */
+        __wt_atomic_store_uint64_release(&buf->gen, __wt_gen(session, WT_GEN_CHECKPOINT));
 
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         /*
@@ -1707,9 +1704,12 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        return;
+
     /* The checkpoint published this index itself, and checkpoints do not overlap. */
     snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
-    __wt_atomic_store_uint64_release(&conn->ckpt_eviction_snap_gen[snap_idx], 0);
+    __wt_atomic_store_uint64_release(&conn->ckpt_eviction_snap[snap_idx].gen, 0);
 }
 
 /*
@@ -1944,14 +1944,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_ERR(__wt_meta_sysinfo_set(session, ckpt_cfg.name, ckpt_cfg.name_len));
 
-    /*
-     * Retire the published snapshot before any of this checkpoint's transaction state is torn down:
-     * the snapshot stops pinning updates immediately below, the pinned id goes with it, and the
-     * transaction id follows at commit. Eviction that declines a snapshot falls back to bounding
-     * itself with exactly that state, so a snapshot left usable while it disappears is the worst of
-     * both - eviction keeps using a snapshot nothing pins, with the oldest id free to advance past
-     * it. Clearing the generation stamp is what retires it: the generation is never zero once a
-     * checkpoint has run, so no reader can match it.
+    /* Retire the published snapshot before this checkpoint's transaction state is torn down below.
      */
     __checkpoint_eviction_snapshot_retire(session);
 

@@ -11,7 +11,7 @@
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static bool __evict_page_victim_cache_eligible(WT_SESSION_IMPL *, WT_REF *);
-static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *);
+static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *, uint64_t);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
@@ -1219,60 +1219,47 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
  *     snapshot was copied, false if no snapshot has been published yet.
  */
 static bool
-__evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
+__evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_SNAPSHOT *snap;
-    uint64_t snap_gen;
     uint32_t snap_idx;
+    bool copied;
 
     conn = S2C(session);
+    copied = false;
 
     /*
      * Hold the generation across the reads below. The publisher writes the inactive buffer and
      * drains this generation after swapping, so holding it stops the buffer named here from being
      * recycled while we read it.
      */
-    __wt_session_gen_enter(session, WT_GEN_HAS_CKPT_SNAPSHOT);
+    WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     snap_idx = __wt_atomic_load_uint32_acquire(&conn->ckpt_eviction_snap_idx);
-    snap = &conn->ckpt_eviction_snap[snap_idx];
-    snap_gen = __wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap_gen[snap_idx]);
+    snap = &conn->ckpt_eviction_snap[snap_idx].snap;
 
     /*
-     * Read the buffer's stamp before the checkpoint generation, never after. Reading the generation
-     * first accepts a retired snapshot on this interleaving:
-     *
-     * 1. Read the generation: 47.
-     * 2. Checkpoint 47 completes; checkpoint 48 starts, bumps the generation to 48 and publishes
-     *    into the other buffer.
-     * 3. Read the index: it can still name checkpoint 47's buffer, stamped 47.
-     * 4. 47 equals the generation read in step 1, so eviction adopts a finished checkpoint's
-     *    snapshot - the bug this check exists to prevent.
-     *
-     * In this order step 4 compares the stamp of 47 against the current generation of 48 and
-     * declines. The generation only moves forwards, so reading it last is always the stricter test.
+     * Take the buffer only when the checkpoint that published it is the one still running: the
+     * checkpoint generation is bumped before the running checkpoint publishes, so until it does the
+     * buffer is still the previous checkpoint's. A buffer no checkpoint has published, or one a
+     * finished checkpoint retired, is stamped zero, which no generation matches. The generation
+     * read by the caller can only be stale, and a stale generation matching the stamp read here
+     * means that checkpoint had not retired its snapshot at this point - it is still pinned.
      */
-    if (snap_gen != __wt_gen(session, WT_GEN_CHECKPOINT)) {
-        /*
-         * The buffer holds no snapshot the running checkpoint published: either a new checkpoint
-         * has not published one yet, or the checkpoint that did has retired it. A buffer no
-         * checkpoint has ever published is stamped zero, which no generation matches.
-         */
+    if (__wt_atomic_load_uint64_acquire(&conn->ckpt_eviction_snap[snap_idx].gen) == ckpt_gen) {
+        session->txn->snapshot_data.snap_min = snap->snap_min;
+        session->txn->snapshot_data.snap_max = snap->snap_max;
+        session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
+        if (snap->snapshot_count > 0)
+            memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
+              snap->snapshot_count * sizeof(snap->snapshot[0]));
+        F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+        copied = true;
+    } else
         WT_STAT_CONN_INCR(session, eviction_ckpt_snapshot_declined);
-        __wt_session_gen_leave(session, WT_GEN_HAS_CKPT_SNAPSHOT);
-        return (false);
-    }
+    WT_LEAVE_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
 
-    session->txn->snapshot_data.snap_min = snap->snap_min;
-    session->txn->snapshot_data.snap_max = snap->snap_max;
-    session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
-    if (snap->snapshot_count > 0)
-        memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
-          snap->snapshot_count * sizeof(snap->snapshot[0]));
-    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-
-    __wt_session_gen_leave(session, WT_GEN_HAS_CKPT_SNAPSHOT);
-    return (true);
+    return (copied);
 }
 
 /*
@@ -1405,7 +1392,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
             ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
             if (btree_ckpt_gen < ckpt_gen) {
                 if (WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
-                  !__evict_precise_ckpt_copy_snapshot(session))
+                  !__evict_precise_ckpt_copy_snapshot(session, ckpt_gen))
                     LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
             } else
                 __wt_txn_bump_snapshot(session);
