@@ -162,16 +162,6 @@ util_func_allowed_disagg(util_func_t util_func)
 }
 
 /*
- * util_conn_is_disagg --
- *     Report whether the connection is configured for disaggregated storage.
- */
-static bool
-util_conn_is_disagg(WT_CONNECTION *conn)
-{
-    return (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL);
-}
-
-/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -224,8 +214,7 @@ main(int argc, char *argv[])
     char *p, *secretkey;
     const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *rec_config,
       *session_config;
-    bool backward_compatible, disable_prefetch, had_secretkey, logoff, meta_verify, readonly,
-      recover, salvage;
+    bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -253,8 +242,8 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    backward_compatible = disable_prefetch = had_secretkey = logoff = meta_verify = readonly =
-      recover = salvage = false;
+    backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
+      false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
     while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)
@@ -273,7 +262,6 @@ main(int argc, char *argv[])
                 (void)util_err(NULL, errno, NULL);
                 goto err;
             }
-            had_secretkey = true;
             wt_explicit_zero(__wt_optarg, strlen(__wt_optarg));
             break;
         case 'h': /* home directory */
@@ -326,12 +314,7 @@ main(int argc, char *argv[])
         fprintf(stderr, "-R and -S cannot be used with -r\n");
         goto err;
     }
-    /*
-     * Reject the global flags that don't apply in disaggregated storage mode before wiredtiger_open
-     * runs, so recovery, salvage, live-restore and the compat-3.3 reconfigure never execute.
-     * Detection is based on -C only; a database whose disaggregated configuration lives solely in
-     * WiredTiger.basecfg is not detected here.
-     */
+    /* Reject the global flags that don't apply in disaggregated storage mode. */
     if (cmd_config != NULL && strstr(cmd_config, "disaggregated=") != NULL) {
         const char *unsupported = NULL;
         if (backward_compatible)
@@ -519,37 +502,12 @@ open:
         goto err;
     }
 
-    /* Reject commands that are not supported in disaggregated storage mode. */
-    if (util_conn_is_disagg(conn)) {
-        const char *bad_flag = NULL;
-        if (backward_compatible)
-            bad_flag = "-B (log-file backward compatibility)";
-        else if (had_secretkey)
-            bad_flag = "-E (encryption secret key)";
-        else if (logoff)
-            bad_flag = "-L (disable logging)";
-        else if (live_restore_path != NULL)
-            bad_flag = "-l (live restore)";
-        else if (recover)
-            bad_flag = "-R (run recovery)";
-        else if (salvage)
-            bad_flag = "-S (run salvage recovery)";
-        if (bad_flag != NULL) {
-            fprintf(stderr, "%s: %s is not supported in disaggregated storage mode\n", progname,
-              bad_flag);
-            /* Skip the backward-compatibility reconfigure at close for the -B case. */
-            backward_compatible = false;
-            /*
-             * Treat the flag as a no-op rather than an error so scripts that probe flag
-             * availability aren't broken; the message on stderr is enough signal.
-             */
-            goto done;
-        }
-        if (func != NULL && !util_func_allowed_disagg(func)) {
-            fprintf(
-              stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
-            goto done;
-        }
+    /* Reject subcommands that are not supported in disaggregated storage mode. */
+    if (((WT_CONNECTION_IMPL *)conn)->disaggregated_storage.npage_log != NULL && func != NULL &&
+      !util_func_allowed_disagg(func)) {
+        fprintf(
+          stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
+        goto done;
     }
 
     if (secretkey != NULL) {
