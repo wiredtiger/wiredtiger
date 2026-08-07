@@ -45,7 +45,7 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
  *     so checkpoint can leave the existing on-disk image in place instead of rewriting it.
  */
 static WT_INLINE bool
-__sync_page_image_durable(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_page_image_durable(WT_REF *ref)
 {
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
@@ -184,7 +184,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      * However, checkpoint is the only valid writer of dirty leaf pages at this point, we skip the
      * lock.
      */
-    if (!__sync_page_image_durable(session, ref))
+    if (!__sync_page_image_durable(ref))
         return (false);
 
     /*
