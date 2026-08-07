@@ -543,6 +543,7 @@ URIs
 USECS
 UTF
 UltraSparc
+Unadopted
 Unbuffered
 Uncomment
 Unencrypted
@@ -1779,6 +1780,7 @@ struct
 structs
 su
 subcommand
+subcommands
 subconfig
 subconfigs
 subconfiguration
@@ -1898,6 +1900,7 @@ uintAny
 ulock
 umount
 un
+unadopted
 unallocated
 unbare
 unbuffered

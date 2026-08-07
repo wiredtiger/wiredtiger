@@ -100,8 +100,9 @@ typedef enum { KILL_LONE = 0, KILL_LEADER, KILL_FOLLOWER } KILL_TARGET;
  * publish at a fresh epoch - so the independently paced checkpoints land between them, the window
  * this test targets.
  *
- * EVENT_SWITCH ends a term's stream, carrying the term's final counter value as a relay-integrity
- * check the receiver asserts against its own once drained.
+ * EVENT_SWITCH ends a term's stream, carrying the term's final counter value: a relay-integrity
+ * check the receiver asserts against its own once drained, and the boundary the leaving leader arms
+ * its step-down at.
  */
 typedef enum {
     EVENT_NONE = 0,
@@ -195,8 +196,8 @@ typedef struct {
  */
 typedef struct {
     TEST_CONFIG *cfg;    /* bound at creation */
-    WT_CONNECTION *conn; /* owned here; the control loop and the role transitions keep it
-                            current: a step-down closes it, a follower reopen replaces it */
+    WT_CONNECTION *conn; /* owned here; open for the node's whole life, since both role
+                            transitions are in-place reconfigures */
     /*
      * This phase leads: the generator produces the workload, checkpoint events are produced rather
      * than picked up, and every applied event is relayed to the peer. Fixed per phase.
@@ -285,6 +286,7 @@ typedef struct {
 /* main.c */
 void println(const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 1, 2)));
 uint64_t query_ts(WT_CONNECTION *conn, const char *name);
+void set_ts(WT_CONNECTION *conn, const char *name, uint64_t ts);
 void set_frontier(WT_CONNECTION *conn, uint64_t ts);
 
 /* leader.c: the leader specifics - checkpoint production and the role transitions. */
