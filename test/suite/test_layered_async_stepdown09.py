@@ -81,7 +81,7 @@ class test_layered_async_stepdown09(
         self.epoch_counter = itertools.count(20)
         self.name_counter = itertools.count()
         # Ground truth, only ever written by the workload thread: uri -> expected rows, the
-        # timestamp of the last commit, the publish epoch and whether a checkpoint covered it.
+        # per-commit history, the publish epoch and whether a checkpoint covered it.
         self.tables = {}
         self.dropped_checked = set()
         self.dropped_unchecked = set()
@@ -110,7 +110,8 @@ class test_layered_async_stepdown09(
             rows = {f'k{n}': 'seed' for n in range(5)}
             ts = self.alloc_ts()
             self.write_at(uri, rows, ts)
-            self.tables[uri] = {'rows': rows, 'last_ts': ts, 'epoch': epoch, 'covered': True}
+            self.tables[uri] = {
+              'rows': rows, 'history': [(ts, dict(rows))], 'epoch': epoch, 'covered': True}
 
         if self.use_epochs:
             self.set_stable_epoch(max(info['epoch'] for info in self.tables.values()))
@@ -125,7 +126,7 @@ class test_layered_async_stepdown09(
         if self.use_epochs:
             epoch = next(self.epoch_counter)
             self.publish(uri, epoch, session=wsession)
-        self.tables[uri] = {'rows': {}, 'last_ts': None, 'epoch': epoch, 'covered': False}
+        self.tables[uri] = {'rows': {}, 'history': [], 'epoch': epoch, 'covered': False}
 
     def workload_drop(self, wsession, rng):
         if len(self.tables) <= 2:
@@ -172,44 +173,70 @@ class test_layered_async_stepdown09(
         if not candidates:
             return
         uri = rng.choice(candidates)
-        kvs = {f'k{rng.randrange(100)}': f'v{n}' for n in range(5)}
+        kvs = {f'k{rng.randrange(100)}': f'v{n}' for n in range(rng.randrange(1, 11))}
 
         cursor = wsession.open_cursor(uri)
         wsession.begin_transaction()
-        committed = False
+        committed = resolved = False
         try:
             for k, v in kvs.items():
                 cursor[k] = v
-            # Allocate the timestamp and commit under the lock, serialized against the step-down
-            # thread's timestamp calls, so the commit timestamp can never trail the cutoff or the
-            # advancing stable timestamp.
-            with self.ts_lock:
-                ts = next(self.ts_counter)
-                wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-            committed = True
+            # Hold some transactions open so they are in flight when a phase boundary lands on
+            # them, rather than every transaction beginning and committing inside one phase.
+            if rng.random() < 0.3:
+                time.sleep(rng.uniform(0, 0.2))
+            if rng.random() < 0.1:
+                resolved = True
+                wsession.rollback_transaction()
+            else:
+                # Allocate the timestamp and commit under the lock, serialized against the
+                # step-down thread's timestamp calls, so the commit timestamp can never trail the
+                # cutoff or the advancing stable timestamp.
+                with self.ts_lock:
+                    ts = next(self.ts_counter)
+                    resolved = True
+                    wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+                committed = True
         except wiredtiger.WiredTigerError as e:
-            # Tolerate WT_ROLLBACK only: a straddle of the step-down boundary, or a conflict.
+            # Tolerate WT_ROLLBACK only: a straddle of the step-down boundary, or a conflict. A
+            # failed commit has already resolved the transaction, an earlier failure has not.
             if not self.is_rollback(e):
                 raise
-            try:
+            if not resolved:
                 wsession.rollback_transaction()
-            except wiredtiger.WiredTigerError:
-                pass
         cursor.close()
         if committed:
             self.tables[uri]['rows'].update(kvs)
-            self.tables[uri]['last_ts'] = ts
+            self.tables[uri]['history'].append((ts, kvs))
+
+    # The rows a snapshot at read_ts is entitled to see, replayed from the commit history.
+    def rows_at(self, info, read_ts):
+        rows = {}
+        for ts, kvs in info['history']:
+            if ts <= read_ts:
+                rows.update(kvs)
+        return rows
 
     def workload_read(self, wsession, rng):
         if not self.tables:
             return
         uri = rng.choice(list(self.tables))
         info = self.tables[uri]
-        expected, ts = dict(info['rows']), info['last_ts']
+
+        # Read either the newest state without a timestamp, or an exact historical snapshot at
+        # one of the table's own commit timestamps. Both are exact: this thread is the only
+        # writer, so nothing moves underneath the expectation.
+        if info['history'] and rng.random() < 0.5:
+            ts = rng.choice(info['history'])[0]
+            expected, config = self.rows_at(info, ts), 'read_timestamp=' + self.timestamp_str(ts)
+        else:
+            expected, config = dict(info['rows']), None
 
         cursor = wsession.open_cursor(uri)
-        wsession.begin_transaction(
-            'read_timestamp=' + self.timestamp_str(ts) if ts is not None else None)
+        wsession.begin_transaction(config)
+        # Hold some snapshots open across a phase boundary before reading through them.
+        if rng.random() < 0.2:
+            time.sleep(rng.uniform(0, 0.2))
         actual = None
         try:
             actual = {k: v for k, v in cursor}
@@ -218,9 +245,19 @@ class test_layered_async_stepdown09(
                 raise
         wsession.rollback_transaction()
         cursor.close()
-        # Reading at the last commit's timestamp is exact: this thread is the only writer.
         if actual is not None:
             self.assertEqual(actual, expected, f'{uri} served the wrong rows')
+
+    def workload_move_stable(self):
+        # Keep the stable timestamp moving underneath the workload, the way a live system would.
+        # Only before the step-down timestamp exists: once it is set, stable is the transition's
+        # to manage, and it must not advance past the cutoff. A fresh counter value keeps every
+        # later commit above stable, and taking the lock keeps the call ordered against the
+        # transition's own timestamp calls.
+        with self.ts_lock:
+            if self.cutoff is None:
+                self.conn.set_timestamp(
+                    'stable_timestamp=' + self.timestamp_str(next(self.ts_counter)))
 
     def workload(self):
         """
@@ -235,13 +272,16 @@ class test_layered_async_stepdown09(
             while not self.done.is_set():
                 time.sleep(0.002)
                 op = rng.choices(
-                    ['insert', 'read', 'create', 'drop'], weights=[55, 25, 12, 8])[0]
+                    ['insert', 'read', 'create', 'drop', 'stable'],
+                    weights=[50, 25, 12, 8, 5])[0]
                 if op == 'create':
                     self.workload_create(wsession)
                 elif op == 'drop':
                     self.workload_drop(wsession, rng)
                 elif op == 'insert':
                     self.workload_insert(wsession, rng)
+                elif op == 'stable':
+                    self.workload_move_stable()
                 else:
                     self.workload_read(wsession, rng)
         except Exception as e:
