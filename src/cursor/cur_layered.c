@@ -243,16 +243,19 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 /*
  * __clayered_no_stable --
  *     Return whether the table was created inside the step-down window and so has no stable
- *     constituent to read. The mark only means anything to a leader still inside that window.
+ *     constituent to read. The mark can only exist on a leader inside that window.
  */
 static WT_INLINE bool
 __clayered_no_stable(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
 {
-    WT_CONNECTION_IMPL *conn = S2C(CUR2S(clayered));
+    if (!F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED))
+        return (false);
 
-    return (role == WTI_CLAYERED_ROLE_LEADER &&
-      F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE);
+    WT_ASSERT(CUR2S(clayered),
+      role == WTI_CLAYERED_ROLE_LEADER &&
+        __wt_atomic_load_uint64_relaxed(&S2C(CUR2S(clayered))->txn_global.step_down_timestamp) !=
+          WT_TS_NONE);
+    return (true);
 }
 
 /*

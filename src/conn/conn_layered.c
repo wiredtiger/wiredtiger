@@ -1027,28 +1027,42 @@ err:
 
 #ifdef HAVE_DIAGNOSTIC
 /*
- * __layered_assert_step_down_created_clear --
- *     Assert the step-down left no table marked. The mark is only ever set by a leader with the
- *     step-down timestamp set, and the step-down clears every one of them, so a survivor would go
- *     on to hide the stable constituent of a table that has one.
+ * __layered_assert_step_down_created --
+ *     Assert every pending CREATE that captured no stable constituent still has none in the local
+ *     metadata. A table missing from the check would send every cursor to an open that cannot
+ *     succeed, and one wrongly included would hide the constituent it has.
  */
-static void
-__layered_assert_step_down_created_clear(WT_SESSION_IMPL *session)
+static int
+__layered_assert_step_down_created(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
+    WT_CURSOR *metadata_cursor;
+    WT_DISAGG_METADATA_OP *entry;
 
     conn = S2C(session);
 
-    for (dhandle = NULL;;) {
-        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
-        if (dhandle == NULL)
-            break;
+    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
 
-        WT_ASSERT(session,
-          dhandle->type != WT_DHANDLE_TYPE_LAYERED ||
-            !F_ISSET((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED));
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        /*
+         * Skip anything but a window create, which is a create with no constituent captured.
+         *
+         * FIXME-WT-18276: Recognize the window from the schema epoch instead.
+         */
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE || entry->stable_value != NULL)
+            continue;
+
+        /* A table dropped inside the window has nothing left to check. */
+        if (__layered_create_has_following_remove(session, conn, entry))
+            continue;
+
+        metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
+        WT_ASSERT(session, metadata_cursor->search(metadata_cursor) == WT_NOTFOUND);
     }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (__wt_metadata_cursor_release(session, &metadata_cursor));
 }
 #endif
 
@@ -1253,6 +1267,10 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__layered_assert_step_down_created(session));
+#endif
+
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
      * eviction paths, especially parent split path, from dirtying pages during the step-down
@@ -1302,10 +1320,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
-
-#ifdef HAVE_DIAGNOSTIC
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, __layered_assert_step_down_created_clear(session));
-#endif
 
 err:
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 0);
