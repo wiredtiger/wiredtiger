@@ -27,11 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_async_stepdown08.py
-#   A planned step-down requires the step-down checkpoint to land exactly on the step-down
-#   timestamp: that checkpoint is what the next leader picks up, so a checkpoint behind the cutoff
-#   would leave the writes in between only on the outgoing node. The step-down treats a mismatch as
-#   a protocol violation and aborts, so each case runs in a subprocess and is judged by its exit
-#   status.
+#   A planned step-down requires the step-down checkpoint to land on the step-down timestamp,
+#   because that checkpoint is what the next leader picks up. A mismatch is a protocol violation
+#   and aborts, so each case runs in a subprocess and is judged by its exit status.
 
 import signal, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -57,9 +55,7 @@ class test_layered_async_stepdown08(LayeredStepdownMixin, wttest.WiredTigerTestC
     uri = f'layered:{test_name}'
     cutoff = 20
 
-    # Step down after a checkpoint taken at the scenario's timestamp, or with no checkpoint at all.
-    # Stable always reaches the cutoff, so the only thing separating the scenarios is where the
-    # last completed checkpoint sits.
+    # Step down with stable at the cutoff, varying only where the last checkpoint sits.
     def _step_down_with_checkpoint_at(self, checkpoint_ts):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
