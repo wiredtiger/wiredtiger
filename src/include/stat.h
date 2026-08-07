@@ -530,6 +530,7 @@ struct __wt_connection_stats {
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
     int64_t block_first_srch_walk_time;
+    int64_t eviction_app_bounded_wait_exceeded;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
@@ -551,11 +552,13 @@ struct __wt_connection_stats {
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_other;
+    int64_t cache_scrub_image_bytes;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t cache_bytes_hs_dirty;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t eviction_server_evict_attempt;
@@ -763,9 +766,11 @@ struct __wt_connection_stats {
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t eviction_fail_ingest;
     int64_t eviction_walk;
+    int64_t cache_scrub_image_pages;
     int64_t cache_eviction_multiblock_checkpoint_flagged;
     int64_t cache_eviction_multiblock_split_re_reconciled;
     int64_t cache_write;
+    int64_t cache_write_restore_scrub_checkpoint;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
     int64_t cache_overhead;
@@ -1003,12 +1008,18 @@ struct __wt_connection_stats {
     int64_t disagg_abandon_checkpoint_failed;
     int64_t disagg_abandon_checkpoint_succeed;
     int64_t disagg_apply_checkpoint_meta_time;
+    int64_t disagg_checkpoint_storage_compatible_version;
+    int64_t disagg_checkpoint_binary_compatible_version;
+    int64_t disagg_checkpoint_storage_version;
+    int64_t disagg_checkpoint_binary_version;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
+    int64_t disagg_ingest_stable_tombstone_stripped;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;
+    int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_in_progress;
@@ -1557,6 +1568,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_write_restore_scrub_skipped_dirty;
     int64_t eviction_fail;
     int64_t cache_eviction_blocked_disagg_dirty_internal_page;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
@@ -1641,6 +1653,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_multiblock_checkpoint_flagged;
     int64_t cache_eviction_multiblock_split_re_reconciled;
     int64_t cache_write;
+    int64_t cache_write_restore_scrub_checkpoint;
     int64_t cache_write_restore_invisible;
     int64_t cache_write_restore_scrub;
     int64_t cache_eviction_blocked_precise_checkpoint;

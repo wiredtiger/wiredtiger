@@ -515,7 +515,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         goto err;
 
     /* Ignore tables that are empty or is currently in a bulk-load phase. */
-    if (btree->original)
+    if (__wt_atomic_load_uint8_relaxed(&btree->original))
         goto err;
 
     /* Walk the tree. */
@@ -836,7 +836,8 @@ __checkpoint_cleanup(void *arg)
         __wt_seconds(session, &now);
 
         /* Skip running checkpoint cleanup if we are the follower. */
-        if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
+        if (__wt_conn_is_disagg(session) &&
+          !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
             continue;
 
         /*

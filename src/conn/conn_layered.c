@@ -494,7 +494,7 @@ __disagg_shared_metadata_op_helper(
     WT_DECL_RET;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
 
-    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+    WT_ASSERT(session, __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
 
     cursor = NULL;
 
@@ -853,7 +853,7 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
      * FIXME-WT-17040: Investigate if it's necessary to create the shared metadata table on
      * followers.
      */
-    if (!conn->layered_table_manager.leader) {
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_WITHOUT_DHANDLE(
           session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
         WT_ERR_MSG_CHK(
@@ -910,7 +910,8 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can abandon a checkpoint. */
-    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+    if (disagg->npage_log == NULL ||
+      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         WT_RET(EINVAL);
 
     /*
@@ -956,7 +957,8 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can begin a global checkpoint. */
-    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+    if (disagg->npage_log == NULL ||
+      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         return (0);
 
     /* On fresh startup, load an empty key to key provider. */
@@ -1039,9 +1041,10 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     /*
      * Step up to the leader mode. We need to do this first, because the rest of the operations
-     * below depend on WiredTiger already being in the leader mode.
+     * below depend on WiredTiger already being in the leader mode. There is currently no need for
+     * stronger ordering, so keep the store relaxed.
      */
-    conn->layered_table_manager.leader = true;
+    __wt_atomic_store_bool_relaxed(&conn->layered_table_manager.leader, true);
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
     /*
@@ -1157,8 +1160,11 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
     }
 
-    /* Step down to the follower mode. */
-    conn->layered_table_manager.leader = false;
+    /*
+     * Step down to the follower mode. There is currently no need for stronger ordering, so keep the
+     * store relaxed.
+     */
+    __wt_atomic_store_bool_relaxed(&conn->layered_table_manager.leader, false);
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
     return (0);
 }
@@ -1295,6 +1301,89 @@ __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cfg, bool *le
 }
 
 /*
+ * __wti_disagg_adopt_stable_tombstone_encoding --
+ *     Adopt the stable-table tombstone encoding mode detected from the data: the compatible version
+ *     of a picked-up checkpoint's metadata, or unescaped for a new database. A mode forced by
+ *     configuration wins over detection, with a warning when the two disagree. The mode changing
+ *     after adoption means the shared storage was rewritten in a different format, so panic rather
+ *     than corrupt reads by switching mid-run.
+ */
+int
+__wti_disagg_adopt_stable_tombstone_encoding(
+  WT_SESSION_IMPL *session, bool encoding, const char *how)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    bool current;
+
+    disagg = &S2C(session)->disaggregated_storage;
+    current = F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+
+    if (F_ISSET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED)) {
+        if (encoding != current)
+            __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "stable tombstone encoding is forced %s by configuration, overriding the %s mode "
+              "indicated by %s",
+              current ? "on" : "off", encoding ? "on" : "off", how);
+        return (0);
+    }
+
+    /* Followers re-adopt on every pickup; the mode must never change between pickups. */
+    if (disagg->stable_tombstone_encoding_adopted && encoding != current)
+        return (__wt_panic(session, WT_PANIC,
+          "stable tombstone encoding changed from %s to %s (%s); the shared storage was rewritten "
+          "in a different format",
+          current ? "on" : "off", encoding ? "on" : "off", how));
+
+    if (encoding)
+        F_SET(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    else
+        F_CLR(disagg, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+    disagg->stable_tombstone_encoding_adopted = true;
+    WT_STAT_CONN_SET(session, disagg_stable_tombstone_encoding, encoding ? 1 : 2);
+    __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE, "stable tombstone encoding %s (%s)",
+      encoding ? "on" : "off", how);
+    return (0);
+}
+
+/*
+ * __disagg_config_tombstone_encoding_break_glass --
+ *     Apply the stable-table tombstone encoding override. By default the mode is automatic, adopted
+ *     from the data at checkpoint pickup; an explicit setting forces it, overriding detection. The
+ *     option is only accepted at wiredtiger_open, so the mode cannot change for the life of the
+ *     connection; mixing escaped and unescaped values in one data set corrupts reads.
+ *
+ * FIXME-WT-18206: remove the override along with the legacy escaped-stable support.
+ */
+static int
+__disagg_config_tombstone_encoding_break_glass(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    bool want_encoding;
+
+    conn = S2C(session);
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.legacy_tombstone_encoding_break_glass", &cval),
+      true);
+    if (ret == 0 && cval.len > 0) {
+        want_encoding = WT_CONFIG_LIT_MATCH("true", cval);
+        F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED);
+        if (want_encoding)
+            F_SET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        else
+            F_CLR(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        WT_STAT_CONN_SET(session, disagg_stable_tombstone_encoding, want_encoding ? 1 : 2);
+        __wt_verbose_info(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "stable tombstone encoding %s (forced by configuration)", want_encoding ? "on" : "off");
+    }
+
+err:
+    return (ret == WT_NOTFOUND ? 0 : ret);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1310,7 +1399,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
-    leader = was_leader = conn->layered_table_manager.leader;
+    leader = was_leader = __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader);
     npage_log = NULL;
     picked_up = false;
 
@@ -1329,6 +1418,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         else
             F_CLR(&conn->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
     }
+
+    /*
+     * Parse the stable tombstone encoding override before any checkpoint pickup below, so a forced
+     * mode is in place when pickup would otherwise adopt the checkpoint's mode. The option is not
+     * part of the reconfigure schema.
+     */
+    if (!reconfig)
+        WT_ERR(__disagg_config_tombstone_encoding_break_glass(session, cfg));
 
     /* Reconfigure-only settings. */
     if (reconfig) {
@@ -1366,7 +1463,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     if (!reconfig) {
         /* Set the initial role. */
-        conn->layered_table_manager.leader = leader;
+        __wt_atomic_store_bool_relaxed(&conn->layered_table_manager.leader, leader);
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /* Follower step-up. */
@@ -1426,6 +1523,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         WT_ERR(__wti_layered_table_manager_init(session));
 
+        /* Static capability descriptors: what this binary writes and supports. */
+        WT_STAT_CONN_SET(
+          session, disagg_checkpoint_binary_version, WT_DISAGG_CHECKPOINT_META_VERSION);
+        WT_STAT_CONN_SET(session, disagg_checkpoint_binary_compatible_version,
+          WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED);
+
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
         if (leader) {
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_abandon_checkpoint(session));
@@ -1457,9 +1560,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
-            } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+            } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
                 __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
                   "Did not find any complete checkpoint to pick up at startup");
+                /* No checkpoint means a new database, which stores stable values unescaped. */
+                if (!F_ISSET(
+                      &conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED))
+                    WT_ERR(__wti_disagg_adopt_stable_tombstone_encoding(
+                      session, false, "a new database"));
+            }
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
@@ -1788,7 +1897,8 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* Only the leader can advance the global checkpoint. */
-    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+    if (disagg->npage_log == NULL ||
+      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &meta));
@@ -1805,6 +1915,17 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     if (ckpt_success) {
         /*
+         * When stable tombstone encoding is off, raise the minimum reader version: a node that
+         * would still strip the escape byte refuses this checkpoint, and readers derive the
+         * encoding mode from the compatible version.
+         */
+        bool stable_encoding =
+          F_ISSET(&conn->disaggregated_storage, WT_DISAGG_STABLE_TOMBSTONE_ENCODING);
+        int compatible_version = stable_encoding ?
+          WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION :
+          WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED;
+
+        /*
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
@@ -1813,7 +1934,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
             "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
             ",version=%d,compatible_version=%d",
             meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
-            WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION),
+            WT_DISAGG_CHECKPOINT_META_VERSION, compatible_version),
           "Failed to format checkpoint metadata");
 
         complete_args.checkpoint_id = 0;
