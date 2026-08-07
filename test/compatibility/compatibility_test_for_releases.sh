@@ -773,6 +773,7 @@ newer_release_branches=($NEWER_RELEASE_BRANCHES)
 patch_version_upgrade_downgrade_release_branches=($PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 test_checkpoint_release_branches=($TEST_CHECKPOINT_RELEASE_BRANCHES)
 upgrade_to_latest_upgrade_downgrade_release_branches=($UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
+dirty_restart_release_branches=($DIRTY_RESTART_RELEASE_BRANCHES)
 
 declare -A scopes
 scopes[dirty_restart]="start from an unclean shutdown of a different version"
@@ -973,6 +974,68 @@ generate_compat_pairs()
 }
 
 #############################################################
+# generate_dirty_restart_pairs:
+#       arg*: list of branch names
+#
+# Output every ordered pair of distinct branches for dirty restart testing.
+#############################################################
+generate_dirty_restart_pairs()
+{
+    local b1 b2
+
+    for b1; do
+        for b2; do
+            [ "$b1" != "$b2" ] && echo "$b1 $b2"
+        done
+    done
+
+    return 0
+}
+
+#############################################################
+# run_dirty_restart_pair_tests:
+#
+# Verify that dirty restart pairs include both directions for develop.
+#############################################################
+run_dirty_restart_pair_tests()
+{
+    local errors=0 found_develop=false output b1 b2
+    local -a branches
+    local -A emitted
+
+    read -r -a branches <<< "$DIRTY_RESTART_RELEASE_BRANCHES"
+    for b1 in "${branches[@]}"; do
+        [ "$b1" = "develop" ] && found_develop=true
+    done
+    if [ "$found_develop" = false ]; then
+        echo "FAIL: dirty restart branches do not include develop"
+        return 1
+    fi
+
+    if ! output=$(generate_dirty_restart_pairs "${branches[@]}"); then
+        echo "FAIL: unable to generate dirty restart pairs"
+        return 1
+    fi
+
+    while IFS=' ' read -r b1 b2; do
+        [ -z "$b1" ] && continue
+        emitted["${b1}:${b2}"]=1
+    done <<< "$output"
+
+    for b1 in "${branches[@]}"; do
+        for b2 in "${branches[@]}"; do
+            [ "$b1" = "$b2" ] && continue
+            if [ -z "${emitted[${b1}:${b2}]+x}" ]; then
+                echo "FAIL: missing dirty restart pair: $b1 -> $b2"
+                errors=$(( errors + 1 ))
+            fi
+        done
+    done
+
+    return "$errors"
+}
+
+#############################################################
 # run_pair_tests:
 #
 # Verify that generate_compat_pairs produces expected outputs
@@ -993,6 +1056,8 @@ run_pair_tests()
     done
 
     echo "Configured branches: ${branches[*]}"
+    run_dirty_restart_pair_tests || errors=$(( errors + 1 ))
+
     echo ""
     echo "Generated compatibility pairs:"
 
@@ -1146,22 +1211,16 @@ if [ "$upgrade_to_latest" = true ]; then
 fi
 
 if [ "$dirty_restart" = true ]; then
-    for b in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
+    for b in "${dirty_restart_release_branches[@]}"; do
         create_configs "$b"
         pushd .
         build_branch "$b"
         popd
     done
 
-    # Go over the release branches, from pair to pair. If a pair has the LHS different to the RHS,
-    # treat that as a combination worth testing.
-    for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
-        for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
-            if [[ "$b1" != "$b2" ]]; then
-                test_dirty_restart "$b1" "$b2"
-            fi
-        done
-    done
+    while IFS=' ' read -r b1 b2; do
+        test_dirty_restart "$b1" "$b2"
+    done < <(generate_dirty_restart_pairs "${dirty_restart_release_branches[@]}")
 fi
 
 if [ "$two_versions" = true ]; then
