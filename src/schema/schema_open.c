@@ -688,6 +688,7 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
+    wt_timestamp_t step_down_ts;
     char *stable_value;
 
     stable_value = NULL;
@@ -720,12 +721,23 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
      * cursors route to ingest rather than attempting an open that cannot succeed.
      */
     conn = S2C(session);
-    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) &&
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE) {
+    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, layered->stable_uri, &stable_value));
-        if (ret == WT_NOTFOUND)
-            F_SET(layered, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
         __wt_free(session, stable_value);
+        if (ret == WT_NOTFOUND) {
+            step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
+
+            /*
+             * A leader missing the stable constituent means the table was created inside the
+             * step-down window. The only other case is a reader racing with a step-up and opening a
+             * table with a missing stable table.
+             */
+            WT_ASSERT(session,
+              step_down_ts != WT_TS_NONE || F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP));
+
+            if (step_down_ts != WT_TS_NONE)
+                F_SET(layered, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+        }
     }
 
     F_SET(layered, WT_LAYERED_TABLE_OPEN);
