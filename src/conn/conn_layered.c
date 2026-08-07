@@ -1027,7 +1027,6 @@ err:
     return (ret);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __layered_assert_step_down_created --
  *     Assert a table created inside the step-down window has no stable constituent in the local
@@ -1044,11 +1043,10 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /*
-     * Only legacy mode is checked, where a create still queued at step-down is a window create.
+     * Only legacy mode is checked.
      *
-     * FIXME-WT-18276: Schema epochs defer an unpublished create indefinitely, so an ordinary create
-     * stays queued with the constituent it built. Recognize the window from the schema epoch to
-     * cover both modes.
+     * FIXME-WT-18276: Schema epochs defer an unpublished create indefinitely. Recognize the window
+     * from the schema epoch to cover both modes.
      */
     if (__wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch) !=
         WT_SCHEMA_EPOCH_NONE ||
@@ -1059,7 +1057,11 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
+        /*
+         * A create that no checkpoint has covered yet stays queued with the constituent it
+         * captured. Only a window create captured none.
+         */
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE || entry->stable_value != NULL)
             continue;
 
         /* A table dropped inside the window has nothing left to check. */
@@ -1067,13 +1069,13 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
             continue;
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
-        WT_ASSERT(session, metadata_cursor->search(metadata_cursor) == WT_NOTFOUND);
+        WT_ASSERT_ALWAYS(session, metadata_cursor->search(metadata_cursor) == WT_NOTFOUND,
+          "window create \"%s\" has a stable constituent in the local metadata", entry->stable_uri);
     }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     return (__wt_metadata_cursor_release(session, &metadata_cursor));
 }
-#endif
 
 /*
  * __disagg_step_up --
@@ -1280,10 +1282,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     tsp.tv_nsec = 0;
     __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_ROLE_TRANSITION, &tsp);
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__layered_assert_step_down_created(session));
-#endif
-
     /*
      * Mark disaggregated btrees read-only before switching role to follower to prevent concurrent
      * eviction paths, especially parent split path, from dirtying pages during the step-down
@@ -1320,6 +1318,9 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
           "stable timestamp %s does not match the step down timestamp %s at step down",
           __wt_timestamp_to_string(stable_ts, ts_string[0]),
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+
+        /* Window creates only exist while the timestamp is set. */
+        WT_ERR(__layered_assert_step_down_created(session));
     }
 
     /*
