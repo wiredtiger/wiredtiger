@@ -235,7 +235,13 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
      * snapshot's era ends: a failed validation, a snapshot refresh, or the snapshot's release.
      */
     __wt_session_gen_enter(session, WT_GEN_DISAGG_ROLE);
-    session->txn->disagg_role_leader = conn->layered_table_manager.leader;
+    /*
+     * Acquire-read the role: it is published with a release store after the role-change generation
+     * is bumped, so a snapshot that records the new role also observes the new generation and
+     * cannot validate against the era it just left.
+     */
+    session->txn->disagg_role_leader =
+      __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader);
 
     /*
      * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
@@ -270,7 +276,8 @@ static WT_INLINE bool
 __txn_snapshot_validate_disagg(WT_SESSION_IMPL *session)
 {
     if (__wt_gen(session, WT_GEN_DISAGG_ROLE) != __wt_session_gen(session, WT_GEN_DISAGG_ROLE) ||
-      S2C(session)->layered_table_manager.leader != session->txn->disagg_role_leader)
+      __wt_atomic_load_bool_acquire(&S2C(session)->layered_table_manager.leader) !=
+        session->txn->disagg_role_leader)
         return (false);
     if (session->txn->disagg_role_leader)
         return (true);
@@ -2025,11 +2032,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * We're between transactions, if we need to block for eviction, it's a good time to do so. The
      * return must reflect the transaction state, ignore any error returned, and clear the
      * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
+     *
+     * Bound the wait. The transaction is resolved, so nothing remains that could be rolled back to
+     * relieve the pressure, and holding the thread here stops the application from advancing the
+     * timestamps that would let dirty content beyond the stable timestamp drain.
      */
     if (!readonly) {
         bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, true, NULL));
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }
@@ -2386,11 +2397,15 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
      * We're between transactions, if we need to block for eviction, it's a good time to do so. The
      * return must reflect the transaction state, ignore any error returned, and clear the
      * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
+     *
+     * Bound the wait. The transaction is resolved, so nothing remains that could be rolled back to
+     * relieve the pressure, and holding the thread here stops the application from advancing the
+     * timestamps that would let dirty content beyond the stable timestamp drain.
      */
     if (!readonly) {
         bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, true, NULL));
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }
@@ -2826,7 +2841,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * real leader, the storage layer services should return an error as it is not allowed to
          * write.
          */
-        if (!skip_checkpoint && (!conn_is_disagg || conn->layered_table_manager.leader)) {
+        if (!skip_checkpoint &&
+          (!conn_is_disagg || __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
             if (s != NULL) {
                 const char *checkpoint_cfg[] = {
