@@ -2042,7 +2042,18 @@ __wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
         (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
           txn->isolation == WT_ISO_SNAPSHOT));
 
-    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->stepdown_ts_set)
+    if (!is_writer || stepdown_ts == WT_TS_NONE)
+        return (0);
+
+    bool wrote_stable = false, wrote_ingest = false;
+    for (size_t i = 0; i < txn->mod_count; ++i) {
+        WT_TXN_OP *op = &txn->mod[i];
+        if (op->type == WT_TXN_OP_NONE || op->btree == NULL)
+            continue;
+        wrote_stable |= WT_URI_IS_STABLE(op->btree->dhandle->name);
+        wrote_ingest |= WT_URI_IS_INGEST(op->btree->dhandle->name);
+    }
+    if (wrote_ingest || !wrote_stable)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
@@ -2071,7 +2082,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
-    txn->stepdown_ts_set = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -2119,13 +2129,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
      * the timestamp as set also makes the writes of transactions that committed before it was set
      * visible.
      */
-    if (__wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
-                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-    }
-
     F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);

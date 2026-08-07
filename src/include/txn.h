@@ -443,12 +443,12 @@ struct __wt_txn {
      */
     wt_timestamp_t first_commit_timestamp;
 
+
     /*
      * True if the step-down timestamp was set when this transaction began. Used to redirect the
      * transaction's writes to the ingest constituent, to include ingest in its reads, and to detect
      * straddlers.
      */
-    bool stepdown_ts_set;
     /*
      * The disaggregated role observed when the snapshot was established; the role-change generation
      * it was established under is published in the session's generation slot. A snapshot
