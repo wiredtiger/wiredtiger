@@ -60,10 +60,10 @@ class test_layered_async_stepdown09(
     scenarios = make_scenarios(disagg_storages, worlds)
 
     # How long the workload runs against each phase of the transition.
-    phase_sleep = 1.0
+    phase_sleep = 10.0 if wttest.islongtest() else 1.0
 
     # Bound the table population so the final verification stays cheap.
-    table_cap = 40
+    table_cap = 100 if wttest.islongtest() else 40
 
     def uri(self, name):
         return f'layered:{self.test_name}_{name}'
