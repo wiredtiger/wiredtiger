@@ -1322,7 +1322,6 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
       &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
     /* Publish the adopted LSN as a statistic: adoption is asynchronous when deferred. */
     WT_STAT_CONN_SET(session, disagg_checkpoint_meta_lsn, (int64_t)ckpt_meta->metadata_lsn);
-    /* Publish the adopted LSN as a statistic: adoption is asynchronous when deferred. */
 
     /* The adoption satisfies any pending deferred pickup this checkpoint covers. */
     __disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
