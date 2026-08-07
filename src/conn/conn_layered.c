@@ -1030,7 +1030,7 @@ err:
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __layered_assert_step_down_created --
- *     Assert every pending CREATE that captured no stable constituent still has none in the local
+ *     Assert a table created inside the step-down window has no stable constituent in the local
  *     metadata. A table missing from the check would send every cursor to an open that cannot
  *     succeed, and one wrongly included would hide the constituent it has.
  */
@@ -1043,16 +1043,23 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * Only legacy mode is checked, where a create still queued at step-down is a window create.
+     *
+     * FIXME-WT-18276: Schema epochs defer an unpublished create indefinitely, so an ordinary create
+     * stays queued with the constituent it built. Recognize the window from the schema epoch to
+     * cover both modes.
+     */
+    if (__wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch) !=
+        WT_SCHEMA_EPOCH_NONE ||
+      __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE)
+        return (0);
+
     WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        /*
-         * Skip anything but a window create, which is a create with no constituent captured.
-         *
-         * FIXME-WT-18276: Recognize the window from the schema epoch instead.
-         */
-        if (entry->metadata_op != WT_SHARED_METADATA_CREATE || entry->stable_value != NULL)
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
 
         /* A table dropped inside the window has nothing left to check. */
