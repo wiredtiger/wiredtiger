@@ -434,6 +434,7 @@ done:
         /* Widen the window a delivery during the build must be caught in. */
         WT_DIAGNOSTIC_YIELD;
         if (!__txn_snapshot_validate_disagg(session)) {
+            WT_STAT_CONN_INCR(session, disagg_snapshot_rebuild);
             __txn_snapshot_leave_disagg(session);
             goto retry;
         }

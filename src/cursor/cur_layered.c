@@ -641,6 +641,7 @@ __clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
 static WT_INLINE int
 __clayered_stable_bind_refuse(WT_SESSION_IMPL *session)
 {
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
     WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
 }
 
