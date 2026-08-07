@@ -2822,7 +2822,13 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (txn->mod_count != 0) {
         trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
           __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
-        if (txn->bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
+        /*
+         * A zero trigger would rebuild the threshold as zero and roll back every transaction that
+         * dirtied anything at all. Configuration never leaves either trigger at zero, so treat it
+         * as a value we raced with rather than a threshold to enforce.
+         */
+        if (trigger > DBL_EPSILON &&
+          txn->bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
             WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
             WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
               WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
