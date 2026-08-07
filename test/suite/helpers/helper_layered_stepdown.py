@@ -29,7 +29,7 @@
 # helper_layered_stepdown.py
 #   Shared helpers for the async (planned) step-down layered table tests.
 
-import wiredtiger
+import errno, os, wiredtiger
 from wiredtiger import stat
 
 # Shared helpers for the layered async step-down test suite.
@@ -171,9 +171,10 @@ class LayeredStepdownMixin:
     def is_rollback(self, exception):
         return wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(exception)
 
-    # Whether an exception is an EBUSY, of any reason.
+    # Whether an exception is an EBUSY, of any reason. Match on the strerror text, which differs
+    # across platforms.
     def is_busy(self, exception):
-        return 'Resource busy' in str(exception) or 'ebusy' in str(exception).lower()
+        return os.strerror(errno.EBUSY) in str(exception)
 
     # Run op and expect WT_ROLLBACK, with no claim about the reason.
     def expect_rollback(self, op):
