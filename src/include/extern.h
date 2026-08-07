@@ -2010,7 +2010,7 @@ extern void __wti_cursor_set_notsup(WT_CURSOR *cursor);
 extern void __wti_cursor_set_value_notsup(WT_CURSOR *cursor, ...);
 extern void __wti_debug_crash_if_flag_set(
   WT_SESSION_IMPL *session, uint32_t flag, const char *msg, const char *uri);
-extern void __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopted_lsn);
+extern void __wti_disagg_clear_deferred_checkpoint_all(WT_SESSION_IMPL *session);
 extern void __wti_disagg_pending_crypt_key_clear(WT_SESSION_IMPL *session);
 extern void __wti_disagg_shared_metadata_queue_prune(
   WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch);

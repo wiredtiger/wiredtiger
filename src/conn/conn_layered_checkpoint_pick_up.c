@@ -1009,12 +1009,11 @@ err:
 }
 
 /*
- * __wti_disagg_clear_deferred_checkpoint --
- *     Discard the deferred checkpoints covered by the given LSN (pass UINT64_MAX to discard
- *     unconditionally, e.g. on a role change).
+ * __disagg_clear_deferred_checkpoint --
+ *     Discard the deferred checkpoints covered by the given LSN.
  */
-void
-__wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopted_lsn)
+static void
+__disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopted_lsn)
 {
     WT_DISAGG_DEFERRED_CKPT *entry;
     WT_DISAGGREGATED_STORAGE *disagg = &S2C(session)->disaggregated_storage;
@@ -1026,6 +1025,17 @@ __wti_disagg_clear_deferred_checkpoint(WT_SESSION_IMPL *session, uint64_t adopte
         __wt_free(session, entry);
     }
     __wt_spin_unlock(session, &disagg->deferred_ckpt_lock);
+}
+
+/*
+ * __wti_disagg_clear_deferred_checkpoint_all --
+ *     Discard every deferred checkpoint unconditionally, e.g. on a role change: the new role makes
+ *     none of them adoptable, regardless of LSN.
+ */
+void
+__wti_disagg_clear_deferred_checkpoint_all(WT_SESSION_IMPL *session)
+{
+    __disagg_clear_deferred_checkpoint(session, UINT64_MAX);
 }
 
 /*
@@ -1283,7 +1293,7 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
          * Prune the superseded entries: the copy above is not atomic with adoptions, so an entry
          * covered by a concurrent adoption may linger and would otherwise be selected again.
          */
-        __wti_disagg_clear_deferred_checkpoint(
+        __disagg_clear_deferred_checkpoint(
           session, __wt_atomic_load_uint64_acquire(&disagg->last_checkpoint_meta_lsn));
         ret = 0;
     }
@@ -1312,7 +1322,7 @@ __disagg_finalize_checkpoint_meta(WT_SESSION_IMPL *session,
     /* Publish the adopted LSN as a statistic: adoption is asynchronous when deferred. */
 
     /* The adoption satisfies any pending deferred pickup this checkpoint covers. */
-    __wti_disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
+    __disagg_clear_deferred_checkpoint(session, ckpt_meta->metadata_lsn);
 
     /* Update the timestamps. */
     __wt_atomic_store_uint64_release(

@@ -1053,7 +1053,7 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
     /* A leader never adopts checkpoints: discard a pending deferred pickup. */
-    __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
+    __wti_disagg_clear_deferred_checkpoint_all(session);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.pending_checkpoint_meta_lsn, WT_DISAGG_LSN_NONE);
 
@@ -1939,7 +1939,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_free(session, disagg->last_checkpoint_root);
-    __wti_disagg_clear_deferred_checkpoint(session, UINT64_MAX);
+    __wti_disagg_clear_deferred_checkpoint_all(session);
     __wt_free(session, disagg->page_log);
     return (ret);
 }
