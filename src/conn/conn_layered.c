@@ -1191,7 +1191,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     struct timespec tsp;
     WT_DECL_RET;
     WT_SHARED_DSK_CACHE *shared_dsk_cache;
-    wt_timestamp_t stable_ts, step_down_ts;
+    wt_timestamp_t ckpt_ts, stable_ts, step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -1244,6 +1244,18 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
         WT_ASSERT_ALWAYS(session, stable_ts == step_down_ts,
           "stable timestamp %s does not match the step down timestamp %s at step down",
           __wt_timestamp_to_string(stable_ts, ts_string[0]),
+          __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+
+        /*
+         * Stable reaching the boundary is not enough: the checkpoint written at that boundary is
+         * what the next leader picks up, so a checkpoint behind the step-down timestamp leaves the
+         * writes in between only on this node.
+         */
+        ckpt_ts =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
+        WT_ASSERT_ALWAYS(session, ckpt_ts == step_down_ts,
+          "last checkpoint timestamp %s does not match the step down timestamp %s at step down",
+          __wt_timestamp_to_string(ckpt_ts, ts_string[0]),
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
     }
 
