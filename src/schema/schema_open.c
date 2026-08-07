@@ -720,7 +720,7 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
      * cursors route to ingest rather than attempting an open that cannot succeed.
      */
     conn = S2C(session);
-    if (conn->layered_table_manager.leader &&
+    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) &&
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE) {
         WT_RET_NOTFOUND_OK(ret = __wt_metadata_search(session, layered->stable_uri, &stable_value));
         if (ret == WT_NOTFOUND)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,408 +26,573 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# test_layered_async_stepdown07.py
-#    Layered table state across the step-down transition: whether a table has a stable constituent,
-#    whether that constituent was checkpointed, and whether the shared metadata advertises it. A
-#    table created after the step-down timestamp has no stable constituent at all. Every test runs in
-#    both the schema-epoch and the epoch-less world, which expect different states.
-
-import threading, wiredtiger, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
+import wiredtiger, wttest
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
+# test_layered_async_stepdown07.py
+#    Supplementary coverage: cursor lifecycle across the step-down, search_near and largest_key
+#    corners, the step-down checkpoint, and write conflicts between constituents. The straddler
+#    operation matrix and the write-conflict cases have their own classes at the end of the file.
 @disagg_test_class
-class test_layered_async_stepdown07(
-  LayeredStepdownMixin, wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
-    test_name = __qualname__
-
-    table_config = 'key_format=S,value_format=S'
-
-    # Both worlds run with precise checkpoints, which disaggregated storage expects even from
-    # clients that never publish. Only the schema epochs differ between the two worlds.
-    base = 'statistics=(all),precise_checkpoint=true,'
-    leader = 'disaggregated=(role="leader",lose_all_my_data=true)'
-    conn_config_follower = base + 'disaggregated=(role="follower",lose_all_my_data=true)'
+class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    worlds = [
-      ('epoch', dict(use_epochs=True, conn_config=base + leader)),
-      ('legacy', dict(use_epochs=False, conn_config=base + leader)),
-    ]
-    scenarios = make_scenarios(disagg_storages, worlds)
+    scenarios = make_scenarios(disagg_storages)
 
-    # The epoch a create is published at, above the step-down checkpoint's epoch so the create stays
-    # uncovered in the epoch world.
-    uncovered_epoch = 30
+    test_name = __qualname__
 
-    def uri(self, name):
-        return f'layered:{self.test_name}_{name}'
+    uri = f'layered:{test_name}'
 
-    # The step-down timestamp every test splits its work on.
-    cutoff = 5
-
-    def setup_world(self):
-        """Configure the stable schema epoch only in the epoch world."""
-        if self.use_epochs:
-            self.set_stable_epoch(10)
+    # A cursor closed before the step-down and one opened after it serve the same view.
+    def test_cursor_close_reopen_within_txn_across_step_down(self):
         self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-    def publish_if_epochs(self, uri, epoch):
-        """Publish a create, which the epoch-less world has no notion of."""
-        if self.use_epochs:
-            self.publish(uri, epoch)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        c1 = self.session.open_cursor(self.uri, None, None)
+        self.assertEqual(c1['b'], 's')
+        c1.close()
 
-    def publish_and_make_stable(self, uri, epoch):
-        """Publish a create and advance the stable schema epoch to it, so a checkpoint covers it."""
-        if self.use_epochs:
-            self.publish(uri, epoch)
-            self.set_stable_epoch(epoch)
+        self.set_step_down_ts(20)
 
-    def enter_window(self):
-        """Set up the world, then open the step-down window by setting the timestamp."""
-        self.setup_world()
-        self.set_step_down_ts(self.cutoff)
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur['x'] = 'i'
+        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        wcur.close()
+        wsession.close()
 
-    def step_down_checkpoint(self):
-        """
-        Take the final leader checkpoint at the step-down timestamp. Everything committed at or below
-        the cutoff becomes durable here; the rows written above it belong to the follower era.
-        """
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.cutoff))
-        self.session.checkpoint()
+        self.complete_step_down(20)
 
-    def checkpoint_covering_epoch(self, epoch, stable_ts):
-        """Take a checkpoint that covers everything published at or below the given epoch."""
-        if self.use_epochs:
-            self.set_stable_epoch(epoch)
-        self.leader_checkpoint(stable_ts)
+        c2 = self.session.open_cursor(self.uri, None, None)
+        seen = {}
+        while c2.next() == 0:
+            seen[c2.get_key()] = c2.get_value()
+        self.assertEqual(seen, {'b': 's', 'd': 's'})
+        self.session.commit_transaction()
+        c2.close()
 
-    def create_with_rows(self, name, commit_ts):
-        """Create a table and write two rows, returning its URI and contents."""
-        uri = self.uri(name)
-        self.session.create(uri, self.table_config)
-        rows = {'k1': name, 'k2': name}
-        self.write_at(uri, rows, commit_ts)
-        return uri, rows
+    # One cursor handle works for transactions on both sides of the step-down.
+    def test_same_cursor_handle_across_step_down_txns(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
 
-    def assert_follower_reads(self, uri, expected):
-        """A fresh follower picking up the latest checkpoint reads the expected contents."""
-        conn_follow, session_follow = self.open_follower()
-        cursor = session_follow.open_cursor(uri)
-        self.assertEqual({k: v for k, v in cursor}, expected)
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), 'b')
+        self.session.rollback_transaction()
+
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 30)
+        self.complete_step_down(20)
+
+        # Reset at the transaction end, the handle walks the merged view from the start.
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
+        seen = []
+        while cursor.next() == 0:
+            seen.append(cursor.get_key())
+        self.assertEqual(seen, ['a', 'b', 'd', 'f', 'z'])
+        cursor.set_key('d')
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), 's')
+        self.session.rollback_transaction()
         cursor.close()
-        self.close_follower(conn_follow, session_follow)
 
-    def local_metadata_keys(self, conn, uri):
-        """The local metadata keys naming the table or its constituents."""
-        tablename = uri[len('layered:'):]
-        session = conn.open_session('')
-        cursor = session.open_cursor('metadata:')
-        keys = [k for k, _ in cursor if tablename in k]
+    # Duplicating a layered cursor is unsupported, cutoff or no cutoff.
+    def test_dup_positioned_cursor_across_step_down_ts(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
+
+        c1 = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        self.assertEqual(c1.next(), 0)
+        self.assertEqual(c1.get_key(), 'b')
+
+        with self.expectedStderrPattern('unsupported object operation'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.open_cursor(None, c1, None))
+
+        self.set_step_down_ts(20)
+
+        with self.expectedStderrPattern('unsupported object operation'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.open_cursor(None, c1, None))
+
+        # The original cursor survives the rejected duplication.
+        self.assertEqual(c1.get_key(), 'b')
+        self.assertEqual(c1.next(), 0)
+        self.assertEqual(c1.get_key(), 'd')
+
+        self.session.rollback_transaction()
+        c1.close()
+
+    # Visibility flips at exactly the cutoff after the completed step-down.
+    def test_boundary_reads_at_cutoff(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        self.write_at(self.uri, {'below': 'v'}, 19)
+        self.write_at(self.uri, {'at': 'v'}, 20)
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'above': 'v'}, 21)
+        self.complete_step_down(20)
+
+        self.assertEqual(self.read_kvs_at(self.uri, 19), {'below': 'v'})
+        self.assertEqual(self.read_kvs_at(self.uri, 20), {'below': 'v', 'at': 'v'})
+        self.assertEqual(self.read_kvs_at(self.uri, 21), {'below': 'v', 'at': 'v', 'above': 'v'})
+
+        # Ground truth: the content split exactly at the cutoff.
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 30), {'below', 'at'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
+
+    # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
+    # same key, which routes to ingest with no shared update chain.
+    def probe_remove_against_straddler_delete(self, read_config=None):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['victim'] = 'alive'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+
+        # The uncommitted tombstone sits on the stable chain.
+        straddler_session = self.conn.open_session()
+        straddler_cursor = straddler_session.open_cursor(self.uri, None, None)
+        straddler_session.begin_transaction()
+        straddler_cursor.set_key('victim')
+        self.assertEqual(straddler_cursor.remove(), 0)
+
+        self.set_step_down_ts(20)
+
+        # The probing snapshot excludes the straddler, so the conflict check must reach across to
+        # the uncommitted delete on stable.
+        self.session.begin_transaction(read_config)
+        cursor.set_key('victim')
+        self.expect_conflict_rollback(cursor.remove)
+        self.session.rollback_transaction()
+
+        return cursor, straddler_session, straddler_cursor
+
+    # The conflict is caught with no read timestamp, and once the straddler is gone the retry
+    # commits into ingest.
+    def test_remove_conflicts_with_uncommitted_straddler_delete(self):
+        cursor, straddler_session, straddler_cursor = \
+            self.probe_remove_against_straddler_delete()
+
+        # The straddler dies at commit.
+        self.assert_step_down_rollback(lambda: straddler_session.commit_transaction(
+            'commit_timestamp=' + self.timestamp_str(15)), session=straddler_session)
+        straddler_cursor.close()
+        straddler_session.close()
+
+        # With the straddler resolved, the retry commits into ingest.
+        self.session.begin_transaction()
+        cursor.set_key('victim')
+        self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
-        session.close()
-        return keys
 
-    def test_constituent_presence_follows_the_timestamp(self):
-        """
-        Which side of the step-down timestamp a table was created on decides whether it has a stable
-        constituent, and the transition changes neither answer. Both tables keep serving their rows,
-        so "no constituent" never means "no data".
-        """
-        self.setup_world()
-        before, before_rows = self.create_with_rows('before', 2)
-        self.publish_and_make_stable(before, 20)
+        # Exactly one delete happened.
+        self.assertEqual(self.read_kvs_at(self.uri, 25), {'victim': 'alive'})
+        self.assertEqual(self.read_kvs_at(self.uri, 35), {})
 
-        self.set_step_down_ts(self.cutoff)
-        after, after_rows = self.create_with_rows('after', 6)
-        self.publish_if_epochs(after, 40)
+    # The same conflict with a read timestamp stays caught.
+    def test_remove_conflicts_with_read_timestamp(self):
+        cursor, straddler_session, straddler_cursor = \
+            self.probe_remove_against_straddler_delete(
+                'read_timestamp=' + self.timestamp_str(15))
+        cursor.close()
 
-        def assert_both_sides():
-            self.assertTrue(self.stable_constituent_exists(self.conn, before))
-            self.assertFalse(self.stable_constituent_exists(self.conn, after))
-            # Assert the ingest constituent too, so the absent one cannot pass as a failed create.
-            self.assertTrue(self.uri_in_local_metadata(self.conn, after))
-            self.assertEqual(self.read_kvs_at(before, 7), before_rows)
-            self.assertEqual(self.read_kvs_at(after, 7), after_rows)
+        straddler_session.rollback_transaction()
+        straddler_cursor.close()
+        straddler_session.close()
 
-        assert_both_sides()
-        self.complete_step_down(self.cutoff)
-        assert_both_sides()
+    # search_near on an exact match reports equality, whichever constituent holds the key, and a
+    # read timestamp below the cutoff narrows it to the stable half.
+    def test_search_near_exact_and_read_ts(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
 
-    def create_tables_with_mixed_states(self):
-        """
-        Create a table for each state that can be alive at a step-down, take the step-down
-        checkpoint, and return the URIs. Rows are written above that checkpoint's stable timestamp,
-        which is what keeps an unpublished table legal in the epoch world.
-        """
-        self.setup_world()
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
 
-        # Published below the cutoff and covered by the checkpoint that follows.
-        covered, covered_rows = self.create_with_rows('covered', 2)
-        self.publish_and_make_stable(covered, 20)
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
+        for key, value in (('d', 's'), ('c', 'i')):
+            cursor.set_key(key)
+            self.assertEqual(cursor.search_near(), 0, f'exact match expected for {key}')
+            self.assertEqual(cursor.get_key(), key)
+            self.assertEqual(cursor.get_value(), value)
+        self.session.rollback_transaction()
 
-        # Published above the checkpoint's epoch, so the epoch world leaves it uncovered.
-        uncovered = self.uri('uncovered')
-        self.session.create(uncovered, self.table_config)
-        self.publish_if_epochs(uncovered, self.uncovered_epoch)
+        # Below the cutoff only the stable half is visible, so a key that exists in ingest is no
+        # longer an exact match and search_near falls to a stable neighbor.
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
+        cursor.set_key('d')
+        self.assertEqual(cursor.search_near(), 0)
+        cursor.set_key('c')
+        self.assertIn(cursor.search_near(), (-1, 1))
+        self.assertIn(cursor.get_key(), ('b', 'd'))
+        self.session.rollback_transaction()
+        cursor.close()
 
-        # Created and never published.
-        unpublished = self.uri('unpublished')
-        self.session.create(unpublished, self.table_config)
+    # search_near works when only one constituent has content: all of it in ingest over an empty
+    # stable table, and nothing anywhere.
+    def test_search_near_with_empty_constituent(self):
+        empty_uri = f'layered:{self.test_name}_empty'
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.session.create(empty_uri, 'key_format=S,value_format=S')
 
-        self.set_step_down_ts(self.cutoff)
+        self.set_step_down_ts(20)
 
-        # Created after the step-down timestamp. Its publish epoch has to exceed the stable schema
-        # epoch the covered table advanced to, so the epoch world defers this entry by epoch and the
-        # epoch-less world reaches it with no stable value to publish.
-        window, window_rows = self.create_with_rows('window', 6)
-        self.publish_if_epochs(window, 40)
+        # Every key lives in ingest; the stable table was never written.
+        self.write_at(self.uri, {'b': 'i', 'd': 'i'}, 30)
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
 
-        self.step_down_checkpoint()
-        return {
-          'covered': (covered, covered_rows),
-          'uncovered': (uncovered, {}),
-          'unpublished': (unpublished, {}),
-          'window': (window, window_rows),
-        }
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
+        for key, expected in (('a', 'b'), ('c', ('b', 'd')), ('z', 'd')):
+            cursor.set_key(key)
+            self.assertNotEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND,
+                f'search_near must find a neighbor in ingest for {key}')
+            if isinstance(expected, tuple):
+                self.assertIn(cursor.get_key(), expected)
+            else:
+                self.assertEqual(cursor.get_key(), expected)
+        self.session.rollback_transaction()
+        cursor.close()
 
-    def assert_mixed_states(self, tables):
-        """
-        Assert all three states of every table. The epoch world withholds an unpublished table from
-        the checkpoint and from shared metadata; the epoch-less world has no notion of publication,
-        so it covers everything it has a constituent for.
-        """
-        covered, _ = tables['covered']
-        uncovered, _ = tables['uncovered']
-        unpublished, _ = tables['unpublished']
-        window, _ = tables['window']
+        # With both constituents empty there is nothing to position on.
+        cursor = self.session.open_cursor(empty_uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
+        cursor.set_key('a')
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+        cursor.close()
 
-        self.assert_table_state(self.conn, covered, True, True, True)
+    # largest_key ignores visibility, so it reports a key from a transaction that has not committed.
+    def test_largest_key_with_uncommitted_write(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-        if self.use_epochs:
-            self.assert_table_state(self.conn, uncovered, True, False, False)
-            self.assert_table_state(self.conn, unpublished, True, False, False)
-        else:
-            self.assert_table_state(self.conn, uncovered, True, True, True)
-            self.assert_table_state(self.conn, unpublished, True, True, True)
+        self.set_step_down_ts(20)
 
-        # A window create has no constituent to checkpoint or advertise, in either world.
-        self.assert_table_state(self.conn, window, False, False, False)
+        def largest():
+            c = self.session.open_cursor(self.uri, None, None)
+            self.assertEqual(c.largest_key(), 0)
+            key = c.get_key()
+            c.close()
+            return key
 
-    def test_step_down_audit_mixed_states(self):
-        """
-        Every state a layered table can be in, alive at once and audited across the transition. The
-        step-down checkpoint must cover exactly the tables it is supposed to and nothing else, and a
-        per-table check only covers the tables it names, so enumerate as well: no table may change
-        state underneath the step-down.
-        """
-        tables = self.create_tables_with_mixed_states()
-        uris = [uri for uri, _ in tables.values()]
+        self.assertEqual(largest(), 'd')
 
-        self.assert_mixed_states(tables)
-        self.assert_no_unexpected_tables(self.conn, uris)
+        # A second session inserts a new maximum into ingest and holds the transaction open.
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur['zz'] = 'uncommitted'
 
-        # A second checkpoint in the window changes nothing, which is what keeps the requeue of a
-        # window create from consuming an entry it has to put back.
-        self.session.checkpoint()
-        self.assert_mixed_states(tables)
+        self.assertEqual(largest(), 'zz',
+            'largest_key must report the uncommitted key it cannot read')
 
-        self.step_down()
+        # The aborted update stays in the tree until reconciliation discards it, and largest_key
+        # consults no visibility state, so the abandoned key may still be the reported maximum.
+        wsession.rollback_transaction()
+        wcur.close()
+        wsession.close()
+        self.assertIn(largest(), ('d', 'zz'))
 
-        self.assert_mixed_states(tables)
-        self.assert_no_unexpected_tables(self.conn, uris)
+    # A reverse walk interrupted by the cutoff re-seats the same way a forward walk does.
+    def test_reverse_iteration_across_step_down_ts(self):
+        uri = f'layered:{self.test_name}_reviter'
+        self.set_global_ts(1, 1)
+        self.session.create(uri, 'key_format=S,value_format=S')
 
-    def test_follower_serves_tables_after_step_down(self):
-        """
-        After the transition the node reads in its follower role. The metadata state has to match
-        what a reader sees: a covered table serves its rows, a window create serves them from the
-        ingest constituent, and a constituent with no checkpoint reads empty.
-        """
-        tables = self.create_tables_with_mixed_states()
-        self.step_down()
+        stable_keys = [f'k{i:02d}' for i in range(0, 20, 2)]
+        self.write_at(uri, {k: 'v' for k in stable_keys}, 10)
 
-        for name in ('covered', 'window'):
-            uri, rows = tables[name]
-            self.assertEqual(self.read_kvs_at(uri, 7), rows, f'{name} did not serve its rows')
+        wsession = self.conn.open_session()
+        cursor = self.session.open_cursor(uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(15))
 
-        # The epoch world left this constituent without a checkpoint, so a follower has nothing to
-        # open for it. The epoch-less world checkpointed it, so it reads as the empty table it is.
-        uncovered, _ = tables['uncovered']
-        self.assertEqual(self.read_kvs_at(uncovered, 7), {})
+        # Walk part way backwards, then set the cutoff mid-iteration.
+        seen = []
+        for _ in range(4):
+            self.assertEqual(cursor.prev(), 0)
+            seen.append(cursor.get_key())
+        self.set_step_down_ts(50)
 
-    def test_timestampless_step_down_keeps_constituents(self):
-        """
-        A step-down with no timestamp set is the abrupt path, and it must keep constituents too:
-        one covered by a checkpoint and one the checkpoint never reached.
-        """
-        self.setup_world()
-        covered, rows = self.create_with_rows('covered', 2)
-        self.publish_if_epochs(covered, 20)
-        self.checkpoint_covering_epoch(20, 3)
+        # Interleave ingest keys both behind and ahead of the scan position, and update and remove
+        # stable keys the backward walk has not reached yet.
+        updated = stable_keys[3]
+        removed = stable_keys[1]
+        wcur = wsession.open_cursor(uri, None, None)
+        wsession.begin_transaction()
+        for i in range(1, 20, 2):
+            wcur[f'k{i:02d}'] = 'ingest'
+        wcur[updated] = 'ingest-update'
+        wcur.set_key(removed)
+        self.assertEqual(wcur.remove(), 0)
+        wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(60))
+        wcur.close()
+        wsession.close()
 
-        uncovered = self.uri('uncovered')
-        self.session.create(uncovered, self.table_config)
+        kvs = []
+        while cursor.prev() == 0:
+            seen.append(cursor.get_key())
+            kvs.append((cursor.get_key(), cursor.get_value()))
+        self.session.rollback_transaction()
+        cursor.close()
 
-        self.step_down()
+        self.assertEqual(seen, list(reversed(stable_keys)),
+            'the reverse walk must yield exactly the snapshot keys once, in order')
+        self.assertIn((updated, 'v'), kvs, 'the invisible update must not reach this snapshot')
+        self.assertIn((removed, 'v'), kvs, 'the invisible tombstone must not reach this snapshot')
 
-        self.assertTrue(self.stable_constituent_exists(self.conn, covered))
-        self.assertTrue(self.stable_constituent_exists(self.conn, uncovered))
-        self.assertEqual(self.read_kvs_at(covered, 4), rows)
+    # A layered tree never opens by checkpoint, before or after the demotion. Reading the step-down
+    # checkpoint means opening a checkpoint cursor on the stable constituent, which holds the stable
+    # content only: the ingest half was never checkpointed.
+    def test_checkpoint_cursor_after_step_down(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-    def test_window_create_publishes_after_step_up(self):
-        """
-        A step-up builds the constituent a window create skipped while leaving alone the surviving
-        one of a create that predates the timestamp, then a covering checkpoint publishes both with
-        their rows. The two worlds reach this through different code: the epoch world replays the
-        surviving queue entry, the epoch-less world rebuilds from a local metadata scan.
-        """
-        self.setup_world()
-        before, before_rows = self.create_with_rows('before', 2)
-        # Published below the cutoff, so the step-down checkpoint covers it and its rows.
-        self.publish_and_make_stable(before, 20)
+        self.set_step_down_ts(20)
+        self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 30)
 
-        self.set_step_down_ts(self.cutoff)
-        after, after_rows = self.create_with_rows('after', 6)
-        self.publish_if_epochs(after, 40)
-        self.assertTrue(self.stable_constituent_exists(self.conn, before))
-        self.assert_table_state(self.conn, after, False, False, False)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint'),
+            '/do not support opening by checkpoint/')
 
-        self.complete_step_down(self.cutoff)
-        self.assertTrue(self.stable_constituent_exists(self.conn, before))
-        self.assert_table_state(self.conn, after, False, False, False)
+        self.complete_step_down(20)
 
-        self.step_up()
-        self.assertTrue(self.stable_constituent_exists(self.conn, before))
-        self.assertTrue(self.stable_constituent_exists(self.conn, after))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint'),
+            '/do not support opening by checkpoint/')
 
-        self.checkpoint_covering_epoch(40, 7)
-        self.assert_table_state(self.conn, before, True, True, True)
-        self.assert_table_state(self.conn, after, True, True, True)
-        self.assert_follower_reads(before, before_rows)
-        self.assert_follower_reads(after, after_rows)
+        cursor = self.session.open_cursor(self.stable_uri(self.uri), None,
+            'checkpoint=WiredTigerCheckpoint')
+        seen = {}
+        while cursor.next() == 0:
+            seen[cursor.get_key()] = cursor.get_value()
+        cursor.close()
+        self.assertEqual(seen, {'b': 's', 'd': 's'},
+            'the step-down checkpoint must hold exactly the stable content')
 
-    def test_window_create_matches_follower_create(self):
-        """
-        A window create is meant to leave the table in the state a create on a follower produces.
-        Compare the local metadata keys of the two directly.
-        """
-        self.setup_world()
-        self.leader_checkpoint(2)
+# Every kind of write a straddler can attempt after the cutoff is set. Each takes (cursor, key); the
+# guard surfaces as an exception, so the return values are unused.
+def _op_insert(cursor, key):
+    cursor[key] = 'straddle'
 
-        uri = self.uri('shape')
-        conn_follow, session_follow = self.open_follower()
-        session_follow.create(uri, self.table_config)
-        follower_keys = sorted(self.local_metadata_keys(conn_follow, uri))
-        self.close_follower(conn_follow, session_follow)
+def _op_update(cursor, key):
+    cursor.set_key(key)
+    cursor.set_value('straddle')
+    return cursor.update()
 
-        self.set_step_down_ts(self.cutoff)
-        self.session.create(uri, self.table_config)
-        self.assertEqual(sorted(self.local_metadata_keys(self.conn, uri)), follower_keys)
-        self.complete_step_down(self.cutoff)
+def _op_remove(cursor, key):
+    cursor.set_key(key)
+    return cursor.remove()
 
-    def test_multiple_window_creates_requeue(self):
-        """
-        A checkpoint inside the window meets every window create at once with no stable constituent
-        to publish. They must all be deferred to the next leader era rather than reported as a
-        violation, and a later covering checkpoint must publish all of them.
-        """
-        self.enter_window()
+def _op_modify(cursor, key):
+    cursor.set_key(key)
+    return cursor.modify([wiredtiger.Modify('Z', 0, 1)])
 
-        tables = []
-        for i in range(3):
-            uri, rows = self.create_with_rows(f'many{i}', 6)
-            self.publish_if_epochs(uri, 20)
-            tables.append((uri, rows))
+def _op_reserve(cursor, key):
+    cursor.set_key(key)
+    return cursor.reserve()
 
-        self.step_down_checkpoint()
-        for uri, _ in tables:
-            self.assert_table_state(self.conn, uri, False, False, False)
+_straddler_ops = [
+    ('insert', dict(do_op=_op_insert)),
+    ('update', dict(do_op=_op_update)),
+    ('remove', dict(do_op=_op_remove)),
+    ('modify', dict(do_op=_op_modify)),
+    ('reserve', dict(do_op=_op_reserve)),
+]
 
-        self.step_down()
-        self.step_up()
-        self.checkpoint_covering_epoch(20, 7)
+# The straddler guard fires on every kind of write, not just the insert and remove spelled out in
+# test_layered_async_stepdown03.py. This lives in its own class so the operation axis does not
+# multiply the tests above.
+@disagg_test_class
+class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.WiredTigerTestCase):
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-        for uri, rows in tables:
-            self.assert_table_state(self.conn, uri, True, True, True)
-            self.assertEqual(self.read_kvs_at(uri, 8), rows)
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages, _straddler_ops)
 
-    def test_window_create_then_drop(self):
-        """
-        A table created and dropped entirely inside the window never existed for any checkpoint, so
-        the queued create and remove cancel out instead of tripping the violation check.
-        """
-        self.enter_window()
+    test_name = __qualname__
 
-        uri, _ = self.create_with_rows('window_drop', 6)
-        self.publish_if_epochs(uri, 20)
-        self.dropUntilSuccess(self.session, uri)
-        self.publish_if_epochs(uri, 20)
+    uri = f'layered:{test_name}'
 
-        self.complete_step_down(self.cutoff)
-        self.step_up()
-        self.checkpoint_covering_epoch(20, 7)
+    # A transaction that began before the cutoff was set rolls back on its first write, whichever
+    # write it is, and leaves nothing behind in either constituent.
+    def test_straddler_write_rolls_back(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'base'}, 10)
 
-        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
-        self.assertEqual(self.local_metadata_keys(self.conn, uri), [])
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
 
-    def test_pre_timestamp_reader_tolerates_window_create(self):
-        """
-        A read transaction that began before the step-down timestamp was set must tolerate a table
-        created after it, whose stable constituent does not exist, instead of failing on the open.
-        """
-        self.setup_world()
-        reader = self.conn.open_session('')
-        reader.begin_transaction()
+        self.set_step_down_ts(20)
 
-        self.set_step_down_ts(self.cutoff)
-        uri, rows = self.create_with_rows('window_reader', 6)
-        self.assertFalse(self.stable_constituent_exists(self.conn, uri))
+        self.assert_step_down_rollback(lambda: self.do_op(cursor, 'k1'))
+        self.session.rollback_transaction()
+        cursor.close()
 
-        # The pre-timestamp snapshot predates the rows, so it reads an empty table rather than
-        # failing on the missing constituent.
-        cursor = reader.open_cursor(uri)
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'base'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
+
+# Write-conflict detection around the cutoff and the demotion, plus a checkpoint taken while the
+# cutoff is set.
+@disagg_test_class
+class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
+                                                   wttest.WiredTigerTestCase):
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
+
+    test_name = __qualname__
+
+    uri = f'layered:{test_name}'
+
+    # Two writers that both began after the cutoff was set collide on the same ingest key.
+    def test_conflict_both_after_cutoff(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'first'
+
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur.set_key('k1')
+        wcur.set_value('second')
+        self.expect_conflict_rollback(wcur.update)
+        wsession.rollback_transaction()
+        wcur.close()
+        wsession.close()
+
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'first'})
+
+    # An uncommitted ingest write survives the demotion; a follower writer must still see it.
+    def test_conflict_across_demotion(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'held'
+
+        # The step-down completes with the write still uncommitted.
+        self.complete_step_down(20)
+
+        wsession = self.conn.open_session()
+        wcur = wsession.open_cursor(self.uri, None, None)
+        wsession.begin_transaction()
+        wcur.set_key('k1')
+        wcur.set_value('follower')
+        self.expect_conflict_rollback(wcur.update)
+        wsession.rollback_transaction()
+        wcur.close()
+        wsession.close()
+
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'held'})
+
+    # A writer reading below the cutoff must still collide with a committed stable update that is
+    # newer than its read timestamp: the update it would overwrite is one it cannot see.
+    def test_conflict_read_ts_below_stable_update(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'k1': 'old'}, 10)
+        self.write_at(self.uri, {'k1': 'newer'}, 15)
+
+        self.set_step_down_ts(20)
+
+        # The transaction begins after the cutoff, so it is not a straddler, but it reads below the
+        # stable update at 15.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(12))
+        self.assertEqual(cursor['k1'], 'old')
         cursor.set_key('k1')
-        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        cursor.set_value('doomed')
+        self.expect_conflict_rollback(cursor.update)
+        self.session.rollback_transaction()
+
+        # The rejected write left both constituents alone.
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'newer'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(12))
+        cursor['other'] = 'fine'
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
-        reader.rollback_transaction()
-        reader.close()
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'newer', 'other': 'fine'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'other'})
 
-        # A reader that began after the timestamp sees the rows through the ingest constituent.
-        self.assertEqual(self.read_kvs_at(uri, 7), rows)
-        self.complete_step_down(self.cutoff)
+    # A checkpoint taken while the cutoff is set, before stable reaches it, changes nothing for
+    # readers or for routing.
+    def test_extra_checkpoint_while_cutoff_set(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'b': 's', 'd': 's'}, 10)
 
-    def test_create_racing_step_down_timestamp(self):
-        """
-        The step-down timestamp is published under the schema lock that creates hold, so a create
-        racing it lands wholly on one side of the cutoff: either it built the stable constituent
-        or it did not. A half-built table would show up as a create failure or as a table whose
-        ingest constituent is missing.
-        """
-        self.setup_world()
-        uris = [self.uri(f'race{i}') for i in range(30)]
-        errors = []
+        self.set_step_down_ts(30)
+        self.write_at(self.uri, {'a': 'i', 'z': 'i'}, 40)
 
-        def create_tables():
-            session = self.conn.open_session('')
-            try:
-                for uri in uris:
-                    session.create(uri, self.table_config)
-            except Exception as e:
-                errors.append(e)
-            finally:
-                session.close()
+        before = self.read_kvs_at(self.uri, 50)
 
-        thread = threading.Thread(target=create_tables)
-        thread.start()
-        try:
-            self.set_step_down_ts(self.cutoff)
-        except Exception as e:
-            errors.append(e)
-        thread.join()
-        self.assertEqual(errors, [])
+        # Advance stable part way to the cutoff first, so the extra checkpoint actually persists the
+        # stable content instead of being an empty checkpoint that proves nothing.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        ckpt_session = self.conn.open_session()
+        ckpt_session.checkpoint()
+        ckpt_session.close()
 
-        for uri in uris:
-            self.assertTrue(self.uri_in_local_metadata(self.conn, uri))
-        self.assert_no_unexpected_tables(self.conn, uris)
-        self.complete_step_down(self.cutoff)
+        # The checkpoint holds the stable half and nothing else.
+        ckpt_cursor = self.session.open_cursor(self.stable_uri(self.uri), None,
+            'checkpoint=WiredTigerCheckpoint')
+        checkpointed = {}
+        while ckpt_cursor.next() == 0:
+            checkpointed[ckpt_cursor.get_key()] = ckpt_cursor.get_value()
+        ckpt_cursor.close()
+        self.assertEqual(checkpointed, {'b': 's', 'd': 's'})
+
+        self.assertEqual(self.read_kvs_at(self.uri, 50), before)
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'b', 'd'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'a', 'z'})
+
+        # A write after that checkpoint still routes to ingest, and the step-down still completes.
+        self.write_at(self.uri, {'y': 'i'}, 45)
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'a', 'z', 'y'})
+        self.complete_step_down(30)
+        self.assertEqual(self.read_kvs_at(self.uri, 50),
+            {'b': 's', 'd': 's', 'a': 'i', 'z': 'i', 'y': 'i'})

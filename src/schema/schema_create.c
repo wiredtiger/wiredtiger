@@ -1228,7 +1228,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * created below the boundary.
      */
     step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
-    if (conn->layered_table_manager.leader) {
+    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         if (step_down_ts == WT_TS_NONE) {
             stable_cfg[1] = disagg_config->data;
 
