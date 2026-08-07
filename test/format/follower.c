@@ -184,8 +184,8 @@ follower_read_latest_checkpoint(void)
     ret = page_log->pl_get_complete_checkpoint(page_log, session, &args);
     testutil_check_error_ok(ret, WT_NOTFOUND);
     if (ret != WT_NOTFOUND)
-        (void)follower_try_pickup_checkpoint(
-          session, conn, page_log, &args.checkpoint_metadata, args.checkpoint_timestamp, g.reopen);
+        (void)follower_try_pickup_checkpoint(session, conn, page_log, &args.checkpoint_metadata,
+          args.checkpoint_timestamp, g.reopen && disagg_is_multi_node());
 
     free(args.checkpoint_metadata.mem);
     wt_wrap_close_session(session);
