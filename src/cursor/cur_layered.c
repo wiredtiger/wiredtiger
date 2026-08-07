@@ -352,24 +352,6 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
 #define CLAYERED_ENTER_ROLE_CHANGE (CLAYERED_ENTER_STEP_DOWN | CLAYERED_ENTER_STEP_UP)
 
 /*
- * __clayered_no_stable --
- *     Return whether the table was created inside the step-down window and so has no stable
- *     constituent to read. The mark can only exist on a leader inside that window.
- */
-static WT_INLINE bool
-__clayered_no_stable(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role)
-{
-    if (!F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED))
-        return (false);
-
-    WT_ASSERT(CUR2S(clayered),
-      role == WTI_CLAYERED_ROLE_LEADER &&
-        __wt_atomic_load_uint64_relaxed(&S2C(CUR2S(clayered))->txn_global.step_down_timestamp) !=
-          WT_TS_NONE);
-    return (true);
-}
-
-/*
  * __clayered_skip_stable --
  *     Return whether the operation can start without an open stable constituent.
  */
@@ -437,7 +419,8 @@ __clayered_enter_flags(
      * by contract.
      */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
-      __clayered_no_stable(clayered, role) || mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+      F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) ||
+      mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
@@ -1036,7 +1019,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
 
     if (clayered->stable_cursor == NULL) {
         /* Open stable the first time if needed, unless the constituent does not exist yet. */
-        if (!__clayered_no_stable(clayered, role) &&
+        if (!F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
           (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
