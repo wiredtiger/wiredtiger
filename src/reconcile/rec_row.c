@@ -799,12 +799,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wti_rec_image_copy(session, r, key);
         __wti_rec_image_copy(session, r, val);
-        if (page_del != NULL)
-            WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
-        WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
-
-        /* Update compression state. */
-        __rec_key_state_update(r, false);
 
         /*
          * The value may point directly into the child's address cookie, which a concurrent split
@@ -814,6 +808,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (build_delta && prev_dirty && !retain_onpage)
             WT_ERR(__rec_pack_delta_row_int(session, r, key, val, &ta));
         WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+
+        if (page_del != NULL)
+            WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
+        WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
+
+        /* Update compression state. */
+        __rec_key_state_update(r, false);
 
         /*
          * Set the ref dirty state to clean if there were no concurrent changes while reconciling
