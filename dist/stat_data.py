@@ -1404,6 +1404,8 @@ conn_dsrc_stats = [
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
     CursorStat('cursor_tree_walk_del_page_skip', 'Total number of deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_del_page_skip_lock_contended', 'Total number of deleted page skips during tree walk that waited for the page lock'),
+    CursorStat('cursor_tree_walk_del_page_skip_lock_spins', 'Total number of backoff iterations while waiting for the page lock during tree walk deleted page skips'),
     CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
 

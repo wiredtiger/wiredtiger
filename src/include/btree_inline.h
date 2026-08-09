@@ -2862,6 +2862,7 @@ __wt_btcur_skip_page(
     WT_PAGE_WALK_SKIP_STATS *walk_skip_stats;
     WT_REF_STATE previous_state;
     WT_TIME_AGGREGATE *ta;
+    uint64_t sleep_usecs, yield_count;
     bool clean_page;
 
     WT_UNUSED(context);
@@ -2886,12 +2887,18 @@ __wt_btcur_skip_page(
 
     /*
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
-     * make changes to the data structures (i.e., aggregate timestamps) we are reading. Skipping is
-     * only an optimization, so try the lock once and read the page rather than spin under
-     * contention.
+     * make changes to the data structures (i.e., aggregate timestamps) we are reading.
+     *
+     * Wait for the lock rather than giving up on the skip: abandoning it does not avoid the wait,
+     * it moves the thread into the page-in path, which is more expensive. Back off while waiting
+     * rather than yielding on every iteration, which drives kernel CPU under contention.
      */
-    if (WT_REF_TRYLOCK(session, ref, &previous_state) != 0)
-        return (0);
+    for (sleep_usecs = yield_count = 0; WT_REF_TRYLOCK(session, ref, &previous_state) != 0;)
+        __wt_spin_backoff(&yield_count, &sleep_usecs);
+    if (yield_count != 0) {
+        ++walk_skip_stats->total_del_pages_skip_lock_contended;
+        walk_skip_stats->total_del_pages_skip_lock_spins += yield_count;
+    }
 
     /*
      * Check the fast-truncate information; there are 3 cases:
