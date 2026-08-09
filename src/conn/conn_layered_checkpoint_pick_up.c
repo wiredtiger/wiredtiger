@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static int __disagg_adopt_deferred_checkpoint_meta(WT_SESSION_IMPL *, const char *, size_t);
+
 /*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
@@ -1275,11 +1277,7 @@ __wti_disagg_deferred_pickup_retry(WT_SESSION_IMPL *session, bool force)
         return (0);
     WT_RET(ret);
 
-    /*
-     * Skip the deferral check in the adoption: the selection above already decided this checkpoint
-     * may be adopted, and re-deferring it would loop.
-     */
-    ret = __wti_disagg_pick_up_checkpoint_meta(session, meta_copy, strlen(meta_copy), true);
+    ret = __disagg_adopt_deferred_checkpoint_meta(session, meta_copy, strlen(meta_copy));
 
     /*
      * A concurrent pickup may have adopted this checkpoint, or a newer one, between the copy above
@@ -1386,10 +1384,12 @@ err:
 
 /*
  * __disagg_pick_up_checkpoint --
- *     Pick up a new checkpoint.
+ *     Pick up a new checkpoint. A caller that raced another adoption expects to find the checkpoint
+ *     superseded and says so, which reports that outcome quietly rather than as an error.
  */
 static int
-__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_pick_up_checkpoint(
+  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, bool superseded_ok)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1417,11 +1417,19 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /* We should not pick up a checkpoint with an earlier LSN. */
     current_meta_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-    if (ckpt_meta->metadata_lsn < current_meta_lsn)
+    if (ckpt_meta->metadata_lsn < current_meta_lsn) {
+        if (superseded_ok) {
+            __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Skipping a superseded checkpoint: current metadata LSN = %" PRIu64
+              ", new metadata LSN = %" PRIu64,
+              current_meta_lsn, ckpt_meta->metadata_lsn);
+            return (EINVAL);
+        }
         WT_RET_MSG(session, EINVAL,
           "Attempting to pick up an older checkpoint: current metadata LSN = %" PRIu64
           ", new metadata LSN = %" PRIu64,
           current_meta_lsn, ckpt_meta->metadata_lsn);
+    }
     is_startup = current_meta_lsn == WT_DISAGG_LSN_NONE;
 
     /*
@@ -1619,12 +1627,12 @@ err:
 }
 
 /*
- * __wti_disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from metadata config.
+ * __disagg_pick_up_checkpoint_meta --
+ *     Pick up a new checkpoint from metadata config, shared by the loud and the racing callers.
  */
-int
-__wti_disagg_pick_up_checkpoint_meta(
-  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool force)
+static int
+__disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta_data,
+  size_t meta_data_size, bool force, bool superseded_ok)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -1725,8 +1733,8 @@ __wti_disagg_pick_up_checkpoint_meta(
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up", false, 0, 0, &internal_session));
     /* Now actually pick up the checkpoint. */
-    WT_WITH_CHECKPOINT_LOCK(
-      internal_session, ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta));
+    WT_WITH_CHECKPOINT_LOCK(internal_session,
+      ret = __disagg_pick_up_checkpoint(internal_session, &ckpt_meta, superseded_ok));
     WT_ERR(ret);
 
     /* Record the picked-up checkpoint's version fields; a failed pickup leaves them unchanged. */
@@ -1751,6 +1759,32 @@ err:
         WT_TRET(__wt_session_close_internal(internal_session));
     __wt_free(session, meta_str);
     return (ret);
+}
+
+/*
+ * __wti_disagg_pick_up_checkpoint_meta --
+ *     Pick up a new checkpoint from metadata config. A checkpoint older than the adopted one is an
+ *     error here: nothing races this caller, so going backwards means the checkpoint is wrong.
+ */
+int
+__wti_disagg_pick_up_checkpoint_meta(
+  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size, bool force)
+{
+    return (__disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, force, false));
+}
+
+/*
+ * __disagg_adopt_deferred_checkpoint_meta --
+ *     Adopt a checkpoint whose pickup was deferred. Finding it superseded is the expected outcome
+ *     of losing a race with a concurrent adoption, so it is reported without an error message; the
+ *     caller decides whether the race left the deferred pickup satisfied. The deferral check is
+ *     skipped: the selection already decided this checkpoint may be adopted.
+ */
+static int
+__disagg_adopt_deferred_checkpoint_meta(
+  WT_SESSION_IMPL *session, const char *meta_data, size_t meta_data_size)
+{
+    return (__disagg_pick_up_checkpoint_meta(session, meta_data, meta_data_size, true, true));
 }
 
 #ifdef HAVE_UNITTEST
