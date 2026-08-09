@@ -965,7 +965,11 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
     if (role != WTI_CLAYERED_ROLE_LEADER || (ret != ENOENT && ret != WT_NOTFOUND))
         return (false);
 
-    /* The resolved role is stale if the step-down timestamp is set or the role already changed. */
+    /*
+     * The resolved role is stale if the step-down timestamp is set or the role already changed.
+     * Step-down changes both values while holding the schema lock, and the failed open that led
+     * here acquired that lock, so relaxed loads see current values.
+     */
     return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
       !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
 }

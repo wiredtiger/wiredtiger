@@ -132,7 +132,8 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
 
         /*
          * A table created after the step-down timestamp was set has no stable constituent, so there
-         * is nothing on the stable side to verify.
+         * is nothing on the stable side to verify. The schema lock held here serializes the
+         * timestamp, making the relaxed load safe.
          */
         step_down_ts =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);

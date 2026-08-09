@@ -717,7 +717,8 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
 
     /*
      * A create after the step-down timestamp skips the stable constituent, so mark the handle and
-     * cursors route to ingest rather than attempting an open that cannot succeed.
+     * cursors route to ingest rather than attempting an open that cannot succeed. The schema lock
+     * held here serializes the timestamp, making the relaxed load safe.
      */
     conn = S2C(session);
     if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) &&

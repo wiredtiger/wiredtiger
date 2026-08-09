@@ -762,7 +762,8 @@ __wt_disagg_shared_metadata_queue_process(
          * A parked CREATE left while a step-down timestamp is set belongs to the follower era the
          * pending step-down begins, so put it back for a later leader era to complete. Only the
          * epoch-less mode reaches this: with schema epochs the entry is still unpublished, which
-         * the epoch check above already defers.
+         * the epoch check above already defers. The schema lock held here serializes the timestamp,
+         * making the relaxed load safe.
          */
         if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
             __disagg_requeue_skipped_creates(session, &skipped_creates);

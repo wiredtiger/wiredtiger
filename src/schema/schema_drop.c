@@ -205,7 +205,8 @@ __drop_layered(
 
     /*
      * Only the leader can issue a trim command, and only for a constituent that exists: a table
-     * created after the step-down timestamp was set has no stable pages to trim.
+     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
+     * held here serializes the timestamp, making the relaxed loads safe.
      */
     if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
