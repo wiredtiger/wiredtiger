@@ -232,6 +232,28 @@ class DisaggConfigMixin:
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
 
+    # Wait until every checkpoint delivered to the follower has been adopted. A caller that asserts
+    # on state the adoption produces needs this: a delivery that raced a snapshot's release is
+    # adopted by the pickup server rather than inline. Snapshots that predate a delivery block it
+    # indefinitely, so end them before waiting.
+    def disagg_wait_for_adoption(self, conn_follower, timeout=60):
+        session = conn_follower.open_session('')
+        try:
+            deadline = time.time() + timeout
+            while True:
+                cursor = session.open_cursor('statistics:')
+                delivered = cursor[wiredtiger.stat.conn.disagg_checkpoint_delivered_lsn][2]
+                adopted = cursor[wiredtiger.stat.conn.disagg_checkpoint_meta_lsn][2]
+                cursor.close()
+                if adopted >= delivered:
+                    return
+                if time.time() > deadline:
+                    raise Exception(f'checkpoint {delivered} not adopted within {timeout}s, ' +
+                                    f'newest adopted is {adopted}')
+                time.sleep(0.01)
+        finally:
+            session.close()
+
     # Switch the leader and the follower
     def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
         if conn_leader is None:
