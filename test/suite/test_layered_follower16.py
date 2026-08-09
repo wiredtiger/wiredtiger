@@ -122,7 +122,8 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def follower_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")'
+        return self.extensionsConfig() + self.conn_base_config + \
+            'disaggregated=(role="follower")'
 
     def insert_keys(self, session, nkeys, ts):
         cursor = session.open_cursor(self.uri)
@@ -169,6 +170,8 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         self.session.checkpoint()
+        # The survive scenario keeps its transaction open across the pickup, deferring the
+        # adoption, so there is nothing to wait for.
         self.disagg_advance_checkpoint(conn_follow)
 
         if self.txn_mode != 'survive':
@@ -185,9 +188,16 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
         else:
             opens_stable = 0
 
-        # After the checkpoint arrives, repeat the same operation.
-        self.do_op(cursor_follow)
-        self.end_txn(session_follow)
+        # After the checkpoint arrives, repeat the same operation. A transaction that survived the
+        # pickup has a snapshot that predates it, so the adoption is deferred while it runs: the
+        # operation keeps reading the ingest content and finds no stable checkpoint to bind.
+        if self.txn_mode == 'survive':
+            self.do_op(cursor_follow)
+            session_follow.rollback_transaction()
+            opens_stable = 0
+        else:
+            self.do_op(cursor_follow)
+            self.end_txn(session_follow)
 
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.layered_curs_open_stable, session=session_follow), opens_stable)
         self.assertEqual(self.get_stat(wiredtiger.stat.conn.layered_curs_reopen_stable, session=session_follow), 0)

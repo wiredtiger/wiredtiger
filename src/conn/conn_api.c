@@ -1327,6 +1327,13 @@ err:
       session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
 
     /*
+     * Stop the deferred checkpoint pickup server before transactional activity shuts down: an
+     * adoption runs metadata transactions, so any in-flight adoption must complete while snapshot
+     * visibility checks still operate.
+     */
+    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
+
+    /*
      * The sweep server must be stopped before any thread group is destroyed: tearing down a thread
      * group will cause session structures to be cleared. This will mess with the sweep's session
      * walk. The sweep must also be stopped before the final checkpoint to prevent it from closing
