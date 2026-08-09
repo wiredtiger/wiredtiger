@@ -530,6 +530,7 @@ struct __wt_connection_stats {
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
     int64_t block_first_srch_walk_time;
+    int64_t eviction_app_bounded_wait_exceeded;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
@@ -1028,13 +1029,17 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_binary_compatible_version;
     int64_t disagg_checkpoint_storage_version;
     int64_t disagg_checkpoint_binary_version;
+    int64_t disagg_checkpoint_defer;
     int64_t disagg_conn_reconfig;
     int64_t disagg_database_size;
     int64_t disagg_pick_up_file_meta_updated;
     int64_t disagg_ingest_stable_tombstone_stripped;
+    int64_t disagg_checkpoint_meta_lsn;
+    int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
     int64_t disagg_role_leader;
+    int64_t disagg_snapshot_rebuild;
     int64_t disagg_stable_tombstone_encoding;
     int64_t disagg_step_down_in_progress;
     int64_t disagg_step_down_time;
@@ -1057,6 +1062,7 @@ struct __wt_connection_stats {
     int64_t layered_curs_search;
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
+    int64_t layered_curs_open_stable_refused;
     int64_t layered_curs_update;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;
@@ -1839,6 +1845,7 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search;
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
+    int64_t layered_curs_open_stable_refused;
     int64_t layered_curs_update;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;
