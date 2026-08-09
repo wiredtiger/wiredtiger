@@ -170,12 +170,15 @@ class test_layered_follower16(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(10)}')
         self.session.checkpoint()
-        # The survive scenario keeps its transaction open across the pickup, deferring the
-        # adoption, so there is nothing to wait for.
         self.disagg_advance_checkpoint(conn_follow)
 
         if self.txn_mode != 'survive':
+            # The counts below need a stable constituent to bind, so wait for the adoption:
+            # a delivery is not necessarily adopted by the time it returns.
+            self.disagg_wait_for_adoption(conn_follow)
             session_follow.begin_transaction()
+        # The survive scenario keeps its transaction open across the pickup, deferring the
+        # adoption indefinitely: waiting there would hang.
 
         # Only the operations that must consult stable open it. An exact search and a write defer
         # the follower's stable open until the ingest lookup misses, which for these keys happens
