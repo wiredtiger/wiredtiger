@@ -350,8 +350,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t last_durable_ts, last_oldest_ts, last_stable_disagg_epoch, last_stable_ts,
       current_step_down_epoch, current_step_down_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch, has_step_down,
-      has_step_down_epoch;
+    bool epochs_in_use, force, has_durable, has_oldest, has_stable, has_stable_disagg_epoch,
+      has_step_down, has_step_down_epoch;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -423,24 +423,22 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      * in both spaces in the same call, and without them there is no epoch space to bound. These too
      * are hard invariants, validated even under force.
      */
+    epochs_in_use = has_stable_disagg_epoch ||
+      __wt_atomic_load_uint64_acquire(&txn_global->last_ckpt_disaggregated_schema_epoch) !=
+        WT_SCHEMA_EPOCH_NONE ||
+      __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE;
     if (has_step_down_epoch && !has_step_down)
         WT_RET_MSG(session, EINVAL,
           "set_timestamp: step down disaggregated schema epoch requires the step down timestamp "
           "in the same call");
-    if (has_step_down) {
-        if (has_stable_disagg_epoch ||
-          __wt_atomic_load_uint64_acquire(&txn_global->last_ckpt_disaggregated_schema_epoch) !=
-            WT_SCHEMA_EPOCH_NONE ||
-          __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE) {
-            if (!has_step_down_epoch)
-                WT_RET_MSG(session, EINVAL,
-                  "set_timestamp: step down timestamp requires the step down disaggregated schema "
-                  "epoch when schema epochs are in use");
-        } else if (has_step_down_epoch)
-            WT_RET_MSG(session, EINVAL,
-              "set_timestamp: step down disaggregated schema epoch requires schema epochs to be "
-              "in use");
-    }
+    if (has_step_down && epochs_in_use && !has_step_down_epoch)
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: step down timestamp requires the step down disaggregated schema epoch "
+          "when schema epochs are in use");
+    if (has_step_down && !epochs_in_use && has_step_down_epoch)
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: step down disaggregated schema epoch requires schema epochs to be in "
+          "use");
 
     if (force) {
         WT_STAT_CONN_INCR(session, txn_set_ts_force);
@@ -560,9 +558,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      * and must be able to reach the step-down epoch exactly before the step-down, so the boundary
      * cannot sit below it, whether the stable epoch was set earlier or in this same call, and while
      * the boundary is set the stable epoch must not advance past it. Equality is allowed on both
-     * sides.
+     * sides. A stable epoch supplied in this call was already validated as monotonic above, so it
+     * simply becomes the value the boundary is measured against.
      */
-    if (has_stable_disagg_epoch && stable_disagg_epoch > last_stable_disagg_epoch)
+    if (has_stable_disagg_epoch)
         last_stable_disagg_epoch = stable_disagg_epoch;
     if (has_step_down_epoch && step_down_epoch < last_stable_disagg_epoch) {
         __wt_readunlock(session, &txn_global->rwlock);

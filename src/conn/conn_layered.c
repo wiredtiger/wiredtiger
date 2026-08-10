@@ -453,10 +453,34 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 }
 
 /*
+ * __disagg_table_latest_create_remove --
+ *     Return the latest CREATE or REMOVE entry queued for the given table, or NULL. UPDATE entries
+ *     are skipped because they do not affect whether the table exists. The caller holds the queue
+ *     lock.
+ */
+static WT_DISAGG_METADATA_OP *
+__disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry, *last;
+
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    last = NULL;
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->table_name, table_name) == 0)
+            last = entry;
+
+    return (last);
+}
+
+/*
  * __wti_disagg_table_latest_create_remove --
  *     Return the latest CREATE or REMOVE operation for the given table name in the shared metadata
- *     queue and its schema epoch, or WT_SHARED_METADATA_NONE when no such entry is found. UPDATE
- *     entries are skipped because they do not affect whether the table exists.
+ *     queue and its schema epoch, or WT_SHARED_METADATA_NONE when no such entry is found.
  */
 WT_SHARED_METADATA_OP
 __wti_disagg_table_latest_create_remove(
@@ -471,12 +495,10 @@ __wti_disagg_table_latest_create_remove(
     *epochp = WT_SCHEMA_EPOCH_NONE;
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
-          strcmp(entry->table_name, table_name) == 0) {
-            last_op = entry->metadata_op;
-            *epochp = entry->schema_epoch;
-        }
+    if ((entry = __disagg_table_latest_create_remove(session, table_name)) != NULL) {
+        last_op = entry->metadata_op;
+        *epochp = entry->schema_epoch;
+    }
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     return (last_op);
@@ -702,19 +724,9 @@ __disagg_requeue_skipped_creates(
 static WT_DISAGG_METADATA_OP *
 __disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_METADATA_OP *entry, *last;
+    WT_DISAGG_METADATA_OP *last;
 
-    conn = S2C(session);
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    last = NULL;
-    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
-        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
-          strcmp(entry->table_name, table_name) == 0)
-            last = entry;
-
+    last = __disagg_table_latest_create_remove(session, table_name);
     if (last != NULL && last->metadata_op == WT_SHARED_METADATA_CREATE &&
       last->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED && last->stable_value == NULL)
         return (last);
