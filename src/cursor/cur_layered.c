@@ -411,10 +411,15 @@ __clayered_enter_flags(
      * A transaction that started with the step-down timestamp set behaves like a follower: it reads
      * and writes the ingest constituent over the still-live stable table.
      *
+     * A table created inside the step-down window has no stable constituent at all, so its cursors
+     * use ingest whenever the transaction began. That covers a transaction from before the
+     * timestamp was set, which would otherwise read stable alone and find nothing to open.
+     *
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
      * by contract.
      */
     if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
+      F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) ||
       mode == WTI_CLAYERED_MODE_LARGEST_KEY)
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
@@ -641,6 +646,7 @@ __clayered_stable_bind_check_needed(WT_SESSION_IMPL *session)
 static WT_INLINE int
 __clayered_stable_bind_refuse(WT_SESSION_IMPL *session)
 {
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_refused);
     WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, WT_TXN_ROLLBACK_REASON_DISAGG_PICKUP);
 }
 
@@ -1099,6 +1105,29 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
 }
 
 /*
+ * __clayered_ignore_missing_stable --
+ *     Return whether a failed open of the live stable constituent can be ignored, leaving the
+ *     cursor closed like a follower's missing checkpoint.
+ */
+static bool
+__clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Only a leader-mode open of a live constituent can miss, and only on a missing file. */
+    if (role != WTI_CLAYERED_ROLE_LEADER || (ret != ENOENT && ret != WT_NOTFOUND))
+        return (false);
+
+    /*
+     * The resolved role is stale if the step-down timestamp is set or the role already changed.
+     * Step-down changes both values while holding the schema lock, and the failed open that led
+     * here acquired that lock, so relaxed loads see current values.
+     */
+    return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
+      !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
+}
+
+/*
  * __clayered_open_stable_first --
  *     Open the stable constituent for the first time and record its checkpoint LSN. A follower the
  *     table has no checkpoint for leaves the stable cursor NULL. The caller reads the connection's
@@ -1110,6 +1139,7 @@ static int
 __clayered_open_stable_first(
   WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role, uint64_t conn_lsn)
 {
+    WT_DECL_RET;
     WT_SESSION_IMPL *const session = CUR2S(clayered);
 
     if (clayered->stable_cursor != NULL ||
@@ -1117,7 +1147,12 @@ __clayered_open_stable_first(
         return (0);
 
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
-    WT_RET(__clayered_open_stable(clayered, false, role));
+    ret = __clayered_open_stable(clayered, false, role);
+    /* A leader can miss here legitimately: a table created after the step-down has no stable. */
+    if (__clayered_ignore_missing_stable(session, role, ret))
+        ret = 0;
+    WT_RET(ret);
+
     WT_RET(__clayered_copy_bounds(clayered));
     clayered->stable_checkpoint_meta_lsn = conn_lsn;
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable);
@@ -1140,8 +1175,9 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
       WT_DISAGG_LSN_NONE;
 
     if (clayered->stable_cursor == NULL) {
-        /* Open stable the first time if needed. */
-        if (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE))
+        /* Open stable the first time if needed, unless the constituent does not exist yet. */
+        if (!F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
+          (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
             WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
