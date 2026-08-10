@@ -558,27 +558,19 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * The same ordering holds in epoch space: the stable disaggregated schema epoch is monotonic
      * and must be able to reach the step-down epoch exactly before the step-down, so the boundary
-     * cannot sit below it, and while the boundary is set the stable epoch must not advance past it.
-     * Equality is allowed on both sides.
+     * cannot sit below it, whether the stable epoch was set earlier or in this same call, and while
+     * the boundary is set the stable epoch must not advance past it. Equality is allowed on both
+     * sides.
      */
-    if (has_step_down_epoch) {
-        if (__wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) &&
-          step_down_epoch < last_stable_disagg_epoch) {
-            __wt_readunlock(session, &txn_global->rwlock);
-            WT_RET_MSG(session, EINVAL,
-              "set_timestamp: step down disaggregated schema epoch %s must not be older than the "
-              "stable disaggregated schema epoch %s",
-              __wt_timestamp_to_string(step_down_epoch, ts_string[0]),
-              __wt_timestamp_to_string(last_stable_disagg_epoch, ts_string[1]));
-        }
-        if (has_stable_disagg_epoch && step_down_epoch < stable_disagg_epoch) {
-            __wt_readunlock(session, &txn_global->rwlock);
-            WT_RET_MSG(session, EINVAL,
-              "set_timestamp: step down disaggregated schema epoch %s must not be older than the "
-              "stable disaggregated schema epoch %s supplied in the same call",
-              __wt_timestamp_to_string(step_down_epoch, ts_string[0]),
-              __wt_timestamp_to_string(stable_disagg_epoch, ts_string[1]));
-        }
+    if (has_stable_disagg_epoch && stable_disagg_epoch > last_stable_disagg_epoch)
+        last_stable_disagg_epoch = stable_disagg_epoch;
+    if (has_step_down_epoch && step_down_epoch < last_stable_disagg_epoch) {
+        __wt_readunlock(session, &txn_global->rwlock);
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: step down disaggregated schema epoch %s must not be older than the "
+          "stable disaggregated schema epoch %s",
+          __wt_timestamp_to_string(step_down_epoch, ts_string[0]),
+          __wt_timestamp_to_string(last_stable_disagg_epoch, ts_string[1]));
     }
     if (has_stable_disagg_epoch && current_step_down_epoch != WT_SCHEMA_EPOCH_NONE &&
       stable_disagg_epoch > current_step_down_epoch) {

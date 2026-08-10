@@ -690,13 +690,17 @@ __disagg_requeue_skipped_creates(
 }
 
 /*
- * __disagg_table_latest_entry --
- *     Return the latest CREATE or REMOVE entry queued for the given table, or NULL. UPDATE entries
- *     are skipped because they do not affect whether the table exists. The caller holds the queue
- *     lock.
+ * __disagg_window_create_queued --
+ *     Return the table's queued window create, or NULL. The signature is the latest CREATE or
+ *     REMOVE queued for the table being an unpublished create carrying no stable constituent: while
+ *     the step-down boundary is set that can only be a window create, since a leader create outside
+ *     the window captures its constituent at enqueue time and a follower-era leftover either has a
+ *     REMOVE queued behind it or had its constituent rebuilt at step-up. A window drop has no such
+ *     signature, so it goes unrecognized and can be published below the boundary. The caller holds
+ *     the queue lock and has established that the boundary is set.
  */
 static WT_DISAGG_METADATA_OP *
-__disagg_table_latest_entry(WT_SESSION_IMPL *session, const char *table_name)
+__disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *last;
@@ -711,24 +715,10 @@ __disagg_table_latest_entry(WT_SESSION_IMPL *session, const char *table_name)
           strcmp(entry->table_name, table_name) == 0)
             last = entry;
 
-    return (last);
-}
-
-/*
- * __disagg_entry_is_window_create --
- *     Return whether a queue entry is a create from inside the step-down window. The entry must be
- *     the latest CREATE or REMOVE queued for its table: an unpublished create carrying no stable
- *     constituent can only be a window create, since a leader create outside the window captures
- *     its constituent at enqueue time and a follower-era leftover either has a REMOVE queued behind
- *     it or had its constituent rebuilt at step-up. A window drop has no such signature, so it goes
- *     unrecognized and can be published below the boundary. The caller holds the queue lock and has
- *     established that the step-down boundary is set.
- */
-static bool
-__disagg_entry_is_window_create(WT_DISAGG_METADATA_OP *entry)
-{
-    return (entry != NULL && entry->metadata_op == WT_SHARED_METADATA_CREATE &&
-      entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED && entry->stable_value == NULL);
+    if (last != NULL && last->metadata_op == WT_SHARED_METADATA_CREATE &&
+      last->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED && last->stable_value == NULL)
+        return (last);
+    return (NULL);
 }
 
 /*
@@ -744,7 +734,6 @@ __wt_disagg_shared_metadata_queue_process(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
-    bool violation;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -802,36 +791,34 @@ __wt_disagg_shared_metadata_queue_process(
 
     if (!TAILQ_EMPTY(&skipped_creates)) {
         /*
-         * A parked CREATE from the step-down window belongs to the era the pending step-down
-         * begins, so put it back for a later leader era to complete. Only an unpublished create
-         * parked while the boundary is set can be one: with schema epochs a published entry was
-         * stamped below the boundary, and the epoch-less mode never publishes at all. A parked
-         * CREATE from outside the window is an API violation: the stable epoch falls between the
-         * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata, but
-         * the table was dropped and its stable constituent was never created, so we have no data to
-         * write. Publish CREATE and DROP at the same epoch to avoid this window. The schema lock
-         * held here serializes the boundary, making the relaxed load safe.
-         *
-         * FIXME-WT-18272: Confirm a pending DROP for the same table really is queued behind the
-         * parked CREATE before panicking, and report the epoch of that DROP in the message.
+         * A parked CREATE left while a step-down timestamp is set belongs to the era the pending
+         * step-down begins, so put it back for a later leader era to complete. A violation that
+         * happens to be parked during the window goes back too and is caught by the next era's
+         * drain, when no boundary is set. The schema lock held here serializes the timestamp,
+         * making the relaxed load safe.
          */
-        violation = false;
-        TAILQ_FOREACH (skipped, &skipped_creates, q)
-            if (skipped->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED ||
-              __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) ==
-                WT_TS_NONE) {
-                violation = true;
+        if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+            __disagg_requeue_skipped_creates(session, &skipped_creates);
+        else {
+            /*
+             * Otherwise the stable epoch falls between the CREATE and DROP epochs, so this
+             * checkpoint must include the table in shared metadata. But the table was dropped and
+             * its stable constituent was never created, so we have no data to write. Publish CREATE
+             * and DROP at the same epoch to avoid this window.
+             *
+             * FIXME-WT-18272: Confirm a pending DROP for the same table really is queued behind the
+             * parked CREATE before panicking, and report the epoch of that DROP in the message.
+             */
+            TAILQ_FOREACH (skipped, &skipped_creates, q)
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
                   " and DROP at a later epoch. This checkpoint must include the table in shared "
                   "metadata, but the table was dropped and we have no data to write.",
                   skipped->table_name, skipped->schema_epoch);
-            }
-        if (violation)
             WT_ERR_PANIC(session, EINVAL,
               "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
               cur_schema_epoch);
-        __disagg_requeue_skipped_creates(session, &skipped_creates);
+        }
     }
 
 err:
@@ -882,7 +869,7 @@ __wt_disagg_shared_metadata_queue_publish(
      * making the relaxed load in the test safe.
      */
     if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE &&
-      __disagg_entry_is_window_create(__disagg_table_latest_entry(session, table_name)))
+      __disagg_window_create_queued(session, table_name) != NULL)
         WT_ERR_MSG(session, EINVAL,
           "Cannot publish operations for table \"%s\" created in the step-down window before the "
           "next step-up",
@@ -1128,8 +1115,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               "create for \"%s\" with a stable constituent still queued at step-down",
               entry->stable_uri);
 
-        if (entry != __disagg_table_latest_entry(session, entry->table_name) ||
-          !__disagg_entry_is_window_create(entry))
+        if (__disagg_window_create_queued(session, entry->table_name) != entry)
             continue;
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
@@ -1401,19 +1387,14 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
 
         /*
-         * The same holds in epoch space: when schema epochs are in use, set_timestamp requires the
-         * step-down epoch alongside the timestamp, and the stable epoch must have been advanced to
-         * meet it so the step-down checkpoint covers every published operation of this era.
+         * The same holds in epoch space: set_timestamp requires the step-down epoch alongside the
+         * timestamp whenever schema epochs are in use, and the stable epoch must have been advanced
+         * to meet it so the step-down checkpoint covers every published operation of this era.
          */
         step_down_epoch =
           __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
-        stable_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
-        if (stable_epoch != WT_SCHEMA_EPOCH_NONE ||
-          __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch) !=
-            WT_SCHEMA_EPOCH_NONE) {
-            WT_ASSERT_ALWAYS(session, step_down_epoch != WT_SCHEMA_EPOCH_NONE,
-              "stepping down with the step down timestamp set but no step down disaggregated "
-              "schema epoch");
+        if (step_down_epoch != WT_SCHEMA_EPOCH_NONE) {
+            stable_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
             WT_ASSERT_ALWAYS(session, stable_epoch == step_down_epoch,
               "stable disaggregated schema epoch %s does not match the step down disaggregated "
               "schema epoch %s at step down",
