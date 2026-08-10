@@ -180,10 +180,10 @@ class test_layered_async_stepdown09(
             session=wsession)
         self.op_counts['drops'] += 1
 
-    # The table a write may target. In the epoch world, until the window opens any commit may
-    # become stable, which a checkpoint refuses on an uncovered table, so only the covered seed
-    # tables are safe. Inside the window, commits land above the cutoff and any table works.
-    def write_target(self, rng):
+    # Choose the table for the next write. In the epoch world, until the window opens any commit
+    # may become stable, which a checkpoint refuses on an uncovered table, so only the covered
+    # seed tables are safe. Inside the window, commits land above the cutoff and any table works.
+    def choose_write_table(self, rng):
         with self.ts_lock:
             window_open = self.step_down_ts is not None
         if self.use_epochs and not window_open:
@@ -240,14 +240,14 @@ class test_layered_async_stepdown09(
             self.op_counts['commits'] += 1
 
     def workload_insert(self, wsession, rng):
-        uri = self.write_target(rng)
+        uri = self.choose_write_table(rng)
         if uri is None:
             return
         kvs = {f'k{rng.randrange(100)}': f'v{n}' for n in range(rng.randrange(1, 11))}
         self.write_txn(wsession, rng, uri, kvs)
 
     def workload_remove(self, wsession, rng):
-        uri = self.write_target(rng)
+        uri = self.choose_write_table(rng)
         if uri is None:
             return
         present = list(self.rows_at(self.tables[uri]))
@@ -334,21 +334,29 @@ class test_layered_async_stepdown09(
         finally:
             wsession.close()
 
-    # Walk through every step-down phase, pausing after each so the workload runs against it:
-    # the open window, the stable advance, the step-down checkpoint and the demotion.
+    # Walk through every step-down phase, pausing after each so the workload runs against it.
     def step_down_in_phases(self):
+        # Phase 0: a plain leader.
         time.sleep(self.phase_sleep)
+
+        # Phase 1: open the window by setting the step-down timestamp.
         with self.ts_lock:
             self.step_down_ts = next(self.ts_counter)
             self.set_step_down_ts(self.step_down_ts)
         time.sleep(self.phase_sleep)
+
+        # Phase 2: advance stable to the cutoff.
         with self.ts_lock:
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.step_down_ts))
         time.sleep(self.phase_sleep)
+
+        # Phase 3: take the final leader checkpoint at the cutoff.
         ckpt_session = self.conn.open_session()
         ckpt_session.checkpoint()
         ckpt_session.close()
         time.sleep(self.phase_sleep)
+
+        # Phase 4: demote to follower, and let the workload run against the demoted node.
         self.demotion_started = True
         self.step_down()
         time.sleep(self.phase_sleep)
