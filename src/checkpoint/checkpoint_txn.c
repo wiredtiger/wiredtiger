@@ -1289,8 +1289,12 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        /* Stamp the buffer before publishing it, so a reader can reject a retired snapshot. */
-        __wt_atomic_store_uint64_release(&buf->gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+        /*
+         * Stamp the buffer so a reader can reject a retired snapshot. A relaxed store is enough:
+         * this buffer is only reachable through the index, and the release store below orders the
+         * contents and the stamp ahead of it.
+         */
+        __wt_atomic_store_uint64_relaxed(&buf->gen, __wt_gen(session, WT_GEN_CHECKPOINT));
 
         __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
         /*
@@ -1704,16 +1708,19 @@ __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
     WT_CKPT_EVICTION_SNAP *buf;
     uint32_t snap_idx;
 
+    /* No checkpoint has run, so nothing can have been published. */
+    if (ckpt_gen == 0)
+        return (NULL);
+
     snap_idx = __wt_atomic_load_uint32_acquire(&S2C(session)->ckpt_eviction_snap_idx);
     buf = &S2C(session)->ckpt_eviction_snap[snap_idx];
 
     /*
-     * The checkpoint generation is bumped before the running checkpoint publishes, so until it does
-     * the published buffer is still the previous checkpoint's. A buffer no checkpoint has
-     * published, or one a finished checkpoint retired, is stamped 0. The caller's generation can
-     * only be stale, and means that checkpoint had not retired its snapshot at this point.
+     * The generation is bumped before the running checkpoint publishes, so until it does the buffer
+     * is still the previous checkpoint's; one never published or has retired is stamped 0. The
+     * relaxed load is ordered by the acquire load of the index above.
      */
-    if (ckpt_gen == 0 || __wt_atomic_load_uint64_acquire(&buf->gen) != ckpt_gen)
+    if (__wt_atomic_load_uint64_relaxed(&buf->gen) != ckpt_gen)
         return (NULL);
 
     return (&buf->snap);
