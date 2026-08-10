@@ -22,9 +22,9 @@
 TEST_CASE("Reconfiguring eviction leaves the updates trigger visible to readers", "[evict]")
 {
     /*
-     * Leave eviction_updates_trigger unset so it is auto-computed from eviction_dirty_trigger:
-     * the auto-computed value is never written back into the connection's saved configuration
-     * string, so every reconfigure call re-derives it from scratch.
+     * Leave eviction_updates_trigger unset so it is auto-computed from eviction_dirty_trigger: the
+     * auto-computed value is never written back into the connection's saved configuration string,
+     * so every reconfigure call re-derives it from scratch.
      */
     connection_wrapper conn_wrapper =
       connection_wrapper(".", "create,eviction_dirty_trigger=20,eviction_dirty_target=5");
