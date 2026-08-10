@@ -83,14 +83,7 @@ worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
 
 /*
  * schema_op_execute --
- *     Execute one schema operation: the single call site for creating and dropping the test's
- *     tables, on either role. EBUSY is retried (the stream cannot be reordered, and when the source
- *     is the peer the operation already succeeded there), with a bound so a wedged operation fails
- *     the test instead of hanging it.
- *
- * Retrying alone is enough. A drop blocked on unwritten data clears once a checkpoint covers the
- *     table, and the checkpoint thread takes those on a cadence of its own - well inside the bound,
- *     and it keeps taking them while this thread waits, including through a phase's final drain.
+ *     Execute one schema operation: create or drop the test's tables, on either role.
  */
 static void
 schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT *ev)
@@ -105,6 +98,10 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
     for (;;) {
         ret = is_create ? session->create(session, ev->uri, SCHEMA_TABLE_CONFIG) :
                           session->drop(session, ev->uri, "force=false,lock_wait=true");
+        /*
+         * When dropping tables with uncheckpointed data, EBUSY is expected. Checkpoint thread keeps
+         * taking checkpoints and will eventually unblock the schema operation.
+         */
         if (ret != EBUSY)
             break;
 
@@ -119,7 +116,8 @@ schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT
               is_create ? "CREATE" : "DROP", ev->uri, MAX_OP_WAIT, err_msg);
         }
 
-        /* Back off rather than spin: the checkpoint that clears this needs the locks a retry takes.
+        /*
+         * Back off rather than spin: the checkpoint that clears this needs the locks a retry takes.
          */
         __wt_sleep(0, 10 * WT_THOUSAND);
     }

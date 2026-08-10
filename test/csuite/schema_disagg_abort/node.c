@@ -10,12 +10,10 @@
  * The generic node: the phase loop, the WiredTiger connection, the workload engine's state and
  * per-phase lifecycle, the worker event queues, and the timestamp thread.
  *
- * One pipeline serves both roles, coordinating without locks: a generator produces the node's
- * command stream into a self-pipe, a reader demuxes the source pipe - the self-pipe, or a live
- * peer's - to N workers that apply the events, a timestamp thread advances the frontier, and a
- * checkpoint thread checkpoints on a cadence of its own. Each stage lives in its own file behind a
- * start/stop pair; the role specifics live in leader.c and follower.c behind the NODE_ROLE
- * operations.
+ * One pipeline for both leader and follower roles: a generator produces the node's command stream
+ * into a self-pipe, a reader demuxes the source pipe - the self-pipe, or a live peer's - to N
+ * workers that apply the events, a timestamp thread advances the frontier, and a checkpoint thread
+ * checkpoints on a cadence of its own.
  */
 
 #include "schema_disagg_abort.h"
@@ -247,11 +245,7 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
     }
 
-    /*
-     * Reseed the phase's streams: the generator's worker streams first, then the timestamp thread's
-     * checkpoint cadence. Every phase draws, whether it generates or not, so the streams stay in
-     * step across role switches.
-     */
+    /* Re-seed the phase's worker and auxiliary streams. */
     for (uint32_t i = 0; i <= cfg->nth; i++)
         testutil_random_from_random(
           &state->gen_rnd[i], i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
