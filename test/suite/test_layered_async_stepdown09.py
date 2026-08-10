@@ -75,20 +75,18 @@ class test_layered_async_stepdown09(
             return next(self.ts_counter)
 
     def setup_stress_state(self):
-        # The timestamp protocol: commit timestamps and the step-down timestamp come from one
-        # counter, and every allocation, commit and set_timestamp call happens under one lock.
-        # So a commit can never trail the step-down timestamp or the advancing stable timestamp,
-        # and the only legal commit failure is the engine rolling back a transaction that was in
-        # flight when the step-down timestamp landed (the straddle rollback).
+        # Commit timestamps and the step-down timestamp come from one counter and every
+        # timestamp call happens under one lock, so a commit can never trail the step-down or
+        # stable timestamp. The only legal commit failure is the straddle rollback: the engine
+        # rolling back a transaction that was in flight when the step-down timestamp landed.
         self.ts_lock = threading.Lock()
         self.ts_counter = itertools.count(self.initial_stable_epoch)
-        # Publish epochs stay above the initial stable epoch, so every workload publish is legal.
+        # Publish epochs stay above the initial stable epoch, so every publish is legal.
         self.epoch_counter = itertools.count(self.initial_stable_epoch + 10)
         self.name_counter = itertools.count()
-        # Ground truth, only ever written by the workload thread: uri -> a dict holding the
-        # per-commit history (commit_ts -> rows, a None value is a remove), the epoch the create
-        # was published at (None in the epoch-less world) and whether the table was created
-        # inside the step-down window.
+        # Ground truth, only written by the workload thread: uri -> the per-commit history
+        # (commit_ts -> rows, a None value is a remove), the epoch the create was published at
+        # (None in the epoch-less world), and whether the create fell inside the window.
         self.tables = {}
         self.seed_uris = set()
         self.audited_drops = set()
@@ -101,8 +99,7 @@ class test_layered_async_stepdown09(
     # Whether a drop is guaranteed to reach the shared metadata, so the final verification may
     # insist the table is gone from it.
     def drop_outcome_is_audited(self):
-        # Once demotion starts, this single-process harness has no relay to carry the drop back
-        # to a leader.
+        # Once demotion starts, this single-process harness has no relay to a leader.
         if self.demotion_started:
             return False
         # The epoch-less step-up rebuilds shared metadata from a best-effort local scan, which
@@ -112,7 +109,6 @@ class test_layered_async_stepdown09(
         return True
 
     # Publish a schema change in the epoch world, at a fresh epoch unless the caller pins one.
-    # The epoch-less world has no notion of publishing.
     def publish_if_epochs(self, uri, epoch=None, session=None):
         if not self.use_epochs:
             return None
@@ -148,7 +144,7 @@ class test_layered_async_stepdown09(
         if len(self.tables) >= self.table_cap:
             return
         uri = self.uri(f'w{next(self.name_counter)}')
-        # Creates and publishes have no tolerated errors: a failure here fails the test.
+        # Creates and publishes tolerate no errors: a failure fails the test.
         wsession.create(uri, self.table_config)
         epoch = self.publish_if_epochs(uri, session=wsession)
         self.tables[uri] = {
@@ -156,7 +152,7 @@ class test_layered_async_stepdown09(
         self.op_counts['creates'] += 1
 
     def workload_drop(self, wsession, rng):
-        # Keep a couple of tables alive so inserts and reads always have a target.
+        # Keep a couple of tables alive so writes and reads always have a target.
         if len(self.tables) <= 2:
             return
         uri = rng.choice(list(self.tables))
@@ -168,11 +164,9 @@ class test_layered_async_stepdown09(
             if not self.is_busy(e):
                 raise
             # Only a transient conflict or unpublished data may refuse the drop.
-            _, sub_error, _ = wsession.get_last_error()
-            self.assertTrue(sub_error in
+            self.assertIn(wsession.get_last_error()[1],
                 (wiredtiger.WT_DIRTY_DATA, wiredtiger.WT_CONFLICT_DHANDLE,
-                 wiredtiger.WT_CONFLICT_TABLE_LOCK),
-                f'drop of {uri} EBUSY with unexpected reason {sub_error}')
+                 wiredtiger.WT_CONFLICT_TABLE_LOCK), f'drop of {uri}')
             self.op_counts['busy_drops'] += 1
             return
         info = self.tables.pop(uri)
@@ -186,10 +180,9 @@ class test_layered_async_stepdown09(
             session=wsession)
         self.op_counts['drops'] += 1
 
-    # The table a write may target. In the epoch world, until the step-down timestamp is set,
-    # stable keeps advancing and any commit may become stable, which a checkpoint refuses on an
-    # uncovered table, so only the covered seed tables are safe. Once the window opens, commits
-    # land above the cutoff and any table is fair game.
+    # The table a write may target. In the epoch world, until the window opens any commit may
+    # become stable, which a checkpoint refuses on an uncovered table, so only the covered seed
+    # tables are safe. Inside the window, commits land above the cutoff and any table works.
     def write_target(self, rng):
         with self.ts_lock:
             window_open = self.step_down_ts is not None
@@ -199,17 +192,14 @@ class test_layered_async_stepdown09(
             candidates = list(self.tables)
         return rng.choice(candidates) if candidates else None
 
-    # Commit at a fresh timestamp, under the lock so the commit timestamp can never trail the
-    # step-down timestamp or the advancing stable timestamp.
     def commit_at_next_ts(self, wsession):
         with self.ts_lock:
             ts = next(self.ts_counter)
             wsession.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         return ts
 
-    # Run one write transaction applying kvs to the table: a None value removes the key, any
-    # other value inserts it. Returns the commit timestamp, or None if the transaction did not
-    # commit. Tolerates only a WT_ROLLBACK with a known reason.
+    # Run one write transaction applying kvs to the table, where a None value removes the key,
+    # and record it in the history if it commits. Tolerates only rollbacks with a known reason.
     def write_txn(self, wsession, rng, uri, kvs):
         cursor = wsession.open_cursor(uri)
         wsession.begin_transaction()
@@ -237,8 +227,7 @@ class test_layered_async_stepdown09(
                 raise
             if not resolved:
                 wsession.rollback_transaction()
-            # The only legal rollbacks are the straddle of the step-down boundary and cache
-            # pressure. Anything else means a write failed for a reason the design rules out.
+            # Only the straddle and cache pressure may roll a write back.
             _, sub_error, message = wsession.get_last_error()
             if 'straddled the step-down timestamp' in message:
                 self.op_counts['straddle_rollbacks'] += 1
@@ -246,33 +235,28 @@ class test_layered_async_stepdown09(
                 self.assertEqual(sub_error, wiredtiger.WT_OLDEST_FOR_EVICTION,
                     f'write to {uri} rolled back with unexpected reason: {message}')
         cursor.close()
-        return ts
+        if ts is not None:
+            self.tables[uri]['history'].append((ts, kvs))
+            self.op_counts['commits'] += 1
 
     def workload_insert(self, wsession, rng):
         uri = self.write_target(rng)
         if uri is None:
             return
         kvs = {f'k{rng.randrange(100)}': f'v{n}' for n in range(rng.randrange(1, 11))}
-        ts = self.write_txn(wsession, rng, uri, kvs)
-        if ts is not None:
-            self.tables[uri]['history'].append((ts, kvs))
-            self.op_counts['commits'] += 1
+        self.write_txn(wsession, rng, uri, kvs)
 
     def workload_remove(self, wsession, rng):
         uri = self.write_target(rng)
         if uri is None:
             return
         present = list(self.rows_at(self.tables[uri]))
-        if not present:
-            return
-        kvs = {k: None for k in rng.sample(present, min(3, len(present)))}
-        ts = self.write_txn(wsession, rng, uri, kvs)
-        if ts is not None:
-            self.tables[uri]['history'].append((ts, kvs))
-            self.op_counts['commits'] += 1
+        if present:
+            kvs = {k: None for k in rng.sample(present, min(3, len(present)))}
+            self.write_txn(wsession, rng, uri, kvs)
 
     # The rows a snapshot at read_ts must see, replayed from the commit history. With no
-    # timestamp, everything committed. A None value is a remove.
+    # timestamp, everything committed.
     def rows_at(self, info, read_ts=None):
         rows = {}
         for ts, kvs in info['history']:
@@ -285,8 +269,7 @@ class test_layered_async_stepdown09(
         return rows
 
     # Pick a read point and the rows it must see: the newest state, or a historical snapshot at
-    # one of the table's own commit timestamps. Exact because the workload thread is the only
-    # writer.
+    # one of the table's own commit timestamps. Exact because this thread is the only writer.
     def pick_read_point(self, info, rng):
         if info['history'] and rng.random() < 0.5:
             ts = rng.choice(info['history'])[0]
@@ -344,8 +327,7 @@ class test_layered_async_stepdown09(
             while not self.done.is_set():
                 time.sleep(0.002)
                 op = rng.choices(list(ops), weights=[w for w, _ in ops.values()])[0]
-                _, handler = ops[op]
-                handler(wsession, rng)
+                ops[op][1](wsession, rng)
         except Exception:
             self.workload_errors.append(
                 f'{op}: {traceback.format_exc()}\nlast error: {wsession.get_last_error()}')
@@ -379,9 +361,9 @@ class test_layered_async_stepdown09(
             self.assertGreater(self.op_counts[counter], 0, f'workload made no {counter}')
 
     # Verify the step-down checkpoint itself, before this node steps back up and re-covers
-    # everything: a fresh follower picking it up must serve exactly the pre-window rows at the
-    # step-down timestamp, and must not know about tables the checkpoint could not include, that
-    # is window creates and, in the epoch world, everything but the covered seed tables.
+    # everything: a fresh follower must serve exactly the pre-window rows at the step-down
+    # timestamp, and must not see the tables the checkpoint could not include, that is window
+    # creates and, in the epoch world, everything but the covered seed tables.
     def verify_step_down_checkpoint(self):
         conn_follow, session_follow = self.open_follower()
         for uri, info in self.tables.items():
