@@ -89,7 +89,7 @@ class test_layered_async_stepdown09(
         # (None in the epoch-less world), and whether the create fell inside the window.
         self.tables = {}
         self.seed_uris = set()
-        self.audited_drops = set()
+        self.drops_to_verify = set()
         self.op_counts = collections.Counter()
         self.workload_errors = []
         self.step_down_ts = None
@@ -98,7 +98,7 @@ class test_layered_async_stepdown09(
 
     # Whether a drop is guaranteed to reach the shared metadata, so the final verification may
     # insist the table is gone from it.
-    def drop_outcome_is_audited(self):
+    def drop_removal_is_guaranteed(self):
         # Once demotion starts, this single-process harness has no relay to a leader.
         if self.demotion_started:
             return False
@@ -170,8 +170,8 @@ class test_layered_async_stepdown09(
             self.op_counts['busy_drops'] += 1
             return
         info = self.tables.pop(uri)
-        if self.drop_outcome_is_audited():
-            self.audited_drops.add(uri)
+        if self.drop_removal_is_guaranteed():
+            self.drops_to_verify.add(uri)
         # Publish at the create's own epoch so the queued create/remove pair cancels rather than
         # leaving a create the covering checkpoint has no data for. A seed table's create left
         # the queue long ago, so its drop takes a fresh epoch instead.
@@ -400,14 +400,14 @@ class test_layered_async_stepdown09(
                 f'{uri} served the wrong rows at the cutoff on the {where}')
 
     # Every surviving table has its stable constituent, no unexpected table exists, and every
-    # audited drop left the shared metadata.
+    # drop with a guaranteed outcome left the shared metadata.
     def verify_leader_state(self, final_ts):
         self.assert_rows_served(final_ts, self.session, 'leader')
         for uri in self.tables:
             self.assertTrue(self.stable_constituent_exists(self.conn, uri),
                 f'{uri} has no stable constituent after the covering checkpoint')
         self.assert_no_unexpected_tables(self.conn, list(self.tables))
-        for uri in self.audited_drops:
+        for uri in self.drops_to_verify:
             self.assertFalse(self.uri_in_shared_metadata(self.conn, uri),
                 f'dropped {uri} still advertised in the shared metadata')
 
