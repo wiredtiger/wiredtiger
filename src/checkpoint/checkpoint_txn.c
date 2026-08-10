@@ -1290,7 +1290,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        buf->gen = __wt_gen(session, WT_GEN_CHECKPOINT);
         conn->ckpt_eviction_snap_idx = new_idx;
 
         /*
@@ -1700,14 +1699,12 @@ __checkpoint_log_stage(WT_SESSION_IMPL *session, uint32_t log_flags)
 
 /*
  * __wt_ckpt_eviction_snap_current --
- *     Return the published eviction snapshot if the given checkpoint generation published it, else
- *     NULL. Callers must hold the checkpoint snapshot generation across this call and any use of
- *     the result.
+ *     Return the snapshot the running checkpoint published, else NULL. Callers must hold the
+ *     checkpoint snapshot generation across this call and any use of the result.
  */
 WT_TXN_SNAPSHOT *
-__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
+__wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session)
 {
-    WT_CKPT_EVICTION_SNAP *buf;
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
@@ -1721,16 +1718,7 @@ __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
     if (!__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published))
         return (NULL);
 
-    buf = &conn->ckpt_eviction_snap[conn->ckpt_eviction_snap_idx];
-
-    /*
-     * The generation is bumped before the running checkpoint publishes, so until it does the buffer
-     * is still the previous checkpoint's.
-     */
-    if (buf->gen != ckpt_gen)
-        return (NULL);
-
-    return (&buf->snap);
+    return (&conn->ckpt_eviction_snap[conn->ckpt_eviction_snap_idx].snap);
 }
 
 /*

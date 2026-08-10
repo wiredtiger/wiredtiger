@@ -11,7 +11,7 @@
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static bool __evict_page_victim_cache_eligible(WT_SESSION_IMPL *, WT_REF *);
-static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *, uint64_t);
+static bool __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
@@ -1219,7 +1219,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
  *     running checkpoint has not published a snapshot.
  */
 static bool
-__evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
+__evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session)
 {
     WT_TXN_SNAPSHOT *snap;
     bool copied;
@@ -1233,7 +1233,7 @@ __evict_precise_ckpt_copy_snapshot(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
      */
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     /* Take the buffer only when the checkpoint that published it is the one still running. */
-    if ((snap = __wt_ckpt_eviction_snap_current(session, ckpt_gen)) != NULL) {
+    if ((snap = __wt_ckpt_eviction_snap_current(session)) != NULL) {
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
@@ -1379,7 +1379,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
             ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
             if (btree_ckpt_gen < ckpt_gen) {
                 if (WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle) ||
-                  !__evict_precise_ckpt_copy_snapshot(session, ckpt_gen))
+                  !__evict_precise_ckpt_copy_snapshot(session))
                     LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
             } else
                 __wt_txn_bump_snapshot(session);

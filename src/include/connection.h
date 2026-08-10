@@ -1115,13 +1115,6 @@ struct __wt_connection_impl {
         WT_TXN_SNAPSHOT snap;
         uint64_t *snap_array;
         size_t snap_capacity;
-        /*
-         * The generation of the checkpoint that published this buffer, zero once retired. The
-         * generation is bumped before the running checkpoint takes its snapshot, so for part of a
-         * checkpoint the published buffer is still the previous checkpoint's: a reader compares the
-         * stamp against the current generation to tell the two apart.
-         */
-        wt_shared uint64_t gen;
     } ckpt_eviction_snap[2];
     uint32_t ckpt_eviction_snap_idx;
     /*

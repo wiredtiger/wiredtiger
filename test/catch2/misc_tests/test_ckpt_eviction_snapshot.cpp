@@ -25,38 +25,26 @@
 
 static constexpr const char *k_db = "test_db_ckpt_eviction_snapshot";
 
-/* Publish a snapshot into the inactive buffer, stamped with the given generation. */
-static void
-publish(WT_CONNECTION_IMPL *conn, uint64_t gen)
+/* Publish a snapshot into the inactive buffer, as a checkpoint does once it has taken one. */
+static uint32_t
+publish(WT_CONNECTION_IMPL *conn, uint64_t snap_min)
 {
     uint32_t new_idx = 1 - conn->ckpt_eviction_snap_idx;
 
-    conn->ckpt_eviction_snap[new_idx].snap.snap_min = 100;
-    conn->ckpt_eviction_snap[new_idx].snap.snap_max = 200;
+    conn->ckpt_eviction_snap[new_idx].snap.snap_min = snap_min;
+    conn->ckpt_eviction_snap[new_idx].snap.snap_max = snap_min + 100;
     conn->ckpt_eviction_snap[new_idx].snap.snapshot_count = 0;
-    conn->ckpt_eviction_snap[new_idx].gen = gen;
     conn->ckpt_eviction_snap_idx = new_idx;
     conn->ckpt_eviction_snap_published = true;
+
+    return (new_idx);
 }
 
 /* Check if a page being evicted adopts the published snapshot. */
 static bool
-adoptable(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
+adoptable(WT_SESSION_IMPL *session)
 {
-    return (__wt_ckpt_eviction_snap_current(session, ckpt_gen) != nullptr);
-}
-
-/* The snapshot the index currently points at, ignoring its stamp. */
-static WT_TXN_SNAPSHOT *
-published(WT_CONNECTION_IMPL *conn)
-{
-    return (&conn->ckpt_eviction_snap[conn->ckpt_eviction_snap_idx].snap);
-}
-
-static uint64_t
-stamp(WT_CONNECTION_IMPL *conn, uint32_t snap_idx)
-{
-    return (conn->ckpt_eviction_snap[snap_idx].gen);
+    return (__wt_ckpt_eviction_snap_current(session) != nullptr);
 }
 
 /*
@@ -71,7 +59,7 @@ set_stable(connection_wrapper &wrapper)
     REQUIRE(conn->set_timestamp(conn, "stable_timestamp=1") == 0);
 }
 
-TEST_CASE("Checkpoint eviction snapshot: a snapshot no running checkpoint published is declined",
+TEST_CASE("Checkpoint eviction snapshot: only a running checkpoint's snapshot is adoptable",
   "[ckpt_eviction_snapshot]")
 {
     std::filesystem::remove_all(k_db);
@@ -80,62 +68,39 @@ TEST_CASE("Checkpoint eviction snapshot: a snapshot no running checkpoint publis
     WT_SESSION_IMPL *session = wrapper.create_session();
     set_stable(wrapper);
 
-    SECTION("no checkpoint has ever published")
+    SECTION("no checkpoint has published yet")
     {
         REQUIRE_FALSE(conn->ckpt_eviction_snap_published);
-        REQUIRE_FALSE(adoptable(session, 47));
+        REQUIRE_FALSE(adoptable(session));
     }
 
-    SECTION("the running checkpoint published it")
+    SECTION("the running checkpoint has published")
     {
-        publish(conn, 47);
-        REQUIRE(adoptable(session, 47));
+        publish(conn, 100);
+        REQUIRE(adoptable(session));
     }
 
-    SECTION("a previous checkpoint published it")
+    SECTION("the publishing checkpoint has retired it")
     {
-        /*
-         * The generation has moved to 48 but checkpoint 48 has not published yet, so the buffer is
-         * still checkpoint 47's.
-         */
-        publish(conn, 47);
-        REQUIRE_FALSE(adoptable(session, 48));
-    }
-
-    SECTION("the publishing checkpoint retired it")
-    {
-        publish(conn, 47);
+        publish(conn, 100);
         __ut_checkpoint_eviction_snapshot_retire(session);
-        REQUIRE_FALSE(adoptable(session, 47));
+        REQUIRE_FALSE(adoptable(session));
     }
 
     SECTION("the next checkpoint has not published yet")
     {
         /*
-         * The interval at the start of a checkpoint, before it takes its snapshot. Nothing is
-         * published, so eviction bounds itself another way rather than adopting the last
-         * checkpoint's snapshot.
+         * The interval at the start of a checkpoint, before it takes its snapshot. The checkpoint
+         * generation has moved on but nothing is published, so eviction bounds itself another way
+         * rather than adopting the last checkpoint's snapshot. This is the window WT-18114 was
+         * reached through.
          */
-        publish(conn, 47);
+        publish(conn, 100);
         __ut_checkpoint_eviction_snapshot_retire(session);
-        REQUIRE_FALSE(adoptable(session, 48));
-    }
+        REQUIRE_FALSE(adoptable(session));
 
-    SECTION("the next checkpoint published into the other buffer")
-    {
-        publish(conn, 47);
-        uint32_t first_idx = conn->ckpt_eviction_snap_idx;
-        publish(conn, 48);
-
-        REQUIRE(conn->ckpt_eviction_snap_idx != first_idx);
-        REQUIRE(adoptable(session, 48));
-        /* The buffer left behind is unreachable, even though its stamp still reads 47. */
-        REQUIRE_FALSE(adoptable(session, 47));
-    }
-
-    SECTION("a zero generation never matches an unpublished buffer")
-    {
-        REQUIRE_FALSE(adoptable(session, 0));
+        publish(conn, 900);
+        REQUIRE(adoptable(session));
     }
 }
 
@@ -148,12 +113,33 @@ TEST_CASE("Checkpoint eviction snapshot: the reader sees the published buffer's 
     WT_SESSION_IMPL *session = wrapper.create_session();
     set_stable(wrapper);
 
-    publish(conn, 47);
+    uint32_t snap_idx = publish(conn, 100);
 
-    WT_TXN_SNAPSHOT *snap = __wt_ckpt_eviction_snap_current(session, 47);
-    REQUIRE(snap == published(conn));
+    WT_TXN_SNAPSHOT *snap = __wt_ckpt_eviction_snap_current(session);
+    REQUIRE(snap == &conn->ckpt_eviction_snap[snap_idx].snap);
     REQUIRE(snap->snap_min == 100);
     REQUIRE(snap->snap_max == 200);
+}
+
+TEST_CASE("Checkpoint eviction snapshot: a checkpoint never writes the buffer it published",
+  "[ckpt_eviction_snapshot]")
+{
+    std::filesystem::remove_all(k_db);
+    connection_wrapper wrapper(k_db, "create,precise_checkpoint=true");
+    WT_CONNECTION_IMPL *conn = wrapper.get_wt_connection_impl();
+    WT_SESSION_IMPL *session = wrapper.create_session();
+    set_stable(wrapper);
+
+    /*
+     * Buffers must alternate: a checkpoint that reused the buffer it last published would overwrite
+     * one an eviction thread may still be reading.
+     */
+    uint32_t first_idx = publish(conn, 100);
+    __ut_checkpoint_eviction_snapshot_retire(session);
+    uint32_t second_idx = publish(conn, 900);
+
+    REQUIRE(second_idx != first_idx);
+    REQUIRE(conn->ckpt_eviction_snap[first_idx].snap.snap_min == 100);
 }
 
 TEST_CASE(
@@ -165,13 +151,12 @@ TEST_CASE(
     WT_SESSION_IMPL *session = wrapper.create_session();
     set_stable(wrapper);
 
-    publish(conn, 47);
-    uint32_t live_idx = conn->ckpt_eviction_snap_idx;
+    uint32_t snap_idx = publish(conn, 100);
 
     __ut_checkpoint_eviction_snapshot_retire(session);
 
-    /* Only the published flag is cleared; the buffer and the index it named are untouched. */
+    /* Only the published flag is cleared; the buffer and the index naming it are untouched. */
     REQUIRE_FALSE(conn->ckpt_eviction_snap_published);
-    REQUIRE(conn->ckpt_eviction_snap_idx == live_idx);
-    REQUIRE(stamp(conn, live_idx) == 47);
+    REQUIRE(conn->ckpt_eviction_snap_idx == snap_idx);
+    REQUIRE(conn->ckpt_eviction_snap[snap_idx].snap.snap_min == 100);
 }
