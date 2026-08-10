@@ -453,13 +453,13 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
 }
 
 /*
- * __disagg_table_latest_create_remove --
+ * __wti_disagg_table_latest_create_remove --
  *     Return the latest CREATE or REMOVE entry queued for the given table, or NULL. UPDATE entries
  *     are skipped because they do not affect whether the table exists. The caller holds the queue
  *     lock.
  */
-static WT_DISAGG_METADATA_OP *
-__disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
+WT_DISAGG_METADATA_OP *
+__wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *last;
@@ -475,33 +475,6 @@ __disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *table_
             last = entry;
 
     return (last);
-}
-
-/*
- * __wti_disagg_table_latest_create_remove --
- *     Return the latest CREATE or REMOVE operation for the given table name in the shared metadata
- *     queue and its schema epoch, or WT_SHARED_METADATA_NONE when no such entry is found.
- */
-WT_SHARED_METADATA_OP
-__wti_disagg_table_latest_create_remove(
-  WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t *epochp)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_METADATA_OP *entry;
-    WT_SHARED_METADATA_OP last_op;
-
-    conn = S2C(session);
-    last_op = WT_SHARED_METADATA_NONE;
-    *epochp = WT_SCHEMA_EPOCH_NONE;
-
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-    if ((entry = __disagg_table_latest_create_remove(session, table_name)) != NULL) {
-        last_op = entry->metadata_op;
-        *epochp = entry->schema_epoch;
-    }
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-
-    return (last_op);
 }
 
 /*
@@ -726,7 +699,7 @@ __disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_DISAGG_METADATA_OP *last;
 
-    last = __disagg_table_latest_create_remove(session, table_name);
+    last = __wti_disagg_table_latest_create_remove(session, table_name);
     if (last != NULL && last->metadata_op == WT_SHARED_METADATA_CREATE &&
       last->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED && last->stable_value == NULL)
         return (last);
