@@ -1309,8 +1309,8 @@ err:
     /*
      * Stop the deferred checkpoint pickup server before transactional activity shuts down: an
      * adoption runs metadata transactions, so any in-flight adoption must complete while snapshot
-     * visibility checks still operate. Stop it before the session array is walked below as well, so
-     * that it is not opening sessions concurrently with a walk that closes them.
+     * visibility checks still operate. Stop it before the session-closing walk below as well: it
+     * opens a session per adoption, which must not race a walk that closes sessions.
      */
     WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
 
