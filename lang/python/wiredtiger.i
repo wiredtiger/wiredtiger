@@ -178,9 +178,9 @@ from packing import pack, unpack
         PyObject_SetAttrString(o, "data", PyBytes_FromStringAndSize(
             $1[i].data.data, $1[i].data.size));
         PyObject_SetAttrString(o, "offset",
-            PyLong_FromLong($1[i].offset));
+            PyLong_FromSize_t($1[i].offset));
         PyObject_SetAttrString(o, "size",
-            PyLong_FromLong($1[i].size));
+            PyLong_FromSize_t($1[i].size));
         PyList_SetItem($result, i, o);
     }
 }
@@ -198,9 +198,9 @@ from packing import pack, unpack
         PyObject_SetAttrString(o, "data", PyUnicode_FromStringAndSize(
             $1[i].data.data, $1[i].data.size));
         PyObject_SetAttrString(o, "offset",
-            PyLong_FromLong($1[i].offset));
+            PyLong_FromSize_t($1[i].offset));
         PyObject_SetAttrString(o, "size",
-            PyLong_FromLong($1[i].size));
+            PyLong_FromSize_t($1[i].size));
         PyList_SetItem($result, i, o);
     }
 }
@@ -338,7 +338,7 @@ from packing import pack, unpack
 }
 
 %typemap(argout) wt_off_t * {
-    $result = PyLong_FromLong(*$1);
+    $result = PyLong_FromLongLong(*$1);
 }
 
 %typemap(freearg) (WT_MODIFY *, int *nentriesp) {
