@@ -167,7 +167,7 @@ class test_layered_async_stepdown09(
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.publish(uri, 12),
-            '/from the step-down window before the next step-up/')
+            '/created in the step-down window/')
 
         # The next leader era publishes the whole history.
         self.set_stable_epoch(15)
@@ -177,3 +177,22 @@ class test_layered_async_stepdown09(
         self.set_stable_epoch(16)
         self.leader_checkpoint(25)
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
+
+    # A drop issued inside the window is recognized through the table's layered handle, which the
+    # drop destroys, so publishing it below the boundary is not detected. This pins the accepted
+    # limitation: the drop takes effect in the current leader era.
+    def test_publish_window_drop_below_boundary_unenforced(self):
+        self.set_stable_epoch(10)
+        self.set_global_ts(1, 1)
+        uri = self.uri('window_dropped')
+        self.session.create(uri, self.table_config)
+
+        self.set_step_down_ts(20, 15)
+        self.dropUntilSuccess(self.session, uri)
+
+        # The drop's queue entries have no handle left to consult, so the publish succeeds.
+        self.publish(uri, 12)
+
+        self.set_stable_epoch(15)
+        self.complete_step_down(20)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
