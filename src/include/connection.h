@@ -205,6 +205,9 @@ struct __wt_disagg_metadata_op {
     /* Skip this operation in the current checkpoint and apply it in the next one. */
     bool deferred;
 
+    /* The operation was enqueued while the step-down boundary was set. */
+    bool step_down_window;
+
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 

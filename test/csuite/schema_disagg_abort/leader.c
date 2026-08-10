@@ -77,12 +77,17 @@ leader_leave(WORKLOAD_STATE *state, uint64_t final_counter)
 
     /*
      * The term is quiesced and drained, so its counter is the step-down boundary: nothing more will
-     * be committed or published. The checkpoint has to land on that boundary exactly - WiredTiger
-     * asserts it at the role change - and has to carry the epoch with it, since the step-down
+     * be committed or published. The boundary must be declared in both ordering spaces at once, the
+     * timestamp and the schema epoch, and the checkpoint has to land on it exactly - WiredTiger
+     * asserts both at the role change - and has to carry the epoch with it, since the step-down
      * clears the shared metadata queue and loses any publish left behind.
      */
     if (final_counter != 0) {
-        set_ts(conn, "step_down_timestamp", final_counter);
+        char config[128];
+        testutil_snprintf(config, sizeof(config),
+          "step_down_timestamp=%" PRIx64 ",step_down_disaggregated_schema_epoch=%" PRIx64,
+          final_counter, final_counter);
+        testutil_check(conn->set_timestamp(conn, config));
         set_frontier(conn, final_counter);
     }
     testutil_check(session->checkpoint(session, "use_timestamp=true"));

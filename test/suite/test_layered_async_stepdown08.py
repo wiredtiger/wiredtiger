@@ -73,10 +73,37 @@ class test_layered_async_stepdown08(
             self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
 
+    def set_stable_epoch(self, epoch, conn=None):
+        """Advance the stable schema epoch, tracking it for the step-down boundary."""
+        super().set_stable_epoch(epoch, conn)
+        self.stable_epoch = epoch
+
+    def set_step_down_ts(self, ts):
+        """
+        Open the step-down window. The epoch world must declare the boundary in epoch space too.
+        Using the current stable epoch means everything already published belongs to this era and
+        the demotion needs no further epoch movement.
+        """
+        if self.use_epochs:
+            super().set_step_down_ts(ts, self.stable_epoch)
+        else:
+            super().set_step_down_ts(ts)
+
     def publish_if_epochs(self, uri, epoch):
         """Publish a create, which the epoch-less world has no notion of."""
         if self.use_epochs:
             self.publish(uri, epoch)
+
+    def publish_window_rejected(self, uri, epoch):
+        """
+        A publish above the step-down epoch is rejected while the boundary is set: the operation
+        belongs to the next leader era and is published after the step-up. The epoch-less world has
+        no notion of publication, so there is nothing to reject.
+        """
+        if self.use_epochs:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.publish(uri, epoch),
+                '/newer than the step down disaggregated schema epoch/')
 
     def publish_and_make_stable(self, uri, epoch):
         """Publish a create and advance the stable schema epoch to it, so a checkpoint covers it."""
@@ -141,7 +168,7 @@ class test_layered_async_stepdown08(
 
         self.set_step_down_ts(self.cutoff)
         after, after_rows = self.create_with_rows('after', 6)
-        self.publish_if_epochs(after, 40)
+        self.publish_window_rejected(after, 40)
 
         def assert_both_sides():
             self.assertTrue(self.stable_constituent_exists(self.conn, before))
@@ -178,11 +205,11 @@ class test_layered_async_stepdown08(
 
         self.set_step_down_ts(self.cutoff)
 
-        # Created after the step-down timestamp. Its publish epoch has to exceed the stable schema
-        # epoch the covered table advanced to, so the epoch world defers this entry by epoch and the
+        # Created after the step-down timestamp. The epoch world rejects a publish inside the
+        # window, so the entry stays unpublished and every checkpoint defers it by epoch; the
         # epoch-less world reaches it with no stable value to publish.
         window, window_rows = self.create_with_rows('window', 6)
-        self.publish_if_epochs(window, 40)
+        self.publish_window_rejected(window, 40)
 
         self.step_down_checkpoint()
         return {
@@ -289,7 +316,7 @@ class test_layered_async_stepdown08(
 
         self.set_step_down_ts(self.cutoff)
         after, after_rows = self.create_with_rows('after', 6)
-        self.publish_if_epochs(after, 40)
+        self.publish_window_rejected(after, 40)
         self.assertTrue(self.stable_constituent_exists(self.conn, before))
         self.assert_table_state(self.conn, after, False, False, False)
 
@@ -301,6 +328,8 @@ class test_layered_async_stepdown08(
         self.assertTrue(self.stable_constituent_exists(self.conn, before))
         self.assertTrue(self.stable_constituent_exists(self.conn, after))
 
+        # The next leader era owns the window create, so its publish belongs here.
+        self.publish_if_epochs(after, 40)
         self.checkpoint_covering_epoch(40, 7)
         self.assert_table_state(self.conn, before, True, True, True)
         self.assert_table_state(self.conn, after, True, True, True)
@@ -337,7 +366,7 @@ class test_layered_async_stepdown08(
         tables = []
         for i in range(3):
             uri, rows = self.create_with_rows(f'many{i}', 6)
-            self.publish_if_epochs(uri, 20)
+            self.publish_window_rejected(uri, 20)
             tables.append((uri, rows))
 
         self.step_down_checkpoint()
@@ -346,6 +375,8 @@ class test_layered_async_stepdown08(
 
         self.step_down()
         self.step_up()
+        for uri, _ in tables:
+            self.publish_if_epochs(uri, 20)
         self.checkpoint_covering_epoch(20, 7)
 
         for uri, rows in tables:
@@ -360,12 +391,14 @@ class test_layered_async_stepdown08(
         self.enter_window()
 
         uri, _ = self.create_with_rows('window_drop', 6)
-        self.publish_if_epochs(uri, 20)
+        self.publish_window_rejected(uri, 20)
         self.dropUntilSuccess(self.session, uri)
-        self.publish_if_epochs(uri, 20)
+        self.publish_window_rejected(uri, 20)
 
         self.complete_step_down(self.cutoff)
         self.step_up()
+        # One publish after the step-up stamps both the create and the remove.
+        self.publish_if_epochs(uri, 20)
         self.checkpoint_covering_epoch(20, 7)
 
         self.assertFalse(self.uri_in_shared_metadata(self.conn, uri))
