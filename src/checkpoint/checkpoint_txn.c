@@ -1275,7 +1275,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         count = src->snapshot_count;
         capacity = (uint32_t)conn->session_array.size;
 
-        cur_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
+        /* Write the second buffer, so readers of the published one are undisturbed. */
+        cur_idx = conn->ckpt_eviction_snap_idx;
         new_idx = 1 - cur_idx;
         buf = &conn->ckpt_eviction_snap[new_idx];
 
@@ -1289,14 +1290,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        /*
-         * Stamp the buffer so a reader can reject a retired snapshot. A relaxed store is enough:
-         * this buffer is only reachable through the index, and the release store below orders the
-         * contents and the stamp ahead of it.
-         */
-        __wt_atomic_store_uint64_relaxed(&buf->gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+        buf->gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        conn->ckpt_eviction_snap_idx = new_idx;
 
-        __wt_atomic_store_uint32_release(&conn->ckpt_eviction_snap_idx, new_idx);
+        /*
+         * Publish. The release store orders the buffer and the index ahead of it, so a reader that
+         * sees the snapshot published sees both. The index must not be stored after this, or a
+         * reader could pair it with an index the previous checkpoint published.
+         */
+        __wt_atomic_store_bool_release(&conn->ckpt_eviction_snap_published, true);
         /*
          * Wait for eviction threads still copying from the retiring buffer before it can be reused.
          * In practice this returns immediately: readers hold the generation only for a memcpy. This
@@ -1706,21 +1708,26 @@ WT_TXN_SNAPSHOT *
 __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
 {
     WT_CKPT_EVICTION_SNAP *buf;
-    uint32_t snap_idx;
+    WT_CONNECTION_IMPL *conn;
 
-    /* No checkpoint has run, so nothing can have been published. */
-    if (ckpt_gen == 0)
+    conn = S2C(session);
+
+    /*
+     * Nothing is published between checkpoints, or before a checkpoint takes its snapshot. Make
+     * sure to acquire this before the index, not after: the index is ordered by this load, so
+     * reading the index first could pair an index the last checkpoint published with a snapshot the
+     * running one published.
+     */
+    if (!__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published))
         return (NULL);
 
-    snap_idx = __wt_atomic_load_uint32_acquire(&S2C(session)->ckpt_eviction_snap_idx);
-    buf = &S2C(session)->ckpt_eviction_snap[snap_idx];
+    buf = &conn->ckpt_eviction_snap[conn->ckpt_eviction_snap_idx];
 
     /*
      * The generation is bumped before the running checkpoint publishes, so until it does the buffer
-     * is still the previous checkpoint's; one never published or has retired is stamped 0. The
-     * relaxed load is ordered by the acquire load of the index above.
+     * is still the previous checkpoint's.
      */
-    if (__wt_atomic_load_uint64_relaxed(&buf->gen) != ckpt_gen)
+    if (buf->gen != ckpt_gen)
         return (NULL);
 
     return (&buf->snap);
@@ -1733,17 +1740,7 @@ __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session, uint64_t ckpt_gen)
 static void
 __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-    uint32_t snap_idx;
-
-    conn = S2C(session);
-
-    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
-        return;
-
-    /* The checkpoint published this index itself, and checkpoints do not overlap. */
-    snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
-    __wt_atomic_store_uint64_release(&conn->ckpt_eviction_snap[snap_idx].gen, 0);
+    __wt_atomic_store_bool_release(&S2C(session)->ckpt_eviction_snap_published, false);
 }
 
 /*

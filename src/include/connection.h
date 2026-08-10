@@ -1123,7 +1123,13 @@ struct __wt_connection_impl {
          */
         wt_shared uint64_t gen;
     } ckpt_eviction_snap[2];
-    wt_shared uint32_t ckpt_eviction_snap_idx;
+    uint32_t ckpt_eviction_snap_idx;
+    /*
+     * Whether the running checkpoint has a snapshot published. This is the synchronization point:
+     * the checkpoint sets it once the buffer is written and clears it before releasing the
+     * snapshot, and readers acquire it before reading the index.
+     */
+    wt_shared bool ckpt_eviction_snap_published;
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {

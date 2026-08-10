@@ -36,6 +36,7 @@ publish(WT_CONNECTION_IMPL *conn, uint64_t gen)
     conn->ckpt_eviction_snap[new_idx].snap.snapshot_count = 0;
     conn->ckpt_eviction_snap[new_idx].gen = gen;
     conn->ckpt_eviction_snap_idx = new_idx;
+    conn->ckpt_eviction_snap_published = true;
 }
 
 /* Check if a page being evicted adopts the published snapshot. */
@@ -81,7 +82,7 @@ TEST_CASE("Checkpoint eviction snapshot: a snapshot no running checkpoint publis
 
     SECTION("no checkpoint has ever published")
     {
-        /* Both buffers are stamped zero, which no generation matches. */
+        REQUIRE_FALSE(conn->ckpt_eviction_snap_published);
         REQUIRE_FALSE(adoptable(session, 47));
     }
 
@@ -106,6 +107,18 @@ TEST_CASE("Checkpoint eviction snapshot: a snapshot no running checkpoint publis
         publish(conn, 47);
         __ut_checkpoint_eviction_snapshot_retire(session);
         REQUIRE_FALSE(adoptable(session, 47));
+    }
+
+    SECTION("the next checkpoint has not published yet")
+    {
+        /*
+         * The interval at the start of a checkpoint, before it takes its snapshot. Nothing is
+         * published, so eviction bounds itself another way rather than adopting the last
+         * checkpoint's snapshot.
+         */
+        publish(conn, 47);
+        __ut_checkpoint_eviction_snapshot_retire(session);
+        REQUIRE_FALSE(adoptable(session, 48));
     }
 
     SECTION("the next checkpoint published into the other buffer")
@@ -143,8 +156,8 @@ TEST_CASE("Checkpoint eviction snapshot: the reader sees the published buffer's 
     REQUIRE(snap->snap_max == 200);
 }
 
-TEST_CASE("Checkpoint eviction snapshot: retire clears only the published buffer",
-  "[ckpt_eviction_snapshot]")
+TEST_CASE(
+  "Checkpoint eviction snapshot: retire leaves the buffers alone", "[ckpt_eviction_snapshot]")
 {
     std::filesystem::remove_all(k_db);
     connection_wrapper wrapper(k_db, "create,precise_checkpoint=true");
@@ -153,26 +166,12 @@ TEST_CASE("Checkpoint eviction snapshot: retire clears only the published buffer
     set_stable(wrapper);
 
     publish(conn, 47);
-    uint32_t first_idx = conn->ckpt_eviction_snap_idx;
-    publish(conn, 48);
     uint32_t live_idx = conn->ckpt_eviction_snap_idx;
 
     __ut_checkpoint_eviction_snapshot_retire(session);
 
-    REQUIRE(stamp(conn, live_idx) == 0);
-    REQUIRE(stamp(conn, first_idx) == 47);
-}
-
-TEST_CASE("Checkpoint eviction snapshot: retire is a no-op without precise checkpoints",
-  "[ckpt_eviction_snapshot]")
-{
-    std::filesystem::remove_all(k_db);
-    connection_wrapper wrapper(k_db, "create");
-    WT_CONNECTION_IMPL *conn = wrapper.get_wt_connection_impl();
-    WT_SESSION_IMPL *session = wrapper.create_session();
-
-    publish(conn, 47);
-    __ut_checkpoint_eviction_snapshot_retire(session);
-
-    REQUIRE(stamp(conn, conn->ckpt_eviction_snap_idx) == 47);
+    /* Only the published flag is cleared; the buffer and the index it named are untouched. */
+    REQUIRE_FALSE(conn->ckpt_eviction_snap_published);
+    REQUIRE(conn->ckpt_eviction_snap_idx == live_idx);
+    REQUIRE(stamp(conn, live_idx) == 47);
 }
