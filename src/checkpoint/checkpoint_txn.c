@@ -1275,8 +1275,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         count = src->snapshot_count;
         capacity = (uint32_t)conn->session_array.size;
 
+        /* The previous checkpoint must have retired its snapshot before finishing. */
+        WT_ASSERT(session, !conn->ckpt_eviction_snap_published);
+
         /* Write the second buffer, so readers of the published one are undisturbed. */
-        cur_idx = conn->ckpt_eviction_snap_idx;
+        cur_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
         new_idx = 1 - cur_idx;
         buf = &conn->ckpt_eviction_snap[new_idx];
 
@@ -1290,7 +1293,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
-        conn->ckpt_eviction_snap_idx = new_idx;
+        __wt_atomic_store_uint64_relaxed(&buf->gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+        __wt_atomic_store_uint32_relaxed(&conn->ckpt_eviction_snap_idx, new_idx);
 
         /*
          * Publish. The release store orders the buffer and the index ahead of it, so a reader that
@@ -1706,8 +1710,20 @@ WT_TXN_SNAPSHOT *
 __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    uint32_t snap_idx;
+#ifdef HAVE_DIAGNOSTIC
+    uint64_t ckpt_gen;
+#endif
 
     conn = S2C(session);
+
+    /*
+     * Read the generation before the flag below, so that a checkpoint boundary crossed between the
+     * two can only raise the current generation, never the stamp we compare against it.
+     */
+#ifdef HAVE_DIAGNOSTIC
+    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+#endif
 
     /*
      * Nothing is published between checkpoints, or before a checkpoint takes its snapshot. Make
@@ -1718,14 +1734,23 @@ __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session)
     if (!__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published))
         return (NULL);
 
-    return (&conn->ckpt_eviction_snap[conn->ckpt_eviction_snap_idx].snap);
+    /*
+     * A published snapshot belongs to the checkpoint still running, so it cannot predate the
+     * generation read above. An older one means a checkpoint finished without retiring its
+     * snapshot, which is a stale snapshot bug.
+     */
+    snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
+    WT_ASSERT(session,
+      __wt_atomic_load_uint64_relaxed(&conn->ckpt_eviction_snap[snap_idx].gen) >= ckpt_gen);
+
+    return (&conn->ckpt_eviction_snap[snap_idx].snap);
 }
 
 /*
  * __checkpoint_eviction_snapshot_retire --
  *     Retire the eviction snapshot this checkpoint published.
  */
-static void
+static WT_INLINE void
 __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 {
     __wt_atomic_store_bool_release(&S2C(session)->ckpt_eviction_snap_published, false);

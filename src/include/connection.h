@@ -1110,19 +1110,19 @@ struct __wt_connection_impl {
      * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
      * visibility without holding any lock. Two buffers alternate so eviction always has a valid
      * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
+     *
+     * The published flag is the synchronization point: a checkpoint sets it once it has written the
+     * buffer and clears it before releasing the snapshot, and readers acquire it before reading the
+     * index.
      */
     struct __wt_ckpt_eviction_snap {
         WT_TXN_SNAPSHOT snap;
         uint64_t *snap_array;
         size_t snap_capacity;
+        wt_shared uint64_t gen; /* Publishing checkpoint's generation, for diagnostic checking */
     } ckpt_eviction_snap[2];
-    uint32_t ckpt_eviction_snap_idx;
-    /*
-     * Whether the running checkpoint has a snapshot published. This is the synchronization point:
-     * the checkpoint sets it once the buffer is written and clears it before releasing the
-     * snapshot, and readers acquire it before reading the index.
-     */
-    wt_shared bool ckpt_eviction_snap_published;
+    wt_shared uint32_t ckpt_eviction_snap_idx;   /* Buffer holding the published snapshot */
+    wt_shared bool ckpt_eviction_snap_published; /* Whether a checkpoint has published one */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
