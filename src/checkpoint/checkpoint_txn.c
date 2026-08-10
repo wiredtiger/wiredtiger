@@ -1738,8 +1738,10 @@ __wt_ckpt_eviction_snap_current(WT_SESSION_IMPL *session)
 
     /*
      * A published snapshot belongs to the checkpoint still running, so it cannot predate the
-     * generation read above. An older one means a checkpoint finished without retiring its
-     * snapshot, which is a stale snapshot bug.
+     * generation sampled above. A newer one is legal rather than a defect, which is why this is not
+     * an equality check: a checkpoint starting between that sample and this read publishes a higher
+     * stamp. Only an older one is a defect, meaning a checkpoint finished without retiring its
+     * snapshot.
      */
     snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
     WT_ASSERT(session,
