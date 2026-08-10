@@ -222,18 +222,20 @@ class test_layered_async_stepdown09(
             else:
                 ts = self.commit_at_next_ts(wsession)
         except wiredtiger.WiredTigerError as e:
-            # A failed commit has already resolved the transaction, an earlier failure has not.
             if not self.is_rollback(e):
                 raise
+            # Read the reason first: any later session call resets it.
+            _, sub_error, message = wsession.get_last_error()
+            # A failed commit has already resolved the transaction, an earlier failure has not.
             if not resolved:
                 wsession.rollback_transaction()
             # Only the straddle and cache pressure may roll a write back.
-            _, sub_error, message = wsession.get_last_error()
             if 'straddled the step-down timestamp' in message:
                 self.op_counts['straddle_rollbacks'] += 1
             else:
                 self.assertEqual(sub_error, wiredtiger.WT_OLDEST_FOR_EVICTION,
                     f'write to {uri} rolled back with unexpected reason: {message}')
+                self.op_counts['pressure_rollbacks'] += 1
         cursor.close()
         if ts is not None:
             self.tables[uri]['history'].append((ts, kvs))
