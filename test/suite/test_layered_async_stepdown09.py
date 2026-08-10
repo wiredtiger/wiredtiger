@@ -47,7 +47,7 @@ class test_layered_async_stepdown09(
 
     table_config = 'key_format=S,value_format=S'
 
-    base = 'statistics=(all),precise_checkpoint=true,'
+    base = 'statistics=(all),precise_checkpoint=true,cache_size=500MB,'
     conn_config = base + 'disaggregated=(role="leader",lose_all_my_data=true)'
     conn_config_follower = base + 'disaggregated=(role="follower",lose_all_my_data=true)'
 
@@ -225,17 +225,19 @@ class test_layered_async_stepdown09(
             if not self.is_rollback(e):
                 raise
             # Read the reason first: any later session call resets it.
-            _, sub_error, message = wsession.get_last_error()
+            message = wsession.get_last_error()[2]
             # A failed commit has already resolved the transaction, an earlier failure has not.
             if not resolved:
                 wsession.rollback_transaction()
-            # Only the straddle and cache pressure may roll a write back.
+            # A write may only be rolled back by the transition itself: a straddle of the
+            # step-down boundary, or the demotion adopting the step-down checkpoint underneath a
+            # transaction begun before it.
             if 'straddled the step-down timestamp' in message:
                 self.op_counts['straddle_rollbacks'] += 1
             else:
-                self.assertEqual(sub_error, wiredtiger.WT_OLDEST_FOR_EVICTION,
+                self.assertIn('A newer checkpoint was adopted', message,
                     f'write to {uri} rolled back with unexpected reason: {message}')
-                self.op_counts['pressure_rollbacks'] += 1
+                self.op_counts['adoption_rollbacks'] += 1
         cursor.close()
         if ts is not None:
             self.tables[uri]['history'].append((ts, kvs))
@@ -293,10 +295,13 @@ class test_layered_async_stepdown09(
         try:
             actual = {k: v for k, v in cursor}
         except wiredtiger.WiredTigerError as e:
-            # Cache pressure may roll a read back, in which case it verified nothing.
             if not self.is_rollback(e):
                 raise
-            self.op_counts['read_rollbacks'] += 1
+            # A snapshot taken before the transition dies when the demotion adopts the step-down
+            # checkpoint, and verifies nothing. No other reason may roll a read back.
+            self.assertIn('A newer checkpoint was adopted', wsession.get_last_error()[2],
+                f'read of {uri} rolled back for an unexpected reason')
+            self.op_counts['adoption_rollbacks'] += 1
         wsession.rollback_transaction()
         cursor.close()
         if actual is not None:
