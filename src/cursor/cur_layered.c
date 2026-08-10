@@ -330,15 +330,13 @@ __clayered_assert_stable_mode(WTI_CURSOR_LAYERED *clayered)
         return;
 
     /*
-     * The stable cursor's btree must be read-write for a leader and read-only for a follower.
-     *
-     * FIXME-WT-18179: A read operation can race with a step-down and open a live stable btree
-     * on a follower. Temporarily disable this assertion until this race is fixed.
-     *
-     * WT_ASSERT(CUR2S(clayered),
-     *   (clayered->last_role == WTI_CLAYERED_ROLE_LEADER) !=
-     *     F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
+     * A follower's stable constituent is always read-only: either a checkpoint view, or a live tree
+     * frozen by a step-down. Only this direction holds; a leader can inherit a read-only stable
+     * tree across a role change, and the next operation reopens it for the new role.
      */
+    WT_ASSERT(CUR2S(clayered),
+      clayered->last_role == WTI_CLAYERED_ROLE_LEADER ||
+        F_ISSET(CUR2BT(clayered->stable_cursor), WT_BTREE_READONLY));
 }
 
 /* __clayered_enter() local flags. */
@@ -801,6 +799,7 @@ err:
 static int
 __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
 {
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
@@ -814,7 +813,21 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
     if (__clayered_stable_bind_check_needed(session))
         WT_RET(__clayered_stable_bind_check_role_change(session, true));
 
-    return (__clayered_open_stable_int(clayered, layered->stable_uri));
+    /*
+     * The role was sampled before the open and a step-down may complete in between. A fresh open
+     * holds the schema lock the step-down serializes on, so the btree open re-checks the role under
+     * that lock and rolls back before the live tree comes to life on a follower; the retried
+     * operation derives the follower role and opens the checkpoint view instead. An open that
+     * reuses an already open handle skips that check: the reused tree's content is frozen at the
+     * step-down checkpoint, and the next operation detects the role change and reopens the
+     * checkpoint view.
+     */
+    session->open_requires_leader = true;
+    ret = __clayered_open_stable_int(clayered, layered->stable_uri);
+    session->open_requires_leader = false;
+    if (ret == WT_ROLLBACK)
+        WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_stepdown_race);
+    return (ret);
 }
 
 /*

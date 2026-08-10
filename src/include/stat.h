@@ -1046,6 +1046,7 @@ struct __wt_connection_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_open_stable_refused;
+    int64_t layered_curs_open_stable_stepdown_race;
     int64_t layered_curs_update;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;
@@ -1815,6 +1816,7 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_open_stable_refused;
+    int64_t layered_curs_open_stable_stepdown_race;
     int64_t layered_curs_update;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;

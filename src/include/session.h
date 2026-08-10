@@ -166,6 +166,9 @@ struct __wt_session_impl {
     bool cursor_open_timer_running; /* Flag used to track timer across nested calls. */
 #endif
 
+    /* An open in progress was dispatched on a leader-role read and must find the leader role. */
+    bool open_requires_leader;
+
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 
     WT_COMPACT_STATE *compact; /* Compaction information */

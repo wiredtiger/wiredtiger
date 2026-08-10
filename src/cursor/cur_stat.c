@@ -466,8 +466,19 @@ retry:
         stable_uri = stable_uri_buf->data;
     }
 
+    /*
+     * The role was sampled above and a step-down may complete in between. A fresh open of the live
+     * stable table holds the schema lock the step-down serializes on, so the btree open re-checks
+     * the role under that lock and rolls back rather than opening a live stable tree on a follower.
+     * A stats cursor has no transaction snapshot to preserve, so retry here instead of failing the
+     * open: the retried pass derives the follower role and reads the checkpoint view.
+     */
+    session->open_requires_leader = true;
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
-    if (ret == EBUSY) {
+    session->open_requires_leader = false;
+    if (ret == EBUSY || ret == WT_ROLLBACK) {
+        if (ret == WT_ROLLBACK)
+            WT_STAT_CONN_INCR(session, layered_curs_open_stable_stepdown_race);
         /*
          * The retry re-fetches the checkpoint name and reallocates the scratch buffer, so release
          * both before looping.

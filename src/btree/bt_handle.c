@@ -611,6 +611,23 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
             F_SET(btree, WT_BTREE_DISAGGREGATED);
 
+            /*
+             * An open dispatched on a leader-role read (a layered cursor's stable constituent, a
+             * statistics cursor's stable table, a history store lookup) can race with a step-down.
+             * This open holds the schema lock the step-down serializes on, so the role read here is
+             * current: fail the open before the tree comes to life, with the rollback the
+             * application already retries on. The retried operation derives the follower role and
+             * opens the checkpoint view instead.
+             */
+            if (session->open_requires_leader &&
+              !WT_URI_IS_STABLE_CHECKPOINT(btree->dhandle->name) &&
+              !__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader)) {
+                /* Only application sessions can retry a rollback. */
+                WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
+                WT_RET_SUB(session, WT_ROLLBACK, WT_NONE,
+                  "the live stable table open raced a step-down to the follower role");
+            }
+
             WT_RET(__btree_setup_page_log(session, btree));
 
             /* A page log service and a storage source cannot both be enabled. */

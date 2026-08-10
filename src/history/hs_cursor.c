@@ -105,17 +105,42 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         goto done;
     }
 
-    /*
-     * No shared history store checkpoint that matches the stable btree. Simply return without any
-     * data.
-     */
     if (btree->hs_checkpoint_name == NULL && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
       F_ISSET(btree, WT_BTREE_READONLY)) {
-        ret = 0;
-        goto done;
+        /*
+         * A stable btree opened at a named checkpoint with no matching shared history store
+         * checkpoint: that checkpoint has no history store content, return without any data.
+         */
+        if (WT_URI_IS_STABLE_CHECKPOINT(btree->dhandle->name)) {
+            ret = 0;
+            goto done;
+        }
+
+        /*
+         * A live stable btree frozen by a step-down. There is no history store this tree can safely
+         * read: it never pinned a history store checkpoint, and the live history store follows the
+         * checkpoints the follower adopts, so after the first pickup it can drop versions this
+         * tree's era still needs. Returning no data instead would silently lose history. Roll back
+         * so the retried operation reads a checkpoint view, which pins its matching history store
+         * checkpoint.
+         */
+        if (!__wt_atomic_load_bool_acquire(&S2C(session)->layered_table_manager.leader)) {
+            /* Only application sessions can retry a rollback. */
+            WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
+            WT_ERR_SUB(session, WT_ROLLBACK, WT_NONE,
+              "the history store read raced a step-down to the follower role");
+        }
     }
 
-    WT_ERR(__wt_curhs_open(session, btree->id, btree->hs_checkpoint_name, NULL, &hs_cursor));
+    /*
+     * A fresh open of the live history store re-checks the role under the schema lock: a lookup
+     * that raced a step-down rolls back instead of materializing a live history store handle on a
+     * follower. A lookup through the still-open handle reads content the step-down froze.
+     */
+    session->open_requires_leader = true;
+    ret = __wt_curhs_open(session, btree->id, btree->hs_checkpoint_name, NULL, &hs_cursor);
+    session->open_requires_leader = false;
+    WT_ERR(ret);
     /* Do this separately for now because the behavior below is confusing if it triggers. */
     WT_ASSERT_ALWAYS(session, ret == 0, "missing history store for existing btree");
 
