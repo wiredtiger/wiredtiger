@@ -167,7 +167,8 @@ class LayeredStepdownMixin:
         stat_cursor.close()
         return count
 
-    # Whether an exception is a WT_ROLLBACK, of any reason.
+    # Whether an exception is a WT_ROLLBACK, of any reason. Classifies the exception itself so
+    # it works before deciding whether to roll back, when get_last_error is not yet safe to call.
     def is_rollback(self, exception):
         return wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(exception)
 
