@@ -3971,6 +3971,7 @@ tasks:
             ./test_push_pull -PT
 
   - name: compatibility-test-dirty-restart
+    exec_timeout_secs: 25200
     commands:
       - func: "get project"
       - func: "compatibility test"
