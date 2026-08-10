@@ -3126,6 +3126,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction walk of concurrent sessions",
   "transaction: transactions committed",
   "transaction: transactions rolled back",
+  "transaction: transactions rolled back because their own dirty content exceeds the eviction "
+  "updates or dirty trigger",
   "transaction: update conflicts",
   "transaction: write transactions rolled back for straddling the step-down timestamp setting "
   "boundary",
@@ -4224,6 +4226,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_walk_sessions = 0;
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
+    stats->txn_rollback_too_large_for_cache = 0;
     stats->txn_update_conflict = 0;
     stats->txn_rollback_stepdown = 0;
 }
@@ -5595,6 +5598,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_walk_sessions += WT_STAT_CONN_READ(from, txn_walk_sessions);
     to->txn_commit += WT_STAT_CONN_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_CONN_READ(from, txn_rollback);
+    to->txn_rollback_too_large_for_cache +=
+      WT_STAT_CONN_READ(from, txn_rollback_too_large_for_cache);
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
     to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
 }
