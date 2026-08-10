@@ -1058,16 +1058,13 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
-        /*
-         * A create that no checkpoint has covered yet stays queued with the constituent it
-         * captured. Only a window create captured none.
-         */
-        if (entry->metadata_op != WT_SHARED_METADATA_CREATE || entry->stable_value != NULL)
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
 
-        /* A table dropped inside the window has nothing left to check. */
-        if (__layered_create_has_following_remove(session, conn, entry))
-            continue;
+        /* The step-down checkpoint consumed every create that built a constituent. */
+        WT_ASSERT_ALWAYS(session, entry->stable_value == NULL,
+          "create for \"%s\" with a stable constituent still queued at step-down",
+          entry->stable_uri);
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
         WT_ASSERT_ALWAYS(session, metadata_cursor->search(metadata_cursor) == WT_NOTFOUND,
