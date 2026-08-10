@@ -423,10 +423,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
      * in both spaces in the same call, and without them there is no epoch space to bound. These too
      * are hard invariants, validated even under force.
      */
-    epochs_in_use = has_stable_disagg_epoch ||
-      __wt_atomic_load_uint64_acquire(&txn_global->last_ckpt_disaggregated_schema_epoch) !=
-        WT_SCHEMA_EPOCH_NONE ||
-      __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE;
+    epochs_in_use = __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE;
     if (has_step_down_epoch && !has_step_down)
         WT_RET_MSG(session, EINVAL,
           "set_timestamp: step down disaggregated schema epoch requires the step down timestamp "
