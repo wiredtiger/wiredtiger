@@ -118,7 +118,7 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
      * on the replay schedule rather than with application. The watermark only exists under
      * predictable replay.
      */
-    if (GV(RUNS_PREDICTABLE_REPLAY)) {
+    if (!set_connection_timestamps && GV(RUNS_PREDICTABLE_REPLAY)) {
         replayed_ts = replay_maximum_committed();
         if (replayed_ts < checkpoint_ts) {
             printf("--- [Follower] Skipping checkpoint pickup: checkpoint_timestamp(hex)=%" PRIx64
