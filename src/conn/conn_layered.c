@@ -667,6 +667,29 @@ err:
 }
 
 /*
+ * __disagg_requeue_skipped_creates --
+ *     Return parked create entries to the head of the shared metadata queue, restoring their
+ *     original order, so a later checkpoint revisits them.
+ */
+static void
+__disagg_requeue_skipped_creates(
+  WT_SESSION_IMPL *session, struct __wt_disagg_shared_metadata_qh *skipped_creates)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *skipped;
+
+    conn = S2C(session);
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    while (!TAILQ_EMPTY(skipped_creates)) {
+        skipped = TAILQ_LAST(skipped_creates, __wt_disagg_shared_metadata_qh);
+        TAILQ_REMOVE(skipped_creates, skipped, q);
+        TAILQ_INSERT_HEAD(&conn->disaggregated_storage.shared_metadata_qh, skipped, q);
+    }
+}
+
+/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list, returning the total checkpoint size of the tables actually
  *     dropped so the caller can reduce the database size accordingly.
@@ -734,22 +757,36 @@ __wt_disagg_shared_metadata_queue_process(
         __disagg_shared_metadata_queue_free(session, &entry);
     }
 
-    /*
-     * Any unmatched parked CREATE entry is an API violation: the stable epoch falls between the
-     * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata. But the
-     * table was dropped and its stable constituent was never created, so we have no data to write.
-     * Publish CREATE and DROP at the same epoch to avoid this window.
-     */
     if (!TAILQ_EMPTY(&skipped_creates)) {
-        TAILQ_FOREACH (skipped, &skipped_creates, q)
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
-              " and DROP at a later epoch. This checkpoint must include the table in shared "
-              "metadata, but the table was dropped and we have no data to write.",
-              skipped->table_name, skipped->schema_epoch);
-        WT_ERR_PANIC(session, EINVAL,
-          "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
-          cur_schema_epoch);
+        /*
+         * A parked CREATE left while a step-down timestamp is set belongs to the follower era the
+         * pending step-down begins, so put it back for a later leader era to complete. Only the
+         * epoch-less mode reaches this: with schema epochs the entry is still unpublished, which
+         * the epoch check above already defers. The schema lock held here serializes the timestamp,
+         * making the relaxed load safe.
+         */
+        if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
+            __disagg_requeue_skipped_creates(session, &skipped_creates);
+        else {
+            /*
+             * Otherwise the stable epoch falls between the CREATE and DROP epochs, so this
+             * checkpoint must include the table in shared metadata. But the table was dropped and
+             * its stable constituent was never created, so we have no data to write. Publish CREATE
+             * and DROP at the same epoch to avoid this window.
+             *
+             * FIXME-WT-18272: Confirm a pending DROP for the same table really is queued behind the
+             * parked CREATE before panicking, and report the epoch of that DROP in the message.
+             */
+            TAILQ_FOREACH (skipped, &skipped_creates, q)
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+                  " and DROP at a later epoch. This checkpoint must include the table in shared "
+                  "metadata, but the table was dropped and we have no data to write.",
+                  skipped->table_name, skipped->schema_epoch);
+            WT_ERR_PANIC(session, EINVAL,
+              "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
+              cur_schema_epoch);
+        }
     }
 
 err:
@@ -758,11 +795,7 @@ err:
      * attempts to create a checkpoint again.
      */
     if (ret != 0)
-        while (!TAILQ_EMPTY(&skipped_creates)) {
-            skipped = TAILQ_LAST(&skipped_creates, __wt_disagg_shared_metadata_qh);
-            TAILQ_REMOVE(&skipped_creates, skipped, q);
-            TAILQ_INSERT_HEAD(&conn->disaggregated_storage.shared_metadata_qh, skipped, q);
-        }
+        __disagg_requeue_skipped_creates(session, &skipped_creates);
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     while (!TAILQ_EMPTY(&skipped_creates)) {
@@ -996,6 +1029,53 @@ err:
 }
 
 /*
+ * __layered_assert_step_down_created --
+ *     Assert a table created inside the step-down window has no stable constituent in the local
+ *     metadata. A table missing from the check would send every cursor to an open that cannot
+ *     succeed, and one wrongly included would hide the constituent it has.
+ */
+static int
+__layered_assert_step_down_created(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *metadata_cursor;
+    WT_DISAGG_METADATA_OP *entry;
+
+    conn = S2C(session);
+
+    /*
+     * Only legacy mode is checked.
+     *
+     * FIXME-WT-18276: Schema epochs defer an unpublished create indefinitely. Recognize the window
+     * from the schema epoch to cover both modes.
+     */
+    if (__wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch) !=
+        WT_SCHEMA_EPOCH_NONE ||
+      __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE)
+        return (0);
+
+    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
+        if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
+            continue;
+
+        /* The step-down checkpoint consumed every create that built a constituent. */
+        WT_ASSERT_ALWAYS(session, entry->stable_value == NULL,
+          "create for \"%s\" with a stable constituent still queued at step-down",
+          entry->stable_uri);
+
+        metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
+        WT_ASSERT_ALWAYS(session, metadata_cursor->search(metadata_cursor) == WT_NOTFOUND,
+          "window create \"%s\" has a stable constituent in the local metadata", entry->stable_uri);
+    }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    return (__wt_metadata_cursor_release(session, &metadata_cursor));
+}
+
+/*
  * __disagg_step_up --
  *     Step up to the node to the leader mode.
  */
@@ -1143,6 +1223,12 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
+        /* Clear the mark on tables created during the step-down window. */
+        if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
+            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+            continue;
+        }
+
         /* Only care about open disaggregated btree dhandles. */
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
             continue;
@@ -1215,9 +1301,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
       session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
     WT_ERR(ret);
 
-    /* Do some cleanup as we are abandoning the current checkpoint. */
-    __disagg_shared_metadata_queue_clear(session);
-
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
      * one, otherwise it was kept alive and is reused.
@@ -1245,6 +1328,9 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
           "stable timestamp %s does not match the step down timestamp %s at step down",
           __wt_timestamp_to_string(stable_ts, ts_string[0]),
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+
+        /* Window creates only exist while the timestamp is set. */
+        WT_ERR(__layered_assert_step_down_created(session));
     }
 
     /*
