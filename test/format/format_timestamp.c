@@ -115,7 +115,14 @@ timestamp_query(const char *query, wt_timestamp_t *tsp)
 void
 timestamp_init(void)
 {
+    WT_DECL_RET;
+    wt_timestamp_t stable_timestamp;
+
     testutil_check(timestamp_query("get=recovery", &g.timestamp));
+    ret = timestamp_query("get=stable_timestamp", &stable_timestamp);
+    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+    if (ret == 0)
+        g.timestamp = WT_MAX(g.timestamp, stable_timestamp);
     if (g.timestamp == WT_TS_NONE)
         g.timestamp = MIN_TIMESTAMP;
 }

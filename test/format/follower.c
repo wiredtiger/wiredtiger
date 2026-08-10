@@ -146,8 +146,6 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
           "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, metadata.oldest_timestamp,
           checkpoint_ts);
         testutil_check(conn->set_timestamp(conn, config));
-        g.timestamp = g.stable_timestamp = checkpoint_ts;
-        g.oldest_timestamp = metadata.oldest_timestamp;
     }
     picked_up = true;
 
