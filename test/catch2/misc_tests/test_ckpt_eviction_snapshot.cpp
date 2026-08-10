@@ -34,7 +34,9 @@ publish(WT_SESSION_IMPL *session, uint64_t snap_min)
     conn->ckpt_eviction_snap[new_idx].snap.snap_min = snap_min;
     conn->ckpt_eviction_snap[new_idx].snap.snap_max = snap_min + 100;
     conn->ckpt_eviction_snap[new_idx].snap.snapshot_count = 0;
+#ifdef HAVE_DIAGNOSTIC
     conn->ckpt_eviction_snap[new_idx].gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+#endif
     conn->ckpt_eviction_snap_idx = new_idx;
     conn->ckpt_eviction_snap_published = true;
 

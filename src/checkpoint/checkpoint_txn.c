@@ -1293,7 +1293,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         if (count > 0)
             memcpy(dst->snapshot, src->snapshot, count * sizeof(src->snapshot[0]));
 
+#ifdef HAVE_DIAGNOSTIC
         __wt_atomic_store_uint64_relaxed(&buf->gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+#endif
         __wt_atomic_store_uint32_relaxed(&conn->ckpt_eviction_snap_idx, new_idx);
 
         /*

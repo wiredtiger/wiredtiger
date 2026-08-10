@@ -1119,7 +1119,10 @@ struct __wt_connection_impl {
         WT_TXN_SNAPSHOT snap;
         uint64_t *snap_array;
         size_t snap_capacity;
-        wt_shared uint64_t gen; /* Publishing checkpoint's generation, for diagnostic checking */
+#ifdef HAVE_DIAGNOSTIC
+        /* The generation of the checkpoint that published this buffer, checked by the reader. */
+        wt_shared uint64_t gen;
+#endif
     } ckpt_eviction_snap[2];
     wt_shared uint32_t ckpt_eviction_snap_idx;   /* Buffer holding the published snapshot */
     wt_shared bool ckpt_eviction_snap_published; /* Whether a checkpoint has published one */
