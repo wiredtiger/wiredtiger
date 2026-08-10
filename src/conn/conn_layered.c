@@ -687,8 +687,8 @@ __disagg_requeue_skipped_creates(
 /*
  * __disagg_window_create_queued --
  *     Return the table's queued window create, or NULL. While the step-down boundary is set, only a
- *     create made inside the window is still unclaimed and constituent-less. A window drop has no
- *     such signature and goes unrecognized. The caller holds the queue lock.
+ *     create made inside the window is still unclaimed and constituent-less. The caller holds the
+ *     queue lock.
  */
 static WT_DISAGG_METADATA_OP *
 __disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
@@ -843,20 +843,9 @@ __wt_disagg_shared_metadata_queue_publish(
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-    /*
-     * A window create belongs to the next leader, so refuse to stamp it at or below the boundary:
-     * its epoch would claim coverage by a checkpoint that has no constituent to write for it.
-     * Refuse before stamping anything, so a failed publish leaves no entry half-published. The
-     * schema lock held here serializes the boundary, making the relaxed load safe.
-     */
+    /* The schema lock held here serializes the boundary, making the relaxed load safe. */
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
-    if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && schema_epoch <= step_down_epoch &&
-      __disagg_window_create_queued(session, table_name) != NULL)
-        WT_ERR_MSG(session, EINVAL,
-          "Cannot publish operations for table \"%s\" created in the step-down window at a schema "
-          "epoch at or below the step down boundary %" PRIu64,
-          table_name, step_down_epoch);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
@@ -865,6 +854,17 @@ __wt_disagg_shared_metadata_queue_publish(
 
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
+            /*
+             * While the step-down boundary is set, an epoch is only assigned above it: an epoch at
+             * or below the boundary claims coverage by this era's final checkpoint, which cannot
+             * include an operation from the window, and followers prune their replay copies against
+             * that claim. Nothing is half-stamped on failure, the same test fails for every entry.
+             */
+            if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && schema_epoch <= step_down_epoch)
+                WT_ERR_MSG(session, EINVAL,
+                  "Cannot publish for table \"%s\" at schema epoch %" PRIu64
+                  " at or below the step down boundary %" PRIu64,
+                  table_name, schema_epoch, step_down_epoch);
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Publishing metadata operation %s for table \"%s\" to schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,

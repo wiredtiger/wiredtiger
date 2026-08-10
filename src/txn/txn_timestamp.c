@@ -419,18 +419,16 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Schema epochs order schema operations independently of timestamps, so when they are in use
-     * the step-down boundary must be declared in both spaces in the same call. These too are hard
+     * the step-down boundary should be declared in both spaces in the same call. These too are hard
      * invariants, validated even under force.
+     *
+     * FIXME-WT-18314: Reject a step down timestamp without the epoch once the server supplies it.
      */
     epochs_in_use = __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE;
     if (has_step_down_epoch && !has_step_down)
         WT_RET_MSG(session, EINVAL,
           "set_timestamp: step down disaggregated schema epoch requires the step down timestamp "
           "in the same call");
-    if (has_step_down && epochs_in_use && !has_step_down_epoch)
-        WT_RET_MSG(session, EINVAL,
-          "set_timestamp: step down timestamp requires the step down disaggregated schema epoch "
-          "when schema epochs are in use");
     if (has_step_down && !epochs_in_use && has_step_down_epoch)
         WT_RET_MSG(session, EINVAL,
           "set_timestamp: step down disaggregated schema epoch requires schema epochs to be in "

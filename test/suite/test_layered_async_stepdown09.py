@@ -61,13 +61,16 @@ class test_layered_async_stepdown09(
                 'step_down_disaggregated_schema_epoch=' + self.timestamp_str(10)),
             '/requires the step down timestamp/')
 
-    # Once schema epochs are in use, the timestamp alone no longer declares the whole boundary.
-    def test_ts_without_epoch_rejected_when_epochs_in_use(self):
+    # The timestamp alone is accepted while the server adopts the new parameter, skipping the
+    # epoch-space enforcement.
+    def test_ts_without_epoch_allowed(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.set_step_down_ts(20),
-            '/requires the step down disaggregated schema epoch/')
+        self.set_step_down_ts(20)
+        self.assertEqual(self.step_down_ts_is_set(), 1)
+        self.assertEqual(self.step_down_epoch_is_set(), 0)
+        self.complete_step_down(20)
+        self.assertEqual(self.step_down_ts_is_set(), 0)
 
     # Without schema epochs there is no epoch space to bound.
     def test_epoch_without_epochs_in_use_rejected(self):
@@ -130,9 +133,10 @@ class test_layered_async_stepdown09(
         self.assertEqual(self.step_down_ts_is_set(), 0)
         self.assertEqual(self.step_down_epoch_is_set(), 0)
 
-    # A publish above the step-down epoch lands in the next leader era: the epoch defers it past
-    # every checkpoint of this era, so the step-down checkpoint does not advertise it.
-    def test_publish_above_boundary_deferred(self):
+    # While the boundary is set an epoch is only assigned above it. A publish above the boundary
+    # lands in the next leader era, deferred past every checkpoint of this one; a publish at or
+    # below the boundary is rejected.
+    def test_publish_only_above_boundary(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
         above = self.uri('above')
@@ -142,18 +146,18 @@ class test_layered_async_stepdown09(
 
         self.set_step_down_ts(20, 15)
 
-        # Both were created before the window, so either side of the boundary accepts them.
         self.publish(above, 16)
-        self.publish(below, 12)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.publish(below, 12),
+            '/at or below the step down boundary/')
 
         self.set_stable_epoch(15)
         self.complete_step_down(20)
         self.assertFalse(self.uri_in_shared_metadata(self.conn, above))
-        self.assertTrue(self.uri_in_shared_metadata(self.conn, below))
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, below))
 
-    # A publish at an epoch below the boundary must not drag a window operation with it: a publish
-    # stamps every unpublished entry of the table, so a create issued inside the window would be
-    # replayed in the era it does not belong to.
+    # A create issued inside the window cannot be claimed by this era: its publish is rejected
+    # below the boundary, and the next leader era publishes the whole history.
     def test_publish_window_create_below_boundary_rejected(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
@@ -168,9 +172,8 @@ class test_layered_async_stepdown09(
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.publish(uri, 12),
-            '/created in the step-down window/')
+            '/at or below the step down boundary/')
 
-        # The next leader era publishes the whole history.
         self.set_stable_epoch(15)
         self.complete_step_down(20)
         self.step_up()
@@ -179,10 +182,8 @@ class test_layered_async_stepdown09(
         self.leader_checkpoint(25)
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
 
-    # A drop issued inside the window has no signature distinguishing it from a pre-window drop,
-    # so publishing it below the boundary is not detected. This pins the accepted limitation: the
-    # drop takes effect in the current leader era.
-    def test_publish_window_drop_below_boundary_unenforced(self):
+    # A drop issued inside the window is bounded the same way as a create.
+    def test_publish_window_drop_below_boundary_rejected(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
         uri = self.uri('window_dropped')
@@ -191,8 +192,10 @@ class test_layered_async_stepdown09(
         self.set_step_down_ts(20, 15)
         self.dropUntilSuccess(self.session, uri)
 
-        # The drop's queue entries carry no window signature, so the publish succeeds.
-        self.publish(uri, 12)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.publish(uri, 12),
+            '/at or below the step down boundary/')
+        self.publish(uri, 16)
 
         self.set_stable_epoch(15)
         self.complete_step_down(20)
