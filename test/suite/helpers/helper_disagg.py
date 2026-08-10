@@ -29,7 +29,7 @@
 
 import re
 import wiredtiger
-import functools, json, os, shutil, subprocess, wttest
+import functools, json, os, shutil, subprocess, time, wttest
 from run import wt_builddir
 
 # These routines help run the various page log sources used by disaggregated storage.
@@ -225,7 +225,9 @@ class DisaggConfigMixin:
         (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
-    # Let the follower pick up the latest checkpoint
+    # Deliver the newest checkpoint to the follower. Adopting it is asynchronous while transaction
+    # snapshots that predate it are active, so a caller that needs the adoption observed must end
+    # those snapshots and deliver again.
     def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
