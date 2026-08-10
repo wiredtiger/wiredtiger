@@ -351,6 +351,8 @@ conn_stats = [
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_scrub_image_bytes', 'bytes of clean re-instantiation images retained by checkpoint scrub', 'no_clear,no_scale,size'),
+    CacheStat('cache_scrub_image_pages', 'pages with a clean re-instantiation image retained by checkpoint scrub', 'no_clear,no_scale'),
     CacheStat('cache_shared_dsk_bytes_duplicate', 'shared disk bytes saved by sharing duplicate disk images', 'no_clear,no_scale,size'),
     CacheStat('cache_shared_dsk_hash_size', 'shared disk hash table size', 'no_clear,no_scale'),
     CacheStat('cache_shared_dsk_hit', 'shared disk hit'),
@@ -370,6 +372,7 @@ conn_stats = [
     EvictStat('eviction_active_workers', 'eviction worker thread active', 'no_clear'),
     EvictStat('eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
     EvictStat('eviction_app_attempt', 'page evict attempts by application threads'),
+    EvictStat('eviction_app_bounded_wait_exceeded', 'application eviction assists stopped when the bounded wait was exhausted'),
     EvictStat('eviction_app_dirty_attempt', 'modified page evict attempts by application threads'),
     EvictStat('eviction_app_dirty_fail', 'modified page evict failures by application threads'),
     EvictStat('eviction_app_fail', 'page evict failures by application threads'),
@@ -617,6 +620,9 @@ conn_stats = [
         'checkpoint metadata compatible version this binary supports', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_binary_version',
         'checkpoint metadata version this binary writes', 'no_clear,no_scale'),
+    DisaggStat('disagg_checkpoint_defer', 'checkpoint pick-ups deferred for active transaction snapshots'),
+    DisaggStat('disagg_checkpoint_delivered_lsn', 'most recently delivered checkpoint metadata LSN', 'no_clear,no_scale'),
+    DisaggStat('disagg_checkpoint_meta_lsn', 'most recently adopted checkpoint metadata LSN', 'no_clear,no_scale'),
     DisaggStat('disagg_checkpoint_storage_compatible_version',
         'checkpoint metadata compatible version of the most recently picked up checkpoint: 0 none',
         'no_clear,no_scale'),
@@ -630,6 +636,7 @@ conn_stats = [
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
     DisaggStat('disagg_role_leader', 'role leader'),
+    DisaggStat('disagg_snapshot_rebuild', 'snapshots rebuilt after racing a checkpoint pick-up or role change'),
     # FIXME-WT-18206: remove the mode statistic along with the legacy escaped-stable support.
     DisaggStat('disagg_stable_tombstone_encoding',
         'stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped',
@@ -1350,6 +1357,8 @@ conn_dsrc_stats = [
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore_invisible', 'pages written requiring in-memory restoration due to invisible updates'),
     CacheStat('cache_write_restore_scrub', 'pages written requiring in-memory restoration due to scrub eviction'),
+    CacheStat('cache_write_restore_scrub_checkpoint', 'pages written requiring in-memory restoration due to checkpoint scrub'),
+    CacheStat('cache_write_restore_scrub_skipped_dirty', 'checkpoint scrub skipped because the page will be left dirty'),
 
     ##########################################
     # Checkpoint Cleanup statistics
@@ -1447,6 +1456,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
     LayeredStat('layered_curs_open_stable', 'Layered table cursor opens the stable btree for the first time'),
+    LayeredStat('layered_curs_open_stable_refused', 'Layered table cursor stable open refused to preserve a transaction snapshot'),
     LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from the ingest btrees'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from the stable btrees'),
