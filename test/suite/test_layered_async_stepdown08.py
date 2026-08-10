@@ -80,9 +80,8 @@ class test_layered_async_stepdown08(
 
     def set_step_down_ts(self, ts):
         """
-        Open the step-down window. The epoch world must declare the boundary in epoch space too.
-        Using the current stable epoch means everything already published belongs to this era and
-        the demotion needs no further epoch movement.
+        Open the step-down window, declaring the boundary in epoch space too in the epoch world.
+        Using the current stable epoch means the demotion needs no further epoch movement.
         """
         if self.use_epochs:
             super().set_step_down_ts(ts, self.stable_epoch)

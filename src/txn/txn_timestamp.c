@@ -418,10 +418,9 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * The step-down boundary is one object with two coordinates. Schema epochs order schema
-     * operations independently of timestamps, so when they are in use the boundary must be supplied
-     * in both spaces in the same call, and without them there is no epoch space to bound. These too
-     * are hard invariants, validated even under force.
+     * Schema epochs order schema operations independently of timestamps, so when they are in use
+     * the step-down boundary must be declared in both spaces in the same call. These too are hard
+     * invariants, validated even under force.
      */
     epochs_in_use = __wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE;
     if (has_step_down_epoch && !has_step_down)
@@ -551,12 +550,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * The same ordering holds in epoch space: the stable disaggregated schema epoch is monotonic
-     * and must be able to reach the step-down epoch exactly before the step-down, so the boundary
-     * cannot sit below it, whether the stable epoch was set earlier or in this same call, and while
-     * the boundary is set the stable epoch must not advance past it. Equality is allowed on both
-     * sides. A stable epoch supplied in this call was already validated as monotonic above, so it
-     * simply becomes the value the boundary is measured against.
+     * The same ordering holds in epoch space: the stable epoch must be able to reach the step-down
+     * epoch exactly and never pass it, with equality allowed on both sides. A stable epoch supplied
+     * in this call was already validated as monotonic, so it becomes the value the boundary is
+     * measured against.
      */
     if (has_stable_disagg_epoch)
         last_stable_disagg_epoch = stable_disagg_epoch;

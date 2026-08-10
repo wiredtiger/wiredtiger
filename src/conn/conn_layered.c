@@ -686,13 +686,9 @@ __disagg_requeue_skipped_creates(
 
 /*
  * __disagg_window_create_queued --
- *     Return the table's queued window create, or NULL. The signature is the latest CREATE or
- *     REMOVE queued for the table being an unpublished create carrying no stable constituent: while
- *     the step-down boundary is set that can only be a window create, since a leader create outside
- *     the window captures its constituent at enqueue time and a follower-era leftover either has a
- *     REMOVE queued behind it or had its constituent rebuilt at step-up. A window drop has no such
- *     signature, so it goes unrecognized and can be published below the boundary. The caller holds
- *     the queue lock and has established that the boundary is set.
+ *     Return the table's queued window create, or NULL. While the step-down boundary is set, only a
+ *     create made inside the window is still unclaimed and constituent-less. A window drop has no
+ *     such signature and goes unrecognized. The caller holds the queue lock.
  */
 static WT_DISAGG_METADATA_OP *
 __disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
@@ -782,10 +778,9 @@ __wt_disagg_shared_metadata_queue_process(
     if (!TAILQ_EMPTY(&skipped_creates)) {
         /*
          * A parked CREATE left while a step-down timestamp is set belongs to the era the pending
-         * step-down begins, so put it back for a later leader era to complete. A violation that
-         * happens to be parked during the window goes back too and is caught by the next era's
-         * drain, when no boundary is set. The schema lock held here serializes the timestamp,
-         * making the relaxed load safe.
+         * step-down begins, so put it back for a later leader era to complete. A violation parked
+         * meanwhile is caught by the next era's drain. The schema lock held here serializes the
+         * timestamp, making the relaxed load safe.
          */
         if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE)
             __disagg_requeue_skipped_creates(session, &skipped_creates);
@@ -849,13 +844,10 @@ __wt_disagg_shared_metadata_queue_publish(
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /*
-     * A table created inside the step-down window belongs to the next leader era. Publishing it
-     * above the step-down boundary is fine, the epoch defers it to that era, but a publish at or
-     * below the boundary would claim the create for an era whose final checkpoint has no
-     * constituent to write for it. Refuse before stamping anything, so a failed publish leaves no
-     * entry half-published. A drop issued inside the window has no signature to recognize, so a
-     * window drop published below the boundary goes undetected. The schema lock held here
-     * serializes the boundary, making the relaxed load safe.
+     * A window create belongs to the next leader, so refuse to stamp it at or below the boundary:
+     * its epoch would claim coverage by a checkpoint that has no constituent to write for it.
+     * Refuse before stamping anything, so a failed publish leaves no entry half-published. The
+     * schema lock held here serializes the boundary, making the relaxed load safe.
      */
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
@@ -1087,9 +1079,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 
     /*
      * In legacy mode the step-down checkpoint consumed every create that built a constituent, so
-     * every queued create must be a window create. With schema epochs, unpublished or uncovered
-     * pre-window creates legitimately remain queued with their constituents, so only creates
-     * carrying the window signature are checked.
+     * every queued create must be a window create. With schema epochs, uncovered creates
+     * legitimately remain queued, so only window creates are checked.
      */
     legacy = __wt_atomic_load_uint64_acquire(
                &conn->txn_global.last_ckpt_disaggregated_schema_epoch) == WT_SCHEMA_EPOCH_NONE &&
@@ -1110,10 +1101,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               entry->stable_uri);
 
         /*
-         * A create with no constituent must sit above the boundary or still be unpublished. An
-         * epoch at or below the boundary claims the create for this era, whose final checkpoint
-         * just shipped with nothing to write for it, and every follower prunes its own copy of the
-         * entry against that checkpoint's forged coverage.
+         * A constituent-less create at or below the boundary claims coverage by a checkpoint that
+         * had nothing to write for it, and followers prune their copies against that claim.
          */
         if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && entry->stable_value == NULL)
             WT_ASSERT_ALWAYS(session,
@@ -1395,9 +1384,8 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
           __wt_timestamp_to_string(step_down_ts, ts_string[1]));
 
         /*
-         * The same holds in epoch space: set_timestamp requires the step-down epoch alongside the
-         * timestamp whenever schema epochs are in use, and the stable epoch must have been advanced
-         * to meet it so the step-down checkpoint covers every published operation of this era.
+         * The same holds in epoch space: the stable epoch must have been advanced to meet the
+         * boundary so the step-down checkpoint covers every published operation of this era.
          */
         step_down_epoch =
           __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);

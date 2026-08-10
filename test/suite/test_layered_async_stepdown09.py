@@ -179,9 +179,9 @@ class test_layered_async_stepdown09(
         self.leader_checkpoint(25)
         self.assertTrue(self.uri_in_shared_metadata(self.conn, uri))
 
-    # A drop issued inside the window is recognized through the table's layered handle, which the
-    # drop destroys, so publishing it below the boundary is not detected. This pins the accepted
-    # limitation: the drop takes effect in the current leader era.
+    # A drop issued inside the window has no signature distinguishing it from a pre-window drop,
+    # so publishing it below the boundary is not detected. This pins the accepted limitation: the
+    # drop takes effect in the current leader era.
     def test_publish_window_drop_below_boundary_unenforced(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
@@ -191,7 +191,7 @@ class test_layered_async_stepdown09(
         self.set_step_down_ts(20, 15)
         self.dropUntilSuccess(self.session, uri)
 
-        # The drop's queue entries have no handle left to consult, so the publish succeeds.
+        # The drop's queue entries carry no window signature, so the publish succeeds.
         self.publish(uri, 12)
 
         self.set_stable_epoch(15)
