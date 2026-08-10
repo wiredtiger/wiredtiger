@@ -690,51 +690,45 @@ __disagg_requeue_skipped_creates(
 }
 
 /*
- * __disagg_created_in_window_int --
- *     Look up the table's layered handle and report whether it is marked as created inside the
- *     step-down window. The caller holds the handle list lock.
+ * __disagg_table_latest_entry --
+ *     Return the latest CREATE or REMOVE entry queued for the given table, or NULL. UPDATE entries
+ *     are skipped because they do not affect whether the table exists. The caller holds the queue
+ *     lock.
  */
-static int
-__disagg_created_in_window_int(WT_SESSION_IMPL *session, const char *uri, bool *createdp)
+static WT_DISAGG_METADATA_OP *
+__disagg_table_latest_entry(WT_SESSION_IMPL *session, const char *table_name)
 {
-    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_METADATA_OP *entry, *last;
 
-    ret = __wt_conn_dhandle_find(session, uri, NULL);
-    if (ret == WT_NOTFOUND)
-        return (0);
-    WT_RET(ret);
+    conn = S2C(session);
 
-    *createdp =
-      F_ISSET((WT_LAYERED_TABLE *)session->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) != 0;
-    return (0);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    last = NULL;
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op != WT_SHARED_METADATA_UPDATE &&
+          strcmp(entry->table_name, table_name) == 0)
+            last = entry;
+
+    return (last);
 }
 
 /*
- * __disagg_created_in_window --
- *     Return whether the table's layered handle is marked as created inside the step-down window.
- *     The mark is the only memory of the window an operation leaves, and it dies with the handle: a
- *     table dropped inside the window cannot be recognized, so a window drop published below the
- *     boundary goes undetected. Must not be called with the shared metadata queue lock held, since
- *     the handle list lock cannot be acquired under a spinlock.
+ * __disagg_entry_is_window_create --
+ *     Return whether a queue entry is a create from inside the step-down window. The entry must be
+ *     the latest CREATE or REMOVE queued for its table: an unpublished create carrying no stable
+ *     constituent can only be a window create, since a leader create outside the window captures
+ *     its constituent at enqueue time and a follower-era leftover either has a REMOVE queued behind
+ *     it or had its constituent rebuilt at step-up. A window drop has no such signature, so it goes
+ *     unrecognized and can be published below the boundary. The caller holds the queue lock and has
+ *     established that the step-down boundary is set.
  */
-static int
-__disagg_created_in_window(WT_SESSION_IMPL *session, const char *table_name, bool *createdp)
+static bool
+__disagg_entry_is_window_create(WT_DISAGG_METADATA_OP *entry)
 {
-    WT_DECL_ITEM(uri);
-    WT_DECL_RET;
-
-    *createdp = false;
-
-    WT_RET(__wt_scr_alloc(session, 0, &uri));
-    WT_ERR(__wt_buf_fmt(session, uri, "layered:%s", table_name));
-
-    WT_SAVE_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, ret = __disagg_created_in_window_int(session, uri->data, createdp)));
-
-err:
-    __wt_scr_free(session, &uri);
-    return (ret);
+    return (entry != NULL && entry->metadata_op == WT_SHARED_METADATA_CREATE &&
+      entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED && entry->stable_value == NULL);
 }
 
 /*
@@ -750,7 +744,7 @@ __wt_disagg_shared_metadata_queue_process(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
-    bool created_in_window, violation;
+    bool violation;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -809,26 +803,23 @@ __wt_disagg_shared_metadata_queue_process(
     if (!TAILQ_EMPTY(&skipped_creates)) {
         /*
          * A parked CREATE from the step-down window belongs to the era the pending step-down
-         * begins, so put it back for a later leader era to complete. A parked CREATE from outside
-         * the window is an API violation: the stable epoch falls between the CREATE and DROP
-         * epochs, so this checkpoint must include the table in shared metadata, but the table was
-         * dropped and its stable constituent was never created, so we have no data to write.
-         * Publish CREATE and DROP at the same epoch to avoid this window.
-         *
-         * The classification consults the layered handle, which takes the handle list lock, so
-         * release the queue lock around it. The schema lock held here freezes the queue, and the
-         * parked entries are on a local list in any case.
+         * begins, so put it back for a later leader era to complete. Only an unpublished create
+         * parked while the boundary is set can be one: with schema epochs a published entry was
+         * stamped below the boundary, and the epoch-less mode never publishes at all. A parked
+         * CREATE from outside the window is an API violation: the stable epoch falls between the
+         * CREATE and DROP epochs, so this checkpoint must include the table in shared metadata, but
+         * the table was dropped and its stable constituent was never created, so we have no data to
+         * write. Publish CREATE and DROP at the same epoch to avoid this window. The schema lock
+         * held here serializes the boundary, making the relaxed load safe.
          *
          * FIXME-WT-18272: Confirm a pending DROP for the same table really is queued behind the
          * parked CREATE before panicking, and report the epoch of that DROP in the message.
          */
-        __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
         violation = false;
-        TAILQ_FOREACH (skipped, &skipped_creates, q) {
-            if ((ret = __disagg_created_in_window(
-                   session, skipped->table_name, &created_in_window)) != 0)
-                break;
-            if (!created_in_window) {
+        TAILQ_FOREACH (skipped, &skipped_creates, q)
+            if (skipped->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED ||
+              __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) ==
+                WT_TS_NONE) {
                 violation = true;
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
@@ -836,9 +827,6 @@ __wt_disagg_shared_metadata_queue_process(
                   "metadata, but the table was dropped and we have no data to write.",
                   skipped->table_name, skipped->schema_epoch);
             }
-        }
-        __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
-        WT_ERR(ret);
         if (violation)
             WT_ERR_PANIC(session, EINVAL,
               "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
@@ -875,29 +863,30 @@ __wt_disagg_shared_metadata_queue_publish(
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *tmp;
     wt_timestamp_t prev_schema_epoch;
-    bool created_in_window;
 
     conn = S2C(session);
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
     /*
      * A table created inside the step-down window belongs to the next leader era: refuse to stamp
-     * its operations with an epoch on this side of the boundary. The mark on the layered handle
-     * dies at the step-down, so the next leader publishes the operations normally. It also dies
-     * with the handle, so a drop issued inside the window is not recognized here and a window drop
-     * published below the boundary goes undetected. A publish above the boundary was already
-     * rejected before the queue was consulted.
+     * its operations with an epoch on this side of the boundary, before stamping anything, so a
+     * failed publish leaves no entry half-published. The next step-up rebuilds the create's stable
+     * constituent into the entry, which retires the window signature and lets the next leader
+     * publish normally. A drop issued inside the window has no signature to recognize, so a window
+     * drop published below the boundary goes undetected. A publish above the boundary was already
+     * rejected before the queue was consulted. The schema lock held here serializes the boundary,
+     * making the relaxed load in the test safe.
      */
-    WT_RET(__disagg_created_in_window(session, table_name, &created_in_window));
-    if (created_in_window)
-        WT_RET_MSG(session, EINVAL,
+    if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE &&
+      __disagg_entry_is_window_create(__disagg_table_latest_entry(session, table_name)))
+        WT_ERR_MSG(session, EINVAL,
           "Cannot publish operations for table \"%s\" created in the step-down window before the "
           "next step-up",
           table_name);
-
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
@@ -1102,29 +1091,6 @@ err:
 }
 
 /*
- * __disagg_clear_step_down_created --
- *     Clear the window-created marks on the layered handles. The step-down assertions read the
- *     marks, so this must run after them, and the next leader era's window must not inherit them.
- *     The caller holds the handle list lock.
- */
-static void
-__disagg_clear_step_down_created(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
-
-    conn = S2C(session);
-
-    for (dhandle = NULL;;) {
-        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
-        if (dhandle == NULL)
-            break;
-        if (dhandle->type == WT_DHANDLE_TYPE_LAYERED)
-            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
-    }
-}
-
-/*
  * __layered_assert_step_down_created --
  *     Assert a table created inside the step-down window has no stable constituent in the local
  *     metadata. A table missing from the check would send every cursor to an open that cannot
@@ -1135,17 +1101,16 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metadata_cursor;
-    WT_DECL_RET;
-    WT_DISAGG_METADATA_OP *entry, *later;
-    bool created_in_window, latest, legacy;
+    WT_DISAGG_METADATA_OP *entry;
+    bool legacy;
 
     conn = S2C(session);
 
     /*
      * In legacy mode the step-down checkpoint consumed every create that built a constituent, so
      * every queued create must be a window create. With schema epochs, unpublished or uncovered
-     * pre-window creates legitimately remain queued with their constituents, so only creates whose
-     * layered handle is marked as window-created are checked.
+     * pre-window creates legitimately remain queued with their constituents, so only creates
+     * carrying the window signature are checked.
      */
     legacy = __wt_atomic_load_uint64_acquire(
                &conn->txn_global.last_ckpt_disaggregated_schema_epoch) == WT_SCHEMA_EPOCH_NONE &&
@@ -1153,11 +1118,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
 
-    /*
-     * The queue is walked without its lock: every writer of the queue holds the schema lock, which
-     * the step-down holds, and the classification below takes the handle list lock, which must not
-     * be acquired under a spinlock.
-     */
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
@@ -1167,36 +1128,17 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               "create for \"%s\" with a stable constituent still queued at step-down",
               entry->stable_uri);
 
-        /*
-         * Only the newest create of a table maps to the live handle: entries from dropped
-         * incarnations of the same name would alias it.
-         */
-        latest = true;
-        for (later = TAILQ_NEXT(entry, q); later != NULL; later = TAILQ_NEXT(later, q))
-            if (later->metadata_op == WT_SHARED_METADATA_CREATE &&
-              strcmp(later->table_name, entry->table_name) == 0) {
-                latest = false;
-                break;
-            }
-        if (!latest)
+        if (entry != __disagg_table_latest_entry(session, entry->table_name) ||
+          !__disagg_entry_is_window_create(entry))
             continue;
-
-        WT_ERR(__disagg_created_in_window(session, entry->table_name, &created_in_window));
-        if (!created_in_window)
-            continue;
-
-        WT_ASSERT_ALWAYS(session, entry->stable_value == NULL,
-          "window create for \"%s\" with a stable constituent still queued at step-down",
-          entry->stable_uri);
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
         WT_ASSERT_ALWAYS(session, metadata_cursor->search(metadata_cursor) == WT_NOTFOUND,
           "window create \"%s\" has a stable constituent in the local metadata", entry->stable_uri);
     }
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &metadata_cursor));
-    return (ret);
+    return (__wt_metadata_cursor_release(session, &metadata_cursor));
 }
 
 /*
@@ -1352,8 +1294,11 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
         if (dhandle == NULL)
             break;
 
-        if (dhandle->type == WT_DHANDLE_TYPE_LAYERED)
+        /* Clear the mark on tables created during the step-down window. */
+        if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
+            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
             continue;
+        }
 
         /* Only care about open disaggregated btree dhandles. */
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
@@ -1479,12 +1424,6 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
         /* Window creates only exist while the timestamp is set. */
         WT_ERR(__layered_assert_step_down_created(session));
     }
-
-    /*
-     * Clear the window-created marks after the assertions that read them. The next leader era's
-     * window must not inherit them.
-     */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, __disagg_clear_step_down_created(session));
 
     /*
      * Clear the step-down timestamp and epoch. No write transaction runs concurrently with the

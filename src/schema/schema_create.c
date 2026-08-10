@@ -1128,20 +1128,6 @@ err:
 }
 
 /*
- * __create_layered_open_handle --
- *     Acquire and release the layered handle so its open-time state is established.
- */
-static int
-__create_layered_open_handle(WT_SESSION_IMPL *session, const char *uri)
-{
-    WT_DECL_RET;
-
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
-    WT_TRET(__wt_session_release_dhandle(session));
-    return (ret);
-}
-
-/*
  * __create_layered --
  *     Create a layered tree - such a tree is a pair of underlying btrees, one that holds recently
  *     ingested data, the other a full set of stable data.
@@ -1257,14 +1243,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
             __wt_verbose_info(session, WT_VERB_LAYERED,
               "%s: created without a stable constituent, the step-down timestamp %s is set", uri,
               __wt_timestamp_to_string(step_down_ts, ts_string));
-
-            /*
-             * Open the layered handle now so it carries the window-created mark. The mark is how
-             * the shared metadata queue recognizes a window operation, and a table that is never
-             * otherwise opened would go unrecognized.
-             */
-            WT_SAVE_DHANDLE(session, ret = __create_layered_open_handle(session, uri));
-            WT_ERR(ret);
         }
     }
 
