@@ -849,7 +849,7 @@ __wt_disagg_shared_metadata_queue_publish(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *tmp;
-    wt_timestamp_t prev_schema_epoch;
+    wt_timestamp_t prev_schema_epoch, step_down_epoch;
 
     conn = S2C(session);
     prev_schema_epoch = WT_SCHEMA_EPOCH_NONE;
@@ -859,21 +859,22 @@ __wt_disagg_shared_metadata_queue_publish(
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     /*
-     * A table created inside the step-down window belongs to the next leader era: refuse to stamp
-     * its operations with an epoch on this side of the boundary, before stamping anything, so a
-     * failed publish leaves no entry half-published. The next step-up rebuilds the create's stable
-     * constituent into the entry, which retires the window signature and lets the next leader
-     * publish normally. A drop issued inside the window has no signature to recognize, so a window
-     * drop published below the boundary goes undetected. A publish above the boundary was already
-     * rejected before the queue was consulted. The schema lock held here serializes the boundary,
-     * making the relaxed load in the test safe.
+     * A table created inside the step-down window belongs to the next leader era. Publishing it
+     * above the step-down boundary is fine, the epoch defers it to that era, but a publish at or
+     * below the boundary would claim the create for an era whose final checkpoint has no
+     * constituent to write for it. Refuse before stamping anything, so a failed publish leaves no
+     * entry half-published. A drop issued inside the window has no signature to recognize, so a
+     * window drop published below the boundary goes undetected. The schema lock held here
+     * serializes the boundary, making the relaxed load safe.
      */
-    if (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE &&
+    step_down_epoch =
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
+    if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && schema_epoch <= step_down_epoch &&
       __disagg_window_create_queued(session, table_name) != NULL)
         WT_ERR_MSG(session, EINVAL,
-          "Cannot publish operations for table \"%s\" created in the step-down window before the "
-          "next step-up",
-          table_name);
+          "Cannot publish operations for table \"%s\" created in the step-down window at a schema "
+          "epoch at or below the step down boundary %" PRIu64,
+          table_name, step_down_epoch);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {

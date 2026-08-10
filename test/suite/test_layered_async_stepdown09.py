@@ -130,25 +130,26 @@ class test_layered_async_stepdown09(
         self.assertEqual(self.step_down_ts_is_set(), 0)
         self.assertEqual(self.step_down_epoch_is_set(), 0)
 
-    # While the boundary is set a publish must land at or below the step-down epoch: everything
-    # published on this side belongs to the current leader era.
-    def test_publish_above_boundary_rejected(self):
+    # A publish above the step-down epoch lands in the next leader era: the epoch defers it past
+    # every checkpoint of this era, so the step-down checkpoint does not advertise it.
+    def test_publish_above_boundary_deferred(self):
         self.set_stable_epoch(10)
         self.set_global_ts(1, 1)
-        before = self.uri('before')
-        self.session.create(before, self.table_config)
+        above = self.uri('above')
+        below = self.uri('below')
+        self.session.create(above, self.table_config)
+        self.session.create(below, self.table_config)
 
         self.set_step_down_ts(20, 15)
 
-        # An unpublished operation from before the window may still be published inside it, at an
-        # epoch on this side of the boundary.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.publish(before, 16),
-            '/newer than the step down disaggregated schema epoch/')
-        self.publish(before, 12)
+        # Both were created before the window, so either side of the boundary accepts them.
+        self.publish(above, 16)
+        self.publish(below, 12)
 
         self.set_stable_epoch(15)
         self.complete_step_down(20)
+        self.assertFalse(self.uri_in_shared_metadata(self.conn, above))
+        self.assertTrue(self.uri_in_shared_metadata(self.conn, below))
 
     # A publish at an epoch below the boundary must not drag a window operation with it: a publish
     # stamps every unpublished entry of the table, so a create issued inside the window would be
