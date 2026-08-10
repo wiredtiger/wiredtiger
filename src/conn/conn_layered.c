@@ -1090,6 +1090,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metadata_cursor;
     WT_DISAGG_METADATA_OP *entry;
+    wt_timestamp_t step_down_epoch;
     bool legacy;
 
     conn = S2C(session);
@@ -1103,6 +1104,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
     legacy = __wt_atomic_load_uint64_acquire(
                &conn->txn_global.last_ckpt_disaggregated_schema_epoch) == WT_SCHEMA_EPOCH_NONE &&
       __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
+    step_down_epoch =
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
 
     WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
 
@@ -1115,6 +1118,20 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
             WT_ASSERT_ALWAYS(session, entry->stable_value == NULL,
               "create for \"%s\" with a stable constituent still queued at step-down",
               entry->stable_uri);
+
+        /*
+         * A create with no constituent must sit above the boundary or still be unpublished. An
+         * epoch at or below the boundary claims the create for this era, whose final checkpoint
+         * just shipped with nothing to write for it, and every follower prunes its own copy of the
+         * entry against that checkpoint's forged coverage.
+         */
+        if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && entry->stable_value == NULL)
+            WT_ASSERT_ALWAYS(session,
+              entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED ||
+                entry->schema_epoch > step_down_epoch,
+              "create for \"%s\" with no stable constituent published at epoch %" PRIu64
+              " at or below the step down boundary %" PRIu64,
+              entry->stable_uri, entry->schema_epoch, step_down_epoch);
 
         if (__disagg_window_create_queued(session, entry->table_name) != entry)
             continue;
