@@ -1510,8 +1510,7 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
     WT_UNUSED(cfg);
 
     session_ret = NULL;
-    WT_ERR(
-      __wt_open_session(conn, event_handler, config, true, WT_SESSION_SAVE_ERRORS, &session_ret));
+    WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
     __wt_atomic_store_ptr_relaxed(&session_ret->name, "connection-open-session");
     *wt_sessionp = &session_ret->iface;
 

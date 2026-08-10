@@ -2570,7 +2570,7 @@ __wt_session_breakpoint(WT_SESSION *wt_session)
  */
 static int
 __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config,
-  uint32_t session_flags, WT_SESSION_IMPL **sessionp)
+  WT_SESSION_IMPL **sessionp)
 {
     static const WT_SESSION
       stds = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
@@ -2755,16 +2755,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
 
-    /*
-     * Set the caller's flags before publishing the session. The connection close session walk
-     * decides whether to close a session by whether it is internal, so a session that becomes
-     * visible in the array before that flag is set can be closed, and its structure cleared, out
-     * from under the thread that is opening it. This also has to precede the error info setup
-     * below, which is a no-op on a session that does not save errors.
-     */
-    F_SET(session_ret, session_flags);
-
     /* Initialize the default error info, including a buffer for the error message. */
+    F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
     session_ret->err_info.err_msg = NULL;
     WT_ERR(__wt_buf_initsize(session, &(session_ret->err_info.err_msg_buf), 128));
     __wt_session_reset_last_error(session_ret);
@@ -2795,7 +2787,7 @@ err:
  */
 int
 __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config,
-  bool open_metadata, uint32_t session_flags, WT_SESSION_IMPL **sessionp)
+  bool open_metadata, WT_SESSION_IMPL **sessionp)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -2803,7 +2795,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     *sessionp = NULL;
 
     /* Acquire a session. */
-    WT_RET(__open_session(conn, event_handler, config, session_flags, &session));
+    WT_RET(__open_session(conn, event_handler, config, &session));
 
     /*
      * Acquiring the metadata handle requires the schema lock; we've seen problems in the past where
@@ -2833,29 +2825,30 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
   uint32_t session_flags, uint32_t session_lock_flags, WT_SESSION_IMPL **sessionp)
 {
     WT_SESSION_IMPL *session;
-    uint32_t flags;
 
     *sessionp = NULL;
+
+    /* Acquire a session. */
+    WT_RET(__wt_open_session(conn, NULL, NULL, open_metadata, &session));
+    __wt_atomic_store_ptr_relaxed(&session->name, name);
+
+    /*
+     * Internal sessions should not save error info unless they are spawned by an external session,
+     * in which case they will inherit the WT_SESSION_SAVE_ERRORS flag from session_flags.
+     */
+    F_CLR(session, WT_SESSION_SAVE_ERRORS);
 
     /*
      * Public sessions are automatically closed during WT_CONNECTION->close. If the session handles
      * for internal threads were to go on the public list, there would be complex ordering issues
-     * during close. Set a flag to avoid this: internal sessions are not closed automatically. The
-     * flag has to be in place before the session is published, so it is passed down rather than set
-     * on return.
-     *
-     * Internal sessions should not save error info unless they are spawned by an external session,
-     * in which case they will inherit the WT_SESSION_SAVE_ERRORS flag from session_flags. Internal
-     * sessions created from checkpoint sessions are not actually checkpoint sessions.
+     * during close. Set a flag to avoid this: internal sessions are not closed automatically.
      */
-    flags = session_flags;
-    FLD_SET(flags, WT_SESSION_INTERNAL);
-    FLD_CLR(flags, WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER);
-
-    WT_RET(__wt_open_session(conn, NULL, NULL, open_metadata, flags, &session));
-    __wt_atomic_store_ptr_relaxed(&session->name, name);
-
+    F_SET(session, session_flags | WT_SESSION_INTERNAL);
     FLD_SET(session->lock_flags, session_lock_flags);
+
+    /* Internal sessions created from checkpoint sessions are not actually checkpoint sessions. */
+    F_CLR(session, WT_SESSION_CHECKPOINT);
+    F_CLR(session, WT_SESSION_CHECKPOINT_WORKER);
 
     *sessionp = session;
     return (0);
