@@ -355,8 +355,6 @@ main(int argc, char *argv[])
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         ret = timestamp_query("get=stable_timestamp", &g.stable_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-        if (disagg_is_multi_node())
-            g.reopen_timestamp = g.timestamp;
         locks_init(g.wts_conn);
     } else {
         wts_create_home();

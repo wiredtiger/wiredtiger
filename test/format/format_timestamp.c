@@ -125,6 +125,8 @@ timestamp_init(void)
         g.timestamp = WT_MAX(g.timestamp, stable_timestamp);
     if (g.timestamp == WT_TS_NONE)
         g.timestamp = MIN_TIMESTAMP;
+    if (g.reopen && disagg_is_multi_node())
+        g.reopen_timestamp = g.timestamp;
 }
 
 /*
