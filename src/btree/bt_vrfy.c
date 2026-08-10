@@ -1409,9 +1409,20 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     uint64_t hs_counter;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool check_data_store, first;
 
     WT_BTREE *btree = S2BT(session);
     uint32_t hs_btree_id = btree->id;
+
+    /*
+     * A non-precise checkpoint can write a page before a later eviction moves that page's older
+     * versions into the history store, and then capture those history store records in the same
+     * checkpoint. The two files are not a snapshot of a single point in time, so only the ordering
+     * among the history store records themselves can be trusted; comparing them against the data
+     * store's page image reports overlaps that never coexisted.
+     */
+    check_data_store = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT);
+    first = true;
 
     if (vs->skip_per_key_hs)
         return (0);
@@ -1452,8 +1463,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
          * start timestamp to the stop timestamp of the "later" entry (or entries), because we
          * expect those to overlap.
          */
-        if (newer_start_ts != WT_TS_NONE && older_start_ts < newer_start_ts &&
-          newer_start_ts < tw->stop_ts &&
+        if ((check_data_store || !first) && newer_start_ts != WT_TS_NONE &&
+          older_start_ts < newer_start_ts && newer_start_ts < tw->stop_ts &&
           !(older_start_ts == WT_TS_NONE && tw->stop_ts == newer_stop_ts)) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has an overlap of timestamp ranges between history store stop timestamp %s "
@@ -1473,6 +1484,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
          */
         newer_start_ts = older_start_ts;
         newer_stop_ts = tw->stop_ts;
+        first = false;
     }
 err:
     WT_TRET(hs_cursor->close(hs_cursor));
