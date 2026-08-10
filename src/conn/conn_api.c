@@ -1306,6 +1306,14 @@ err:
     WT_TRET(__wt_session_array_walk(
       conn->default_session, __conn_rollback_transaction_callback, true, NULL));
 
+    /*
+     * Stop the deferred checkpoint pickup server before transactional activity shuts down: an
+     * adoption runs metadata transactions, so any in-flight adoption must complete while snapshot
+     * visibility checks still operate. Stop it before the session array is walked below as well, so
+     * that it is not opening sessions concurrently with a walk that closes them.
+     */
+    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
+
     __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing all running sessions.");
     /* Close open, external sessions. */
     WT_TRET(
@@ -1325,13 +1333,6 @@ err:
 
     __wt_verbose_info(
       session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
-
-    /*
-     * Stop the deferred checkpoint pickup server before transactional activity shuts down: an
-     * adoption runs metadata transactions, so any in-flight adoption must complete while snapshot
-     * visibility checks still operate.
-     */
-    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
 
     /*
      * The sweep server must be stopped before any thread group is destroyed: tearing down a thread
@@ -1509,7 +1510,8 @@ __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, con
     WT_UNUSED(cfg);
 
     session_ret = NULL;
-    WT_ERR(__wt_open_session(conn, event_handler, config, true, &session_ret));
+    WT_ERR(
+      __wt_open_session(conn, event_handler, config, true, WT_SESSION_SAVE_ERRORS, &session_ret));
     __wt_atomic_store_ptr_relaxed(&session_ret->name, "connection-open-session");
     *wt_sessionp = &session_ret->iface;
 
