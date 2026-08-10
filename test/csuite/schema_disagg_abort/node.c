@@ -10,12 +10,10 @@
  * The generic node: the phase loop, the WiredTiger connection, the workload engine's state and
  * per-phase lifecycle, the worker event queues, and the timestamp thread.
  *
- * One pipeline serves both roles, coordinating without locks: a generator produces the node's
- * command stream into a self-pipe, a reader demuxes the source pipe - the self-pipe, or a live
- * peer's - to N workers that apply the events, a timestamp thread advances the frontier, and a
- * checkpoint thread checkpoints on a cadence of its own. Each stage lives in its own file behind a
- * start/stop pair; the role specifics live in leader.c and follower.c behind the NODE_ROLE
- * operations.
+ * One pipeline for both leader and follower roles: a generator produces the node's command stream
+ * into a self-pipe, a reader demuxes the source pipe - the self-pipe, or a live peer's - to N
+ * workers that apply the events, a timestamp thread advances the frontier, and a checkpoint thread
+ * checkpoints on a cadence of its own.
  */
 
 #include "schema_disagg_abort.h"
@@ -247,11 +245,7 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
     }
 
-    /*
-     * Reseed the phase's streams: the generator's worker streams first, then the timestamp thread's
-     * checkpoint cadence. Every phase draws, whether it generates or not, so the streams stay in
-     * step across role switches.
-     */
+    /* Re-seed the phase's worker and auxiliary streams. */
     for (uint32_t i = 0; i <= cfg->nth; i++)
         testutil_random_from_random(
           &state->gen_rnd[i], i < cfg->nth ? &cfg->opts->data_rnd : &cfg->opts->extra_rnd);
@@ -312,7 +306,11 @@ node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
     SCHEMA_EVENT ev = {0};
     ev.type = EVENT_SWITCH;
     ev.event_ts = final_ts;
-    (void)pipe_relay_event(state->cfg, &ev);
+    /* Peer death is the only reason a hand-over may go undelivered; the write itself detects it. */
+    if (!pipe_relay_event(state->cfg, &ev)) {
+        testutil_assert(!state->cfg->peer_alive);
+        println("Node %" PRIu32 ": no peer to hand over to; continuing alone", state->cfg->node_id);
+    }
 
     /* Reset adopted checkpoint tracking. */
     state->adopted_ckpt_lsn = 0;

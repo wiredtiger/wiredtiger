@@ -14,10 +14,9 @@ The binary runs in one of two roles, dispatched in `main.c`:
   topology, then drives a one-second-tick timeline of switches, kills, and a graceful stop
   (see [Running](#running)); a child dying at any other point fails the test. It opens
   WiredTiger only afterwards, to recover and verify.
-- **node** — a database node running as leader or follower (`node.c`; role specifics in
-  `leader.c`/`follower.c` behind the `NODE_ROLE` vtable). Spawned by re-executing the binary
-  with internal options (`-r node -i <id> -A l|f`, pipe fds via `-R`/`-W`), so nothing is
-  inherited by forking. `subproc.[ch]` is the posix_spawn layer.
+- **node** — a database node running as leader or follower. Spawned by re-executing
+  the binary with internal options (`-r node -i <id> -A l|f`, pipe fds via `-R`/`-W`), so nothing
+  is inherited by forking.
 
 ## Directory layout
 
@@ -145,16 +144,17 @@ on `handover_received`/`stop_run`) → `workload_stop` → transition or exit.
 | reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
 | worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, no timestamp), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark completed timestamps |
 | timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
-| checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_pick_up_checkpoint`, with the workers still running |
+| checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_checkpoint`, with the workers still running |
 
 Coordination is lock-free by design: `stop_stage` quiesces every loop, per-worker SPSC rings plus `busy` flags connect
 reader to workers, and `completed_ts[]` feeds the frontier.
 
 ## Control loop and transitions
 
-Both roles run the same state machine (`node_run`); only `leave()`/`enter()` differ. The hand-over
-value is the node's own quiesced counter: after `workload_stop`, `current_ts` holds everything the
-term allocated or adopted. `EVENT_SWITCH` being the stream's last event means a hand-over waits for
+Both roles run the same state machine (`node_run`); only the transition differs — `node_step_down`
+leaving leadership, `node_step_up` entering it. The hand-over value is the node's own quiesced
+counter: after `workload_stop`, `current_ts` holds everything the term allocated or adopted.
+`EVENT_SWITCH` being the stream's last event means a hand-over waits for
 everything in flight — which is why the generator's lead is bounded rather than left to the pipe's
 capacity.
 
@@ -171,10 +171,10 @@ capacity.
         │            (skip while stable=0; 1st: leader_ready)          │
         └──────────────────────────────────────────────────────────────┘
   stop_run ──▶ quiesce → close(NULL: closing checkpoint) → exit(0)
-  handover ──▶ quiesce → LEAVE: arm step-down at counter, stable := counter
-               → step-down checkpoint → reconfigure(role=follower)
-               → send SWITCH(counter) [peer alive]
-               ENTER follower: restore frontier ──▶ FOLLOWER
+  handover ──▶ quiesce → node_step_down: arm step-down at counter,
+               stable := counter → step-down checkpoint
+               → reconfigure(role=follower)
+               → send SWITCH(counter) [peer alive] ──▶ FOLLOWER
   EPIPE on relay ──▶ peer_alive = false (lone leader keeps producing)
 
         ┌──────────────────────── FOLLOWER ────────────────────────────┐
@@ -190,8 +190,7 @@ capacity.
         │            (workers keep running; 1st: follower_ready)       │
         └──────────────────────────────────────────────────────────────┘
   stop_run ──▶ quiesce → close(skip_checkpoint) → exit(0)
-  handover ──▶ quiesce → LEAVE: nothing
-               ENTER leader: adopt latest checkpoint first
+  handover ──▶ quiesce → node_step_up: adopt latest checkpoint first
                → reconfigure(role=leader) → seed + restore frontier
                from the own counter ──▶ LEADER
 ```
@@ -201,20 +200,18 @@ capacity.
 | Aspect | Leader | Follower |
 |---|---|---|
 | Event source | own generator → self-pipe | peer's relay → in-pipe; its own generator when lone |
-| Counter | generator *allocates* `event_ts` values | *adopts* them from events (`counter_advance`) |
+| Counter | generator *allocates* `event_ts` values | *adopts* them from events (`workload_counter_advance`) |
 | Checkpoint duty | checkpoint thread produces one every 0–4 s (no barrier: it races the workload) | checkpoint thread adopts the page log's latest, workers still running |
 | Relay | workers relay applied events | — |
-| `leave()` | heavy: arm the step-down at the term's counter, advance stable to it, step-down checkpoint, **`reconfigure(role=follower)`**, hand over | empty |
-| `enter()` | adopt-latest, then reconfigure + seed counter + restore frontier | restore the frontier |
+| Hand-over transition | `node_step_down`: arm the step-down at the term's counter, advance stable to it, step-down checkpoint, **`reconfigure(role=follower)`**, send `EVENT_SWITCH` | `node_step_up`: adopt-latest, **`reconfigure(role=leader)`**, seed the counter + restore the frontier |
 | Graceful close | `close(NULL)` — closing checkpoint | `close(skip_checkpoint)` |
 | Readiness / records | `leader_ready`; `node*-leader-*` | `follower_ready`; `node*-follower-*` |
 | Peer-death signal | EPIPE while relaying | pipe EOF |
 
 Both roles react to peer death the same way: keep the role, become "lone"
-(`peer_alive = false`). Lone-ness changes three things — the next follower phase generates its
-own workload instead of consuming a peer's, a lone step-up adopts the page log's latest
-checkpoint before reconfiguring, and the transition reports `switch_done.<k>` itself (a lone
-step-down has no peer to hand over to).
+(`peer_alive = false`). Lone-ness changes two things — the next follower phase generates its
+own workload instead of consuming a peer's, and the transition reports `switch_done.<k>` itself
+(a lone step-down has no peer to hand over to).
 
 ## Invariants
 
@@ -229,11 +226,12 @@ step-down has no peer to hand over to).
    epoch, or a checkpoint makes data stable under an unpublished table — which WiredTiger treats as
    an API violation and fails the checkpoint on. The slot machine makes this structural: `INSERT` is
    reachable only from `PUBLISHED`. Nothing else about the lifecycle waits on a checkpoint; a drop
-   WiredTiger refuses with `EBUSY` is simply retried until the checkpoint thread clears it.
-3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `leader_leave`
+   WiredTiger refuses with `EBUSY` is simply retried until the checkpoint thread clears it — only a
+   leader is ever refused, since the dirty-table check guards the stable constituent's trim.
+3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `node_step_down`
    advances oldest/stable/stable-epoch to the term's counter before its step-down checkpoint
    (a publish that checkpoint does not carry is lost when the step-down clears the shared-metadata
-   queue), and `leader_enter` restores the same frontier so an early checkpoint of the new term
+   queue), and `node_step_up` restores the same frontier so an early checkpoint of the new term
    cannot regress the shared epoch.
 4. **Hand-over integrity**: `EVENT_SWITCH` is a term's last event; the receiver drains everything
    before acting and asserts its counter equals the event's, since every allocated value rides an

@@ -180,11 +180,6 @@ leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
     /* The timestamp thread owns the stable epoch and timestamps; just checkpoint. */
     testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
-    /*
-     * The generator's drop gate is not published here: the timestamp thread republishes it from the
-     * connection's durable schema epoch, which this checkpoint has just advanced.
-     */
-
     println("Node %" PRIu32 ": checkpoint %d complete", state->cfg->node_id, ++ckpt->produced);
 
     /* A stable frontier implies every worker published, so this checkpoint has a schema op. */
