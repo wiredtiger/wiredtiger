@@ -109,6 +109,11 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
             if (multi->addr.block_cookie == NULL)
                 return (false);
 
+    /* A first durable write cannot be deferred to a later checkpoint. */
+    bool needs_first_durable_write = ref->addr == NULL && mod->rec_result == 0;
+    if (needs_first_durable_write)
+        return (false);
+
     /* RTS, recovery or shutdown should not leave anything dirty behind. */
     if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
         return (false);

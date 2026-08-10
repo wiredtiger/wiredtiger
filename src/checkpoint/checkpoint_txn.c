@@ -457,10 +457,20 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
           btree->min_unpublished_durable_ts <= ckpt_timestamp)
             WT_RET_MSG(session, EINVAL, "stable data checkpointed for unpublished table \"%s\"",
               dhandle->name);
+        return (0);
     }
 
-    if (published)
-        F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    /*
+     * Reconciliation reads the flag per update. Block new dirty evictions and drain in-flight
+     * eviction before clearing it.
+     */
+    session->syncing = true;
+    __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
+    __wt_gen_next_drain(session, WT_GEN_EVICT);
+    F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+    __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
+    session->syncing = false;
+
     return (0);
 }
 
