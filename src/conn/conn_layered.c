@@ -699,11 +699,16 @@ __disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_DISAGG_METADATA_OP *last;
 
+    /* Only a live table can have a window create: its newest entry must be a create. */
     last = __wti_disagg_table_latest_create_remove(session, table_name);
-    if (last != NULL && last->metadata_op == WT_SHARED_METADATA_CREATE &&
-      last->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED && last->stable_value == NULL)
-        return (last);
-    return (NULL);
+    if (last == NULL || last->metadata_op != WT_SHARED_METADATA_CREATE)
+        return (NULL);
+
+    /* A window create is a create no era has claimed and no constituent was built for. */
+    if (last->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || last->stable_value != NULL)
+        return (NULL);
+
+    return (last);
 }
 
 /*
