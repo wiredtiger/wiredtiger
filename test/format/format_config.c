@@ -1477,6 +1477,16 @@ config_disagg_storage(void)
          */
         if (!config_explicit(NULL, "debug.disagg_slow_truncate_follower"))
             config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
+
+        /*
+         * The async step-down is triggered off the timer (fourths), not the operation count. A
+         * worker that stops on thread_ops before the timer fires would never commit again, so the
+         * step-down drain would never trigger or would stall waiting for it.
+         */
+        if (GV(DISAGG_STEPDOWN_ASYNC) && GV(RUNS_OPS) != 0 && !GV(RUNS_PREDICTABLE_REPLAY))
+            testutil_die(EINVAL,
+              "Invalid configuration: disagg.stepdown_async with disagg.mode=switch requires a "
+              "timer-based run; set runs.ops=0 (or enable runs.predictable_replay).");
     } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;
         /* Leader and follower modes always exercise fast truncate. */
