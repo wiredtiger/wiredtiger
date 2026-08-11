@@ -18,7 +18,6 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
 {
     WT_CONNECTION_IMPL *conn;
     WT_PAGE_MODIFY *mod;
-    uint32_t snap_idx;
 
     conn = S2C(session);
     mod = ref->page->modify;
@@ -26,10 +25,14 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
     if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
         return (false);
 
-    /* The page must have been reconciled under the snapshot this checkpoint published. */
-    snap_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
+    /*
+     * The page must have been reconciled under the snapshot this checkpoint published. Only one
+     * checkpoint runs at a time, so this thread's generation is the one that published it. Eviction
+     * samples its stamp before claiming the snapshot, so the stamp can lag the publishing
+     * checkpoint but never lead it, and a mismatch only costs a redundant reconciliation.
+     */
     if (mod->rec_ckpt_snap_gen == WT_CKPT_SNAP_GEN_NONE ||
-      mod->rec_ckpt_snap_gen != conn->ckpt_eviction_snap_gen[snap_idx])
+      mod->rec_ckpt_snap_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
         return (false);
 
     if (mod->rec_pinned_stable_timestamp !=

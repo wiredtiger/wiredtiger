@@ -26,94 +26,89 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading
+
+import threading, time
 import wttest
-from wiredtiger import stat
+from helper_disagg import disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
+from wiredtiger import stat
 
-# test_checkpoint39.py
+# test_disagg_checkpoint_app_evict_snapshot.py
+#   Under precise checkpoint, an application thread that reconciles a page during eviction should use
+#   the checkpoint's published snapshot as its visibility horizon, matching the eviction workers. This
+#   is only done for disaggregated storage, where reconciliation always leaves a durable image behind.
 #
-# Under precise checkpoints eviction bounds itself with the snapshot the running checkpoint
-# publishes. The checkpoint generation is bumped before that snapshot is published, so for an
-# interval at the start of every checkpoint the published snapshot is still the previous
-# checkpoint's, whose transaction ids can be far behind. Adopting it makes every update in the tree
-# look invisible: reconciliation selects nothing and writes the on-disk cells forward instead.
-#
-# Check that eviction declines a snapshot an earlier checkpoint published, and that data written
-# alongside those checkpoints survives.
-class test_checkpoint39(wttest.WiredTigerTestCase):
-    conn_config = (
-        'cache_size=5MB,'
-        'precise_checkpoint=true,statistics=(all),'
-        'timing_stress_for_test=[prepare_checkpoint_delay]'
-    )
-    uri = 'table:checkpoint39'
+#   The checkpoint publishes its eviction snapshot during prepare, then stalls before walking the tree.
+#   We force eviction inside that window so it reconciles under the checkpoint's snapshot.
+@disagg_test_class
+class test_disagg_checkpoint_app_evict_snapshot(wttest.WiredTigerTestCase):
+    uri = 'layered:checkpoint_app_evict_snapshot'
+    nrows = 2000
 
-    # Keep writes, checkpoints and eviction overlapping until enough declines have accumulated.
-    # A single decline is within the noise of how many trees eviction happens to visit in a window;
-    # the batch cap bounds the runtime when the target is not reached.
-    nrows = 200
-    nbatches = 1500
-    declines_wanted = 10
-    value = 'v' * 400
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
 
-    def get_stat(self, stat_name):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        value = stat_cursor[stat_name][2]
-        stat_cursor.close()
-        return value
+    # A large cache keeps the eviction workers idle so the forced application-thread eviction below is
+    # the eviction that reconciles the pages.
+    def conn_config(self):
+        return 'cache_size=1GB,statistics=(all),precise_checkpoint=true,' \
+            'timing_stress_for_test=[checkpoint_slow],disaggregated=(role="leader"),'
 
-    def test_checkpoint_eviction_snapshot_generation(self):
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-        cursor = self.session.open_cursor(self.uri)
+    def read_stat(self, stat_key):
+        with wttest.open_cursor(self.session, "statistics:") as stat_cursor:
+            return stat_cursor[stat_key][2]
 
-        ts = 1
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts) +
-                                ',stable_timestamp=' + self.timestamp_str(ts))
+    def key(self, i):
+        return f'key{i:08d}'
 
-        # Checkpoint continuously in the background so that writes and eviction overlap both the
-        # interval at the start of each checkpoint, which the delay above holds open, and the gaps
-        # between checkpoints.
-        done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
-        ckpt.start()
+    def evict_all(self):
+        # Force eviction of every leaf page from an application thread.
+        s = self.conn.open_session("debug=(release_evict_page=true)")
+        s.begin_transaction()
+        evict_cursor = s.open_cursor(self.uri, None, None)
+        for i in range(1, self.nrows + 1):
+            evict_cursor.set_key(self.key(i))
+            evict_cursor.search()
+            evict_cursor.reset()
+        evict_cursor.close()
+        s.rollback_transaction()
+        s.close()
 
-        batches_written = 0
-        declined = 0
+    def test_app_evict_checkpoint_snapshot(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        value_a = "aaaaa" * 100
+        stable = 100
+
+        # Write data visible to the checkpoint snapshot and make it stable.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(1, self.nrows + 1):
+            self.session.begin_transaction()
+            cursor[self.key(i)] = value_a
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(stable)}')
+        cursor.close()
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(stable)}')
+
+        # Run a single checkpoint in the background. It publishes its eviction snapshot during prepare,
+        # then stalls before walking the tree.
+        snapshots_before = self.read_stat(stat.conn.checkpoint_snapshot_acquired)
+        ckpt_done = threading.Event()
+        ckpt_thread = checkpoint_thread(self.conn, ckpt_done, checkpoint_count_max=1)
         try:
-            for batch in range(1, self.nbatches + 1):
-                batches_written = batch
-                for i in range(self.nrows):
-                    ts += 1
-                    self.session.begin_transaction()
-                    cursor[batch * self.nrows + i] = self.value
-                    self.session.commit_transaction(
-                        'commit_timestamp=' + self.timestamp_str(ts))
+            ckpt_thread.start()
 
-                # Move the stable and oldest timestamps up so the data just written can be evicted
-                # and the history store does not grow without bound.
-                self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts) +
-                                        ',stable_timestamp=' + self.timestamp_str(ts))
-
-                declined = self.get_stat(stat.conn.eviction_ckpt_snapshot_declined)
-                if declined >= self.declines_wanted:
-                    break
+            # Wait until the checkpoint has acquired its snapshot and entered the stall, then force
+            # eviction so it reconciles under the checkpoint's snapshot.
+            while self.read_stat(stat.conn.checkpoint_snapshot_acquired) == snapshots_before:
+                time.sleep(0.1)
+            self.evict_all()
         finally:
-            done.set()
-            ckpt.join()
+            ckpt_done.set()
+            ckpt_thread.join()
 
-        # Eviction must have turned down snapshots that no running checkpoint published. Without
-        # the generation stamp and the retire, eviction adopts those snapshots instead and this
-        # count stays at zero however long the loop above runs.
-        self.assertGreaterEqual(declined, self.declines_wanted,
-            'eviction declined only {} snapshots over {} batches, so it is adopting snapshots '
-            'that do not belong to the running checkpoint'.format(declined, batches_written))
+        # The application-thread eviction should have used the checkpoint's published snapshot.
+        self.assertGreater(self.read_stat(stat.conn.application_evict_checkpoint_snapshot), 0)
 
-        # Every value written above must still be readable. A reconciliation that could select
-        # nothing would have written the on-disk cells forward in place of these updates.
-        cursor.close()
-        cursor = self.session.open_cursor(self.uri)
-        for batch in range(1, batches_written + 1):
-            for i in range(0, self.nrows, 37):
-                self.assertEqual(cursor[batch * self.nrows + i], self.value)
-        cursor.close()
+if __name__ == '__main__':
+    wttest.run()

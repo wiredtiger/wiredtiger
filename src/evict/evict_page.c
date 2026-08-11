@@ -1220,29 +1220,15 @@ typedef struct {
 
 /*
  * __evict_ckpt_snapshot_copy --
- *     Copy the published checkpoint snapshot into the session's transaction snapshot so that
- *     reconciliation can use it for precise checkpoint eviction visibility. Returns false if the
- *     running checkpoint has not published a snapshot.
+ *     Copy the running checkpoint's published snapshot into the session's transaction snapshot so
+ *     that reconciliation can use it for precise checkpoint eviction visibility. Returns false if
+ *     the running checkpoint has not published a snapshot.
  */
 static bool
-__evict_ckpt_snapshot_published(WT_SESSION_IMPL *session)
-{
-    bool published;
-
-    WT_ACQUIRE_READ_WITH_BARRIER(published, S2C(session)->ckpt_eviction_snap_published);
-
-    return (published);
-}
-
-/*
- * __evict_ckpt_snapshot_copy --
- *     Copy the published checkpoint snapshot into the session's transaction snapshot so that
- *     reconciliation can use it for precise checkpoint eviction visibility.
- */
-static void
 __evict_ckpt_snapshot_copy(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *state)
 {
     WT_TXN_SNAPSHOT *snap;
+    uint64_t ckpt_gen;
     bool copied;
 
     copied = false;
@@ -1254,15 +1240,21 @@ __evict_ckpt_snapshot_copy(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *state)
      */
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     /* Take the buffer only when the checkpoint that published it is the one still running. */
-    if ((snap = __wt_ckpt_eviction_snap_current(session)) != NULL) {
+    if ((snap = __wt_ckpt_eviction_snap_current(session, &ckpt_gen)) != NULL) {
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
         if (snap->snapshot_count > 0)
             memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
               snap->snapshot_count * sizeof(snap->snapshot[0]));
-        session->txn->ckpt_snap_gen = conn->ckpt_eviction_snap_gen[snap_idx];
+        /*
+         * Stamp the page reconciled under this snapshot with the generation sampled before the
+         * snapshot was claimed. That sample can only lag the publishing checkpoint, never lead it,
+         * so a mismatch costs a redundant reconciliation rather than a skipped one.
+         */
+        session->txn->ckpt_snap_gen = ckpt_gen;
         F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+        state->release = true;
         copied = true;
     } else
         WT_STAT_CONN_INCR(session, eviction_ckpt_snapshot_declined);
@@ -1342,10 +1334,9 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
             __wt_txn_bump_snapshot(session);
             snap->release = true;
             snap->read_committed = true;
-        } else if (ckpt_snap_usable && __evict_ckpt_snapshot_published(session)) {
-            __evict_ckpt_snapshot_copy(session, snap);
+        } else if (ckpt_snap_usable && __evict_ckpt_snapshot_copy(session, snap))
             snap->read_committed = true;
-        } else
+        else
             FLD_SET(flags, WT_REC_VISIBLE_NO_SNAPSHOT);
     } else if (app_thread_eviction && !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
@@ -1371,16 +1362,27 @@ __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAP
          * Under precise checkpoint, copy the published checkpoint snapshot as the visibility bound
          * so checkpoint can skip re-reconciling the page later.
          */
-        if (ckpt_snap_bound && __evict_ckpt_snapshot_published(session)) {
+        if (ckpt_snap_bound) {
             /* Preserve the application's own snapshot while we use the checkpoint's. */
             if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 WT_RET(__wt_txn_snapshot_save(session));
                 snap->restore = true;
             }
-            __evict_ckpt_snapshot_copy(session, snap);
-            FLD_SET(flags, WT_REC_APP_EVICTION_CKPT_SNAPSHOT);
-            snap->read_committed = true;
-            WT_STAT_CONN_INCR(session, application_evict_checkpoint_snapshot);
+            if (__evict_ckpt_snapshot_copy(session, snap)) {
+                FLD_SET(flags, WT_REC_APP_EVICTION_CKPT_SNAPSHOT);
+                snap->read_committed = true;
+                WT_STAT_CONN_INCR(session, application_evict_checkpoint_snapshot);
+            } else {
+                /*
+                 * Saving swapped in an empty snapshot buffer while leaving the count behind, so put
+                 * the application's own snapshot back rather than leaving that mismatch in place.
+                 */
+                if (snap->restore) {
+                    __wt_txn_snapshot_release_and_restore(session);
+                    snap->restore = false;
+                }
+                FLD_SET(flags, WT_REC_VISIBLE_NO_SNAPSHOT);
+            }
         } else
             FLD_SET(flags, WT_REC_VISIBLE_NO_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))

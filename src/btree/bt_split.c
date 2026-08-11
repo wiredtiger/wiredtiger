@@ -2232,8 +2232,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * must include either the original page or both new pages. The page we're splitting is dirty,
      * but that's insufficient: set the first dirty transaction to an impossibly old value so this
      * page is not skipped by a checkpoint.
+     *
+     * Clear the checkpoint snapshot stamp so checkpoint doesn't skip the page and reference that
+     * stale image, which still holds the keys now living in the new page.
      */
     page->modify->first_dirty_txn = WT_TXN_FIRST;
+    page->modify->rec_ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
     F_SET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT);
     /*
      * We modified the page above, which will have set the first dirty transaction to the last

@@ -60,7 +60,9 @@ struct retire_on_exit {
 static bool
 adoptable(WT_SESSION_IMPL *session)
 {
-    return (__wt_ckpt_eviction_snap_current(session) != nullptr);
+    uint64_t ckpt_gen;
+
+    return (__wt_ckpt_eviction_snap_current(session, &ckpt_gen) != nullptr);
 }
 
 /*
@@ -132,7 +134,8 @@ TEST_CASE("Checkpoint eviction snapshot: the reader sees the published buffer's 
 
     uint32_t snap_idx = publish(session, 100);
 
-    WT_TXN_SNAPSHOT *snap = __wt_ckpt_eviction_snap_current(session);
+    uint64_t ckpt_gen;
+    WT_TXN_SNAPSHOT *snap = __wt_ckpt_eviction_snap_current(session, &ckpt_gen);
     REQUIRE(snap == &conn->ckpt_eviction_snap[snap_idx].snap);
     REQUIRE(snap->snap_min == 100);
     REQUIRE(snap->snap_max == 200);
