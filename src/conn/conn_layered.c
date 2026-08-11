@@ -1088,9 +1088,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               entry->stable_uri, entry->schema_epoch, step_down_epoch);
 
         /*
-         * A window create is a create no era has claimed and no constituent was built for, as the
-         * table's newest create or remove: a superseded create of a recreated table shares the
-         * stable URI and would be checked against the wrong incarnation.
+         * Check only the table's newest create, when it is unpublished and constituent-less: that
+         * is a window create, and anything older describes a dead incarnation of the same name.
          *
          * FIXME-WT-18318: The unpublished create skipped here survives the step-down and can go
          * stale across leader changes.
