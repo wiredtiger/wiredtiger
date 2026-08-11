@@ -1482,6 +1482,7 @@ struct __wt_connection_stats {
     int64_t txn_walk_sessions;
     int64_t txn_commit;
     int64_t txn_rollback;
+    int64_t txn_rollback_too_large_for_cache;
     int64_t txn_update_conflict;
     int64_t txn_rollback_stepdown;
 };
