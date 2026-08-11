@@ -1259,7 +1259,7 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
      * marking the original parent and all of the newly-created children as dirty. In other words,
      * if we have the wrong parent page, everything was marked dirty already.
      */
-    parent = ref->home;
+    parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
     WT_RET(__wt_page_modify_init(session, parent));
     if (page_only)
         __wt_page_only_modify_set(session, parent);
@@ -1320,11 +1320,12 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
 #define WT_IK_DECODE_KEY_OFFSET(v) (((v) & 0xFFFFFFFF) >> 1)
     /*
-     * A split instantiates the key before moving the reference to a new home page that has no disk
-     * image, so the key must not be read before the caller read the home page: an encoded key is
-     * only meaningful against the home page it was encoded from. Read it once, both forms are valid
-     * at any instant but they must be decoded consistently. Pairs with the release store that
-     * publishes an instantiated key.
+     * Read the key once: both forms are valid at any instant, but the flag test and the value used
+     * have to agree. A split can instantiate the key underneath us, so acquire to see the contents
+     * of a key we are handed; pairs with the release store that publishes an instantiated key.
+     *
+     * This says nothing about which page the key belongs to. An encoded key is an offset into the
+     * disk image of the page it was encoded from, so the caller owes us a page it is valid against.
      */
     ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
     v = (uintptr_t)ikey;
@@ -1348,13 +1349,16 @@ __wt_ref_key_home(WT_REF *ref, void *keyp, size_t *sizep)
     WT_PAGE *home;
 
     /*
-     * A split instantiates a moved reference's key before pointing the reference at a new home page
-     * that has no disk image. Read the home page with an acquire so the key read cannot be
-     * satisfied from an earlier state: pairing a new home page with a still-encoded key decodes the
-     * key offset against a NULL image and yields the offset itself as the key. Callers that already
-     * hold the page a reference was encoded against can decode against it directly instead.
+     * A split instantiates a moved reference's key before pointing the reference at a newly created
+     * page, which has no disk image. Read the home page, then barrier, so the key cannot be read
+     * from an earlier state than the home page: a new home page paired with a still-encoded key
+     * decodes the offset against a NULL image and yields the offset itself as the key. The barrier
+     * has to sit between the two reads, because acquiring the key would only order what follows it.
+     *
+     * Callers holding the page a reference was encoded against decode against it directly; a stale
+     * encoded key is still correct there, so they need no ordering.
      */
-    home = __wt_atomic_load_ptr_acquire(&ref->home);
+    WT_ACQUIRE_READ_WITH_BARRIER(home, ref->home);
     __wt_ref_key(home, ref, keyp, sizep);
 }
 
@@ -2545,7 +2549,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * matter the size of the key.)
      */
     if (__wt_btree_syncing_by_other_sessions(session) &&
-      F_ISSET_ATOMIC_16(ref->home, WT_PAGE_INTL_OVERFLOW_KEYS)) {
+      F_ISSET_ATOMIC_16(
+        (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home), WT_PAGE_INTL_OVERFLOW_KEYS)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_overflow_keys);
         return (false);
     }
@@ -2772,7 +2777,7 @@ __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *sa
      * this code, don't re-order that acquisition with this check.
      */
     WT_COMPILER_BARRIER();
-    WT_INTL_INDEX_GET(session, ref->home, pindex);
+    WT_INTL_INDEX_GET(session, (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home), pindex);
     return (pindex != saved_pindex);
 }
 
@@ -3013,7 +3018,7 @@ __wt_ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pinde
          * Copy the parent page's index value: the page can split at any time, but the index's value
          * is always valid, even if it's not up-to-date.
          */
-        WT_INTL_INDEX_GET(session, ref->home, pindex);
+        WT_INTL_INDEX_GET(session, (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home), pindex);
         entries = pindex->entries;
 
         /*
@@ -3076,7 +3081,7 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
          * Find our parent slot on the next higher internal page, the slot from which we move to a
          * next/prev slot, checking that we haven't reached the root.
          */
-        parent_ref = ref->home->pg_intl_parent_ref;
+        parent_ref = ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home))->pg_intl_parent_ref;
         if (__wt_ref_is_root(parent_ref))
             break;
         if (pindexp)
@@ -3120,7 +3125,7 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
          * our search doesn't point to the same page as that initial
          * WT_REF, there's a race and we start over again.
          */
-        if (ref->home == parent_ref->page)
+        if ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home) == parent_ref->page)
             break;
     }
 

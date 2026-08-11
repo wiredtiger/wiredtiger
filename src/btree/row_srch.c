@@ -310,7 +310,7 @@ __check_leaf_key_range(
      * First, confirm we have the right parent page-index slot, and quit if we don't. We don't
      * search for the correct slot, that would make this cheap test expensive.
      */
-    WT_INTL_INDEX_GET(session, leaf->home, pindex);
+    WT_INTL_INDEX_GET(session, (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&leaf->home), pindex);
     indx = leaf->pindex_hint;
     if (indx >= pindex->entries || pindex->index[indx] != leaf)
         return (0);
