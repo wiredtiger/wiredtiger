@@ -144,7 +144,10 @@ class test_layered_async_stepdown10(
         if len(self.tables) >= self.table_cap:
             return
         uri = self.uri(f'w{next(self.name_counter)}')
-        ts_set_before_create = self.step_down_ts is not None
+        # Take the before-witness under the lock: the driver publishes the timestamp while
+        # holding it, so a set timestamp seen here is already visible to the engine.
+        with self.ts_lock:
+            ts_set_before_create = self.step_down_ts is not None
         # Creates and publishes tolerate no errors: a failure fails the test.
         wsession.create(uri, self.table_config)
         ts_set_after_create = self.step_down_ts is not None
