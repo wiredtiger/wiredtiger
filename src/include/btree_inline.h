@@ -1350,15 +1350,16 @@ __wt_ref_key_home(WT_REF *ref, void *keyp, size_t *sizep)
 
     /*
      * A split instantiates a moved reference's key before pointing the reference at a newly created
-     * page, which has no disk image. Read the home page, then barrier, so the key cannot be read
-     * from an earlier state than the home page: a new home page paired with a still-encoded key
-     * decodes the offset against a NULL image and yields the offset itself as the key. The barrier
-     * has to sit between the two reads, because acquiring the key would only order what follows it.
+     * page, which has no disk image. Acquire the home page so the key cannot be read from an
+     * earlier state than it: a new home page paired with a still-encoded key decodes the offset
+     * against a NULL image and yields the offset itself as the key. The acquire belongs on this
+     * read, not on the key, because it has to keep the read that follows from moving ahead of it.
+     * Pairs with the release store that publishes a new home page.
      *
      * Callers holding the page a reference was encoded against decode against it directly; a stale
      * encoded key is still correct there, so they need no ordering.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(home, ref->home);
+    home = (WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home);
     __wt_ref_key(home, ref, keyp, sizep);
 }
 
