@@ -1216,9 +1216,6 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
          *
          * The second case of reopening the stable table is when we want to open a new checkpoint on
          * a follower to evict more entries from the ingest table.
-         *
-         * FIXME-WT-14545: a step-down and step-up pair since the last check satisfies the role
-         * comparison and leaves the binding stale; a new transaction on an idle cursor reads it.
          */
         WT_RET(__clayered_reopen_stable(session, clayered, role));
         clayered->stable_checkpoint_meta_lsn = conn_lsn;
