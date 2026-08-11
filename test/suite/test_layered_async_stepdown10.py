@@ -141,7 +141,9 @@ class test_layered_async_stepdown10(
         self.leader_checkpoint(self.alloc_ts())
 
     def workload_create(self, wsession, rng):
-        if len(self.tables) >= self.table_cap:
+        # Reserve headroom once the window opens, so the cap cannot starve window creates.
+        cap = self.table_cap + (20 if self.step_down_ts is not None else 0)
+        if len(self.tables) >= cap:
             return
         uri = self.uri(f'w{next(self.name_counter)}')
         # Take the before-witness under the lock: the driver publishes the timestamp while
@@ -251,6 +253,8 @@ class test_layered_async_stepdown10(
             else:
                 self.assertIn('A newer checkpoint was adopted', message,
                     f'write to {uri} rolled back with unexpected reason: {message}')
+                self.assertTrue(self.demotion_started,
+                    f'write to {uri} hit a checkpoint adoption before the demotion')
                 self.op_counts['adoption_rollbacks'] += 1
         cursor.close()
         if ts is not None:
@@ -315,6 +319,8 @@ class test_layered_async_stepdown10(
             # checkpoint, and verifies nothing. No other reason may roll a read back.
             self.assertIn('A newer checkpoint was adopted', wsession.get_last_error()[2],
                 f'read of {uri} rolled back for an unexpected reason')
+            self.assertTrue(self.demotion_started,
+                f'read of {uri} hit a checkpoint adoption before the demotion')
             self.op_counts['adoption_rollbacks'] += 1
         wsession.rollback_transaction()
         cursor.close()
@@ -385,9 +391,13 @@ class test_layered_async_stepdown10(
     # The workload must have made progress on every unconditional operation, or the stress and
     # its assertions were vacuous.
     def assert_workload_progress(self):
-        self.pr(f'workload operations: {dict(self.op_counts)}')
-        for counter in ('commits', 'verified_reads', 'creates'):
+        self.pr(f'workload operations: {dict(self.op_counts)}, '
+                f'drops to verify: {len(self.drops_to_verify)}')
+        for counter in ('commits', 'verified_reads', 'creates', 'window_creates', 'drops'):
             self.assertGreater(self.op_counts[counter], 0, f'workload made no {counter}')
+        # The engine and the workload must agree on which rollbacks were straddles.
+        self.assertEqual(self.get_step_down_rollback_count(),
+            self.op_counts['straddle_rollbacks'])
 
     # Verify the step-down checkpoint itself, before this node steps back up and re-covers
     # everything: a fresh follower must serve exactly the pre-window rows at the step-down
@@ -405,12 +415,17 @@ class test_layered_async_stepdown10(
             else:
                 self.assertFalse(self.uri_in_shared_metadata(conn_follow, uri),
                     f'{uri} advertised by the step-down checkpoint')
+                # The follower must not be able to materialize the table at all.
+                self.assertRaises(wiredtiger.WiredTigerError,
+                    lambda: session_follow.open_cursor(uri))
         self.close_follower(conn_follow, session_follow)
 
     # Step back up and take checkpoints covering everything the workload published. Drops are
     # two-phase, so the second checkpoint makes them durable in the shared metadata.
     def step_up_and_cover(self):
         self.step_up()
+        # The demotion must have cleared the step-down timestamp.
+        self.assertEqual(self.step_down_ts_is_set(), 0)
         if self.use_epochs:
             self.set_stable_epoch(next(self.epoch_counter))
         final_ts = self.alloc_ts()
@@ -428,13 +443,12 @@ class test_layered_async_stepdown10(
                 self.rows_at(info, self.step_down_ts),
                 f'{uri} served the wrong rows at the cutoff on the {where}')
 
-    # Every surviving table has its stable constituent, no unexpected table exists, and every
-    # drop with a guaranteed outcome left the shared metadata.
+    # Every surviving table is fully published (constituent, checkpointed, advertised), no
+    # unexpected table exists, and every drop with a guaranteed outcome left the shared metadata.
     def verify_leader_state(self, final_ts):
         self.assert_rows_served(final_ts, self.session, 'leader')
         for uri in self.tables:
-            self.assertTrue(self.stable_constituent_exists(self.conn, uri),
-                f'{uri} has no stable constituent after the covering checkpoint')
+            self.assert_table_state(self.conn, uri, True, True, True)
         self.assert_no_unexpected_tables(self.conn, list(self.tables))
         for uri in self.drops_to_verify:
             self.assertFalse(self.uri_in_shared_metadata(self.conn, uri),
