@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __disagg_accumulate_drop_size(
-  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
@@ -631,39 +629,67 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 }
 
 /*
- * __disagg_accumulate_drop_size --
- *     Accumulate the drop size if the entry represents a table drop operation.
+ * __disagg_incarnation_is_gone --
+ *     Set whether a REMOVE names an incarnation that is really gone. The same name can be dropped
+ *     and created again before the queue is processed, so compare file IDs rather than the URI's
+ *     presence; an unreadable ID counts as a rollback and leaves the database size unchanged.
  */
-int
+static int
+__disagg_incarnation_is_gone(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, bool *gonep)
+{
+    WT_CONFIG_ITEM entry_id, local_id;
+    WT_DECL_RET;
+    char *local_config;
+
+    *gonep = false;
+    local_config = NULL;
+
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &local_config), true);
+    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+        *gonep = true;
+    else if (__wt_config_getones(session, entry->stable_value, "id", &entry_id) == 0 &&
+      __wt_config_getones(session, local_config, "id", &local_id) == 0)
+        *gonep = entry_id.val != local_id.val;
+    else
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "No file ID for \"%s\"; treating the removal as a rolled-back drop", entry->stable_uri);
+
+err:
+    __wt_free(session, local_config);
+    return (ret);
+}
+
+/*
+ * __disagg_accumulate_drop_size --
+ *     Accumulate the drop size if the entry represents a table drop operation. The size and the
+ *     file ID come from the same snapshot, so they describe one incarnation.
+ */
+static int
 __disagg_accumulate_drop_size(
   WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_sizep)
 {
-    WT_DECL_RET;
-    char *stable_config;
+    uint64_t size;
+    bool gone;
 
-    stable_config = NULL;
-
-    if (!(entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL))
+    if (entry->metadata_op != WT_SHARED_METADATA_REMOVE || entry->stable_value == NULL)
         return (0);
 
-    /* The stable entry is gone only after a real drop; a rolled-back drop leaves it. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &stable_config), true);
+    /* A table dropped before it was ever checkpointed has no checkpoint entry. */
+    size = 0;
+    WT_RET_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size));
+    if (size == 0)
+        return (0);
 
-    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-        uint64_t size = 0;
-        /* A table dropped before it was ever checkpointed has no checkpoint entry. */
-        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), true);
-        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-            *drop_sizep += size;
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
-              entry->table_name, entry->stable_uri);
-        }
-    }
+    WT_RET(__disagg_incarnation_is_gone(session, entry, &gone));
+    if (!gone)
+        return (0);
 
-err:
-    __wt_free(session, stable_config);
-    return (ret);
+    *drop_sizep += size;
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
+      entry->table_name, entry->stable_uri);
+
+    return (0);
 }
 
 /*
