@@ -1697,30 +1697,53 @@ __evict_get_ref(
 
         num_buckets = bucketset->num_buckets;
 
-#define LRU_FOR_READS 0 /* Tracking LRU has cost. Use only if needed */
+#define LRU_FOR_READS 1 /* Tracking LRU has cost. Use only if needed */
+
+/*
+ * Width of the window of buckets, centred on the clock hand, that a search may start in. Starting
+ * every search exactly on the hand would put every concurrent searcher on one bucket's locks. One
+ * read generation's worth of buckets keeps the spread inside the current generation.
+ */
+#define WT_EVICT_LRU_JITTER WT_EVICT_EXPECTED_CONTENTION
+
 #if LRU_FOR_READS
         /*
          * We only care about LRU for clean leaf pages. For other level choose a random starting
          * bucket to reduce contention.
+         *
+         * The bucket index carries the ordering. __evict_target_bucket files a clean leaf at
+         * (read_gen / WT_READGEN_STEP) * WT_EVICT_EXPECTED_CONTENTION, and
+         * __wti_evict_read_gen_bump sets a page's read generation ahead of the global one, so
+         * touching a page again re-files it further forward. Sweeping forward therefore meets the
+         * least recently used pages first, and bucket_last_considered is the position of that
+         * sweep -- a clock hand, advanced below whenever a victim is taken.
+         *
+         * Indexes wrap, and so does the hand, so the start is computed modulo the bucket count.
+         * There is no floor at zero to clamp against: a start behind the hand wraps to the top of
+         * the range, which is where the oldest pages are once the read generation has cycled.
          */
         if (i == WT_EVICT_LEVEL_CLEAN_LEAF) {
-            uint32_t bucket_last_considered =
-                __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered);
-            uint32_t rand = __wt_random(&session->rnd_random);
-            int offset = (int)(rand % (WT_EVICT_EXPECTED_CONTENTION / 2));
-            /* Flip a coin to see if we are adding or subtracting */
-            if (rand % 2 == 1) {
-                if (offset > (int)bucket_last_considered)
-                    offset = (int)bucket_last_considered;
-                else
-                    offset = -offset;
-            }
-            j = (uint32_t)((int)bucket_last_considered + offset) % num_buckets;
-        }
-        else
+            uint32_t hand;
+
+            hand = __wt_atomic_load_uint32_relaxed(&bucketset->bucket_last_considered);
+
+            /*
+             * The hand is only a hint, so it does not have to be trusted: anything out of range
+             * costs a worse starting point and nothing else.
+             */
+            if (hand >= num_buckets)
+                hand = 0;
+
+            /*
+             * Spread the start over a window centred on the hand, in unsigned arithmetic: shift
+             * back half a window before adding the offset, so no intermediate can go negative.
+             */
+            j = (hand + num_buckets - (WT_EVICT_LRU_JITTER / 2) +
+                  (__wt_random(&session->rnd_random) % WT_EVICT_LRU_JITTER)) %
+              num_buckets;
+        } else
 #endif
             j = __wt_random(&session->rnd_random) % num_buckets;
-
         for (iter = 0; iter++ < num_buckets; j = (j + 1) % num_buckets, total_iter++) {
 
             if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
@@ -1882,8 +1905,26 @@ __evict_get_ref(
                          * destroyed while we are not holding the lock.
                          */
 
-                        if (ref != NULL)
+                        if (ref != NULL) {
+#if LRU_FOR_READS
+                            /*
+                             * Advance the clock hand to the bucket the victim came from, so the
+                             * next search resumes here instead of re-walking the buckets this one
+                             * stepped over. Nothing else writes this field, so without it the hand
+                             * would sit at zero and every search would start at the bottom of the
+                             * range.
+                             *
+                             * A relaxed store is enough. The hand is a hint, and searches racing
+                             * to publish slightly different positions only start each other a few
+                             * buckets early or late. Note the hand does not move while a bucket
+                             * still has evictable pages -- the scan keeps finding them at the same
+                             * index -- so a bucket drains before the sweep moves on, which is the
+                             * behaviour wanted.
+                             */
+                            __wt_atomic_store_uint32_relaxed(&bucketset->bucket_last_considered, j);
+#endif
                             goto done;
+                        }
 
                         /*
                          * We released the chain lock, so this chain's cursor is stale: a closing

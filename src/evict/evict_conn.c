@@ -366,7 +366,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
      * for each GB of cache, with 23 and 9200 being the lower and upper limits respectively.
      */
     if (evict->evict_num_buckets == 0)
-        evict->evict_num_buckets = (uint32_t)(conn->cache_size / WT_GIGABYTE * 230);
+        evict->evict_num_buckets = (uint32_t)(conn->cache_size / WT_GIGABYTE * 130); // 230);
 
     evict->evict_num_buckets = WT_MIN(evict->evict_num_buckets, 9200);
     evict->evict_num_buckets = WT_MAX(evict->evict_num_buckets, 23);
