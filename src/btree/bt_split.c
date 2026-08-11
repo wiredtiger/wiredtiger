@@ -1475,6 +1475,7 @@ __split_multi_inmem_mod_stats_update(WT_PAGE_MODIFY *mod, WT_PAGE_MODIFY *orig_m
 static int
 __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT_REF *ref)
 {
+    struct timespec tsp;
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
@@ -1523,6 +1524,12 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         WT_RET(__wti_page_inmem_updates(session, ref));
 
     __wt_evict_inherit_page_state(orig, page);
+
+    if (F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH)) {
+        tsp.tv_sec = 3;
+        tsp.tv_nsec = 0;
+        __wt_timing_stress(session, WT_TIMING_STRESS_DISAGG_AWAIT_PUBLISH_PAGE_REBUILD, &tsp);
+    }
 
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
