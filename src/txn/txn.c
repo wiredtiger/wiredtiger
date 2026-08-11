@@ -222,10 +222,10 @@ done:
 /*
  * __txn_snapshot_record_disagg --
  *     Record the disaggregated state a snapshot about to be built is consistent with: the role, the
- *     role-change generation, and (on a follower) the pinned checkpoint generation.
+ *     role-change generation, and (on a follower asked to pin) the pinned checkpoint generation.
  */
 static WT_INLINE void
-__txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
+__txn_snapshot_record_disagg(WT_SESSION_IMPL *session, bool pin_ckpt)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
@@ -259,7 +259,7 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
      * with a delivery's generation advance: a delivery either observes the pin published here, or
      * the validation after the build observes the delivery and retries.
      */
-    if (!session->txn->disagg_role_leader)
+    if (pin_ckpt && !session->txn->disagg_role_leader)
         __wt_session_gen_enter(session, WT_GEN_DISAGG_CKPT);
 }
 
@@ -280,6 +280,9 @@ __txn_snapshot_validate_disagg(WT_SESSION_IMPL *session)
         session->txn->disagg_role_leader)
         return (false);
     if (session->txn->disagg_role_leader)
+        return (true);
+    /* A timestamped reader pins no checkpoint, leaving nothing further to validate. */
+    if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) == 0)
         return (true);
     return (__wt_gen(session, WT_GEN_DISAGG_CKPT) == __wt_session_gen(session, WT_GEN_DISAGG_CKPT));
 }
@@ -309,11 +312,11 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      * validate it afterwards, retrying the build on a change: the retried snapshot postdates the
      * change, so the transaction reads consistently instead of being refused at its first stable
      * open. Loading before and validating after brackets the snapshot, so it can never pin state
-     * that changed after it was built. Timestamped readers are excluded: they stay consistent
-     * through the history store regardless of which checkpoint they read.
+     * that changed after it was built. A timestamped reader records the role era only: the history
+     * store keeps it consistent across checkpoints, so it pins nothing, but layered operations
+     * still assert it does not span a step-up.
      */
-    record_disagg = update_shared_state && __wt_conn_is_disagg(session) &&
-      txn_shared->read_timestamp == WT_TS_NONE;
+    record_disagg = update_shared_state && __wt_conn_is_disagg(session);
 
     /* Fast path if we already have the current snapshot. */
     if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
@@ -338,7 +341,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 retry:
     n = 0;
     if (record_disagg) {
-        __txn_snapshot_record_disagg(session);
+        __txn_snapshot_record_disagg(session, txn_shared->read_timestamp == WT_TS_NONE);
         /* Widen the window between recording the pin and building the snapshot. */
         WT_DIAGNOSTIC_YIELD;
     }
