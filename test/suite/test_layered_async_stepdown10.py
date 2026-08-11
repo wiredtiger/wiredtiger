@@ -141,13 +141,14 @@ class test_layered_async_stepdown10(
         self.leader_checkpoint(self.alloc_ts())
 
     def workload_create(self, wsession, rng):
-        # Reserve headroom once the window opens, so the cap cannot starve window creates.
+        # Raise the cap once the window opens, so window creates still happen when the table
+        # population filled up before the window.
         cap = self.table_cap + (20 if self.step_down_ts is not None else 0)
         if len(self.tables) >= cap:
             return
         uri = self.uri(f'w{next(self.name_counter)}')
-        # Take the before-witness under the lock: the driver publishes the timestamp while
-        # holding it, so a set timestamp seen here is already visible to the engine.
+        # The driver sets the timestamp while holding this lock, so if it is set here, the
+        # engine already has it and this create is guaranteed to run inside the window.
         with self.ts_lock:
             ts_set_before_create = self.step_down_ts is not None
         # Creates and publishes tolerate no errors: a failure fails the test.
@@ -415,7 +416,7 @@ class test_layered_async_stepdown10(
             else:
                 self.assertFalse(self.uri_in_shared_metadata(conn_follow, uri),
                     f'{uri} advertised by the step-down checkpoint')
-                # The follower must not be able to materialize the table at all.
+                # The checkpoint excluded this table, so the follower cannot open it either.
                 self.assertRaises(wiredtiger.WiredTigerError,
                     lambda: session_follow.open_cursor(uri))
         self.close_follower(conn_follow, session_follow)
