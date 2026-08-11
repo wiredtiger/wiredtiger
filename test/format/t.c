@@ -345,8 +345,7 @@ main(int argc, char *argv[])
         if (access(g.home_backup, F_OK) == 0)
             is_backup = true;
         wts_open(g.home, &g.wts_conn, !is_backup);
-        /* Followers must pick up the shared checkpoint before initializing their timestamp counter.
-         */
+        /* For disagg follower node pick up the latest checkpoint. */
         if (g.disagg_storage_config && !g.disagg_leader)
             follower_read_latest_checkpoint();
         /* Update the oldest and stable timestamps if they have been previously set. */
