@@ -416,7 +416,9 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     g.disagg_leader = false;
     testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
 
-    /* Pick up the latest checkpoint while workers are still paused; it reconfigures the connection. */
+    /*
+     * Pick up the latest checkpoint while workers are still paused; it reconfigures the connection.
+     */
     follower_read_latest_checkpoint();
 
     /* Re-enable worker writes; they now run as follower writes into ingest. */
