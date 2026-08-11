@@ -69,7 +69,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
     case WT_PAGE_COL_INT:
         recno = 0; /* Less than any valid record number. */
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(session, ref->home == page,
+            WT_ASSERT_ALWAYS(session, __wt_atomic_load_ptr_relaxed(&ref->home) == page,
               "Internal page in illegal state, child ref is referencing an incorrect page");
             WT_ASSERT_ALWAYS(
               session, ref->ref_recno > recno, "Out of order refs detected in parent index");
@@ -85,7 +85,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         slot = 0;
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
-            WT_ASSERT_ALWAYS(session, ref->home == page,
+            WT_ASSERT_ALWAYS(session, __wt_atomic_load_ptr_relaxed(&ref->home) == page,
               "Internal page in illegal state, child ref is referencing an incorrect page");
 
             /*
