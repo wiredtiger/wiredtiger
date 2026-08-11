@@ -259,9 +259,6 @@ static const char *const __stats_dsrc_desc[] = {
   "compression: pages written to disk with compression ratio smaller than 16",
   "compression: pages written to disk with compression ratio smaller than 32",
   "compression: pages written to disk with compression ratio smaller than 64",
-  "cursor: Total number of backoff iterations while waiting for the page lock during tree walk "
-  "deleted page skips",
-  "cursor: Total number of deleted page skips during tree walk that waited for the page lock",
   "cursor: Total number of deleted pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
@@ -269,6 +266,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
+  "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
   "cursor: Total number of times cursor fails to temporarily release pinned page to encourage "
   "eviction of hot or large page",
   "cursor: Total number of times cursor temporarily releases pinned page to encourage eviction of "
@@ -753,8 +751,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->compress_write_ratio_hist_16 = 0;
     stats->compress_write_ratio_hist_32 = 0;
     stats->compress_write_ratio_hist_64 = 0;
-    stats->cursor_tree_walk_del_page_skip_lock_spins = 0;
-    stats->cursor_tree_walk_del_page_skip_lock_contended = 0;
     stats->cursor_tree_walk_del_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
@@ -762,6 +758,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
+    stats->cursor_tree_walk_skip_lock_contended = 0;
     stats->cursor_reposition_failed = 0;
     stats->cursor_reposition = 0;
     stats->cursor_insert_bulk = 0;
@@ -1240,10 +1237,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->compress_write_ratio_hist_16 += from->compress_write_ratio_hist_16;
     to->compress_write_ratio_hist_32 += from->compress_write_ratio_hist_32;
     to->compress_write_ratio_hist_64 += from->compress_write_ratio_hist_64;
-    to->cursor_tree_walk_del_page_skip_lock_spins +=
-      from->cursor_tree_walk_del_page_skip_lock_spins;
-    to->cursor_tree_walk_del_page_skip_lock_contended +=
-      from->cursor_tree_walk_del_page_skip_lock_contended;
     to->cursor_tree_walk_del_page_skip += from->cursor_tree_walk_del_page_skip;
     to->cursor_next_skip_total += from->cursor_next_skip_total;
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
@@ -1251,6 +1244,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_tree_walk_inmem_del_page_skip += from->cursor_tree_walk_inmem_del_page_skip;
     to->cursor_tree_walk_ondisk_del_page_skip += from->cursor_tree_walk_ondisk_del_page_skip;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
+    to->cursor_tree_walk_skip_lock_contended += from->cursor_tree_walk_skip_lock_contended;
     to->cursor_reposition_failed += from->cursor_reposition_failed;
     to->cursor_reposition += from->cursor_reposition;
     to->cursor_insert_bulk += from->cursor_insert_bulk;
@@ -1773,10 +1767,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->compress_write_ratio_hist_16 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_16);
     to->compress_write_ratio_hist_32 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_32);
     to->compress_write_ratio_hist_64 += WT_STAT_DSRC_READ(from, compress_write_ratio_hist_64);
-    to->cursor_tree_walk_del_page_skip_lock_spins +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_del_page_skip_lock_spins);
-    to->cursor_tree_walk_del_page_skip_lock_contended +=
-      WT_STAT_DSRC_READ(from, cursor_tree_walk_del_page_skip_lock_contended);
     to->cursor_tree_walk_del_page_skip += WT_STAT_DSRC_READ(from, cursor_tree_walk_del_page_skip);
     to->cursor_next_skip_total += WT_STAT_DSRC_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_DSRC_READ(from, cursor_prev_skip_total);
@@ -1787,6 +1777,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_DSRC_READ(from, cursor_search_near_prefix_fast_paths);
+    to->cursor_tree_walk_skip_lock_contended +=
+      WT_STAT_DSRC_READ(from, cursor_tree_walk_skip_lock_contended);
     to->cursor_reposition_failed += WT_STAT_DSRC_READ(from, cursor_reposition_failed);
     to->cursor_reposition += WT_STAT_DSRC_READ(from, cursor_reposition);
     to->cursor_insert_bulk += WT_STAT_DSRC_READ(from, cursor_insert_bulk);
@@ -2551,9 +2543,6 @@ static const char *const __stats_connection_desc[] = {
   "connection: total fsync I/Os",
   "connection: total read I/Os",
   "connection: total write I/Os",
-  "cursor: Total number of backoff iterations while waiting for the page lock during tree walk "
-  "deleted page skips",
-  "cursor: Total number of deleted page skips during tree walk that waited for the page lock",
   "cursor: Total number of deleted pages skipped during tree walk",
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
@@ -2561,6 +2550,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of in-memory deleted pages skipped during tree walk",
   "cursor: Total number of on-disk deleted pages skipped during tree walk",
   "cursor: Total number of times a search near has exited due to prefix config",
+  "cursor: Total number of times a tree walk waited for the page lock during the page skip check",
   "cursor: Total number of times cursor fails to temporarily release pinned page to encourage "
   "eviction of hot or large page",
   "cursor: Total number of times cursor temporarily releases pinned page to encourage eviction of "
@@ -3669,8 +3659,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->fsync_io = 0;
     stats->read_io = 0;
     stats->write_io = 0;
-    stats->cursor_tree_walk_del_page_skip_lock_spins = 0;
-    stats->cursor_tree_walk_del_page_skip_lock_contended = 0;
     stats->cursor_tree_walk_del_page_skip = 0;
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
@@ -3678,6 +3666,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_tree_walk_inmem_del_page_skip = 0;
     stats->cursor_tree_walk_ondisk_del_page_skip = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
+    stats->cursor_tree_walk_skip_lock_contended = 0;
     stats->cursor_reposition_failed = 0;
     stats->cursor_reposition = 0;
     /* not clearing cursor_bulk_count */
@@ -4894,10 +4883,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->fsync_io += WT_STAT_CONN_READ(from, fsync_io);
     to->read_io += WT_STAT_CONN_READ(from, read_io);
     to->write_io += WT_STAT_CONN_READ(from, write_io);
-    to->cursor_tree_walk_del_page_skip_lock_spins +=
-      WT_STAT_CONN_READ(from, cursor_tree_walk_del_page_skip_lock_spins);
-    to->cursor_tree_walk_del_page_skip_lock_contended +=
-      WT_STAT_CONN_READ(from, cursor_tree_walk_del_page_skip_lock_contended);
     to->cursor_tree_walk_del_page_skip += WT_STAT_CONN_READ(from, cursor_tree_walk_del_page_skip);
     to->cursor_next_skip_total += WT_STAT_CONN_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_CONN_READ(from, cursor_prev_skip_total);
@@ -4908,6 +4893,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cursor_tree_walk_ondisk_del_page_skip);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_CONN_READ(from, cursor_search_near_prefix_fast_paths);
+    to->cursor_tree_walk_skip_lock_contended +=
+      WT_STAT_CONN_READ(from, cursor_tree_walk_skip_lock_contended);
     to->cursor_reposition_failed += WT_STAT_CONN_READ(from, cursor_reposition_failed);
     to->cursor_reposition += WT_STAT_CONN_READ(from, cursor_reposition);
     to->cursor_bulk_count += WT_STAT_CONN_READ(from, cursor_bulk_count);

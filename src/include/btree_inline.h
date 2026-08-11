@@ -2895,10 +2895,8 @@ __wt_btcur_skip_page(
      */
     for (sleep_usecs = yield_count = 0; WT_REF_TRYLOCK(session, ref, &previous_state) != 0;)
         __wt_spin_backoff(&yield_count, &sleep_usecs);
-    if (yield_count != 0) {
-        ++walk_skip_stats->total_del_pages_skip_lock_contended;
-        walk_skip_stats->total_del_pages_skip_lock_spins += yield_count;
-    }
+    if (yield_count != 0)
+        ++walk_skip_stats->total_skip_lock_contended;
 
     /*
      * Check the fast-truncate information; there are 3 cases:
