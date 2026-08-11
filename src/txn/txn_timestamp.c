@@ -549,9 +549,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * The same ordering holds in epoch space: the stable epoch must be able to reach the step-down
-     * epoch exactly and never pass it, with equality allowed on both sides. A stable epoch supplied
-     * in this call was already validated as monotonic, so it becomes the value the boundary is
-     * measured against.
+     * epoch exactly and never pass it.
      */
     if (has_stable_disagg_epoch)
         last_stable_disagg_epoch = stable_disagg_epoch;
