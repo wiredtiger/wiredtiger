@@ -147,8 +147,10 @@ class test_layered_async_stepdown10(
         # Creates and publishes tolerate no errors: a failure fails the test.
         wsession.create(uri, self.table_config)
         epoch = self.publish_if_epochs(uri, session=wsession)
-        self.tables[uri] = {
-          'history': [], 'publish_epoch': epoch, 'window': self.step_down_ts is not None}
+        # Classify by the create's own outcome rather than by racing the driver: a create that
+        # landed after the step-down timestamp built no stable constituent.
+        window = not self.stable_constituent_exists(self.conn, uri)
+        self.tables[uri] = {'history': [], 'publish_epoch': epoch, 'window': window}
         self.op_counts['creates'] += 1
 
     def workload_drop(self, wsession, rng):
