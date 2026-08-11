@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+# Eviction can leave unpublished pages clean without a durable address. The
+# publishing checkpoint must not skip those pages.
+
+import time
+import wiredtiger
+import wttest
+from helper_disagg import DisaggSchemaEpochMixin, disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
+
+@disagg_test_class
+class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
+    conn_config = (
+        "cache_size=10MB,eviction_dirty_target=1,statistics=(all),"
+        "timing_stress_for_test=[disagg_await_publish_page_rebuild],"
+        'disaggregated=(role="leader")'
+    )
+
+    uri = f"layered:{__qualname__}"
+    table_config = "key_format=i,value_format=S"
+    nrows = 300
+
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages)
+
+    def test_published_checkpoint_keeps_rebuilt_rows(self):
+        # Queue publication at schema epoch 20; the table remains unpublished
+        # until checkpoint.
+        self.set_stable_epoch(1)
+        self.conn.set_timestamp(
+            f"oldest_timestamp={self.timestamp_str(1)},"
+            f"stable_timestamp={self.timestamp_str(10)}"
+        )
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 20)
+        self.set_stable_epoch(20)
+
+        # Exceed the dirty target while the table is unpublished, driving
+        # eviction toward it.
+        scrub_restores = self.get_stat(
+            wiredtiger.stat.conn.cache_scrub_restore
+        )
+        with self.transaction(commit_timestamp=30):
+            with wttest.open_cursor(self.session, self.uri) as cursor:
+                value = "v" * 2048
+                for i in range(1, self.nrows + 1):
+                    cursor[i] = value
+        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(40)}")
+
+        # Wait for eviction to begin rebuilding a page before publishing the
+        # table.
+        deadline = time.time() + 30
+        while (
+            self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
+            == scrub_restores
+            and time.time() < deadline
+        ):
+            time.sleep(0.01)
+
+        self.session.checkpoint()
+
+        # The stable checkpoint must contain every row written before
+        # publication.
+        count = 0
+        with wttest.open_cursor(
+            self.session,
+            self.stable_uri(self.uri),
+            config="checkpoint=WiredTigerCheckpoint",
+        ) as cursor:
+            while cursor.next() == 0:
+                count += 1
+
+        self.assertEqual(count, self.nrows)
