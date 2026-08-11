@@ -1094,9 +1094,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
          * table's newest create or remove: a superseded create of a recreated table shares the
          * stable URI and would be checked against the wrong incarnation.
          *
-         * FIXME-WT-18318: The constituent-bearing unpublished create exempted here legally survives
-         * the step-down but stays frozen in this era, and can diverge from the incarnation a later
-         * era publishes.
+         * FIXME-WT-18318: The unpublished create skipped here survives the step-down and can go
+         * stale across leader changes.
          */
         if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL ||
           __wti_disagg_table_latest_create_remove(session, entry->table_name) != entry)
