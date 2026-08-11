@@ -51,8 +51,7 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     scenarios = make_scenarios(disagg_storages)
 
     def test_published_checkpoint_keeps_rebuilt_rows(self):
-        # Queue publication at schema epoch 20; the table remains unpublished
-        # until checkpoint.
+        # Create a table but leave it unpublished until the checkpoint under test.
         self.set_stable_epoch(1)
         self.conn.set_timestamp(
             f"oldest_timestamp={self.timestamp_str(1)},"
@@ -60,34 +59,28 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         )
         self.session.create(self.uri, self.table_config)
         self.publish(self.uri, 20)
-        self.set_stable_epoch(20)
 
-        # Exceed the dirty target while the table is unpublished, driving
-        # eviction toward it.
-        scrub_restores = self.get_stat(
-            wiredtiger.stat.conn.cache_scrub_restore
-        )
+        # Create enough dirty data to trigger eviction while the table is unpublished.
+        scrub_restores = self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
         with self.transaction(commit_timestamp=30):
             with wttest.open_cursor(self.session, self.uri) as cursor:
-                value = "v" * 2048
                 for i in range(1, self.nrows + 1):
-                    cursor[i] = value
+                    cursor[i] = "v" * 2048
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(40)}")
 
-        # Wait for eviction to begin rebuilding a page before publishing the
-        # table.
+        # Wait for eviction to begin rebuilding a page before publishing the table.
         deadline = time.time() + 30
         while (
-            self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
-            == scrub_restores
+            self.get_stat(wiredtiger.stat.conn.cache_scrub_restore) == scrub_restores
             and time.time() < deadline
         ):
-            time.sleep(0.01)
+            time.sleep(0.1)
 
+        # Publish the table through the checkpoint under test.
+        self.set_stable_epoch(20)
         self.session.checkpoint()
 
-        # The stable checkpoint must contain every row written before
-        # publication.
+        # The stable checkpoint must contain every row written before publication.
         count = 0
         with wttest.open_cursor(
             self.session,
@@ -96,5 +89,4 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         ) as cursor:
             while cursor.next() == 0:
                 count += 1
-
         self.assertEqual(count, self.nrows)
