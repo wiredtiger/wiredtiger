@@ -166,29 +166,6 @@ struct __wt_evict {
  * phase lasts the quantum rather than the park.
  */
 #define WT_EVICT_RAMP_QUANTUM_US (50 * WT_THOUSAND)
-
-/*
- * Curvature of the eviction ramps: the probability of setting a ramped flag is x^k, where x is the
- * position between the eviction target and trigger and k is this exponent.
- *
- * k = 1 is a straight line and reproduces the previous behaviour exactly. Above 1 the curve is
- * convex: pressure stays near zero for most of the band and climbs steeply only as the trigger
- * approaches. That matters because the ramp is a proportional controller, and its steady-state
- * operating point is target + width * D^(1/k) for whatever duty D the workload requires. A change
- * in eviction efficiency changes D, and on a straight line that drags the operating point across
- * the whole band -- an efficiency change worth 17 points of duty moves occupancy 2.5 points at
- * k = 1, but only 0.6 at k = 4. Curving the ramp buys that insensitivity without narrowing the
- * band, so eviction_target and eviction_trigger keep the meaning the user configured them with:
- * the probability is still exactly 0 at the target and exactly 1 at the trigger for every k.
- *
- * Larger values also park the cache closer to the trigger, which suits a read-mostly workload
- * whose working set does not fit, and leaves less room to absorb a burst before the trigger and
- * its application-thread eviction. Values below 1 are treated as 1.
- *
- * Both ramped flags share this. If they need to diverge -- admission control and worker eviction
- * are different jobs -- pass the exponent to __evict_ramp() rather than reading it there.
- */
-#define WT_EVICT_RAMP_EXPONENT 4
     uint32_t flags;
 };
 
