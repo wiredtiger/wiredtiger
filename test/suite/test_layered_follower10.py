@@ -143,6 +143,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         # until we pick up another checkpoint.
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow)
@@ -240,6 +241,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
         # Trigger advance checkpoint code again to set the prune timestamp to the last
         # checkpoint timestamp. We couldn't do that because there was a cursor holding the old content.
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         # Now eviction should remove all the items from the ingest table.
         self.evict_ingest(session_follow, ts)
@@ -295,6 +297,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
         # Pickup the last checkpoint and perform the final garbage collection
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         # Now eviction should remove all the items from the ingest table.
         self.evict_ingest(session_follow, ts)
@@ -326,6 +329,7 @@ class test_layered_follower10(wttest.WiredTigerTestCase):
 
         # Take a checkpoint and advance it, make sure everything is garbage collected
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
         oplog.check(self, session_follow, 0, self.nitems)
 
         # Now eviction should remove all the items from the ingest table.

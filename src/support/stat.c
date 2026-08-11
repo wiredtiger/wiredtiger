@@ -2659,6 +2659,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step down most recent time (msecs)",
   "disagg: step up in progress",
   "disagg: step up most recent time (msecs)",
+  "disagg: tables created without a stable constituent while the step-down timestamp is set",
   "layered: Layered table cursor insert operations",
   "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
@@ -3125,6 +3126,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction walk of concurrent sessions",
   "transaction: transactions committed",
   "transaction: transactions rolled back",
+  "transaction: transactions rolled back because their own dirty content exceeds the eviction "
+  "updates or dirty trigger",
   "transaction: update conflicts",
   "transaction: write transactions rolled back for straddling the step-down timestamp setting "
   "boundary",
@@ -3770,6 +3773,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_down_time = 0;
     /* not clearing disagg_step_up_in_progress */
     stats->disagg_step_up_time = 0;
+    stats->disagg_step_down_window_creates = 0;
     stats->layered_curs_insert = 0;
     stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
@@ -4222,6 +4226,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_walk_sessions = 0;
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
+    stats->txn_rollback_too_large_for_cache = 0;
     stats->txn_update_conflict = 0;
     stats->txn_rollback_stepdown = 0;
 }
@@ -5008,6 +5013,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
+    to->disagg_step_down_window_creates += WT_STAT_CONN_READ(from, disagg_step_down_window_creates);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
     to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
@@ -5592,6 +5598,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_walk_sessions += WT_STAT_CONN_READ(from, txn_walk_sessions);
     to->txn_commit += WT_STAT_CONN_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_CONN_READ(from, txn_rollback);
+    to->txn_rollback_too_large_for_cache +=
+      WT_STAT_CONN_READ(from, txn_rollback_too_large_for_cache);
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
     to->txn_rollback_stepdown += WT_STAT_CONN_READ(from, txn_rollback_stepdown);
 }

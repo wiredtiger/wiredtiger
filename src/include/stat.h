@@ -1028,6 +1028,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_in_progress;
     int64_t disagg_step_up_time;
+    int64_t disagg_step_down_window_creates;
     int64_t layered_curs_insert;
     int64_t layered_curs_modify;
     int64_t layered_curs_next;
@@ -1480,6 +1481,7 @@ struct __wt_connection_stats {
     int64_t txn_walk_sessions;
     int64_t txn_commit;
     int64_t txn_rollback;
+    int64_t txn_rollback_too_large_for_cache;
     int64_t txn_update_conflict;
     int64_t txn_rollback_stepdown;
 };
