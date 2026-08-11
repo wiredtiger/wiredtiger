@@ -832,10 +832,8 @@ __wt_disagg_shared_metadata_queue_publish(
         /* Update unpublished schema epochs before any ordering or range checks. */
         if (entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED) {
             /*
-             * While the step-down boundary is set, an epoch is only assigned above it: an epoch at
-             * or below the boundary claims coverage by this era's final checkpoint, which cannot
-             * include an operation from the window, and followers prune their replay copies against
-             * that claim. Nothing is half-stamped on failure, the same test fails for every entry.
+             * While the step-down boundary is set, epochs are only assigned above it: anything
+             * lower would claim coverage by a final checkpoint that cannot include it.
              */
             if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && schema_epoch <= step_down_epoch)
                 WT_ERR_MSG(session, EINVAL,
