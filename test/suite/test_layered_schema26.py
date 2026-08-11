@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Eviction can leave unpublished pages clean without a durable address. The
-# publishing checkpoint must not skip those pages.
+# Eviction should be disabled for a table awaiting publication. Apply cache
+# pressure before publication and verify no page of the table is evicted.
 
 import time
 import wiredtiger
