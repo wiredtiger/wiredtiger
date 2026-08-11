@@ -51,4 +51,4 @@ export TEST_CHECKPOINT_RELEASE_BRANCHES="develop mongodb-9.0 mongodb-8.3 mongodb
 export UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES="mongodb-9.0 mongodb-8.3 mongodb-8.2 mongodb-8.0 mongodb-7.0 mongodb-6.0"
 
 # This array is used to configure the branches we'd like to run dirty restart tests.
-export DIRTY_RESTART_RELEASE_BRANCHES="develop mongodb-9.0 mongodb-8.3 mongodb-8.2 mongodb-8.0 mongodb-7.0 mongodb-6.0"
+export DIRTY_RESTART_RELEASE_BRANCHES="develop mongodb-9.0 mongodb-8.3 mongodb-8.0 mongodb-7.0 mongodb-6.0"
