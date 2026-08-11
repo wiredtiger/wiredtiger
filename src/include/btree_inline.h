@@ -1323,8 +1323,8 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
      * A split instantiates the key before moving the reference to a new home page that has no disk
      * image, so the key must not be read before the caller read the home page: an encoded key is
      * only meaningful against the home page it was encoded from. Read it once, both forms are valid
-     * at any instant but they must be decoded consistently. Pairs with the release store in
-     * __wti_row_ikey.
+     * at any instant but they must be decoded consistently. Pairs with the release store that
+     * publishes an instantiated key.
      */
     ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
     v = (uintptr_t)ikey;
@@ -1366,7 +1366,7 @@ __wt_ref_key_instantiated(WT_REF *ref)
     /*
      * See the comment in __wt_ref_key for an explanation of the magic. Read once so the flag test
      * and the returned value can't disagree, and acquire so a caller that sees the key can safely
-     * dereference it. Pairs with the release store in __wti_row_ikey.
+     * dereference it. Pairs with the release store that publishes an instantiated key.
      */
     ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
     return ((uintptr_t)ikey & WT_IK_FLAG ? NULL : (WT_IKEY *)ikey);

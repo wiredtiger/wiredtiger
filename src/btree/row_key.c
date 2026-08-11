@@ -427,8 +427,8 @@ __wti_row_ikey(
 #else
     /*
      * Publish the key before a split can move this reference to a home page with no disk image; a
-     * reader that sees the new home must see the instantiated key. Pairs with the acquire read in
-     * __wt_ref_key.
+     * reader that sees the new home must see the instantiated key. Pairs with the acquire reads of
+     * the key.
      */
     __wt_atomic_store_ptr_release(&ref->ref_ikey, ikey);
 #endif
