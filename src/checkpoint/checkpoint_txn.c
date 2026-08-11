@@ -1276,7 +1276,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, WT_CHECKPOINT_DB
         capacity = (uint32_t)conn->session_array.size;
 
         /* The previous checkpoint must have retired its snapshot before finishing. */
-        WT_ASSERT(session, !conn->ckpt_eviction_snap_published);
+        WT_ASSERT(session, !__wt_atomic_load_bool_acquire(&conn->ckpt_eviction_snap_published));
 
         /* Write the second buffer, so readers of the published one are undisturbed. */
         cur_idx = __wt_atomic_load_uint32_relaxed(&conn->ckpt_eviction_snap_idx);
