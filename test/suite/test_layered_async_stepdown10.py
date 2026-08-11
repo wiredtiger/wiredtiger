@@ -144,14 +144,23 @@ class test_layered_async_stepdown10(
         if len(self.tables) >= self.table_cap:
             return
         uri = self.uri(f'w{next(self.name_counter)}')
+        ts_set_before_create = self.step_down_ts is not None
         # Creates and publishes tolerate no errors: a failure fails the test.
         wsession.create(uri, self.table_config)
+        ts_set_after_create = self.step_down_ts is not None
         epoch = self.publish_if_epochs(uri, session=wsession)
-        # Classify by the create's own outcome rather than by racing the driver: a create that
-        # landed after the step-down timestamp built no stable constituent.
+        # Classify by the create's own outcome, which is exact even when the create races the
+        # driver setting the timestamp: a window create builds no stable constituent.
         window = not self.stable_constituent_exists(self.conn, uri)
+        # Both timestamp reads are one-sided, so each validates the outcome in one direction: a
+        # create begun after the timestamp was set must skip the constituent, and one that
+        # finished before it was set must build it.
+        if ts_set_before_create:
+            self.assertTrue(window, f'{uri} built a stable constituent inside the window')
+        elif not ts_set_after_create:
+            self.assertFalse(window, f'{uri} skipped its stable constituent outside the window')
         self.tables[uri] = {'history': [], 'publish_epoch': epoch, 'window': window}
-        self.op_counts['creates'] += 1
+        self.op_counts['window_creates' if window else 'creates'] += 1
 
     def workload_drop(self, wsession, rng):
         # Keep a couple of tables alive so writes and reads always have a target.
