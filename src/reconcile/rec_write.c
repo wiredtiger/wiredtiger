@@ -1344,7 +1344,7 @@ __wti_rec_split_init(
         if (__wt_ref_is_root(ref))
             WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
         else
-            __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
+            __wt_ref_key_home(ref, &chunk->key.data, &chunk->key.size);
     } else
         chunk->recno = recno;
 

@@ -1338,6 +1338,27 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 }
 
 /*
+ * __wt_ref_key_home --
+ *     Return a reference to a row-store internal page key, relative to the reference's own home
+ *     page.
+ */
+static WT_INLINE void
+__wt_ref_key_home(WT_REF *ref, void *keyp, size_t *sizep)
+{
+    WT_PAGE *home;
+
+    /*
+     * A split instantiates a moved reference's key before pointing the reference at a new home page
+     * that has no disk image. Read the home page with an acquire so the key read cannot be
+     * satisfied from an earlier state: pairing a new home page with a still-encoded key decodes the
+     * key offset against a NULL image and yields the offset itself as the key. Callers that already
+     * hold the page a reference was encoded against can decode against it directly instead.
+     */
+    home = __wt_atomic_load_ptr_acquire(&ref->home);
+    __wt_ref_key(home, ref, keyp, sizep);
+}
+
+/*
  * __wt_ref_key_onpage_set --
  *     Set a WT_REF to reference an on-page key.
  */

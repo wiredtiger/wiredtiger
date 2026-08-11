@@ -1942,7 +1942,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     case WT_PAGE_ROW_LEAF:
         delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, page->type);
         if (delta_enabled && first) {
-            __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
+            __wt_ref_key_home(old_ref, &key, &key_size);
             WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
             if (incrp)
                 *incrp += sizeof(WT_IKEY) + key_size;
@@ -2078,7 +2078,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
-        __wt_ref_key(ref->home, ref, &key, &key_size);
+        __wt_ref_key_home(ref, &key, &key_size);
         WT_ERR(__wti_row_ikey(session, 0, key, key_size, child));
         parent_incr += sizeof(WT_IKEY) + key_size;
     } else

@@ -322,7 +322,7 @@ __check_leaf_key_range(
      * build it, it may not be a valid key.
      */
     if (indx != 0) {
-        __wt_ref_key(leaf->home, leaf, &item->data, &item->size);
+        __wt_ref_key_home(leaf, &item->data, &item->size);
         WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
         if (cmp < 0) {
             cbt->compare = 1; /* page keys > search key */
@@ -336,7 +336,7 @@ __check_leaf_key_range(
      */
     ++indx;
     if (indx < pindex->entries) {
-        __wt_ref_key(leaf->home, pindex->index[indx], &item->data, &item->size);
+        __wt_ref_key_home(pindex->index[indx], &item->data, &item->size);
         WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
         if (cmp >= 0) {
             cbt->compare = -1; /* page keys < search key */
