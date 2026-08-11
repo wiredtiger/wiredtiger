@@ -459,8 +459,11 @@ __checkpoint_disagg_maybe_publish(WT_SESSION_IMPL *session, WT_BTREE *btree)
               dhandle->name);
     }
 
-    if (published)
+    if (published) {
         F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+        __wt_evict_file_exclusive_off(session);
+    }
+
     return (0);
 }
 
