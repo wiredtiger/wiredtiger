@@ -29,7 +29,6 @@
 # Eviction should be disabled for a table awaiting publication. Apply cache
 # pressure before publication and verify no page of the table is evicted.
 
-import time
 import wiredtiger
 import wttest
 from helper_disagg import DisaggSchemaEpochMixin, disagg_test_class, gen_disagg_storages
@@ -38,8 +37,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     conn_config = (
-        "cache_size=10MB,eviction_dirty_target=1,statistics=(all),"
-        "timing_stress_for_test=[disagg_await_publish_page_rebuild],"
+        "cache_size=10MB,eviction_dirty_target=1,"
         'disaggregated=(role="leader")'
     )
 
@@ -49,7 +47,7 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    def test_published_checkpoint_keeps_rebuilt_rows(self):
+    def test_eviction_skips_unpublished_table(self):
         # Create a table but leave it unpublished until the checkpoint under test.
         self.set_stable_epoch(1)
         self.conn.set_timestamp(
@@ -60,32 +58,37 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.publish(self.uri, 20)
 
         # Create enough dirty data to trigger eviction while the table is unpublished.
-        scrub_restores = self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
+        eviction_disabled_skips = self.get_stat(
+            wiredtiger.stat.conn.eviction_server_skip_trees_eviction_disabled)
         with self.transaction(commit_timestamp=30):
             with wttest.open_cursor(self.session, self.uri) as cursor:
                 for i in range(1, self.nrows + 1):
                     cursor[i] = "v" * 2048
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
 
-        # Wait for eviction to begin rebuilding a page before publishing the table.
-        deadline = time.time() + 30
-        while (
-            self.get_stat(wiredtiger.stat.conn.cache_scrub_restore) == scrub_restores
-            and time.time() < deadline
-        ):
-            time.sleep(0.1)
+        # The eviction server should have walked the tree and skipped it.
+        self.assertStatGreaterSoon(
+            wiredtiger.stat.conn.eviction_server_skip_trees_eviction_disabled,
+            eviction_disabled_skips,
+            timeout=10,
+        )
+
+        # No page of the table should have been seen by eviction.
+        pages_seen = self.get_stat(
+            wiredtiger.stat.dsrc.cache_eviction_pages_seen,
+            self.stable_uri(self.uri),
+        )
+        self.assertEqual(pages_seen, 0)
 
         # Publish the table through the checkpoint under test.
         self.set_stable_epoch(20)
         self.session.checkpoint()
 
-        # The stable checkpoint must contain every row written before publication.
-        count = 0
+        # The stable checkpoint should contain every row written before publication.
         with wttest.open_cursor(
             self.session,
             self.stable_uri(self.uri),
             config="checkpoint=WiredTigerCheckpoint",
         ) as cursor:
-            while cursor.next() == 0:
-                count += 1
+            count = sum(1 for _ in cursor)
         self.assertEqual(count, self.nrows)
