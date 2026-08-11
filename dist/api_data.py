@@ -1069,8 +1069,7 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'disagg_await_publish_page_rebuild',
-        'disagg_role_transition',
+        'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
         'failpoint_disagg_checkpoint_apply',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
