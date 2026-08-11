@@ -53,6 +53,7 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
     case EVENT_NONE:
     case EVENT_CREATE:
     case EVENT_DROP:
+    case EVENT_STEPDOWN:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected record event type: %d", ev->type);
     }
@@ -202,6 +203,7 @@ worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
 static void
 apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const SCHEMA_EVENT *ev)
 {
+    /* The role is fixed for the phase, step-down window included: a leader relays throughout. */
     const bool relay = state->leads;
 
     if (ctx->record_fp == NULL)
@@ -232,6 +234,7 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
         worker_complete(state, thread_index, ev->event_ts);
         break;
     case EVENT_NONE:
+    case EVENT_STEPDOWN:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected apply event type: %d", ev->type);
     }

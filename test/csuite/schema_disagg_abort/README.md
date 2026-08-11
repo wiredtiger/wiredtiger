@@ -14,9 +14,9 @@ The binary runs in one of two roles, dispatched in `main.c`:
   topology, then drives a one-second-tick timeline of switches, kills, and a graceful stop
   (see [Running](#running)); a child dying at any other point fails the test. It opens
   WiredTiger only afterwards, to recover and verify.
-- **node** — a database node running as leader or follower. Spawned by re-executing
-  the binary with internal options (`-r node -i <id> -A l|f`, pipe fds via `-R`/`-W`), so nothing
-  is inherited by forking.
+- **node** — a database node running as leader or follower. Spawned by re-executing the binary
+  with internal options (`-r node -i <id> -A l|f`, pipe fds via `-R`/`-W`), so nothing is
+  inherited by forking.
 
 ## Directory layout
 
@@ -34,7 +34,8 @@ WT_TEST.foo/
 ├── follower_ready                │ sentinel files: the parent⇄node
 ├── switch_request                │ coordination protocol
 ├── switch_done.<k>               │
-└── stop_run                      ┘
+├── stop_run                      ┘
+└── ckpt_adopted                  node⇄node: the follower's latest adopted checkpoint LSN
 WT_TEST.foo.SAVE/                 copy of the home, taken just before verification
 ```
 
@@ -55,7 +56,9 @@ WT_TEST.foo.SAVE/                 copy of the home, taken just before verificati
 - **Sentinels** (home root): `leader_ready` = first checkpoint (the parent starts the clock);
   `follower_ready` = first pickup; `switch_request` = switch command, **consumed (unlinked)**
   by the acting node so each request fires once; `switch_done.<k>` = k-th switch finished;
-  `stop_run` = graceful stop, not consumed.
+  `stop_run` = graceful stop, not consumed; `ckpt_adopted` = the follower's latest adopted
+  checkpoint LSN, rewritten (atomically, via rename) after every pickup — a stepping-down
+  leader polls it to learn when the peer holds its final checkpoint.
 
 ## Event pipeline
 
@@ -64,9 +67,10 @@ reader demuxes them by `thread_id` into per-worker queues, and the workers execu
 differs is where the source is.
 
 - **A phase that generates** — a leader always, and a follower with no peer to receive from —
-  runs the node's own **generator** thread, writing the term's full stream (workload ops, then
-  `EVENT_SWITCH` to end the term) into a process-local **self-pipe**. A leader's workers also
-  relay every applied event to the peer.
+  runs the node's own **generator** thread, writing the term's full stream into a process-local
+  **self-pipe**: workload ops, then the transition events — on a peered leader `EVENT_STEPDOWN`,
+  the [step-down window](#the-step-down-window)'s further ops, and `EVENT_SWITCH`; on a lone
+  node just `EVENT_SWITCH`. A leader's workers also relay every applied event to the peer.
 - **A phase that consumes** — a follower with a live peer — has no generator at all: its
   source is the peer's relay (one pipe per direction, each named for the node that reads it).
   Nothing is relayed onward.
@@ -140,11 +144,11 @@ on `handover_received`/`stop_run`) → `workload_stop` → transition or exit.
 
 | Thread | Count | Does |
 |---|---|---|
-| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, emit one valid move at random or none; an empty round sleeps 10 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then `EVENT_SWITCH` ends the stream and the phase</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
-| reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
+| generator | 1 iff the phase generates | - `generator_round` feeds every worker one step of the [slot lifecycle](#slot-lifecycle): pick a slot with that worker's rnd, emit one valid move at random or none; an empty round sleeps 10 ms</br>- `switch_request` polled ~1/s → flush pending publishes, then a peered leader emits `EVENT_STEPDOWN` and keeps generating through the [window](#the-step-down-window) until the peer adopts the step-down checkpoint; `EVENT_SWITCH` ends the stream and the phase (a lone node emits it directly)</br>- bounds its lead over the workers to one switch period (`GEN_APPLY_RATE_FLOOR`), so a hand-over has little to drain |
+| reader | 1 | - `select` (1 s) on the source pipe → demux ops into per-worker rings</br>- `STEPDOWN` → drain → assert counter == the marker's → set the step-down timestamp, frontier := boundary, step-down checkpoint → keep reading</br>- `SWITCH` → drain → assert counter == the sender's final counter → hand over</br>- EOF (peer pipe only) → peer dead: carry on as a lone follower |
 | worker ×N | `-T`, ≤ 12 | pop own ring → `apply_event`: execute a schema op (bounded EBUSY retry, no timestamp), publish at the event's epoch, or commit an insert → relay (leader only) → record → mark completed timestamps |
-| timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- nothing slow lives here, so a checkpoint can never stall the frontier |
-| checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0, `MAX_OP_WAIT` watchdog); **follower** `follower_checkpoint`, with the workers still running |
+| timestamp | 1 | every 100 ms: frontier = min of workers' `completed_ts` → set oldest/stable/stable-schema-epoch to it (never backwards)</br>- nothing slow lives here, so a checkpoint can never stall the frontier</br>- holds while a step-down is in progress: the frontier must sit at the boundary |
+| checkpoint | 1 | every random 0–`MAX_CKPT_INVL` s, measured from the previous checkpoint's *completion*: the role's duty — **leader** `leader_checkpoint` (skipped while stable=0 and while a step-down is in progress, `MAX_OP_WAIT` watchdog); **follower** pick up the latest, with the workers still running, reporting each adoption's LSN via `ckpt_adopted` |
 
 Coordination is lock-free by design: `stop_stage` quiesces every loop, per-worker SPSC rings plus `busy` flags connect
 reader to workers, and `completed_ts[]` feeds the frontier.
@@ -161,21 +165,29 @@ capacity.
 ```
         ┌──────────────────────── LEADER ──────────────────────────────┐
         │ generator: ops ▶ self-pipe                                   │
-        │            switch_request → EVENT_SWITCH(counter), exit      │
-        │ reader   : SWITCH → drain → assert counter == sender's final │
+        │            switch_request → STEPDOWN(counter); peered: window │
+        │              ops continue until the peer adopts the step-down │
+        │              checkpoint; lone: wait for that checkpoint only  │
+        │              → EVENT_SWITCH(counter), exit                   │
+        │ reader   : STEPDOWN → drain → assert → step-down timestamp,  │
+        │                     stable := boundary → step-down ckpt      │
+        │            SWITCH → drain → assert counter == sender's final │
         │                     → handover                               │
         │ workers  : execute ops → publish events record+publish       │
         │            inserts commit+record → relay ▶ peer pipe         │
-        │ timestamp: frontier every 100 ms                             │
+        │ timestamp: frontier every 100 ms; holds during a step-down   │
         │ ckpt     : every 0–4 s leader_checkpoint ▶ PALITE            │
-        │            (skip while stable=0; 1st: leader_ready)          │
+        │            (skip while stable=0 or stepping down;            │
+        │            1st: leader_ready)                                │
         └──────────────────────────────────────────────────────────────┘
   stop_run ──▶ quiesce → close(NULL: closing checkpoint) → exit(0)
-  handover ──▶ quiesce → node_step_down: arm step-down at counter,
-               stable := counter → step-down checkpoint
-               → reconfigure(role=follower)
-               → send SWITCH(counter) [peer alive] ──▶ FOLLOWER
-  EPIPE on relay ──▶ peer_alive = false (lone leader keeps producing)
+  handover ──▶ quiesce → LEAVE: reconfigure(role=follower) — the boundary
+               work always ran at the marker, so only the role change
+               is left
+               → send SWITCH(counter) [peer alive]
+               ENTER follower: restore frontier ──▶ FOLLOWER
+  EPIPE on relay ──▶ peer_alive = false (lone leader keeps producing;
+               a window ends immediately and completes alone)
 
         ┌──────────────────────── FOLLOWER ────────────────────────────┐
         │ generator: none when peered; the peer's relay is the source  │
@@ -203,7 +215,7 @@ capacity.
 | Counter | generator *allocates* `event_ts` values | *adopts* them from events (`workload_counter_advance`) |
 | Checkpoint duty | checkpoint thread produces one every 0–4 s (no barrier: it races the workload) | checkpoint thread adopts the page log's latest, workers still running |
 | Relay | workers relay applied events | — |
-| Hand-over transition | `node_step_down`: arm the step-down at the term's counter, advance stable to it, step-down checkpoint, **`reconfigure(role=follower)`**, send `EVENT_SWITCH` | `node_step_up`: adopt-latest, **`reconfigure(role=leader)`**, seed the counter + restore the frontier |
+| Hand-over transition | `node_step_down`: **`reconfigure(role=follower)`** and send `EVENT_SWITCH` — the boundary work ran in-stream at the marker | `node_step_up`: adopt-latest, **`reconfigure(role=leader)`**, seed the counter + restore the frontier |
 | Graceful close | `close(NULL)` — closing checkpoint | `close(skip_checkpoint)` |
 | Readiness / records | `leader_ready`; `node*-leader-*` | `follower_ready`; `node*-follower-*` |
 | Peer-death signal | EPIPE while relaying | pipe EOF |
@@ -226,20 +238,19 @@ own workload instead of consuming a peer's, and the transition reports `switch_d
    epoch, or a checkpoint makes data stable under an unpublished table — which WiredTiger treats as
    an API violation and fails the checkpoint on. The slot machine makes this structural: `INSERT` is
    reachable only from `PUBLISHED`. Nothing else about the lifecycle waits on a checkpoint; a drop
-   WiredTiger refuses with `EBUSY` is simply retried until the checkpoint thread clears it — only a
-   leader is ever refused, since the dirty-table check guards the stable constituent's trim.
-3. **Frontier hand-off**: at step-down the term is quiesced and drained, so `node_step_down`
-   advances oldest/stable/stable-epoch to the term's counter before its step-down checkpoint
-   (a publish that checkpoint does not carry is lost when the step-down clears the shared-metadata
-   queue), and `node_step_up` restores the same frontier so an early checkpoint of the new term
-   cannot regress the shared epoch.
+   WiredTiger refuses with `EBUSY` is simply retried until the checkpoint thread clears it.
+3. **Frontier hand-off**: the step-down boundary is drained — the reader reaches the marker only
+   once every earlier event is applied — so oldest/stable/stable-epoch advance to it before
+   the step-down checkpoint (a publish that checkpoint does not carry is lost when the step-down
+   clears the shared-metadata queue), and `leader_enter` restores the term's final frontier so an
+   early checkpoint of the new term cannot regress the shared epoch.
 4. **Hand-over integrity**: `EVENT_SWITCH` is a term's last event; the receiver drains everything
    before acting and asserts its counter equals the event's, since every allocated value rides an
-   event preceding the switch. The generator flushes pending publishes first — a step-down clears
-   WiredTiger's shared-metadata queue and URIs are origin-namespaced, so one left behind could
-   never be published by anyone. That timestamp is also the step-down timestamp, which
-   the preceding drain makes safe, and the old leader completes the step-down before the switch is
-   sent (one writer per page log).
+   event preceding the switch. The generator flushes pending publishes before the marker so a term
+   hands over with no slot mid-lifecycle; since WT-18288 the queue survives a step-down, so this is
+   model hygiene rather than a correctness requirement. The boundary the drain fixes is the
+   step-down timestamp, and the old leader completes the step-down before the switch is sent (one
+   writer per page log).
 5. **Uniform EBUSY policy**: workers retry the same operation with a MAX_OP_WAIT bound; the
    stream is fixed at generation time and the slot model flips when the generator emits, so
    the executed state converges to the model.

@@ -84,6 +84,42 @@ set_frontier(WT_CONNECTION *conn, uint64_t ts)
 }
 
 /*
+ * adopted_lsn_publish --
+ *     Report the latest adopted checkpoint LSN for a stepping-down peer to wait on.
+ */
+void
+adopted_lsn_publish(uint32_t node_id, uint64_t lsn)
+{
+    /* Write to a temporary file first, so a reader never sees a partial value */
+    char tmp[64];
+    testutil_snprintf(tmp, sizeof(tmp), ADOPTED_LSN_FILE ".%" PRIu32, node_id);
+
+    FILE *fp;
+    testutil_assert_errno((fp = fopen(tmp, "w")) != NULL);
+    testutil_assert(fprintf(fp, "%" PRIu64 "\n", lsn) > 0);
+    testutil_check(fclose(fp));
+    /* Publish the LSN. */
+    testutil_assert_errno(rename(tmp, ADOPTED_LSN_FILE) == 0);
+}
+
+/*
+ * adopted_lsn_read --
+ *     Return the peer's last reported adopted checkpoint LSN; zero when none yet.
+ */
+uint64_t
+adopted_lsn_read(void)
+{
+    FILE *fp = fopen(ADOPTED_LSN_FILE, "r");
+    if (fp == NULL)
+        return (0);
+
+    uint64_t lsn = 0;
+    (void)fscanf(fp, "%" SCNu64, &lsn);
+    testutil_check(fclose(fp));
+    return (lsn);
+}
+
+/*
  * usage --
  *     Print the command-line usage and exit. The -A/-i/-R/-W options and the "-r node" value are
  *     internal: the parent uses them to spawn its nodes.
