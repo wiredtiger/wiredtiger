@@ -1321,8 +1321,10 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_DECODE_KEY_OFFSET(v) (((v) & 0xFFFFFFFF) >> 1)
     /*
      * Read the key once: both forms are valid at any instant, but the flag test and the value used
-     * have to agree. A split can instantiate the key underneath us, so acquire to see the contents
-     * of a key we are handed; pairs with the release store that publishes an instantiated key.
+     * have to agree. A split can instantiate the key underneath us, so a caller handed an
+     * instantiated key has to see its contents. That is consume ordering, which we spell as acquire
+     * because consume is not usable in practice; pairs with the release store that publishes an
+     * instantiated key.
      *
      * This says nothing about which page the key belongs to. An encoded key is an offset into the
      * disk image of the page it was encoded from, so the caller owes us a page it is valid against.
@@ -1392,7 +1394,8 @@ __wt_ref_key_instantiated(WT_REF *ref)
     /*
      * See the comment in __wt_ref_key for an explanation of the magic. Read once so the flag test
      * and the returned value can't disagree, and acquire so a caller that sees the key can safely
-     * dereference it. Pairs with the release store that publishes an instantiated key.
+     * dereference it: consume ordering is what that needs, but acquire is how we spell it. Pairs
+     * with the release store that publishes an instantiated key.
      */
     ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
     return ((uintptr_t)ikey & WT_IK_FLAG ? NULL : (WT_IKEY *)ikey);
