@@ -994,7 +994,6 @@ run_pair_tests()
     done
 
     echo "Configured branches: ${branches[*]}"
-
     echo ""
     echo "Generated compatibility pairs:"
 
