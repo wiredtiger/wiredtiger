@@ -685,29 +685,6 @@ __disagg_requeue_skipped_creates(
 }
 
 /*
- * __disagg_window_create_queued --
- *     Return the table's queued window create, or NULL. While the step-down boundary is set, only a
- *     create made inside the window is still unclaimed and constituent-less. The caller holds the
- *     queue lock.
- */
-static WT_DISAGG_METADATA_OP *
-__disagg_window_create_queued(WT_SESSION_IMPL *session, const char *table_name)
-{
-    WT_DISAGG_METADATA_OP *last;
-
-    /* Only a live table can have a window create: its newest entry must be a create. */
-    last = __wti_disagg_table_latest_create_remove(session, table_name);
-    if (last == NULL || last->metadata_op != WT_SHARED_METADATA_CREATE)
-        return (NULL);
-
-    /* A window create is a create no era has claimed and no constituent was built for. */
-    if (last->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || last->stable_value != NULL)
-        return (NULL);
-
-    return (last);
-}
-
-/*
  * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list, returning the total checkpoint size of the tables actually
  *     dropped so the caller can reduce the database size accordingly.
@@ -1112,7 +1089,13 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               " at or below the step down boundary %" PRIu64,
               entry->stable_uri, entry->schema_epoch, step_down_epoch);
 
-        if (__disagg_window_create_queued(session, entry->table_name) != entry)
+        /*
+         * A window create is a create no era has claimed and no constituent was built for, as the
+         * table's newest create or remove: a superseded create of a recreated table shares the
+         * stable URI and would be checked against the wrong incarnation.
+         */
+        if (entry->schema_epoch != WT_SCHEMA_EPOCH_UNPUBLISHED || entry->stable_value != NULL ||
+          __wti_disagg_table_latest_create_remove(session, entry->table_name) != entry)
             continue;
 
         metadata_cursor->set_key(metadata_cursor, entry->stable_uri);
