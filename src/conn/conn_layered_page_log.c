@@ -33,6 +33,10 @@ __disagg_get_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     get_args.lsn = lsn;
     count = 1;
 
+    /*
+     * FIXME-WT-18278 Distinguish "not found" from other error returns. count == 0 may be a
+     * redundant not-found check, revisit later.
+     */
     WT_RET(page_log->plh_get(page_log, &session->iface, page_id, 0, &get_args, item, &count));
     WT_ASSERT(session, count <= 1); /* Corrupt data. */
 
