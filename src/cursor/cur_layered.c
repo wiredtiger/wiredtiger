@@ -457,6 +457,9 @@ __clayered_assert_role_change(
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TXN *txn = session->txn;
 
+    /* Only the diagnostic step-up assertion consumes the role. */
+    WT_UNUSED(role);
+
     if (LF_ISSET(CLAYERED_ENTER_STEP_UP))
         WT_ASSERT_ALWAYS(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT),
           "All the cursors should be left unpositioned before a step-up.");
