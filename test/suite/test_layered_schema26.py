@@ -44,7 +44,6 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     )
 
     uri = f"layered:{__qualname__}"
-    table_config = "key_format=i,value_format=S"
     nrows = 300
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -57,7 +56,7 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             f"oldest_timestamp={self.timestamp_str(1)},"
             f"stable_timestamp={self.timestamp_str(10)}"
         )
-        self.session.create(self.uri, self.table_config)
+        self.session.create(self.uri, "key_format=i,value_format=S")
         self.publish(self.uri, 20)
 
         # Create enough dirty data to trigger eviction while the table is unpublished.
@@ -66,7 +65,7 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             with wttest.open_cursor(self.session, self.uri) as cursor:
                 for i in range(1, self.nrows + 1):
                     cursor[i] = "v" * 2048
-        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(40)}")
+        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
 
         # Wait for eviction to begin rebuilding a page before publishing the table.
         deadline = time.time() + 30
