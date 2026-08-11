@@ -1076,8 +1076,9 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               entry->stable_uri);
 
         /*
-         * A constituent-less create at or below the boundary claims coverage by a checkpoint that
-         * had nothing to write for it, and followers prune their copies against that claim.
+         * A create missing its stable table at or below the boundary claims coverage by a
+         * checkpoint that had nothing to write for it, and followers prune their copies against
+         * that claim.
          */
         if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && entry->stable_value == NULL)
             WT_ASSERT_ALWAYS(session,
@@ -1088,8 +1089,8 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
               entry->stable_uri, entry->schema_epoch, step_down_epoch);
 
         /*
-         * Check only the table's newest create, when it is unpublished and constituent-less: that
-         * is a window create, and anything older describes a dead incarnation of the same name.
+         * A window create is the table's newest create, unpublished and missing its stable table.
+         * Older creates belong to dropped tables of the same name.
          *
          * FIXME-WT-18318: The unpublished create skipped here survives the step-down and can go
          * stale across leader changes.
