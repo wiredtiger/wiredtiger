@@ -1077,8 +1077,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
 
         /*
          * A create missing its stable table at or below the boundary claims coverage by a
-         * checkpoint that had nothing to write for it, and followers prune their copies against
-         * that claim.
+         * checkpoint that had nothing to write for it.
          */
         if (step_down_epoch != WT_SCHEMA_EPOCH_NONE && entry->stable_value == NULL)
             WT_ASSERT_ALWAYS(session,
