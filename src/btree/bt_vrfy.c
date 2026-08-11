@@ -1420,6 +1420,11 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
      * checkpoint. The two files are not a snapshot of a single point in time, so only the ordering
      * among the history store records themselves can be trusted; comparing them against the data
      * store's page image reports overlaps that never coexisted.
+     *
+     * This is the connection's current setting, not the one in effect when the checkpoint was
+     * written. A checkpoint written without precise checkpoints and then verified by a connection
+     * that enables them is still exposed to the skew, until the pages involved are reconciled again
+     * or the stale history store records become obsolete.
      */
     check_data_store = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT);
     first = true;
