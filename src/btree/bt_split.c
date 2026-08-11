@@ -228,7 +228,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if ((ikey = __wt_ref_key_instantiated(ref)) == NULL) {
             __wt_ref_key(from_home, ref, &key, &size);
             WT_RET(__wti_row_ikey(session, 0, key, size, ref));
-            ikey = ref->ref_ikey;
+            /* Relaxed: this thread published the key immediately above. */
+            ikey = __wt_atomic_load_ptr_relaxed(&ref->ref_ikey);
         } else {
             WT_RET(__split_ovfl_key_cleanup(session, from_home, ref));
             *decrp += sizeof(WT_IKEY) + ikey->size;
@@ -368,9 +369,15 @@ __split_ref_prepare(
 
         WT_PAGE_LOCK(session, child);
 
-        /* Switch the WT_REF's to their new page. */
+        /*
+         * Switch the WT_REF's to their new page. The created children have no disk image, so every
+         * key must already have been instantiated: an encoded key would decode against a NULL image
+         * once a reader picks up the new home page.
+         */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
+            WT_ASSERT(session,
+              child->type != WT_PAGE_ROW_INT || __wt_ref_key_instantiated(child_ref) != NULL);
             child_ref->home = child;
             child_ref->pindex_hint = j++;
         }

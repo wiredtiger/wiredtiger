@@ -1290,6 +1290,7 @@ static WT_INLINE void
 __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 {
     uintptr_t v;
+    void *ikey;
 
 /*
  * An internal page key is in one of two places: if we instantiated the
@@ -1318,13 +1319,21 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_DECODE_KEY_LEN(v) ((v) >> 32)
 #define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
 #define WT_IK_DECODE_KEY_OFFSET(v) (((v) & 0xFFFFFFFF) >> 1)
-    v = (uintptr_t)ref->ref_ikey;
+    /*
+     * A split instantiates the key before moving the reference to a new home page that has no disk
+     * image, so the key must not be read before the caller read the home page: an encoded key is
+     * only meaningful against the home page it was encoded from. Read it once, both forms are valid
+     * at any instant but they must be decoded consistently. Pairs with the release store in
+     * __wti_row_ikey.
+     */
+    ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
+    v = (uintptr_t)ikey;
     if (v & WT_IK_FLAG) {
         *(void **)keyp = WT_PAGE_REF_OFFSET(page, WT_IK_DECODE_KEY_OFFSET(v));
         *sizep = WT_IK_DECODE_KEY_LEN(v);
     } else {
-        *(void **)keyp = WT_IKEY_DATA(ref->ref_ikey);
-        *sizep = ((WT_IKEY *)ref->ref_ikey)->size;
+        *(void **)keyp = WT_IKEY_DATA(ikey);
+        *sizep = ((WT_IKEY *)ikey)->size;
     }
 }
 
@@ -1352,13 +1361,15 @@ __wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack)
 static WT_INLINE WT_IKEY *
 __wt_ref_key_instantiated(WT_REF *ref)
 {
-    uintptr_t v;
+    void *ikey;
 
     /*
-     * See the comment in __wt_ref_key for an explanation of the magic.
+     * See the comment in __wt_ref_key for an explanation of the magic. Read once so the flag test
+     * and the returned value can't disagree, and acquire so a caller that sees the key can safely
+     * dereference it. Pairs with the release store in __wti_row_ikey.
      */
-    v = (uintptr_t)ref->ref_ikey;
-    return (v & WT_IK_FLAG ? NULL : (WT_IKEY *)ref->ref_ikey);
+    ikey = __wt_atomic_load_ptr_acquire(&ref->ref_ikey);
+    return ((uintptr_t)ikey & WT_IK_FLAG ? NULL : (WT_IKEY *)ikey);
 }
 
 /*
