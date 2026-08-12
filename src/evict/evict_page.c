@@ -1227,8 +1227,8 @@ typedef struct {
 static bool
 __evict_ckpt_snapshot_copy(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *state)
 {
+    WT_CKPT_EVICTION_SNAP *buf;
     WT_TXN_SNAPSHOT *snap;
-    uint64_t ckpt_gen;
     bool copied;
 
     copied = false;
@@ -1240,19 +1240,16 @@ __evict_ckpt_snapshot_copy(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT *state)
      */
     WT_ENTER_GENERATION(session, WT_GEN_HAS_CKPT_SNAPSHOT);
     /* Take the buffer only when the checkpoint that published it is the one still running. */
-    if ((snap = __wt_ckpt_eviction_snap_current(session, &ckpt_gen)) != NULL) {
+    if ((buf = __wt_ckpt_eviction_snap_current(session)) != NULL) {
+        snap = &buf->snap;
         session->txn->snapshot_data.snap_min = snap->snap_min;
         session->txn->snapshot_data.snap_max = snap->snap_max;
         session->txn->snapshot_data.snapshot_count = snap->snapshot_count;
         if (snap->snapshot_count > 0)
             memcpy(session->txn->snapshot_data.snapshot, snap->snapshot,
               snap->snapshot_count * sizeof(snap->snapshot[0]));
-        /*
-         * Stamp the page reconciled under this snapshot with the generation sampled before the
-         * snapshot was claimed. That sample can only lag the publishing checkpoint, never lead it,
-         * so a mismatch costs a redundant reconciliation rather than a skipped one.
-         */
-        session->txn->ckpt_snap_gen = ckpt_gen;
+        /* Stamp the page with the checkpoint that published the snapshot it is reconciled under. */
+        session->txn->ckpt_snap_gen = __wt_atomic_load_uint64_relaxed(&buf->gen);
         F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
         state->release = true;
         copied = true;

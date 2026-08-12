@@ -26,10 +26,9 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
         return (false);
 
     /*
-     * The page must have been reconciled under the snapshot this checkpoint published. Only one
-     * checkpoint runs at a time, so this thread's generation is the one that published it. Eviction
-     * samples its stamp before claiming the snapshot, so the stamp can lag the publishing
-     * checkpoint but never lead it, and a mismatch only costs a redundant reconciliation.
+     * The page must have been reconciled under the snapshot this checkpoint published. Checkpoints
+     * are serialized on the checkpoint lock, so the connection's checkpoint generation identifies
+     * the running one, including from its parallel reconciliation workers.
      */
     if (mod->rec_ckpt_snap_gen == WT_CKPT_SNAP_GEN_NONE ||
       mod->rec_ckpt_snap_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
