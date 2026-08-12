@@ -1435,19 +1435,11 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     if (vs->skip_per_key_hs)
         return (0);
 
-    /*
-     * A stable btree opened from a checkpoint pins the shared history store checkpoint that goes
-     * with it, so read the history store there rather than through a live handle. Without a pinned
-     * name the shared history store has never been checkpointed and there is nothing to compare
-     * against.
-     */
-    if (WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name) && btree->hs_checkpoint_name == NULL)
+    WT_RET(__wt_hs_verify_cursor_open(session, hs_btree_id, &hs_cursor));
+    if (hs_cursor == NULL)
         return (0);
 
     WT_STAT_CONN_INCR(session, session_table_verify_hs_keys_checked);
-
-    WT_RET(__wt_curhs_open(session, hs_btree_id, btree->hs_checkpoint_name, NULL, &hs_cursor));
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)

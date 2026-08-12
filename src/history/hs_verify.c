@@ -97,6 +97,31 @@ err:
 }
 
 /*
+ * __wt_hs_verify_cursor_open --
+ *     Open a history store cursor for verify. A stable btree opened from a checkpoint pins the
+ *     shared history store checkpoint that goes with it, so read there rather than through a live
+ *     handle: both sides of the comparison then come from the same checkpoint, and a follower does
+ *     not get a live handle on a shared table. Returns a NULL cursor when the shared history store
+ *     has never been checkpointed and there is nothing to verify against.
+ */
+int
+__wt_hs_verify_cursor_open(WT_SESSION_IMPL *session, uint32_t btree_id, WT_CURSOR **hs_cursorp)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+    *hs_cursorp = NULL;
+
+    if (WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name) && btree->hs_checkpoint_name == NULL)
+        return (0);
+
+    WT_RET(__wt_curhs_open(session, btree_id, btree->hs_checkpoint_name, NULL, hs_cursorp));
+    F_SET(*hs_cursorp, WT_CURSTD_HS_READ_COMMITTED);
+
+    return (0);
+}
+
+/*
  * __wt_hs_verify_one --
  *     Verify the history store for a given btree. This must be called when we are known to have
  *     exclusive access to the btree.
@@ -104,25 +129,13 @@ err:
 int
 __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
-    WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
     WT_DECL_RET;
 
-    btree = S2BT(session);
-    hs_cursor = NULL;
-
-    /*
-     * A stable btree opened from a checkpoint pins the shared history store checkpoint that goes
-     * with it. Read the history store there so both sides of the comparison come from the same
-     * checkpoint, and so a follower does not get a live handle on a shared table. No pinned name
-     * means the shared history store has never been checkpointed, so there is nothing to verify.
-     */
-    if (WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name) && btree->hs_checkpoint_name == NULL)
+    WT_RET(__wt_hs_verify_cursor_open(session, btree_id, &hs_cursor));
+    if (hs_cursor == NULL)
         return (0);
-
-    WT_ERR(__wt_curhs_open(session, btree_id, btree->hs_checkpoint_name, NULL, &hs_cursor));
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
