@@ -893,14 +893,59 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
     session_flags = WT_SESSION_CAN_WAIT;
     WT_RET(__wt_open_internal_session(
       conn, "checkpoint-cleanup", true, session_flags, 0, &conn->cc_cleanup.session));
-    session = conn->cc_cleanup.session;
 
-    WT_RET(__wt_cond_alloc(session, "checkpoint cleanup", &conn->cc_cleanup.cond));
+    WT_RET(
+      __wt_cond_alloc(conn->cc_cleanup.session, "checkpoint cleanup", &conn->cc_cleanup.cond));
 
-    WT_RET(__wt_thread_create(session, &conn->cc_cleanup.tid, __checkpoint_cleanup, session));
+    return (__wt_checkpoint_cleanup_start(session));
+}
+
+/*
+ * __wt_checkpoint_cleanup_start --
+ *     Start the checkpoint cleanup thread if it isn't running. The session and condition variable
+ *     persist across a stop, so a stopped server can be started again.
+ */
+int
+__wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    if (conn->cc_cleanup.session == NULL || conn->cc_cleanup.tid_set)
+        return (0);
+
+    /* Set first, the thread might run before we finish up. */
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
+
+    WT_RET(__wt_thread_create(
+      conn->cc_cleanup.session, &conn->cc_cleanup.tid, __checkpoint_cleanup, conn->cc_cleanup.session));
     conn->cc_cleanup.tid_set = true;
 
     return (0);
+}
+
+/*
+ * __wt_checkpoint_cleanup_stop --
+ *     Stop the checkpoint cleanup thread, keeping the session and condition variable so it can be
+ *     started again. The thread checks for a stop between pages, bounding the wait.
+ */
+int
+__wt_checkpoint_cleanup_stop(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
+    if (conn->cc_cleanup.tid_set) {
+        __wt_cond_signal(session, conn->cc_cleanup.cond);
+        WT_TRET(__wt_thread_join(session, &conn->cc_cleanup.tid));
+        conn->cc_cleanup.tid_set = false;
+    }
+
+    return (ret);
 }
 
 /*
@@ -915,12 +960,7 @@ __wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
-    if (conn->cc_cleanup.tid_set) {
-        __wt_cond_signal(session, conn->cc_cleanup.cond);
-        WT_TRET(__wt_thread_join(session, &conn->cc_cleanup.tid));
-        conn->cc_cleanup.tid_set = false;
-    }
+    WT_TRET(__wt_checkpoint_cleanup_stop(session));
     __wt_cond_destroy(session, &conn->cc_cleanup.cond);
 
     /* Close the server thread's session. */
