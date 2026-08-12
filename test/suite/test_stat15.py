@@ -66,12 +66,27 @@ class test_stat15(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.checkpoint(None)
 
+        # Reopen and read the whole table, so the number of resident leaf pages reflects the
+        # on-disk tree rather than however far background eviction happened to get.
+        self.reopen_conn()
+        cursor = self.session.open_cursor(self.uri, None, None)
+        while cursor.next() == 0:
+            pass
+        cursor.close()
+
         leaf_before = self.get_conn_stat(stat.conn.cache_pages_inuse_leaf)
         self.assertGreater(leaf_before, 0)
 
-        # Force eviction by reopening the connection (clears cache).
-        self.reopen_conn()
+        # Evict a page at a time with an eviction cursor.
+        evict_session = self.conn.open_session()
+        evict_cursor = evict_session.open_cursor(self.uri, None, 'debug=(release_evict)')
+        for i in range(0, 10000, 50):
+            evict_cursor.set_key(str(i).zfill(6))
+            self.assertEqual(evict_cursor.search(), 0)
+            evict_cursor.reset()
+        evict_cursor.close()
+        evict_session.close()
 
         leaf_after = self.get_conn_stat(stat.conn.cache_pages_inuse_leaf)
         self.assertLess(leaf_after, leaf_before,
-            'expected cache_pages_inuse_leaf to decrease after cache cleared')
+            'expected cache_pages_inuse_leaf to decrease after eviction')
