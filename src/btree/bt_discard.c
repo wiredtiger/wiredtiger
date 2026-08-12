@@ -40,23 +40,21 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
       __wt_hazard_check_assert(session, ref, true),
       "Attempted to free a page with active hazard pointers");
 
-    __wt_page_out(session, ref, &ref->page);
+    __wt_dirty_index_clear_page(session, S2BT(session), ref, ref->page);
+    __wt_page_out(session, &ref->page);
 }
 
 /*
  * __wt_page_out --
- *     Discard an in-memory page, freeing all associated memory. Callers without a stable page
- *     reference omit dirty-index cleanup; otherwise the entry is cleared while the page is valid.
+ *     Discard an in-memory page, freeing all memory associated with it.
  */
 void
-__wt_page_out(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE **pagep)
+__wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PAGE *page;
     WT_PAGE_HEADER *dsk;
     WT_PAGE_MODIFY *mod;
-
-    WT_ASSERT(session, ref == NULL || pagep == &ref->page);
 
     /*
      * Kill our caller's reference, do our best to catch races.
@@ -64,14 +62,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE **pagep)
     page = *pagep;
     *pagep = NULL;
     conn = S2C(session);
-
-    /*
-     * Clear the dirty-index ring entry while the page is still mapped. Idempotent: a zero back-
-     * pointer (page never inserted, or already cleared by the eviction-time path) is a single
-     * acquire load and an early return.
-     */
-    if (ref != NULL)
-        __wt_dirty_index_clear_page(session, S2BT(session), ref, page);
 
     /*
      * Ensure that we are not evicting a page ahead of the materialization frontier, unless we are
@@ -117,7 +107,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE **pagep)
     case WT_PAGE_ROW_INT:
         mod = page->modify;
         if (mod != NULL && mod->mod_root_split != NULL)
-            __wt_page_out(session, NULL, &mod->mod_root_split);
+            __wt_page_out(session, &mod->mod_root_split);
         break;
     }
 
@@ -383,7 +373,8 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
         WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
-        __wt_page_out(session, ref, &ref->page);
+        __wt_dirty_index_clear_page(session, S2BT(session), ref, ref->page);
+        __wt_page_out(session, &ref->page);
     }
 
     /*

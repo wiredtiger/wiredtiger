@@ -114,7 +114,7 @@ TEST_CASE_METHOD(
     REQUIRE(!__wt_dirty_index_insert(session, btree, &ref));
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
     __wt_dirty_index_unblock_page(&page);
-    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
 
     WT_REF replacement{};
     replacement.home = &page;
@@ -130,7 +130,7 @@ TEST_CASE_METHOD(
     REQUIRE(index->slots[0].ref == nullptr);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
     __wt_dirty_index_unblock_page(&page);
-    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
 }
 
 TEST_CASE_METHOD(
@@ -188,7 +188,7 @@ TEST_CASE_METHOD(dirty_index_fixture,
     REQUIRE(index->slots[0].ref == nullptr);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
     __wt_dirty_index_unblock_page(&page);
-    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
 }
 
 TEST_CASE_METHOD(
@@ -299,11 +299,11 @@ TEST_CASE_METHOD(dirty_index_fixture,
     WTI_DIRTY_INDEX *index = btree->dirty_index;
 
     /*
-     * The back-pointer is one word per page and anyone who gives up a claim on it clears it -- a
+     * The back-pointer is one word per page and anyone who gives up a claim on it releases it -- a
      * split unblocking a page it retained, a drain that dropped its claim but kept its slot. The
-     * slot outlives that, so an absent back-pointer must not be read as an absent ring entry.
+     * slot outlives that, so a released claim must not be read as an absent ring entry.
      */
-    page.dirty_index_slot = WTI_DIRTY_BP_NONE;
+    page.dirty_index_slot = WTI_DIRTY_BP_CLEARED;
 
     __wt_dirty_index_block_page(session, btree, &retiring, &page);
     REQUIRE(index->slots[0].ref == nullptr);
@@ -373,7 +373,7 @@ TEST_CASE_METHOD(dirty_index_fixture,
     bool cleared = __wti_dirty_index_unlink_page(&page, 0);
     REQUIRE(!cleared);
     __wti_dirty_index_release_page(&page, cleared);
-    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
     REQUIRE(__wt_dirty_index_insert(session, btree, &replacement));
 }
 
@@ -398,7 +398,7 @@ TEST_CASE_METHOD(dirty_index_fixture,
     /* The drain pops the entry and gives up its claim on the page. */
     bool cleared = __wti_dirty_index_unlink_page(&page, 0);
     REQUIRE(cleared);
-    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
 
     /* A retirement blocks the page in the window before the drain finishes with it. */
     __wt_dirty_index_block_page(session, btree, &retiring, &page);
@@ -411,6 +411,46 @@ TEST_CASE_METHOD(dirty_index_fixture,
     __wti_dirty_index_release_page(&page, cleared);
     REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
     REQUIRE(!__wt_dirty_index_insert(session, btree, &retiring));
+}
+
+/*
+ * Retirement skips searching the ring for a page that was never inserted, so nothing may put a page
+ * back to that sentinel once it has held a slot. Pin the transitions the skip relies on.
+ */
+TEST_CASE_METHOD(dirty_index_fixture,
+  "Dirty index: a released claim never reverts to never-inserted", "[dirty_index]")
+{
+    WT_PAGE page{};
+    WT_PAGE_MODIFY modify{};
+    WT_REF ref{};
+    page.modify = &modify;
+    ref.home = &page;
+    ref.page = &page;
+    F_SET(&ref, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(&ref, WT_REF_MEM);
+
+    REQUIRE(__wt_dirty_index_alloc(session, btree) == 0);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_NONE);
+
+    REQUIRE(__wt_dirty_index_insert(session, btree, &ref));
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_MAKE(0));
+
+    /* A drain giving up its claim, a retirement block, and a split unblock all land on CLEARED. */
+    REQUIRE(__wti_dirty_index_unlink_page(&page, 0));
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
+
+    __wt_dirty_index_block_page(session, btree, &ref, &page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_BLOCKED);
+
+    __wt_dirty_index_unblock_page(&page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
+
+    /* A released claim still accepts a new one, so the page can re-enter the ring. */
+    REQUIRE(__wt_dirty_index_insert(session, btree, &ref));
+    REQUIRE(page.dirty_index_slot != WTI_DIRTY_BP_CLEARED);
+
+    __wt_dirty_index_clear_page(session, btree, &ref, &page);
+    REQUIRE(page.dirty_index_slot == WTI_DIRTY_BP_CLEARED);
 }
 
 TEST_CASE_METHOD(

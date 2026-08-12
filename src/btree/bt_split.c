@@ -637,12 +637,18 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         }
     }
 
-    /* Free any backing fast-truncate memory. */
+    /*
+     * Stop producers from publishing this ref and drop it from the ring, before anything below can
+     * free memory the drain might still reach through it. Sample whether the ring is live while
+     * here: it decides how the ref is stashed at the end of this function.
+     */
     page = ref->page;
     __wt_dirty_index_block_page(session, S2BT(session), ref, page);
     dirty_index = __wt_atomic_load_ptr_acquire(&S2BT(session)->dirty_index);
     dirty_index_active =
       dirty_index != NULL && __wt_atomic_load_ptr_acquire(&dirty_index->slots) != NULL;
+
+    /* Free any backing fast-truncate memory. */
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
@@ -2325,7 +2331,7 @@ err:
          * up the cache statistics.
          */
         __wt_page_modify_clear(session, right);
-        __wt_page_out(session, NULL, &right);
+        __wt_page_out(session, &right);
     }
     return (ret);
 }
@@ -2436,7 +2442,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * discard the page.
      */
     __wt_page_modify_clear(session, page);
-    __wt_page_out(session, NULL, &page);
+    __wt_page_out(session, &page);
 
     if (0) {
 err:

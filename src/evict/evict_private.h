@@ -72,15 +72,24 @@ struct __wti_evict_entry {
 
 /*
  * The page back-pointer (WT_PAGE.dirty_index_slot, uint32) stores the one-indexed slot;
- * WTI_DIRTY_BP_NONE means the page is not in the ring. WTI_DIRTY_BP_MAKE encodes a zero-based slot
- * index into that back-pointer value; WTI_DIRTY_BP_SLOT recovers the slot index from it. Producers
- * and page teardown coordinate ownership of the back-pointer with atomic compare-and-swap
- * operations.
+ * WTI_DIRTY_BP_MAKE encodes a zero-based slot index into that back-pointer value, and
+ * WTI_DIRTY_BP_SLOT recovers the slot index from it. Producers and page teardown coordinate
+ * ownership of the back-pointer with atomic compare-and-swap operations.
+ *
+ * Two sentinels mean the page holds no slot, and the difference between them is what lets a
+ * retiring ref skip the ring search. NONE is the calloc-zeroed initial value and promises the page
+ * was never inserted, so no slot can name any of its refs. CLEARED says a claim was released, which
+ * promises nothing: slots are per ref and a page may have refs in slots the back-pointer never
+ * named, so only a search can rule that out. Everything that gives up a claim stores CLEARED rather
+ * than NONE; a page reverts to NONE only by being freed and its memory reused.
  */
 #define WTI_DIRTY_BP_NONE 0u
+#define WTI_DIRTY_BP_CLEARED (UINT32_MAX - 1u)
 #define WTI_DIRTY_BP_BLOCKED UINT32_MAX
 #define WTI_DIRTY_BP_MAKE(slot) ((uint32_t)(slot) + 1u)
 #define WTI_DIRTY_BP_SLOT(bp) ((bp) - 1u)
+/* True when no producer or retirement holds the back-pointer, so a producer may claim it. */
+#define WTI_DIRTY_BP_IS_FREE(bp) ((bp) == WTI_DIRTY_BP_NONE || (bp) == WTI_DIRTY_BP_CLEARED)
 #define WTI_DIRTY_INDEX_IS_DISAGG(btree) \
     F_ISSET((btree), WT_BTREE_DISAGGREGATED | WT_BTREE_GARBAGE_COLLECT)
 
@@ -96,6 +105,13 @@ struct __wti_evict_entry {
  */
 #define WTI_DRAIN_EMPTY_THRESHOLD 8u
 #define WTI_DRAIN_PROBE_INTERVAL 32u
+
+/*
+ * The ring is leaf-only, so a drain that fills a tree's whole budget leaves the walker no slots and
+ * the internal tier goes stale. After this many consecutive budget-filling passes the walker gets
+ * one to itself.
+ */
+#define WTI_DRAIN_FILLED_SKIP_MAX 32u
 
 typedef struct {
     wt_shared WT_REF *ref;

@@ -134,14 +134,14 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     WT_PAGE *page;
     uint64_t pos, seq;
     int64_t dif;
-    uint32_t retries, slot;
+    uint32_t bp, retries, slot;
 
     evict = S2C(session)->evict;
     if (!__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index) ||
       !F_ISSET(ref, WT_REF_FLAG_LEAF) || __wt_atomic_load_ptr_relaxed(&ref->home) == NULL ||
       WT_REF_GET_STATE(ref) != WT_REF_MEM ||
       (page = __wt_atomic_load_ptr_acquire(&ref->page)) == NULL || page->modify == NULL ||
-      __wt_atomic_load_uint32_relaxed(&page->dirty_index_slot) != WTI_DIRTY_BP_NONE)
+      !WTI_DIRTY_BP_IS_FREE(__wt_atomic_load_uint32_relaxed(&page->dirty_index_slot)))
         return (false);
     if ((idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index)) == NULL)
         return (false);
@@ -168,12 +168,13 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
                 return (false);
             pos = __wt_atomic_load_uint64_relaxed(&idx->head);
         } else if (dif < 0) {
-            if (WT_STAT_ENABLED(session)) {
+            /*
+             * Occupancy equals capacity here, but the drain maintains that gauge from the real
+             * head-tail span; recording only the capacity keeps this contended path to one atomic.
+             */
+            if (WT_STAT_ENABLED(session))
                 __wt_atomic_stats_max_uint64(
                   &evict->dirty_index_ring_full_capacity_max, idx->capacity);
-                __wt_atomic_stats_max_uint64(
-                  &evict->dirty_index_ring_peak_occupancy, idx->capacity);
-            }
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_ring_full);
             return (false);
         } else {
@@ -194,8 +195,9 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
      * teardown, but not this kind of race: it grants shared access, not exclusive ownership of the
      * back-pointer.
      */
-    if (!__wt_atomic_cas_uint32(
-          &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_MAKE(slot))) {
+    bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot);
+    if (!WTI_DIRTY_BP_IS_FREE(bp) ||
+      !__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_MAKE(slot))) {
         __wt_atomic_store_ptr_release(&slotp->ref, NULL);
         /*
          * Publish the slot as consumed even though it stayed empty: the drain only advances tail
@@ -212,9 +214,13 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
         (void)__wt_atomic_cas_ptr(&slotp->ref, ref, NULL);
         /* Same wedge-avoidance publish as the back-pointer CAS failure above. */
         __wt_atomic_store_uint64_release(&slotp->sequence, pos + 1);
-        /* Release ownership of the back-pointer; a no-op if it was already cleared elsewhere. */
+        /*
+         * Release ownership of the back-pointer; a no-op if it was already cleared elsewhere.
+         * CLEARED rather than the sentinel this claim replaced: the ref was published to the slot
+         * before the recheck, so however briefly, a slot named it.
+         */
         (void)__wt_atomic_cas_uint32(
-          &page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE);
+          &page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_CLEARED);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_insert_contended);
         return (false);
     }
@@ -297,18 +303,22 @@ __wt_dirty_index_block_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
             __evict_dirty_index_scan_clear(idx, slots, ref);
             return;
         }
-        if (bp == WTI_DIRTY_BP_NONE) {
-            if (__wt_atomic_cas_uint32(
-                  &page->dirty_index_slot, WTI_DIRTY_BP_NONE, WTI_DIRTY_BP_BLOCKED)) {
+        if (WTI_DIRTY_BP_IS_FREE(bp)) {
+            if (__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_BLOCKED)) {
                 /*
-                 * An absent back-pointer does not mean an absent ring entry. It is one word per
-                 * page, cleared by whoever gave up its claim -- a drain that has dropped its claim
+                 * A released claim does not mean an absent ring entry. The back-pointer is one word
+                 * per page, given up by whoever last held it -- a drain that has dropped its claim
                  * on the page but not yet emptied its slot, a split unblocking a page it retained,
                  * a producer abandoning a reservation -- while slots are per ref and outlive all of
-                 * that. The scan is what makes this path safe, and it is the common path: a page
-                 * that never entered the ring arrives here too, which is why the span is bounded.
+                 * that, so only a search can rule out a slot the back-pointer never named.
+                 *
+                 * A page that was never inserted is the common case here, and it needs no search:
+                 * nothing ever named any of its refs. Distinguishing the two sentinels is what
+                 * keeps retirement off the ring, which matters because the span is bounded by
+                 * occupancy and these workloads run the ring at capacity.
                  */
-                __evict_dirty_index_scan_clear(idx, slots, ref);
+                if (bp != WTI_DIRTY_BP_NONE)
+                    __evict_dirty_index_scan_clear(idx, slots, ref);
                 return;
             }
             WT_PAUSE();
@@ -376,8 +386,8 @@ __wt_dirty_index_retire_gen(WT_SESSION_IMPL *session)
 bool
 __wti_dirty_index_unlink_page(WT_PAGE *page, uint32_t slot)
 {
-    return (
-      __wt_atomic_cas_uint32(&page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_NONE));
+    return (__wt_atomic_cas_uint32(
+      &page->dirty_index_slot, WTI_DIRTY_BP_MAKE(slot), WTI_DIRTY_BP_CLEARED));
 }
 
 /*
@@ -397,7 +407,7 @@ __wti_dirty_index_release_page(WT_PAGE *page, bool cleared)
 {
     if (!cleared)
         (void)__wt_atomic_cas_uint32(
-          &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_NONE);
+          &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_CLEARED);
 }
 
 /*
@@ -409,7 +419,7 @@ __wt_dirty_index_unblock_page(WT_PAGE *page)
 {
     if (page != NULL)
         (void)__wt_atomic_cas_uint32(
-          &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_NONE);
+          &page->dirty_index_slot, WTI_DIRTY_BP_BLOCKED, WTI_DIRTY_BP_CLEARED);
 }
 
 /*
@@ -431,13 +441,14 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     uint32_t bp;
 
     /*
-     * An absent back-pointer is taken to mean no slot names this page, which holds only because
-     * retirement clears the ring before it unblocks a page it retained: a page reaching teardown
-     * therefore has no slot left over from an earlier ref. Retirement cannot assume the same and
-     * searches instead, but this runs on every page discard, where a search would not pay.
+     * A page holding no claim is taken to mean no slot names it, which for a released claim holds
+     * only because retirement clears the ring before it unblocks a page it retained: a page
+     * reaching teardown therefore has no slot left over from an earlier ref. Retirement cannot
+     * assume the same and searches instead, but this runs on every page discard, where a search
+     * would not pay.
      */
     if (page == NULL ||
-      (bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)) == WTI_DIRTY_BP_NONE)
+      WTI_DIRTY_BP_IS_FREE(bp = __wt_atomic_load_uint32_acquire(&page->dirty_index_slot)))
         return;
     idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index);
     if (idx == NULL || (slots = __wt_atomic_load_ptr_acquire(&idx->slots)) == NULL)
@@ -457,7 +468,7 @@ __wt_dirty_index_clear_page(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *r
     slotp = &slots[WTI_DIRTY_BP_SLOT(bp)];
     /* Only clear the page back-pointer if this ref still owns the slot. */
     if (__wt_atomic_cas_ptr(&slotp->ref, ref, NULL))
-        (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_NONE);
+        (void)__wt_atomic_cas_uint32(&page->dirty_index_slot, bp, WTI_DIRTY_BP_CLEARED);
     else
         __evict_dirty_index_scan_clear(idx, slots, ref);
 }

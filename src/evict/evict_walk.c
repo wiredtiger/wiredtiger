@@ -263,10 +263,10 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
             ++seen_updates;
 
         /*
-         * Clear the ring slot before the back-pointer. The back-pointer is the gate that suppresses
-         * a second insert of the same page, so a producer that observes it zero and re-inserts on
-         * the next modify is guaranteed to see the slot already cleared, never a transient
-         * double-reference.
+         * Drop the page's claim on this slot before the pop completes, so a concurrent modify can
+         * re-insert the page at a fresh position instead of waiting out the rest of this iteration.
+         * A re-insert reserves a new slot at the head, and the slot being drained is emptied below
+         * and never names the page again, so the early release cannot leave two slots naming it.
          */
         bp_released = __wti_dirty_index_unlink_page(ref->page, slot);
 
@@ -1657,8 +1657,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         return (0);
 
     /* Per-btree slot budget; drain fills the leading portion, walker fills the remainder. */
-    start = queue->evict_queue + *slotp;
-    end = start + target_pages;
+    end = queue->evict_queue + *slotp + target_pages;
 
     /*
      * Drain on every pass, then walk. The earlier odd-pass alternation existed because draining
@@ -1672,10 +1671,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         should_drain = pass_gen >= __wt_atomic_load_uint64_relaxed(&btree->drain_next_probe_gen);
     else if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         /*
-         * The ring is leaf-only, so only the walker queues internal pages. When the drain has
-         * filled the whole budget for WTI_DRAIN_PROBE_INTERVAL consecutive passes the walker has no
-         * free slots and the internal tier goes stale and accumulates in cache. Skip the drain this
-         * pass so the walker gets the full budget and reclaims internal pages.
+         * Yield a pass to the walker once the drain has filled the whole budget too many times in a
+         * row, so the internal tier the ring cannot supply still gets reclaimed.
          *
          * Only force this when the overall cache is over its target (WT_EVICT_CACHE_CLEAN).
          * Internal pages need eviction only under whole-cache pressure; gating on dirty/updates
@@ -1684,18 +1681,18 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
          * keeping up.
          */
         should_drain =
-          __wt_atomic_load_uint32_relaxed(&btree->drain_filled_skips) < WTI_DRAIN_PROBE_INTERVAL;
+          __wt_atomic_load_uint32_relaxed(&btree->drain_filled_skips) < WTI_DRAIN_FILLED_SKIP_MAX;
     else
         should_drain = true;
 
-    if (should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
-      F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES) &&
-      __evict_drain_stable_blocked(session, btree)) {
+    should_drain = should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
+      F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES);
+
+    if (should_drain && __evict_drain_stable_blocked(session, btree)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_stable_lag);
         should_drain = false;
     }
-    if (should_drain && __wt_atomic_load_ptr_acquire(&btree->dirty_index) != NULL &&
-      F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
+    if (should_drain) {
         if (F_ISSET(evict, WT_EVICT_CACHE_NOKEEP)) {
             /*
              * WT_EVICT_CACHE_NOKEEP means the cache is more than halfway to the eviction trigger;

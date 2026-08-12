@@ -334,20 +334,20 @@ struct __wt_btree {
      * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
      * code.
      */
-    wt_shared WT_REF *evict_ref;            /* Eviction thread's location */
-    uint64_t evict_saved_ref_check;         /* Eviction saved thread's location as an ID */
-    double evict_pos;                       /* Eviction thread's soft location */
-    uint32_t linear_walk_restarts;          /* next/prev walk restarts */
-    uint64_t evict_priority;                /* Relative priority of cached pages */
-    uint32_t evict_walk_progress;           /* Eviction walk progress */
-    uint32_t evict_walk_target;             /* Eviction walk target */
-    wt_shared WTI_DIRTY_INDEX *dirty_index; /* Push-model dirty ring; NULL when disabled */
+    wt_shared WT_REF *evict_ref;             /* Eviction thread's location */
+    uint64_t evict_saved_ref_check;          /* Eviction saved thread's location as an ID */
+    double evict_pos;                        /* Eviction thread's soft location */
+    uint32_t linear_walk_restarts;           /* next/prev walk restarts */
+    uint64_t evict_priority;                 /* Relative priority of cached pages */
+    uint32_t evict_walk_progress;            /* Eviction walk progress */
+    uint32_t evict_walk_target;              /* Eviction walk target */
+    wt_shared WTI_DIRTY_INDEX *dirty_index;  /* Push-model dirty ring; NULL when disabled */
+    wt_shared uint64_t drain_next_probe_gen; /* Next eviction pass to probe a parked drain */
     wt_shared uint32_t
       drain_consecutive_empty; /* Adaptive drain: # of unproductive drains in a row */
     wt_shared uint32_t
       drain_filled_skips; /* Consecutive walks skipped because the drain filled the budget */
-    wt_shared bool drain_disabled;           /* Adaptive drain: walker-only mode for this btree */
-    wt_shared uint64_t drain_next_probe_gen; /* Next eviction pass to probe a parked drain */
+    wt_shared bool drain_disabled; /* Adaptive drain: walker-only mode for this btree */
     /*
      * Median commit timestamp of the ring's stable-blocked pages, captured on the last drained
      * pass. While the pinned stable timestamp sits below it the precise checkpoint cannot evict

@@ -725,7 +725,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
     return (__wt_reconcile(session, &fake_ref, NULL, flags));
 
 err:
-    __wt_page_out(session, NULL, &next);
+    __wt_page_out(session, &next);
     return (ret);
 }
 
@@ -2938,7 +2938,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     if (WT_PAGE_IS_INTERNAL(page) && mod->mod_root_split != NULL) {
         WT_RET(__rec_split_discard(session, r, mod->mod_root_split));
         WT_RET(__wti_ovfl_track_wrapup(session, mod->mod_root_split));
-        __wt_page_out(session, NULL, &mod->mod_root_split);
+        __wt_page_out(session, &mod->mod_root_split);
     }
 
     return (0);

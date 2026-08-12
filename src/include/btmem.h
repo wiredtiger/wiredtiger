@@ -843,11 +843,12 @@ struct __wt_page {
     uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
 
     /*
-     * Slot index (1-based) of this page in the btree's dirty-index ring. Zero means the page is not
-     * currently in the ring. Stored as slot+1 so that the calloc-zeroed default (0) means "not
-     * present". Set by the producer (modify path), cleared by the consumer (drain), and actively
-     * cleared during page eviction so the ring entry is invalidated synchronously with page
-     * teardown.
+     * Slot index (1-based) of this page in the btree's dirty-index ring, or one of the sentinels
+     * the eviction module defines. Stored as slot+1 so the calloc-zeroed default distinguishes a
+     * page that has never been inserted from one whose claim was released, which is what lets ref
+     * retirement skip searching the ring. Set by the producer (modify path), released by the
+     * consumer (drain), and released during page eviction so the ring entry is invalidated
+     * synchronously with page teardown.
      */
     wt_shared uint32_t dirty_index_slot;
 
