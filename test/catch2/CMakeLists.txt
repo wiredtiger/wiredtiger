@@ -12,6 +12,7 @@ else()
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_skip.cpp
+        misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_ebusy.cpp
@@ -21,6 +22,7 @@ else()
         misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
         misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp

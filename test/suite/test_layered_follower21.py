@@ -124,7 +124,9 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
 
     def check_new_data_visible(self, conn_follow):
         # Outside the racing transaction, the picked-up content must be there:
-        # a fresh transaction sees the post-pickup writes.
+        # a fresh transaction sees the post-pickup writes. Callers get here with the
+        # blocking snapshot ended, so the adoption it deferred can now be waited for.
+        self.disagg_wait_for_adoption(conn_follow)
         session = conn_follow.open_session('')
         session.begin_transaction()
         cursor = session.open_cursor(self.uri)
@@ -802,6 +804,7 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         # picked-up content with no rollbacks.
         conn_follow, session_follow = self.setup_with_first_checkpoint()
         self.commit_post_snapshot_writes(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         session_follow.begin_transaction()
         cursor = session_follow.open_cursor(self.uri)
@@ -838,9 +841,12 @@ class test_layered_follower21(wttest.WiredTigerTestCase):
         cursor.close()
         session_hold.rollback_transaction()
         session_hold.close()
-        # With the snapshot gone, a freshly delivered checkpoint is adopted synchronously.
+        # With the snapshot gone, nothing blocks the adoption. It still may not run inline: any
+        # snapshot the node happens to hold, including the ones the adoption itself takes, defers
+        # the delivery to the server, so wait for it before reading.
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         session = conn_follow.open_session('')
         session.begin_transaction()

@@ -950,7 +950,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * error.
      */
     WT_UNUSED(btree);
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY));
 
     /* We don't handle in-memory prepare resolution here. */
     WT_ASSERT(session, !__wt_btree_stays_in_memory(btree));
@@ -1391,7 +1391,8 @@ __inmem_col_var(
         }
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
+        if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+          WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
             instantiate_upd = true;
 
         indx++;
@@ -1435,7 +1436,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     hint = 0;
     WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
         ref = *refp;
-        ref->home = page;
+        __wt_atomic_store_ptr_relaxed(&ref->home, page);
         ref->pindex_hint = hint++;
 
         switch (unpack.type) {
@@ -1690,7 +1691,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
         }
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
+        if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
             instantiate_prepare_upd = true;
     }
     WT_CELL_FOREACH_END;

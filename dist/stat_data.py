@@ -377,6 +377,7 @@ conn_stats = [
     EvictStat('eviction_app_dirty_fail', 'modified page evict failures by application threads'),
     EvictStat('eviction_app_fail', 'page evict failures by application threads'),
     EvictStat('eviction_app_time', 'application thread time evicting (usecs)'),
+    EvictStat('eviction_ckpt_snapshot_declined', 'evictions that found no snapshot published by the running checkpoint'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
@@ -646,6 +647,7 @@ conn_stats = [
         'no_clear,no_scale'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
+    DisaggStat('disagg_step_down_window_creates', 'tables created without a stable constituent while the step-down timestamp is set'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 
@@ -1010,6 +1012,8 @@ conn_stats = [
     TxnStat('txn_rollback_oldest_pinned', 'oldest pinned transaction ID rolled back for eviction'),
     TxnStat('txn_rollback_stepdown', 'write transactions rolled back for straddling the step-down timestamp setting boundary'),
     TxnStat('txn_rollback_to_stable_running', 'transaction rollback to stable currently running', 'no_clear,no_scale'),
+    TxnStat('txn_rollback_too_large_for_cache',
+        'transactions rolled back because their own dirty content exceeds the eviction updates or dirty trigger'),
     TxnStat('txn_rts', 'rollback to stable calls'),
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
     TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
@@ -1422,6 +1426,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_del_page_skip', 'Total number of deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
 
     ##########################################
     # Cursor API error statistics

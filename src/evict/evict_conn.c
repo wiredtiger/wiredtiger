@@ -101,10 +101,9 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
       "eviction updates target", conn->cache_size, shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
-    double updates_trigger_val = (double)cval.val;
+    double updates_trigger = (double)cval.val;
     WT_RET(__evict_config_abs_to_pct(
-      session, &updates_trigger_val, "eviction updates trigger", conn->cache_size, shared));
-    __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, updates_trigger_val);
+      session, &updates_trigger, "eviction updates trigger", conn->cache_size, shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
     evict->eviction_checkpoint_target = (double)cval.val;
@@ -162,7 +161,6 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
         }
     }
 
-    double updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
     if (updates_trigger < DBL_EPSILON) {
         /*
          * Generally we want to allow a reasonable amount of updates content, the default dirty

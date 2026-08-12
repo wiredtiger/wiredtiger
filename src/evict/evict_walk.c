@@ -771,7 +771,7 @@ retry:
         }
 
         /* Skip read-only btrees if we are not looking for clean/updates pages. */
-        if (F_ISSET(btree, WT_BTREE_READONLY) &&
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
           !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_read_only);
             __evict_disagg_btree_skip_count(session, btree);
@@ -1790,7 +1790,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     root_pages_skipped = 0;
     for (evict_entry = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
       evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
-      last_parent = ref == NULL ? NULL : ref->home,
+      last_parent = ref == NULL ? NULL : (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home),
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
 
         /*
