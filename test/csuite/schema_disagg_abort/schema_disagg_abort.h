@@ -254,8 +254,8 @@ typedef struct {
  * The checkpoint thread's bookkeeping for one phase.
  */
 typedef struct {
-    struct timespec phase_start; /* when the phase began, used for checkpoint timeouts */
     uint32_t produced;           /* checkpoints produced so far */
+    struct timespec phase_start; /* when the phase began, used for checkpoint timeouts */
 } CKPT_CTX;
 
 /*
