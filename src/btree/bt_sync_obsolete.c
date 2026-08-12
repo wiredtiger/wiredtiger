@@ -284,17 +284,11 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
 static int
 __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_REF_STATE new_state, previous_state, ref_state;
     bool ref_deleted;
 
-    btree = S2BT(session);
     ref_deleted = false;
-
-    /* Re-check on individual refs as the leader flag can flip mid-walk during step-down. */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->layered_table_manager.leader)
-        return (0);
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
@@ -336,7 +330,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          * For deleted and on-disk pages, mark the ref as dirty if there has been a change in the
          * ref's state. There's nothing to do for in-memory pages as we don't change those.
          */
-        if (WT_DELTA_INT_ENABLED(btree, S2C(session)) && previous_state != new_state)
+        if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)) && previous_state != new_state)
             __wt_atomic_store_uint8_v_release(&ref->dirty_state, WT_REF_DIRTY);
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
@@ -390,21 +384,6 @@ static bool
 __checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
 {
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP));
-}
-
-/*
- * __checkpoint_cleanup_walk_continue --
- *     Return whether an in-flight cleanup walk should continue. Discontinue on disagg role
- *     transition as step-up/step-down drains on checkpoint cleanup before changing the role.
- */
-static bool
-__checkpoint_cleanup_walk_continue(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    return (__checkpoint_cleanup_run_chk(session) &&
-      !F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN));
 }
 
 /*
@@ -554,7 +533,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         WT_ERR(ret);
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_walk_continue(session))
+        if (!__checkpoint_cleanup_run_chk(session))
             break;
     }
 
@@ -801,12 +780,11 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
               S2C(session)->cc_cleanup.file_wait_ms, (char *)uri->data);
 
             __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-              S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND,
-              __checkpoint_cleanup_walk_continue);
+              S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND, __checkpoint_cleanup_run_chk);
         }
 
         /* Check if we're quitting. */
-        if (!__checkpoint_cleanup_walk_continue(session))
+        if (!__checkpoint_cleanup_run_chk(session))
             break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -868,22 +846,7 @@ __checkpoint_cleanup(void *arg)
         if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
             continue;
 
-        /*
-         * It's possible for a node to transition from leader to follower while the checkpoint
-         * cleanup thread is running. If that happens, we want to stop the cleanup, by either
-         * preempting it or signaling it to quit.
-         */
-        (void)__wt_atomic_add_uint32_v(&conn->cc_cleanup.busy, 1);
-        if (F_ISSET_ATOMIC_32(
-              conn, WT_CONN_RECONFIGURING_STEP_UP | WT_CONN_RECONFIGURING_STEP_DOWN) ||
-          (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)) {
-            (void)__wt_atomic_sub_uint32_v(&conn->cc_cleanup.busy, 1);
-            continue;
-        }
-
-        ret = __checkpoint_cleanup_int(session);
-        (void)__wt_atomic_sub_uint32_v(&conn->cc_cleanup.busy, 1);
-        WT_ERR(ret);
+        WT_ERR(__checkpoint_cleanup_int(session));
         WT_STAT_CONN_INCR(session, checkpoint_cleanup_success);
         last = now;
     }

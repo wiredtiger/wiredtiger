@@ -1009,10 +1009,6 @@ __disagg_step_up(WT_SESSION_IMPL *session)
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP);
     WT_STAT_CONN_SET(session, disagg_step_up_in_progress, 1);
 
-    /* Drain any in-flight checkpoint cleanup walk before mutating the leader flag. */
-    while (__wt_tsan_suppress_load_uint32_v(&conn->cc_cleanup.busy) > 0)
-        __wt_yield();
-
     /*
      * Some functionality in stepping up needs a session that can open data handles. The default
      * session used to call this function cannot do that.
@@ -1184,10 +1180,6 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_DOWN);
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 1);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-
-    /* Drain any in-flight checkpoint cleanup walk before mutating the leader. */
-    while (__wt_tsan_suppress_load_uint32_v(&conn->cc_cleanup.busy) > 0)
-        __wt_yield();
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
