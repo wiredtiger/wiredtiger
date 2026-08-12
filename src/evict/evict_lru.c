@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref);
-static bool __evict_ramp(WT_SESSION_IMPL *session, double pct, double lo, double hi);
 static int __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server);
 static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
@@ -362,43 +361,6 @@ __evict_ramp_quantum_expired(WT_SESSION_IMPL *session)
 }
 
 /*
- * __evict_ramp_clean_refresh --
- *     Re-roll the ramped clean-eviction decision if this quantum has expired.
- *
- * Split out of __evict_update_work() so a worker can keep the ramp sampling correctly without
- * paying for the rest of that function. Everything needed is two atomic loads and a division, as
- * against a walk of the history store trees.
- *
- * Racing threads may re-roll in the same quantum, or store a decision and a start time that do not
- * quite correspond. Both cost at most one extra or one late re-roll, which the next quantum
- * corrects, and the fields are read without synchronisation anyway.
- */
-static void
-__evict_ramp_clean_refresh(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_EVICT *evict;
-    double cache_pct, target, trigger;
-    uint64_t bytes_inuse, bytes_max, now;
-
-    conn = S2C(session);
-    evict = conn->evict;
-
-    if (!__evict_ramp_quantum_expired(session))
-        return;
-
-    bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
-    bytes_inuse = __wt_cache_bytes_inuse(conn->cache);
-    cache_pct = (100.0 * bytes_inuse) / bytes_max;
-    target = __wt_atomic_load_double_relaxed(&evict->eviction_target);
-    trigger = __wt_atomic_load_double_relaxed(&evict->eviction_trigger);
-
-    now = __wt_clock(session);
-    evict->evict_ramp_clean = __evict_ramp(session, cache_pct, target, trigger);
-    evict->evict_ramp_clean_begin = now;
-}
-
-/*
  * __evict_lru_pages --
  *     Evict pages while the cache is over target, draining a bounded batch between occupancy checks.
  */
@@ -409,34 +371,42 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
     u_int i;
+    bool eviction_needed;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
+    eviction_needed = false;
 
     while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) && ret == 0) {
         /*
-         * Re-roll the ramped clean-eviction decision when this thread's quantum is up. Only the
-         * ramp is refreshed here, not the whole eviction state: a worker that could not re-roll
-         * would leave without ending an off period, leaving the server as the only thread able to,
-         * and the two states would then sample at very different rates (a ramp asking for 81%
-         * measured 43%).
+         * Continue when there is eviction work to do, and also when there is none but the ramped
+         * clean-eviction decision is due to be re-rolled.
+         *
+         * Testing the flag alone here left the ramp delivering far less than the probability it
+         * asks for. A worker that finds the flag clear leaves without reaching
+         * __evict_update_work(), so it cannot re-roll, and the eviction server becomes the only
+         * thing able to end an off period. That makes the two states sample at very different
+         * rates: measured on a YCSB read workload, on periods ran for their quantum while off
+         * periods ran about six times longer, and a ramp asking for 81% delivered 43%. The error
+         * grows as the probability falls, so the ramp was least accurate in the gentle region just
+         * above target that it exists to serve.
+         *
+         * Letting a worker re-roll once its own quantum is up bounds an off period at the quantum
+         * plus one park, which is what the on periods already cost.
+         *
+         * The short circuit keeps this off the hot path: while there is work to do the flag test
+         * alone decides, and the clock is only read when there is not.
          */
-        __evict_ramp_clean_refresh(session);
+        if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY) && !__evict_ramp_quantum_expired(session))
+            break;
 
         /*
-         * Read the flags the eviction server publishes rather than recomputing them here.
-         *
-         * __evict_update_work() walks the history store trees and re-reads every occupancy total,
-         * and it was being called once per batch by every worker. None of that is a worker's job:
-         * the server calls it on each of its own passes, so the flags a worker needs are already
-         * being maintained, and occupancy does not move enough within one batch to change the
-         * answer. The upstream design does not consult occupancy in the worker loop at all.
-         *
-         * The trade is staleness. Between server passes a worker acts on the last published flags,
-         * so it can keep evicting briefly after the cache has fallen back under target, or wait for
-         * the server before starting once it has risen above it.
+         * Recompute the eviction state once per batch, not once per page: it is expensive and
+         * occupancy does not change meaningfully between consecutive evictions. This also refreshes
+         * evict->flags that gates the loop.
          */
-        if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY | WT_EVICT_CACHE_URGENT))
+        WT_RET(__evict_update_work(session, &eviction_needed));
+        if (!eviction_needed)
             break;
 
         /*
