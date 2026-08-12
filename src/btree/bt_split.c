@@ -684,7 +684,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_BTREE *btree;
     WT_DECL_ITEM(scr);
     WT_DECL_RET;
-    WT_PAGE *parent;
+    WT_PAGE *page, *parent;
     WT_PAGE_INDEX *alloc_index, *pindex;
     WT_REF **alloc_refp, *next_ref;
     WT_SPLIT_ERROR_PHASE complete;
@@ -700,6 +700,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 
     btree = S2BT(session);
     parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
+    page = ref->page;
 
     alloc_index = pindex = NULL;
     parent_decr = 0;
