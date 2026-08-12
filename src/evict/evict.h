@@ -192,33 +192,6 @@ struct __wt_evict {
  */
 #define WT_EVICT_CLEAN_RAMP_EXP 2
 
-/*
- * How many candidate pages a subqueue scan considers before choosing one to evict.
- *
- * Reclaiming space costs about the same per page whatever the page's size -- the lock, the hazard
- * check, the reference transitions, the free -- while the space reclaimed is the page's footprint.
- * So for a fixed number of bytes to reclaim, taking larger pages means taking fewer of them, and
- * the per-page cost falls in proportion.
- *
- * What this is really aimed at is the spread rather than the mean. Resident page size has been
- * drifting run to run: measured on a YCSB read workload, three runs of one build settled at 51.0,
- * 51.8 and 59.2KB, and the run that drifted large held 301k pages against 350k for the run that did
- * not, which is the difference between matching upstream throughput and falling several percent
- * short. Nothing in the eviction path opposes that drift, so it is free to compound; choosing the
- * largest of a few candidates opposes it directly.
- *
- * The choice is made among candidates the scan would have been willing to take anyway, rather than
- * by preferring large pages outright. That distinction matters: pages leaving and pages arriving
- * balance in steady state, so evicting a page that is about to be read back raises the bytes
- * fetched per query as much as it raises the size of the page evicted, and nothing is gained.
- * Choosing among cold candidates raises the size without touching what gets re-read.
- *
- * The cost is a weaker ordering within one subqueue, since the largest of the first few is taken
- * rather than the first. All the pages in a bucket share a read generation step, so the recency
- * lost is bounded by that step. 1 restores the previous behaviour of taking the first candidate.
- */
-#define WT_EVICT_SIZE_CHOICES 4
-
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state,

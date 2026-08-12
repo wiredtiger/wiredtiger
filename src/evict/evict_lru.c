@@ -1418,26 +1418,13 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
 {
     WT_CONNECTION_IMPL *conn;
     WT_BTREE *btree;
-    WT_PAGE *candidate[WT_EVICT_SIZE_CHOICES], *page;
+    WT_PAGE *page;
     WT_REF *ref;
     WT_REF_STATE previous_state;
-    size_t best_size, size;
-    u_int best, c, ncandidates;
     bool skip_page;
 
     conn = S2C(session);
 
-    /*
-     * Survey up to WT_EVICT_SIZE_CHOICES pages, then take the largest of them: reclaiming a given
-     * number of bytes in fewer, larger pages costs less, because the per-page work of an eviction
-     * does not scale with the page's size. See WT_EVICT_SIZE_CHOICES.
-     *
-     * Only the cheap, side-effect-free part of the filter runs here. Locking a reference, taking a
-     * dhandle reference and calling __evict_skip_page() all have to be undone if the page is then
-     * passed over, so they are left to the second pass, which runs them on one page at a time in
-     * descending order of size.
-     */
-    ncandidates = 0;
     TAILQ_FOREACH (page, queue, evict_data.evict_q) {
         if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
             break;
@@ -1459,45 +1446,6 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
         if (!per_tree &&
           __evict_skip_tree(session, (WT_BTREE *)page->evict_data.dhandle->handle, level))
             continue;
-
-        /*
-         * Reading the state is free, so an already-locked page is dropped here rather than being
-         * surveyed and rejected later. The state is re-read under the second pass, which is where a
-         * page that becomes locked in between is accounted for.
-         */
-        if (WT_REF_GET_STATE(ref) != WT_REF_MEM) {
-            WT_STAT_CONN_INCR(session, eviction_skip_page_locked);
-            continue;
-        }
-
-        candidate[ncandidates++] = page;
-        if (ncandidates == WT_EVICT_SIZE_CHOICES)
-            break;
-    }
-
-    /*
-     * Take candidates largest first, falling through to the next if one turns out not to be
-     * evictable after all. Consumed entries are cleared, so this ends once they have all been
-     * tried.
-     */
-    for (;;) {
-        best = WT_EVICT_SIZE_CHOICES;
-        best_size = 0;
-        for (c = 0; c < ncandidates; c++) {
-            if (candidate[c] == NULL)
-                continue;
-            size = __wt_atomic_load_size_relaxed(&candidate[c]->memory_footprint);
-            if (best == WT_EVICT_SIZE_CHOICES || size > best_size) {
-                best = c;
-                best_size = size;
-            }
-        }
-        if (best == WT_EVICT_SIZE_CHOICES)
-            return (NULL);
-
-        page = candidate[best];
-        candidate[best] = NULL;
-        ref = page->ref;
 
         /* Try to lock the reference. If it's already locked, skip it. */
         previous_state = WT_REF_GET_STATE(ref);
@@ -1536,6 +1484,7 @@ __evict_scan_queue(WT_SESSION_IMPL *session, struct __wt_evictbucket_qh *queue, 
         *previous_statep = previous_state;
         return (ref);
     }
+    return (NULL);
 }
 
 
