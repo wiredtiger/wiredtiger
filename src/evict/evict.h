@@ -170,6 +170,28 @@ struct __wt_evict {
 
 #define WT_EVICT_MAX_WORKERS 64
 
+/*
+ * Exponent shaping the probability that background clean eviction is enabled between the eviction
+ * target and the eviction trigger. The flag is set with probability
+ *
+ *     ((occupancy - target) / (trigger - target)) ^ WT_EVICT_CLEAN_RAMP_EXP
+ *
+ * so eviction pushes gently just above target and hard near the trigger, and occupancy settles
+ * somewhere inside the band instead of hugging the target.
+ *
+ * The exponent sets where it settles. At equilibrium the flag has to be set for whatever
+ * fraction of the time balances the rate clean pages arrive, and that fraction is a property of
+ * the workload and of how fast eviction runs, not of this curve; a steeper curve therefore
+ * reaches the same fraction further up the band. Measured with a linear curve (exponent 1) on a
+ * YCSB read workload, occupancy settled at 90.5% with the flag set about 70% of the time.
+ * Holding that fraction fixed, exponent 2 predicts about 92.6% and exponent 3 about 93.3%.
+ *
+ * Higher is not free: the band above the settling point is the only headroom before the trigger,
+ * and crossing the trigger pulls every application thread into eviction. 1 gives the plain
+ * linear ramp; 0 disables the shaping and sets the flag whenever occupancy is over target.
+ */
+#define WT_EVICT_CLEAN_RAMP_EXP 2
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state,

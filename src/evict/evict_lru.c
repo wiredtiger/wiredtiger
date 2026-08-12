@@ -543,6 +543,44 @@ __wt_evict_checkpoint_tree_exit(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
+ * __evict_clean_ramp --
+ *     Decide whether background clean eviction should be enabled at this occupancy.
+ *
+ * Returns true with probability ((pct - target) / (trigger - target)) ^ WT_EVICT_CLEAN_RAMP_EXP, so
+ * the decision is made afresh on each call rather than held: the caller is re-entered often enough
+ * that the flag's duty cycle, not any single draw, is what the eviction workers see.
+ *
+ * Sampling is not perfectly even. A worker that finds the flag clear leaves the eviction loop and
+ * parks, so it re-draws every 10ms while eviction is off but once per batch while it is on,
+ * which biases the realised duty cycle below the requested one. That pushes occupancy above the
+ * figure the exponent predicts rather than below it, which is the direction wanted here, but it
+ * does mean the exponent is a coarse control and worth trimming against measurement.
+ */
+static bool
+__evict_clean_ramp(WT_SESSION_IMPL *session, double pct, double target, double trigger)
+{
+    double frac, p;
+    u_int i;
+
+    if (pct <= target)
+        return (false);
+
+    /* Degenerate or inverted configuration: fall back to a step at the top of the band. */
+    if (!(trigger > target))
+        return (pct >= trigger);
+
+    frac = (pct - target) / (trigger - target);
+    if (frac >= 1.0)
+        return (true);
+
+    p = frac;
+    for (i = 1; i < WT_EVICT_CLEAN_RAMP_EXP; i++)
+        p *= frac;
+
+    return (__wt_random(&session->rnd_random) < (uint32_t)(p * (double)UINT32_MAX));
+}
+
+/*
  * __evict_ramp --
  *     Return true with a probability that rises linearly from zero at lo to one at hi.
  *
@@ -673,24 +711,23 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     cache_pct = (100.0 * bytes_inuse) / bytes_max;
 
     /*
-     * Turn clean eviction on as soon as the target is passed, rather than ramping it across the
-     * target-to-trigger band.
+     * Shape clean eviction across the target-to-trigger band instead of switching it fully on the
+     * moment the target is passed.
      *
-     * The ramp left the flag clear for part of every quantum, and the worker loop exits when it is
-     * clear, so background clean eviction was being switched off while pages were still plentiful.
-     * That is the main reason the eviction workers here carry a fifth of clean eviction where the
-     * upstream design carries four fifths: measured worker share was 20-22% against 83-84%, at the
-     * same total eviction rate, with workers never once failing to find a page. Upstream sets this
-     * flag unconditionally above target and has no ramp at all.
+     * Enabling it unconditionally above target makes occupancy hug the target, because the workers
+     * run until the flag clears and it clears as soon as the cache drops back under: measured 82.7%
+     * with a target of 80%. That leaves the band between target and trigger unused, and the
+     * pages it could have held are the ones the workload then has to read back. Enabling it with a
+     * probability that rises towards the trigger lets occupancy settle inside the band instead, at
+     * whatever point the flag's duty cycle balances the rate clean pages arrive.
      *
-     * The cost is that eviction no longer pushes proportionally to the overshoot, so steady-state
-     * occupancy should settle lower and closer to target, and clean eviction runs harder just above
-     * it.
+     * Above the trigger nothing is probabilistic: that is where application threads are already
+     * being made to help, and it stays unconditional.
      */
     if (__wti_evict_exceeded_clean_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_reached);
-    } else if (__wti_evict_exceeded_clean_target(session)) {
+    } else if (__evict_clean_ramp(session, cache_pct, target, trigger)) {
         LF_SET(WT_EVICT_CACHE_CLEAN);
     }
 
