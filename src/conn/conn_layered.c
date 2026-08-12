@@ -11,6 +11,20 @@
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
+ * A reused name can queue several REMOVE entries naming one incarnation of a stable file. The
+ * incarnation's checkpoint size was added to the database size once, so it must leave once: track
+ * the incarnations already accounted for while draining the queue.
+ */
+typedef struct {
+    struct {
+        char *uri;
+        int64_t id;
+    } * entries;
+    size_t entries_allocated;
+    size_t entries_next;
+} WT_DISAGG_DROP_SEEN;
+
+/*
  * __layered_create_missing_stable_table --
  *     Create a missing stable table from an existing layered table configuration.
  */
@@ -630,26 +644,31 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 
 /*
  * __disagg_incarnation_is_gone --
- *     Set whether a REMOVE names an incarnation that is really gone. The same name can be dropped
- *     and created again before the queue is processed, so compare file IDs rather than the URI's
- *     presence; an unreadable ID counts as a rollback and leaves the database size unchanged.
+ *     Set whether a REMOVE names an incarnation that is really gone, and return the file ID it
+ *     names, or -1 when the entry carries none. The same name can be dropped and created again
+ *     before the queue is processed, so compare file IDs rather than the URI's presence; an
+ *     unreadable ID counts as a rollback and leaves the database size unchanged.
  */
 static int
-__disagg_incarnation_is_gone(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, bool *gonep)
+__disagg_incarnation_is_gone(
+  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, int64_t *idp, bool *gonep)
 {
     WT_CONFIG_ITEM entry_id, local_id;
     WT_DECL_RET;
     char *local_config;
 
     *gonep = false;
+    *idp = -1;
     local_config = NULL;
+
+    if (__wt_config_getones(session, entry->stable_value, "id", &entry_id) == 0)
+        *idp = entry_id.val;
 
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &local_config), true);
     if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
         *gonep = true;
-    else if (__wt_config_getones(session, entry->stable_value, "id", &entry_id) == 0 &&
-      __wt_config_getones(session, local_config, "id", &local_id) == 0)
-        *gonep = entry_id.val != local_id.val;
+    else if (*idp != -1 && __wt_config_getones(session, local_config, "id", &local_id) == 0)
+        *gonep = *idp != local_id.val;
     else
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
           "No file ID for \"%s\"; treating the removal as a rolled-back drop", entry->stable_uri);
@@ -660,16 +679,61 @@ err:
 }
 
 /*
+ * __disagg_drop_seen --
+ *     Set whether this incarnation was already accounted for in this checkpoint, recording it if
+ *     not. Entry counts are small and the list lives for one checkpoint, so a linear scan is
+ *     cheaper than a hash table.
+ */
+static int
+__disagg_drop_seen(
+  WT_SESSION_IMPL *session, WT_DISAGG_DROP_SEEN *seen, const char *uri, int64_t id, bool *seenp)
+{
+    size_t i;
+
+    *seenp = false;
+
+    for (i = 0; i < seen->entries_next; ++i)
+        if (seen->entries[i].id == id && strcmp(seen->entries[i].uri, uri) == 0) {
+            *seenp = true;
+            return (0);
+        }
+
+    WT_RET(
+      __wt_realloc_def(session, &seen->entries_allocated, seen->entries_next + 1, &seen->entries));
+    WT_RET(__wt_strdup(session, uri, &seen->entries[seen->entries_next].uri));
+    seen->entries[seen->entries_next].id = id;
+    ++seen->entries_next;
+
+    return (0);
+}
+
+/*
+ * __disagg_drop_seen_free --
+ *     Discard the set of incarnations accounted for in this checkpoint.
+ */
+static void
+__disagg_drop_seen_free(WT_SESSION_IMPL *session, WT_DISAGG_DROP_SEEN *seen)
+{
+    size_t i;
+
+    for (i = 0; i < seen->entries_next; ++i)
+        __wt_free(session, seen->entries[i].uri);
+    __wt_free(session, seen->entries);
+    seen->entries_allocated = seen->entries_next = 0;
+}
+
+/*
  * __disagg_accumulate_drop_size --
  *     Accumulate the drop size if the entry represents a table drop operation. The size and the
  *     file ID come from the same snapshot, so they describe one incarnation.
  */
 static int
-__disagg_accumulate_drop_size(
-  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_sizep)
+__disagg_accumulate_drop_size(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry,
+  WT_DISAGG_DROP_SEEN *seen, uint64_t *drop_sizep)
 {
     uint64_t size;
-    bool gone;
+    int64_t id;
+    bool already_seen, gone;
 
     if (entry->metadata_op != WT_SHARED_METADATA_REMOVE || entry->stable_value == NULL)
         return (0);
@@ -680,9 +744,21 @@ __disagg_accumulate_drop_size(
     if (size == 0)
         return (0);
 
-    WT_RET(__disagg_incarnation_is_gone(session, entry, &gone));
+    WT_RET(__disagg_incarnation_is_gone(session, entry, &id, &gone));
     if (!gone)
         return (0);
+
+    /* Without an ID the incarnations cannot be told apart, so fall back to counting every entry. */
+    if (id != -1) {
+        WT_RET(__disagg_drop_seen(session, seen, entry->stable_uri, id, &already_seen));
+        if (already_seen) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Skipping drop size %" PRIu64 " for table \"%s\": file ID %" PRId64
+              " is already accounted for",
+              size, entry->table_name, id);
+            return (0);
+        }
+    }
 
     *drop_sizep += size;
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -727,10 +803,12 @@ __wt_disagg_shared_metadata_queue_process(
     struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_DISAGG_DROP_SEEN seen;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
+    WT_CLEAR(seen);
     TAILQ_INIT(&skipped_creates);
 
     /*
@@ -777,7 +855,7 @@ __wt_disagg_shared_metadata_queue_process(
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
-        WT_ERR(__disagg_accumulate_drop_size(session, entry, drop_sizep));
+        WT_ERR(__disagg_accumulate_drop_size(session, entry, &seen, drop_sizep));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);
@@ -824,6 +902,7 @@ err:
         __disagg_requeue_skipped_creates(session, &skipped_creates);
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+    __disagg_drop_seen_free(session, &seen);
     while (!TAILQ_EMPTY(&skipped_creates)) {
         skipped = TAILQ_FIRST(&skipped_creates);
         TAILQ_REMOVE(&skipped_creates, skipped, q);
