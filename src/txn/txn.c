@@ -222,10 +222,11 @@ done:
 /*
  * __txn_snapshot_record_disagg --
  *     Record the disaggregated state a snapshot about to be built is consistent with: the role, the
- *     role-change generation, and (on a follower asked to pin) the pinned checkpoint generation.
+ *     role-change generation, and (on an untimestamped follower snapshot) the pinned checkpoint
+ *     generation.
  */
 static WT_INLINE void
-__txn_snapshot_record_disagg(WT_SESSION_IMPL *session, bool pin_ckpt)
+__txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
@@ -244,11 +245,12 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session, bool pin_ckpt)
       __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader);
 
     /*
-     * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
-     * stable table is written with local transaction ids and needs no pin, and its own checkpoints
-     * advance the checkpoint generation, so pinning would rebuild every snapshot that overlaps a
-     * checkpoint completion. A snapshot from before a step-down is left unpinned and refused if it
-     * binds checkpoint content afterwards.
+     * Only an untimestamped follower snapshot pins a checkpoint: its stable binds compare against
+     * the pin. A leader's stable table is written with local transaction ids and needs no pin, and
+     * its own checkpoints advance the checkpoint generation, so pinning would rebuild every
+     * snapshot that overlaps a checkpoint completion. A timestamped reader stays consistent through
+     * the history store, so pinning would only defer adoptions behind it. A snapshot from before a
+     * step-down is left unpinned and refused if it binds checkpoint content afterwards.
      *
      * The checkpoint generation is the newest checkpoint delivered plus one, advanced when the
      * metadata arrives, even before its adoption completes: arrival implies its content is already
@@ -259,7 +261,7 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session, bool pin_ckpt)
      * with a delivery's generation advance: a delivery either observes the pin published here, or
      * the validation after the build observes the delivery and retries.
      */
-    if (pin_ckpt && !session->txn->disagg_role_leader)
+    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) && !session->txn->disagg_role_leader)
         __wt_session_gen_enter(session, WT_GEN_DISAGG_CKPT);
 }
 
@@ -341,7 +343,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 retry:
     n = 0;
     if (record_disagg) {
-        __txn_snapshot_record_disagg(session, txn_shared->read_timestamp == WT_TS_NONE);
+        __txn_snapshot_record_disagg(session);
         /* Widen the window between recording the pin and building the snapshot. */
         WT_DIAGNOSTIC_YIELD;
     }
