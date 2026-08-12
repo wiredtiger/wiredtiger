@@ -8029,20 +8029,20 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_PICK_UP_FILE_META_INSERTED	1595
 /*! disagg: pick up checkpoint most recent time (msecs) */
 #define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME	1596
+/*! disagg: pick up checkpoint time at startup (msecs) */
+#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP	1597
 /*! disagg: role leader */
-#define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1597
+#define	WT_STAT_CONN_DISAGG_ROLE_LEADER			1598
 /*!
  * disagg: snapshots rebuilt after racing a checkpoint pick-up or role
  * change
  */
-#define	WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD		1598
+#define	WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD		1599
 /*!
  * disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy
  * escaped, 2 unescaped
  */
-#define	WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING	1599
-/*! disagg: startup pick up checkpoint time (msecs) */
-#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP	1600
+#define	WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING	1600
 /*! disagg: step down in progress */
 #define	WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS	1601
 /*! disagg: step down most recent time (msecs) */
