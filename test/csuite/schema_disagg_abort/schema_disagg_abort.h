@@ -251,14 +251,11 @@ typedef struct {
 } WORKLOAD_STATE;
 
 /*
- * The checkpoint thread's bookkeeping for one phase. Thread-local: it lives on that thread's stack
- * and is handed to the role's checkpoint operation, so the engine holds no per-role state. Each
- * field belongs to one role only.
+ * The checkpoint thread's bookkeeping for one phase.
  */
 typedef struct {
-    bool picked_up;              /* following: the first pickup reported readiness */
-    struct timespec phase_start; /* leading: when the phase began, bounding the startup skip */
-    int produced;                /* leading: checkpoints produced so far */
+    struct timespec phase_start; /* when the phase began, used for checkpoint timeouts */
+    uint32_t produced;           /* checkpoints produced so far */
 } CKPT_CTX;
 
 /*

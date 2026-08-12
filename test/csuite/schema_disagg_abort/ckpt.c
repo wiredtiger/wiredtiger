@@ -202,10 +202,11 @@ leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
     /* The timestamp thread owns the stable epoch and timestamps; just checkpoint. */
     testutil_check(session->checkpoint(session, "use_timestamp=true"));
 
-    println("Node %" PRIu32 ": checkpoint %d complete", state->cfg->node_id, ++ckpt->produced);
+    println(
+      "Node %" PRIu32 ": checkpoint %" PRIu32 " complete", state->cfg->node_id, ++ckpt->produced);
 
     /* A stable frontier implies every worker published, so this checkpoint has a schema op. */
-    if (ckpt->produced == 1)
+    if (ckpt->produced == 1u)
         testutil_sentinel(NULL, LEADER_READY_FILE);
 }
 
@@ -216,15 +217,18 @@ leader_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 void
 follower_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
+    WT_UNUSED(ckpt);
+
     if (!ckpt_pick_up(state, session))
         return;
+
+    /* Adopted LSN is 0 at the beginning. */
+    const bool first_ckpt = state->adopted_ckpt_lsn == 0;
 
     /* Each adoption is reported for a stepping-down peer. */
     adopted_lsn_publish(state->cfg->node_id, state->adopted_ckpt_lsn);
 
-    if (!ckpt->picked_up) {
-        /* The first picked up checkpoint: follower is ready. */
+    /* The first picked up checkpoint: follower is ready. */
+    if (first_ckpt)
         testutil_sentinel(NULL, FOLLOWER_READY_FILE);
-        ckpt->picked_up = true;
-    }
 }

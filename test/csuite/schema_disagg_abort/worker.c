@@ -146,13 +146,13 @@ schema_op_publish(WT_SESSION *session, const char *uri, uint64_t epoch)
 }
 
 /*
- * schema_op_insert_data --
+ * insert_data --
  *     Populate a table with rows keyed key_min..key_max at the given commit timestamp; each row is
  *     set to the commit timestamp, so the verifier can tell which generation of a reused table name
  *     wrote the data.
  */
 static void
-schema_op_insert_data(
+insert_data(
   WT_SESSION *session, const char *uri, uint64_t commit_ts, uint32_t key_min, uint32_t key_max)
 {
     char val_buf[32];
@@ -211,7 +211,7 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
 
     switch (ev->type) {
     case EVENT_INSERT:
-        schema_op_insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
+        insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
         if (relay)
             (void)pipe_relay_event(state->cfg, ev);
         record_event_line(ctx->record_fp, ev);
