@@ -3779,7 +3779,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_role_leader = 0;
     stats->disagg_snapshot_rebuild = 0;
     /* not clearing disagg_stable_tombstone_encoding */
-    stats->disagg_startup_pick_up_checkpoint_time = 0;
+    stats->disagg_pick_up_checkpoint_time_startup = 0;
     /* not clearing disagg_step_down_in_progress */
     stats->disagg_step_down_time = 0;
     /* not clearing disagg_step_up_in_progress */
@@ -5023,8 +5023,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_snapshot_rebuild += WT_STAT_CONN_READ(from, disagg_snapshot_rebuild);
     to->disagg_stable_tombstone_encoding +=
       WT_STAT_CONN_READ(from, disagg_stable_tombstone_encoding);
-    to->disagg_startup_pick_up_checkpoint_time +=
-      WT_STAT_CONN_READ(from, disagg_startup_pick_up_checkpoint_time);
+    to->disagg_pick_up_checkpoint_time_startup +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
     to->disagg_step_down_in_progress += WT_STAT_CONN_READ(from, disagg_step_down_in_progress);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_in_progress += WT_STAT_CONN_READ(from, disagg_step_up_in_progress);

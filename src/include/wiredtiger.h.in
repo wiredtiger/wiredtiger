@@ -8042,7 +8042,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING	1599
 /*! disagg: startup pick up checkpoint time (msecs) */
-#define	WT_STAT_CONN_DISAGG_STARTUP_PICK_UP_CHECKPOINT_TIME	1600
+#define	WT_STAT_CONN_DISAGG_PICK_UP_CHECKPOINT_TIME_STARTUP	1600
 /*! disagg: step down in progress */
 #define	WT_STAT_CONN_DISAGG_STEP_DOWN_IN_PROGRESS	1601
 /*! disagg: step down most recent time (msecs) */
