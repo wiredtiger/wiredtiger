@@ -46,8 +46,6 @@ struct __wt_evict {
      * Unsynchronized: two threads may roll for the same quantum, or a quantum may run slightly
      * long. Neither changes the duty cycle in expectation.
      */
-    uint64_t evict_ramp_clean_begin; /* Clock value this quantum started at */
-    bool evict_ramp_clean;           /* Decision in force for this quantum */
 
     uint64_t app_waits;     /* User threads waited for eviction */
     uint64_t app_evicts;    /* Pages evicted by user threads */
@@ -160,12 +158,6 @@ struct __wt_evict {
 #define WT_EVICT_CACHE_HARD \
     (WT_EVICT_CACHE_CLEAN_HARD | WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)
 
-/*
- * How long one ramped clean-eviction decision is held. Comfortably longer than the 10ms park in
- * __evict_lru_pages(), so a parked worker re-checks several times within a quantum and the off
- * phase lasts the quantum rather than the park.
- */
-#define WT_EVICT_RAMP_QUANTUM_US (50 * WT_THOUSAND)
     uint32_t flags;
 };
 

@@ -338,29 +338,6 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 #define WT_EVICT_WORKER_BATCH 100
 
 /*
- * __evict_ramp_quantum_expired --
- *     Return whether the ramped clean-eviction decision is due to be re-rolled.
- *
- * A clock read and a comparison, so it is cheap enough to test on the path where there is no
- * eviction work to do -- unlike __evict_update_work(), which walks the history store trees.
- */
-static WT_INLINE bool
-__evict_ramp_quantum_expired(WT_SESSION_IMPL *session)
-{
-    WT_EVICT *evict;
-
-    evict = S2C(session)->evict;
-
-    /*
-     * Read without synchronisation, as the quantum itself is. A stale or torn read costs one
-     * needless re-roll or one late one, and corrects on the next pass.
-     */
-    return (evict->evict_ramp_clean_begin == 0 ||
-      WT_CLOCKDIFF_US(__wt_clock(session), evict->evict_ramp_clean_begin) >=
-        WT_EVICT_RAMP_QUANTUM_US);
-}
-
-/*
  * __evict_lru_pages --
  *     Evict pages while the cache is over target, draining a bounded batch between occupancy checks.
  */
@@ -379,25 +356,9 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 
     while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) && ret == 0) {
         /*
-         * Continue when there is eviction work to do, and also when there is none but the ramped
-         * clean-eviction decision is due to be re-rolled.
-         *
-         * Testing the flag alone here left the ramp delivering far less than the probability it
-         * asks for. A worker that finds the flag clear leaves without reaching
-         * __evict_update_work(), so it cannot re-roll, and the eviction server becomes the only
-         * thing able to end an off period. That makes the two states sample at very different
-         * rates: measured on a YCSB read workload, on periods ran for their quantum while off
-         * periods ran about six times longer, and a ramp asking for 81% delivered 43%. The error
-         * grows as the probability falls, so the ramp was least accurate in the gentle region just
-         * above target that it exists to serve.
-         *
-         * Letting a worker re-roll once its own quantum is up bounds an off period at the quantum
-         * plus one park, which is what the on periods already cost.
-         *
-         * The short circuit keeps this off the hot path: while there is work to do the flag test
-         * alone decides, and the clock is only read when there is not.
+         * There is no ramped decision left to re-roll, so the flag alone decides whether to stay.
          */
-        if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY) && !__evict_ramp_quantum_expired(session))
+        if (!F_ISSET(conn->evict, WT_EVICT_CACHE_ANY))
             break;
 
         /*
@@ -625,7 +586,8 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_DECL_RET;
     WT_EVICT *evict;
     double cache_pct, dirty_target, dirty_trigger, target, trigger,  updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, now, total_dirty, total_inmem, total_updates;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
+      total_updates;
     uint32_t flags, hs_id;
 
     conn = S2C(session);
@@ -711,34 +673,24 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     cache_pct = (100.0 * bytes_inuse) / bytes_max;
 
     /*
-     * Re-roll the clean-eviction decision once per quantum and hold it. Clearing this flag parks
-     * the eviction workers, which stops them re-evaluating it, so a decision taken per call is
-     * sampled far more often while set than while clear and its duty cycle lands well under the
-     * probability the ramp asks for.
-     */
-    now = __wt_clock(session);
-    if (evict->evict_ramp_clean_begin == 0 ||
-      WT_CLOCKDIFF_US(now, evict->evict_ramp_clean_begin) >= WT_EVICT_RAMP_QUANTUM_US) {
-        evict->evict_ramp_clean = __evict_ramp(session, cache_pct, target, trigger);
-        evict->evict_ramp_clean_begin = now;
-    }
-
-    /*
-     * Ramp clean eviction across the target-to-trigger band rather than switching it on the
-     * instant the target is passed. Just above target the flag is set only occasionally, so a
-     * cache that has drifted barely over is nudged rather than drained; approaching the trigger it
-     * is set almost always. Above the trigger nothing changes -- that is the point at which
-     * application threads are already being made to help, and it stays unconditional.
+     * Turn clean eviction on as soon as the target is passed, rather than ramping it across the
+     * target-to-trigger band.
      *
-     * The target gate is kept as the outer condition so clean eviction still never runs below
-     * target. Effective steady-state occupancy will sit higher than it does today, because
-     * eviction now only pushes as hard as the overshoot warrants: that is the intent, but it
-     * leaves less headroom before the dirty and updates triggers on write-heavy workloads.
+     * The ramp left the flag clear for part of every quantum, and the worker loop exits when it is
+     * clear, so background clean eviction was being switched off while pages were still plentiful.
+     * That is the main reason the eviction workers here carry a fifth of clean eviction where the
+     * upstream design carries four fifths: measured worker share was 20-22% against 83-84%, at the
+     * same total eviction rate, with workers never once failing to find a page. Upstream sets this
+     * flag unconditionally above target and has no ramp at all.
+     *
+     * The cost is that eviction no longer pushes proportionally to the overshoot, so steady-state
+     * occupancy should settle lower and closer to target, and clean eviction runs harder just above
+     * it.
      */
     if (__wti_evict_exceeded_clean_trigger(session, NULL)) {
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_reached);
-    } else if (__wti_evict_exceeded_clean_target(session) && evict->evict_ramp_clean) {
+    } else if (__wti_evict_exceeded_clean_target(session)) {
         LF_SET(WT_EVICT_CACHE_CLEAN);
     }
 
