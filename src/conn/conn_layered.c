@@ -19,7 +19,7 @@ typedef struct {
     struct {
         char *uri;
         int64_t id;
-    } * entries;
+    } *entries;
     size_t entries_allocated;
     size_t entries_next;
 } WT_DISAGG_DROP_SEEN;
