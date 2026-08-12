@@ -37,9 +37,8 @@ typedef struct {
     bool read_corrupt;
     bool skip_per_key_hs;
 
-    /* Whether to read from the history store, and if so, which checkpoint. */
+    /* Whether to read from the history store. */
     bool skip_hs;
-    const char *hs_checkpoint_name;
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
@@ -434,7 +433,6 @@ __verify_one_checkpoint(
 
     /* Only verify HS entries against the last checkpoint. */
     vs->skip_hs = skip_hs || !last_ckpt;
-    vs->hs_checkpoint_name = ckpt->name;
 
     /* Verify the tree. */
     WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
@@ -1437,14 +1435,18 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     if (vs->skip_per_key_hs)
         return (0);
 
+    /*
+     * A stable btree opened from a checkpoint pins the shared history store checkpoint that goes
+     * with it, so read the history store there rather than through a live handle. Without a pinned
+     * name the shared history store has never been checkpointed and there is nothing to compare
+     * against.
+     */
+    if (WT_URI_IS_STABLE_CHECKPOINT(session->dhandle->name) && btree->hs_checkpoint_name == NULL)
+        return (0);
+
     WT_STAT_CONN_INCR(session, session_table_verify_hs_keys_checked);
 
-    /* Read the HS at the same checkpoint as the data store, so the two views are consistent. */
-    WT_ASSERT(session, session->hs_checkpoint == NULL);
-    session->hs_checkpoint = vs->hs_checkpoint_name;
-    ret = __wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor);
-    session->hs_checkpoint = NULL;
-    WT_RET(ret);
+    WT_RET(__wt_curhs_open(session, hs_btree_id, btree->hs_checkpoint_name, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
