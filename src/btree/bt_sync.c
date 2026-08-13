@@ -34,7 +34,7 @@ __sync_evict_reconciled_under_ckpt_snapshot(WT_SESSION_IMPL *session, WT_REF *re
         return (false);
 
     if (mod->rec_pinned_stable_timestamp !=
-      __wt_tsan_suppress_load_uint64(&conn->txn_global.checkpoint_timestamp))
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.checkpoint_timestamp))
         return (false);
 
     return (true);
