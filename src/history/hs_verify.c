@@ -17,15 +17,13 @@
  *     walk records the leader had already written off and find no key in the data store to anchor
  *     them to. Read the oldest timestamp of the checkpoint being verified.
  *
- * That oldest timestamp belongs to one checkpoint, and the handles being verified are pinned to
- *     whichever was current when the caller noted the pick-up point. Those handles cannot change
- *     afterwards, so it is enough to establish here that nothing was picked up in between; an
- *     oldest timestamp belonging to a different data store than the one about to be walked is
- *     refused for the caller to retry.
+ * The value belongs to whichever checkpoint was last picked up, and a pick-up publishes it
+ *     alongside the rest of its state under the checkpoint lock. Verify holds that lock from before
+ *     it opens a handle until it is done, so no checkpoint can be picked up while it runs: the
+ *     timestamp cannot be read half-published, and it always describes the data store being walked.
  */
-static int
-__hs_verify_checkpoint_oldest(
-  WT_SESSION_IMPL *session, wt_timestamp_t *checkpoint_oldest_tsp, uint64_t checkpoint_meta_lsn)
+static void
+__hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, wt_timestamp_t *checkpoint_oldest_tsp)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -34,16 +32,10 @@ __hs_verify_checkpoint_oldest(
 
     if (!__wt_conn_is_disagg(session) ||
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
-        return (0);
+        return;
 
     *checkpoint_oldest_tsp = __wt_atomic_load_uint64_acquire(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp);
-
-    if (checkpoint_meta_lsn !=
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn))
-        return (EBUSY);
-
-    return (0);
 }
 
 /*
@@ -175,7 +167,7 @@ err:
  *     exclusive access to the btree.
  */
 int
-__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t checkpoint_meta_lsn)
+__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
@@ -184,10 +176,13 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t checkpo
 
     hs_cursor = NULL;
 
+    /* The checkpoint's oldest timestamp is only stable while a checkpoint cannot be picked up. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
+
     WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    WT_ERR(__hs_verify_checkpoint_oldest(session, &checkpoint_oldest_ts, checkpoint_meta_lsn));
+    __hs_verify_checkpoint_oldest(session, &checkpoint_oldest_ts);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
@@ -232,7 +227,6 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
     WT_DECL_RET;
     WT_ITEM key;
     wt_timestamp_t checkpoint_oldest_ts, hs_start_ts;
-    uint64_t checkpoint_meta_lsn;
     uint64_t hs_counter;
     uint32_t btree_id;
     char *uri_data;
@@ -275,13 +269,10 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
         }
     }
 
-    checkpoint_meta_lsn =
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-
     WT_ERR(__wt_curhs_open_ext(session, hs_id, 0, hs_checkpoint_name, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    WT_ERR(__hs_verify_checkpoint_oldest(session, &checkpoint_oldest_ts, checkpoint_meta_lsn));
+    __hs_verify_checkpoint_oldest(session, &checkpoint_oldest_ts);
 
     /* Position the hs cursor on the first record. */
     WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor), true);
