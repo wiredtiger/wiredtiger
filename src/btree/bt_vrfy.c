@@ -41,8 +41,8 @@ typedef struct {
     bool skip_hs;
 
     /*
-     * History store cursor for the per-key checks, opened once for the checkpoint being verified and
-     * repositioned per key. NULL when those checks are not running.
+     * History store cursor for the per-key checks, opened once for the checkpoint being verified
+     * and repositioned per key. NULL when those checks are not running.
      */
     WT_CURSOR *hs_cursor;
 
@@ -449,8 +449,7 @@ __verify_one_checkpoint(
         WT_ERR(__wt_hs_verify_cursor_open(session, btree->id, &vs->hs_cursor));
         if (vs->hs_cursor == NULL)
             __wt_verbose(session, WT_VERB_VERIFY,
-              "%s: no shared history store checkpoint is pinned, skipping the per-key history store "
-              "verification",
+              "%s: no shared history store checkpoint is pinned, skipping the per-key checks",
               name);
     }
 
@@ -1469,8 +1468,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
      * Position the history store cursor at the end of the data store key (the newest record) and
      * iterate backwards until we reach a different key or btree.
      *
-     * The cursor carries its position over from the previous key, so a search landing on the page it
-     * already has pinned skips the tree descent. That fast path is only reachable because the
+     * The cursor carries its position over from the previous key, so a search landing on the page
+     * it already has pinned skips the tree descent. That fast path is only reachable because the
      * history store searches at read-uncommitted isolation; a read-committed search abandons a
      * pinned page rather than trusting it.
      */
