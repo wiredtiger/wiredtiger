@@ -41,6 +41,13 @@ typedef struct {
     bool skip_hs;
     const char *hs_checkpoint_name;
 
+    /*
+     * The disaggregated checkpoint pick-up point this verify started against. History store
+     * verification judges obsolescence against the horizon that produced the checkpoint it reads,
+     * and that horizon only describes the checkpoint picked up here.
+     */
+    uint64_t disagg_lsn;
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -475,8 +482,8 @@ __verify_one_checkpoint(
 
         if (!skip_hs) {
             __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
-            WT_ERR_MSG_CHK(
-              session, __wt_hs_verify_one(session, btree->id), "history store verification failed");
+            WT_ERR_MSG_CHK(session, __wt_hs_verify_one(session, btree->id, vs->disagg_lsn),
+              "history store verification failed");
         }
     }
 
@@ -532,6 +539,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
+    vs->disagg_lsn = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn);
     WT_ERR(__wt_scr_alloc(session, 0, &vs->max_key));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->max_addr));
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &vs->tmp1));

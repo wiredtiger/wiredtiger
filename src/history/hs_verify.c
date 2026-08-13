@@ -16,8 +16,11 @@
  *     disaggregated follower's oldest timestamp is its own and trails the leader's, so it would
  *     walk records the leader had already written off and find no key in the data store to anchor
  *     them to. Point the cursor at the horizon that produced the checkpoint it is reading, which it
- *     applies alongside its own. The horizon only describes the checkpoint it came from, so the
- *     metadata LSN it was read against is returned with it.
+ *     applies alongside its own.
+ *
+ * The horizon only describes one checkpoint, so it is paired with a pick-up point: the caller's own
+ *     if it noted one when it started, since reading it here would miss a pick-up that landed in
+ *     between.
  */
 static void
 __hs_verify_set_horizon(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint64_t *horizon_lsnp)
@@ -25,14 +28,16 @@ __hs_verify_set_horizon(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint64_t
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    *horizon_lsnp = WT_DISAGG_LSN_NONE;
 
     if (!__wt_conn_is_disagg(session) ||
-      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
+        *horizon_lsnp = WT_DISAGG_LSN_NONE;
         return;
+    }
 
-    *horizon_lsnp =
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    if (*horizon_lsnp == WT_DISAGG_LSN_NONE)
+        *horizon_lsnp =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     ((WT_CURSOR_HS *)hs_cursor)->obsolete_ts = __wt_atomic_load_uint64_acquire(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp);
 }
@@ -156,12 +161,11 @@ err:
  *     exclusive access to the btree.
  */
 int
-__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
+__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t horizon_lsn)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
     WT_DECL_RET;
-    uint64_t horizon_lsn;
 
     hs_cursor = NULL;
 
@@ -258,6 +262,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
     WT_ERR(__wt_curhs_open_ext(session, hs_id, 0, hs_checkpoint_name, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
+    horizon_lsn = WT_DISAGG_LSN_NONE;
     __hs_verify_set_horizon(session, hs_cursor, &horizon_lsn);
 
     /* Position the hs cursor on the first record. */
