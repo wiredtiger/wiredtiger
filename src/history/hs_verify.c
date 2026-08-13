@@ -45,10 +45,15 @@ __hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, wt_timestamp_t *checkpoi
  *     timestamp is considered.
  */
 static WT_INLINE bool
-__hs_verify_obsolete(WT_TIME_WINDOW *tw, wt_timestamp_t checkpoint_oldest_ts)
+__hs_verify_obsolete(
+  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, wt_timestamp_t checkpoint_oldest_ts)
 {
+    /* Nothing prepared is ever written to the history store. */
+    WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw));
+    WT_UNUSED(session);
+
     return (checkpoint_oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
-      !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->durable_stop_ts <= checkpoint_oldest_ts);
+      tw->durable_stop_ts <= checkpoint_oldest_ts);
 }
 
 /*
@@ -110,7 +115,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * last checked key is left alone so that any remaining record for this key is judged on its
          * own window rather than excused by this one.
          */
-        if (__hs_verify_obsolete(&hs_cbt->upd_value->tw, checkpoint_oldest_ts))
+        if (__hs_verify_obsolete(session, &hs_cbt->upd_value->tw, checkpoint_oldest_ts))
             continue;
 
         /* Check the key can be found in the data store.*/
