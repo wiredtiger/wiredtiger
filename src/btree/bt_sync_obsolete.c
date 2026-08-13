@@ -873,9 +873,6 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    /* Set first, the thread might run before we finish up. */
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
-
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
     if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
         F_SET(conn, WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE);
@@ -894,8 +891,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_open_internal_session(
       conn, "checkpoint-cleanup", true, session_flags, 0, &conn->cc_cleanup.session));
 
-    WT_RET(
-      __wt_cond_alloc(conn->cc_cleanup.session, "checkpoint cleanup", &conn->cc_cleanup.cond));
+    WT_RET(__wt_cond_alloc(conn->cc_cleanup.session, "checkpoint cleanup", &conn->cc_cleanup.cond));
 
     return (__wt_checkpoint_cleanup_start(session));
 }
@@ -918,8 +914,8 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
 
-    WT_RET(__wt_thread_create(
-      conn->cc_cleanup.session, &conn->cc_cleanup.tid, __checkpoint_cleanup, conn->cc_cleanup.session));
+    WT_RET(__wt_thread_create(conn->cc_cleanup.session, &conn->cc_cleanup.tid, __checkpoint_cleanup,
+      conn->cc_cleanup.session));
     conn->cc_cleanup.tid_set = true;
 
     return (0);
