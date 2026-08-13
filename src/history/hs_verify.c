@@ -31,6 +31,7 @@ __hs_verify_checkpoint_oldest(
     if (!WT_URI_IS_STABLE_CHECKPOINT(uri))
         return;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     *checkpoint_oldest_tsp = __wt_atomic_load_uint64_acquire(
       &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
 }
@@ -58,10 +59,10 @@ static int
 __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *ds_cbt,
   uint32_t this_btree_id, wt_timestamp_t checkpoint_oldest_ts)
 {
-    WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(prev_key);
     WT_DECL_RET;
     WT_ITEM key;
+    WT_TIME_WINDOW *hs_tw;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter, recno;
     uint32_t btree_id;
@@ -69,7 +70,6 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
     int cmp;
 
     WT_CLEAR(key);
-    hs_cbt = (WT_CURSOR_BTREE *)((WT_CURSOR_HS *)hs_cursor)->file_cursor;
     WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
 
     /*
@@ -94,8 +94,10 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
         if (btree_id != this_btree_id)
             break;
 
+        __wt_hs_upd_time_window(hs_cursor, &hs_tw);
+
         /* Nothing prepared is ever written to the history store. */
-        if (WT_TIME_WINDOW_HAS_PREPARE(&hs_cbt->upd_value->tw)) {
+        if (WT_TIME_WINDOW_HAS_PREPARE(hs_tw)) {
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "the history store holds a prepared time window for key %s in the data store %s",
@@ -116,7 +118,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * last checked key is left alone so that any remaining record for this key is judged on its
          * own window rather than excused by this one.
          */
-        if (__hs_verify_obsolete(&hs_cbt->upd_value->tw, checkpoint_oldest_ts))
+        if (__hs_verify_obsolete(hs_tw, checkpoint_oldest_ts))
             continue;
 
         /* Check the key can be found in the data store.*/
@@ -138,7 +140,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
              * the last checked key alone so that any remaining record for this key is judged on its
              * own window rather than excused by this one.
              */
-            if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
+            if (__wt_txn_tw_stop_visible_all(session, hs_tw)) {
                 WT_ERR(__cursor_reset(ds_cbt));
                 continue;
             }
@@ -181,9 +183,6 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
     wt_timestamp_t checkpoint_oldest_ts;
 
     hs_cursor = NULL;
-
-    /* The checkpoint's oldest timestamp is only stable while a checkpoint cannot be picked up. */
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
