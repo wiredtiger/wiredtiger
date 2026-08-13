@@ -366,13 +366,6 @@ struct __wt_cursor_hs {
     uint32_t hs_id;
     WT_ITEM *datastore_key;
 
-    /*
-     * An obsolescence horizon to apply alongside this connection's own, for a reader of data
-     * produced under an unrelated oldest timestamp. WT_TS_NONE leaves global visibility as the only
-     * measure.
-     */
-    wt_timestamp_t obsolete_ts;
-
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_HS_CUR_BTREE_ID_SET 0x1u
 #define WT_HS_CUR_COUNTER_SET 0x2u

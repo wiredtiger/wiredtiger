@@ -507,27 +507,6 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 }
 
 /*
- * __curhs_stop_obsolete --
- *     Is a history store record's stop time window obsolete, and the record therefore outdated?
- *     Transaction ids are not comparable across the connections sharing a disaggregated history
- *     store, so a cursor's explicit horizon is a timestamp alone.
- */
-static WT_INLINE bool
-__curhs_stop_obsolete(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor, WT_TIME_WINDOW *tw)
-{
-    if (__wt_txn_tw_stop_visible_all(session, tw))
-        return (true);
-
-    /*
-     * A key can be reconciled out of the data store by either horizon: the one that wrote the
-     * checkpoint, or this connection's own when it materializes a page. Neither dominates, so a
-     * record obsolete to either is outdated here.
-     */
-    return (hs_cursor->obsolete_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
-      !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->durable_stop_ts <= hs_cursor->obsolete_ts);
-}
-
-/*
  * __curhs_prev_visible --
  *     Check the visibility of the current history store record. If it is not visible, find the
  *     previous visible history store record.
@@ -590,7 +569,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * it is outdated and we must skip it rather than returning NOTFOUND. Subsequent entries
          * might have later stop times and we might need to return one of them.
          */
-        if (__curhs_stop_obsolete(session, hs_cursor, &cbt->upd_value->tw)) {
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
             WT_STAT_CONN_DSRC_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
@@ -693,7 +672,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * it is outdated and we must skip it rather than returning NOTFOUND. Subsequent entries
          * might have later stop times and we might need to return one of them.
          */
-        if (__curhs_stop_obsolete(session, hs_cursor, &cbt->upd_value->tw)) {
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
             WT_STAT_CONN_DSRC_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
@@ -1528,7 +1507,6 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
     hs_cursor->btree_id = btree_id;
     hs_cursor->hs_id = hs_id;
-    hs_cursor->obsolete_ts = WT_TS_NONE;
     WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->datastore_key));
     hs_cursor->flags = 0;
 
