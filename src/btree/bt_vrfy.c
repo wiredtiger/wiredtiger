@@ -40,6 +40,12 @@ typedef struct {
     /* Whether to read from the history store. */
     bool skip_hs;
 
+    /*
+     * History store cursor for the per-key checks, opened once for the checkpoint being verified and
+     * repositioned per key. NULL when those checks are not running.
+     */
+    WT_CURSOR *hs_cursor;
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
       key_sz_stack[100], val_sz_stack[100], total_sz_stack[100];
@@ -434,6 +440,20 @@ __verify_one_checkpoint(
     /* Only verify HS entries against the last checkpoint. */
     vs->skip_hs = skip_hs || !last_ckpt;
 
+    /*
+     * The per-key checks reposition a single cursor rather than opening one per key. A NULL cursor
+     * means there is nothing to check against; the call sites use it as their guard.
+     */
+    WT_ASSERT(session, vs->hs_cursor == NULL);
+    if (!vs->skip_hs && !vs->skip_per_key_hs) {
+        WT_ERR(__wt_hs_verify_cursor_open(session, btree->id, &vs->hs_cursor));
+        if (vs->hs_cursor == NULL)
+            __wt_verbose(session, WT_VERB_VERIFY,
+              "%s: no shared history store checkpoint is pinned, skipping the per-key history store "
+              "verification",
+              name);
+    }
+
     /* Verify the tree. */
     WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
     WT_ERR(ret);
@@ -487,6 +507,11 @@ __verify_one_checkpoint(
 
 done:
 err:
+    if (vs->hs_cursor != NULL) {
+        WT_TRET(vs->hs_cursor->close(vs->hs_cursor));
+        vs->hs_cursor = NULL;
+    }
+
     /*
      * If eviction was enabled to verify the tree, re-acquire the exclusive lock and discard the
      * tree before unloading the checkpoint.The discard must run while the lock is held and before
@@ -616,6 +641,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
 done:
 err:
+    /* Every checkpoint that opens the history store cursor closes it again on the way out. */
+    WT_ASSERT(session, vs->hs_cursor == NULL);
+
     /* Inform the underlying block manager we're done. */
     if (bm_start)
         WT_TRET(bm->verify_end(bm, session, ret == 0));
@@ -1417,6 +1445,9 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     WT_BTREE *btree = S2BT(session);
     uint32_t hs_btree_id = btree->id;
 
+    hs_cursor = vs->hs_cursor;
+    WT_ASSERT(session, hs_cursor != NULL);
+
     /*
      * A non-precise checkpoint can write a page before a later eviction moves that page's older
      * versions into the history store, and then capture those history store records in the same
@@ -1432,18 +1463,16 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     check_data_store = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT);
     first = true;
 
-    if (vs->skip_per_key_hs)
-        return (0);
-
-    WT_RET(__wt_hs_verify_cursor_open(session, hs_btree_id, &hs_cursor));
-    if (hs_cursor == NULL)
-        return (0);
-
     WT_STAT_CONN_INCR(session, session_table_verify_hs_keys_checked);
 
     /*
-     * Open a history store cursor positioned at the end of the data store key (the newest record)
-     * and iterate backwards until we reach a different key or btree.
+     * Position the history store cursor at the end of the data store key (the newest record) and
+     * iterate backwards until we reach a different key or btree.
+     *
+     * The cursor carries its position over from the previous key, so a search landing on the page it
+     * already has pinned skips the tree descent. That fast path is only reachable because the
+     * history store searches at read-uncommitted isolation; a read-committed search abandons a
+     * pinned page rather than trusting it.
      */
     hs_cursor->set_key(hs_cursor, 4, hs_btree_id, tmp1, WT_TS_MAX, UINT64_MAX);
     ret = __wt_curhs_search_near_before(session, hs_cursor);
@@ -1490,8 +1519,15 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
         newer_stop_ts = tw->stop_ts;
         first = false;
     }
+
+    if (0) {
 err:
-    WT_TRET(hs_cursor->close(hs_cursor));
+        /*
+         * The cursor outlives this key, so don't hand it to the next one mid-scan. A clean exit
+         * deliberately leaves it positioned: the next key's search reuses the pinned page.
+         */
+        WT_TRET(hs_cursor->reset(hs_cursor));
+    }
     return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
@@ -1658,7 +1694,7 @@ __verify_page_content_leaf(
             WT_RET(__wt_row_leaf_key(session, page, rip, vs->tmp1, false));
             __wti_read_row_time_window(session, page, rip, tw);
             ++rip;
-            if (!vs->skip_hs)
+            if (vs->hs_cursor != NULL)
                 WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, tw->stop_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
@@ -1666,7 +1702,7 @@ __verify_page_content_leaf(
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
 
-            if (!vs->skip_hs)
+            if (vs->hs_cursor != NULL)
                 WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, tw->stop_ts, vs));
 
             recno += rle;
@@ -1686,6 +1722,14 @@ __verify_page_content_leaf(
           "overflow items",
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
           __wti_cell_type_string(parent->raw));
+
+    /*
+     * Give up the history store page the per-key checks left pinned. Keys on one leaf page are
+     * contiguous in the history store, so the searches that benefit from the pinned page have
+     * already happened, and this bounds how long any one history store page is held.
+     */
+    if (vs->hs_cursor != NULL)
+        WT_RET(vs->hs_cursor->reset(vs->hs_cursor));
 
     return (0);
 }
