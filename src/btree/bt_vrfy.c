@@ -37,9 +37,6 @@ typedef struct {
     bool read_corrupt;
     bool skip_per_key_hs;
 
-    /* Whether to read from the history store. */
-    bool skip_hs;
-
     /*
      * History store cursor for the per-key checks, opened once for the checkpoint being verified
      * and repositioned per key. NULL when those checks are not running.
@@ -437,15 +434,13 @@ __verify_one_checkpoint(
         addr_unpack.ta.prepare = 1;
     addr_unpack.raw = WT_CELL_ADDR_INT;
 
-    /* Only verify HS entries against the last checkpoint. */
-    vs->skip_hs = skip_hs || !last_ckpt;
-
     /*
-     * The per-key checks reposition a single cursor rather than opening one per key. A NULL cursor
-     * means there is nothing to check against; the call sites use it as their guard.
+     * The per-key checks reposition a single cursor rather than opening one per key, and only run
+     * against the last checkpoint. A NULL cursor means there is nothing to check against; the call
+     * sites use it as their guard.
      */
     WT_ASSERT(session, vs->hs_cursor == NULL);
-    if (!vs->skip_hs && !vs->skip_per_key_hs) {
+    if (!skip_hs && last_ckpt && !vs->skip_per_key_hs) {
         WT_ERR(__wt_hs_verify_cursor_open(session, btree->id, &vs->hs_cursor));
         if (vs->hs_cursor == NULL)
             __wt_verbose(session, WT_VERB_VERIFY,
