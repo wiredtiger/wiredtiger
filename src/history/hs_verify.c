@@ -134,8 +134,13 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
     WT_DECL_RET;
 
     WT_RET(__wt_hs_verify_cursor_open(session, btree_id, &hs_cursor));
-    if (hs_cursor == NULL)
+    if (hs_cursor == NULL) {
+        /* Report the skip once per tree. */
+        __wt_verbose(session, WT_VERB_VERIFY,
+          "%s: no shared history store checkpoint is pinned, skipping history store verification",
+          session->dhandle->name);
         return (0);
+    }
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
