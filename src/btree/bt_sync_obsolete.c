@@ -924,7 +924,7 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
 /*
  * __wt_checkpoint_cleanup_stop --
  *     Stop the checkpoint cleanup thread, keeping the session and condition variable so it can be
- *     started again. The thread checks for a stop between pages, bounding the wait.
+ *     started again.
  */
 int
 __wt_checkpoint_cleanup_stop(WT_SESSION_IMPL *session)

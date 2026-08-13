@@ -1356,11 +1356,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
           "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
     } else if (was_leader && !leader) {
         /*
-         * Stop the checkpoint cleanup server before the step-down takes its locks. The server
-         * checks the role and read-only state only at walk entry, so a walk spanning the step-down
-         * could dirty a tree after the step-down freezes it; joining the thread here bounds the
-         * wait to about one page visit. Stopping under the locks could deadlock instead, as the
-         * server's handle acquisition can wait on the schema lock. Checkpoint cleanup is
+         * Stop the checkpoint cleanup server before the step-down. Checkpoint cleanup is
          * leader-only work, so the server stays down until the next step-up.
          */
         WT_ERR(__wt_checkpoint_cleanup_stop(session));
