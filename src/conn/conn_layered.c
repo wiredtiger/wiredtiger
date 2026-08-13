@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __disagg_accumulate_drop_size(
-  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_size);
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
 /*
@@ -247,6 +245,253 @@ __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
 {
     S2C(session)->disaggregated_storage.database_size = database_size;
     WT_STAT_CONN_SET(session, disagg_database_size, database_size);
+}
+
+/*
+ * __disagg_file_size_bucket --
+ *     Return the hash bucket a stable file's URI belongs to.
+ */
+static WT_INLINE uint64_t
+__disagg_file_size_bucket(WT_SESSION_IMPL *session, const char *uri)
+{
+    return (__wt_hash_city64(uri, strlen(uri)) & (uint64_t)(S2C(session)->hash_size - 1));
+}
+
+/*
+ * __disagg_file_sizes_alloc --
+ *     Allocate the hash buckets if they are not there yet.
+ */
+static int
+__disagg_file_sizes_alloc(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint32_t i;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &disagg->file_sizes_lock);
+
+    if (disagg->file_sizes != NULL)
+        return (0);
+
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &disagg->file_sizes));
+    for (i = 0; i < conn->hash_size; ++i)
+        TAILQ_INIT(&disagg->file_sizes[i]);
+
+    return (0);
+}
+
+/*
+ * __disagg_file_size_tracked --
+ *     Return whether a metadata key names a file whose size counts towards the database size.
+ */
+static bool
+__disagg_file_size_tracked(WT_SESSION_IMPL *session, const char *uri)
+{
+    return (__wt_conn_is_disagg(session) && WT_PREFIX_MATCH(uri, "file:") &&
+      WT_SUFFIX_MATCH(uri, ".wt_stable"));
+}
+
+/*
+ * __disagg_file_size_set --
+ *     Record a stable file's checkpoint size, replacing any size recorded for it.
+ */
+static int
+__disagg_file_size_set(WT_SESSION_IMPL *session, const char *uri, uint64_t size)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    WT_DISAGG_FILE_SIZE *entry;
+    uint64_t bucket;
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &disagg->file_sizes_lock);
+    WT_ASSERT(session, disagg->file_sizes != NULL);
+
+    bucket = __disagg_file_size_bucket(session, uri);
+    TAILQ_FOREACH (entry, &disagg->file_sizes[bucket], hashq)
+        if (strcmp(entry->uri, uri) == 0) {
+            entry->size = size;
+            return (0);
+        }
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    WT_RET(__wt_strdup(session, uri, &entry->uri));
+    entry->size = size;
+    TAILQ_INSERT_HEAD(&disagg->file_sizes[bucket], entry, hashq);
+
+    return (0);
+}
+
+/*
+ * __wt_disagg_file_size_update --
+ *     Record the checkpoint size a metadata value carries for a stable file.
+ */
+int
+__wt_disagg_file_size_update(WT_SESSION_IMPL *session, const char *uri, const char *value)
+{
+    WT_DECL_RET;
+    uint64_t size;
+
+    if (!__disagg_file_size_tracked(session, uri))
+        return (0);
+
+    /* Before the sizes are filled there is nothing to record into; the fill will see this write. */
+    if (S2C(session)->disaggregated_storage.file_sizes == NULL)
+        return (0);
+
+    size = 0;
+    WT_RET_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &size));
+
+    __wt_spin_lock(session, &S2C(session)->disaggregated_storage.file_sizes_lock);
+    ret = __disagg_file_size_set(session, uri, size);
+    __wt_spin_unlock(session, &S2C(session)->disaggregated_storage.file_sizes_lock);
+
+    return (ret);
+}
+
+/*
+ * __wt_disagg_file_size_remove --
+ *     Forget a stable file, so its size leaves the database size.
+ */
+void
+__wt_disagg_file_size_remove(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    WT_DISAGG_FILE_SIZE *entry;
+    uint64_t bucket;
+
+    if (!__disagg_file_size_tracked(session, uri))
+        return;
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    __wt_spin_lock(session, &disagg->file_sizes_lock);
+    if (disagg->file_sizes != NULL) {
+        bucket = __disagg_file_size_bucket(session, uri);
+        TAILQ_FOREACH (entry, &disagg->file_sizes[bucket], hashq)
+            if (strcmp(entry->uri, uri) == 0) {
+                TAILQ_REMOVE(&disagg->file_sizes[bucket], entry, hashq);
+                __wt_free(session, entry->uri);
+                __wt_free(session, entry);
+                break;
+            }
+    }
+    __wt_spin_unlock(session, &disagg->file_sizes_lock);
+}
+
+/*
+ * __wt_disagg_file_sizes_clear --
+ *     Discard the recorded sizes. Freeing the buckets is what asks the next sum to rebuild them.
+ */
+void
+__wt_disagg_file_sizes_clear(WT_SESSION_IMPL *session)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    WT_DISAGG_FILE_SIZE *entry;
+    uint32_t i;
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    __wt_spin_lock(session, &disagg->file_sizes_lock);
+    if (disagg->file_sizes != NULL) {
+        for (i = 0; i < S2C(session)->hash_size; ++i)
+            while ((entry = TAILQ_FIRST(&disagg->file_sizes[i])) != NULL) {
+                TAILQ_REMOVE(&disagg->file_sizes[i], entry, hashq);
+                __wt_free(session, entry->uri);
+                __wt_free(session, entry);
+            }
+        __wt_free(session, disagg->file_sizes);
+    }
+    __wt_spin_unlock(session, &disagg->file_sizes_lock);
+}
+
+/*
+ * __disagg_file_sizes_walk --
+ *     Record every stable file the metadata holds.
+ */
+static int
+__disagg_file_sizes_walk(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *uri, *value;
+
+    cursor = NULL;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+        if (!__disagg_file_size_tracked(session, uri))
+            continue;
+        WT_ERR(cursor->get_value(cursor, &value));
+        WT_ERR(__wt_disagg_file_size_update(session, uri, value));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __disagg_file_sizes_fill --
+ *     Fill the sizes from the metadata. Needed once per connection: a database that is opened
+ *     rather than created gets its entries from recovery, not through a metadata write. The walk
+ *     reads uncommitted, as all metadata reads do, so it sees the same state the recording hook
+ *     saw.
+ */
+static int
+__disagg_file_sizes_fill(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    /* Allocate before the walk, so a write that lands during it records itself. */
+    __wt_spin_lock(session, &disagg->file_sizes_lock);
+    ret = __disagg_file_sizes_alloc(session);
+    __wt_spin_unlock(session, &disagg->file_sizes_lock);
+    WT_RET(ret);
+
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = __disagg_file_sizes_walk(session));
+
+    return (ret);
+}
+
+/*
+ * __wt_disagg_file_sizes_sum --
+ *     Return the total checkpoint size of every stable file, excluding the fixed overhead.
+ */
+int
+__wt_disagg_file_sizes_sum(WT_SESSION_IMPL *session, uint64_t *sizep)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    WT_DISAGG_FILE_SIZE *entry;
+    uint64_t total;
+    uint32_t i;
+
+    disagg = &S2C(session)->disaggregated_storage;
+    *sizep = 0;
+
+    /* Only the fill allocates the buckets, so an allocated array is a filled one. */
+    if (disagg->file_sizes == NULL)
+        WT_RET(__disagg_file_sizes_fill(session));
+
+    total = 0;
+    __wt_spin_lock(session, &disagg->file_sizes_lock);
+    if (disagg->file_sizes != NULL)
+        for (i = 0; i < S2C(session)->hash_size; ++i)
+            TAILQ_FOREACH (entry, &disagg->file_sizes[i], hashq)
+                total += entry->size;
+    __wt_spin_unlock(session, &disagg->file_sizes_lock);
+
+    *sizep = total;
+    return (0);
 }
 
 /*
@@ -630,42 +875,6 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 }
 
 /*
- * __disagg_accumulate_drop_size --
- *     Accumulate the drop size if the entry represents a table drop operation.
- */
-int
-__disagg_accumulate_drop_size(
-  WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry, uint64_t *drop_sizep)
-{
-    WT_DECL_RET;
-    char *stable_config;
-
-    stable_config = NULL;
-
-    if (!(entry->metadata_op == WT_SHARED_METADATA_REMOVE && entry->stable_value != NULL))
-        return (0);
-
-    /* The stable entry is gone only after a real drop; a rolled-back drop leaves it. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, entry->stable_uri, &stable_config), true);
-
-    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-        uint64_t size = 0;
-        /* A table dropped before it was ever checkpointed has no checkpoint entry. */
-        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, entry->stable_value, &size), true);
-        if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-            *drop_sizep += size;
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Accumulated drop size %" PRIu64 " for table \"%s\" (stable URI \"%s\")", size,
-              entry->table_name, entry->stable_uri);
-        }
-    }
-
-err:
-    __wt_free(session, stable_config);
-    return (ret);
-}
-
-/*
  * __disagg_requeue_skipped_creates --
  *     Return parked create entries to the head of the shared metadata queue, restoring their
  *     original order, so a later checkpoint revisits them.
@@ -690,19 +899,16 @@ __disagg_requeue_skipped_creates(
 
 /*
  * __wt_disagg_shared_metadata_queue_process --
- *     Process the update metadata list, returning the total checkpoint size of the tables actually
- *     dropped so the caller can reduce the database size accordingly.
+ *     Process the update metadata list.
  */
 int
-__wt_disagg_shared_metadata_queue_process(
-  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch, uint64_t *drop_sizep)
+__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch)
 {
     struct __wt_disagg_shared_metadata_qh skipped_creates;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
 
-    WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
     TAILQ_INIT(&skipped_creates);
 
@@ -749,8 +955,6 @@ __wt_disagg_shared_metadata_queue_process(
 
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
         WT_ERR(__disagg_shared_metadata_op(session, entry));
-
-        WT_ERR(__disagg_accumulate_drop_size(session, entry, drop_sizep));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);

@@ -209,6 +209,9 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
     WT_ERR(cursor->insert(cursor));
     if (WT_META_TRACKING(session))
         WT_ERR(__wti_meta_track_insert(session, key));
+
+    /* Keep the disaggregated per-file size accounting in step with the metadata. */
+    WT_ERR(__wt_disagg_file_size_update(session, key, value));
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
@@ -248,6 +251,9 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
     cursor->set_key(cursor, key);
     cursor->set_value(cursor, value);
     WT_ERR(cursor->insert(cursor));
+
+    /* Keep the disaggregated per-file size accounting in step with the metadata. */
+    WT_ERR(__wt_disagg_file_size_update(session, key, value));
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
@@ -286,7 +292,10 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
 
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, key);
-    ret = cursor->remove(cursor);
+    WT_ERR(cursor->remove(cursor));
+
+    /* Keep the disaggregated per-file size accounting in step with the metadata. */
+    __wt_disagg_file_size_remove(session, key);
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));

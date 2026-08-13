@@ -59,6 +59,8 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
       session, &conn->disaggregated_storage.shared_metadata_queue_lock, "update shared metadata"));
     WT_RET(__wt_spin_init(
       session, &conn->disaggregated_storage.pending_crypt_key_lock, "pending crypt key"));
+    WT_RET(
+      __wt_spin_init(session, &conn->disaggregated_storage.file_sizes_lock, "disagg file sizes"));
     WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
     WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
     WT_RET(__wt_spin_init(session, &conn->reconfig_lock, "reconfigure"));
@@ -122,6 +124,8 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     __wti_disagg_pending_crypt_key_clear(session);
     __wt_spin_destroy(session, &conn->disaggregated_storage.pending_crypt_key_lock);
+    __wt_disagg_file_sizes_clear(session);
+    __wt_spin_destroy(session, &conn->disaggregated_storage.file_sizes_lock);
     __wt_rwlock_destroy(session, &conn->log_mgr.debug_log_retention_lock);
     __wt_rwlock_destroy(session, &conn->dhandle_lock);
     __wt_spin_destroy(session, &conn->fh_lock);

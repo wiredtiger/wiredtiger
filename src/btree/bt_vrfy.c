@@ -277,13 +277,11 @@ err:
 }
 
 /*
- * __wt_disagg_get_database_size --
- *     Recompute the disaggregated database size from scratch: walk the metadata and sum the most
- *     recent checkpoint size for every file. The fixed overhead for the KEK table and shared turtle
- *     page is not included; callers add it when comparing against or storing a database_size.
+ * __disagg_database_size_walk --
+ *     Sum the most recent checkpoint size of every stable file the metadata holds.
  */
-int
-__wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
+static int
+__disagg_database_size_walk(WT_SESSION_IMPL *session, uint64_t *sizep)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -323,6 +321,22 @@ __wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __wt_disagg_get_database_size --
+ *     Recompute the disaggregated database size from the metadata, excluding the fixed overhead for
+ *     the KEK table and shared turtle page. Reads uncommitted, as all metadata reads do.
+ */
+int
+__wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
+{
+    WT_DECL_RET;
+
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = __disagg_database_size_walk(session, sizep));
+
     return (ret);
 }
 

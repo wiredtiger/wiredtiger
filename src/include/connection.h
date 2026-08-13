@@ -52,6 +52,18 @@ typedef enum __wt_background_compact_cleanup_stat_type {
 } WT_BACKGROUND_COMPACT_CLEANUP_STAT_TYPE;
 
 /*
+ * WT_DISAGG_FILE_SIZE --
+ *  The checkpoint size last accounted for one stable file.
+ */
+struct __wt_disagg_file_size {
+    char *uri;
+    uint64_t size; /* Its most recent checkpoint's size */
+
+    /* Hash of the stable files contributing to the disaggregated database size */
+    TAILQ_ENTRY(__wt_disagg_file_size) hashq;
+};
+
+/*
  * WT_BACKGROUND_COMPACT_STAT --
  *  List of tracking information for each file compact has worked on.
  */
@@ -374,6 +386,13 @@ struct __wt_disaggregated_storage {
     TAILQ_HEAD(__wt_disagg_pending_crypt_key_qh, __wt_disagg_pending_crypt_key)
     pending_crypt_key_qh;
     WT_SPINLOCK pending_crypt_key_lock;
+
+    /*
+     * The database size is the sum of its files, recorded where the metadata is written. Filled
+     * from the metadata on first use.
+     */
+    WT_SPINLOCK file_sizes_lock;
+    TAILQ_HEAD(__wt_disagg_file_size_hash, __wt_disagg_file_size) * file_sizes;
 
     uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */

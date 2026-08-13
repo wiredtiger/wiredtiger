@@ -41,12 +41,6 @@ struct __wt_ckpt_session {
 
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_sec;
-
-    /*
-     * Accumulated change in database size during this checkpoint. Applied to the connection-level
-     * database_size only after the checkpoint succeeds.
-     */
-    int64_t ckpt_size_delta;
 };
 
 /*

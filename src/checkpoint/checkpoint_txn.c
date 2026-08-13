@@ -960,79 +960,50 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
  *     On completion of the checkpoint, update the database size in disaggregated storage.
  */
 static int
-__checkpoint_update_disagg_database_size(
-  WT_SESSION_IMPL *session, uint64_t drop_size, bool database_size_fix)
+__checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, bool database_size_fix)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    uint64_t recomputed_size;
-    bool recomputed;
-
-    conn = S2C(session);
+    uint64_t database_size;
 
     if (!__wt_conn_is_disagg(session))
         return (0);
 
-    /*
-     * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
-     * to account for the KEK table and shared turtle page size. Correctness here is provided by the
-     * fact that we pickup a new checkpoint on startup. Thus subsequent starts of the database will
-     * already have a checkpoint size set.
-     */
-    if (conn->disaggregated_storage.database_size == 0)
-        conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+    /* The repair database flow asks us to rebuild the per-file sizes from the metadata. */
+    if (database_size_fix)
+        __wt_disagg_file_sizes_clear(session);
 
     /*
-     * The repair database flow asks us to recompute the database size from the metadata from
-     * scratch, superseding the incremental delta below, since the metadata already reflects this
-     * checkpoint's own sizes. A recompute error fails the checkpoint instead of falling back, since
-     * the caller explicitly asked for this recompute and needs to know.
+     * The database size is the total checkpoint size of every stable file, plus a 1MB buffer for
+     * the KEK table and shared turtle page, which no file's checkpoint accounts for.
      */
-    recomputed = false;
-    if (database_size_fix) {
-        if ((ret = __wt_disagg_get_database_size(session, &recomputed_size)) != 0) {
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "disagg database size fix: failed to recompute database size: %s",
-              __wt_strerror(session, ret, NULL, 0));
-            return (ret);
-        }
+    WT_RET(__wt_disagg_file_sizes_sum(session, &database_size));
+    database_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+    __wt_disagg_set_database_size(session, database_size);
 
-        recomputed_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
-        __wt_disagg_set_database_size(session, recomputed_size);
+    if (database_size_fix)
         __wt_verbose(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "disagg database size fix: recomputed database size -> %" PRIu64, recomputed_size);
-        recomputed = true;
+          "disagg database size fix: recomputed database size -> %" PRIu64, database_size);
+
+#ifdef HAVE_DIAGNOSTIC
+    {
+        uint64_t walked_size;
+
+        /* A mismatch means a stable file's metadata changed outside
+         * __wt_metadata_insert/update/remove. */
+        WT_RET(__wt_disagg_get_database_size(session, &walked_size));
+        walked_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+        WT_ASSERT_ALWAYS(session, walked_size == database_size,
+          "disagg database size: recorded per-file total %" PRIu64
+          " does not match the metadata walk %" PRIu64,
+          database_size, walked_size);
     }
-
-    /*
-     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
-     * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
-     * added during the checkpoint. Negative deltas occur when data is removed reducing the total
-     * storage footprint. Guard against overflow/underflow in both cases.
-     */
-    if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
-        uint64_t db;
-        int64_t delta;
-
-        db = conn->disaggregated_storage.database_size;
-        /* Subtract the size of the dropped tables from our delta, we need to account for those. */
-        delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
-
-        if (delta > 0) {
-            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
-            __wt_disagg_set_database_size(session, db + (uint64_t)delta);
-        } else {
-            WT_ASSERT(session, db >= (uint64_t)(-delta));
-            __wt_disagg_set_database_size(session, db - (uint64_t)(-delta));
-        }
-    }
+#endif
 
     /*
      * The database size must never drop below the checkpoint buffer because the checkpoint metadata
      * itself occupies space that must always be accounted for.
      */
-    WT_ASSERT(
-      session, conn->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+    WT_ASSERT(session,
+      S2C(session)->disaggregated_storage.database_size >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
     return (0);
 }
 
@@ -1782,7 +1753,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch;
-    uint64_t drop_size, generation;
+    uint64_t generation;
     char schema_epoch_string[WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
 
@@ -1791,7 +1762,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     ckpt_disagg_schema_epoch = WT_TS_NONE;
     ckpt_tmp_ts = WT_TS_NONE;
-    drop_size = 0;
     hs_size = 0;
     hs_dhandle = hs_dhandle_shared = NULL;
     txn = session->txn;
@@ -1958,15 +1928,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__checkpoint_hs(session, cfg, hs_dhandle, hs_dhandle_shared));
 
-    /*
-     * Copy any updated metadata to the shared metadata table. Compute the drop size first so we can
-     * adjust the overall database size after the checkpoint completes.
-     */
+    /* Copy any updated metadata to the shared metadata table. */
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
         WT_WITH_SCHEMA_LOCK(session,
-          ret = __wt_disagg_shared_metadata_queue_process(
-            session, ckpt_disagg_schema_epoch, &drop_size));
+          ret = __wt_disagg_shared_metadata_queue_process(session, ckpt_disagg_schema_epoch));
         WT_ERR_MSG_CHK(session, ret,
           "Disaggregated storage checkpoint failed while processing shared metadata queue");
     }
@@ -2100,8 +2066,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Disaggregated storage database size accounting. */
-    WT_ERR(
-      __checkpoint_update_disagg_database_size(session, drop_size, ckpt_cfg.database_size_fix));
+    WT_ERR(__checkpoint_update_disagg_database_size(session, ckpt_cfg.database_size_fix));
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
@@ -3129,9 +3094,6 @@ __checkpoint_teardown(WT_SESSION_IMPL *session, bool failed, WT_TXN_ISOLATION sa
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_trigger_point == 0 && session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
-
-    /* Reset accumulated change in database size. Failed checkpoints do not affect database size. */
-    session->ckpt.ckpt_size_delta = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);

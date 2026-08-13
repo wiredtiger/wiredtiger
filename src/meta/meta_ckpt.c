@@ -483,15 +483,35 @@ err:
 int
 __wt_ckpt_last_size(WT_SESSION_IMPL *session, const char *config, uint64_t *sizep)
 {
-    WT_CKPT ckpt;
-    WT_CLEAR(ckpt);
+    WT_CONFIG ckptconf, entryconf;
+    WT_CONFIG_ITEM ek, ev, k, v;
+    uint64_t size;
+    int64_t found, order;
 
     *sizep = 0;
-    WT_RET(__ckpt_last(session, config, &ckpt));
-    *sizep = ckpt.size;
 
-    __wt_checkpoint_free(session, &ckpt);
-    return (0);
+    /* Read the order and size in one pass: loading the whole checkpoint copies and decodes more. */
+    WT_RET(__wt_config_getones(session, config, "checkpoint", &v));
+    __wt_config_subinit(session, &ckptconf, &v);
+    for (found = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
+        order = 0;
+        size = 0;
+        __wt_config_subinit(session, &entryconf, &v);
+        while (__wt_config_next(&entryconf, &ek, &ev) == 0) {
+            if (WT_CONFIG_LIT_MATCH("order", ek))
+                order = ev.val;
+            else if (WT_CONFIG_LIT_MATCH("size", ek))
+                size = (uint64_t)ev.val;
+        }
+
+        /* Ignore checkpoints before the ones we've already seen. */
+        if (found != 0 && order < found)
+            continue;
+        found = order;
+        *sizep = size;
+    }
+
+    return (found ? 0 : WT_NOTFOUND);
 }
 
 /*
@@ -1392,36 +1412,24 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    uint64_t prev_ckpt_size;
     const char *fname;
     bool has_lsn;
 
     btree = S2BT(session);
     fname = dhandle->name;
-    prev_ckpt_size = 0;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
-    /*
-     * Add B-tree metadata to any added checkpoint. Track the previous checkpoint's size as we
-     * iterate so we can compute the delta for disaggregated storage.
-     */
+    /* Add B-tree metadata to any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->next_page_id = btree->next_page_id;
             ckpt->leaf_entry_ewma = __wt_atomic_load_uint64_relaxed(&btree->leaf_entry_ewma);
             ckpt->approx_leaf_pages = __wt_atomic_load_uint64_relaxed(&btree->approx_leaf_pages);
-            /*
-             * For disaggregated storage, save the total bytes to the checkpoint size field. Track
-             * the delta between this checkpoint and the previous one, this delta will be applied to
-             * the database level size once the checkpoint succeeds.
-             */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
                 WT_ASSERT(session, ckpt->size == __wt_block_disagg_get_size(session));
-                session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
-            }
-        } else
-            prev_ckpt_size = ckpt->size;
+        }
     }
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));

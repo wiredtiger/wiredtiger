@@ -598,6 +598,10 @@ extern int __wt_disagg_config_get_role(WT_SESSION_IMPL *session, const char **cf
 extern int __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
   const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
   bool deferred, const char *stable_value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_file_size_update(WT_SESSION_IMPL *session, const char *uri,
+  const char *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_file_sizes_sum(WT_SESSION_IMPL *session, uint64_t *sizep)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
@@ -607,9 +611,8 @@ extern int __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_disagg_shared_metadata_queue_process(
-  WT_SESSION_IMPL *session, wt_timestamp_t cur_schema_epoch, uint64_t *drop_sizep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session,
+  wt_timestamp_t cur_schema_epoch) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_shared_metadata_queue_publish(
   WT_SESSION_IMPL *session, const char *table_name, wt_timestamp_t schema_epoch)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1830,6 +1833,8 @@ extern void __wt_debug_crash(WT_SESSION_IMPL *session)
 extern void __wt_dhandle_clear_add(
   WT_DHANDLE_CLEAR_LOG *log, const char *file, const char *func, int line);
 extern void __wt_disagg_deferred_pickup_signal(WT_SESSION_IMPL *session, uint64_t released_gen);
+extern void __wt_disagg_file_size_remove(WT_SESSION_IMPL *session, const char *uri);
+extern void __wt_disagg_file_sizes_clear(WT_SESSION_IMPL *session);
 extern void __wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);

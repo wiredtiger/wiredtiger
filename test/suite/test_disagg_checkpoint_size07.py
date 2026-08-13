@@ -72,6 +72,16 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
             cursor[str(i)] = str(i) + 'x' * self.value_size
         cursor.close()
 
+    def get_checkpoint_size(self, uri):
+        """The size of a file's most recent checkpoint, as the database size counts it."""
+        meta_cursor = self.session.open_cursor('metadata:')
+        meta_cursor.set_key(uri)
+        self.assertEqual(meta_cursor.search(), 0)
+        sizes = re.findall(r',size=(\d+),', meta_cursor.get_value())
+        meta_cursor.close()
+        self.assertGreater(len(sizes), 0, f"no checkpoint size in the metadata for {uri}")
+        return int(sizes[-1])
+
     def database_size_check(self, context_message=""):
         self.session.checkpoint()
 
@@ -131,12 +141,15 @@ class test_disagg_checkpoint_size07(wttest.WiredTigerTestCase):
         busy_session.close()
         self.assertTrue(self.exists(self.victim_uri))
 
-        # We should see the drop size for a successful drop
-        with self.expectedStdoutPattern('.*Accumulated drop size.*', maxchars=1000000):
-            self.conn.reconfigure("verbose=[disaggregated_storage:2]")
-            self.session.drop(self.victim_uri, None)
-            self.session.checkpoint()
-            self.conn.reconfigure("verbose=[disaggregated_storage:0]")
+        # A successful drop takes the collection's whole size out of the database size.
+        victim_size = self.get_checkpoint_size("file:" + self.victim_base + ".wt_stable")
+        size_before_drop = self.get_database_size()
+        self.session.drop(self.victim_uri, None)
+        self.session.checkpoint()
+        size_after_drop = self.get_database_size()
+        self.assertGreaterEqual(size_before_drop - size_after_drop, victim_size,
+            f"a successful drop must remove the collection's size ({victim_size}) from the database "
+            f"size: {size_before_drop} -> {size_after_drop}")
 
         self.assertFalse(self.exists(self.victim_uri))
         self.database_size_check("after successful drop")
