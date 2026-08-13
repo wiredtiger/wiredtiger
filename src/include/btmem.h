@@ -556,10 +556,14 @@ struct __wt_page_modify {
 #define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 
-/* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
+/*
+ * Flags set while the page is held exclusive; the exclusive and reconciling flags catch invalid
+ * updates to page_state, even in release builds.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
-#define WT_PAGE_MODIFY_RECONCILING 0x2u
+#define WT_PAGE_MODIFY_INSTANTIATING 0x2u
+#define WT_PAGE_MODIFY_RECONCILING 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
