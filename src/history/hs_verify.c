@@ -10,17 +10,8 @@
 
 /*
  * __hs_verify_checkpoint_oldest --
- *     A key is reconciled out of the data store once its stop is globally visible, and a
- *     timestamped tombstone leaves the key's history store records behind. Whoever wrote the
- *     checkpoint discarded those records as obsolete against its own oldest timestamp, which is
- *     unrelated to the reading connection's when the data store is a stable checkpoint written
- *     elsewhere: this connection would walk records that were already written off and find no key
- *     to anchor them to. Read the oldest timestamp of the checkpoint being verified.
- *
- * The value belongs to whichever checkpoint was last picked up, and a pick-up publishes it
- *     alongside the rest of its state under the checkpoint lock. Verify holds that lock from before
- *     it opens a handle until it is done, so no checkpoint can be picked up while it runs: the
- *     timestamp cannot be read half-published, and it always describes the data store being walked.
+ *     Return the oldest timestamp of the checkpoint the given data store was read at. WT_TS_NONE
+ *     otherwise for anything else.
  */
 static WT_INLINE wt_timestamp_t
 __hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, const char *uri)
@@ -113,9 +104,11 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
             continue;
 
         /*
-         * Skip a record the checkpoint's writer had already discarded, as its own cursor did. The
-         * last checked key is left alone so that any remaining record for this key is judged on its
-         * own window rather than excused by this one.
+         * A follower's own oldest timestamp trails the one that wrote the checkpoint, so its cursor
+         * still hands back records that reconciliation had already written off when it dropped
+         * their keys from the page image. Skip those, as the writer's own cursor did. The last
+         * checked key is left alone so that any remaining record for this key is judged on its own
+         * window rather than excused by this one.
          */
         if (__hs_verify_obsolete(hs_tw, checkpoint_oldest_ts))
             continue;
