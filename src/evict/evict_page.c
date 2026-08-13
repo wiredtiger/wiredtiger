@@ -1331,9 +1331,8 @@ __evict_snapshot_teardown(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT_STATE snap
  * __evict_snapshot_evict_thread --
  *     Set up the snapshot an eviction thread reconciles under.
  */
-static void
-__evict_snapshot_evict_thread(
-  WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAPSHOT_STATE *snap_statep)
+static WT_EVICT_SNAPSHOT_STATE
+__evict_snapshot_evict_thread(WT_SESSION_IMPL *session, uint32_t *flagsp)
 {
     /*
      * Precise checkpoint bounds what may be written for a tree the checkpoint hasn't finished with:
@@ -1342,12 +1341,10 @@ __evict_snapshot_evict_thread(
      */
     if (__evict_ckpt_snapshot_required(session) && __evict_ckpt_snapshot_bound(session)) {
         if (__evict_ckpt_snapshot_usable(session) && __evict_ckpt_snapshot_copy(session))
-            *snap_statep = WT_EVICT_SNAP_RELEASE;
-        else {
-            FLD_SET(*flagsp, WT_REC_VISIBLE_NO_SNAPSHOT);
-            *snap_statep = WT_EVICT_SNAP_NONE;
-        }
-        return;
+            return (WT_EVICT_SNAP_RELEASE);
+
+        FLD_SET(*flagsp, WT_REC_VISIBLE_NO_SNAPSHOT);
+        return (WT_EVICT_SNAP_NONE);
     }
 
     /*
@@ -1357,7 +1354,7 @@ __evict_snapshot_evict_thread(
      * world.
      */
     __wt_txn_bump_snapshot(session);
-    *snap_statep = WT_EVICT_SNAP_RELEASE;
+    return (WT_EVICT_SNAP_RELEASE);
 }
 
 /*
@@ -1444,7 +1441,7 @@ __evict_snapshot_setup(
       !WT_IS_METADATA(session->dhandle);
 
     if (F_ISSET(session, WT_SESSION_EVICTION))
-        __evict_snapshot_evict_thread(session, flagsp, snap_statep);
+        *snap_statep = __evict_snapshot_evict_thread(session, flagsp);
     /*
      * Without precise checkpoint the application thread's own snapshot is the bound. A transaction
      * in the final stages of commit or rollback has already released it; reconciling without a
