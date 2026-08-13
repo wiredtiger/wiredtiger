@@ -22,18 +22,17 @@
  *     it opens a handle until it is done, so no checkpoint can be picked up while it runs: the
  *     timestamp cannot be read half-published, and it always describes the data store being walked.
  */
-static WT_INLINE void
-__hs_verify_checkpoint_oldest(
-  WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t *checkpoint_oldest_tsp)
+static WT_INLINE wt_timestamp_t
+__hs_verify_checkpoint_oldest(WT_SESSION_IMPL *session, const char *uri)
 {
-    *checkpoint_oldest_tsp = WT_TS_NONE;
-
     if (!WT_URI_IS_STABLE_CHECKPOINT(uri))
-        return;
+        return (WT_TS_NONE);
 
+    /* The value is only stable, and only describes the data store being walked, under the lock. */
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
-    *checkpoint_oldest_tsp = __wt_atomic_load_uint64_acquire(
-      &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp);
+
+    return (__wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp));
 }
 
 /*
@@ -187,7 +186,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
     WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    __hs_verify_checkpoint_oldest(session, session->dhandle->name, &checkpoint_oldest_ts);
+    checkpoint_oldest_ts = __hs_verify_checkpoint_oldest(session, session->dhandle->name);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
@@ -309,7 +308,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
         } else
             WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
         F_SET(ds_cursor, WT_CURSOR_RAW_OK);
-        __hs_verify_checkpoint_oldest(session, ds_cursor->uri, &checkpoint_oldest_ts);
+        checkpoint_oldest_ts = __hs_verify_checkpoint_oldest(session, ds_cursor->uri);
 
         /* Note that the following call moves the hs cursor internally. */
         WT_ERR_NOTFOUND_OK(__hs_verify_id(session, hs_cursor, (WT_CURSOR_BTREE *)ds_cursor,
