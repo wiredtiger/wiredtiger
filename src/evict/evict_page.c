@@ -1322,6 +1322,9 @@ __evict_snapshot_teardown(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT snap)
         __wt_txn_snapshot_release_and_restore(session);
     else if (snap == WT_EVICT_SNAP_RELEASE)
         __wt_txn_release_snapshot(session);
+
+    /* Reconciliation has taken its copy of the stamp, clear it. */
+    session->txn->ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 }
 
 /*
