@@ -9,51 +9,54 @@
 #include "wt_internal.h"
 
 /*
- * __hs_verify_set_horizon --
+ * __hs_verify_checkpoint_oldest --
  *     A key is reconciled out of the data store once its stop is globally visible, and a
  *     timestamped tombstone leaves the key's history store records behind. Whoever wrote the
- *     checkpoint discarded those records as obsolete, but obsolescence is relative to a horizon: a
+ *     checkpoint discarded those records as obsolete against its own oldest timestamp, but a
  *     disaggregated follower's oldest timestamp is its own and trails the leader's, so it would
  *     walk records the leader had already written off and find no key in the data store to anchor
- *     them to. Collect the horizon that produced the checkpoint being read.
+ *     them to. Read the oldest timestamp of the checkpoint being verified.
  *
- * The horizon only describes one checkpoint, so it is paired with a pick-up point: the caller's own
- *     if it noted one when it started, since reading it here would miss a pick-up that landed in
- *     between.
+ * That oldest timestamp belongs to one checkpoint, and the handles being verified are pinned to
+ *     whichever was current when the caller noted the pick-up point. Those handles cannot change
+ *     afterwards, so it is enough to establish here that nothing was picked up in between; an
+ *     oldest timestamp belonging to a different data store than the one about to be walked is
+ *     refused for the caller to retry.
  */
-static void
-__hs_verify_set_horizon(
-  WT_SESSION_IMPL *session, wt_timestamp_t *horizon_tsp, uint64_t *horizon_lsnp)
+static int
+__hs_verify_checkpoint_oldest(
+  WT_SESSION_IMPL *session, wt_timestamp_t *checkpoint_oldest_tsp, uint64_t checkpoint_meta_lsn)
 {
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    *horizon_tsp = WT_TS_NONE;
+    *checkpoint_oldest_tsp = WT_TS_NONE;
 
     if (!__wt_conn_is_disagg(session) ||
-      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
-        *horizon_lsnp = WT_DISAGG_LSN_NONE;
-        return;
-    }
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+        return (0);
 
-    if (*horizon_lsnp == WT_DISAGG_LSN_NONE)
-        *horizon_lsnp =
-          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-    *horizon_tsp = __wt_atomic_load_uint64_acquire(
+    *checkpoint_oldest_tsp = __wt_atomic_load_uint64_acquire(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp);
+
+    if (checkpoint_meta_lsn !=
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn))
+        return (EBUSY);
+
+    return (0);
 }
 
 /*
  * __hs_verify_obsolete --
- *     Is a history store record obsolete to the horizon that produced the checkpoint? Transaction
- *     ids are not comparable across the connections sharing a disaggregated history store, so the
- *     horizon is a timestamp alone.
+ *     Is a history store record obsolete against the checkpoint's oldest timestamp? Transaction ids
+ *     are not comparable across the connections sharing a disaggregated history store, so only the
+ *     timestamp is considered.
  */
 static WT_INLINE bool
-__hs_verify_obsolete(WT_TIME_WINDOW *tw, wt_timestamp_t horizon_ts)
+__hs_verify_obsolete(WT_TIME_WINDOW *tw, wt_timestamp_t checkpoint_oldest_ts)
 {
-    return (horizon_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
-      !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->durable_stop_ts <= horizon_ts);
+    return (checkpoint_oldest_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw) &&
+      !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->durable_stop_ts <= checkpoint_oldest_ts);
 }
 
 /*
@@ -64,7 +67,7 @@ __hs_verify_obsolete(WT_TIME_WINDOW *tw, wt_timestamp_t horizon_ts)
  */
 static int
 __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *ds_cbt,
-  uint32_t this_btree_id, wt_timestamp_t horizon_ts, uint64_t horizon_lsn)
+  uint32_t this_btree_id, wt_timestamp_t checkpoint_oldest_ts)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(prev_key);
@@ -115,7 +118,7 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
          * last checked key is left alone so that any remaining record for this key is judged on its
          * own window rather than excused by this one.
          */
-        if (__hs_verify_obsolete(&hs_cbt->upd_value->tw, horizon_ts))
+        if (__hs_verify_obsolete(&hs_cbt->upd_value->tw, checkpoint_oldest_ts))
             continue;
 
         /* Check the key can be found in the data store.*/
@@ -141,17 +144,6 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
                 WT_ERR(__cursor_reset(ds_cbt));
                 continue;
             }
-
-            /*
-             * A checkpoint picked up after the horizon was read describes a different data store to
-             * the one being walked, so the record cannot be judged. Ask the caller to retry rather
-             * than report a corruption we are no longer in a position to claim.
-             */
-            if (horizon_lsn != WT_DISAGG_LSN_NONE &&
-              horizon_lsn !=
-                __wt_atomic_load_uint64_acquire(
-                  &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn))
-                WT_ERR(EBUSY);
 
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
             /* Note that we are reformatting the HS key here. */
@@ -183,19 +175,19 @@ err:
  *     exclusive access to the btree.
  */
 int
-__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t horizon_lsn)
+__wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t checkpoint_meta_lsn)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
     WT_DECL_RET;
-    wt_timestamp_t horizon_ts;
+    wt_timestamp_t checkpoint_oldest_ts;
 
     hs_cursor = NULL;
 
     WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    __hs_verify_set_horizon(session, &horizon_ts, &horizon_lsn);
+    WT_ERR(__hs_verify_checkpoint_oldest(session, &checkpoint_oldest_ts, checkpoint_meta_lsn));
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
@@ -215,7 +207,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t horizon
 
     /* Note that the following call moves the hs cursor internally. */
     WT_ERR_NOTFOUND_OK(
-      __hs_verify_id(session, hs_cursor, &ds_cbt, btree_id, horizon_ts, horizon_lsn), false);
+      __hs_verify_id(session, hs_cursor, &ds_cbt, btree_id, checkpoint_oldest_ts), false);
 
     WT_ERR(__wt_btcur_close(&ds_cbt, false));
 
@@ -239,8 +231,8 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
     WT_DECL_ITEM(ds_uri_buf);
     WT_DECL_RET;
     WT_ITEM key;
-    wt_timestamp_t horizon_ts, hs_start_ts;
-    uint64_t horizon_lsn;
+    wt_timestamp_t checkpoint_oldest_ts, hs_start_ts;
+    uint64_t checkpoint_meta_lsn;
     uint64_t hs_counter;
     uint32_t btree_id;
     char *uri_data;
@@ -283,11 +275,13 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
         }
     }
 
+    checkpoint_meta_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+
     WT_ERR(__wt_curhs_open_ext(session, hs_id, 0, hs_checkpoint_name, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    horizon_lsn = WT_DISAGG_LSN_NONE;
-    __hs_verify_set_horizon(session, &horizon_ts, &horizon_lsn);
+    WT_ERR(__hs_verify_checkpoint_oldest(session, &checkpoint_oldest_ts, checkpoint_meta_lsn));
 
     /* Position the hs cursor on the first record. */
     WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor), true);
@@ -324,7 +318,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
 
         /* Note that the following call moves the hs cursor internally. */
         WT_ERR_NOTFOUND_OK(__hs_verify_id(session, hs_cursor, (WT_CURSOR_BTREE *)ds_cursor,
-                             btree_id, horizon_ts, horizon_lsn),
+                             btree_id, checkpoint_oldest_ts),
           true);
 
         /* We are either positioned on a different btree id or the entire HS has been parsed. */
