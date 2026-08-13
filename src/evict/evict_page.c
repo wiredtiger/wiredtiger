@@ -1211,14 +1211,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     return (0);
 }
 
-/* Which snapshot reconciliation reads under for an eviction. */
-typedef enum {
-    WT_EVICT_SNAP_SRC_EVICT_THREAD, /* A snapshot private to an eviction thread. */
-    WT_EVICT_SNAP_SRC_APP,          /* The application thread's own snapshot. */
-    WT_EVICT_SNAP_SRC_CKPT,         /* The snapshot the running checkpoint published. */
-    WT_EVICT_SNAP_SRC_NONE          /* Eviction sets up no snapshot of its own. */
-} WT_EVICT_SNAPSHOT_SOURCE;
-
 /*
  * What eviction owes the transaction once reconciliation is done. Every value but NONE reconciles
  * under read-committed isolation.
@@ -1331,6 +1323,14 @@ __evict_snapshot_teardown(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT snap)
     else if (snap == WT_EVICT_SNAP_RELEASE)
         __wt_txn_release_snapshot(session);
 }
+
+/* Which snapshot reconciliation reads under for an eviction. */
+typedef enum {
+    WT_EVICT_SNAP_SRC_EVICT_THREAD, /* A snapshot private to an eviction thread. */
+    WT_EVICT_SNAP_SRC_APP,          /* The application thread's own snapshot. */
+    WT_EVICT_SNAP_SRC_CKPT,         /* The snapshot the running checkpoint published. */
+    WT_EVICT_SNAP_SRC_NONE          /* Eviction sets up no snapshot of its own. */
+} WT_EVICT_SNAPSHOT_SOURCE;
 
 /*
  * __evict_snapshot_source --
@@ -1462,8 +1462,8 @@ __evict_snapshot_app_ckpt(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_S
 
 /*
  * __evict_snapshot_setup --
- *     Set up the visibility snapshot reconciliation will use for this eviction, returning what
- *     teardown owes the transaction afterwards.
+ *     Set up the visibility snapshot reconciliation will use for this eviction, telling the caller
+ *     what teardown owes the transaction afterwards.
  */
 static int
 __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAPSHOT *snapp)
