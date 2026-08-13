@@ -22,7 +22,7 @@
  *     it opens a handle until it is done, so no checkpoint can be picked up while it runs: the
  *     timestamp cannot be read half-published, and it always describes the data store being walked.
  */
-static void
+static WT_INLINE void
 __hs_verify_checkpoint_oldest(
   WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t *checkpoint_oldest_tsp)
 {
@@ -94,14 +94,6 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
         if (btree_id != this_btree_id)
             break;
 
-        /*
-         * If we have already checked against this key, keep going to the next key. We only need to
-         * check the key once.
-         */
-        WT_ERR(__wt_compare(session, NULL, &key, prev_key, &cmp));
-        if (cmp == 0)
-            continue;
-
         /* Nothing prepared is ever written to the history store. */
         if (WT_TIME_WINDOW_HAS_PREPARE(&hs_cbt->upd_value->tw)) {
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
@@ -110,6 +102,14 @@ __hs_verify_id(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_CURSOR_BTREE *
               __wt_key_string(session, key.data, key.size, CUR2BT(ds_cbt)->key_format, &key),
               session->dhandle->name);
         }
+
+        /*
+         * If we have already checked against this key, keep going to the next key. We only need to
+         * check the key once.
+         */
+        WT_ERR(__wt_compare(session, NULL, &key, prev_key, &cmp));
+        if (cmp == 0)
+            continue;
 
         /*
          * Skip a record the checkpoint's writer had already discarded, as its own cursor did. The
