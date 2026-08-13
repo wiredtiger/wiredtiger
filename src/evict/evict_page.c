@@ -1324,47 +1324,6 @@ __evict_snapshot_teardown(WT_SESSION_IMPL *session, WT_EVICT_SNAPSHOT snap)
         __wt_txn_release_snapshot(session);
 }
 
-/* Which snapshot reconciliation reads under for an eviction. */
-typedef enum {
-    WT_EVICT_SNAP_SRC_EVICT_THREAD, /* A snapshot private to an eviction thread. */
-    WT_EVICT_SNAP_SRC_APP,          /* The application thread's own snapshot. */
-    WT_EVICT_SNAP_SRC_CKPT,         /* The snapshot the running checkpoint published. */
-    WT_EVICT_SNAP_SRC_NONE          /* Eviction sets up no snapshot of its own. */
-} WT_EVICT_SNAPSHOT_SOURCE;
-
-/*
- * __evict_snapshot_source --
- *     Return which snapshot reconciliation should read under for this eviction.
- */
-static WT_EVICT_SNAPSHOT_SOURCE
-__evict_snapshot_source(WT_SESSION_IMPL *session)
-{
-    if (F_ISSET(session, WT_SESSION_EVICTION))
-        return (WT_EVICT_SNAP_SRC_EVICT_THREAD);
-
-    /* Only an application thread evicting its own data brings a snapshot worth reading under. */
-    if (F_ISSET(session, WT_SESSION_INTERNAL) || WT_IS_METADATA(session->dhandle))
-        return (WT_EVICT_SNAP_SRC_NONE);
-
-    /*
-     * Without precise checkpoint the application thread's own snapshot is the bound. A transaction
-     * in the final stages of commit or rollback has already released it; reconciling without a
-     * snapshot then keeps detecting the last running transaction's updates simple.
-     */
-    if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT))
-        return (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ? WT_EVICT_SNAP_SRC_APP :
-                                                             WT_EVICT_SNAP_SRC_NONE);
-
-    /*
-     * Under precise checkpoint the application thread must read under the checkpoint's snapshot
-     * instead of its own. Only disaggregated storage does so for now.
-     */
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && __evict_ckpt_snapshot_usable(session))
-        return (WT_EVICT_SNAP_SRC_CKPT);
-
-    return (WT_EVICT_SNAP_SRC_NONE);
-}
-
 /*
  * __evict_snapshot_evict_thread --
  *     Set up the snapshot an eviction thread reconciles under.
@@ -1468,25 +1427,35 @@ __evict_snapshot_app_ckpt(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_S
 static int
 __evict_snapshot_setup(WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAPSHOT *snapp)
 {
+    bool app_thread;
+
     *snapp = WT_EVICT_SNAP_NONE;
     session->txn->ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 
-    switch (__evict_snapshot_source(session)) {
-    case WT_EVICT_SNAP_SRC_EVICT_THREAD:
+    /* Only an application thread evicting its own data brings a snapshot worth reading under. */
+    app_thread = !F_ISSET(session, WT_SESSION_EVICTION | WT_SESSION_INTERNAL) &&
+      !WT_IS_METADATA(session->dhandle);
+
+    if (F_ISSET(session, WT_SESSION_EVICTION))
         __evict_snapshot_evict_thread(session, flagsp, snapp);
-        break;
-    case WT_EVICT_SNAP_SRC_APP:
+    /*
+     * Without precise checkpoint the application thread's own snapshot is the bound. A transaction
+     * in the final stages of commit or rollback has already released it; reconciling without a
+     * snapshot then keeps detecting the last running transaction's updates simple.
+     */
+    else if (app_thread && !F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
+      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
         WT_RET(__evict_snapshot_app(session, flagsp, snapp));
-        break;
-    case WT_EVICT_SNAP_SRC_CKPT:
+    /*
+     * Under precise checkpoint the application thread must read under the checkpoint's snapshot
+     * instead of its own. Only disaggregated storage does so for now.
+     */
+    else if (app_thread && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      __evict_ckpt_snapshot_usable(session))
         WT_RET(__evict_snapshot_app_ckpt(session, flagsp, snapp));
-        break;
-    case WT_EVICT_SNAP_SRC_NONE:
-        /* Checkpoint reads under the snapshot it already holds, anything else has no bound. */
-        if (!WT_SESSION_BTREE_SYNC(session))
-            FLD_SET(*flagsp, WT_REC_VISIBLE_NO_SNAPSHOT);
-        break;
-    }
+    /* Checkpoint reads under the snapshot it already holds, anything else has no bound. */
+    else if (!WT_SESSION_BTREE_SYNC(session))
+        FLD_SET(*flagsp, WT_REC_VISIBLE_NO_SNAPSHOT);
 
     WT_ASSERT(session,
       FLD_ISSET(*flagsp, WT_REC_VISIBLE_NO_SNAPSHOT) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
