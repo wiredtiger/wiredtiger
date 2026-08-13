@@ -2659,6 +2659,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: most recently delivered checkpoint metadata LSN",
   "disagg: new file metadata entries inserted during checkpoint pick-up",
   "disagg: pick up checkpoint most recent time (msecs)",
+  "disagg: pick up checkpoint time at startup (msecs)",
   "disagg: role leader",
   "disagg: snapshots rebuilt after racing a checkpoint pick-up or role change",
   "disagg: stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped",
@@ -3775,6 +3776,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing disagg_checkpoint_delivered_lsn */
     stats->disagg_pick_up_file_meta_inserted = 0;
     stats->disagg_pick_up_checkpoint_time = 0;
+    stats->disagg_pick_up_checkpoint_time_startup = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_snapshot_rebuild = 0;
     /* not clearing disagg_stable_tombstone_encoding */
@@ -5017,6 +5019,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_pick_up_file_meta_inserted +=
       WT_STAT_CONN_READ(from, disagg_pick_up_file_meta_inserted);
     to->disagg_pick_up_checkpoint_time += WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time);
+    to->disagg_pick_up_checkpoint_time_startup +=
+      WT_STAT_CONN_READ(from, disagg_pick_up_checkpoint_time_startup);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_snapshot_rebuild += WT_STAT_CONN_READ(from, disagg_snapshot_rebuild);
     to->disagg_stable_tombstone_encoding +=
