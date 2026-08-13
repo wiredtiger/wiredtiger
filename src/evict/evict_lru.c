@@ -1102,6 +1102,10 @@ done:
  *     is responsible for tuning the number of workers and incrementing the global read generation.
  */
 #define EVICT_WORK_THRESHOLD 20
+
+/* How long the eviction server waits between passes. */
+#define WT_EVICT_SERVER_SLEEP_US WT_THOUSAND
+
 static int
 __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
@@ -1263,6 +1267,10 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             (void)__wt_atomic_sub_uint32(&evict->evict_aggressive_score, 1);
         loop = 0;
         eviction_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
+
+        /* Nothing in this loop needs to run at CPU speed. */
+        WT_STAT_CONN_INCR(session, eviction_server_slept);
+        __wt_cond_wait(session, evict->evict_server_cond, WT_EVICT_SERVER_SLEEP_US, NULL);
     }
 
     /* Check if the cache is stuck and write messages to the log */
