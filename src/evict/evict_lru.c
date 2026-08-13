@@ -1102,25 +1102,6 @@ done:
  *     is responsible for tuning the number of workers and incrementing the global read generation.
  */
 #define EVICT_WORK_THRESHOLD 20
-
-/*
- * How long the eviction server waits between passes once eviction is making progress, and the
- * ceiling that wait grows to.
- *
- * The loop has no wait on the path where progress is being made, which is the path taken almost
- * always: measured on a YCSB read workload the server took its one wait -- the no-progress wait --
- * zero times per second across every run, while the machine sat at 1-5% idle. Upstream shares this
- * loop shape but not the consequence, because its pass walks the tree to fill the eviction queues
- * and that walk paces the loop. This design deliberately has no walk, so nothing paces it and the
- * pass, which does almost nothing, repeats at whatever rate the CPU allows.
- *
- * Progress means the workers and application threads are doing the evicting and there is least for
- * this thread to contribute, so the wait grows while passes keep coming back productive and resets
- * the moment one does not. The ceiling stays under the 20ms granularity the stuck detection below
- * already assumes, and a signal on evict_server_cond cuts any wait short.
- */
-#define WT_EVICT_SERVER_SLEEP_MIN_US WT_THOUSAND
-#define WT_EVICT_SERVER_SLEEP_MAX_US (20 * WT_THOUSAND)
 static int
 __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
@@ -1132,7 +1113,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     WT_TXN_GLOBAL *txn_global;
     uint64_t eviction_progress, oldest_id, prev_oldest_id, evicted_pages_new, evicted_pages_prev;
     uint64_t time_now, time_prev;
-    uint64_t read_gen_incr, sleep_start, sleep_us;
     u_int i, loop;
     bool eviction_needed;
 
@@ -1142,7 +1122,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     evict = conn->evict;
     txn_global = &conn->txn_global;
     time_prev = 0; /* [-Wconditional-uninitialized] */
-    sleep_us = WT_EVICT_SERVER_SLEEP_MIN_US;
 
     /* Track whether pages are being evicted and progress is made. */
     evicted_pages_prev = __wt_atomic_load_uint64_v_relaxed(&evict->evicted_pages);
@@ -1150,7 +1129,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     prev_oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
 
     for (loop = 0;; loop++) {
-        WT_STAT_CONN_INCR(session, eviction_server_passes);
         time_now = __wt_clock(session);
         if (loop == 0)
             time_prev = time_now;
@@ -1202,26 +1180,12 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         }
 
 
-        /*
-         * Advance the shared read generation by however many pages have been evicted, rather
-         * than by one per pass.
-         *
-         * Read generations place pages in the eviction buckets and order the sweep through them, so
-         * the rate they advance is what sets the resolution of that ordering. Bumping once per pass
-         * ties that rate to how often this loop runs: with the wait below, passes drop from
-         * thousands per second to tens, which would have slowed the clock by the same factor and
-         * coarsened the bucket ordering, for reasons having nothing to do with eviction.
-         * Counting the thresholds actually crossed makes the rate depend only on eviction, so the
-         * wait cannot affect it.
-         *
-         * The remainder is carried rather than discarded: advancing evicted_pages_prev to the
-         * current count would drop any pages beyond the last whole threshold.
-         */
-        evicted_pages_new = __wt_atomic_load_uint64_v_relaxed(&evict->evicted_pages);
-        read_gen_incr = (evicted_pages_new - evicted_pages_prev) / EVICT_WORK_THRESHOLD;
-        if (read_gen_incr > 0) {
-            __wt_atomic_add_uint64(&evict->read_gen, read_gen_incr);
-            evicted_pages_prev += read_gen_incr * EVICT_WORK_THRESHOLD;
+        /* Increment the shared read generation only if we are actually evicting pages */
+        if ((evicted_pages_new = __wt_atomic_load_uint64_v_relaxed(&evict->evicted_pages)) -
+            evicted_pages_prev >
+          EVICT_WORK_THRESHOLD) {
+            __wt_atomic_add_uint64(&evict->read_gen, 1);
+            evicted_pages_prev = evicted_pages_new;
             WT_STAT_CONN_SET(session, eviction_server_readgen,
                              __wt_atomic_load_uint64_v_relaxed(&evict->read_gen));
         }
@@ -1285,10 +1249,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
               __wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score) <
                 WT_EVICT_SCORE_MAX) {
                 /*
-                 * Back off if we aren't making progress. A pass that found nothing moving is the
-                 * one that may need to act soon, so return the wait below to its shortest.
+                 * Back off if we aren't making progress.
                  */
-                sleep_us = WT_EVICT_SERVER_SLEEP_MIN_US;
                 WT_STAT_CONN_INCR(session, eviction_server_slept);
                 __wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
                 continue;
@@ -1301,18 +1263,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             (void)__wt_atomic_sub_uint32(&evict->evict_aggressive_score, 1);
         loop = 0;
         eviction_progress = __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress);
-
-        /*
-         * Wait before looking again. Time the wait rather than recording what was asked for: a
-         * signal on the condition variable returns early, so the two differ by a lot on a busy
-         * system.
-         */
-        WT_STAT_CONN_INCR(session, eviction_server_slept_progress);
-        sleep_start = __wt_clock(session);
-        __wt_cond_wait(session, evict->evict_server_cond, sleep_us, NULL);
-        WT_STAT_CONN_INCRV(
-          session, eviction_server_sleep_time, WT_CLOCKDIFF_US(__wt_clock(session), sleep_start));
-        sleep_us = WT_MIN(sleep_us * 2, (uint64_t)WT_EVICT_SERVER_SLEEP_MAX_US);
     }
 
     /* Check if the cache is stuck and write messages to the log */

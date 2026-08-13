@@ -613,7 +613,6 @@ struct __wt_connection_stats {
     int64_t eviction_target_bucket_wont_need_clean_leaf;
     int64_t eviction_target_bucket_wont_need_dirty_leaf;
     int64_t eviction_target_bucket_wont_need_internal;
-    int64_t eviction_server_passes;
     int64_t eviction_server_race_reconfigure_disagg;
     int64_t eviction_server_readgen;
     int64_t cache_eviction_blocked_prefetched;
@@ -625,8 +624,6 @@ struct __wt_connection_stats {
     int64_t eviction_skip_trees_read_only;
     int64_t eviction_skip_trees_eviction_disabled;
     int64_t eviction_server_slept;
-    int64_t eviction_server_slept_progress;
-    int64_t eviction_server_sleep_time;
     int64_t eviction_slow;
     int64_t eviction_skip_page_locked;
     int64_t eviction_skip_page_hazard;
