@@ -307,9 +307,6 @@ __disagg_database_size_walk(WT_SESSION_IMPL *session, uint64_t *sizep)
             continue;
 
         total_size += ckpt_size;
-
-        __wt_verbose_debug3(session, WT_VERB_VERIFY,
-          "disagg database size: %s checkpoint size %" PRIu64, uri, ckpt_size);
     }
     /*
      * A not found error is okay. cursor->next() returns it once it goes through all the metadata
@@ -384,6 +381,10 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
          * any btree's checkpoint size but are always included in database_size.
          */
         total_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+
+        __wt_verbose_debug1(session, WT_VERB_VERIFY,
+          "disagg database size verify: stored %" PRIu64 ", computed %" PRIu64, database_size,
+          total_size);
 
         if (total_size != database_size)
             WT_RET_MSG(session, WT_ERROR,

@@ -498,14 +498,20 @@ __wt_ckpt_last_size(WT_SESSION_IMPL *session, const char *config, uint64_t *size
         size = 0;
         __wt_config_subinit(session, &entryconf, &v);
         while (__wt_config_next(&entryconf, &ek, &ev) == 0) {
-            if (WT_CONFIG_LIT_MATCH("order", ek))
+            if (WT_CONFIG_LIT_MATCH("order", ek)) {
+                if (ev.len == 0)
+                    WT_RET_MSG(session, WT_ERROR, "corrupted order value in checkpoint config");
                 order = ev.val;
-            else if (WT_CONFIG_LIT_MATCH("size", ek))
+            } else if (WT_CONFIG_LIT_MATCH("size", ek))
                 size = (uint64_t)ev.val;
         }
 
+        /* Order numbering starts at one, so anything below that is not a usable order. */
+        if (order < 1)
+            WT_RET_MSG(session, WT_ERROR, "missing or invalid order value in checkpoint config");
+
         /* Ignore checkpoints before the ones we've already seen. */
-        if (found != 0 && order < found)
+        if (order < found)
             continue;
         found = order;
         *sizep = size;
