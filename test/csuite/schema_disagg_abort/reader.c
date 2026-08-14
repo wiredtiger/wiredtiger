@@ -43,7 +43,7 @@ reader_step_down(WORKLOAD_STATE *state, uint64_t ts)
     while (__wt_atomic_load_bool(&state->ts_busy))
         __wt_sleep(0, WT_THOUSAND);
 
-    set_ts(conn, "step_down_timestamp", ts);
+    set_stepdown_ts(conn, ts);
     set_frontier(conn, ts);
 
     WT_SESSION *session;

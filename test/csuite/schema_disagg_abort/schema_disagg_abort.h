@@ -272,7 +272,7 @@ typedef struct {
 /* main.c */
 void println(const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 1, 2)));
 uint64_t query_ts(WT_CONNECTION *conn, const char *name);
-void set_ts(WT_CONNECTION *conn, const char *name, uint64_t ts);
+void set_stepdown_ts(WT_CONNECTION *conn, uint64_t ts);
 void set_frontier(WT_CONNECTION *conn, uint64_t ts);
 void adopted_lsn_publish(uint32_t node_id, uint64_t lsn);
 uint64_t adopted_lsn_read(void);
