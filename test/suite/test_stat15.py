@@ -57,11 +57,16 @@ class test_stat15(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(total_pages, leaf_pages,
             'expected cache_pages_inuse >= cache_pages_inuse_leaf')
 
+    # Enough keys of this size to populate several hundred leaf pages, sampled with a stride
+    # that lands on a different page each time.
+    num_keys = 10000
+    evict_stride = 50
+
     def test_cache_pages_inuse_leaf_decreases_after_eviction(self):
         # Create a table and insert enough data to populate multiple leaf pages
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(10000):
+        for i in range(self.num_keys):
             cursor[str(i).zfill(6)] = 'x' * 1000
         cursor.close()
         self.session.checkpoint(None)
@@ -80,7 +85,7 @@ class test_stat15(wttest.WiredTigerTestCase):
         # Evict a page at a time with an eviction cursor.
         evict_session = self.conn.open_session()
         evict_cursor = evict_session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        for i in range(0, 10000, 50):
+        for i in range(0, self.num_keys, self.evict_stride):
             evict_cursor.set_key(str(i).zfill(6))
             self.assertEqual(evict_cursor.search(), 0)
             evict_cursor.reset()
