@@ -38,9 +38,7 @@ from wiredtiger import stat
 @disagg_test_class
 class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
-    conn_base_config = 'statistics=(all),precise_checkpoint=true,cache_cursors=false,'
-    conn_config = conn_base_config + 'disaggregated=(role="leader",lose_all_my_data=true)'
-    conn_config_follower = conn_base_config + 'disaggregated=(role="follower",lose_all_my_data=true)'
+    conn_base_config = 'statistics=(all),precise_checkpoint=true,'
 
     uri = f'layered:{test_name}'
     table_config = 'key_format=i,value_format=S'
@@ -48,13 +46,31 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     value = 'v' * 100
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    # With cursor caching disabled, closing the pinning cursor releases the data handle
+    # immediately and the retried drop succeeds on the first attempt. With caching
+    # enabled, the cached cursor keeps the handle pinned until the session's cursor
+    # cache lets go, so the retry needs the standard retry loop.
+    cache_scenarios = [
+        ('cache_cursors', dict(cache_cursors=True)),
+        ('no_cache_cursors', dict(cache_cursors=False)),
+    ]
+    scenarios = make_scenarios(disagg_storages, cache_scenarios)
+
+    def conn_config(self):
+        return self.conn_base_config + \
+            f'cache_cursors={str(self.cache_cursors).lower()},' + \
+            'disaggregated=(role="leader",lose_all_my_data=true)'
+
+    def conn_config_follower(self):
+        return self.conn_base_config + \
+            f'cache_cursors={str(self.cache_cursors).lower()},' + \
+            'disaggregated=(role="follower",lose_all_my_data=true)'
 
     # Check the table's visibility in the latest checkpoint via a fresh follower.
     def table_exists_on_follower(self, uri):
         conn_follower = self.wiredtiger_open(
             'follower',
-            self.extensionsConfig() + ',create,' + self.conn_config_follower)
+            self.extensionsConfig() + ',create,' + self.conn_config_follower())
         self.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
         self.disagg_advance_checkpoint(conn_follower)
         session_follower = conn_follower.open_session('')
@@ -71,7 +87,10 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.publish(self.uri, epoch)
 
     def drop_published(self, epoch):
-        self.session.drop(self.uri)
+        if self.cache_cursors:
+            self.dropUntilSuccess(self.session, self.uri)
+        else:
+            self.session.drop(self.uri)
         self.publish(self.uri, epoch)
 
     def write_rows(self, commit_ts):
@@ -157,9 +176,7 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
             self.read_stat(stat.conn.checkpoint_disagg_metadata_unstable), deferred_before)
 
         # Retry the drop. A leftover REMOVE from the failed attempt would subtract the
-        # table's size from the database size a second time. Cursor caching is disabled,
-        # so closing the cursor releases the data handle immediately and the drop does
-        # not depend on a sweep.
+        # table's size from the database size a second time.
         pin.close()
         self.drop_published(15)
         self.assert_local_metadata(present=False)
