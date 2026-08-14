@@ -377,6 +377,7 @@ conn_stats = [
     EvictStat('eviction_app_dirty_fail', 'modified page evict failures by application threads'),
     EvictStat('eviction_app_fail', 'page evict failures by application threads'),
     EvictStat('eviction_app_time', 'application thread time evicting (usecs)'),
+    EvictStat('eviction_ckpt_snapshot_declined', 'evictions that found no snapshot published by the running checkpoint'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
@@ -541,6 +542,7 @@ conn_stats = [
     CheckpointStat('checkpoint_hs_pages_reconciled', 'number of history store pages reconciled'),
     CheckpointStat('checkpoint_pages_reconciled', 'number of pages reconciled'),
     CheckpointStat('checkpoint_pages_reconciled_bytes', 'number of bytes reconciled'),
+    CheckpointStat('checkpoint_pages_reconciliation_skipped_evict_snapshot', 'number of pages whose reconciliation was skipped because eviction already reconciled them under the checkpoint snapshot'),
     CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited'),
     CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited'),
     CheckpointStat('checkpoint_parallel_pages_reconciled', 'number of pages reconciled by checkpoint parallel worker threads'),
@@ -633,6 +635,7 @@ conn_stats = [
     DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_ingest_stable_tombstone_stripped', 'ingest-to-stable tombstone escape bytes stripped'),
     DisaggStat('disagg_pick_up_checkpoint_time', 'pick up checkpoint most recent time (msecs)'),
+    DisaggStat('disagg_pick_up_checkpoint_time_startup', 'pick up checkpoint time at startup (msecs)'),
     DisaggStat('disagg_pick_up_file_meta_inserted', 'new file metadata entries inserted during checkpoint pick-up'),
     DisaggStat('disagg_pick_up_file_meta_updated', 'existing file metadata entries updated during checkpoint pick-up'),
     DisaggStat('disagg_role_leader', 'role leader'),
@@ -1040,6 +1043,7 @@ conn_stats = [
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
     YieldStat('application_cache_uninterruptible_ops', 'application thread operations waiting for mandatory cache eviction'),
     YieldStat('application_cache_uninterruptible_time', 'application thread time waiting for mandatory cache eviction (usecs)'),
+    YieldStat('application_evict_checkpoint_snapshot', 'application thread eviction used the published checkpoint snapshot for visibility'),
     YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),
@@ -1408,6 +1412,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_del_page_skip', 'Total number of deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_inmem_del_page_skip', 'Total number of in-memory deleted pages skipped during tree walk'),
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
+    CursorStat('cursor_tree_walk_skip_lock_contended', 'Total number of times a tree walk waited for the page lock during the page skip check'),
 
     ##########################################
     # Cursor API error statistics

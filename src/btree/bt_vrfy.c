@@ -37,9 +37,8 @@ typedef struct {
     bool read_corrupt;
     bool skip_per_key_hs;
 
-    /* Whether to read from the history store, and if so, which checkpoint. */
+    /* Whether to read from the history store. */
     bool skip_hs;
-    const char *hs_checkpoint_name;
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100], tree_stack[100], keys_count_stack[100],
@@ -434,7 +433,6 @@ __verify_one_checkpoint(
 
     /* Only verify HS entries against the last checkpoint. */
     vs->skip_hs = skip_hs || !last_ckpt;
-    vs->hs_checkpoint_name = ckpt->name;
 
     /* Verify the tree. */
     WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
@@ -854,7 +852,7 @@ __verify_tree(
     WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
     WT_DECL_RET;
-    WT_PAGE *page;
+    WT_PAGE *home, *page;
     WT_REF *child_ref;
     size_t my_stack_level, next_stack_level;
     uint32_t entry;
@@ -862,6 +860,7 @@ __verify_tree(
     btree = S2BT(session);
     bm = btree->bm;
     unpack = &_unpack;
+    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
     page = ref->page;
 
     /*
@@ -981,11 +980,11 @@ __verify_tree(
          * been completed, the parent page's write generation number must be higher than that of its
          * children.
          */
-        if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= ref->home->dsk->write_gen)
+        if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= home->dsk->write_gen)
             WT_RET_MSG(session, EINVAL,
               "child write generation number %" PRIu64
               " is greater/equal to the parent page write generation number %" PRIu64,
-              page->dsk->write_gen, ref->home->dsk->write_gen);
+              page->dsk->write_gen, home->dsk->write_gen);
 
         switch (page->type) {
         case WT_PAGE_COL_INT:
@@ -1093,7 +1092,9 @@ celltype_err:
             }
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
+            __wt_cell_unpack_addr(session,
+              ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&child_ref->home))->dsk, child_ref->addr,
+              unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /*
@@ -1161,7 +1162,9 @@ celltype_err:
                 WT_RET(__verify_row_int_key_order(session, page, child_ref, entry, vs));
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
+            __wt_cell_unpack_addr(session,
+              ((WT_PAGE *)__wt_atomic_load_ptr_relaxed(&child_ref->home))->dsk, child_ref->addr,
+              unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /*
@@ -1409,22 +1412,34 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     uint64_t hs_counter;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool check_data_store, first;
 
     WT_BTREE *btree = S2BT(session);
     uint32_t hs_btree_id = btree->id;
 
+    /*
+     * A non-precise checkpoint can write a page before a later eviction moves that page's older
+     * versions into the history store, and then capture those history store records in the same
+     * checkpoint. The two files are not a snapshot of a single point in time, so only the ordering
+     * among the history store records themselves can be trusted; comparing them against the data
+     * store's page image reports overlaps that never coexisted.
+     *
+     * FIXME-WT-18319: This is the connection's current setting, not the one in effect when the
+     * checkpoint was written. A checkpoint written without precise checkpoints and then verified by
+     * a connection that enables them is still exposed to the skew, until the pages involved are
+     * reconciled again or the stale history store records become obsolete.
+     */
+    check_data_store = F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT);
+    first = true;
+
     if (vs->skip_per_key_hs)
         return (0);
 
-    WT_STAT_CONN_INCR(session, session_table_verify_hs_keys_checked);
+    WT_RET(__wt_hs_verify_cursor_open(session, hs_btree_id, &hs_cursor));
+    if (hs_cursor == NULL)
+        return (0);
 
-    /* Read the HS at the same checkpoint as the data store, so the two views are consistent. */
-    WT_ASSERT(session, session->hs_checkpoint == NULL);
-    session->hs_checkpoint = vs->hs_checkpoint_name;
-    ret = __wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor);
-    session->hs_checkpoint = NULL;
-    WT_RET(ret);
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    WT_STAT_CONN_INCR(session, session_table_verify_hs_keys_checked);
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1452,8 +1467,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
          * start timestamp to the stop timestamp of the "later" entry (or entries), because we
          * expect those to overlap.
          */
-        if (newer_start_ts != WT_TS_NONE && older_start_ts < newer_start_ts &&
-          newer_start_ts < tw->stop_ts &&
+        if ((check_data_store || !first) && newer_start_ts != WT_TS_NONE &&
+          older_start_ts < newer_start_ts && newer_start_ts < tw->stop_ts &&
           !(older_start_ts == WT_TS_NONE && tw->stop_ts == newer_stop_ts)) {
             WT_ERR_MSG(session, WT_ERROR,
               "key %s has an overlap of timestamp ranges between history store stop timestamp %s "
@@ -1473,6 +1488,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
          */
         newer_start_ts = older_start_ts;
         newer_stop_ts = tw->stop_ts;
+        first = false;
     }
 err:
     WT_TRET(hs_cursor->close(hs_cursor));
