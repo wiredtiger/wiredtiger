@@ -281,8 +281,8 @@ workload_stop(WORKLOAD_STATE *state)
  * node_step_down --
  *     Leader to follower. The term is quiesced and drained, so its final timestamp is the step-down
  *     boundary: nothing more will be committed or published. The checkpoint has to land on that
- *     boundary exactly - WiredTiger asserts it at the role change - and has to carry the epoch with
- *     it, since the step-down clears the shared metadata queue and loses any publish left behind.
+ *     boundary exactly - WiredTiger asserts it at the role change - and the boundary is declared in
+ *     both ordering spaces, the timestamp and the schema epoch.
  *
  * The reconfigure has to precede the hand-over: the page log allows one writer, so this node must
  *     already be a follower before the peer is told to step up. Without a live peer there is
@@ -296,7 +296,11 @@ node_step_down(WORKLOAD_STATE *state, uint64_t final_ts)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     if (final_ts != 0) {
-        set_ts(conn, "step_down_timestamp", final_ts);
+        char config[128];
+        testutil_snprintf(config, sizeof(config),
+          "step_down_timestamp=%" PRIx64 ",step_down_disaggregated_schema_epoch=%" PRIx64, final_ts,
+          final_ts);
+        testutil_check(conn->set_timestamp(conn, config));
         set_frontier(conn, final_ts);
     }
     testutil_check(session->checkpoint(session, "use_timestamp=true"));
