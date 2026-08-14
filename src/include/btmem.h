@@ -399,6 +399,12 @@ struct __wt_page_modify {
     wt_timestamp_t rec_pinned_stable_timestamp;
 
     /*
+     * Published checkpoint snapshot generation for precise checkpoints. Lets checkpoint skip
+     * re-reconciling pages already reconciled by eviction.
+     */
+    uint64_t rec_ckpt_snap_gen;
+
+    /*
      * Track the prune timestamp used for the most recent reconciliation. It's useful to avoid
      * duplicating work when doing garbage collection on the ingest btree.
      */
@@ -879,6 +885,7 @@ struct __wt_page {
 struct __wt_page_walk_skip_stats {
     size_t total_del_pages_skipped;
     size_t total_inmem_del_pages_skipped;
+    uint64_t total_skip_lock_contended;
 };
 
 /*

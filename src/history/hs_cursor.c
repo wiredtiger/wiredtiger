@@ -106,7 +106,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     }
 
     if (btree->hs_checkpoint_name == NULL && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      F_ISSET(btree, WT_BTREE_READONLY)) {
+      F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY)) {
         /*
          * A stable btree opened at a named checkpoint with no matching shared history store
          * checkpoint: that checkpoint has no history store content, return without any data.
