@@ -2442,6 +2442,58 @@ __wt_btree_update_unpublished_min(WT_BTREE *btree, wt_timestamp_t durable_ts)
 }
 
 /*
+ * __wt_page_disagg_evict_blocked --
+ *     Return true if a disaggregated-storage-specific condition blocks evicting this page, having
+ *     already charged the matching statistic. Grouped together, separately from the
+ *     storage-agnostic gates in __wt_page_can_evict, so the disaggregated eviction-blocking paths
+ *     stay in one place to watch. Pages outside disaggregated storage are never blocked here.
+ */
+static WT_INLINE bool
+__wt_page_disagg_evict_blocked(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page, bool modified)
+{
+    WT_BTREE *btree;
+
+    if (page->disagg_info == NULL)
+        return (false);
+
+    btree = S2BT(session);
+
+    /*
+     * Clean pages that are in front of the materialization check should not proceed to eviction:
+     * they would be discarded without reconciliation, which is unsafe. Pages with a retained disk
+     * image are exempt because eviction re-instantiates them in cache rather than discarding.
+     */
+    if (!modified && !__wt_page_evict_swap(page) &&
+      !__wt_materialization_check(session, page->disagg_info->rec_lsn_max)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+        return (true);
+    }
+
+    /*
+     * Don't evict dirty internal pages for disaggregated storage. They cannot be recreated
+     * in-memory and it will not reduce cache usage.
+     */
+    if (modified && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_dirty_internal_page);
+        return (true);
+    }
+
+    /*
+     * Don't evict the disaggregated page that should belong to the next checkpoint.
+     *
+     * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
+     * before we set the checkpoint running flag to false.
+     */
+    if (modified && !WT_SESSION_BTREE_SYNC(session) &&
+      __wt_btree_disagg_checkpointed(session, btree)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_next_checkpoint);
+        return (true);
+    }
+
+    return (false);
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
@@ -2573,16 +2625,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
     modified = __wt_page_is_modified(page);
 
-    /*
-     * Clean pages that are in front of the materialization check should not proceed to eviction:
-     * they would be discarded without reconciliation, which is unsafe. Pages with a retained disk
-     * image are exempt because eviction re-instantiates them in cache rather than discarding.
-     */
-    if (!modified && page->disagg_info != NULL && !__wt_page_evict_swap(page) &&
-      !__wt_materialization_check(session, page->disagg_info->rec_lsn_max)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+    if (__wt_page_disagg_evict_blocked(session, ref, page, modified))
         return (false);
-    }
 
     /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
@@ -2591,27 +2635,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (modified && __wt_btree_syncing_by_other_sessions(session)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
-        return (false);
-    }
-
-    /*
-     * Don't evict dirty internal pages for disaggregated storage. They cannot be recreated
-     * in-memory and it will not reduce cache usage.
-     */
-    if (modified && page->disagg_info != NULL && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_dirty_internal_page);
-        return (false);
-    }
-
-    /*
-     * Don't evict the disaggregated page that should belong to the next checkpoint.
-     *
-     * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
-     * before we set the checkpoint running flag to false.
-     */
-    if (modified && !WT_SESSION_BTREE_SYNC(session) &&
-      __wt_btree_disagg_checkpointed(session, btree)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_next_checkpoint);
         return (false);
     }
 

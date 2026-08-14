@@ -119,8 +119,13 @@ __evict_dirty_index_drain(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_EVICT_Q
      * per-tree budget the walker needs, and the trim path re-inserts the same refs. Same predicate
      * as the walker's modified-page gate; the drain is implicitly limited to modified pages, so it
      * needs no additional eviction-mode gate.
+     *
+     * Never let aggressive mode waive the disaggregated-checkpoint gate here: the walker's
+     * aggressive bypass costs one skipped tree per pass, but the drain would instead scan the whole
+     * ring and reinsert every page the per-page candidacy check still blocks on the same predicate,
+     * every pass, for as long as the checkpoint runs.
      */
-    switch (__evict_dirty_tree_block(session, btree, __wt_evict_aggressive(session))) {
+    switch (__evict_dirty_tree_block(session, btree, false)) {
     case WTI_DIRTY_EVICT_SYNCING:
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_index_drain_skipped_checkpoint);
         return (0);
