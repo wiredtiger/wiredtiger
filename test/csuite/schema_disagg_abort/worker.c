@@ -40,16 +40,19 @@ record_event_line(FILE *fp, const SCHEMA_EVENT *ev)
     int ret = 0;
 
     switch (ev->type) {
-    case EVENT_CREATE:
-    case EVENT_DROP:
-        ret = fprintf(fp, "%s %" PRIu64 " %s\n", ev->type == EVENT_CREATE ? "CREATE" : "DROP",
-          ev->event_ts, ev->uri);
+    case EVENT_PUBLISH_CREATE:
+    case EVENT_PUBLISH_DROP:
+        /* A schema operation is recorded when its publish fixes the epoch, not when it ran. */
+        ret = fprintf(fp, "%s %" PRIu64 " %s\n",
+          ev->type == EVENT_PUBLISH_CREATE ? "CREATE" : "DROP", ev->event_ts, ev->uri);
         break;
     case EVENT_INSERT:
         ret = fprintf(fp, "INSERT %" PRIu64 " %" PRIu32 " %" PRIu32 " %s\n", ev->event_ts,
           ev->key_min, ev->key_max, ev->uri);
         break;
-    case EVENT_CKPT:
+    case EVENT_NONE:
+    case EVENT_CREATE:
+    case EVENT_DROP:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected record event type: %d", ev->type);
     }
@@ -80,13 +83,10 @@ worker_record_open(const WORKLOAD_STATE *state, uint32_t thread_index)
 
 /*
  * schema_op_execute --
- *     Execute one schema operation: the single call site for creating and dropping the test's
- *     tables, on either role. EBUSY is retried (the stream cannot be reordered, and when the source
- *     is the peer the operation already succeeded there), with a bound so a wedged operation fails
- *     the test instead of hanging it.
+ *     Execute one schema operation: create or drop the test's tables, on either role.
  */
 static void
-schema_op_execute(WT_SESSION *session, const SCHEMA_EVENT *ev)
+schema_op_execute(WORKLOAD_STATE *state, WT_SESSION *session, const SCHEMA_EVENT *ev)
 {
     const bool is_create = ev->type == EVENT_CREATE;
     testutil_assert(ev->type == EVENT_CREATE || ev->type == EVENT_DROP);
@@ -97,19 +97,37 @@ schema_op_execute(WT_SESSION *session, const SCHEMA_EVENT *ev)
     int ret;
     for (;;) {
         ret = is_create ? session->create(session, ev->uri, SCHEMA_TABLE_CONFIG) :
-                          session->drop(session, ev->uri, "force=false,lock_wait=false");
+                          session->drop(session, ev->uri, "force=false,lock_wait=true");
+        /*
+         * When dropping tables with uncheckpointed data, EBUSY is expected. Checkpoint thread keeps
+         * taking checkpoints and will eventually unblock the schema operation.
+         */
         if (ret != EBUSY)
             break;
 
         struct timespec now;
         __wt_epoch(NULL, &now);
-        if (WT_TIMEDIFF_SEC(now, start) > MAX_STARTUP)
-            testutil_die(ETIMEDOUT, "%s %s: EBUSY for %d seconds", is_create ? "CREATE" : "DROP",
-              ev->uri, MAX_STARTUP);
-        __wt_yield();
+        if (WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT) {
+            int err, sub_err;
+            const char *err_msg;
+            session->get_last_error(session, &err, &sub_err, &err_msg);
+            testutil_die(ETIMEDOUT, "node%" PRIu32 " %s %s %s: EBUSY for %d seconds: %s",
+              state->cfg->node_id, state->leads ? "leader" : "follower",
+              is_create ? "CREATE" : "DROP", ev->uri, MAX_OP_WAIT, err_msg);
+        }
+
+        /*
+         * Back off rather than spin: the checkpoint that clears this needs the locks a retry takes.
+         */
+        __wt_sleep(0, 10 * WT_THOUSAND);
     }
-    testutil_assertfmt(ret == 0, "%s %s (ts %" PRIu64 "): %s", is_create ? "CREATE" : "DROP",
-      ev->uri, ev->event_ts, wiredtiger_strerror(ret));
+
+    /* The checkpoint pick-up may have already applied this drop, so a missing table is success. */
+    if (!is_create && ret == ENOENT)
+        ret = 0;
+
+    testutil_assertfmt(ret == 0, "node%" PRIu32 " %s %s: %s", state->cfg->node_id,
+      is_create ? "CREATE" : "DROP", ev->uri, wiredtiger_strerror(ret));
 }
 
 /*
@@ -129,8 +147,8 @@ schema_op_publish(WT_SESSION *session, const char *uri, uint64_t epoch)
 /*
  * schema_op_insert_data --
  *     Populate a table with rows keyed key_min..key_max at the given commit timestamp; each row is
- *     valued with the commit timestamp, so the verifier can tell which generation of a reused table
- *     name wrote the data.
+ *     set to the commit timestamp, so the verifier can tell which generation of a reused table name
+ *     wrote the data.
  */
 static void
 schema_op_insert_data(
@@ -158,8 +176,8 @@ schema_op_insert_data(
 
 /*
  * worker_complete --
- *     Mark one allocator value fully completed by a worker: track it in the counter (a no-op for
- *     freshly allocated values) and publish it as the thread's completed frontier mark.
+ *     Mark one timestamp fully completed by a worker: adopt it - only a consuming phase needs that,
+ *     a generating one allocated it already - and publish the thread's completed frontier.
  */
 static void
 worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
@@ -172,17 +190,14 @@ worker_complete(WORKLOAD_STATE *state, uint32_t thread_index, uint64_t value)
 /*
  * apply_event --
  *     Apply one event on this node, identically for both roles and exactly as the source stream
- *     fixed it - same operation, same epoch, same commit timestamp: execute the schema operation or
- *     the insert, record the event, publish a schema operation, relay it to the peer when leading,
- *     and mark it completed.
+ *     fixed it: execute it, record it, relay it to the peer when leading, and mark its value
+ *     completed. A schema operation carries no timestamp - its epoch, record and completion belong
+ *     to its later publish event.
  *
- * The ordering is load-bearing. A schema operation is recorded before it is published, so the
- *     record reaches the file before a checkpoint can make the epoch durable (a record without a
- *     durable epoch is ignored by the verifier, the reverse would be a hole). The relay precedes
- *     the completion store, which is what lets the stable frontier advance past this operation,
- *     what lets a checkpoint cover it, and what lets the checkpoint thread send that checkpoint's
- *     pipe event: the peer holds every event at or below a checkpoint's stable frontier by the time
- *     it sees that checkpoint's event.
+ * The order within an event is load-bearing (README invariant 1): relay before record, so a record
+ *     on disk implies the peer holds the event; record before publish, so no checkpoint can make an
+ *     unrecorded epoch durable; relay before the completion store, so the stable frontier only ever
+ *     covers already-relayed events.
  */
 static void
 apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const SCHEMA_EVENT *ev)
@@ -195,21 +210,28 @@ apply_event(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index, const
     switch (ev->type) {
     case EVENT_INSERT:
         schema_op_insert_data(ctx->session, ev->uri, ev->event_ts, ev->key_min, ev->key_max);
-        record_event_line(ctx->record_fp, ev);
         if (relay)
-            (void)node_event_send(state->cfg, ev);
+            (void)pipe_relay_event(state->cfg, ev);
+        record_event_line(ctx->record_fp, ev);
         worker_complete(state, thread_index, ev->event_ts);
         break;
     case EVENT_CREATE:
     case EVENT_DROP:
-        schema_op_execute(ctx->session, ev);
+        schema_op_execute(state, ctx->session, ev);
+        if (relay)
+            (void)pipe_relay_event(state->cfg, ev);
+        /* No timestamp: count it applied, but the completion belongs to the publish. */
+        (void)__wt_atomic_add_uint64(&state->applied, 1);
+        break;
+    case EVENT_PUBLISH_CREATE:
+    case EVENT_PUBLISH_DROP:
+        if (relay)
+            (void)pipe_relay_event(state->cfg, ev);
         record_event_line(ctx->record_fp, ev);
         schema_op_publish(ctx->session, ev->uri, ev->event_ts);
-        if (relay)
-            (void)node_event_send(state->cfg, ev);
         worker_complete(state, thread_index, ev->event_ts);
         break;
-    case EVENT_CKPT:
+    case EVENT_NONE:
     case EVENT_SWITCH:
         testutil_assertfmt(false, "Unexpected apply event type: %d", ev->type);
     }
@@ -225,11 +247,11 @@ worker_apply_loop(WORKLOAD_STATE *state, WORKER_CTX *ctx, uint32_t thread_index)
 {
     bool *busyp = &state->workers[thread_index].busy;
 
-    while (workload_running(state) || !workload_queue_empty(state, thread_index)) {
+    while (workload_active(state, STAGE_WORKERS) || !evq_is_empty(state, thread_index)) {
         /* Publish busy before checking the queue so the drain barrier never races an apply. */
         __wt_atomic_store_bool(busyp, true);
         SCHEMA_EVENT ev;
-        const bool popped = workload_dequeue(state, thread_index, &ev);
+        const bool popped = evq_dequeue(state, thread_index, &ev);
         if (popped)
             apply_event(state, ctx, thread_index, &ev);
         __wt_atomic_store_bool(busyp, false);
@@ -261,10 +283,6 @@ thread_worker_run(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
-/* Thread handles have process lifetime; phases join and restart them but never free them. */
-static wt_thread_t worker_thr[MAX_TH];
-static THREAD_ARG worker_arg[MAX_TH];
-
 /*
  * node_workers_start --
  *     Start this phase's worker threads.
@@ -272,21 +290,30 @@ static THREAD_ARG worker_arg[MAX_TH];
 void
 node_workers_start(WORKLOAD_STATE *state)
 {
+    /* One argument per worker, alive for as long as its thread; the handles live in the state. */
+    static THREAD_ARG worker_arg[MAX_TH];
+
     for (uint32_t i = 0; i < state->nth_workers; i++) {
         worker_arg[i].state = state;
         worker_arg[i].thread_index = i;
-        testutil_check(__wt_thread_create(NULL, &worker_thr[i], thread_worker_run, &worker_arg[i]));
+        testutil_check(
+          __wt_thread_create(NULL, &state->workers[i].thr, thread_worker_run, &worker_arg[i]));
     }
 }
 
 /*
- * node_workers_join --
- *     Join the worker threads. The engine has already directed the phase to quiesce, which the
- *     workers answer by draining whatever the reader delivered before exiting.
+ * node_workers_stop --
+ *     Stop the worker stage. The workers complete the stage by draining whatever the reader
+ *     delivered before they exit.
  */
 void
-node_workers_join(WORKLOAD_STATE *state)
+node_workers_stop(WORKLOAD_STATE *state)
 {
+    /* Previous stage must have stopped. */
+    testutil_assert(node_stage_stopped(state, STAGE_WORKERS - 1));
+
+    /* Stop the current stage. */
+    __wt_atomic_store_uint32(&state->stop_stage, STAGE_WORKERS);
     for (uint32_t i = 0; i < state->nth_workers; i++)
-        testutil_check(__wt_thread_join(NULL, &worker_thr[i]));
+        testutil_check(__wt_thread_join(NULL, &state->workers[i].thr));
 }

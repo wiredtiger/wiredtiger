@@ -9,6 +9,31 @@
 #include "wt_internal.h"
 
 /*
+ * __schema_worker_awaits_publish --
+ *     Set skip if the URI maps to an already-open tree that is awaiting publication. Only a
+ *     resident handle is inspected: opening one here to read the flag would fault on the corrupted
+ *     table verify is meant to diagnose.
+ */
+static int
+__schema_worker_awaits_publish(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    *skipp = false;
+    ret = __wt_conn_dhandle_find(session, uri, NULL);
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+
+    dhandle = session->dhandle;
+    *skipp = F_ISSET(dhandle, WT_DHANDLE_OPEN) && WT_DHANDLE_BTREE(dhandle) &&
+      F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_AWAITS_PUBLISH);
+    WT_DHANDLE_CLEAR(session);
+    return (0);
+}
+
+/*
  * __wti_execute_handle_operation --
  *     Apply a function to a handle, getting exclusive access if requested.
  */
@@ -17,6 +42,19 @@ __wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[], uint32_t open_flags)
 {
     WT_DECL_RET;
+    bool skip;
+
+    /*
+     * A tree awaiting publication has no on-disk data to verify, and the exclusive open would
+     * discard its in-memory content. Skip it.
+     */
+    if (FLD_ISSET(open_flags, WT_BTREE_VERIFY)) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(
+          session, ret = __schema_worker_awaits_publish(session, uri, &skip));
+        WT_RET(ret);
+        if (skip)
+            return (0);
+    }
 
     /*
      * If the operation requires exclusive access, close any open file handles, including
@@ -77,18 +115,34 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
 {
     WT_DECL_ITEM(ckpt_uri);
     WT_DECL_RET;
+    wt_timestamp_t step_down_ts;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     const char *checkpoint_name = NULL;
     bool leader;
 
     WT_ASSERT(session, stable_uri != NULL);
 
     /* Sample the role once so the open and the error message below agree if it changes. */
-    leader = S2C(session)->layered_table_manager.leader;
+    leader = __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader);
 
     if (leader) {
         /* Verify the stable table of the layered table. */
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+
+        /*
+         * A table created after the step-down timestamp was set has no stable constituent, so there
+         * is nothing on the stable side to verify. The schema lock held here serializes the
+         * timestamp, making the relaxed load safe.
+         */
+        step_down_ts =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+        if (ret == ENOENT && step_down_ts != WT_TS_NONE) {
+            __wt_verbose_info(session, WT_VERB_LAYERED,
+              "%s: no stable constituent to verify, the step-down timestamp %s is set", stable_uri,
+              __wt_timestamp_to_string(step_down_ts, ts_string));
+            ret = 0;
+        }
     } else {
         WT_ERR(__wt_scr_alloc(session, 0, &ckpt_uri));
 
@@ -136,7 +190,7 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
     WT_ASSERT(session, ingest_uri != NULL);
 
     /* We don't verify the ingest table on a follower. */
-    if (!conn->layered_table_manager.leader)
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         return (0);
 
     /*

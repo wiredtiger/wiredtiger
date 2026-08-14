@@ -72,7 +72,8 @@ __drop_file(
      */
     WT_ERR(ret);
     if (id_found && !F_ISSET(conn, WT_CONN_IN_MEMORY) && F_ISSET_ATOMIC_32(conn, WT_CONN_READY) &&
-      (!__wt_conn_is_disagg(session) || conn->layered_table_manager.leader ||
+      (!__wt_conn_is_disagg(session) ||
+        __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
         !WT_BTREE_ID_SHARED(id)))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
@@ -143,6 +144,16 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
 
     WT_BTREE *btree = S2BT(session);
 
+    /*
+     * A table awaiting publication has never been checkpointed, so closing its handle loses any
+     * committed data it holds. Refuse the drop until a checkpoint has persisted the data, so this
+     * table behaves like a regular table, which returns EBUSY when it holds uncheckpointed data.
+     */
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+      __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+        WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
+          "the table has unpublished data and must be checkpointed before it can be dropped");
+
     if (btree->page_log == NULL)
         WT_ERR(ENOTSUP);
 
@@ -192,9 +203,20 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    /* Only the leader can issue a trim command. */
-    if (S2C(session)->layered_table_manager.leader)
-        WT_ERR(__drop_issue_trim(session, stable_uri));
+    /*
+     * Only the leader can issue a trim command, and only for a constituent that exists: a table
+     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
+     * held here serializes the timestamp, making the relaxed loads safe.
+     */
+    if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+        WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
+        if (WT_CHECK_AND_RESET(ret, ENOENT) &&
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
+            WT_TS_NONE)
+            WT_ERR_MSG(session, ENOENT,
+              "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri,
+              uri);
+    }
 
     /* Remove all the associated metadata from shared metadata table. */
     WT_SAVE_DHANDLE(session,
@@ -203,13 +225,15 @@ __drop_layered(
     WT_ERR(ret);
 
     /*
-     * Drop the layered table constituents. The stable table may not exist locally on a follower
-     * (followers don't create stable tables); that is fine because the shared metadata removal is
-     * handled by the enqueued REMOVE operation. Leaders always have the stable constituent, so
-     * treat ENOENT as an error for them.
+     * Drop the layered table constituents. The stable table may not exist locally: a follower never
+     * creates one, and neither does a leader for a table created after the step-down timestamp was
+     * set. Either way the shared metadata removal is handled by the enqueued REMOVE operation. A
+     * leader outside that window always has the constituent, so treat ENOENT as an error there.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
-    if (WT_CHECK_AND_RESET(ret, ENOENT) && S2C(session)->layered_table_manager.leader)
+    if (WT_CHECK_AND_RESET(ret, ENOENT) &&
+      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
@@ -573,7 +597,7 @@ __wt_schema_drop(
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_ASSERT_NO_SCHEMA_OP_DURING_ROLE_TRANSITION(session);
+    WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);

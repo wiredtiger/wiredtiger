@@ -87,6 +87,9 @@
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
+#define FOLLOWER_READ_ROWS 200  /* rows one follower snapshot read scans */
+#define FOLLOWER_READ_PASSES 12 /* times it re-reads them */
+
 #define FORMAT_PAD_BYTE '-'  /* modify pad byte */
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 #define REALLOC_MAX_TABLES 5 /* maximum number of tables with realloc_exact and realloc_malloc */
@@ -288,6 +291,7 @@ typedef struct {
 
     wt_timestamp_t replay_cached_committed; /* Our committed timestamp, cached */
     uint32_t replay_calculate_committed;    /* Times before recalculating cached committed */
+    wt_timestamp_t reopen_timestamp;        /* Timestamp recovered when reopening the database */
     wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
     FILE *replay_op_log;                    /* Predictable replay per-run operation log */
     wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
@@ -475,6 +479,7 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET follower(void *);
+WT_THREAD_RET follower_read_no_ts(void *);
 WT_THREAD_RET disagg_key_rotation(void *);
 void disagg_key_push_initial(WT_CONNECTION *, bool);
 void disagg_key_history_clear(void);
