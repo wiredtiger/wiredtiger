@@ -447,6 +447,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
     EvictStat('eviction_server_skip_pages_already_in_urgent_queue', 'eviction server skipped the pages already in the urgent queue'),
     EvictStat('eviction_server_skip_pages_checkpoint_timestamp', 'eviction server skips pages that are written with transactions greater than the checkpoint timestamp'),
+    EvictStat('eviction_server_skip_pages_disagg_low_pressure', 'eviction server skips disaggregated pages with too few modifications while cache pressure is low'),
     EvictStat('eviction_server_skip_pages_last_running', 'eviction server skips pages that are written with transactions greater than the last running'),
     EvictStat('eviction_server_skip_pages_prune_timestamp', 'eviction server skips pages that are written with transactions greater than the prune timestamp'),
     EvictStat('eviction_server_skip_pages_prune_timestamp_not_move', 'eviction server skips pages that have been reconciled previously at the same prune timestamp'),
