@@ -991,6 +991,10 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
         return;
 
+    /* A page being instantiated ends up clean, don't dirty it. */
+    if (F_ISSET(page->modify, WT_PAGE_MODIFY_INSTANTIATING))
+        return;
+
     WT_ASSERT(session,
       !F_ISSET(btree, WT_BTREE_DISAGGREGATED) ||
         __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader));
