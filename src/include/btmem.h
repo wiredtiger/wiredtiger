@@ -373,21 +373,21 @@ struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
     wt_shared uint64_t first_dirty_txn;
 
-    /* The transaction state last time eviction was attempted. */
-    uint64_t last_evict_pass_gen;
-    uint64_t last_eviction_id;
-    wt_timestamp_t last_eviction_timestamp;
+    /* The transaction state as of the last eviction attempt, successful or not. */
+    uint64_t rec_evict_attempt_pass_gen;
+    uint64_t rec_evict_attempt_oldest_id;
+    wt_timestamp_t rec_evict_attempt_pinned_ts;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */
-    uint64_t last_oldest_id;
+    uint64_t rec_last_oldest_id;
 #endif
 
     /* Avoid checking for obsolete updates during checkpoints. */
     uint64_t obsolete_check_txn;
     wt_timestamp_t obsolete_check_timestamp;
 
-    /* The largest transaction and timestamp seen on the page by reconciliation. */
+    /* The largest transaction and timestamp seen on the page by a successful reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
