@@ -98,7 +98,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
              */
             WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri,
               layered_uri + strlen("layered:"), WT_SHARED_METADATA_CREATE,
-              WT_SCHEMA_EPOCH_UNPUBLISHED, true));
+              WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -318,12 +318,13 @@ err:
 /*
  * __wt_disagg_enqueue_metadata_operation --
  *     Enqueue a metadata operation for a given URI into the shared metadata table to be done at the
- *     next checkpoint.
+ *     next checkpoint. A caller that has already removed the local metadata passes the stable
+ *     table's configuration in stable_value, since it can no longer be read from local metadata.
  */
 int
 __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
   const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
-  bool deferred)
+  bool deferred, const char *stable_value)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -356,7 +357,10 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
       __disagg_save_metadata(session, cursor, "colgroup:", table_name, &entry->colgroup_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "layered:", table_name, &entry->layered_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
-    WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
+    if (stable_value != NULL)
+        WT_ERR(__wt_strdup(session, stable_value, &entry->stable_value));
+    else
+        WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
      * Schema operations (create, drop) start deferred: at the start of each checkpoint, while the
