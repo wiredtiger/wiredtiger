@@ -149,14 +149,17 @@ class test_layered_schema26(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertTrue(self.table_exists_on_follower(self.uri))
 
         # The failed drop must leave nothing in the shared metadata queue: a further
-        # checkpoint must find no unstable operations to defer.
+        # checkpoint must find no unstable operations to defer. The checkpoint updates
+        # the statistic synchronously, so no waiting is needed after it returns.
         deferred_before = self.read_stat(stat.conn.checkpoint_disagg_metadata_unstable)
         self.leader_checkpoint(45)
         self.assertEqual(
             self.read_stat(stat.conn.checkpoint_disagg_metadata_unstable), deferred_before)
 
         # Retry the drop. A leftover REMOVE from the failed attempt would subtract the
-        # table's size from the database size a second time.
+        # table's size from the database size a second time. Cursor caching is disabled,
+        # so closing the cursor releases the data handle immediately and the drop does
+        # not depend on a sweep.
         pin.close()
         self.drop_published(15)
         self.assert_local_metadata(present=False)
