@@ -2392,11 +2392,11 @@ methods = {
         the schema epoch that marks the planned step-down boundary in disaggregated storage.
         May only be supplied together with \c step_down_timestamp, and should accompany it
         whenever schema epochs are in use. Schema operations published at or below this epoch
-        are covered by the
-        final checkpoint taken before the step-down; operations published above it are deferred
-        until after the next step-up. The value must not be older than the current stable
-        disaggregated schema epoch, and before stepping down the application must advance the
-        stable disaggregated schema epoch to equal it. Cannot be changed while set'''),
+        are covered by the final checkpoint taken before the step-down; operations published
+        above it are deferred until after the next step-up. The value must not be older than
+        the current stable disaggregated schema epoch, and before stepping down the application
+        must advance the stable disaggregated schema epoch to equal it. Cannot be changed while
+        set'''),
     Config('step_down_timestamp', '', r'''
         the timestamp that prepares for a planned step-down in disaggregated storage. The
         application must ensure the timestamp is newer than every commit timestamp
