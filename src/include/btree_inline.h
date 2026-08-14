@@ -1986,9 +1986,9 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
 
     /*
-     * As above, plus an upper bound: the copy narrows the length to a uint8_t, so an oversized
-     * cookie would truncate into a plausible short one. Empty cookies exist only in delta cells,
-     * which the merge drops before the image is materialized.
+     * As above. The address copy holds the length in a single byte, so an oversized length is
+     * silently truncated rather than rejected. Zero-length address cells exist only as
+     * WT_CELL_ADDR_DEL_VISIBLE_ALL, which the delta merge drops before the image is materialized.
      */
     WT_ASSERT_ALWAYS(session, unpack->size != 0 && unpack->size <= WT_ADDR_MAX_COOKIE,
       "%s: on-page ref address cell has unusable length %" PRIu32
