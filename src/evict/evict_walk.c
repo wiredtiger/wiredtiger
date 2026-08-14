@@ -177,11 +177,13 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
     uint64_t pos, scan_limit, seq;
     uint32_t already_queued, drained, filtered_total, hazard_total, queued_total;
     uint32_t scanned, seen_clean, seen_dirty, seen_updates, slot, stale_total;
-    bool bp_released, busy, precise_ckpt, queued, reinsert, urgent_queued;
+    bool aggressive, bp_released, busy, precise_ckpt, queued, reinsert, urgent_queued;
 
     *drainedp = 0;
     if (*slotp >= max_entries)
         return (0);
+
+    aggressive = __wt_evict_aggressive(session);
 
     /*
      * A precise checkpoint cannot evict a dirty page whose newest commit timestamp is ahead of the
@@ -279,6 +281,18 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
         if (F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU) ||
           F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU_URGENT)) {
             ++already_queued;
+            ++stale_total;
+            goto release;
+        }
+
+        /*
+         * A page held back only by too few modifications under low disaggregated pressure will fail
+         * the same way on every future pass until connection-wide pressure changes, which
+         * reinserting it cannot influence. Drop it instead of paying for another round trip through
+         * the ring; the next write to the page, or the walker's ordinary tree traversal, will find
+         * it again.
+         */
+        if (!aggressive && __wti_evict_disagg_low_pressure_skip(session, ref->page)) {
             ++stale_total;
             goto release;
         }
@@ -1157,41 +1171,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * For pages that are getting random updates (often index pages), try not to reconcile them too
-     * often. It makes better use of I/O if they accumulate more changes between reconciliations
+     * often. It makes better use of I/O if they accumulate more changes between reconciliations.
      */
-#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
-    /*
-     * If the cache is dirty, but not under pressure skip pages with just a few modifications
-     * hopefully they can accumulate more changes before being reconciled. The cache has low
-     * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
-     * only for disaggregated storage.
-     */
-#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
-    0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
-    if (__wt_conn_is_disagg(session) &&
-      __wt_atomic_load_uint32_relaxed(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
-        double pct_dirty = 0.0, pct_updates = 0.0;
-        bool high_pressure = false;
-
-        if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
-            WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
-            high_pressure =
-              (pct_dirty > (__wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger) *
-                             WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-        }
-
-        if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
-            WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
-            high_pressure = (pct_updates >
-              (__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
-                WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-        }
-
-        if (!high_pressure) {
-            WT_STAT_CONN_INCR(session, eviction_server_skip_pages_disagg_low_pressure);
-            return (true);
-        }
-    }
+    if (__wti_evict_disagg_low_pressure_skip(session, page))
+        return (true);
     return (false);
 }
 

@@ -148,6 +148,13 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
     if (WTI_DIRTY_INDEX_IS_DISAGG(btree) &&
       !__wt_atomic_load_bool_relaxed(&evict->eviction_dirty_index_disagg))
         return (false);
+    /*
+     * Don't hand the ring a page the candidacy filter will reject on every pass until
+     * connection-wide pressure changes: better to let it accumulate more modifications and try
+     * again on a later write than to occupy a ring slot the drain can only reinsert.
+     */
+    if (__wti_evict_disagg_low_pressure_skip(session, page))
+        return (false);
     if (!__evict_dirty_index_ensure_slots(session, idx))
         return (false);
     idx = __wt_atomic_load_ptr_acquire(&btree->dirty_index);

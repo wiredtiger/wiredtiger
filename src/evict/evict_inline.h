@@ -547,6 +547,56 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
         100);
 }
 
+#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
+#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
+    0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
+
+/*
+ * __wti_evict_disagg_low_pressure_skip --
+ *     Return true if a disaggregated page has too few modifications to reconcile yet and cache
+ *     pressure is not high enough to force the issue: for pages getting random updates, it makes
+ *     better use of I/O to let them accumulate more changes before being reconciled. Shared by the
+ *     candidacy filter, the dirty-index ring producer, and the ring drain, so a page this low on
+ *     modifications never enters the ring while pressure stays low, and a page already in the ring
+ *     that stops qualifying is dropped rather than reinserted --
+ *     the connection-wide pressure this depends on cannot change from one ring pass to the next.
+ */
+static WT_INLINE bool
+__wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_CONNECTION_IMPL *conn;
+    double pct_dirty, pct_updates;
+    bool high_pressure;
+
+    conn = S2C(session);
+    if (!__wt_conn_is_disagg(session) ||
+      __wt_atomic_load_uint32_relaxed(&page->modify->page_state) >= WT_EVICT_MODIFY_COUNT_MIN)
+        return (false);
+
+    pct_dirty = pct_updates = 0.0;
+    high_pressure = false;
+
+    if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
+        WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
+        high_pressure =
+          (pct_dirty > (__wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger) *
+                         WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+    }
+
+    if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
+        WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
+        high_pressure =
+          (pct_updates > (__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
+                           WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+    }
+
+    if (high_pressure)
+        return (false);
+
+    WT_STAT_CONN_INCR(session, eviction_server_skip_pages_disagg_low_pressure);
+    return (true);
+}
+
 /* !!!
  * __wt_evict_needed --
  *     Check whether the configured clean/dirty/update eviction trigger thresholds for the cache
