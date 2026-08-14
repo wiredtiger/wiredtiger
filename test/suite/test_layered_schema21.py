@@ -177,6 +177,38 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(8)
         self.leader_checkpoint(11)
 
+    def test_drop_with_drained_data_is_refused(self):
+        # The step-up drain moves follower-era ingest rows into a stable constituent created
+        # awaiting publication, so until a checkpoint publishes the table those rows exist only in
+        # its cache and the drop must be refused, exactly as when the rows were committed directly.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
+            ',oldest_timestamp=' + self.timestamp_str(1))
+        self.set_stable_epoch(1)
+        self.step_down()
+
+        # A follower-era create and insert: the rows live only in the ingest constituent.
+        self.session.create(self.uri, self.table_config)
+        self.publish(self.uri, 5)
+        self.write_rows(commit_ts=3)
+
+        # Step up: the missing stable constituent is created awaiting publication and the drain
+        # moves the rows into it.
+        self.step_up()
+        self.assert_drop_refused()
+
+        # The refused drop left no partial state, so the committed rows remain readable.
+        self.assert_all_rows(self.session)
+
+        # A checkpoint publishes and persists the table with no data loss: the rows reach a
+        # follower, and the published table then drops normally.
+        self.set_stable_epoch(10)
+        self.leader_checkpoint(3)
+        conn_follower, session_follower = self.open_follower()
+        self.assert_all_rows(session_follower)
+        session_follower.close()
+        conn_follower.close()
+        self.assert_drop_succeeds()
+
     def test_drop_empty_is_allowed(self):
         # An awaiting-publication table with no data is transient: nothing obligates a checkpoint,
         # so the drop is allowed.
