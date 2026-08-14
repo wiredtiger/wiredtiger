@@ -12,7 +12,9 @@
 #define WT_TXN_FIRST 1               /* First transaction to run */
 #define WT_TXN_MAX (UINT64_MAX - 10) /* End of time */
 #define WT_TXN_ABORTED UINT64_MAX    /* Update rolled back */
-#define WT_PREPARED_ID_NONE 0        /* Empty prepared id */
+
+#define WT_CKPT_SNAP_GEN_NONE 0 /* No published checkpoint snapshot was used for reconciliation */
+#define WT_PREPARED_ID_NONE 0   /* Empty prepared id */
 
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
@@ -33,6 +35,8 @@
     "Transaction has the oldest pinned transaction ID"
 #define WT_TXN_ROLLBACK_REASON_STEP_DOWN \
     "Write transaction straddled the step-down timestamp setting boundary"
+#define WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE \
+    "Transaction dirty content alone exceeds the eviction updates or dirty trigger"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
@@ -423,6 +427,13 @@ struct __wt_txn {
     /* Snapshot data. */
     WT_TXN_SNAPSHOT snapshot_data;
 
+    /*
+     * When eviction reconciles a page using the published checkpoint snapshot, the page can be
+     * stamped and checkpoint can skip re-reconciling it. WT_CKPT_SNAP_GEN_NONE when no such
+     * snapshot is in use.
+     */
+    uint64_t ckpt_snap_gen;
+
     /* Backup snapshot data. */
     WT_TXN_SNAPSHOT *backup_snapshot_data;
 
@@ -463,6 +474,13 @@ struct __wt_txn {
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
+
+    /*
+     * Cache bytes this transaction has dirtied and not yet resolved. Eviction cannot reclaim these
+     * bytes, so it is maintained unconditionally rather than tracked only through the equivalent
+     * session statistic.
+     */
+    uint64_t bytes_dirty;
 
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;

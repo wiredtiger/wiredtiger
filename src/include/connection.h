@@ -963,6 +963,23 @@ struct __wt_conn_evict_config {
 };
 
 /*
+ * WT_CKPT_EVICTION_SNAP --
+ *     A buffer holding the snapshot a precise checkpoint publishes, so that eviction can reconcile
+ *     with accurate visibility without holding a lock. Readers hold WT_GEN_HAS_CKPT_SNAPSHOT across
+ *     their use of it.
+ */
+struct __wt_ckpt_eviction_snap {
+    WT_TXN_SNAPSHOT snap;
+    uint64_t *snap_array;
+    size_t snap_capacity;
+    /*
+     * The generation of the checkpoint that published this buffer. Eviction stamps the pages it
+     * reconciles with this, so that checkpoint can identify its own work and skip it.
+     */
+    wt_shared uint64_t gen;
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -1107,16 +1124,13 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
     /*
-     * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
-     * visibility without holding any lock. Two buffers alternate so eviction always has a valid
-     * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
+     * Two buffers alternate so eviction always has a valid snapshot to read. The published flag is
+     * the synchronization point: a checkpoint sets it once it has written the inactive buffer and
+     * clears it before releasing the snapshot, and readers acquire it before reading the index.
      */
-    WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
-    uint64_t *ckpt_eviction_snap_array[2];
-    size_t ckpt_eviction_snap_capacity[2];
-    wt_shared uint32_t ckpt_eviction_snap_idx;
-    wt_shared bool
-      ckpt_eviction_snap_published; /* true once the first snapshot has been published */
+    WT_CKPT_EVICTION_SNAP ckpt_eviction_snap[2];
+    wt_shared uint32_t ckpt_eviction_snap_idx;   /* Buffer holding the published snapshot */
+    wt_shared bool ckpt_eviction_snap_published; /* Whether a checkpoint has published one */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {

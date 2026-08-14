@@ -222,7 +222,8 @@ done:
 /*
  * __txn_snapshot_record_disagg --
  *     Record the disaggregated state a snapshot about to be built is consistent with: the role, the
- *     role-change generation, and (on a follower) the pinned checkpoint generation.
+ *     role-change generation, and (on an untimestamped follower snapshot) the pinned checkpoint
+ *     generation.
  */
 static WT_INLINE void
 __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
@@ -244,11 +245,12 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
       __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader);
 
     /*
-     * Only a follower pins a checkpoint: its stable binds compare against the pin. A leader's
-     * stable table is written with local transaction ids and needs no pin, and its own checkpoints
-     * advance the checkpoint generation, so pinning would rebuild every snapshot that overlaps a
-     * checkpoint completion. A snapshot from before a step-down is left unpinned and refused if it
-     * binds checkpoint content afterwards.
+     * Only an untimestamped follower snapshot pins a checkpoint: its stable binds compare against
+     * the pin. A leader's stable table is written with local transaction ids and needs no pin, and
+     * its own checkpoints advance the checkpoint generation, so pinning would rebuild every
+     * snapshot that overlaps a checkpoint completion. A timestamped reader stays consistent through
+     * the history store, so pinning would only defer adoptions behind it. A snapshot from before a
+     * step-down is left unpinned and refused if it binds checkpoint content afterwards.
      *
      * The checkpoint generation is the newest checkpoint delivered plus one, advanced when the
      * metadata arrives, even before its adoption completes: arrival implies its content is already
@@ -259,7 +261,7 @@ __txn_snapshot_record_disagg(WT_SESSION_IMPL *session)
      * with a delivery's generation advance: a delivery either observes the pin published here, or
      * the validation after the build observes the delivery and retries.
      */
-    if (!session->txn->disagg_role_leader)
+    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) && !session->txn->disagg_role_leader)
         __wt_session_gen_enter(session, WT_GEN_DISAGG_CKPT);
 }
 
@@ -280,6 +282,9 @@ __txn_snapshot_validate_disagg(WT_SESSION_IMPL *session)
         session->txn->disagg_role_leader)
         return (false);
     if (session->txn->disagg_role_leader)
+        return (true);
+    /* A timestamped reader pins no checkpoint, leaving nothing further to validate. */
+    if (__wt_session_gen(session, WT_GEN_DISAGG_CKPT) == 0)
         return (true);
     return (__wt_gen(session, WT_GEN_DISAGG_CKPT) == __wt_session_gen(session, WT_GEN_DISAGG_CKPT));
 }
@@ -309,11 +314,11 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      * validate it afterwards, retrying the build on a change: the retried snapshot postdates the
      * change, so the transaction reads consistently instead of being refused at its first stable
      * open. Loading before and validating after brackets the snapshot, so it can never pin state
-     * that changed after it was built. Timestamped readers are excluded: they stay consistent
-     * through the history store regardless of which checkpoint they read.
+     * that changed after it was built. A timestamped reader records the role era only: the history
+     * store keeps it consistent across checkpoints, so it pins nothing, but layered operations
+     * still assert it does not span a step-up.
      */
-    record_disagg = update_shared_state && __wt_conn_is_disagg(session) &&
-      txn_shared->read_timestamp == WT_TS_NONE;
+    record_disagg = update_shared_state && __wt_conn_is_disagg(session);
 
     /* Fast path if we already have the current snapshot. */
     if ((snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT)) != 0) {
@@ -467,11 +472,12 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_snapshot_save_and_refresh --
- *     Save the existing snapshot and allocate a new snapshot.
+ * __wt_txn_snapshot_save --
+ *     Save the existing snapshot, leaving the transaction with a snapshot buffer of its own for the
+ *     caller to populate.
  */
 int
-__wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+__wt_txn_snapshot_save(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TXN *txn;
@@ -490,9 +496,6 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
     /* Swap the snapshot pointers. */
     __txn_swap_snapshot(&txn->snapshot_data.snapshot, &txn->backup_snapshot_data->snapshot);
 
-    /* Get the snapshot without publishing the shared ids. */
-    __wt_txn_bump_snapshot(session);
-
 err:
     /* Free the backup_snapshot_data if the memory allocation of the underlying snapshot has failed.
      */
@@ -500,6 +503,21 @@ err:
         __wt_free(session, txn->backup_snapshot_data);
 
     return (ret);
+}
+
+/*
+ * __wt_txn_snapshot_save_and_refresh --
+ *     Save the existing snapshot and allocate a new snapshot.
+ */
+int
+__wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
+{
+    WT_RET(__wt_txn_snapshot_save(session));
+
+    /* Get the snapshot without publishing the shared ids. */
+    __wt_txn_bump_snapshot(session);
+
+    return (0);
 }
 
 /*
@@ -2695,9 +2713,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_atomic_store_uint64_v_relaxed(&s->metadata_pinned, WT_TXN_NONE);
     }
 
-    conn->ckpt_eviction_snap[0].snap_min = WT_TXN_NONE;
-    conn->ckpt_eviction_snap[1].snap_min = WT_TXN_NONE;
-
     return (0);
 }
 
@@ -2874,23 +2889,28 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __wt_txn_is_blocking --
- *     Return an error if this transaction is likely blocking eviction because of a pinned
- *     transaction ID, called by eviction to determine if a worker thread should be released from
- *     eviction.
+ *     Return an error if this transaction is likely blocking eviction from making progress, called
+ *     by eviction to determine if a worker thread should be released.
  */
 int
 __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
+    double trigger;
     uint64_t global_oldest;
+    bool is_txn_id_global_oldest;
 
+    conn = S2C(session);
+    evict = conn->evict;
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    global_oldest = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.oldest_id);
+    global_oldest = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.oldest_id);
 
-    /* We can't roll back prepared transactions. */
-    if (F_ISSET(txn, WT_TXN_PREPARE))
+    /* We can't roll back prepared transactions, nor any transaction during recovery. */
+    if (F_ISSET(txn, WT_TXN_PREPARE) || F_ISSET(conn, WT_CONN_RECOVERING))
         return (0);
 
 #ifndef WT_STANDALONE_BUILD
@@ -2915,18 +2935,45 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 #endif
 
     /*
-     * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
+     * Once eviction is stuck, check if either the transaction's ID or its pinned ID is equal to the
+     * oldest transaction ID: it is likely to be the reason the cache is stuck full.
      */
-    bool is_txn_id_global_oldest;
-    if (((is_txn_id_global_oldest =
-            __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) == global_oldest)) ||
-      __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == global_oldest) {
+    if (__wt_evict_cache_stuck(session) &&
+      (((is_txn_id_global_oldest =
+           __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) == global_oldest)) ||
+        __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == global_oldest)) {
         if (is_txn_id_global_oldest)
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_id);
         else
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
         WT_RET_SUB(
           session, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION, WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+    }
+
+    /*
+     * A transaction whose own unresolved dirty content already exceeds the updates trigger (or the
+     * dirty trigger, whichever is lower, since the two are not guaranteed to be ordered) can never
+     * bring the cache back under that trigger by staying alive, so roll it back now while that is
+     * still legal.
+     *
+     * Requires an actual modification: instantiating a fast-truncated column-store page while
+     * reading it charges dirty bytes to whichever transaction happens to touch the page
+     * (FIXME-WT-18271), and rolling back a reader over that would be both useless and unsupported.
+     */
+    if (txn->mod_count != 0) {
+        trigger = WT_MIN(__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger),
+          __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger));
+        /*
+         * A zero trigger would rebuild the threshold as zero and roll back every transaction that
+         * dirtied anything at all. Configuration never leaves either trigger at zero, so treat it
+         * as a value we raced with rather than a threshold to enforce.
+         */
+        if (trigger > DBL_EPSILON &&
+          txn->bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
+            WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
+            WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
+              WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
+        }
     }
     return (0);
 }

@@ -1306,6 +1306,14 @@ err:
     WT_TRET(__wt_session_array_walk(
       conn->default_session, __conn_rollback_transaction_callback, true, NULL));
 
+    /*
+     * Stop the deferred checkpoint pickup server before transactional activity shuts down: an
+     * adoption runs metadata transactions, so any in-flight adoption must complete while snapshot
+     * visibility checks still operate. Stop it before the session-closing walk below as well: it
+     * opens a session per adoption, which must not race a walk that closes sessions.
+     */
+    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
+
     __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing all running sessions.");
     /* Close open, external sessions. */
     WT_TRET(
@@ -1325,13 +1333,6 @@ err:
 
     __wt_verbose_info(
       session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
-
-    /*
-     * Stop the deferred checkpoint pickup server before transactional activity shuts down: an
-     * adoption runs metadata transactions, so any in-flight adoption must complete while snapshot
-     * visibility checks still operate.
-     */
-    WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session));
 
     /*
      * The sweep server must be stopped before any thread group is destroyed: tearing down a thread
@@ -1708,8 +1709,13 @@ __conn_startup_cleanup_and_verify(WT_CONNECTION_IMPL *conn, bool verify_meta)
         /*
          * If the user wants to verify WiredTiger metadata, verify the history store now that the
          * metadata table may have been salvaged and eviction has been started and recovery run.
+         *
+         * Hold the checkpoint lock, as WT_SESSION::verify does: a disaggregated follower judges a
+         * record against the oldest timestamp of the checkpoint it picked up, and that only
+         * describes the data store being walked while no other checkpoint can be picked up.
          */
-        WT_ERR(__wt_hs_verify(session));
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __wt_hs_verify(session));
+        WT_ERR(ret);
     }
 
     /* The chunk cache metadata table may exist on upgrade. Discard it. */
