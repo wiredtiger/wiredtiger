@@ -292,7 +292,7 @@ __evict_dirty_index_drain_ring(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_DI
          * the ring; the next write to the page, or the walker's ordinary tree traversal, will find
          * it again.
          */
-        if (!aggressive && __wti_evict_disagg_low_pressure_skip(session, ref->page)) {
+        if (!aggressive && __wti_evict_disagg_low_pressure_skip(session, btree, ref->page)) {
             ++stale_total;
             goto release;
         }
@@ -1115,9 +1115,11 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
 
+    btree = S2BT(session);
     conn = S2C(session);
     txn = session->txn;
 
@@ -1145,7 +1147,6 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
     } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        WT_BTREE *btree = S2BT(session);
         wt_timestamp_t newest_commit_timestamp =
           __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp);
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
@@ -1173,7 +1174,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * For pages that are getting random updates (often index pages), try not to reconcile them too
      * often. It makes better use of I/O if they accumulate more changes between reconciliations.
      */
-    if (__wti_evict_disagg_low_pressure_skip(session, page))
+    if (__wti_evict_disagg_low_pressure_skip(session, btree, page))
         return (true);
     return (false);
 }

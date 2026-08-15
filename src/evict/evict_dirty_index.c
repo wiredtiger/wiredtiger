@@ -153,7 +153,7 @@ __wt_dirty_index_insert(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref)
      * connection-wide pressure changes: better to let it accumulate more modifications and try
      * again on a later write than to occupy a ring slot the drain can only reinsert.
      */
-    if (__wti_evict_disagg_low_pressure_skip(session, page))
+    if (__wti_evict_disagg_low_pressure_skip(session, btree, page))
         return (false);
     if (!__evict_dirty_index_ensure_slots(session, idx))
         return (false);

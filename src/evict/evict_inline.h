@@ -553,23 +553,28 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 
 /*
  * __wti_evict_disagg_low_pressure_skip --
- *     Return true if a disaggregated page has too few modifications to reconcile yet and cache
- *     pressure is not high enough to force the issue: for pages getting random updates, it makes
- *     better use of I/O to let them accumulate more changes before being reconciled. Shared by the
- *     candidacy filter, the dirty-index ring producer, and the ring drain, so a page this low on
- *     modifications never enters the ring while pressure stays low, and a page already in the ring
- *     that stops qualifying is dropped rather than reinserted --
+ *     Return true if a page belonging to a tree the dirty-index ring targets has too few
+ *     modifications to reconcile yet and cache pressure is not high enough to force the issue: for
+ *     pages getting random updates, it makes better use of I/O to let them accumulate more changes
+ *     before being reconciled. Trees the ring never accepts --
+ *     the local history store included --
+ *     are never throttled here; use the same test the ring's own producer gate uses
+ *     (WTI_DIRTY_INDEX_IS_DISAGG), not the page's own disagg_info, since ingest trees are ring
+ *     targets without carrying per-page disaggregated metadata. Shared by the candidacy filter, the
+ *     dirty-index ring producer, and the ring drain, so a page this low on modifications never
+ *     enters the ring while pressure stays low, and a page already in the ring that stops
+ *     qualifying is dropped rather than reinserted --
  *     the connection-wide pressure this depends on cannot change from one ring pass to the next.
  */
 static WT_INLINE bool
-__wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_evict_disagg_low_pressure_skip(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE *page)
 {
     WT_CONNECTION_IMPL *conn;
     double pct_dirty, pct_updates;
     bool high_pressure;
 
     conn = S2C(session);
-    if (!__wt_conn_is_disagg(session) ||
+    if (!WTI_DIRTY_INDEX_IS_DISAGG(btree) ||
       __wt_atomic_load_uint32_relaxed(&page->modify->page_state) >= WT_EVICT_MODIFY_COUNT_MIN)
         return (false);
 
