@@ -3251,12 +3251,15 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
 static WT_INLINE int
 __clayered_remove_int(WTI_CLAYERED_OP *op, const WT_ITEM *key, bool positioned)
 {
+    bool stable_positioned;
+
+    stable_positioned = positioned && op->clayered->current_cursor == op->stable;
     if (op->write_target == WTI_CLAYERED_WRITE_BOTH) {
-        WT_RET(__clayered_remove_from_stable(op, key, positioned));
+        WT_RET(__clayered_remove_from_stable(op, key, stable_positioned));
         return (__clayered_remove_mirror(op, key));
     }
     return (op->write_target == WTI_CLAYERED_WRITE_STABLE ?
-        __clayered_remove_from_stable(op, key, positioned) :
+        __clayered_remove_from_stable(op, key, stable_positioned) :
         __clayered_remove_from_ingest(op, key, positioned));
 }
 

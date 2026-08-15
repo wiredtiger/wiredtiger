@@ -2062,8 +2062,10 @@ __wt_txn_stepdown_straddler_check(
             continue;
         wrote_stable |= WT_URI_IS_STABLE(op->btree->dhandle->name);
         wrote_ingest |= WT_URI_IS_INGEST(op->btree->dhandle->name);
+        if (wrote_ingest)
+            return (0);
     }
-    if (wrote_ingest || !wrote_stable)
+    if (!wrote_stable)
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
