@@ -431,13 +431,15 @@ if cg_anchors != {"__clayered_deleted_encode"} or cg_chains != [
 
 def canned_callgraph(drop_anchor=None, drop_lines=(), extra=()):
     # A synthetic D1/D2 walk output: one standalone line per anchor, the golden caller edges, and
-    # the one required path that is longer than a single call.
+    # the required paths that are longer than a single call.
     _, anchors = ste.callgraph_args()
     lines = [f"{a}      (src/x.c)" for a in anchors if a != drop_anchor]
     for target, callers in sorted(ste.CALLGRAPH_GOLDEN_CALLERS.items()):
         lines += [f"{target} <- {c}" for c in sorted(callers)]
     lines.append("__clayered_deleted_encode <- __clayered_modify_ingest <- __clayered_modify_int"
                  " <- __clayered_modify")
+    lines.append("__clayered_deleted_encode <- __clayered_put <- __clayered_insert")
+    lines.append("__clayered_deleted_encode <- __clayered_put <- __clayered_update")
     return "\n".join([l for l in lines if l not in drop_lines] + list(extra)) + "\n"
 
 
@@ -497,10 +499,14 @@ expect_callgraph("callgraph new caller", 1,
     contains="__clayered_rogue_writer() is a new direct caller",
     main_out=canned_callgraph(extra=("__clayered_deleted_encode <- __clayered_rogue_writer",)))
 
-# A vanished caller is reported, alongside the reachability break it causes.
-expect_callgraph("callgraph vanished caller", 2,
-    contains="__clayered_update() no longer calls __clayered_deleted_encode() directly",
-    main_out=canned_callgraph(drop_lines=("__clayered_deleted_encode <- __clayered_update",)))
+# A vanished caller is reported, alongside the reachability breaks it causes (the insert and
+# update entry points reach the encode helper only through this caller).
+expect_callgraph("callgraph vanished caller", 3,
+    contains="__clayered_put() no longer calls __clayered_deleted_encode() directly",
+    main_out=canned_callgraph(drop_lines=(
+        "__clayered_deleted_encode <- __clayered_put",
+        "__clayered_deleted_encode <- __clayered_put <- __clayered_insert",
+        "__clayered_deleted_encode <- __clayered_put <- __clayered_update")))
 
 # The tagline contract: matching body lines are joined onto the function's standalone line ahead
 # of an empty parenthesized annotation.

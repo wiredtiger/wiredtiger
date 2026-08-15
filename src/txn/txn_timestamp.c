@@ -758,19 +758,14 @@ static int
 __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit_tsp)
 {
     WT_TXN *txn;
-    wt_timestamp_t commit_ts, oldest_ts, stable_ts;
-    wt_timestamp_t step_down_ts;
-    bool wrote_ingest;
+    WT_TXN_OP *op;
+    wt_timestamp_t commit_ts, oldest_ts, stable_ts, step_down_ts;
+    u_int i;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool wrote_ingest;
 
     txn = session->txn;
     commit_ts = *commit_tsp;
-    wrote_ingest = false;
-    for (size_t i = 0; i < txn->mod_count; ++i) {
-        WT_TXN_OP *op = &txn->mod[i];
-        if (op->type != WT_TXN_OP_NONE && op->btree != NULL)
-            wrote_ingest |= WT_URI_IS_INGEST(op->btree->dhandle->name);
-    }
 
     /*
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
@@ -805,22 +800,27 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
 
+        /*
+         * Ingest content lives strictly above the step-down timestamp, so a transaction holding
+         * ingest operations must not commit at or below it. This validation sees only the
+         * operations present when the commit timestamp is supplied; operations added afterwards are
+         * covered by the boundary assertions at commit.
+         */
         step_down_ts =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
-        if (wrote_ingest && step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts)
-            WT_RET_MSG(session, EINVAL,
-              "commit timestamp %s must be after the step down timestamp %s",
-              __wt_timestamp_to_string(commit_ts, ts_string[0]),
-              __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+        if (step_down_ts != WT_TS_NONE && commit_ts <= step_down_ts) {
+            wrote_ingest = false;
+            for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+                if (op->type != WT_TXN_OP_NONE && op->btree != NULL &&
+                  WT_URI_IS_INGEST(op->btree->dhandle->name))
+                    wrote_ingest = true;
+            if (wrote_ingest)
+                WT_RET_MSG(session, EINVAL,
+                  "commit timestamp %s must be after the step down timestamp %s",
+                  __wt_timestamp_to_string(commit_ts, ts_string[0]),
+                  __wt_timestamp_to_string(step_down_ts, ts_string[1]));
+        }
 
-        /*
-         * A transaction that began after the step-down timestamp was set commits to the ingest
-         * constituent, which lives strictly above that timestamp, so supplying a commit timestamp
-         * at or below it is a contradiction. A transaction that began before the timestamp was set
-         * passes here: the straddler guard rolls it back at commit, and one racing the set past
-         * that guard carries a timestamp at or below the step-down timestamp, on the stable side of
-         * the boundary.
-         */
         __txn_assert_after_reads(session, "commit", commit_ts);
     } else {
         /*

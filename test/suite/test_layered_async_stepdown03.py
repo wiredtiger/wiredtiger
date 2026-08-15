@@ -65,7 +65,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-        # A retry after the timestamp is set routes cleanly to ingest.
+        # A retry after the timestamp is set mirrors to both constituents.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddle'] = 'after'
@@ -75,10 +75,13 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'straddle'})
         self.assertEqual(self.read_keys_at(self.uri, 40), {'straddle'})
 
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'straddle'},
+            'transition-window writes must be mirrored to stable')
 
-    # Straddler rollback applies to any write; remove rolls back like insert.
-    def test_straddler_rollback_remove(self):
+    # A transaction that began beforehand but wrote nothing until the step-down timestamp was set
+    # is not a straddler: all its writes mirror, so a remove proceeds and lands in both
+    # constituents.
+    def test_late_first_write_remove_mirrors(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
@@ -90,9 +93,14 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         # The step-down timestamp is set while this transaction is in flight.
         self.set_step_down_ts(20)
 
-        self.assert_step_down_rollback(lambda: cursor.remove())
-        self.session.rollback_transaction()
+        self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
+
+        # The remove is a real remove on stable and a marker record in ingest.
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {})
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
 
     # A transaction that wrote beforehand rolls back at commit; the retry lands in ingest.
     def test_straddler_commit_rolls_back(self):
@@ -138,8 +146,9 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15)))
         cursor.close()
 
-    # A straddler that wrote only a plain table still rolls back at commit.
-    def test_straddler_plain_table_commit_rolls_back(self):
+    # A straddler that wrote only a plain table commits: plain tables hold node-local content that
+    # is not split across the layered constituents, so the mirror invariant does not apply.
+    def test_straddler_plain_table_commits(self):
         plain_uri = f'table:{self.test_name}_plain'
         self.set_global_ts(1, 1)
         self.session.create(plain_uri, 'key_format=S,value_format=S')
@@ -150,9 +159,10 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.set_step_down_ts(20)
 
-        self.assert_step_down_rollback(
-            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
+
+        self.assertEqual(self.read_kvs_at(plain_uri, 40), {'k1': 'v'})
 
     # A read-only straddler commits normally; the guard only fires on writes.
     def test_readonly_straddler_commits_fine(self):
