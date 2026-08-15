@@ -812,8 +812,10 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
             wrote_ingest = false;
             for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
                 if (op->type != WT_TXN_OP_NONE && op->btree != NULL &&
-                  WT_URI_IS_INGEST(op->btree->dhandle->name))
+                  WT_URI_IS_INGEST(op->btree->dhandle->name)) {
                     wrote_ingest = true;
+                    break;
+                }
             if (wrote_ingest)
                 WT_RET_MSG(session, EINVAL,
                   "commit timestamp %s must be after the step down timestamp %s",
