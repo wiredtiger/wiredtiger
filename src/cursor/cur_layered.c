@@ -148,6 +148,41 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value, bool from_st
     }
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __clayered_assert_mirrored_values --
+ *     Check that a stable value and its ingest mirror have the same decoded value.
+ */
+static WT_INLINE void
+__clayered_assert_mirrored_values(WT_SESSION_IMPL *session, const WT_ITEM *stable_value,
+  const WT_ITEM *ingest_value, const char *op)
+{
+    WT_ITEM stable_decoded, ingest_decoded;
+
+    stable_decoded = *stable_value;
+    ingest_decoded = *ingest_value;
+    __clayered_deleted_decode(session, &stable_decoded, true);
+    __clayered_deleted_decode(session, &ingest_decoded, false);
+    WT_ASSERT_ALWAYS(session,
+      stable_decoded.size == ingest_decoded.size &&
+        (stable_decoded.size == 0 ||
+          memcmp(stable_decoded.data, ingest_decoded.data, stable_decoded.size) == 0),
+      "mirrored %s produced diverging constituent values", op);
+}
+
+/*
+ * __clayered_assert_mirrored_remove --
+ *     Check that a stable remove is represented by an ingest tombstone.
+ */
+static WT_INLINE void
+__clayered_assert_mirrored_remove(WT_SESSION_IMPL *session, const WT_ITEM *ingest_value)
+{
+    WT_ITEM stable_value = __wt_tombstone;
+
+    __clayered_assert_mirrored_values(session, &stable_value, ingest_value, "remove");
+}
+#endif
+
 /*
  * __clayered_decode_current --
  *     Decode the value from the layered cursor's current constituent.
@@ -3239,6 +3274,11 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_ERR(c_ingest->update(c_ingest));
     clayered->current_cursor = c_ingest;
 
+#ifdef HAVE_DIAGNOSTIC
+    /* A remove has no stable value; compare its logical tombstone with the ingest marker. */
+    __clayered_assert_mirrored_remove(session, &c_ingest->value);
+#endif
+
 err:
     /* A failed mirror leaves the stable-side removal without its ingest counterpart. */
     if (ret != 0)
@@ -4027,17 +4067,7 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 
 #ifdef HAVE_DIAGNOSTIC
     /* A diverging mirror fails silently at pickup; catch it at the point of divergence. */
-    {
-        WT_ITEM ingest_result = c_ingest->value;
-        WT_ITEM stable_result = op->stable->value;
-        __clayered_deleted_decode(session, &stable_result, true);
-        __clayered_deleted_decode(session, &ingest_result, false);
-        WT_ASSERT_ALWAYS(session,
-          stable_result.size == ingest_result.size &&
-            (stable_result.size == 0 ||
-              memcmp(stable_result.data, ingest_result.data, stable_result.size) == 0),
-          "mirrored modify produced diverging constituent values");
-    }
+    __clayered_assert_mirrored_values(session, &op->stable->value, &c_ingest->value, "modify");
 #endif
 
     if (!F_ISSET(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV))

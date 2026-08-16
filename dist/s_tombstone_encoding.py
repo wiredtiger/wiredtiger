@@ -160,6 +160,7 @@ TOMBSTONE_ALLOWED = {
     "__clayered_value_in_tombstone_namespace",
     "__clayered_deleted_encode",
     "__clayered_deleted_decode",
+    "__clayered_assert_mirrored_remove",
     "__wt_clayered_stable_value_stat",
     "__wt_clayered_ingest_to_stable_value",
 }
@@ -229,7 +230,7 @@ CALLGRAPH_GOLDEN_CALLERS = {
         "__clayered_modify_both", "__clayered_modify_ingest", "__clayered_modify_stable",
         "__clayered_put", STABLE_TO_INGEST_FN}),
     DECODE_FN: frozenset({
-        "__clayered_decode_current", "__clayered_insert", "__clayered_modify_both",
+        "__clayered_assert_mirrored_values", "__clayered_decode_current", "__clayered_insert",
         "__clayered_modify_stable", "__clayered_modify_try_ingest", INGEST_TO_STABLE_FN}),
     DECODE_CURRENT_FN: frozenset({
         "__clayered_copy_duplicate_kv", "__clayered_iterate", "__clayered_modify",
