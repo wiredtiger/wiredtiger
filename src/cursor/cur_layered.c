@@ -3046,6 +3046,8 @@ __clayered_put(
           op, op->ingest, key, put_op == WTI_CLAYERED_PUT_RESERVE ? NULL : &ingest_value, put_op);
         if (ret != 0)
             F_SET(session->txn, WT_TXN_ERROR);
+        else
+            WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
     } else {
         WT_CURSOR *c = op->write_target == WTI_CLAYERED_WRITE_INGEST ? op->ingest : op->stable;
         bool to_stable = c != op->ingest;
@@ -3273,6 +3275,7 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     c_ingest->set_value(c_ingest, &__wt_tombstone);
     WT_ERR(c_ingest->update(c_ingest));
     clayered->current_cursor = c_ingest;
+    WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
 
 #ifdef HAVE_DIAGNOSTIC
     /* A remove has no stable value; compare its logical tombstone with the ingest marker. */
@@ -4064,6 +4067,7 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, false, &c_ingest->value, &buf));
     F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
     WT_ERR(c_ingest->update(c_ingest));
+    WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
 
 #ifdef HAVE_DIAGNOSTIC
     /* A diverging mirror fails silently at pickup; catch it at the point of divergence. */

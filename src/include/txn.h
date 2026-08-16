@@ -207,6 +207,7 @@ struct __wt_txn_global {
     wt_shared wt_timestamp_t stable_timestamp;
     wt_shared wt_timestamp_t step_down_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t step_down_timestamp;
+    wt_shared uint64_t step_down_start_time;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;

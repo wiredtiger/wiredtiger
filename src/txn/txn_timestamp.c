@@ -756,6 +756,7 @@ set:
      */
     if (has_step_down) {
         __wt_atomic_store_uint64_relaxed(&txn_global->step_down_timestamp, step_down_ts);
+        __wt_atomic_store_uint64_relaxed(&txn_global->step_down_start_time, __wt_clock(session));
         if (has_step_down_epoch)
             __wt_atomic_store_uint64_relaxed(
               &txn_global->step_down_disaggregated_schema_epoch, step_down_epoch);

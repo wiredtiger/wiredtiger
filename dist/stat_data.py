@@ -645,8 +645,10 @@ conn_stats = [
         'stable tombstone encoding mode: 0 not yet determined, 1 legacy escaped, 2 unescaped',
         'no_clear,no_scale'),
     DisaggStat('disagg_step_down_in_progress', 'step down in progress', 'no_clear,no_scale'),
+    DisaggStat('disagg_step_down_mirrored_writes', 'writes mirrored during step-down windows'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_down_window_creates', 'tables created without a stable constituent while the step-down timestamp is set'),
+    DisaggStat('disagg_step_down_window_time', 'step-down window most recent time (msecs)'),
     DisaggStat('disagg_step_up_in_progress', 'step up in progress', 'no_clear,no_scale'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
 
