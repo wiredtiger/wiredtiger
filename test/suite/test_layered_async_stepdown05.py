@@ -63,6 +63,42 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.set_step_down_ts(20), '/can only be set on a disaggregated leader/')
 
+    # A planned boundary cannot strand a prepared update on the live stable handle.
+    def test_step_down_ts_with_prepared_transaction_rejected(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'prepared'
+        self.session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(10) +
+            ',prepared_id=' + self.prepared_id_str(1))
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.set_step_down_ts(20), '/while prepared transactions are active/')
+
+        self.session.rollback_transaction()
+        cursor.close()
+        self.set_step_down_ts(20)
+
+    # Preparing after boundary publication is rejected before the transaction becomes prepared.
+    def test_prepare_transaction_with_step_down_ts_rejected(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'mirrored'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(
+                'prepare_timestamp=' + self.timestamp_str(30) +
+                ',prepared_id=' + self.prepared_id_str(1)),
+            '/not supported while the step-down timestamp is set/')
+        self.session.rollback_transaction()
+        cursor.close()
+
     # The cutoff must sit at or ahead of all_durable; setting it exactly there is allowed.
     def test_step_down_ts_below_all_durable_rejected(self):
         self.set_global_ts(1, 1)

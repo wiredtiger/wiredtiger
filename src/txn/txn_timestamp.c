@@ -628,6 +628,15 @@ set:
             WT_RET_MSG(session, EINVAL,
               "set_timestamp: step down timestamp can only be set on a disaggregated leader");
         }
+        if (has_step_down &&
+          __wt_atomic_load_uint64_relaxed(&txn_global->step_down_prepared_count) != 0) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            __wt_spin_unlock(session, &S2C(session)->schema_lock);
+            WT_RET_MSG(session, EBUSY,
+              "set_timestamp: step down timestamp cannot be set while prepared transactions are "
+              "active");
+        }
 
         last_stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
         if (has_step_down &&

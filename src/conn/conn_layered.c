@@ -1415,9 +1415,10 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     __wt_writeunlock(session, &conn->txn_global.step_down_lock);
     WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 0);
     WT_STAT_CONN_SET(session, txn_stepdown_epoch_set, 0);
-    WT_STAT_CONN_SET(session, disagg_step_down_window_time,
-      WT_CLOCKDIFF_MS(__wt_clock(session),
-        __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_start_time)));
+    if (step_down_ts != WT_TS_NONE)
+        WT_STAT_CONN_SET(session, disagg_step_down_window_time,
+          WT_CLOCKDIFF_MS(__wt_clock(session),
+            __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_start_time)));
 
 err:
     WT_STAT_CONN_SET(session, disagg_step_down_in_progress, 0);

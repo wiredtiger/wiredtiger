@@ -72,6 +72,11 @@ class test_layered_eviction03_stepdown(LayeredStepdownMixin, wttest.WiredTigerTe
 
     conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="leader")'
 
+    def test_unplanned_stepdown_has_no_window_time(self):
+        self.assertEqual(self.get_stat(stat.conn.disagg_step_down_window_time), 0)
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.assertEqual(self.get_stat(stat.conn.disagg_step_down_window_time), 0)
+
     def test_stepdown_window_skips_dirty_app_evict(self):
         uri = f"layered:{self.test_name}"
         self.set_global_ts(1, 1)

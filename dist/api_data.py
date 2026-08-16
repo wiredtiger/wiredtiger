@@ -2394,14 +2394,14 @@ methods = {
         set'''),
     Config('step_down_timestamp', '', r'''
         the timestamp that prepares for a planned step-down in disaggregated storage. The
-        application must ensure the timestamp is at least as new as every commit timestamp
+        application must ensure the timestamp is newer than every commit timestamp
         already allocated, and that no new timestamp is allocated until this call returns. Once
-        set, writes are mirrored locally so their content survives the step-down, and their commit
-        timestamps must be after this timestamp. An in-flight transaction with earlier unmirrored
-        stable writes is rolled back for the application to retry. Before stepping down, the
-        application must advance the stable timestamp to equal it and checkpoint at that boundary.
-        When schema epochs are in use, \c step_down_disaggregated_schema_epoch should be supplied
-        in the same call. Cannot be changed while set; only valid on a leader'''),
+        set, write transactions that start after it is set are kept locally so their content
+        survives the step-down, and their commit timestamps must be after this timestamp;
+        in-flight write transactions are rolled back for the application to retry. Before stepping
+        down, the application must advance the stable timestamp to equal it and checkpoint at that
+        boundary. When schema epochs are in use, \c step_down_disaggregated_schema_epoch should
+        be supplied in the same call. Cannot be changed while set; only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([

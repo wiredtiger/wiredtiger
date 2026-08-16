@@ -131,6 +131,30 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'v'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
 
+    # An unrelated raw ingest write cannot satisfy the mirror requirement for a stable-only write.
+    def test_unrelated_ingest_write_does_not_mask_straddler(self):
+        other_uri = f'layered:{self.test_name}_other'
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.session.create(other_uri, 'key_format=S,value_format=S')
+
+        stable_cursor = self.session.open_cursor(self.uri, None, None)
+        ingest_cursor = self.session.open_cursor(self.ingest_uri(other_uri), None, None)
+        self.session.begin_transaction()
+        stable_cursor['stable'] = 'unmirrored'
+
+        self.set_step_down_ts(20)
+        ingest_cursor['ingest'] = 'unrelated'
+
+        self.assert_step_down_rollback(
+            lambda: self.session.commit_transaction(
+                'commit_timestamp=' + self.timestamp_str(30)))
+        stable_cursor.close()
+        ingest_cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(other_uri), 40), set())
+
     # A straddler rolls back even when committing at or below the cutoff.
     def test_straddler_commit_below_cutoff_also_rolls_back(self):
         self.set_global_ts(1, 1)

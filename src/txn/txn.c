@@ -955,6 +955,12 @@ __txn_release(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, txn->mod_count == 0);
 
+    if (__wt_conn_is_disagg(session) && F_ISSET(txn, WT_TXN_PREPARE)) {
+        WT_ASSERT(
+          session, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_prepared_count) > 0);
+        (void)__wt_atomic_sub_uint64(&txn_global->step_down_prepared_count, 1);
+    }
+
     /* Clear the transaction's ID from the global table. */
     if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         WT_ASSERT(session,
@@ -1743,13 +1749,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * releasing the snapshot, which holds the role generation needed to recognize a transaction
      * from before a completed step-down.
      */
-    if (!readonly && !prepare && __wt_conn_is_disagg(session) &&
-      !F_ISSET(
-        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER)) {
+    if (!readonly && __wt_conn_is_disagg(session) &&
+      (prepare ||
+        !F_ISSET(
+          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER))) {
         __wt_readlock(session, &txn_global->step_down_lock);
         stepdown_locked = true;
-        WT_ERR(__wt_txn_stepdown_straddler_check(
-          session, true, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp)));
+        if (!prepare)
+            WT_ERR(__wt_txn_stepdown_straddler_check(
+              session, true, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp)));
     }
     __wt_txn_release_snapshot(session);
 
@@ -2319,7 +2327,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool prepare, readonly;
+    bool prepare, readonly, stepdown_locked;
 
     cursor = NULL;
     key = NULL;
@@ -2330,6 +2338,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
+    stepdown_locked = false;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
@@ -2337,8 +2346,16 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     WT_TRET(__txn_config_operation_timeout(session, cfg, true));
 
     /* Set the rollback timestamp if it is an user api call. */
-    if (api_call)
-        WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+    if (api_call) {
+        ret = __wt_txn_set_timestamp(session, cfg, false);
+        if (ret != 0)
+            goto err;
+    }
+
+    if (prepare && __wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
+        stepdown_locked = true;
+    }
 
     /*
      * Release our snapshot in case it is keeping data pinned. This will not make the updates
@@ -2445,6 +2462,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 
     __txn_release(session);
 
+    if (stepdown_locked)
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
+
     /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so. The
      * return must reflect the transaction state, ignore any error returned, and clear the
@@ -2461,6 +2481,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
         if (save_errors)
             F_SET(session, WT_SESSION_SAVE_ERRORS);
     }
+    return (ret);
+
+err:
+    if (stepdown_locked)
+        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     return (ret);
 }
 

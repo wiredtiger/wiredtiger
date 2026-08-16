@@ -1972,9 +1972,27 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *tmp_mod;
+    bool prepared_reserved;
     txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
+    prepared_reserved = false;
+
     WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
+
+    if (__wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &txn_global->step_down_lock);
+        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE) {
+            __wt_readunlock(session, &txn_global->step_down_lock);
+            WT_RET_MSG(session, EBUSY,
+              "prepared transactions are not supported while the step-down timestamp is set");
+        }
+        (void)__wt_atomic_add_uint64(&txn_global->step_down_prepared_count, 1);
+        prepared_reserved = true;
+        __wt_readunlock(session, &txn_global->step_down_lock);
+    }
+
     txn->time_point.prepared_id = prepared_id;
     txn->time_point.prepare_timestamp = prepared_item->prepare_timestamp;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE);
@@ -1996,10 +2014,17 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
-    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
+    ret = __wt_prepared_discover_remove_item(session, prepared_id);
+    if (ret != 0)
+        goto err;
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
+    return (ret);
+
+err:
+    if (prepared_reserved && !F_ISSET(txn, WT_TXN_PREPARE))
+        (void)__wt_atomic_sub_uint64(&txn_global->step_down_prepared_count, 1);
     return (ret);
 }
 
@@ -2010,14 +2035,13 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
  *     ingest constituent to survive the role change. A transaction whose stable writes all predate
  *     the timestamp being set has no such mirror, so if it commits above the timestamp its content
  *     sits only in stable, where nothing above the checkpoint survives. Detect that by shape: a
- *     stable constituent operation with no ingest operation in the transaction. Return WT_ROLLBACK
+ *     stable constituent operation not marked with a completed ingest mirror. Return WT_ROLLBACK
  *     and have the application retry as a new transaction, whose writes mirror.
  *
  * The caller supplies the step-down timestamp. At commit it is read under the step-down lock, which
  *     is held until the transaction resolves. At a cursor write it is the same sample that routes
  *     the write, so an operation that routes as an unmirrored stable write saw the timestamp unset,
- *     and any later operation of the transaction that sees it set is rejected here before it can
- *     add a mirrored write and hide the earlier one from the commit-time shape check. The role
+ *     and any later operation of the transaction that sees it set is rejected here. The role
  *     generation catches an unmirrored writer after step-down completion clears the timestamp.
  */
 static WT_INLINE int
@@ -2044,9 +2068,9 @@ __wt_txn_stepdown_straddler_check(
 
     WT_TXN_OP *op;
     u_int i;
-    bool wrote_ingest, wrote_stable;
+    bool unmirrored_stable, wrote_ingest;
 
-    wrote_ingest = wrote_stable = false;
+    unmirrored_stable = wrote_ingest = false;
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         if (op->type == WT_TXN_OP_NONE || op->btree == NULL)
             continue;
@@ -2056,22 +2080,20 @@ __wt_txn_stepdown_straddler_check(
          */
         if (WT_IS_DISAGG_META(op->btree->dhandle) || WT_IS_HS(op->btree->dhandle))
             continue;
-        wrote_stable |= WT_URI_IS_STABLE(op->btree->dhandle->name);
-        wrote_ingest |= WT_URI_IS_INGEST(op->btree->dhandle->name);
-        if (wrote_ingest) {
-            if (role_changed && !completed_step_down)
-                break;
-            if (stepdown_ts != WT_TS_NONE &&
-              F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
-              txn->first_commit_timestamp <= stepdown_ts)
-                WT_RET_MSG(session, EINVAL,
-                  "commit timestamp %s must be after the step down timestamp %s",
-                  __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[0]),
-                  __wt_timestamp_to_string(stepdown_ts, ts_string[1]));
-            return (0);
-        }
+        if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+            unmirrored_stable |= !F_ISSET(op, WT_TXN_OP_LAYERED_MIRRORED);
+        } else if (WT_URI_IS_INGEST(op->btree->dhandle->name))
+            wrote_ingest = true;
     }
-    if (!wrote_stable && !(wrote_ingest && role_changed))
+
+    if (wrote_ingest && stepdown_ts != WT_TS_NONE &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+      txn->first_commit_timestamp <= stepdown_ts)
+        WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the step down timestamp %s",
+          __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(stepdown_ts, ts_string[1]));
+
+    if (!unmirrored_stable && (!role_changed || completed_step_down))
         return (0);
 
     __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s",

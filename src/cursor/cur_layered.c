@@ -545,6 +545,11 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Establish an implicit write transaction before resolving its role era. */
+    if (mode == WTI_CLAYERED_MODE_WRITE)
+        WT_RET(__wt_txn_autocommit_check(session));
+
     WTI_CLAYERED_ROLE role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
       WTI_CLAYERED_ROLE_LEADER :
       WTI_CLAYERED_ROLE_FOLLOWER;
@@ -603,6 +608,22 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     }
 
     return (0);
+}
+
+/*
+ * __clayered_mark_stable_mirrored --
+ *     Mark stable operations whose ingest counterpart was installed successfully.
+ */
+static WT_INLINE void
+__clayered_mark_stable_mirrored(WT_SESSION_IMPL *session, uint32_t first, uint32_t last)
+{
+    WT_TXN_OP *op;
+
+    for (; first < last; ++first) {
+        op = &session->txn->mod[first];
+        WT_ASSERT(session, op->btree != NULL && WT_URI_IS_STABLE(op->btree->dhandle->name));
+        F_SET(op, WT_TXN_OP_LAYERED_MIRRORED);
+    }
 }
 
 /*
@@ -3018,11 +3039,13 @@ __clayered_put(
     WT_ITEM ingest_value, stable_value;
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     WT_DECL_RET;
+    uint32_t stable_mod_begin, stable_mod_end;
 
     WT_CLEAR(ingest_value);
     WT_CLEAR(stable_value);
 
     if (op->write_target == WTI_CLAYERED_WRITE_BOTH) {
+        stable_mod_begin = session->txn->mod_count;
         /*
          * Both encodings are built before either write: the value must not be read back after the
          * stable write has consumed it. A reserve carries no value, but still mirrors so the
@@ -3036,6 +3059,7 @@ __clayered_put(
         /* Stable must be updated first so the engine's conflict check is authoritative. */
         WT_ERR(__clayered_put_constituent(
           op, op->stable, key, put_op == WTI_CLAYERED_PUT_RESERVE ? NULL : &stable_value, put_op));
+        stable_mod_end = session->txn->mod_count;
 
         /*
          * Once stable is written the mirror is mandatory: stable content above the cutover survives
@@ -3046,8 +3070,10 @@ __clayered_put(
           op, op->ingest, key, put_op == WTI_CLAYERED_PUT_RESERVE ? NULL : &ingest_value, put_op);
         if (ret != 0)
             F_SET(session->txn, WT_TXN_ERROR);
-        else
+        else {
+            __clayered_mark_stable_mirrored(session, stable_mod_begin, stable_mod_end);
             WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
+        }
     } else {
         WT_CURSOR *c = op->write_target == WTI_CLAYERED_WRITE_INGEST ? op->ingest : op->stable;
         bool to_stable = c != op->ingest;
@@ -3267,6 +3293,10 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_CURSOR *c_ingest = op->ingest;
     WT_DECL_RET;
+    uint32_t stable_mod_begin;
+
+    WT_ASSERT(session, session->txn->mod_count > 0);
+    stable_mod_begin = session->txn->mod_count - 1;
 
     WT_ERR(__clayered_reset_cursors(clayered, true));
     WT_ERR(__wt_layered_table_truncate_detect_write_conflict(
@@ -3274,6 +3304,7 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     c_ingest->set_key(c_ingest, key);
     c_ingest->set_value(c_ingest, &__wt_tombstone);
     WT_ERR(c_ingest->update(c_ingest));
+    __clayered_mark_stable_mirrored(session, stable_mod_begin, stable_mod_begin + 1);
     clayered->current_cursor = c_ingest;
     WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
 
@@ -4042,6 +4073,7 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
     WT_ITEM value;
     bool stable_written = false;
+    uint32_t stable_mod_begin, stable_mod_end;
 
     WT_CLEAR(value);
 
@@ -4058,7 +4090,9 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     __clayered_decode_current(clayered, base);
 
     /* Stable must be updated first so the engine's conflict check is authoritative. */
+    stable_mod_begin = session->txn->mod_count;
     WT_ERR(__clayered_modify_stable(op, entries, nentries));
+    stable_mod_end = session->txn->mod_count;
     stable_written = true;
 
     c_ingest->set_key(c_ingest, &cursor->key);
@@ -4067,6 +4101,7 @@ __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
     WT_ERR(__clayered_deleted_encode(session, &c_ingest->value, false, &c_ingest->value, &buf));
     F_SET(c_ingest, WT_CURSTD_VALUE_EXT);
     WT_ERR(c_ingest->update(c_ingest));
+    __clayered_mark_stable_mirrored(session, stable_mod_begin, stable_mod_end);
     WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
 
 #ifdef HAVE_DIAGNOSTIC

@@ -208,6 +208,7 @@ struct __wt_txn_global {
     wt_shared wt_timestamp_t step_down_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t step_down_timestamp;
     wt_shared uint64_t step_down_start_time;
+    wt_shared uint64_t step_down_prepared_count;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
     wt_shared bool has_durable_timestamp;
@@ -329,6 +330,7 @@ struct __wt_txn_op {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_OP_KEY_REPEATED 0x1u
+#define WT_TXN_OP_LAYERED_MIRRORED 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
