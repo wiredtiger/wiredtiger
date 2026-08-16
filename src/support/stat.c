@@ -353,6 +353,7 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
   "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
+  "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
@@ -844,6 +845,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_open_stable_refused = 0;
     stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
+    stats->layered_stable_live_open_refused = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
     stats->layered_curs_stable_value_tombstone = 0;
@@ -1332,6 +1334,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_open_stable_refused += from->layered_curs_open_stable_refused;
     to->layered_curs_open_stable_stepdown_race += from->layered_curs_open_stable_stepdown_race;
     to->layered_curs_update += from->layered_curs_update;
+    to->layered_stable_live_open_refused += from->layered_stable_live_open_refused;
     to->layered_curs_stable_value_tombstone_prefix +=
       from->layered_curs_stable_value_tombstone_prefix;
     to->layered_curs_stable_value_tombstone_suffix +=
@@ -1869,6 +1872,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_open_stable_stepdown_race +=
       WT_STAT_DSRC_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
+    to->layered_stable_live_open_refused +=
+      WT_STAT_DSRC_READ(from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
       WT_STAT_DSRC_READ(from, layered_curs_stable_value_tombstone_prefix);
     to->layered_curs_stable_value_tombstone_suffix +=
@@ -2695,6 +2700,7 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor stable open refused to preserve a transaction snapshot",
   "layered: Layered table cursor stable open rolled back after racing a step-down",
   "layered: Layered table cursor update operations",
+  "layered: Layered table live stable open refused on a follower",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
   "a non-tombstone byte",
   "layered: Layered table stable values beginning with the tombstone byte sequence and ending with "
@@ -3816,6 +3822,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_open_stable_refused = 0;
     stats->layered_curs_open_stable_stepdown_race = 0;
     stats->layered_curs_update = 0;
+    stats->layered_stable_live_open_refused = 0;
     stats->layered_curs_stable_value_tombstone_prefix = 0;
     stats->layered_curs_stable_value_tombstone_suffix = 0;
     stats->layered_curs_stable_value_tombstone = 0;
@@ -5068,6 +5075,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_open_stable_stepdown_race +=
       WT_STAT_CONN_READ(from, layered_curs_open_stable_stepdown_race);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
+    to->layered_stable_live_open_refused +=
+      WT_STAT_CONN_READ(from, layered_stable_live_open_refused);
     to->layered_curs_stable_value_tombstone_prefix +=
       WT_STAT_CONN_READ(from, layered_curs_stable_value_tombstone_prefix);
     to->layered_curs_stable_value_tombstone_suffix +=

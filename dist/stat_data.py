@@ -1483,6 +1483,7 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_stable_value_tombstone_suffix', 'Layered table stable values beginning with the tombstone byte sequence and ending with a tombstone byte'),
     LayeredStat('layered_curs_stable_value_tombstone_x3', 'Layered table stable values equal to three tombstone bytes'),
     LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
+    LayeredStat('layered_stable_live_open_refused', 'Layered table live stable open refused on a follower'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
     LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_failed', 'disagg pick up checkpoints failed'),

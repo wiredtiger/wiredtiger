@@ -613,20 +613,19 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
             F_SET(btree, WT_BTREE_DISAGGREGATED);
 
             /*
-             * An open dispatched on a leader-role read (a layered cursor's stable constituent, a
-             * statistics cursor's stable table, a history store lookup) can race with a step-down.
-             * This open holds the schema lock the step-down serializes on, so the role read here is
-             * current: fail the open before the tree comes to life, with the rollback the
-             * application already retries on. The retried operation derives the follower role and
-             * opens the checkpoint view instead.
+             * Only a leader may open a live stable tree: an open on a follower raced a role and
+             * would leave a writable live data handle no follower reader can safely use. This open
+             * holds the schema lock a role change serializes on, so the role read here is current.
+             * Fail with EBUSY, the error an open's callers already expect from a busy handle.
+             * Checkpoint views, the shared metadata table and the shared history store are exempt.
              */
-            if (session->open_requires_leader &&
+            if (__wt_conn_is_disagg(session) &&
+              !__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) &&
+              WT_URI_IS_STABLE(btree->dhandle->name) &&
               !WT_URI_IS_STABLE_CHECKPOINT(btree->dhandle->name) &&
-              !__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader)) {
-                /* Only application sessions can retry a rollback. */
-                WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
-                WT_RET_SUB(session, WT_ROLLBACK, WT_NONE,
-                  "the live stable table open raced a step-down to the follower role");
+              !WT_IS_URI_METADATA(btree->dhandle->name) && !WT_IS_URI_HS(btree->dhandle->name)) {
+                WT_STAT_CONN_INCR(session, layered_stable_live_open_refused);
+                return (__wt_set_return(session, EBUSY));
             }
 
             WT_RET(__btree_setup_page_log(session, btree));
