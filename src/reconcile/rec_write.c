@@ -23,7 +23,7 @@ static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
 static int __rec_wrapup_decrease_disagg_size(
   WT_SESSION_IMPL *, WTI_RECONCILE *, const uint8_t *, size_t);
-static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
+static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_RECONCILE_TIMELINE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
@@ -190,6 +190,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /*
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
      * that information.
+     *
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
@@ -322,6 +323,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_RECONCILE_TIMELINE timeline;
     WTI_RECONCILE *r;
     uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start;
     void *addr;
@@ -341,14 +343,18 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Initialize the reconciliation structures for each new run. */
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
-    WT_CLEAR(session->reconcile_timeline);
-    session->reconcile_timeline.reconcile_start = rec_start;
+
+    /*
+     * The timeline is per-call state: reconciliation nests, and writing a root page reconciles the
+     * replacement root before this call has read its own timings.
+     */
+    WT_CLEAR(timeline);
+    timeline.reconcile_start = rec_start;
+    session->total_reentry_hs_eviction_time = 0;
 
     r = session->reconcile;
 
-    /* Only update if we are in the first entry into eviction. */
-    if (!session->evict_timeline.reentry_hs_eviction)
-        session->reconcile_timeline.image_build_start = __wt_clock(session);
+    timeline.image_build_start = __wt_clock(session);
 
     /* Reconcile the page. */
     switch (page->type) {
@@ -378,8 +384,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-    if (!session->evict_timeline.reentry_hs_eviction)
-        session->reconcile_timeline.image_build_finish = __wt_clock(session);
+    timeline.image_build_finish = __wt_clock(session);
 
     if (F_ISSET(r, WT_REC_CHECKPOINT))
         WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
@@ -453,7 +458,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       session, WT_VERB_RECONCILE, "finished building disk image for %p", (void *)ref);
 
     /* Wrap up the page reconciliation. Panic on failure. */
-    WT_ERR(__rec_write_wrapup(session, r));
+    WT_ERR(__rec_write_wrapup(session, r, &timeline));
     __rec_write_page_status(session, r);
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(
@@ -490,19 +495,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * (it's just a statistic).
      */
     rec_finish = __wt_clock(session);
-    session->reconcile_timeline.reconcile_finish = rec_finish;
+    timeline.reconcile_finish = rec_finish;
 
-    rec_hs_wrapup = WT_CLOCKDIFF_MS(
-      session->reconcile_timeline.hs_wrapup_finish, session->reconcile_timeline.hs_wrapup_start);
-    rec_img_build = WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-      session->reconcile_timeline.image_build_start);
+    rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline.hs_wrapup_finish, timeline.hs_wrapup_start);
+    rec_img_build = WT_CLOCKDIFF_MS(timeline.image_build_finish, timeline.image_build_start);
     rec = WT_CLOCKDIFF_MS(rec_finish, rec_start);
 
-    /*
-     * Sanity check timings (WT_DAY is in seconds, and we have milliseconds). FIXME-WT-12192
-     * rec_hs_wrapup and rec_img_build should also have an assertion here.
-     */
+    /* Sanity check timings (WT_DAY is in seconds, and we have milliseconds). */
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
+    WT_ASSERT(session, rec_hs_wrapup <= rec && rec_img_build <= rec);
 
     if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
         conn->rec_maximum_hs_wrapup_milliseconds = rec_hs_wrapup;
@@ -510,10 +511,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->rec_maximum_image_build_milliseconds = rec_img_build;
     if (rec > conn->rec_maximum_milliseconds)
         conn->rec_maximum_milliseconds = rec;
-    if (session->reconcile_timeline.total_reentry_hs_eviction_time >
-      conn->evict->reentry_hs_eviction_ms)
-        conn->evict->reentry_hs_eviction_ms =
-          session->reconcile_timeline.total_reentry_hs_eviction_time;
+    if (session->total_reentry_hs_eviction_time > conn->evict->reentry_hs_eviction_ms)
+        conn->evict->reentry_hs_eviction_ms = session->total_reentry_hs_eviction_time;
+
+    /* Publish the completed timeline for the eviction statistics, which run after this returns. */
+    session->reconcile_timeline = timeline;
 
 err:
     if (ret != 0) {
@@ -2857,7 +2859,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     }
 
     WT_ERR(__wti_rec_split_finish(session, r));
-    WT_ERR(__rec_write_wrapup(session, r));
+    WT_ERR(__rec_write_wrapup(session, r, NULL));
     __rec_write_page_status(session, r);
 
     /* Mark the page's parent and the tree dirty. */
@@ -3057,7 +3059,7 @@ __rec_wrapup_decrease_disagg_size(
  *     Finish the reconciliation.
  */
 static int
-__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIMELINE *timeline)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -3088,9 +3090,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * fail, so try before clearing the page's previous reconciliation state.
      */
     if (F_ISSET(r, WT_REC_HS)) {
-        session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
+        /* Only reconciliation proper reaches the history store, and it always times the wrapup. */
+        WT_ASSERT(session, timeline != NULL);
+        timeline->hs_wrapup_start = __wt_clock(session);
         ret = __rec_hs_wrapup(session, r);
-        session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
+        timeline->hs_wrapup_finish = __wt_clock(session);
         WT_RET(ret);
     }
 

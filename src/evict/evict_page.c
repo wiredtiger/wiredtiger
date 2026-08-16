@@ -351,7 +351,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
          * We are in the reentrant history store eviction inside a data store reconciliation. Add to
          * the total time taken to do the reentrant history store eviction.
          */
-        session->reconcile_timeline.total_reentry_hs_eviction_time +=
+        session->total_reentry_hs_eviction_time +=
           WT_CLOCKDIFF_MS(session->evict_timeline.reentry_hs_evict_finish,
             session->evict_timeline.reentry_hs_evict_start);
         session->evict_timeline.reentry_hs_eviction = false;
