@@ -2011,8 +2011,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
  *     the timestamp being set has no such mirror, so if it commits above the timestamp its content
  *     sits only in stable, where nothing above the checkpoint survives. Detect that by shape: a
  *     stable constituent operation with no ingest operation in the transaction. Return WT_ROLLBACK
- *     and have the application retry as a new transaction, whose writes mirror. For read operations
- *     only the assertion applies.
+ *     and have the application retry as a new transaction, whose writes mirror.
  *
  * The caller supplies the step-down timestamp. At commit it is read under the step-down lock, which
  *     is held until the transaction resolves. At a cursor write it is the same sample that routes
@@ -2023,30 +2022,11 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
  */
 static WT_INLINE int
 __wt_txn_stepdown_straddler_check(
-  WT_SESSION_IMPL *session, bool is_writer, bool final_check, wt_timestamp_t stepdown_ts)
+  WT_SESSION_IMPL *session, bool is_writer, wt_timestamp_t stepdown_ts)
 {
     WT_TXN *txn = session->txn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool completed_step_down, role_changed;
-
-    WT_UNUSED(final_check);
-
-    /*
-     * While the step-down timestamp is set, layered operations must run in explicit snapshot
-     * transactions. Explicit, because an implicit (autocommit) transaction only begins inside the
-     * constituent operation, after this check and the constituent routing have made their
-     * decisions, so it would evade both. Snapshot, because a transaction decides once, at begin,
-     * whether its reads consult ingest, and that decision only stays correct while it keeps reading
-     * the state it saw at begin: under read-committed or read-uncommitted it would see newer
-     * commits without looking in the table they went to. The assertion comes before the early
-     * return so it also covers read operations.
-     */
-    WT_ASSERT(session,
-      final_check || stepdown_ts == WT_TS_NONE ||
-        F_ISSET(
-          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER) ||
-        (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
-          txn->isolation == WT_ISO_SNAPSHOT));
 
     if (F_ISSET(
           session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER))

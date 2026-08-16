@@ -532,7 +532,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      */
     if (mode != WTI_CLAYERED_MODE_LARGEST_KEY)
         WT_RET(__wt_txn_stepdown_straddler_check(
-          session, mode == WTI_CLAYERED_MODE_WRITE, false, step_down_ts));
+          session, mode == WTI_CLAYERED_MODE_WRITE, step_down_ts));
 
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
@@ -3231,16 +3231,18 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_CURSOR *c_ingest = op->ingest;
     WT_DECL_RET;
 
-    WT_RET(__clayered_reset_cursors(clayered, true));
-    WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+    WT_ERR(__clayered_reset_cursors(clayered, true));
+    WT_ERR(__wt_layered_table_truncate_detect_write_conflict(
       session, op->truncate_list, op->collator, key));
     c_ingest->set_key(c_ingest, key);
     c_ingest->set_value(c_ingest, &__wt_tombstone);
-    ret = c_ingest->update(c_ingest);
+    WT_ERR(c_ingest->update(c_ingest));
+    clayered->current_cursor = c_ingest;
+
+err:
+    /* A failed mirror leaves the stable-side removal without its ingest counterpart. */
     if (ret != 0)
         F_SET(session->txn, WT_TXN_ERROR);
-    if (ret == 0)
-        clayered->current_cursor = c_ingest;
     return (ret);
 }
 

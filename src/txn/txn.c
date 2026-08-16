@@ -1749,7 +1749,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_readlock(session, &txn_global->step_down_lock);
         stepdown_locked = true;
         WT_ERR(__wt_txn_stepdown_straddler_check(
-          session, true, true, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp)));
+          session, true, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp)));
     }
     __wt_txn_release_snapshot(session);
 

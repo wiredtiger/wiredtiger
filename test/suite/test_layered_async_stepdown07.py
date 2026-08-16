@@ -453,6 +453,24 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
 
+    # An autocommit write samples the cutoff before its implicit transaction starts and still mirrors.
+    def test_autocommit_write_mirrors(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'base': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor['key'] = 'mirrored'
+        cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 30),
+            {'base': 'stable', 'key': 'mirrored'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'key'})
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 30),
+            {'base': 'stable', 'key': 'mirrored'})
+
 # Write-conflict detection around the cutoff and the demotion, plus a checkpoint taken while the
 # cutoff is set.
 @disagg_test_class
