@@ -546,10 +546,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    /* Establish an implicit write transaction before resolving its role era. */
-    if (mode == WTI_CLAYERED_MODE_WRITE)
-        WT_RET(__wt_txn_autocommit_check(session));
-
     WTI_CLAYERED_ROLE role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
       WTI_CLAYERED_ROLE_LEADER :
       WTI_CLAYERED_ROLE_FOLLOWER;
