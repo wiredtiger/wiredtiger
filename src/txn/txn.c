@@ -2898,35 +2898,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * The fraction of the cache-wide dirty budget one transaction's fast-truncate may pin before it is
- * rolled back; leaving no headroom risks stalling the cache. The fraction is a heuristic.
- */
-#define WT_TRUNCATE_DIRTY_BUDGET_PCT 75
-
-/*
- * __txn_truncate_dirty_exceeded --
- *     Return whether the running transaction's fast-truncate has pinned more than its share of the
- *     cache's dirty eviction budget.
- */
-static bool
-__txn_truncate_dirty_exceeded(WT_SESSION_IMPL *session)
-{
-    uint64_t truncate_dirty_bytes = session->txn->truncate_dirty_bytes;
-
-    /* A transaction that has not fast-truncated anything can never exceed the budget. */
-    if (truncate_dirty_bytes == 0)
-        return (false);
-
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    double dirty_trigger = __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger);
-    uint64_t bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
-    uint64_t threshold =
-      (uint64_t)(dirty_trigger * (double)bytes_max) / 100 * WT_TRUNCATE_DIRTY_BUDGET_PCT / 100;
-
-    return (truncate_dirty_bytes >= threshold);
-}
-
-/*
  * __wt_txn_is_blocking --
  *     Return an error if this transaction is likely blocking eviction from making progress. Called
  *     by eviction to determine if a worker thread should be released, and by fast-truncate to bound
@@ -2940,7 +2911,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     double trigger;
-    uint64_t global_oldest;
+    uint64_t bytes_dirty, global_oldest;
     bool is_txn_id_global_oldest;
 
     conn = S2C(session);
@@ -2975,16 +2946,6 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 #endif
 
     /*
-     * A fast-truncate that has pinned too much dirty cache must roll back on its own, independent
-     * of transaction age: the internal pages it dirties cannot be evicted until the truncate is
-     * stable and can stall the cache by themselves.
-     */
-    if (__txn_truncate_dirty_exceeded(session)) {
-        WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
-        WT_RET_SUB(session, WT_ROLLBACK, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY);
-    }
-
-    /*
      * Once eviction is stuck, check if either the transaction's ID or its pinned ID is equal to the
      * oldest transaction ID: it is likely to be the reason the cache is stuck full.
      */
@@ -3004,7 +2965,9 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * A transaction whose own unresolved dirty content already exceeds the updates trigger (or the
      * dirty trigger, whichever is lower, since the two are not guaranteed to be ordered) can never
      * bring the cache back under that trigger by staying alive, so roll it back now while that is
-     * still legal.
+     * still legal. The dirty internal pages a fast-truncate pins count towards that footprint:
+     * eviction cannot reclaim them either, since they cannot be reconciled until the truncate is
+     * stable.
      *
      * Requires an actual modification: instantiating a fast-truncated column-store page while
      * reading it charges dirty bytes to whichever transaction happens to touch the page
@@ -3018,8 +2981,18 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
          * dirtied anything at all. Configuration never leaves either trigger at zero, so treat it
          * as a value we raced with rather than a threshold to enforce.
          */
-        if (trigger > DBL_EPSILON &&
-          txn->bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
+        bytes_dirty = txn->bytes_dirty + txn->truncate_dirty_bytes;
+        if (trigger > DBL_EPSILON && bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
+            /*
+             * Attribute the rollback to whichever half of the footprint dominates: a truncate that
+             * pinned mostly internal pages is a different diagnosis from a transaction that wrote
+             * too many updates.
+             */
+            if (txn->truncate_dirty_bytes > txn->bytes_dirty) {
+                WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
+                WT_RET_SUB(
+                  session, WT_ROLLBACK, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY);
+            }
             WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
             WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
               WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
