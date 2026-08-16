@@ -1974,21 +1974,6 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           WT_TS_NONE,
       "prepared transactions are not supported while the step-down timestamp is set");
 
-    /*
-     * This check is the guarantee: under the step-down lock it always observes a set timestamp, so
-     * no transaction holding unmirrored stable content commits after the timestamp is in place. The
-     * checks at cursor operations keep the transaction's operations from ever mixing unmirrored
-     * stable content with mirrored writes, which is what lets this check classify the transaction
-     * from the shape of its operation list alone.
-     */
-    if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        ret = __wt_txn_stepdown_straddler_check(session, true,
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp));
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
-        WT_ERR(ret);
-    }
-
 err:
     /*
      * We might have failed because an illegal configuration was specified or because there wasn't a

@@ -146,6 +146,27 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
             lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15)))
         cursor.close()
 
+    # Clearing the cutoff at demotion must not let an old stable-only transaction escape the
+    # straddler check.
+    def test_straddler_commit_after_demotion_rolls_back(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        cursor['k1'] = 'v'
+
+        self.set_step_down_ts(20)
+        self.complete_step_down(20)
+
+        self.assertEqual(self.step_down_ts_is_set(), 0)
+        self.assert_step_down_rollback(
+            lambda: self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30)))
+        cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 40), {})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
+
     # A straddler that wrote only a plain table commits: plain tables hold node-local content that
     # is not split across the layered constituents, so the mirror invariant does not apply.
     def test_straddler_plain_table_commits(self):

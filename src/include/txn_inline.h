@@ -2015,18 +2015,21 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
  *     only the assertion applies.
  *
  * The caller supplies the step-down timestamp. At commit it is read under the step-down lock, which
- *     orders it against the timestamp being set and makes that check the guarantee. At a cursor
- *     write it is the same sample that routes the write, so an operation that routes as an
- *     unmirrored stable write saw the timestamp unset, and any later operation of the transaction
- *     that sees it set is rejected here before it can add a mirrored write and hide the earlier one
- *     from the commit-time shape check. This soundness argument also assumes the timestamp is never
- *     cleared while write transactions run, which step-down completion guarantees.
+ *     is held until the transaction resolves. At a cursor write it is the same sample that routes
+ *     the write, so an operation that routes as an unmirrored stable write saw the timestamp unset,
+ *     and any later operation of the transaction that sees it set is rejected here before it can
+ *     add a mirrored write and hide the earlier one from the commit-time shape check. The role
+ *     generation catches an unmirrored writer after step-down completion clears the timestamp.
  */
 static WT_INLINE int
 __wt_txn_stepdown_straddler_check(
-  WT_SESSION_IMPL *session, bool is_writer, wt_timestamp_t stepdown_ts)
+  WT_SESSION_IMPL *session, bool is_writer, bool final_check, wt_timestamp_t stepdown_ts)
 {
     WT_TXN *txn = session->txn;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool completed_step_down, role_changed;
+
+    WT_UNUSED(final_check);
 
     /*
      * While the step-down timestamp is set, layered operations must run in explicit snapshot
@@ -2039,11 +2042,24 @@ __wt_txn_stepdown_straddler_check(
      * return so it also covers read operations.
      */
     WT_ASSERT(session,
-      stepdown_ts == WT_TS_NONE ||
+      final_check || stepdown_ts == WT_TS_NONE ||
+        F_ISSET(
+          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER) ||
         (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
           txn->isolation == WT_ISO_SNAPSHOT));
 
-    if (!is_writer || stepdown_ts == WT_TS_NONE)
+    if (F_ISSET(
+          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER))
+        return (0);
+
+    role_changed = F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0 &&
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) != __wt_gen(session, WT_GEN_DISAGG_ROLE);
+    completed_step_down = role_changed && txn->disagg_role_leader &&
+      !__wt_atomic_load_bool_acquire(&S2C(session)->layered_table_manager.leader) &&
+      __wt_gen(session, WT_GEN_DISAGG_ROLE) == __wt_session_gen(session, WT_GEN_DISAGG_ROLE) + 1;
+
+    if (!is_writer || (stepdown_ts == WT_TS_NONE && !role_changed))
         return (0);
 
     WT_TXN_OP *op;
@@ -2062,15 +2078,24 @@ __wt_txn_stepdown_straddler_check(
             continue;
         wrote_stable |= WT_URI_IS_STABLE(op->btree->dhandle->name);
         wrote_ingest |= WT_URI_IS_INGEST(op->btree->dhandle->name);
-        if (wrote_ingest)
+        if (wrote_ingest) {
+            if (role_changed && !completed_step_down)
+                break;
+            if (stepdown_ts != WT_TS_NONE &&
+              F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+              txn->first_commit_timestamp <= stepdown_ts)
+                WT_RET_MSG(session, EINVAL,
+                  "commit timestamp %s must be after the step down timestamp %s",
+                  __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[0]),
+                  __wt_timestamp_to_string(stepdown_ts, ts_string[1]));
             return (0);
+        }
     }
-    if (!wrote_stable)
+    if (!wrote_stable && !(wrote_ingest && role_changed))
         return (0);
 
-    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-      "step-down straddler rollback: txn began before stepdown timestamp was set %" PRIu64,
-      stepdown_ts);
+    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s",
+      "step-down straddler rollback: unmirrored stable content crossed the step-down boundary");
     WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
     __wt_session_set_last_error(
       session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);

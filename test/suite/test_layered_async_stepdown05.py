@@ -71,6 +71,13 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.set_step_down_ts(9),
             '/must not be older than the newest durable timestamp/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_timestamp(
+                'force=true,stable_timestamp=' + self.timestamp_str(9) +
+                ',step_down_timestamp=' + self.timestamp_str(9)),
+            '/must not be older than the newest durable timestamp/')
+        self.assertEqual(
+            self.conn.query_timestamp('get=stable_timestamp'), self.timestamp_str(1))
         self.set_step_down_ts(10)
 
     # Stable may reach the cutoff exactly but never pass it.
@@ -82,7 +89,23 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(21)),
             '/must not advance past the step down timestamp/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_timestamp(
+                'force=true,stable_timestamp=' + self.timestamp_str(21)),
+            '/must not advance past the step down timestamp/')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+
+    # A single call cannot place stable above the boundary it publishes.
+    def test_stable_and_step_down_ts_inconsistent_in_one_call(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_timestamp(
+                'force=true,stable_timestamp=' + self.timestamp_str(21) +
+                ',step_down_timestamp=' + self.timestamp_str(20)),
+            '/must not be older than the stable timestamp/')
+        self.assertEqual(
+            self.conn.query_timestamp('get=stable_timestamp'), self.timestamp_str(1))
 
     # Setting the cutoff and advancing stable to it in one call takes full effect.
     def test_step_down_ts_and_stable_in_one_call(self):
@@ -146,6 +169,25 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
         cursor.close()
 
         # The rejected commits left nothing behind in either constituent.
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
+        self.assertEqual(self.read_kvs_at(self.uri, 25), {})
+
+    # Supplying the commit timestamp before the cutoff is set must not bypass final validation when
+    # the transaction adds mirrored writes afterwards.
+    def test_early_commit_timestamp_at_cutoff_rejected(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.session.begin_transaction()
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
+
+        self.set_step_down_ts(20)
+        cursor['k1'] = 'v'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            self.session.commit_transaction, '/must be after the step down timestamp/')
+        cursor.close()
+
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 25), set())
         self.assertEqual(self.read_kvs_at(self.uri, 25), {})
 

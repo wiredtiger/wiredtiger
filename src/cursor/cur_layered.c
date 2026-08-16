@@ -532,7 +532,7 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      */
     if (mode != WTI_CLAYERED_MODE_LARGEST_KEY)
         WT_RET(__wt_txn_stepdown_straddler_check(
-          session, mode == WTI_CLAYERED_MODE_WRITE, step_down_ts));
+          session, mode == WTI_CLAYERED_MODE_WRITE, false, step_down_ts));
 
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to

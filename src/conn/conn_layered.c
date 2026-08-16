@@ -1404,13 +1404,9 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Clear the step-down timestamp and epoch. No write transaction runs concurrently with the
-     * step-down completion; the write-time routing and the commit-time straddler check both assume
-     * the timestamp is never cleared out from under a running writer, since a write that sampled
-     * the timestamp as set must still see it set at commit for the mirror invariant to hold. The
-     * lock pairs with the commit-time check: a commit that took the read lock before this point has
-     * fully resolved, and one after it observes the cleared timestamp together with the completed
-     * role change.
+     * Clear the step-down timestamp and epoch. The lock pairs with the final commit check: an older
+     * unmirrored writer either resolves before this point or observes the completed role generation
+     * after the boundary is cleared and rolls back.
      */
     __wt_writelock(session, &conn->txn_global.step_down_lock);
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.step_down_timestamp, WT_TS_NONE);

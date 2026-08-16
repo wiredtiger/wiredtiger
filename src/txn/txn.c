@@ -1673,7 +1673,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     bool wrote_ingest, wrote_stable;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    bool cannot_fail, locked, prepare, readonly, stepdown_locked, update_durable_ts;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1689,7 +1689,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     recno = WT_RECNO_OOB;
     readonly = txn->mod_count == 0;
-    cannot_fail = locked = false;
+    cannot_fail = locked = stepdown_locked = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1736,6 +1736,20 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (session->ncursors > 0 && !prepare) {
         WT_DIAGNOSTIC_YIELD;
         WT_ERR(__wt_session_copy_values(session));
+    }
+
+    /*
+     * Serialize the final mirror check with boundary publication and clearing. Check before
+     * releasing the snapshot, which holds the role generation needed to recognize a transaction
+     * from before a completed step-down.
+     */
+    if (!readonly && !prepare && __wt_conn_is_disagg(session) &&
+      !F_ISSET(
+        session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER)) {
+        __wt_readlock(session, &txn_global->step_down_lock);
+        stepdown_locked = true;
+        WT_ERR(__wt_txn_stepdown_straddler_check(
+          session, true, true, __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp)));
     }
     __wt_txn_release_snapshot(session);
 
@@ -2059,6 +2073,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
           "durable timestamp");
     }
 
+    if (stepdown_locked) {
+        __wt_readunlock(session, &txn_global->step_down_lock);
+    }
+
     /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so. The
      * return must reflect the transaction state, ignore any error returned, and clear the
@@ -2078,6 +2096,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
+    if (stepdown_locked)
+        __wt_readunlock(session, &txn_global->step_down_lock);
+
     /*
      * Leave the commit generation in the error case.
      */

@@ -606,6 +606,99 @@ set:
     if (has_step_down)
         __wt_spin_lock_track(session, &S2C(session)->schema_lock);
     __wt_writelock(session, &txn_global->rwlock);
+
+    if (has_step_down || has_stable || has_stable_disagg_epoch) {
+        __wt_writelock(session, &txn_global->step_down_lock);
+
+        current_step_down_ts = __wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp);
+        current_step_down_epoch =
+          __wt_atomic_load_uint64_relaxed(&txn_global->step_down_disaggregated_schema_epoch);
+
+        if (has_step_down && current_step_down_ts != WT_TS_NONE) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            __wt_spin_unlock(session, &S2C(session)->schema_lock);
+            WT_RET_MSG(session, EINVAL, "set_timestamp: step down timestamp is already set");
+        }
+        if (has_step_down &&
+          !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            __wt_spin_unlock(session, &S2C(session)->schema_lock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down timestamp can only be set on a disaggregated leader");
+        }
+
+        last_stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
+        if (has_step_down &&
+          ((__wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) &&
+             step_down_ts < last_stable_ts) ||
+            (has_stable && step_down_ts < stable_ts))) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            __wt_spin_unlock(session, &S2C(session)->schema_lock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down timestamp %s must not be older than the stable timestamp "
+              "%s",
+              __wt_timestamp_to_string(step_down_ts, ts_string[0]),
+              __wt_timestamp_to_string(WT_MAX(last_stable_ts, stable_ts), ts_string[1]));
+        }
+        if (has_stable && current_step_down_ts != WT_TS_NONE && stable_ts > current_step_down_ts) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: stable timestamp %s must not advance past the step down timestamp %s",
+              __wt_timestamp_to_string(stable_ts, ts_string[0]),
+              __wt_timestamp_to_string(current_step_down_ts, ts_string[1]));
+        }
+
+        /*
+         * A commit can finish after the initial validation and before this publication point. Check
+         * again here so the boundary covers every stable commit ordered before it.
+         */
+        last_durable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
+        if (has_step_down &&
+          ((__wt_atomic_load_bool_relaxed(&txn_global->has_durable_timestamp) &&
+             step_down_ts < last_durable_ts) ||
+            (has_durable && step_down_ts < durable_ts))) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            __wt_spin_unlock(session, &S2C(session)->schema_lock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down timestamp %s must not be older than the newest durable "
+              "timestamp %s",
+              __wt_timestamp_to_string(step_down_ts, ts_string[0]),
+              __wt_timestamp_to_string(WT_MAX(last_durable_ts, durable_ts), ts_string[1]));
+        }
+
+        last_stable_disagg_epoch =
+          __wt_atomic_load_uint64_relaxed(&txn_global->stable_disaggregated_schema_epoch);
+        if (has_step_down_epoch &&
+          ((__wt_atomic_load_bool_relaxed(&txn_global->has_stable_disaggregated_schema_epoch) &&
+             step_down_epoch < last_stable_disagg_epoch) ||
+            (has_stable_disagg_epoch && step_down_epoch < stable_disagg_epoch))) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            __wt_spin_unlock(session, &S2C(session)->schema_lock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: step down disaggregated schema epoch %s must not be older than the "
+              "stable disaggregated schema epoch %s",
+              __wt_timestamp_to_string(step_down_epoch, ts_string[0]),
+              __wt_timestamp_to_string(
+                WT_MAX(last_stable_disagg_epoch, stable_disagg_epoch), ts_string[1]));
+        }
+        if (has_stable_disagg_epoch && current_step_down_epoch != WT_SCHEMA_EPOCH_NONE &&
+          stable_disagg_epoch > current_step_down_epoch) {
+            __wt_writeunlock(session, &txn_global->step_down_lock);
+            __wt_writeunlock(session, &txn_global->rwlock);
+            WT_RET_MSG(session, EINVAL,
+              "set_timestamp: stable disaggregated schema epoch %s must not advance past the step "
+              "down disaggregated schema epoch %s",
+              __wt_timestamp_to_string(stable_disagg_epoch, ts_string[0]),
+              __wt_timestamp_to_string(current_step_down_epoch, ts_string[1]));
+        }
+    }
+
     /*
      * This method can be called from multiple threads, check that we are moving the global
      * timestamps forwards.
@@ -662,12 +755,15 @@ set:
      * both spaces or in neither.
      */
     if (has_step_down) {
-        __wt_writelock(session, &txn_global->step_down_lock);
         __wt_atomic_store_uint64_relaxed(&txn_global->step_down_timestamp, step_down_ts);
         if (has_step_down_epoch)
             __wt_atomic_store_uint64_relaxed(
               &txn_global->step_down_disaggregated_schema_epoch, step_down_epoch);
+    }
+    if (has_step_down || has_stable || has_stable_disagg_epoch)
         __wt_writeunlock(session, &txn_global->step_down_lock);
+
+    if (has_step_down) {
         WT_STAT_CONN_SET(session, txn_stepdown_ts_set, 1);
         __wt_verbose_info(session, WT_VERB_TIMESTAMP, "Updated global step down timestamp to %s",
           __wt_timestamp_to_string(step_down_ts, ts_string[0]));

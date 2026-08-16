@@ -224,11 +224,8 @@ struct __wt_txn_global {
     WT_RWLOCK visibility_rwlock;
 
     /*
-     * Protects the step-down timestamp and the step-down disaggregated schema epoch: writers set or
-     * clear them together, readers sample the timestamp at transaction begin and check it when a
-     * write transaction commits. A committing write transaction either observes the timestamp and
-     * rolls back, or its writes happen before the timestamp store and are visible to every
-     * transaction that begins with the timestamp set.
+     * Protects the step-down timestamp and epoch and serializes their publication and clearing with
+     * final write-transaction resolution.
      */
     WT_RWLOCK step_down_lock;
 
