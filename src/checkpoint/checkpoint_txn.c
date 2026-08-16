@@ -2129,6 +2129,14 @@ err:
         WT_STAT_CONN_INCR(session, checkpoints_total_failed);
     }
 
+    /*
+     * Roll back any parallel-checkpoint worker transactions the coordinator did not commit, before
+     * any early-return path below can skip the coordinator's own rollback and leave them running
+     * until connection teardown.
+     */
+    if (failed)
+        WT_TRET(__wti_checkpoint_parallel_rollback(session));
+
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
     if (tracking) {
         if (__wt_meta_track_off(session, false, failed) != 0)
