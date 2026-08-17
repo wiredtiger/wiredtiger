@@ -142,6 +142,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
      * truncate write globally visible tombstones that are immediately visible to every reader.
      */
     /* FIXME-WT-18058: Replace the whole-table clear with incremental per-page draining. */
+    /* The scan must complete during step-up rather than be rolled back by application eviction. */
     orig_flags = F_MASK(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
