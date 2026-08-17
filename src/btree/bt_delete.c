@@ -222,9 +222,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         session->txn->truncate_dirty_bytes +=
           __wt_atomic_load_size_relaxed(&parent->memory_footprint);
         /*
-         * A cache-pressure rollback here must not run the error path below: the delete is already a
-         * committed transaction operation that unwinds on rollback, and its page_del is owned by
-         * the transaction. Return the result directly.
+         * The delete is complete and registered as a transaction operation, so transaction rollback
+         * frees page_del and restores the ref: return directly rather than through the error path
+         * below.
          */
         ret = __wt_txn_is_blocking(session);
     }
