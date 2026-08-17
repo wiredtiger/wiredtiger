@@ -88,8 +88,8 @@ err:
  *     WT_SESSION::drop for a colgroup.
  */
 static int
-__drop_colgroup(
-  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
+__drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[],
+  bool check_visibility, bool local_only)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
@@ -99,7 +99,7 @@ __drop_colgroup(
 
     /* If we can get the colgroup, detach it from the table. */
     if ((ret = __wt_schema_get_colgroup(session, uri, force, &table, &colgroup)) == 0) {
-        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg, check_visibility));
+        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg, check_visibility, local_only));
         if (ret == 0)
             table->cg_complete = false;
     }
@@ -113,15 +113,15 @@ __drop_colgroup(
  *     WT_SESSION::drop for an index.
  */
 static int
-__drop_index(
-  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
+__drop_index(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[],
+  bool check_visibility, bool local_only)
 {
     WT_DECL_RET;
     WT_INDEX *idx;
 
     /* If we can get the index, detach it from the table. */
     if ((ret = __wti_schema_get_index(session, uri, true, force, &idx)) == 0)
-        WT_TRET(__wt_schema_drop(session, idx->source, cfg, check_visibility));
+        WT_TRET(__wt_schema_drop(session, idx->source, cfg, check_visibility, local_only));
 
     WT_TRET(__wt_metadata_remove(session, uri));
     return (ret);
@@ -181,8 +181,8 @@ err:
  *     WT_SESSION::drop for a layered table.
  */
 static int
-__drop_layered(
-  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
+__drop_layered(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[],
+  bool check_visibility, bool local_only)
 {
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
@@ -208,10 +208,11 @@ __drop_layered(
 
     /*
      * Only the leader can issue a trim command, and only for a constituent that exists: a table
-     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
-     * held here serializes the timestamp, making the relaxed loads safe.
+     * created after the step-down timestamp was set has no stable pages to trim. A local drop
+     * follows a removal that has already happened elsewhere, so the shared pages are not ours to
+     * trim. The schema lock held here serializes the timestamp, making the relaxed loads safe.
      */
-    if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+    if (!local_only && __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
         WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
         if (WT_CHECK_AND_RESET(ret, ENOENT) &&
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
@@ -238,13 +239,14 @@ __drop_layered(
      * set. Either way the shared metadata removal is handled by the enqueued REMOVE operation. A
      * leader outside that window always has the constituent, so treat ENOENT as an error there.
      */
-    WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
-    if (WT_CHECK_AND_RESET(ret, ENOENT) &&
+    WT_ERR_ERROR_OK(
+      __wt_schema_drop(session, stable_uri, cfg, check_visibility, local_only), ENOENT, true);
+    if (WT_CHECK_AND_RESET(ret, ENOENT) && !local_only &&
       __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
-    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
+    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility, local_only));
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
@@ -260,11 +262,18 @@ __drop_layered(
      * Remove all the associated metadata from the shared metadata table. The queue entry is outside
      * metadata tracking, so enqueue it only after the local drop can no longer fail. Should the
      * enqueue itself fail, metadata tracking unrolls the local drop, keeping both sides consistent.
+     *
+     * A local drop discards this node's copy of a table that has already been removed from the
+     * shared metadata, so it publishes nothing. A queued removal would also suppress a later
+     * pick-up of the same name, because a pending removal tells the pick-up that the local state is
+     * newer than the checkpoint.
      */
-    WT_SAVE_DHANDLE(session,
-      ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, stable_value));
-    WT_ERR(ret);
+    if (!local_only) {
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
+            WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, stable_value));
+        WT_ERR(ret);
+    }
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
@@ -279,8 +288,8 @@ err:
  *     WT_SESSION::drop for a table.
  */
 static int
-__drop_table(
-  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
+__drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[],
+  bool check_visibility, bool local_only)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_ITEM(file_uri_buf);
@@ -332,7 +341,7 @@ __drop_table(
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables.
      */
     if (!table->cg_complete && table->is_simple)
-        WT_ERR(__wt_schema_drop(session, file_uri_buf->data, cfg, check_visibility));
+        WT_ERR(__wt_schema_drop(session, file_uri_buf->data, cfg, check_visibility, local_only));
 
     /* Drop the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -342,7 +351,7 @@ __drop_table(
          * Drop the column group before updating the metadata to avoid the metadata for the table
          * becoming inconsistent if we can't get exclusive access.
          */
-        WT_ERR(__wt_schema_drop(session, colgroup->source, cfg, check_visibility));
+        WT_ERR(__wt_schema_drop(session, colgroup->source, cfg, check_visibility, local_only));
         WT_ERR(__wt_metadata_remove(session, colgroup->name));
     }
 
@@ -358,7 +367,7 @@ __drop_table(
          * Drop the index before updating the metadata to avoid the metadata for the table becoming
          * inconsistent if we can't get exclusive access.
          */
-        WT_ERR(__wt_schema_drop(session, idx->source, cfg, check_visibility));
+        WT_ERR(__wt_schema_drop(session, idx->source, cfg, check_visibility, local_only));
         WT_ERR(__wt_metadata_remove(session, idx->name));
     }
 
@@ -546,7 +555,8 @@ err:
  *     Process a WT_SESSION::drop operation for all supported types.
  */
 static int
-__schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
+__schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility,
+  bool local_only)
 {
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
@@ -562,15 +572,15 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     WT_DHANDLE_CLEAR(session);
 
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
-        ret = __drop_colgroup(session, uri, force, cfg, check_visibility);
+        ret = __drop_colgroup(session, uri, force, cfg, check_visibility, local_only);
     else if (WT_PREFIX_MATCH(uri, "file:"))
         ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
-        ret = __drop_index(session, uri, force, cfg, check_visibility);
+        ret = __drop_index(session, uri, force, cfg, check_visibility, local_only);
     else if (WT_PREFIX_MATCH(uri, "layered:"))
-        ret = __drop_layered(session, uri, force, cfg, check_visibility);
+        ret = __drop_layered(session, uri, force, cfg, check_visibility, local_only);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __drop_table(session, uri, force, cfg, check_visibility);
+        ret = __drop_table(session, uri, force, cfg, check_visibility, local_only);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
         ret = __drop_tiered(session, uri, force, cfg, check_visibility);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
@@ -598,11 +608,13 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
 
 /*
  * __wt_schema_drop --
- *     Process a WT_SESSION::drop operation for all supported types.
+ *     Process a WT_SESSION::drop operation for all supported types. A local drop tears down this
+ *     node's state for a table that has already been removed elsewhere, so it neither publishes the
+ *     removal nor releases shared storage.
  */
 int
-__wt_schema_drop(
-  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
+__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
+  bool check_visibility, bool local_only)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
@@ -619,7 +631,7 @@ __wt_schema_drop(
     WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
-    ret = __schema_drop(int_session, uri, cfg, check_visibility);
+    ret = __schema_drop(int_session, uri, cfg, check_visibility, local_only);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }

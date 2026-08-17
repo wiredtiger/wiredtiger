@@ -984,7 +984,7 @@ extern int __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const c
 extern int __wt_schema_create_internal(WT_SESSION_IMPL *session, const char *uri,
   const char *config, bool open_dhandle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
-  bool check_visibility) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool check_visibility, bool local_only) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_get_colgroup(WT_SESSION_IMPL *session, const char *uri, bool quiet,
   WT_TABLE **tablep, WT_COLGROUP **colgroupp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_get_table(WT_SESSION_IMPL *session, const char *name, size_t namelen,

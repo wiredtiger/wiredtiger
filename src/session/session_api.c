@@ -1364,20 +1364,21 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
             WT_WITH_CHECKPOINT_LOCK(session,
               WT_WITH_SCHEMA_LOCK(session,
                 WT_WITH_TABLE_WRITE_LOCK(
-                  session, ret = __wt_schema_drop(session, uri, cfg, true))));
+                  session, ret = __wt_schema_drop(session, uri, cfg, true, false))));
         else
             WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
               WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
                 WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
-                  session, ret, ret = __wt_schema_drop(session, uri, cfg, true))));
+                  session, ret, ret = __wt_schema_drop(session, uri, cfg, true, false))));
     } else {
         if (lock_wait)
             WT_WITH_SCHEMA_LOCK(session,
-              WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, uri, cfg, true)));
+              WT_WITH_TABLE_WRITE_LOCK(
+                session, ret = __wt_schema_drop(session, uri, cfg, true, false)));
         else
             WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
               WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
-                session, ret, ret = __wt_schema_drop(session, uri, cfg, true)));
+                session, ret, ret = __wt_schema_drop(session, uri, cfg, true, false)));
     }
 
 err:
