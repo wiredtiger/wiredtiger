@@ -615,8 +615,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         WT_ASSERT(session,
           !F_ISSET(r, WT_REC_EVICT) ||
-            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle) ||
-              WT_IS_DISAGG_META(btree->dhandle)));
+            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_ANY_METADATA(btree->dhandle)));
     } else {
         /*
          * We set the page state to mark it as having been dirtied for the first time prior to
@@ -829,7 +828,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         } else
             r->rec_start_pinned_id = __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
 
-        if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
+        if (WT_IS_ANY_METADATA(session->dhandle)) {
             uint64_t ckpt_txn;
             WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
             if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_pinned_id)
@@ -3535,12 +3534,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
 
     /*
-     * Sanity check: Can't insert updates into history store from the history store itself, the
-     * metadata file, or the disagg shared metadata file.
+     * Sanity check: Can't insert updates into history store from the history store itself or from
+     * either metadata tree.
      */
-    WT_ASSERT_ALWAYS(session,
-      !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
-        !WT_IS_DISAGG_META(btree->dhandle),
+    WT_ASSERT_ALWAYS(session, !WT_IS_HS(btree->dhandle) && !WT_IS_ANY_METADATA(btree->dhandle),
       "Attempting to write updates from the history store, the metadata file, or the disagg shared "
       "metadata file into the history store");
 

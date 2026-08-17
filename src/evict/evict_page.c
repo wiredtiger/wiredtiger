@@ -1246,8 +1246,7 @@ __evict_ckpt_snapshot_usable(WT_SESSION_IMPL *session)
 
     btree = S2BT(session);
 
-    return (__evict_ckpt_snapshot_required(session) && !WT_IS_METADATA(btree->dhandle) &&
-      !WT_IS_DISAGG_META(btree->dhandle));
+    return (__evict_ckpt_snapshot_required(session) && !WT_IS_ANY_METADATA(btree->dhandle));
 }
 
 /*
@@ -1518,7 +1517,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     else if (__wt_btree_stays_in_memory(btree))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SAVE_IMAGE_ALWAYS);
     /* For data store leaf pages, write the history to history store except for metadata. */
-    else if (!WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle)) {
+    else if (!WT_IS_ANY_METADATA(btree->dhandle)) {
         LF_SET(WT_REC_HS);
 
         /*
@@ -1586,7 +1585,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     WT_ASSERT(session,
       !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
-        WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle));
+        WT_IS_ANY_METADATA(btree->dhandle));
 
     return (0);
 }

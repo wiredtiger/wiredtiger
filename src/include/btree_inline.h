@@ -1038,8 +1038,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     uint64_t dirty_leaf_pages_total =
       __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf);
     if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN && dirty_leaf_pages_total < 10 &&
-      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-        WT_IS_HS(session->dhandle))) {
+      (WT_IS_ANY_METADATA(session->dhandle) || WT_IS_HS(session->dhandle))) {
         increase_dirty_size_first = true;
         __wt_cache_dirty_incr_size(session, page_memory_footprint, false);
     }
@@ -1127,11 +1126,10 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
         /*
          * We should never set a btree dirty when checkpoint is triggered by RTS, recovery or when
          * closing the connection. Those specific scenarios should always leave the database clean.
-         * The only exception is related to the metadata file: it is expected to be marked as dirty
-         * whenever a btree is checkpointed.
+         * The only exception is the metadata trees: they are expected to be marked as dirty whenever
+         * a btree is checkpointed.
          */
-        if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
-          !WT_IS_DISAGG_META(session->dhandle) &&
+        if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_ANY_METADATA(session->dhandle) &&
           !FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
