@@ -168,8 +168,6 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
     /* Leave the generation after releasing the snapshot. */
     __wt_session_gen_leave(session, WT_GEN_HAS_SNAPSHOT);
-
-    __txn_clear_bytes_dirty(session);
 }
 
 /*
@@ -1009,6 +1007,9 @@ __txn_release(WT_SESSION_IMPL *session)
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
+
+    /* Reset the dirty footprint tracking */
+    __txn_clear_bytes_dirty(session);
 }
 
 /*
