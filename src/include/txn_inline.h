@@ -1919,6 +1919,7 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
     int64_t val;
 
     session->txn->update_dirty_bytes = 0;
+    session->txn->truncate_dirty_bytes = 0;
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
     if (val != 0) {
