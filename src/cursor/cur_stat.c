@@ -734,13 +734,6 @@ __curstat_session_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
      * Copy stats from the session to the cursor. Optionally clear the session's statistics.
      */
     memcpy(&cst->u.session_stats, &session->stats, sizeof(WT_SESSION_STATS));
-
-    /*
-     * Report the transaction's whole dirty footprint. Update and fast-truncate content is tracked
-     * apart so that each unwinds its own connection counter, but callers want the total.
-     */
-    cst->u.session_stats.txn_bytes_dirty += cst->u.session_stats.txn_truncate_bytes_dirty;
-
     if (F_ISSET(cst, WT_STAT_CLEAR))
         __wt_stat_session_clear_single(&session->stats);
 
