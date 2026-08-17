@@ -1765,6 +1765,41 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_disagg_write_epoch --
+ *     Decide the schema epoch a checkpoint records in shared storage. An application that has
+ *     stopped setting the stable schema epoch leaves the live epoch unset, and the recorded epoch
+ *     is carried forward rather than cleared, so that nodes still gating schema operations can read
+ *     the checkpoint and a later era cannot reuse an epoch. Only a leader records an epoch.
+ */
+static int
+__checkpoint_disagg_write_epoch(
+  WT_SESSION_IMPL *session, wt_timestamp_t ckpt_epoch, wt_timestamp_t *write_epochp)
+{
+    WT_CONNECTION_IMPL *conn;
+    wt_timestamp_t last_epoch;
+    char epoch_string[2][WT_TS_INT_STRING_SIZE];
+
+    conn = S2C(session);
+    last_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch);
+
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+        *write_epochp = ckpt_epoch;
+    else if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
+        *write_epochp = last_epoch;
+    else if (ckpt_epoch >= last_epoch)
+        *write_epochp = ckpt_epoch;
+    else
+        WT_RET_MSG(session, EINVAL,
+          "the stable disaggregated schema epoch %s is older than the schema epoch %s recorded in "
+          "the last checkpoint",
+          __wt_timestamp_to_string(ckpt_epoch, epoch_string[0]),
+          __wt_timestamp_to_string(last_epoch, epoch_string[1]));
+
+    return (0);
+}
+
+/*
  * __checkpoint_db_internal --
  *     Checkpoint a database or a list of objects in the database.
  */
@@ -1909,8 +1944,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * we'll need them during the checkpoint resolve of the shared metadata table.
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
-    ckpt_disagg_write_epoch = WT_MAX(ckpt_disagg_schema_epoch,
-      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch));
+    WT_ERR(
+      __checkpoint_disagg_write_epoch(session, ckpt_disagg_schema_epoch, &ckpt_disagg_write_epoch));
     conn->disaggregated_storage.cur_schema_epoch = ckpt_disagg_schema_epoch;
     conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
     if (__wt_conn_is_disagg(session) &&

@@ -344,12 +344,22 @@ struct __wt_disaggregated_storage {
     wt_thread_t deferred_pickup_tid;
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
-    wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
-    wt_timestamp_t cur_write_schema_epoch;   /* The schema epoch written to shared storage. */
+
+    /*
+     * Three schema epochs, which an application that stops setting the stable schema epoch drives
+     * apart. The current epoch is the live stable schema epoch, and decides what this node gates:
+     * which queued metadata operations a checkpoint may apply, and which tables it may publish. The
+     * epoch written out is what the checkpoint records for other nodes to read, and never moves
+     * backwards, so it keeps the epoch of the last checkpoint while the application sets none. The
+     * last checkpoint's epoch is what this node wrote or picked up, and is the floor for both the
+     * epoch written out and the epoch the application may set next.
+     */
+    wt_timestamp_t cur_schema_epoch;
+    wt_timestamp_t cur_write_schema_epoch;
+
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
-    wt_shared wt_timestamp_t
-      last_checkpoint_schema_epoch; /* The schema epoch of the last checkpoint. */
+    wt_shared wt_timestamp_t last_checkpoint_schema_epoch;
 
     /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
