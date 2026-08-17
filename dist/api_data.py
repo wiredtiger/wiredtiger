@@ -1828,7 +1828,7 @@ methods = {
                     ''',
                     type='boolean', undoc=True),
                 Config('cross_key', 'false', r'''
-                    Allow version cursos to walk across keys while calling next().
+                    Allow version cursors to walk across keys while calling next().
                     ''',
                     type='boolean', undoc=True),
                 Config('show_prepared_rollback', 'false', r'''
@@ -2202,7 +2202,7 @@ methods = {
             checkpoint, while higher values will result in crashes in the final phase of the
             checkpoint process''', type='int', min='0', max='1000'),
         Config('checkpoint_crash_trigger_point', '', r'''
-            enable code that performs a crash duriing checkpoint process with a goal of uncovering
+            enable code that performs a crash during checkpoint process with a goal of uncovering
             race conditions at unexpected times. This option is intended for use with internal
             testing of WiredTiger.''', undoc=True,
             choices=['before_metadata_sync', 'before_metadata_update',
