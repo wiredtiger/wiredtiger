@@ -24,12 +24,6 @@
 #define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 0 /* The oldest version that can read this format. */
 
 /*
- * The highest version a writer can produce: the format version above, or one higher when the debug
- * upgrade setting is on to test reading a newer format.
- */
-#define WT_BLOCK_DISAGG_ADDR_VERSION_MAX (WT_BLOCK_DISAGG_ADDR_VERSION + 1)
-
-/*
  * __block_disagg_addr_debug_upgrade --
  *     Check if we are in the debug mode for testing disaggregated address cookie upgrade/downgrade.
  */
@@ -173,13 +167,14 @@ __wt_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, siz
     WT_RET(__block_disagg_addr_unpack_version(buf, 0, &version, &version_min));
 
     /*
-     * No writer emits either field beyond this, so a cookie claiming otherwise is corruption rather
-     * than a format we might meet. Check ahead of the return below, which is itself a case worth a
-     * core, and is handled far enough above that nothing there names the cookie.
+     * No writer emits either field beyond one past the format version, the extra one coming from
+     * the debug upgrade setting, so a cookie claiming otherwise is corruption rather than a format
+     * we might meet. Check ahead of the return below, which is itself a case worth a core, and is
+     * handled far enough above that nothing there names the cookie.
      */
     WT_ASSERT(session,
-      version <= WT_BLOCK_DISAGG_ADDR_VERSION_MAX &&
-        version_min <= WT_BLOCK_DISAGG_ADDR_VERSION_MAX);
+      version <= WT_BLOCK_DISAGG_ADDR_VERSION + 1 &&
+        version_min <= WT_BLOCK_DISAGG_ADDR_VERSION + 1);
 
     if (version_min > current_version)
         WT_RET_MSG(session, ENOTSUP,
