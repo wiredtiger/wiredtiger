@@ -37,10 +37,7 @@ typedef struct {
     bool read_corrupt;
     bool skip_per_key_hs;
 
-    /*
-     * History store cursor for the per-key checks, opened once for the checkpoint being verified
-     * and repositioned per key. NULL when those checks are not running.
-     */
+    /* History store cursor for the per-key checks. */
     WT_CURSOR *hs_cursor;
 
     /* Page layout information. */
@@ -435,13 +432,17 @@ __verify_one_checkpoint(
     addr_unpack.raw = WT_CELL_ADDR_INT;
 
     /*
-     * The per-key checks reposition a single cursor rather than opening one per key, and only run
-     * against the last checkpoint. A NULL cursor means there is nothing to check against; the call
-     * sites use it as their guard.
+     * The per-key checks share one cursor, and only run against the last checkpoint. It stays
+     * positioned between keys: the history store searches at read-uncommitted, so a search landing
+     * on the page it already has pinned skips the tree descent.
      */
     WT_ASSERT(session, vs->hs_cursor == NULL);
     if (!skip_hs && last_ckpt && !vs->skip_per_key_hs) {
         WT_ERR(__wt_hs_verify_cursor_open(session, btree->id, &vs->hs_cursor));
+        /*
+         * A NULL cursor means there is nothing to check against, and the call sites use it as their
+         * guard.
+         */
         if (vs->hs_cursor == NULL)
             __wt_verbose(session, WT_VERB_VERIFY,
               "%s: no shared history store checkpoint is pinned, skipping the per-key checks",
@@ -635,7 +636,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
 done:
 err:
-    /* Every checkpoint that opens the history store cursor closes it again on the way out. */
+    /* Every verify that opens the history store cursor closes it again on the way out. */
     WT_ASSERT(session, vs->hs_cursor == NULL);
 
     /* Inform the underlying block manager we're done. */
@@ -1462,11 +1463,6 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
     /*
      * Position the history store cursor at the end of the data store key (the newest record) and
      * iterate backwards until we reach a different key or btree.
-     *
-     * The cursor carries its position over from the previous key, so a search landing on the page
-     * it already has pinned skips the tree descent. That fast path is only reachable because the
-     * history store searches at read-uncommitted isolation; a read-committed search abandons a
-     * pinned page rather than trusting it.
      */
     hs_cursor->set_key(hs_cursor, 4, hs_btree_id, tmp1, WT_TS_MAX, UINT64_MAX);
     ret = __wt_curhs_search_near_before(session, hs_cursor);
@@ -1516,10 +1512,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_st
 
     if (0) {
 err:
-        /*
-         * The cursor outlives this key, so don't hand it to the next one mid-scan. A clean exit
-         * deliberately leaves it positioned: the next key's search reuses the pinned page.
-         */
+        /* The cursor outlives this key; don't hand it to the next one mid-scan. */
         WT_TRET(hs_cursor->reset(hs_cursor));
     }
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -1717,11 +1710,7 @@ __verify_page_content_leaf(
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
           __wti_cell_type_string(parent->raw));
 
-    /*
-     * Give up the history store page the per-key checks left pinned. Keys on one leaf page are
-     * contiguous in the history store, so the searches that benefit from the pinned page have
-     * already happened, and this bounds how long any one history store page is held.
-     */
+    /* Bound how long a history store page stays pinned; keys past this leaf won't reuse it. */
     if (vs->hs_cursor != NULL)
         WT_RET(vs->hs_cursor->reset(vs->hs_cursor));
 
