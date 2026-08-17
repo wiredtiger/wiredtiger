@@ -1106,7 +1106,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_LOG_MANAGER *log_mgr;
     uint64_t now;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     conn = S2C(session);
     log_mgr = &conn->log_mgr;

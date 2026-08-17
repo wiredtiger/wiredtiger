@@ -868,7 +868,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     conn = S2C(session);
 

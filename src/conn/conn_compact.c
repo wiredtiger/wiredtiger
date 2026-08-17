@@ -751,7 +751,7 @@ __wti_background_compact_server_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t i;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     conn = S2C(session);
 

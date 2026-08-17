@@ -839,7 +839,11 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *name, bool has
         WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", name));
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
-    ret = __wt_schema_drop_local(session, uri_buf->data, drop_cfg, false);
+
+    /* The table is already gone from the shared metadata, so this drop keeps to itself. */
+    F_SET(session, WT_SESSION_DROP_LOCAL_ONLY);
+    ret = __wt_schema_drop(session, uri_buf->data, drop_cfg, false);
+    F_CLR(session, WT_SESSION_DROP_LOCAL_ONLY);
     WT_ERR_MSG_CHK(session, ret, "Failed to discard the dropped layered table \"%s\"", name);
 
     WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", name));
