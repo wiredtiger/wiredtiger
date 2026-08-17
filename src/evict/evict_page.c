@@ -1437,10 +1437,9 @@ __evict_snapshot_setup(
     session->txn->ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 
     /*
-     * Only an application thread evicting its own data brings a snapshot worth reading under. The
-     * metadata trees are excluded: a running checkpoint hides its ID from the global table, so no
-     * snapshot sees its updates there as uncommitted. Reconciling without one bounds visibility by
-     * the checkpoint's transaction instead.
+     * Only an application thread evicting its own data brings a snapshot worth reading under. A
+     * checkpoint writes only the metadata trees, and a snapshot shows its uncommitted updates there
+     * as committed, so exclude them.
      */
     app_thread = !F_ISSET(session, WT_SESSION_EVICTION | WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && !WT_IS_DISAGG_META(session->dhandle);
