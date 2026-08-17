@@ -190,7 +190,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /*
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
      * that information.
-     *
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
@@ -312,6 +311,18 @@ __reconcile_post_wrapup(
 }
 
 /*
+ * __rec_timeline_publish --
+ *     Stamp a reconciliation as finished and publish its timeline. Eviction reports these timings
+ *     after reconciliation returns, and does so whether or not it succeeded.
+ */
+static WT_INLINE void
+__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline)
+{
+    timeline->reconcile_finish = __wt_clock(session);
+    session->reconcile_timeline = *timeline;
+}
+
+/*
  * __reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
@@ -325,7 +336,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_PAGE *page;
     WT_RECONCILE_TIMELINE timeline;
     WTI_RECONCILE *r;
-    uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start;
+    uint64_t rec, rec_hs_wrapup, rec_img_build, rec_start;
     void *addr;
 
     btree = S2BT(session);
@@ -447,6 +458,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
           "Reconciliation trying to free the page that has been written to disk");
         WT_IGNORE_RET(__rec_write_err(session, r, page));
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
+
+        /* Publish what was measured before the failure; stale timings are worse than partial. */
+        __rec_timeline_publish(session, &timeline);
+
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
          * a panic. Conversely, no return prior to this point should use the "err" label.
@@ -480,6 +495,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
         if (ret != 0)
             goto err;
+
+        /* Publish over the nested reconciliation: the caller asked about this page. */
+        __rec_timeline_publish(session, &timeline);
         return (0);
     }
 
@@ -494,12 +512,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    rec_finish = __wt_clock(session);
-    timeline.reconcile_finish = rec_finish;
+    __rec_timeline_publish(session, &timeline);
 
     rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline.hs_wrapup_finish, timeline.hs_wrapup_start);
     rec_img_build = WT_CLOCKDIFF_MS(timeline.image_build_finish, timeline.image_build_start);
-    rec = WT_CLOCKDIFF_MS(rec_finish, rec_start);
+    rec = WT_CLOCKDIFF_MS(timeline.reconcile_finish, rec_start);
 
     /* Sanity check timings (WT_DAY is in seconds, and we have milliseconds). */
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
@@ -513,9 +530,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->rec_maximum_milliseconds = rec;
     if (session->total_reentry_hs_eviction_time > conn->evict->reentry_hs_eviction_ms)
         conn->evict->reentry_hs_eviction_ms = session->total_reentry_hs_eviction_time;
-
-    /* Publish the completed timeline for the eviction statistics, which run after this returns. */
-    session->reconcile_timeline = timeline;
 
 err:
     if (ret != 0) {
