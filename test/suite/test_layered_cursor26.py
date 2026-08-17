@@ -26,10 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# A table created inside the step-down window has no stable constituent until a later step-up
-# creates one. A statistics cursor on such a table must report the ingest constituent alone rather
-# than trying to open the missing one, whichever URI names the table and whichever statistics it
-# is asked for.
+# A table created while the step-down timestamp is set has no stable constituent until a later
+# step-up creates one. A statistics cursor on such a table must report the ingest constituent alone
+# rather than trying to open the missing one, whichever URI names the table and whichever
+# statistics it is asked for.
 
 from helper_disagg import DisaggSchemaEpochMixin, DisaggSizeTestMixin, disagg_test_class
 from helper_layered_stepdown import LayeredStepdownMixin
@@ -45,19 +45,20 @@ class test_layered_cursor26(
 
     table_config = 'key_format=S,value_format=S,type=layered'
 
-    # The step-down timestamp every test opens its window on.
+    # The step-down timestamp every test creates its table under.
     cutoff = 5
 
     table_uri = f'table:{__qualname__}'
     layered_uri = f'layered:{__qualname__}'
 
-    def open_window_and_create(self):
-        """Open the step-down window, then create and populate a table inside it."""
+    def create_with_step_down_ts_set(self):
+        """Set the step-down timestamp, then create and populate a table under it."""
         self.set_global_ts(1, 1)
         self.set_step_down_ts(self.cutoff)
 
         self.session.create(self.table_uri, self.table_config)
-        # Rows written inside the window commit above the cutoff and belong to the follower era.
+        # Rows written once the timestamp is set commit above the cutoff and belong to the follower
+        # era.
         self.write_at(self.table_uri, {'k1': 'v1', 'k2': 'v2'}, self.cutoff + 1)
 
         # Assert the premise of every test below, so a create that started behaving differently
@@ -78,27 +79,27 @@ class test_layered_cursor26(
 
     def test_size_stats_on_table_uri(self):
         """The table URI declines the size fast path and falls back to the slow path."""
-        self.open_window_and_create()
+        self.create_with_step_down_ts_set()
         self.assert_size_is_ingest_only(self.table_uri, 'statistics=(size)')
 
     def test_size_stats_on_layered_uri(self):
         """The layered URI has no size fast path, so it reaches the slow path directly."""
-        self.open_window_and_create()
+        self.create_with_step_down_ts_set()
         self.assert_size_is_ingest_only(self.layered_uri, 'statistics=(size)')
 
     def test_all_stats_on_table_uri(self):
         """Full statistics walk the tree, which looks the checkpoint up a different way."""
-        self.open_window_and_create()
+        self.create_with_step_down_ts_set()
         self.assert_size_is_ingest_only(self.table_uri, 'statistics=(all)')
 
     def test_all_stats_on_layered_uri(self):
         """Full statistics on the layered URI take the tree-walk branch without the fast path."""
-        self.open_window_and_create()
+        self.create_with_step_down_ts_set()
         self.assert_size_is_ingest_only(self.layered_uri, 'statistics=(all)')
 
     def test_size_reported_once_step_up_creates_the_constituent(self):
-        """A table that passed through the window reports its real size once it has a constituent."""
-        self.open_window_and_create()
+        """A table created under the timestamp reports its real size once it has a constituent."""
+        self.create_with_step_down_ts_set()
 
         self.complete_step_down(self.cutoff)
         self.step_up()

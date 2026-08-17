@@ -433,7 +433,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 retry:
     stable_uri = layered->stable_uri;
     /*
-     * Now do the stable table. A table created inside the step-down window has no stable
+     * Now do the stable table. A table created while the step-down timestamp was set has no stable
      * constituent until a later step-up creates one, so it reports the same way a follower does.
      */
     if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) ||
@@ -441,8 +441,8 @@ retry:
         /*
          * Neither case has the stable's pages resident in the local cache, so its non-walk stats
          * are ~0 - except the block size, which we read from the checkpoint metadata directly since
-         * this path never opens the stable table to obtain it. A table created inside the window
-         * has no metadata entry at all, which reads back as a size of zero.
+         * this path never opens the stable table to obtain it. A table with no stable constituent
+         * has no metadata entry either, which reads back as a size of zero.
          */
         if (!F_ISSET(cst, WT_STAT_TYPE_TREE_WALK)) {
             uint64_t ckpt_size = 0;
@@ -480,6 +480,15 @@ retry:
         __wt_free(session, checkpoint_name);
         __wt_scr_free(session, &stable_uri_buf);
         goto retry;
+    }
+
+    /*
+     * A reader races the role change across a step-up or step-down, so a leader can still find the
+     * stable constituent missing here.
+     */
+    if (ret == ENOENT) {
+        ret = 0;
+        goto done;
     }
 
     WT_ERR(ret);
