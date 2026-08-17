@@ -1789,7 +1789,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CLEAR(ckpt_cfg);
     WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
-    ckpt_disagg_schema_epoch = WT_TS_NONE;
+    /* Only the epoch written out is needed on an early error path, before the epochs are known. */
     ckpt_disagg_write_epoch = WT_TS_NONE;
     ckpt_tmp_ts = WT_TS_NONE;
     drop_size = 0;
