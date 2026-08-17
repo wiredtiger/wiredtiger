@@ -24,7 +24,7 @@
 TEST_CASE("session->dhandle is NULL after EBUSY from get_dhandle", "[dhandle][dhandle_ebusy]")
 {
     const std::string home = "WT_TEST.dhandle_ebusy";
-    testutil_system("rm -rf %s && mkdir -p %s", home.c_str(), home.c_str());
+    utils::wiredtiger_cleanup(home);
 
     {
         connection_wrapper conn(home);
