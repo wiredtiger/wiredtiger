@@ -213,20 +213,6 @@ struct __wt_session_impl {
 #endif
 
     /*
-     * The important timestamps of each stage in a reconciliation. Reconciliation owns a timeline
-     * per call and publishes it here once it completes, so this describes the last reconciliation
-     * to finish rather than one in progress.
-     */
-    struct __wt_reconcile_timeline {
-        uint64_t reconcile_start;
-        uint64_t image_build_start;
-        uint64_t image_build_finish;
-        uint64_t hs_wrapup_start;
-        uint64_t hs_wrapup_finish;
-        uint64_t reconcile_finish;
-    } reconcile_timeline;
-
-    /*
      * Time the nested evictions of history store pages have taken during the reconciliation
      * currently in progress. Eviction accumulates into this, so it outlives any single call.
      */
@@ -236,18 +222,6 @@ struct __wt_session_impl {
     struct __wt_reconcile_stats {
         uint64_t hs_wrapup_next_prev_calls;
     } reconcile_stats;
-
-    /*
-     * Record the important timestamps of each stage in an eviction. If an eviction takes a long
-     * time and times out, we can trace the time usage of each stage from this information.
-     */
-    struct __wt_evict_timeline {
-        uint64_t evict_start;
-        uint64_t reentry_hs_evict_start;
-        uint64_t reentry_hs_evict_finish;
-        uint64_t evict_finish;
-        bool reentry_hs_eviction;
-    } evict_timeline;
 
     WT_ITEM err; /* Error buffer */
     WT_ERROR_INFO err_info;

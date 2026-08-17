@@ -24,7 +24,8 @@ static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
 static int __rec_wrapup_decrease_disagg_size(
   WT_SESSION_IMPL *, WTI_RECONCILE *, const uint8_t *, size_t);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_RECONCILE_TIMELINE *);
-static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
+static int __reconcile(
+  WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *, WT_RECONCILE_TIMELINE *);
 
 /*
  * __rec_save_disk_image --
@@ -90,7 +91,8 @@ __rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
 int
-__wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
+__wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
+  WT_RECONCILE_TIMELINE *timeline)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -191,7 +193,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
      * that information.
      */
-    ret = __reconcile(session, ref, salvage, flags, &page_locked);
+    ret = __reconcile(session, ref, salvage, flags, &page_locked, timeline);
 
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
@@ -312,14 +314,16 @@ __reconcile_post_wrapup(
 
 /*
  * __rec_timeline_publish --
- *     Stamp a reconciliation as finished and publish its timeline. Eviction reports these timings
+ *     Stamp a reconciliation as finished and hand its timeline back. Eviction reports these timings
  *     after reconciliation returns, and does so whether or not it succeeded.
  */
 static WT_INLINE void
-__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline)
+__rec_timeline_publish(
+  WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline, WT_RECONCILE_TIMELINE *published)
 {
     timeline->reconcile_finish = __wt_clock(session);
-    session->reconcile_timeline = *timeline;
+    if (published != NULL)
+        *published = *timeline;
 }
 
 /*
@@ -328,7 +332,7 @@ __rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline
  */
 static int
 __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
-  bool *page_lockedp)
+  bool *page_lockedp, WT_RECONCILE_TIMELINE *published)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -460,7 +464,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
         /* Publish what was measured before the failure; stale timings are worse than partial. */
-        __rec_timeline_publish(session, &timeline);
+        __rec_timeline_publish(session, &timeline, published);
 
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
@@ -496,8 +500,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         if (ret != 0)
             goto err;
 
-        /* Publish over the nested reconciliation: the caller asked about this page. */
-        __rec_timeline_publish(session, &timeline);
+        /* The nested root write measured a different page; report this one. */
+        __rec_timeline_publish(session, &timeline, published);
         return (0);
     }
 
@@ -512,7 +516,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    __rec_timeline_publish(session, &timeline);
+    __rec_timeline_publish(session, &timeline, published);
 
     rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline.hs_wrapup_finish, timeline.hs_wrapup_start);
     rec_img_build = WT_CLOCKDIFF_MS(timeline.image_build_finish, timeline.image_build_start);
@@ -739,7 +743,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      * Fake up a reference structure, and write the next root page.
      */
     __wt_root_ref_init(session, &fake_ref, next, page->type == WT_PAGE_COL_INT);
-    return (__wt_reconcile(session, &fake_ref, NULL, flags));
+    return (__wt_reconcile(session, &fake_ref, NULL, flags, NULL));
 
 err:
     __wt_page_out(session, &next);

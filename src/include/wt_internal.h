@@ -631,6 +631,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
+#include "../reconcile/reconcile.h"
 #include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
@@ -651,7 +652,6 @@ typedef uint64_t wt_timestamp_t;
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
-#include "../reconcile/reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
 #include "tiered.h"
