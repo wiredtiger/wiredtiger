@@ -872,21 +872,6 @@ __disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped
 }
 
 /*
- * __disagg_dropped_contains --
- *     Return whether a name is already recorded as dropped.
- */
-static bool
-__disagg_dropped_contains(const WT_DISAGG_DROPPED_TABLES *dropped, const char *name)
-{
-    size_t i;
-
-    for (i = 0; i < dropped->count; i++)
-        if (strcmp(dropped->names[i], name) == 0)
-            return (true);
-    return (false);
-}
-
-/*
  * __disagg_dropped_apply_locked --
  *     Drop every recorded table as one tracked unit, so that the handles are discarded and the
  *     files removed together rather than one metadata sync at a time.
@@ -1297,10 +1282,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * be a new layered table that we should pick up, but it could also mean that we have
              * already dropped the table locally and should not recreate it as a result.
              */
-
-            /* A table waiting to be dropped is picked up by the merge that follows the drop. */
-            if (__disagg_dropped_contains(dropped, current))
-                continue;
             __wt_spin_lock(
               session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
             latest_entry = __wti_disagg_table_latest_create_remove(session, current);
