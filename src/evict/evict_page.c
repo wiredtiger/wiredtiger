@@ -1438,8 +1438,9 @@ __evict_snapshot_setup(
 
     /*
      * Only an application thread evicting its own data brings a snapshot worth reading under. The
-     * metadata trees are excluded: a running checkpoint has uncommitted updates there, and what
-     * keeps eviction from writing them out is the pinned ID, which a snapshot bypasses.
+     * metadata trees are excluded: a running checkpoint has uncommitted updates there, and they are
+     * only held back by reconciling without a snapshot, which lowers the visibility bound to the
+     * checkpoint's transaction.
      */
     app_thread = !F_ISSET(session, WT_SESSION_EVICTION | WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && !WT_IS_DISAGG_META(session->dhandle);
