@@ -662,6 +662,26 @@ err:
 }
 
 /*
+ * __disagg_queued_remove_epoch --
+ *     Return the schema epoch of the REMOVE queued for the given table, or WT_SCHEMA_EPOCH_NONE if
+ *     the queue holds none.
+ */
+static wt_timestamp_t
+__disagg_queued_remove_epoch(
+  WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, const char *stable_uri)
+{
+    WT_DISAGG_METADATA_OP *entry;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
+
+    TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q)
+        if (entry->metadata_op == WT_SHARED_METADATA_REMOVE &&
+          strcmp(entry->stable_uri, stable_uri) == 0)
+            return (entry->schema_epoch);
+    return (WT_SCHEMA_EPOCH_NONE);
+}
+
+/*
  * __disagg_requeue_skipped_creates --
  *     Return parked create entries to the head of the shared metadata queue, restoring their
  *     original order, so a later checkpoint revisits them.
@@ -697,6 +717,7 @@ __wt_disagg_shared_metadata_queue_process(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
+    wt_timestamp_t drop_epoch;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -767,16 +788,29 @@ __wt_disagg_shared_metadata_queue_process(
              * checkpoint must include the table in shared metadata. But the table was dropped and
              * its stable constituent was never created, so we have no data to write. Publish CREATE
              * and DROP at the same epoch to avoid this window.
-             *
-             * FIXME-WT-18272: Confirm a pending DROP for the same table really is queued behind the
-             * parked CREATE before panicking, and report the epoch of that DROP in the message.
              */
-            TAILQ_FOREACH (skipped, &skipped_creates, q)
-                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
-                  " and DROP at a later epoch. This checkpoint must include the table in shared "
-                  "metadata, but the table was dropped and we have no data to write.",
-                  skipped->table_name, skipped->schema_epoch);
+            TAILQ_FOREACH (skipped, &skipped_creates, q) {
+                drop_epoch = __disagg_queued_remove_epoch(session, conn, skipped->stable_uri);
+                if (drop_epoch == WT_SCHEMA_EPOCH_NONE)
+                    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+                      " and has no DROP queued. This checkpoint must include the table in shared "
+                      "metadata, but the table was dropped and we have no data to write.",
+                      skipped->table_name, skipped->schema_epoch);
+                else if (drop_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
+                    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+                      " and its DROP is not yet published. This checkpoint must include the table "
+                      "in shared metadata, but the table was dropped and we have no data to write.",
+                      skipped->table_name, skipped->schema_epoch);
+                else
+                    __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                      "API violation: Table \"%s\" was published with CREATE at epoch %" PRIu64
+                      " and DROP at epoch %" PRIu64
+                      ". This checkpoint must include the table in shared metadata, but the table "
+                      "was dropped and we have no data to write.",
+                      skipped->table_name, skipped->schema_epoch, drop_epoch);
+            }
             WT_ERR_PANIC(session, EINVAL,
               "API violation: See above for details. Current schema epoch: %" PRIu64 ".",
               cur_schema_epoch);
