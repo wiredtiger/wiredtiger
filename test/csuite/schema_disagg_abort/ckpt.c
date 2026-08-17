@@ -219,11 +219,11 @@ follower_checkpoint(WORKLOAD_STATE *state, WT_SESSION *session, CKPT_CTX *ckpt)
 {
     WT_UNUSED(ckpt);
 
+    /* Adopted LSN is 0 until a checkpoint is picked up, so read it before the pickup. */
+    const bool first_ckpt = state->adopted_ckpt_lsn == 0;
+
     if (!ckpt_pick_up(state, session))
         return;
-
-    /* Adopted LSN is 0 at the beginning. */
-    const bool first_ckpt = state->adopted_ckpt_lsn == 0;
 
     /* Each adoption is reported for a stepping-down peer. */
     adopted_lsn_publish(state->cfg->node_id, state->adopted_ckpt_lsn);
