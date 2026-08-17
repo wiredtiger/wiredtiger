@@ -164,6 +164,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 
     stable_schema_epoch =
       __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+    WT_UNUSED(stable_schema_epoch); /* Only read by the assertion below. */
 
     /*
      * Use the legacy method whenever this node is not gating schema operations. A checkpoint can
