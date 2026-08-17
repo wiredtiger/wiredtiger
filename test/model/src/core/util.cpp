@@ -444,6 +444,35 @@ quote(const std::string &str)
 }
 
 /*
+ * wt_connection_logging_enabled --
+ *     Check whether a WiredTiger connection configuration string turns on logging. Returns no value
+ *     if the string does not mention it.
+ */
+std::optional<bool>
+wt_connection_logging_enabled(const std::string &config)
+{
+    WT_CONFIG_PARSER *parser;
+    WT_CONFIG_ITEM enabled;
+    std::optional<bool> result;
+
+    if (config.empty())
+        return result;
+
+    /* Tolerate malformed strings: WiredTiger itself will reject them when it opens. */
+    if (wiredtiger_config_parser_open(nullptr, config.c_str(), config.length(), &parser) != 0)
+        return result;
+
+    /*
+     * The bare "log=(enabled)" form yields a boolean item with a nonzero value, so this covers both
+     * spellings.
+     */
+    if (parser->get(parser, "log.enabled", &enabled) == 0)
+        result = enabled.val != 0;
+    (void)parser->close(parser);
+    return result;
+}
+
+/*
  * wt_build_dir_path --
  *     Path to the WiredTiger build directory, assuming that this library is used from the build
  *     directory. Throw an exception on error.

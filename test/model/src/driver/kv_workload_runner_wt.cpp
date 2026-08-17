@@ -333,7 +333,10 @@ kv_workload_runner_wt::do_operation(const operation::checkpoint_crash &op)
     wiredtiger_session_guard session_guard(session);
 
     std::ostringstream config;
-    config << "debug=(checkpoint_crash_point=" << op.crash_step << ")";
+    if (operation::named_phase(op.phase))
+        config << "debug=(checkpoint_crash_trigger_point=" << operation::to_string(op.phase) << ")";
+    else
+        config << "debug=(checkpoint_crash_point=" << op.crash_step << ")";
     std::string config_str = config.str();
 
     return session->checkpoint(session, config_str.c_str());

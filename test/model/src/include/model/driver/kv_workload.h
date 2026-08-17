@@ -301,17 +301,93 @@ operator<<(std::ostream &out, const checkpoint &op)
 }
 
 /*
+ * checkpoint_crash_phase --
+ *     The phase of the checkpoint at which to crash, in the order the phases are reached. Only
+ *     before_metadata_sync follows the checkpoint transaction commit and the log flush, so it is
+ *     the only phase whose checkpoint can survive the crash, and then only with logging enabled.
+ */
+enum class checkpoint_crash_phase {
+    data_files,
+    before_checkpoint_commit,
+    before_metadata_sync,
+};
+
+/*
+ * named_phase --
+ *     Return whether the phase is selected by name rather than by a numeric step.
+ */
+inline bool
+named_phase(checkpoint_crash_phase phase)
+{
+    return phase != checkpoint_crash_phase::data_files;
+}
+
+/*
+ * recoverable_with_logging --
+ *     Return whether a crash in this phase leaves a checkpoint that recovery can roll forward when
+ *     connection logging is enabled. Only a crash taken after the checkpoint transaction committed
+ *     and its log records were flushed qualifies.
+ */
+inline bool
+recoverable_with_logging(checkpoint_crash_phase phase)
+{
+    return phase == checkpoint_crash_phase::before_metadata_sync;
+}
+
+/*
+ * to_string --
+ *     Get the WiredTiger name of the crash phase. Not valid for the data file phase, which is
+ *     selected by a numeric step rather than by name.
+ */
+inline const char *
+to_string(checkpoint_crash_phase phase)
+{
+    switch (phase) {
+    case checkpoint_crash_phase::before_checkpoint_commit:
+        return "before_checkpoint_commit";
+    case checkpoint_crash_phase::before_metadata_sync:
+        return "before_metadata_sync";
+    default:
+        throw model_exception("The checkpoint crash phase does not have a name");
+    }
+}
+
+/*
+ * checkpoint_crash_phase_from_string --
+ *     Parse the WiredTiger name of the crash phase.
+ */
+inline checkpoint_crash_phase
+checkpoint_crash_phase_from_string(const std::string &name)
+{
+    if (name == "before_checkpoint_commit")
+        return checkpoint_crash_phase::before_checkpoint_commit;
+    if (name == "before_metadata_sync")
+        return checkpoint_crash_phase::before_metadata_sync;
+    throw model_exception("Invalid checkpoint crash phase: " + name);
+}
+
+/*
  * checkpoint_crash --
  *     A representation of this workload operation.
  */
 struct checkpoint_crash : public without_txn_id, public without_table_id {
     uint64_t crash_step;
+    checkpoint_crash_phase phase;
 
     /*
      * checkpoint_crash::checkpoint_crash --
-     *     Create the operation.
+     *     Create the operation that crashes while checkpointing an individual tree.
      */
-    inline checkpoint_crash(const uint64_t crash_step) : crash_step(crash_step) {}
+    inline checkpoint_crash(const uint64_t crash_step)
+        : crash_step(crash_step), phase(checkpoint_crash_phase::data_files)
+    {
+    }
+
+    /*
+     * checkpoint_crash::checkpoint_crash --
+     *     Create the operation that crashes at a named phase.
+     */
+    inline checkpoint_crash(const checkpoint_crash_phase phase) : crash_step(0), phase(phase) {}
 
     /*
      * checkpoint_crash::operator== --
@@ -320,7 +396,7 @@ struct checkpoint_crash : public without_txn_id, public without_table_id {
     inline bool
     operator==(const checkpoint_crash &other) const noexcept
     {
-        return crash_step == other.crash_step;
+        return crash_step == other.crash_step && phase == other.phase;
     }
 
     /*
@@ -341,7 +417,12 @@ struct checkpoint_crash : public without_txn_id, public without_table_id {
 inline std::ostream &
 operator<<(std::ostream &out, const checkpoint_crash &op)
 {
-    out << "checkpoint_crash(" << op.crash_step << ")";
+    out << "checkpoint_crash(";
+    if (named_phase(op.phase))
+        out << quote(to_string(op.phase));
+    else
+        out << op.crash_step;
+    out << ")";
     return out;
 }
 
@@ -1445,9 +1526,12 @@ public:
 
     /*
      * kv_workload::verify --
-     *     Verify that the workload is valid. Throw an exception on error.
+     *     Verify that the workload is valid. Throw an exception on error. Pass the connection
+     *     configuration override that WiredTiger will be given, if any: whether a checkpoint crash
+     *     keeps the checkpoint depends on logging, and getting that wrong here rejects workloads
+     *     that are in fact valid.
      */
-    void verify();
+    void verify(const char *connection_config = nullptr);
 
     /*
      * kv_workload::verify_noexcept --
@@ -1455,10 +1539,10 @@ public:
      *     exception.
      */
     bool
-    verify_noexcept()
+    verify_noexcept(const char *connection_config = nullptr)
     {
         try {
-            verify();
+            verify(connection_config);
             return true;
         } catch (...) {
             return false;
@@ -1467,9 +1551,11 @@ public:
 
     /*
      * kv_workload::run --
-     *     Run the workload in the model. Return the return codes of the workload operations.
+     *     Run the workload in the model. Return the return codes of the workload operations. Pass
+     *     the same connection configuration override that WiredTiger will be given, so that the
+     *     model sees settings that the workload itself does not record.
      */
-    std::vector<int> run(kv_database &database) const;
+    std::vector<int> run(kv_database &database, const char *connection_config = nullptr) const;
 
     /*
      * kv_workload::run_in_wiredtiger --

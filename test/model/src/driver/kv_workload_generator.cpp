@@ -86,6 +86,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     checkpoint = 0.02;
     checkpoint_crash = 0.002;
+    checkpoint_crash_final_phase = 0.4;
     crash = 0.002;
     evict = 0.1;
     restart = 0.002;
@@ -98,6 +99,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     update_existing = 0.1;
 
     conn_logging = 0.5;
+    conn_logging_enabled = false;
 
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
@@ -596,8 +598,19 @@ kv_workload_generator::run()
 
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
-                uint64_t random_number = _random.next_uint64(1, 1000);
-                *p << operation::checkpoint_crash(random_number);
+
+                /*
+                 * Under disaggregated storage the checkpoint is published through the page log
+                 * rather than the local metadata, so whether a post-commit crash keeps it is not
+                 * the same question. Stay in the per-tree phase there.
+                 */
+                if (!_database_config.disaggregated &&
+                  _spec.checkpoint_crash_final_phase > _random.next_float())
+                    *p << operation::checkpoint_crash(_random.next_float() < 0.5f ?
+                        operation::checkpoint_crash_phase::before_checkpoint_commit :
+                        operation::checkpoint_crash_phase::before_metadata_sync);
+                else
+                    *p << operation::checkpoint_crash(_random.next_uint64(1, 1000));
                 _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)
@@ -735,10 +748,25 @@ kv_workload_generator::run()
     for (sequence_traversal t(_sequences, barrier_fn); t.has_more(); t.complete_all()) {
         for (sequence_state *s : t.runnable()) {
 
+            /*
+             * A checkpoint crash that WiredTiger can recover from behaves as a checkpoint followed
+             * by a crash, which leaves the timestamps where they were.
+             */
+            bool recoverable_checkpoint_crash = false;
+            if (s->sequence->type() == kv_workload_sequence_type::checkpoint_crash &&
+              _spec.conn_logging_enabled) {
+                const operation::any &crash_op = (*s->sequence)[0];
+                recoverable_checkpoint_crash =
+                  std::holds_alternative<operation::checkpoint_crash>(crash_op) &&
+                  operation::recoverable_with_logging(
+                    std::get<operation::checkpoint_crash>(crash_op).phase);
+            }
+
             /* Simulate how checkpoints, crashes, and restarts manipulate the timestamps. */
             if (s->sequence->type() == kv_workload_sequence_type::checkpoint ||
               s->sequence->type() == kv_workload_sequence_type::restart ||
-              s->sequence->type() == kv_workload_sequence_type::rollback_to_stable) {
+              s->sequence->type() == kv_workload_sequence_type::rollback_to_stable ||
+              recoverable_checkpoint_crash) {
                 ckpt_oldest = oldest;
                 ckpt_stable = stable;
                 if (ckpt_stable == k_timestamp_none)
@@ -801,9 +829,11 @@ kv_workload_generator::run()
 
     /*
      * Validate that the workload is correct, such checking that we filled in the timestamps in the
-     * correct order.
+     * correct order. The caller prepends the connection configuration only after generation, so
+     * spell out the logging setting assumed above; otherwise verification would disagree with us
+     * about whether a checkpoint crash keeps the checkpoint.
      */
-    _workload.verify();
+    _workload.verify(_spec.conn_logging_enabled ? "log=(enabled=true)" : "log=(enabled=false)");
 }
 
 /*

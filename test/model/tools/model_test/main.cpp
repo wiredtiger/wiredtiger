@@ -106,7 +106,7 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
     model::kv_database database;
     std::vector<int> ret_model;
     try {
-        ret_model = workload->run(database);
+        ret_model = workload->run(database, conn_config_override.c_str());
 
         /* When we load the workload from WiredTiger, that would be after running recovery. */
         database.restart();
@@ -302,6 +302,7 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
 
         UPDATE_SPEC(checkpoint, float);
         UPDATE_SPEC(checkpoint_crash, float);
+        UPDATE_SPEC(checkpoint_crash_final_phase, float);
         UPDATE_SPEC(crash, float);
         UPDATE_SPEC(evict, float);
         UPDATE_SPEC(restart, float);
@@ -512,7 +513,7 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
          * transactions are included or removed in their entirety.
          */
         bool skip = false;
-        if (!w->verify_noexcept())
+        if (!w->verify_noexcept(context.conn_config_override.c_str()))
             skip = true;
 
         /* Clean up the previous database directory, if it exists. */
@@ -895,6 +896,13 @@ main(int argc, char *argv[])
 
             std::cout << "Iteration " << iteration << ", seed 0x" << std::hex << seed << std::dec
                       << std::endl;
+
+            /*
+             * Tell the generator whether the connection it is generating for has logging, which
+             * decides whether a post-commit checkpoint crash keeps the checkpoint.
+             */
+            spec.conn_logging_enabled =
+              model::wt_connection_logging_enabled(wt_conn_config).value_or(false);
 
             /* Generate the workload. */
             std::shared_ptr<model::kv_workload> workload;
