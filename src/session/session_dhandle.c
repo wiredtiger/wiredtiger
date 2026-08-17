@@ -946,6 +946,12 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         if (is_dead)
             continue;
 
+        /* A handle closed by sweep is already durable, so do not reopen it for a dhandle walk. */
+        if (LF_ISSET(WT_DHANDLE_SKIP_REOPEN) && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+            WT_TRET(__wt_session_release_dhandle(session));
+            return (EBUSY);
+        }
+
         /* If the handle is open in the mode we want, we're done. */
         if (LF_ISSET(WT_DHANDLE_LOCK_ONLY) ||
           (F_ISSET(dhandle, WT_DHANDLE_OPEN) && !LF_ISSET(WT_BTREE_SPECIAL_FLAGS)))
