@@ -91,6 +91,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_DECL_RET;
     WT_PAGE *parent;
     WT_REF_STATE previous_state;
+    size_t footprint;
     WT_BTREE *btree = S2BT(session);
     bool parent_was_clean;
 
@@ -217,10 +218,23 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * A newly dirtied parent internal page stays pinned until the truncate is stable. Account for
      * it and let the transaction's cache-pressure check roll the truncate back if it has pinned too
      * much; the delete just performed unwinds normally on rollback.
+     *
+     * Skipped for the history store, whose truncation is non-transactional: there would be no
+     * transaction to bound, and none to resolve and give back the bytes counted below.
      */
-    if (parent_was_clean) {
-        session->txn->truncate_dirty_bytes +=
-          __wt_atomic_load_size_relaxed(&parent->memory_footprint);
+    if (parent_was_clean && !WT_IS_HS(session->dhandle)) {
+        footprint = __wt_atomic_load_size_relaxed(&parent->memory_footprint);
+        session->txn->truncate_dirty_bytes += footprint;
+
+        /*
+         * These pages are dirty content the transaction has not resolved, so they belong in its
+         * dirty-byte tracking. Increment the session and connection counters together: the drain
+         * unwinds the connection counter by the session counter's value, so the two must record the
+         * same bytes. The update counts are left alone, since no update was created.
+         */
+        WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)footprint);
+        WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)footprint);
+
         /*
          * The delete is complete and registered as a transaction operation, so transaction rollback
          * frees page_del and restores the ref: return directly rather than through the error path
