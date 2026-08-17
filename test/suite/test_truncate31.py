@@ -150,8 +150,10 @@ class test_truncate31(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction()
 
-        ret = self.combined_truncate(side_uri, side_ds, combined_keys,
-            trunc_uri, trunc_ds, 1, nrows)
+        # The rollback also emits a warning naming the truncate as the cause.
+        with self.expectedStdoutPattern('rolling back a truncate that is pinning too much dirty cache'):
+            ret = self.combined_truncate(side_uri, side_ds, combined_keys,
+                trunc_uri, trunc_ds, 1, nrows)
         self.assertEqual(ret, WT_ROLLBACK)
 
         # The transaction is now in its error state: committing it fails, and
@@ -230,7 +232,9 @@ class test_truncate31(wttest.WiredTigerTestCase):
         # Truncate the entire range in a single transaction. The dirty internal
         # pages pinned by the truncate should cross the threshold and force the
         # transaction to roll back.
-        ret = self.large_truncate(uri, ds.key(1), ds.key(nrows))
+        # The rollback also emits a warning naming the truncate as the cause.
+        with self.expectedStdoutPattern('rolling back a truncate that is pinning too much dirty cache'):
+            ret = self.large_truncate(uri, ds.key(1), ds.key(nrows))
         self.assertEqual(ret, WT_ROLLBACK)
 
         # We should have fast-deleted at least one page on the way to the stall,

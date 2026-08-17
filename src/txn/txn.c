@@ -2911,7 +2911,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     double trigger;
-    uint64_t bytes_dirty, global_oldest;
+    uint64_t global_oldest, total_dirty;
     bool is_txn_id_global_oldest;
 
     conn = S2C(session);
@@ -2981,17 +2981,16 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
          * dirtied anything at all. Configuration never leaves either trigger at zero, so treat it
          * as a value we raced with rather than a threshold to enforce.
          */
-        bytes_dirty = txn->bytes_dirty + txn->truncate_dirty_bytes;
-        if (trigger > DBL_EPSILON && bytes_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
+        total_dirty = txn->bytes_dirty + txn->truncate_dirty_bytes;
+        if (trigger > DBL_EPSILON && total_dirty > (uint64_t)(trigger * conn->cache_size) / 100) {
             /*
-             * Attribute the rollback to whichever half of the footprint dominates: a truncate that
-             * pinned mostly internal pages is a different diagnosis from a transaction that wrote
-             * too many updates.
+             * The statistic and the reason distinguish a truncate that pinned mostly internal pages
+             * from a transaction that wrote too many updates.
              */
             if (txn->truncate_dirty_bytes > txn->bytes_dirty) {
                 WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
-                WT_RET_SUB(
-                  session, WT_ROLLBACK, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY);
+                WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
+                  WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY);
             }
             WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
             WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,

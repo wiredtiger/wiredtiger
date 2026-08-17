@@ -227,6 +227,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
          * below.
          */
         ret = __wt_txn_is_blocking(session);
+        if (ret == WT_ROLLBACK)
+            __wt_verbose_warning(session, WT_VERB_TRANSACTION, "%s",
+              "rolling back a truncate that is pinning too much dirty cache");
     }
 
     return (ret);
