@@ -1473,8 +1473,8 @@ __evict_snapshot_setup(
  *     Reconcile the page for eviction.
  */
 static int
-__evict_reconcile(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, WT_RECONCILE_TIMELINE *timeline)
+__evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
+  WT_RECONCILE_TIMELINE *reconcile_timelinep)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -1568,9 +1568,9 @@ __evict_reconcile(
     /* Force read-committed isolation if we set up a snapshot to reconcile under. */
     if (snap_state != WT_EVICT_SNAP_NONE)
         WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_COMMITTED,
-          ret = __wt_reconcile(session, ref, NULL, flags, timeline));
+          ret = __wt_reconcile(session, ref, NULL, flags, reconcile_timelinep));
     else
-        ret = __wt_reconcile(session, ref, NULL, flags, timeline);
+        ret = __wt_reconcile(session, ref, NULL, flags, reconcile_timelinep);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, eviction_fail_in_reconciliation);

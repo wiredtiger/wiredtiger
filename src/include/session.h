@@ -213,8 +213,9 @@ struct __wt_session_impl {
 #endif
 
     /*
-     * Time the nested evictions of history store pages have taken during the reconciliation
-     * currently in progress. Eviction accumulates into this, so it outlives any single call.
+     * Time the nested evictions of history store pages have taken, accumulated by eviction from
+     * frames a reconciliation cannot reach. It only grows: a reconciliation takes the difference
+     * across itself rather than resetting it, so nested reconciliations do not disturb each other.
      */
     uint64_t total_reentry_hs_eviction_time;
 
