@@ -873,6 +873,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_pages_visited_leaf;
     int64_t checkpoint_pages_reconciled;
     int64_t checkpoint_parallel_pages_reconciled;
+    int64_t checkpoint_pages_reconciliation_skipped_evict_snapshot;
     int64_t checkpoint_prep_running;
     int64_t checkpoint_prep_max;
     int64_t checkpoint_prep_min;
@@ -1023,6 +1024,7 @@ struct __wt_connection_stats {
     int64_t disagg_checkpoint_delivered_lsn;
     int64_t disagg_pick_up_file_meta_inserted;
     int64_t disagg_pick_up_checkpoint_time;
+    int64_t disagg_pick_up_checkpoint_time_startup;
     int64_t disagg_role_leader;
     int64_t disagg_snapshot_rebuild;
     int64_t disagg_stable_tombstone_encoding;
@@ -1049,7 +1051,9 @@ struct __wt_connection_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_open_stable_refused;
+    int64_t layered_curs_open_stable_stepdown_race;
     int64_t layered_curs_update;
+    int64_t layered_stable_live_open_refused;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;
     int64_t layered_curs_stable_value_tombstone;
@@ -1379,6 +1383,7 @@ struct __wt_connection_stats {
     int64_t thread_fsync_active;
     int64_t thread_read_active;
     int64_t thread_write_active;
+    int64_t application_evict_checkpoint_snapshot;
     int64_t application_cache_ops;
     int64_t application_cache_interruptible_ops;
     int64_t application_cache_uninterruptible_ops;
@@ -1460,6 +1465,7 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_disagg_epoch;
     int64_t txn_set_ts_stable_disagg_epoch_upd;
     int64_t txn_set_ts_stable_upd;
+    int64_t txn_stepdown_epoch_set;
     int64_t txn_stepdown_ts_set;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
@@ -1820,7 +1826,9 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_search_ingest;
     int64_t layered_curs_search_stable;
     int64_t layered_curs_open_stable_refused;
+    int64_t layered_curs_open_stable_stepdown_race;
     int64_t layered_curs_update;
+    int64_t layered_stable_live_open_refused;
     int64_t layered_curs_stable_value_tombstone_prefix;
     int64_t layered_curs_stable_value_tombstone_suffix;
     int64_t layered_curs_stable_value_tombstone;

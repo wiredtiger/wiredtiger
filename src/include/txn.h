@@ -12,7 +12,9 @@
 #define WT_TXN_FIRST 1               /* First transaction to run */
 #define WT_TXN_MAX (UINT64_MAX - 10) /* End of time */
 #define WT_TXN_ABORTED UINT64_MAX    /* Update rolled back */
-#define WT_PREPARED_ID_NONE 0        /* Empty prepared id */
+
+#define WT_CKPT_SNAP_GEN_NONE 0 /* No published checkpoint snapshot was used for reconciliation */
+#define WT_PREPARED_ID_NONE 0   /* Empty prepared id */
 
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
@@ -203,6 +205,7 @@ struct __wt_txn_global {
     wt_timestamp_t recovery_timestamp;
     wt_shared wt_timestamp_t stable_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t stable_timestamp;
+    wt_shared wt_timestamp_t step_down_disaggregated_schema_epoch;
     wt_shared wt_timestamp_t step_down_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_shared wt_timestamp_t version_cursor_pinned_timestamp;
@@ -221,10 +224,11 @@ struct __wt_txn_global {
     WT_RWLOCK visibility_rwlock;
 
     /*
-     * Protects the step-down timestamp: writers set or clear it, readers sample it at transaction
-     * begin and check it when a write transaction commits. A committing write transaction either
-     * observes the timestamp and rolls back, or its writes happen before the timestamp store and
-     * are visible to every transaction that begins with the timestamp set.
+     * Protects the step-down timestamp and the step-down disaggregated schema epoch: writers set or
+     * clear them together, readers sample the timestamp at transaction begin and check it when a
+     * write transaction commits. A committing write transaction either observes the timestamp and
+     * rolls back, or its writes happen before the timestamp store and are visible to every
+     * transaction that begins with the timestamp set.
      */
     WT_RWLOCK step_down_lock;
 
@@ -422,6 +426,13 @@ struct __wt_txn {
 
     /* Snapshot data. */
     WT_TXN_SNAPSHOT snapshot_data;
+
+    /*
+     * When eviction reconciles a page using the published checkpoint snapshot, the page can be
+     * stamped and checkpoint can skip re-reconciling it. WT_CKPT_SNAP_GEN_NONE when no such
+     * snapshot is in use.
+     */
+    uint64_t ckpt_snap_gen;
 
     /* Backup snapshot data. */
     WT_TXN_SNAPSHOT *backup_snapshot_data;
