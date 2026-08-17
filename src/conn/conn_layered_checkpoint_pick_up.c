@@ -554,41 +554,16 @@ __disagg_check_meta_id(
 #endif /* HAVE_DIAGNOSTIC */
 
 /*
- * __disagg_check_meta_incarnation --
- *     Verify that two incarnations of one table name agree on everything but their btree ID. The ID
- *     differs by definition when a table has been dropped and created again, but a divergence
- *     anywhere else means the two entries are unrelated tables that merely share a name, which no
- *     reconciliation can resolve. Diagnostic builds compare every field, matching the validation
- *     that runs when the IDs are equal.
- */
-static int
-__disagg_check_meta_incarnation(
-  WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
-{
-#ifdef HAVE_DIAGNOSTIC
-    const char *md_value, *sh_key, *sh_value;
-
-    WT_RET(sh_cursor->get_key(sh_cursor, &sh_key));
-    WT_RET(sh_cursor->get_value(sh_cursor, &sh_value));
-    WT_RET(md_cursor->get_value(md_cursor, &md_value));
-
-    return (__disagg_check_meta_all_fields(session, sh_key, md_value, sh_value, true));
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(sh_cursor);
-    WT_UNUSED(md_cursor);
-    return (0);
-#endif
-}
-
-/*
  * __disagg_check_meta_match --
  *     Verify that the immutable configuration fields of a metadata entry agree between the local
  *     and the shared metadata. A divergence means the checkpoint would be interpreted under the
- *     wrong schema or btree identity, silently corrupting reads, so panic instead.
+ *     wrong schema or btree identity, silently corrupting reads, so panic instead. Two incarnations
+ *     of one name differ in their btree ID by definition, so that field is compared only when the
+ *     entries are meant to describe the same table.
  */
 static int
-__disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
+__disagg_check_meta_match(
+  WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor, bool ignore_id)
 {
     const char *md_key, *md_value, *sh_key, *sh_value;
 
@@ -620,8 +595,11 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
         return (0);
 
 #ifdef HAVE_DIAGNOSTIC
-    return (__disagg_check_meta_all_fields(session, sh_key, md_value, sh_value, false));
+    return (__disagg_check_meta_all_fields(session, sh_key, md_value, sh_value, ignore_id));
 #else
+    /* The btree ID is the only field release builds compare, so nothing else is left to check. */
+    if (ignore_id)
+        return (0);
     return (__disagg_check_meta_id(session, sh_key, md_value, sh_value));
 #endif
 }
@@ -1180,8 +1158,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             WT_ERR(__disagg_file_id_compare(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
               md_cursors[WT_DISAGG_CURSOR_FILE], &id_cmp));
             if (id_cmp != 0) {
-                WT_ERR(__disagg_check_meta_incarnation(
-                  session, sh_cursors[WT_DISAGG_CURSOR_FILE], md_cursors[WT_DISAGG_CURSOR_FILE]));
+                WT_ERR(__disagg_check_meta_match(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
+                  md_cursors[WT_DISAGG_CURSOR_FILE], true));
 
                 __wt_spin_lock(
                   session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
@@ -1248,7 +1226,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         /* Verify that the immutable metadata fields agree before adopting the new checkpoint. */
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
             if (md_has[i] && sh_has[i])
-                WT_ERR(__disagg_check_meta_match(session, sh_cursors[i], md_cursors[i]));
+                WT_ERR(__disagg_check_meta_match(session, sh_cursors[i], md_cursors[i], false));
 
         /*
          * Reconcile entries for this URI scheme and table.
