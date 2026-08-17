@@ -2991,10 +2991,11 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
                 WT_STAT_CONN_INCR(session, txn_truncate_dirty_cache_rollback);
                 WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
                   WT_TXN_ROLLBACK_REASON_TRUNCATE_DIRTY);
+            } else {
+                WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
+                WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
+                  WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
             }
-            WT_STAT_CONN_INCR(session, txn_rollback_too_large_for_cache);
-            WT_RET_SUB(session, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
-              WT_TXN_ROLLBACK_REASON_TOO_LARGE_FOR_CACHE);
         }
     }
     return (0);
