@@ -90,7 +90,14 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
         /* TODO: Should check to make sure this is the right type of block */
-        if (strcmp(filename, block->name) == 0) {
+        /*
+         * An open handle can outlive its table: a dropped table's block is still referenced while a
+         * new incarnation of the same name opens with a different table ID. Matching by name alone
+         * would read and write the previous incarnation's pages in the page log, so require the
+         * table ID to match as well.
+         */
+        if (strcmp(filename, block->name) == 0 &&
+          ((WT_BLOCK_DISAGG *)block)->tableid == S2BT(session)->id) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
