@@ -1367,9 +1367,10 @@ __evict_snapshot_app(
 {
     /*
      * If we couldn't make progress with the existing snapshot, save it and refresh to acquire a new
-     * one, restoring the original once eviction is done.
+     * one, restoring the original once eviction is done. A checkpoint keeps the snapshot it holds:
+     * a newer one would let content that is not part of the checkpoint into a tree it is writing.
      */
-    if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT)) {
+    if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT) && !WT_SESSION_IS_CHECKPOINT(session)) {
         WT_RET(__wt_txn_snapshot_save_and_refresh(session));
         WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
         *snap_statep = WT_EVICT_SNAP_RESTORE;
