@@ -1365,12 +1365,19 @@ static int
 __evict_snapshot_app(
   WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAPSHOT_STATE *snap_statep)
 {
+    bool ckpt_writes_tree;
+
+    /* The only trees a checkpoint writes in its own transaction. */
+    ckpt_writes_tree = WT_SESSION_IS_CHECKPOINT(session) &&
+      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle));
+
     /*
      * If we couldn't make progress with the existing snapshot, save it and refresh to acquire a new
-     * one, restoring the original once eviction is done. A checkpoint keeps the snapshot it holds:
-     * it must not write out and discard its own updates before its transaction commits.
+     * one, restoring the original once eviction is done. A checkpoint keeps the snapshot it holds
+     * on the trees it writes: it must not write out and discard its own updates before its
+     * transaction commits.
      */
-    if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT) && !WT_SESSION_IS_CHECKPOINT(session)) {
+    if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT) && !ckpt_writes_tree) {
         WT_RET(__wt_txn_snapshot_save_and_refresh(session));
         WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
         *snap_statep = WT_EVICT_SNAP_RESTORE;
