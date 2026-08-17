@@ -2380,6 +2380,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages currently held in the cache",
   "cache: pages currently held in the cache from the ingest btrees",
   "cache: pages currently held in the cache from the stable btrees",
+  "cache: pages dirtied by fast-truncate in uncommitted txn - bytes",
   "cache: pages dirtied due to obsolete time window by eviction",
   "cache: pages evicted ahead of the page materialization frontier",
   "cache: pages evicted in parallel with checkpoint",
@@ -3511,6 +3512,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_inuse */
     /* not clearing cache_pages_inuse_ingest */
     /* not clearing cache_pages_inuse_stable */
+    /* not clearing cache_truncate_txn_uncommitted_bytes */
     stats->cache_eviction_dirty_obsolete_tw = 0;
     stats->cache_eviction_ahead_of_last_materialized_lsn = 0;
     stats->eviction_pages_in_parallel_with_checkpoint = 0;
@@ -4708,6 +4710,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_pages_inuse += WT_STAT_CONN_READ(from, cache_pages_inuse);
     to->cache_pages_inuse_ingest += WT_STAT_CONN_READ(from, cache_pages_inuse_ingest);
     to->cache_pages_inuse_stable += WT_STAT_CONN_READ(from, cache_pages_inuse_stable);
+    to->cache_truncate_txn_uncommitted_bytes +=
+      WT_STAT_CONN_READ(from, cache_truncate_txn_uncommitted_bytes);
     to->cache_eviction_dirty_obsolete_tw +=
       WT_STAT_CONN_READ(from, cache_eviction_dirty_obsolete_tw);
     to->cache_eviction_ahead_of_last_materialized_lsn +=
@@ -5659,6 +5663,7 @@ static const char *const __stats_session_desc[] = {
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
+  "session: dirty bytes pinned by fast-truncate in this txn",
   "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
@@ -5689,6 +5694,7 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
     /* not clearing txn_bytes_dirty */
+    /* not clearing txn_truncate_bytes_dirty */
     /* not clearing txn_updates */
     stats->read_time = 0;
     stats->write_time = 0;

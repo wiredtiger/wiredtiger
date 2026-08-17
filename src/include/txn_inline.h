@@ -1927,6 +1927,12 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
         WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
     }
 
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_truncate_txn_uncommitted_bytes, val);
+        WT_STAT_SESSION_SET(session, txn_truncate_bytes_dirty, 0);
+    }
+
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
     if (val != 0) {
         WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
