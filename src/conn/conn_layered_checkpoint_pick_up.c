@@ -766,6 +766,56 @@ __disagg_file_id_compare(
 }
 
 /*
+ * __disagg_close_checkpoint_views --
+ *     Close the checkpoint views of a stable constituent. A follower reads the stable table through
+ *     handles whose name embeds the checkpoint ("<uri>/<checkpoint>"), and those names hash apart
+ *     from the base URI, so dropping the constituent does not reach them. Left behind, the next
+ *     open of the same checkpoint name would be served the dropped table's handle.
+ */
+static int
+__disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *stable_uri)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(prefix_buf);
+    WT_DECL_RET;
+    size_t allocated, count, i;
+    char **names;
+
+    names = NULL;
+    allocated = count = 0;
+
+    WT_RET(__wt_scr_alloc(session, 0, &prefix_buf));
+    WT_ERR(__wt_buf_fmt(session, prefix_buf, "%s/", stable_uri));
+
+    /*
+     * Collect the names and close them under one write lock: the close machinery needs that lock
+     * anyway, and holding it throughout means no handle can appear between the two steps.
+     */
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, {
+        TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q) {
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              !WT_PREFIX_MATCH(dhandle->name, (const char *)prefix_buf->data))
+                continue;
+            if ((ret = __wt_realloc_def(session, &allocated, count + 1, &names)) != 0)
+                break;
+            if ((ret = __wt_strdup(session, dhandle->name, &names[count])) != 0)
+                break;
+            ++count;
+        }
+        for (i = 0; ret == 0 && i < count; i++)
+            ret = __wt_conn_dhandle_close_all(session, names[i], true, true, false);
+    });
+    WT_ERR(ret);
+
+err:
+    for (i = 0; i < count; i++)
+        __wt_free(session, names[i]);
+    __wt_free(session, names);
+    __wt_scr_free(session, &prefix_buf);
+    return (ret);
+}
+
+/*
  * __disagg_drop_local_layered --
  *     Discard this node's state for a layered table that has been dropped elsewhere. The ordinary
  *     schema drop tears down the handles, the constituents and the local metadata rows, while the
@@ -791,6 +841,9 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *name, bool has
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
     ret = __wt_schema_drop(session, uri_buf->data, drop_cfg, false, true);
     WT_ERR_MSG_CHK(session, ret, "Failed to discard the dropped layered table \"%s\"", name);
+
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", name));
+    WT_ERR(__disagg_close_checkpoint_views(session, uri_buf->data));
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Discarded the local state of the dropped layered table \"%s\"", name);
