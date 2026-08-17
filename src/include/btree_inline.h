@@ -1126,8 +1126,8 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
         /*
          * We should never set a btree dirty when checkpoint is triggered by RTS, recovery or when
          * closing the connection. Those specific scenarios should always leave the database clean.
-         * The only exception is the metadata trees: they are expected to be marked as dirty whenever
-         * a btree is checkpointed.
+         * The only exception is the metadata trees: they are expected to be marked as dirty
+         * whenever a btree is checkpointed.
          */
         if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_ANY_METADATA(session->dhandle) &&
           !FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
