@@ -910,7 +910,13 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->cc_cleanup.session == NULL || conn->cc_cleanup.tid_set)
+    /*
+     * The session field is only written by connection open/close, but tid_set is written by
+     * step-up/step-down and read without a lock by __wt_checkpoint_cleanup_trigger, so use an
+     * atomic load here to keep TSan happy and prevent torn/stale reads on weakly ordered CPUs.
+     */
+    if (conn->cc_cleanup.session == NULL ||
+      __wt_atomic_load_bool_relaxed(&conn->cc_cleanup.tid_set))
         return (0);
 
     /* Set first, the thread might run before we finish up. */
@@ -918,7 +924,8 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_thread_create(conn->cc_cleanup.session, &conn->cc_cleanup.tid, __checkpoint_cleanup,
       conn->cc_cleanup.session));
-    conn->cc_cleanup.tid_set = true;
+    __wt_atomic_store_bool_relaxed(&conn->cc_cleanup.tid_set, true);
+    WT_STAT_CONN_INCR(session, checkpoint_cleanup_thread_start);
 
     return (0);
 }
@@ -937,10 +944,11 @@ __wt_checkpoint_cleanup_stop(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
-    if (conn->cc_cleanup.tid_set) {
+    if (__wt_atomic_load_bool_relaxed(&conn->cc_cleanup.tid_set)) {
         __wt_cond_signal(session, conn->cc_cleanup.cond);
         WT_TRET(__wt_thread_join(session, &conn->cc_cleanup.tid));
-        conn->cc_cleanup.tid_set = false;
+        __wt_atomic_store_bool_relaxed(&conn->cc_cleanup.tid_set, false);
+        WT_STAT_CONN_INCR(session, checkpoint_cleanup_thread_stop);
     }
 
     return (ret);
@@ -981,6 +989,6 @@ __wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->cc_cleanup.tid_set)
+    if (__wt_atomic_load_bool_relaxed(&conn->cc_cleanup.tid_set))
         __wt_cond_signal(session, conn->cc_cleanup.cond);
 }
