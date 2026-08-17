@@ -1299,8 +1299,8 @@ rollback_retry:
          * Select an operation: updates cannot happen at lower isolation levels or with
          * ignore_prepare and modify must be in an explicit transaction.
          *
-         * While worker writes are paused for a step-down, run read-only: new dirty pages would
-         * compete with the step-down checkpoint for cache.
+         * While pause_writes is set, run read-only: new dirty pages would compete with a concurrent
+         * checkpoint for cache.
          */
         op = READ;
         if (!pause_writes && (iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT) &&

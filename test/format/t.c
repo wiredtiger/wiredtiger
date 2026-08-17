@@ -254,6 +254,9 @@ main(int argc, char *argv[])
     /* Initialize lock to ensure single threading for lane operations in predictable replay. */
     testutil_check(pthread_rwlock_init(&g.lane_lock, NULL));
 
+    /* Initialize lock protecting the key rotation push history from concurrent step-down. */
+    testutil_check(pthread_rwlock_init(&g.key_push_lock, NULL));
+
     /*
      * Initialize the tables array and default to multi-table testing if not in backward-compatible
      * mode.
@@ -409,8 +412,9 @@ main(int argc, char *argv[])
          *
          * With async step-down, the leader -> follower transition and the follower window both
          * happen inside operations() (the background step-down thread reconfigures to follower and
-         * grants the workers DISAGG_SWITCH_FOLLOWER_OPS_SEC), so every rep starts as leader and
-         * disagg_switch_roles() only performs the step-up.
+         * grants the workers DISAGG_SWITCH_FOLLOWER_OPS_SEC). A rep can start as leader or as
+         * follower (if the previous rep ended stepped down), and disagg_switch_roles() only
+         * performs the step-up, since step-down is already handled asynchronously.
          */
         leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
 

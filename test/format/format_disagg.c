@@ -408,7 +408,11 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
       step_down_ts);
     track("[stepdown] checkpoint verified", 0ULL);
 
-    /* Reset the leader-side KEK push history. */
+    /*
+     * Reset the leader-side KEK push history. This races with disagg_key_rotation() appending to or
+     * reading the same history on its own thread; disagg_key_history_clear() and the rotation
+     * thread's accessors serialize on key_push_lock.
+     */
     disagg_key_history_clear();
 
     /* Complete the role transition while the workers are read-only. */
@@ -476,7 +480,10 @@ disagg_switch_roles(void)
          */
         testutil_assert(!GV(DISAGG_STEPDOWN_ASYNC));
 
-        /* Reset the leader-side KEK push history. */
+        /*
+         * Reset the leader-side KEK push history. The async path clears it itself inside
+         * disagg_async_stepdown(); this is the synchronous path's counterpart.
+         */
         disagg_key_history_clear();
 
         track("[role change] leader -> follower (sync)", 0ULL);

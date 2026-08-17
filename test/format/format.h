@@ -355,6 +355,8 @@ typedef struct {
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
     int disagg_multi_sync_socket;               /* Socket for leader-follower sync */
 
+    /* Push-mode key rotation history, cleared on step-down; protected by key_push_lock. */
+    pthread_rwlock_t key_push_lock;
     wt_timestamp_t key_push_history[KEY_PUSH_HISTORY_MAX]; /* Push-mode key rotation: timestamps */
     size_t key_push_count; /* Number of pushed timestamps recorded */
 
