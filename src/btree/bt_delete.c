@@ -90,7 +90,6 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_PAGE *parent;
-    WT_PAGE_MODIFY *parent_mod;
     WT_REF_STATE previous_state;
     WT_BTREE *btree = S2BT(session);
     bool parent_was_clean;
@@ -185,11 +184,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     parent = ref->home;
 
     /* If we are the first to dirty the parent, this truncate pulled it into dirty cache. */
-    parent_mod = __wt_tsan_suppress_load_wt_page_modify_ptr(&parent->modify);
-    parent_was_clean = true;
-    if (parent_mod != NULL &&
-      __wt_atomic_load_uint32_relaxed(&parent_mod->page_state) != WT_PAGE_CLEAN)
-        parent_was_clean = false;
+    parent_was_clean = !__wt_page_is_modified(parent);
 
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
