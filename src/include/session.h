@@ -219,11 +219,6 @@ struct __wt_session_impl {
      */
     uint64_t total_reentry_hs_eviction_time;
 
-    /* Record statistics in an reconciliation. */
-    struct __wt_reconcile_stats {
-        uint64_t hs_wrapup_next_prev_calls;
-    } reconcile_stats;
-
     WT_ITEM err; /* Error buffer */
     WT_ERROR_INFO err_info;
 

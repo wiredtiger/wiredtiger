@@ -3555,7 +3555,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     /* Set a flag in the session to track that we're in HS wrapup */
     F_SET(session, WT_SESSION_HS_WRAPUP);
-    session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
 
     /*
      * Sanity check: Can't insert updates into history store from the history store itself, the
@@ -3588,9 +3587,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             }
         }
     }
-
-    WT_STAT_CONN_INCRV(
-      session, rec_hs_wrapup_next_prev_calls, session->reconcile_stats.hs_wrapup_next_prev_calls);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE,
       "finished moving updates to the history store for %p", (void *)r->ref);
