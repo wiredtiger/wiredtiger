@@ -29,6 +29,7 @@
 import wttest
 from helpers.helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
 # test_disagg_checkpoint_shared_metadata_evict.py
 #   A checkpoint writes the shared metadata of every table it checkpointed, in its own transaction.
@@ -41,15 +42,21 @@ class test_disagg_checkpoint_shared_metadata_evict(wttest.WiredTigerTestCase):
 
     # A small cache lowers the in-memory page size at which a page is forcibly evicted when the
     # thread writing it releases it, so a modest number of tables is enough.
-    conn_base_config = 'cache_size=4MB,'
+    conn_base_config = 'cache_size=4MB,statistics=(all),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
     # A table contributes two shared metadata entries, and a checkpoint writes each of them twice:
-    # once for the table's creation and once to record the checkpoint it just wrote.
-    ntables = 40
+    # once for the table's creation and once to record the checkpoint it just wrote. Enough tables
+    # to take the page well past the size at which it is forcibly evicted, which the test checks.
+    ntables = 100
+
+    def forced_evictions(self):
+        with wttest.open_cursor(self.session, 'statistics:') as stat_cursor:
+            return stat_cursor[stat.conn.eviction_force][2] + \
+                stat_cursor[stat.conn.eviction_force_fail][2]
 
     def test_shared_metadata_forced_evict(self):
         uris = [f'layered:{self.test_name}_{i}' for i in range(self.ntables)]
@@ -60,7 +67,13 @@ class test_disagg_checkpoint_shared_metadata_evict(wttest.WiredTigerTestCase):
             cursor['key'] = 'value'
             cursor.close()
 
+        before = self.forced_evictions()
         self.session.checkpoint()
+
+        # Without a forced eviction while the checkpoint was writing shared metadata, this test
+        # proves nothing, so fail rather than pass silently.
+        self.assertGreater(self.forced_evictions(), before,
+            'no page was forcibly evicted, the configuration no longer exercises the checkpoint')
 
         # The connection must remain usable, and a second checkpoint must be able to write more
         # shared metadata on top of what the first one wrote.
