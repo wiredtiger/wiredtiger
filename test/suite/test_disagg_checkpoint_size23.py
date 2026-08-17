@@ -50,7 +50,7 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
     table_config = 'key_format=i,value_format=S'
 
     # The fixed overhead every database size carries for the KEK table and shared turtle page.
-    size_buffer = 1024 * 1024
+    WT_DISAGG_CHECKPOINT_SIZE_BUFFER = 1024 * 1024
 
     def published_size(self, conn=None):
         """The database size in the newest complete checkpoint, as another node would read it."""
@@ -117,7 +117,7 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
         self.assertLess(size_after, size_empty + (size_with_data - size_empty) * 0.1,
             f"the dropped data must not stay in the database size: empty={size_empty}, "
             f"after_all_dropped={size_after}")
-        self.assertGreaterEqual(size_after, self.size_buffer,
+        self.assertGreaterEqual(size_after, self.WT_DISAGG_CHECKPOINT_SIZE_BUFFER,
             f"the database size must not fall below its fixed overhead: {size_after}")
         self.check_consistent("after all dropped")
 
@@ -139,7 +139,7 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
             self.session.checkpoint()
 
             size = self.check_consistent(f"cycle {i}")
-            self.assertGreaterEqual(size, self.size_buffer)
+            self.assertGreaterEqual(size, self.WT_DISAGG_CHECKPOINT_SIZE_BUFFER)
 
         self.session.checkpoint()
         self.check_consistent("after churn")
@@ -152,7 +152,7 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
         self.populate()
         self.session.checkpoint()
         leader_size = self.published_size()
-        self.assertGreater(leader_size, self.size_buffer)
+        self.assertGreater(leader_size, self.WT_DISAGG_CHECKPOINT_SIZE_BUFFER)
 
         conn_follow = self.wiredtiger_open(
             'follower', self.extensionsConfig() + ',create,' + self.conn_follow_config)
@@ -179,7 +179,7 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
                 "the pickup did not bring the table's stable file into the local metadata")
             meta.close()
             _, follower_recomputed = self.maintained_and_recomputed(conn_follow)
-            self.assertGreater(follower_recomputed, self.size_buffer,
+            self.assertGreater(follower_recomputed, self.WT_DISAGG_CHECKPOINT_SIZE_BUFFER,
                 "the follower's metadata must account for the adopted table's data")
             self.check_consistent("follower after pickup", conn_follow)
 
