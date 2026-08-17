@@ -848,9 +848,9 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
         WT_RET(__clayered_stable_bind_check_role_change(session, true));
 
     /*
-     * The open refuses with EBUSY when a role change has hapenned since the operation was started. Convert it to a
-     * rollback: a cursor operation must not return EBUSY, and the application already retries a
-     * rollback, reopening the cursor for the current role.
+     * The open refuses with EBUSY when a role change has happened since the operation was started.
+     * Convert it to a rollback: a cursor operation must not return EBUSY, and the application
+     * already retries a rollback, reopening the cursor for the current role.
      */
     ret = __clayered_open_stable_int(clayered, layered->stable_uri);
     if (ret == EBUSY) {
