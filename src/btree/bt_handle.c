@@ -615,7 +615,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
             /*
              * A follower must not open a live stable tree: it reads checkpoint views. The shared
              * history store and the shared metadata table are exceptions, a follower still opens
-             * them live today.
+             * them live today. FIXME-WT-18356: stop keeping a live shared history store handle on a
+             * follower.
              *
              * A step-down can race with anyone opening a live tree: the open was dispatched on a
              * leader-role read and completes on a follower. The schema lock decides that race: a
@@ -623,7 +624,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
              * so the two never interleave and the role read below is the current role, never a
              * stale one. An open that lost the race sees the follower role here and returns EBUSY.
              * The layered cursor, for example, converts this EBUSY to a rollback, and the
-             * application's retry reopens the checkpoint view.
+             * application's retry reopens the checkpoint view. FIXME-WT-18357: assert a follower
+             * holds no writable live stable handle, and separate a raced open from an open that
+             * begins on a follower.
              */
             if (!__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) &&
               WT_URI_IS_STABLE(btree->dhandle->name) &&
