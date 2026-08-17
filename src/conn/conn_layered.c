@@ -166,11 +166,11 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
 
     /*
-     * Use the legacy method only when this node was never in epoch world. Either a completed epoch
-     * checkpoint or a live stable epoch means epoch-aware recovery is required.
+     * Use the legacy method whenever this node is not gating schema operations. A checkpoint can
+     * still carry an epoch while the application has stopped setting one, and such a node rebuilds
+     * from its local metadata like any legacy node.
      */
-    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
+    if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (__layered_create_missing_stable_tables_legacy(session));
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
@@ -1061,9 +1061,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
      * every queued create must be a window create. With schema epochs, uncovered creates
      * legitimately remain queued, so only window creates are checked.
      */
-    legacy = __wt_atomic_load_uint64_acquire(
-               &conn->txn_global.last_ckpt_disaggregated_schema_epoch) == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
+    legacy = __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
 

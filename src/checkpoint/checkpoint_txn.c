@@ -1781,7 +1781,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
-    wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch;
+    wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch, ckpt_disagg_write_epoch;
     uint64_t drop_size, generation;
     char schema_epoch_string[WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
@@ -1790,6 +1790,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
     ckpt_disagg_schema_epoch = WT_TS_NONE;
+    ckpt_disagg_write_epoch = WT_TS_NONE;
     ckpt_tmp_ts = WT_TS_NONE;
     drop_size = 0;
     hs_size = 0;
@@ -1909,7 +1910,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * we'll need them during the checkpoint resolve of the shared metadata table.
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
+    ckpt_disagg_write_epoch = WT_MAX(ckpt_disagg_schema_epoch,
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch));
     conn->disaggregated_storage.cur_schema_epoch = ckpt_disagg_schema_epoch;
+    conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -2080,7 +2084,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * WT_CONNECTION.rollback_to_stable is an allowed operation.
      */
     if (ckpt_cfg.use_timestamp) {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_schema_epoch;
+        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_write_epoch;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -2170,7 +2174,7 @@ err:
       "%s", "Checkpoint log stage operation failed");
 
     if (!failed)
-        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts, ckpt_disagg_schema_epoch));
+        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts, ckpt_disagg_write_epoch));
     WT_TRET(__checkpoint_disagg_advance(session, ckpt_tmp_ts, !failed && ret == 0));
 
     WT_TRET(__checkpoint_teardown(session, failed, saved_isolation));

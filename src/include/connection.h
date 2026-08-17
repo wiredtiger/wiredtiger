@@ -345,6 +345,7 @@ struct __wt_disaggregated_storage {
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
+    wt_timestamp_t cur_write_schema_epoch;   /* The schema epoch written to shared storage. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
     wt_shared wt_timestamp_t
