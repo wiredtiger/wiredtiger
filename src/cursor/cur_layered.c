@@ -848,15 +848,14 @@ __clayered_open_stable_leader(WTI_CURSOR_LAYERED *clayered)
         WT_RET(__clayered_stable_bind_check_role_change(session, true));
 
     /*
-     * The open refuses with EBUSY when a role change has happened since the operation was started.
-     * Convert it to a rollback: a cursor operation must not return EBUSY, and the application
-     * already retries a rollback, reopening the cursor for the current role.
+     * The open refuses with EBUSY and the disaggregated sub-error when a role change has happened
+     * since the operation was started. Convert it to a rollback: a cursor operation must not return
+     * EBUSY, and the application already retries a rollback, reopening the cursor for the current
+     * role. No other busy source is expected on this path.
      */
     ret = __clayered_open_stable_int(clayered, layered->stable_uri);
     if (ret == EBUSY) {
-        /* The busy open means the role moved: this leader-branch open lost to a step-down. */
-        WT_ASSERT(
-          session, !__wt_atomic_load_bool_acquire(&S2C(session)->layered_table_manager.leader));
+        WT_ASSERT(session, session->err_info.sub_level_err == WT_CONFLICT_DISAGG);
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_open_stable_stepdown_race);
         WT_RET_SUB(session, WT_ROLLBACK, WT_NONE,
           "the live stable table open raced a step-down to the follower role");
