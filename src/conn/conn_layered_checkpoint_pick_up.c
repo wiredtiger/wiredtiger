@@ -627,6 +627,16 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
 }
 
 /*
+ * The layered tables this node has to let go of, collected as the walk over the local and shared
+ * metadata passes each entry.
+ */
+typedef struct {
+    char **names;
+    size_t allocated;
+    size_t count;
+} WT_DISAGG_DROPPED_TABLES;
+
+/*
  * The btree IDs of every stable file the local metadata will hold once this pickup has applied the
  * checkpoint, collected as the walk over the local and shared metadata passes each entry.
  */
@@ -778,8 +788,8 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *name, bool has
     else
         WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", name));
 
-    WT_WITH_TABLE_WRITE_LOCK(
-      session, ret = __wt_schema_drop(session, uri_buf->data, drop_cfg, false, true));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
+    ret = __wt_schema_drop(session, uri_buf->data, drop_cfg, false, true);
     WT_ERR_MSG_CHK(session, ret, "Failed to discard the dropped layered table \"%s\"", name);
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -791,18 +801,96 @@ err:
 }
 
 /*
- * __disagg_discard_local_layered --
- *     Discard this node's state for a dropped layered table and remember its name. Metadata
- *     tracking removes the files of a dropped table only once the tracked unit completes, so the
- *     name cannot be picked up again until this pass is over.
+ * __disagg_dropped_add --
+ *     Record a layered table this node has to let go of. The drop runs once the merge is over, so
+ *     the walk only notes the name here.
  */
 static int
-__disagg_discard_local_layered(
-  WT_SESSION_IMPL *session, const char *name, size_t name_len, bool has_table_entry, WT_ITEM *buf)
+__disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped, const char *name)
 {
-    WT_RET(__disagg_drop_local_layered(session, name, has_table_entry));
-    WT_RET(__wt_buf_set(session, buf, name, name_len + 1));
+    WT_RET(__wt_realloc_def(session, &dropped->allocated, dropped->count + 1, &dropped->names));
+    WT_RET(__wt_strdup(session, name, &dropped->names[dropped->count]));
+    ++dropped->count;
     return (0);
+}
+
+/*
+ * __disagg_dropped_contains --
+ *     Return whether a name is already recorded as dropped.
+ */
+static bool
+__disagg_dropped_contains(const WT_DISAGG_DROPPED_TABLES *dropped, const char *name)
+{
+    size_t i;
+
+    for (i = 0; i < dropped->count; i++)
+        if (strcmp(dropped->names[i], name) == 0)
+            return (true);
+    return (false);
+}
+
+/*
+ * __disagg_dropped_apply_locked --
+ *     Drop every recorded table as one tracked unit, so that the handles are discarded and the
+ *     files removed together rather than one metadata sync at a time.
+ */
+static int
+__disagg_dropped_apply_locked(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped)
+{
+    WT_DECL_ITEM(uri_buf);
+    WT_DECL_RET;
+    size_t i;
+    char *table_value;
+    bool has_table_entry;
+
+    table_value = NULL;
+
+    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
+    WT_ERR(__wt_meta_track_on(session));
+
+    for (i = 0; i < dropped->count; i++) {
+        WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", dropped->names[i]));
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, uri_buf->data, &table_value), true);
+        has_table_entry = ret == 0;
+        __wt_free(session, table_value);
+
+        WT_ERR(__disagg_drop_local_layered(session, dropped->names[i], has_table_entry));
+    }
+
+err:
+    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+    __wt_free(session, table_value);
+    __wt_scr_free(session, &uri_buf);
+    return (ret);
+}
+
+/*
+ * __disagg_dropped_apply --
+ *     Drop every recorded table, holding the table lock across the tracked unit: the handles are
+ *     discarded when the unit completes, which is a schema-changing operation.
+ */
+static int
+__disagg_dropped_apply(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped)
+{
+    WT_DECL_RET;
+
+    WT_WITH_TABLE_WRITE_LOCK(session, ret = __disagg_dropped_apply_locked(session, dropped));
+    return (ret);
+}
+
+/*
+ * __disagg_dropped_free --
+ *     Release the recorded names.
+ */
+static void
+__disagg_dropped_free(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped)
+{
+    size_t i;
+
+    for (i = 0; i < dropped->count; i++)
+        __wt_free(session, dropped->names[i]);
+    __wt_free(session, dropped->names);
+    dropped->allocated = dropped->count = 0;
 }
 
 /*
@@ -894,12 +982,11 @@ err:
  */
 static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
-  wt_timestamp_t ckpt_schema_epoch, bool is_startup, bool *discardedp)
+  wt_timestamp_t ckpt_schema_epoch, bool is_startup, WT_DISAGG_DROPPED_TABLES *dropped)
 {
     WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
       *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
-    WT_DECL_ITEM(discarded_buf);
     WT_DECL_ITEM(metadata_uri_buf);
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *latest_entry;
@@ -925,7 +1012,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     metadata_checkpoint_name = NULL;
     first_uri = second_uri = NULL;
     dropped_tables = existing_tables = new_tables = new_ingest = 0;
-    *discardedp = false;
 
     /* Whether to check that the local and shared metadata contain the same layered tables. */
     strict = F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_STRICT_CHECKPOINT_METADATA);
@@ -974,7 +1060,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
     /* Open the cursors on the shared metadata table. */
     WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
-    WT_ERR(__wt_scr_alloc(session, 0, &discarded_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_uri_buf));
     WT_ERR(__wt_buf_fmt(
       session, metadata_uri_buf, "%s/%s", WT_DISAGG_METADATA_URI, metadata_checkpoint_name));
@@ -1064,10 +1149,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 
                 local_is_newer = id_cmp < 0 || latest_entry != NULL;
                 if (!local_is_newer) {
-                    WT_ERR(__disagg_discard_local_layered(session, current, current_len,
-                      md_has[WT_DISAGG_CURSOR_TABLE], discarded_buf));
+                    WT_ERR(__disagg_dropped_add(session, dropped, current));
                     ++dropped_tables;
-                    *discardedp = true;
                     continue;
                 }
                 __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -1158,12 +1241,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * already dropped the table locally and should not recreate it as a result.
              */
 
-            /*
-             * The walk meets a table discarded above a second time, now that its local entries are
-             * gone. Its files are only removed once this tracked unit completes, so leave it to the
-             * pass that follows.
-             */
-            if (discarded_buf->size != 0 && strcmp(current, discarded_buf->data) == 0)
+            /* A table waiting to be dropped is picked up by the merge that follows the drop. */
+            if (__disagg_dropped_contains(dropped, current))
                 continue;
             __wt_spin_lock(
               session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
@@ -1231,10 +1310,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 continue;
             }
 
-            WT_ERR(__disagg_discard_local_layered(
-              session, current, current_len, md_has[WT_DISAGG_CURSOR_TABLE], discarded_buf));
+            WT_ERR(__disagg_dropped_add(session, dropped, current));
             ++dropped_tables;
-            *discardedp = true;
         } else {
             /*
              * Neither the local nor the shared metadata has a layered: entry for this table name.
@@ -1353,7 +1430,6 @@ err:
     __wt_free(session, second_uri);
     __wt_free(session, metadata_checkpoint_name);
     __wt_scr_free(session, &current_buf);
-    __wt_scr_free(session, &discarded_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
     if (md_write_cursor != NULL)
@@ -1773,12 +1849,14 @@ err:
  * __disagg_adopt_checkpoint_meta_pass --
  *     Merge the checkpoint's metadata into the local metadata as one tracked unit: on failure the
  *     tracking unrolls every update already made, including any ingest tables created along the
- *     way, so the merge either completes or leaves no trace.
+ *     way, so the merge either completes or leaves no trace. Tables the merge finds this node has
+ *     to let go of are recorded rather than dropped, because the drop cannot run inside the unit
+ *     that reads them.
  */
 static int
 __disagg_adopt_checkpoint_meta_pass(WT_SESSION_IMPL *session,
   const WT_DISAGG_CHECKPOINT_META *ckpt_meta, const WT_DISAGG_METADATA *metadata, bool is_startup,
-  bool *discardedp)
+  WT_DISAGG_DROPPED_TABLES *dropped)
 {
     WT_DECL_RET;
 
@@ -1789,7 +1867,7 @@ __disagg_adopt_checkpoint_meta_pass(WT_SESSION_IMPL *session,
 
     /* Apply the metadata for the other tables from the shared metadata table. */
     WT_ERR(__disagg_apply_checkpoint_meta(
-      session, ckpt_meta, metadata->schema_epoch, is_startup, discardedp));
+      session, ckpt_meta, metadata->schema_epoch, is_startup, dropped));
 
 err:
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -1798,32 +1876,35 @@ err:
 
 /*
  * __disagg_adopt_checkpoint_meta --
- *     Merge the checkpoint's metadata into the local metadata.
+ *     Merge the checkpoint's metadata into the local metadata, dropping any table the leader has
+ *     dropped. A drop discards data handles and removes files when its own tracked unit completes,
+ *     neither of which can happen inside the merge that is still reading those entries, so the
+ *     drops run between two merges: the first records them and leaves their entries alone, and the
+ *     second picks up whatever the shared metadata holds under those names.
  */
 static int
 __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   const WT_DISAGG_METADATA *metadata, bool is_startup)
 {
-    bool discarded;
+    WT_DECL_RET;
+    WT_DISAGG_DROPPED_TABLES dropped;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_CLEAR(dropped);
 
-    WT_RET(
-      __disagg_adopt_checkpoint_meta_pass(session, ckpt_meta, metadata, is_startup, &discarded));
+    WT_ERR(__disagg_adopt_checkpoint_meta_pass(session, ckpt_meta, metadata, is_startup, &dropped));
+    if (dropped.count == 0)
+        goto err;
 
-    /*
-     * Metadata tracking removes the files of a dropped table only once the outermost tracked unit
-     * completes, so a table whose local state was discarded above cannot be created again under the
-     * same name until the pass that discarded it has finished. Run a second pass, which finds those
-     * tables missing from the local metadata and picks them up as new ones.
-     */
-    if (discarded) {
-        WT_RET(__disagg_adopt_checkpoint_meta_pass(
-          session, ckpt_meta, metadata, is_startup, &discarded));
-        WT_ASSERT(session, !discarded);
-    }
+    WT_ERR(__disagg_dropped_apply(session, &dropped));
+    __disagg_dropped_free(session, &dropped);
 
-    return (0);
+    WT_ERR(__disagg_adopt_checkpoint_meta_pass(session, ckpt_meta, metadata, is_startup, &dropped));
+    WT_ASSERT(session, dropped.count == 0);
+
+err:
+    __disagg_dropped_free(session, &dropped);
+    return (ret);
 }
 
 /*
