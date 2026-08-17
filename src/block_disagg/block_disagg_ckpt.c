@@ -183,7 +183,7 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
         WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
         checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
         WT_ERR(__wt_disagg_put_checkpoint_meta(session, cval.str, cval.len, checkpoint_timestamp,
-          conn->disaggregated_storage.cur_write_schema_epoch));
+          conn->disaggregated_storage.cur_shared_schema_epoch));
     } else {
         /* Extract the table/layered component name, if applicable. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt")) {

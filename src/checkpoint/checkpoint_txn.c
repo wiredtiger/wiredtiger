@@ -1765,35 +1765,35 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 }
 
 /*
- * __checkpoint_disagg_write_epoch --
- *     Decide the schema epoch a checkpoint records in shared storage.
+ * __checkpoint_disagg_get_shared_epoch --
+ *     Return the schema epoch this checkpoint publishes to shared storage.
  */
 static int
-__checkpoint_disagg_write_epoch(
-  WT_SESSION_IMPL *session, wt_timestamp_t ckpt_epoch, wt_timestamp_t *write_epochp)
+__checkpoint_disagg_get_shared_epoch(
+  WT_SESSION_IMPL *session, wt_timestamp_t gating_epoch, wt_timestamp_t *shared_epochp)
 {
     WT_CONNECTION_IMPL *conn;
-    wt_timestamp_t last_epoch;
+    wt_timestamp_t last_shared_epoch;
     char epoch_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
-    last_epoch =
+    last_shared_epoch =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch);
 
     /*
      * An unset epoch means the application has stopped gating schema operations, so carry the
-     * recorded epoch forward. Clearing it would tell every reader this is the legacy world.
+     * published epoch forward. Clearing it would tell every reader this is the legacy world.
      */
-    *write_epochp = ckpt_epoch == WT_SCHEMA_EPOCH_NONE ? last_epoch : ckpt_epoch;
+    *shared_epochp = gating_epoch == WT_SCHEMA_EPOCH_NONE ? last_shared_epoch : gating_epoch;
 
-    /* Only a leader records an epoch. A follower can legitimately sit below it. */
-    if (*write_epochp < last_epoch &&
+    /* Only a leader publishes an epoch. A follower can legitimately sit below it. */
+    if (*shared_epochp < last_shared_epoch &&
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         WT_RET_MSG(session, EINVAL,
-          "the stable disaggregated schema epoch %s is older than the schema epoch %s recorded in "
+          "the stable disaggregated schema epoch %s is older than the schema epoch %s published by "
           "the last checkpoint",
-          __wt_timestamp_to_string(ckpt_epoch, epoch_string[0]),
-          __wt_timestamp_to_string(last_epoch, epoch_string[1]));
+          __wt_timestamp_to_string(gating_epoch, epoch_string[0]),
+          __wt_timestamp_to_string(last_shared_epoch, epoch_string[1]));
 
     return (0);
 }
@@ -1815,7 +1815,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
-    wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch, ckpt_disagg_write_epoch;
+    wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch, ckpt_disagg_shared_epoch;
     uint64_t drop_size, generation;
     char schema_epoch_string[WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
@@ -1823,7 +1823,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CLEAR(ckpt_cfg);
     WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
-    ckpt_disagg_write_epoch = WT_TS_NONE;
+    ckpt_disagg_shared_epoch = WT_TS_NONE;
     ckpt_tmp_ts = WT_TS_NONE;
     drop_size = 0;
     hs_size = 0;
@@ -1943,10 +1943,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * we'll need them during the checkpoint resolve of the shared metadata table.
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
-    WT_ERR(
-      __checkpoint_disagg_write_epoch(session, ckpt_disagg_schema_epoch, &ckpt_disagg_write_epoch));
+    WT_ERR(__checkpoint_disagg_get_shared_epoch(
+      session, ckpt_disagg_schema_epoch, &ckpt_disagg_shared_epoch));
     conn->disaggregated_storage.cur_schema_epoch = ckpt_disagg_schema_epoch;
-    conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
+    conn->disaggregated_storage.cur_shared_schema_epoch = ckpt_disagg_shared_epoch;
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -2117,7 +2117,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * WT_CONNECTION.rollback_to_stable is an allowed operation.
      */
     if (ckpt_cfg.use_timestamp) {
-        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_write_epoch;
+        conn->txn_global.last_ckpt_disaggregated_schema_epoch = ckpt_disagg_shared_epoch;
         /*
          * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
          * cases it queries the recovery timestamp to determine the last stable recovery timestamp.
@@ -2207,7 +2207,7 @@ err:
       "%s", "Checkpoint log stage operation failed");
 
     if (!failed)
-        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts, ckpt_disagg_write_epoch));
+        WT_TRET(__checkpoint_disagg_put(session, ckpt_tmp_ts, ckpt_disagg_shared_epoch));
     WT_TRET(__checkpoint_disagg_advance(session, ckpt_tmp_ts, !failed && ret == 0));
 
     WT_TRET(__checkpoint_teardown(session, failed, saved_isolation));
