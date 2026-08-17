@@ -1520,9 +1520,17 @@ __clayered_stable_replay_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, 
     F_SET(upd, WT_UPDATE_RESTORED_FROM_INGEST);
 
     ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, &upd, WT_UPDATE_INVALID, false, false);
-    if (ret != 0)
+    if (ret != 0) {
         __wt_free(session, upd);
-    return (ret);
+        return (ret);
+    }
+
+    /*
+     * Replayed truncates bypass the commit path that tracks the unpublished minimum, so do it here.
+     */
+    if (F_ISSET_ATOMIC_32(CUR2BT(cbt), WT_BTREE_AWAITS_PUBLISH))
+        __wt_btree_update_unpublished_min(CUR2BT(cbt), session->replay_trunc_ctx.durable_ts);
+    return (0);
 }
 
 /*

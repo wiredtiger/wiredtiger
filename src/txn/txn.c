@@ -1840,6 +1840,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         case WT_TXN_OP_REF_DELETE:
             WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
+
+            /* A fast truncate leaves tombstones behind, track them as any other update. */
+            if (F_ISSET_ATOMIC_32(op->btree, WT_BTREE_AWAITS_PUBLISH))
+                __wt_btree_update_unpublished_min(op->btree, txn->time_point.durable_timestamp);
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:

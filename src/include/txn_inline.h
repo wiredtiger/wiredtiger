@@ -843,6 +843,13 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
         ref->page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
         ref->page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
         ref->page_del->committed = true;
+
+        /*
+         * Replayed truncates bypass the commit path that tracks the unpublished minimum, so do it
+         * here.
+         */
+        if (F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH))
+            __wt_btree_update_unpublished_min(S2BT(session), session->replay_trunc_ctx.durable_ts);
         return (0);
     }
 
