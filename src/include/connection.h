@@ -346,13 +346,9 @@ struct __wt_disaggregated_storage {
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
 
     /*
-     * Three schema epochs, which an application that stops setting the stable schema epoch drives
-     * apart. The current epoch is the live stable schema epoch, and decides what this node gates:
-     * which queued metadata operations a checkpoint may apply, and which tables it may publish. The
-     * epoch written out is what the checkpoint records for other nodes to read, and never moves
-     * backwards, so it keeps the epoch of the last checkpoint while the application sets none. The
-     * last checkpoint's epoch is what this node wrote or picked up, and is the floor for both the
-     * epoch written out and the epoch the application may set next.
+     * Three schema epochs. The current epoch is the live stable schema epoch and decides what this
+     * node gates. The epoch written out is what the checkpoint records for other nodes, and never
+     * moves backwards. The last checkpoint's epoch is what this node wrote or picked up.
      */
     wt_timestamp_t cur_schema_epoch;
     wt_timestamp_t cur_write_schema_epoch;

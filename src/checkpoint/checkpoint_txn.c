@@ -1766,10 +1766,7 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 
 /*
  * __checkpoint_disagg_write_epoch --
- *     Decide the schema epoch a checkpoint records in shared storage. An application that has
- *     stopped setting the stable schema epoch leaves the live epoch unset, and the recorded epoch
- *     is carried forward rather than cleared, so that nodes still gating schema operations can read
- *     the checkpoint and a later era cannot reuse an epoch. Only a leader records an epoch.
+ *     Decide the schema epoch a checkpoint records in shared storage.
  */
 static int
 __checkpoint_disagg_write_epoch(
@@ -1783,13 +1780,15 @@ __checkpoint_disagg_write_epoch(
     last_epoch =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch);
 
-    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
-        *write_epochp = ckpt_epoch;
-    else if (ckpt_epoch == WT_SCHEMA_EPOCH_NONE)
-        *write_epochp = last_epoch;
-    else if (ckpt_epoch >= last_epoch)
-        *write_epochp = ckpt_epoch;
-    else
+    /*
+     * An unset epoch means the application has stopped gating schema operations, so carry the
+     * recorded epoch forward. Clearing it would tell every reader this is the legacy world.
+     */
+    *write_epochp = ckpt_epoch == WT_SCHEMA_EPOCH_NONE ? last_epoch : ckpt_epoch;
+
+    /* Only a leader records an epoch. A follower can legitimately sit below it. */
+    if (*write_epochp < last_epoch &&
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         WT_RET_MSG(session, EINVAL,
           "the stable disaggregated schema epoch %s is older than the schema epoch %s recorded in "
           "the last checkpoint",
