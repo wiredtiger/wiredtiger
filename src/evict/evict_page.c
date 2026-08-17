@@ -1439,7 +1439,8 @@ __evict_snapshot_setup(
     /*
      * Only an application thread evicting its own data brings a snapshot worth reading under. A
      * checkpoint writes only the metadata trees, and it hides its transaction ID from the global
-     * table, so a snapshot shows its uncommitted updates there as committed. Exclude them.
+     * table, so a snapshot shows its uncommitted updates there as committed. Do not read under a
+     * snapshot when evicting those trees.
      */
     app_thread = !F_ISSET(session, WT_SESSION_EVICTION | WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && !WT_IS_DISAGG_META(session->dhandle);
