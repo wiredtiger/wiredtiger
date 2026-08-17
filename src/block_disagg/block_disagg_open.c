@@ -91,10 +91,8 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
         /* TODO: Should check to make sure this is the right type of block */
         /*
-         * An open handle can outlive its table: a dropped table's block is still referenced while a
-         * new incarnation of the same name opens with a different table ID. Matching by name alone
-         * would read and write the previous incarnation's pages in the page log, so require the
-         * table ID to match as well.
+         * The block's page log handle belongs to one table ID, so matching on the name alone would
+         * serve a recreated table the previous incarnation's pages.
          */
         if (strcmp(filename, block->name) == 0 &&
           ((WT_BLOCK_DISAGG *)block)->tableid == S2BT(session)->id) {

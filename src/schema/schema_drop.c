@@ -11,6 +11,8 @@
 #define WT_CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
 #define WT_CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
 
+static int __schema_drop_run(WT_SESSION_IMPL *, const char *, const char *[], bool, bool);
+
 /*
  * __drop_file --
  *     Drop a file.
@@ -99,7 +101,7 @@ __drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const cha
 
     /* If we can get the colgroup, detach it from the table. */
     if ((ret = __wt_schema_get_colgroup(session, uri, force, &table, &colgroup)) == 0) {
-        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg, check_visibility, local_only));
+        WT_TRET(__schema_drop_run(session, colgroup->source, cfg, check_visibility, local_only));
         if (ret == 0)
             table->cg_complete = false;
     }
@@ -121,7 +123,7 @@ __drop_index(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
 
     /* If we can get the index, detach it from the table. */
     if ((ret = __wti_schema_get_index(session, uri, true, force, &idx)) == 0)
-        WT_TRET(__wt_schema_drop(session, idx->source, cfg, check_visibility, local_only));
+        WT_TRET(__schema_drop_run(session, idx->source, cfg, check_visibility, local_only));
 
     WT_TRET(__wt_metadata_remove(session, uri));
     return (ret);
@@ -240,13 +242,13 @@ __drop_layered(WT_SESSION_IMPL *session, const char *uri, bool force, const char
      * leader outside that window always has the constituent, so treat ENOENT as an error there.
      */
     WT_ERR_ERROR_OK(
-      __wt_schema_drop(session, stable_uri, cfg, check_visibility, local_only), ENOENT, true);
+      __schema_drop_run(session, stable_uri, cfg, check_visibility, local_only), ENOENT, true);
     if (WT_CHECK_AND_RESET(ret, ENOENT) && !local_only &&
       __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
-    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility, local_only));
+    WT_ERR(__schema_drop_run(session, ingest_uri, cfg, check_visibility, local_only));
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
@@ -341,7 +343,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables.
      */
     if (!table->cg_complete && table->is_simple)
-        WT_ERR(__wt_schema_drop(session, file_uri_buf->data, cfg, check_visibility, local_only));
+        WT_ERR(__schema_drop_run(session, file_uri_buf->data, cfg, check_visibility, local_only));
 
     /* Drop the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -351,7 +353,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
          * Drop the column group before updating the metadata to avoid the metadata for the table
          * becoming inconsistent if we can't get exclusive access.
          */
-        WT_ERR(__wt_schema_drop(session, colgroup->source, cfg, check_visibility, local_only));
+        WT_ERR(__schema_drop_run(session, colgroup->source, cfg, check_visibility, local_only));
         WT_ERR(__wt_metadata_remove(session, colgroup->name));
     }
 
@@ -367,7 +369,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
          * Drop the index before updating the metadata to avoid the metadata for the table becoming
          * inconsistent if we can't get exclusive access.
          */
-        WT_ERR(__wt_schema_drop(session, idx->source, cfg, check_visibility, local_only));
+        WT_ERR(__schema_drop_run(session, idx->source, cfg, check_visibility, local_only));
         WT_ERR(__wt_metadata_remove(session, idx->name));
     }
 
@@ -607,13 +609,11 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
 }
 
 /*
- * __wt_schema_drop --
- *     Process a WT_SESSION::drop operation for all supported types. A local drop tears down this
- *     node's state for a table that has already been removed elsewhere, so it neither publishes the
- *     removal nor releases shared storage.
+ * __schema_drop_run --
+ *     Run a drop operation, on an internal session if a transaction is running.
  */
-int
-__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
+static int
+__schema_drop_run(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
   bool check_visibility, bool local_only)
 {
     WT_DECL_RET;
@@ -634,4 +634,28 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
     ret = __schema_drop(int_session, uri, cfg, check_visibility, local_only);
     WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
+}
+
+/*
+ * __wt_schema_drop --
+ *     Process a WT_SESSION::drop operation for all supported types.
+ */
+int
+__wt_schema_drop(
+  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
+{
+    return (__schema_drop_run(session, uri, cfg, check_visibility, false));
+}
+
+/*
+ * __wt_schema_drop_local --
+ *     Drop only this node's state for an object that has already been removed elsewhere. The
+ *     removal is not published and no shared storage is released, both of which belong to the node
+ *     that removed the object.
+ */
+int
+__wt_schema_drop_local(
+  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
+{
+    return (__schema_drop_run(session, uri, cfg, check_visibility, true));
 }
