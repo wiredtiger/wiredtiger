@@ -208,14 +208,14 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         txn->mod_count = 1;
 
         // A footprint at or below the threshold is not grounds for rollback.
-        txn->bytes_dirty = 60;
+        txn->update_dirty_bytes = 60;
         txn->truncate_dirty_bytes = 40;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Neither half exceeds the threshold alone, but together they do. The updates half is the
         // larger one, so the rollback is reported as a transaction that wrote too much.
-        txn->bytes_dirty = 60;
+        txn->update_dirty_bytes = 60;
         txn->truncate_dirty_bytes = 41;
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
@@ -225,7 +225,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
         // Same condition and sub-error code, but now the truncate half dominates, so the rollback
         // is attributed to the truncate instead.
-        txn->bytes_dirty = 41;
+        txn->update_dirty_bytes = 41;
         txn->truncate_dirty_bytes = 60;
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
@@ -234,7 +234,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         __wt_session_reset_last_error(session_impl);
 
         // A truncate footprint on its own is enough to trip the bound.
-        txn->bytes_dirty = 0;
+        txn->update_dirty_bytes = 0;
         txn->truncate_dirty_bytes = 101;
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_TXN_TOO_LARGE_FOR_CACHE,
@@ -248,7 +248,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Reset to the initial values.
-        txn->bytes_dirty = txn->truncate_dirty_bytes = 0;
+        txn->update_dirty_bytes = txn->truncate_dirty_bytes = 0;
         txn->mod_count = 0;
     }
 

@@ -478,11 +478,11 @@ struct __wt_txn {
 #endif
 
     /*
-     * Cache bytes this transaction has dirtied and not yet resolved. Eviction cannot reclaim these
-     * bytes, so it is maintained unconditionally rather than tracked only through the equivalent
-     * session statistic.
+     * Cache bytes this transaction's updates have dirtied and not yet resolved. Eviction cannot
+     * reclaim these bytes, so it is maintained unconditionally rather than tracked only through the
+     * equivalent session statistic.
      */
-    uint64_t bytes_dirty;
+    uint64_t update_dirty_bytes;
 
     /* Dirty internal-page cache pinned by this transaction's fast-truncate, used to bound it. */
     uint64_t truncate_dirty_bytes;
