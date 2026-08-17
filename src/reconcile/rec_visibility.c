@@ -747,15 +747,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
-    /*
-     * A running checkpoint hides its ID from the global table, so take its ID from the transaction
-     * itself: evicting a page under the checkpoint discards its own uncommitted updates, which it
-     * still needs at commit. The checkpoint's own writes of the tree must not be blocked this way,
-     * so this only applies to eviction.
-     */
-    session_txnid = WT_SESSION_IS_CHECKPOINT(session) && F_ISSET(r, WT_REC_EVICT) ?
-      session->txn->time_point.id :
-      __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
+    session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     *write_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {

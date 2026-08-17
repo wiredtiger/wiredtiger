@@ -1365,19 +1365,12 @@ static int
 __evict_snapshot_app(
   WT_SESSION_IMPL *session, uint32_t *flagsp, WT_EVICT_SNAPSHOT_STATE *snap_statep)
 {
-    bool ckpt_writes_tree;
-
-    /* The only trees a checkpoint writes in its own transaction. */
-    ckpt_writes_tree = WT_SESSION_IS_CHECKPOINT(session) &&
-      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle));
-
     /*
      * If we couldn't make progress with the existing snapshot, save it and refresh to acquire a new
-     * one, restoring the original once eviction is done. A checkpoint keeps the snapshot it holds
-     * on the trees it writes: it must not write out and discard its own updates before its
-     * transaction commits.
+     * one, restoring the original once eviction is done. A checkpoint keeps the snapshot it holds:
+     * a newer one would let content that is not part of the checkpoint into a tree it is writing.
      */
-    if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT) && !ckpt_writes_tree) {
+    if (F_ISSET(session->txn, WT_TXN_REFRESH_SNAPSHOT) && !WT_SESSION_IS_CHECKPOINT(session)) {
         WT_RET(__wt_txn_snapshot_save_and_refresh(session));
         WT_STAT_CONN_INCR(session, application_evict_snapshot_refreshed);
         *snap_statep = WT_EVICT_SNAP_RESTORE;
@@ -1444,9 +1437,13 @@ __evict_snapshot_setup(
     *snap_statep = WT_EVICT_SNAP_NONE;
     session->txn->ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
 
-    /* Only an application thread evicting its own data brings a snapshot worth reading under. */
+    /*
+     * Only an application thread evicting its own data brings a snapshot worth reading under. The
+     * metadata trees are excluded: a checkpoint writing them is not done with its updates, and
+     * recognizing that relies on the pinned ID rather than on a snapshot.
+     */
     app_thread = !F_ISSET(session, WT_SESSION_EVICTION | WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle);
+      !WT_IS_METADATA(session->dhandle) && !WT_IS_DISAGG_META(session->dhandle);
 
     if (F_ISSET(session, WT_SESSION_EVICTION))
         *snap_statep = __evict_snapshot_evict_thread(session, flagsp);
