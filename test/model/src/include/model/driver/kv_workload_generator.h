@@ -474,9 +474,9 @@ public:
     }
 
     static std::string
-    generate_stress_configurations(uint64_t seed = 0)
+    generate_stress_configurations(const kv_workload_generator_spec &spec, uint64_t seed = 0)
     {
-        kv_workload_generator generator(_default_spec, seed);
+        kv_workload_generator generator(spec, seed);
         return generator.generate_connection_stress_config();
     }
 
