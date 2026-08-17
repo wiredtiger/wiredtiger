@@ -53,6 +53,10 @@ class test_disagg_checkpoint_shared_metadata_evict(wttest.WiredTigerTestCase):
     # to take the page well past the size at which it is forcibly evicted, which the test checks.
     ntables = 100
 
+    # Padding carried into each shared metadata entry, so the page reaches that size on a much
+    # wider range of cache sizes than the entries alone would.
+    padding = 'x' * 4096
+
     def forced_evictions(self):
         with wttest.open_cursor(self.session, 'statistics:') as stat_cursor:
             return stat_cursor[stat.conn.eviction_force][2] + \
@@ -62,7 +66,8 @@ class test_disagg_checkpoint_shared_metadata_evict(wttest.WiredTigerTestCase):
         uris = [f'layered:{self.test_name}_{i}' for i in range(self.ntables)]
 
         for uri in uris:
-            self.session.create(uri, 'key_format=S,value_format=S')
+            self.session.create(uri,
+                f'key_format=S,value_format=S,app_metadata="{self.padding}"')
             cursor = self.session.open_cursor(uri)
             cursor['key'] = 'value'
             cursor.close()
