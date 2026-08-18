@@ -197,6 +197,10 @@ class suite_subprocess:
         # The subprocess runs under the same hooks as this process, otherwise it would exercise
         # none of what the hooks are meant to exercise, and a hook that alters the database layout
         # would leave us unable to reopen what the subprocess wrote.
+        #
+        # A table the subprocess creates under the disagg hook is layered, but the hook tracks that
+        # per test case rather than per home directory, so reading it back as 'table:' in this
+        # process still fails. See FIXME-WT-16920 in hook_disagg.py.
         hook_args = [ arg for spec in self.hook_specs for arg in [ '--hook', spec ] ]
         procargs = [ sys.executable, runscript, '-p', '--dir', directory,
             *hook_args, *scenario_args, funcname]
