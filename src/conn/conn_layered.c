@@ -98,7 +98,7 @@ __layered_create_missing_stable_tables_legacy(WT_SESSION_IMPL *session)
              */
             WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri,
               layered_uri + strlen("layered:"), WT_SHARED_METADATA_CREATE,
-              WT_SCHEMA_EPOCH_UNPUBLISHED, true));
+              WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -156,30 +156,34 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t stable_schema_epoch;
+    wt_timestamp_t last_ckpt_epoch;
 
     conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    stable_schema_epoch =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-
     /*
-     * Use the legacy method only when this node was never in epoch world. Either a completed epoch
-     * checkpoint or a live stable epoch means epoch-aware recovery is required.
+     * Use the legacy method whenever this node is not gating schema operations. A checkpoint can
+     * still carry an epoch while the application has stopped setting one, and such a node rebuilds
+     * from its local metadata like any legacy node.
      */
-    if (stable_schema_epoch == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
+    if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (__layered_create_missing_stable_tables_legacy(session));
+
+    last_ckpt_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+    WT_UNUSED(last_ckpt_epoch); /* Only read by the assertion below. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
 
-        /* When the stable epoch is known, entries older than it should have been pruned. */
-        WT_ASSERT(session,
-          entry->schema_epoch > stable_schema_epoch || stable_schema_epoch == WT_SCHEMA_EPOCH_NONE);
+        /*
+         * Entries at or below the last checkpoint's epoch should have been pruned. When no
+         * checkpoint has written an epoch yet the bound is zero and the assertion still holds:
+         * published entries always carry a nonzero epoch and unpublished ones the maximum.
+         */
+        WT_ASSERT(session, entry->schema_epoch > last_ckpt_epoch);
 
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
@@ -318,12 +322,13 @@ err:
 /*
  * __wt_disagg_enqueue_metadata_operation --
  *     Enqueue a metadata operation for a given URI into the shared metadata table to be done at the
- *     next checkpoint.
+ *     next checkpoint. A caller that has already removed the local metadata passes the stable
+ *     table's configuration in stable_value, since it can no longer be read from local metadata.
  */
 int
 __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
   const char *table_name, WT_SHARED_METADATA_OP metadata_op, wt_timestamp_t schema_epoch,
-  bool deferred)
+  bool deferred, const char *stable_value)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -356,7 +361,10 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
       __disagg_save_metadata(session, cursor, "colgroup:", table_name, &entry->colgroup_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "layered:", table_name, &entry->layered_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
-    WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
+    if (stable_value != NULL)
+        WT_ERR(__wt_strdup(session, stable_value, &entry->stable_value));
+    else
+        WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
      * Schema operations (create, drop) start deferred: at the start of each checkpoint, while the
@@ -439,7 +447,7 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
         /*
-         * When EPOCH_NONE is passed (a checkpoint that doesn't use schema epochs), prune everything
+         * When EPOCH_NONE is passed (the node is not gating schema operations), prune everything
          * unconditionally. The legacy path rebuilds stable constituents directly from local
          * metadata rather than replaying queue entries, so the queue is no longer needed.
          */
@@ -1057,9 +1065,7 @@ __layered_assert_step_down_created(WT_SESSION_IMPL *session)
      * every queued create must be a window create. With schema epochs, uncovered creates
      * legitimately remain queued, so only window creates are checked.
      */
-    legacy = __wt_atomic_load_uint64_acquire(
-               &conn->txn_global.last_ckpt_disaggregated_schema_epoch) == WT_SCHEMA_EPOCH_NONE &&
-      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
+    legacy = __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE;
     step_down_epoch =
       __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_disaggregated_schema_epoch);
 
@@ -1437,8 +1443,17 @@ __disagg_step_down(WT_SESSION_IMPL *session)
       __wt_open_internal_session(S2C(session), "disagg-step-down", false, 0, 0, &internal_session));
 
     /*
-     * The schema lock serializes application schema operations against the step-down, which clears
-     * the shared metadata queue and changes layered-table state underneath them.
+     * The schema lock serializes two things against the step-down.
+     *
+     * First, application schema operations: the step-down clears the shared metadata queue and
+     * changes layered-table state underneath them.
+     *
+     * Second, cursor opens: every btree open runs under the schema lock, so holding it here means
+     * an open either completes before the step-down, and the walk below sees the handle and marks
+     * it read-only, or starts after the role change, and the open itself refuses to produce a live
+     * stable tree on a follower. Without this ordering an open could straddle the step-down: read
+     * the leader role before it, finish after the walk, and leave a writable live stable tree on a
+     * follower that nothing ever marks.
      */
     WT_WITH_CHECKPOINT_LOCK(internal_session,
       WT_WITH_SCHEMA_LOCK(internal_session, ret = __disagg_step_down_int(internal_session)));

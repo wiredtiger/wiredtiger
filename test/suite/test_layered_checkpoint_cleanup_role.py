@@ -73,8 +73,7 @@ class test_layered_checkpoint_cleanup_role(wttest.WiredTigerTestCase):
         self.assertEqual(self.start_count() - self.stop_count(), base_start - base_stop)
         self.assertLessEqual(self.start_count() - base_start, 1)
 
-        # Cycle: step down, step up, several times. Each pair should advance start and stop by
-        # exactly one, and the thread must remain joinable each cycle.
+        # Stats should increment by exactly one each step-up / step-down.
         prev_start = self.start_count()
         prev_stop = self.stop_count()
         for _ in range(5):
