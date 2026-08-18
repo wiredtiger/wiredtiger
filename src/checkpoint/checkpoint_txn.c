@@ -1574,16 +1574,6 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
     crash_point = (u_int)cval.val;
 
     /*
-     * The two settings select crash points on opposite sides of the checkpoint transaction commit,
-     * and therefore disagree about whether the checkpoint survives. Refuse rather than silently
-     * honoring one of them, and refuse before applying either, so that the error path leaves no
-     * crash point behind for __checkpoint_teardown to trip over.
-     */
-    if (crash_point > 0 && tval.len > 0)
-        WT_RET_MSG(session, EINVAL,
-          "checkpoint_crash_point and checkpoint_crash_trigger_point are mutually exclusive");
-
-    /*
      * Perform a crash while checkpointing an individual tree. The input ranges from 1 to 1000 and
      * selects proportionally which of the gathered data handles to stop on. Every such crash
      * precedes the checkpoint transaction commit, so the checkpoint is never recoverable, with or
@@ -2241,7 +2231,7 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM cval, tval;
     WT_DECL_RET;
     uint32_t orig_flags;
     bool checkpoint_cleanup, flush, flush_sync;
@@ -2277,6 +2267,18 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 
     WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
+
+    /*
+     * The two crash point settings select points on opposite sides of the checkpoint transaction
+     * commit, so they disagree about whether the checkpoint survives rather than refining each
+     * other. Reject the combination here, before the transaction starts: an error returned once it
+     * is running is escalated to a panic under disaggregated storage.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_trigger_point", &tval));
+    if (cval.val > 0 && tval.len > 0)
+        WT_ERR_MSG(session, EINVAL,
+          "checkpoint_crash_point and checkpoint_crash_trigger_point are mutually exclusive");
 
     /*
      * If this checkpoint includes a flush_tier then this call also must wait for any earlier
