@@ -19,7 +19,6 @@ typedef enum { WTI_CLAYERED_ROLE_FOLLOWER, WTI_CLAYERED_ROLE_LEADER } WTI_CLAYER
  *	The constituent or constituents receiving a layered-table write.
  */
 typedef enum {
-    WTI_CLAYERED_WRITE_NONE,
     WTI_CLAYERED_WRITE_STABLE,
     WTI_CLAYERED_WRITE_INGEST,
     WTI_CLAYERED_WRITE_BOTH

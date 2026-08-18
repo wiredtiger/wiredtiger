@@ -347,6 +347,7 @@ __clayered_cursor_compare(WTI_CLAYERED_OP *op, WT_CURSOR *c1, WT_CURSOR *c2, int
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
+
     WT_ASSERT_ALWAYS(session, F_ISSET(c1, WT_CURSTD_KEY_SET) && F_ISSET(c2, WT_CURSTD_KEY_SET),
       "Can only compare cursors with keys available in layered tree");
 
@@ -444,7 +445,8 @@ __clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
      * which therefore remains the complete image throughout the window.
      *
      * A table created inside the step-down window has no stable constituent at all, so its cursors
-     * use ingest regardless of the window.
+     * use ingest whenever the transaction began. That covers a transaction from before the
+     * timestamp was set, which would otherwise read stable alone and find nothing to open.
      *
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
      * by contract.
@@ -475,7 +477,6 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-    op->write_target = WTI_CLAYERED_WRITE_NONE;
     if (mode == WTI_CLAYERED_MODE_WRITE) {
         if (role == WTI_CLAYERED_ROLE_FOLLOWER)
             op->write_target = WTI_CLAYERED_WRITE_INGEST;
@@ -545,7 +546,6 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *conn = S2C(session);
-
     WTI_CLAYERED_ROLE role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
       WTI_CLAYERED_ROLE_LEADER :
       WTI_CLAYERED_ROLE_FOLLOWER;
@@ -4135,8 +4135,6 @@ __clayered_modify_int(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
         return (__clayered_modify_ingest(op, entries, nentries));
     case WTI_CLAYERED_WRITE_BOTH:
         return (__clayered_modify_both(op, entries, nentries));
-    case WTI_CLAYERED_WRITE_NONE:
-        break;
     }
     return (__wt_illegal_value(CUR2S(op->clayered), op->write_target));
 }
