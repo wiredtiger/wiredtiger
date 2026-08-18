@@ -1766,7 +1766,8 @@ __checkpoint_eviction_snapshot_retire(WT_SESSION_IMPL *session)
 
 /*
  * __checkpoint_disagg_get_write_epoch --
- *     Return the schema epoch this checkpoint writes to its metadata.
+ *     Return the schema epoch this checkpoint writes to its metadata. Only a leader writes one, and
+ *     a follower's epoch legitimately sits below the last checkpoint's.
  */
 static int
 __checkpoint_disagg_get_write_epoch(
@@ -1779,12 +1780,6 @@ __checkpoint_disagg_get_write_epoch(
     conn = S2C(session);
     last_ckpt_epoch =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch);
-
-    /* Only a leader writes an epoch. A follower can legitimately sit below the last checkpoint. */
-    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
-        *write_epochp = ckpt_disagg_schema_epoch;
-        return (0);
-    }
 
     if (ckpt_disagg_schema_epoch == WT_SCHEMA_EPOCH_NONE)
         /*
@@ -1949,17 +1944,19 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * we'll need them during the checkpoint resolve of the shared metadata table.
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
-    WT_ERR(__checkpoint_disagg_get_write_epoch(
-      session, ckpt_disagg_schema_epoch, &ckpt_disagg_write_epoch));
     conn->disaggregated_storage.cur_schema_epoch = ckpt_disagg_schema_epoch;
-    conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
+    ckpt_disagg_write_epoch = ckpt_disagg_schema_epoch;
     if (__wt_conn_is_disagg(session) &&
-      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
+        WT_ERR(__checkpoint_disagg_get_write_epoch(
+          session, ckpt_disagg_schema_epoch, &ckpt_disagg_write_epoch));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Starting disaggregated storage checkpoint with timestamp: %" PRIu64
           " %s and schema epoch: %" PRIu64 " %s",
           ckpt_tmp_ts, __wt_timestamp_to_string(ckpt_tmp_ts, ts_string), ckpt_disagg_schema_epoch,
           __wt_timestamp_to_string(ckpt_disagg_schema_epoch, schema_epoch_string));
+    }
+    conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
