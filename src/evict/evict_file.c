@@ -91,7 +91,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(dhandle) &&
               !WT_IS_DISAGG_META(dhandle))
                 rec_flags |= WT_REC_HS;
-            WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
+            WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags, NULL));
         }
 
         /*
