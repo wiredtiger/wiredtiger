@@ -167,14 +167,13 @@ __wt_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, siz
     WT_RET(__block_disagg_addr_unpack_version(buf, 0, &version, &version_min));
 
     /*
-     * No writer emits either field beyond one past the format version, the extra one coming from
-     * the debug upgrade setting, so a cookie claiming otherwise is corruption rather than a format
-     * we might meet. Check ahead of the return below, which is itself a case worth a core, and is
-     * handled far enough above that nothing there names the cookie.
+     * Diagnostic builds only: a version this far ahead of the format version is corruption rather
+     * than one we might meet, and a core localizes it where the error reported below cannot. The
+     * bound is loose to leave room for upgrade and downgrade testing.
      */
     WT_ASSERT(session,
-      version <= WT_BLOCK_DISAGG_ADDR_VERSION + 1 &&
-        version_min <= WT_BLOCK_DISAGG_ADDR_VERSION + 1);
+      version <= WT_BLOCK_DISAGG_ADDR_VERSION + 4 &&
+        version_min <= WT_BLOCK_DISAGG_ADDR_VERSION + 4);
 
     if (version_min > current_version)
         WT_RET_MSG(session, ENOTSUP,
