@@ -140,9 +140,12 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     /*
      * Clearing the ingest table is final and owned by no transaction. The session flag makes the
      * truncate write globally visible tombstones that are immediately visible to every reader.
+     * Ignoring the cache size ensures the scan completes during step-up rather than being rolled
+     * back by application eviction.
+     *
+     * FIXME-WT-18058: Replace the whole-table clear with incremental per-page draining.
+     * FIXME-WT-18381: Remove the ignore cache size flag once the draining cache stuck is fixed.
      */
-    /* FIXME-WT-18058: Replace the whole-table clear with incremental per-page draining. */
-    /* The scan must complete during step-up rather than be rolled back by application eviction. */
     orig_flags = F_MASK(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
