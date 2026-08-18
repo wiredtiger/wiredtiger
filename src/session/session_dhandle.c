@@ -952,10 +952,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         /* A handle closed by sweep is already durable, so do not reopen it for a dhandle walk. */
         if (LF_ISSET(WT_DHANDLE_SKIP_OPEN) && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
             WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
-            __wt_tsan_suppress_store_wt_session_impl_ptr(&dhandle->excl_session, NULL);
+            dhandle->excl_session = NULL;
             dhandle->excl_ref = 0;
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-            __wt_session_dhandle_writeunlock(session);
+            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
             WT_ERR(EBUSY);
         }
 
