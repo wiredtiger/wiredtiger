@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered_schema28.py
+# test_layered_schema29.py
 #    Turning schema epochs off and back on. The application turns them off by no longer setting the
 #    stable schema epoch, which only takes effect when a node restarts.
 
@@ -36,7 +36,7 @@ from helper_layered_stepdown import LayeredStepdownMixin
 from wtscenario import make_scenarios
 
 @disagg_test_class
-class test_layered_schema28(
+class test_layered_schema29(
   LayeredStepdownMixin, wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_base_config = 'statistics=(all),precise_checkpoint=true,'
