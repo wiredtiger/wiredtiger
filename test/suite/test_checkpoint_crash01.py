@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os, signal
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -36,9 +37,9 @@ from wtscenario import make_scenarios
 class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:test_checkpoint_crash01'
 
-    # The numeric setting selects a tree in the per-tree phase, which always precedes the commit.
-    # Both ends of its range are covered: the top of the range used to map past the last handle,
-    # leaving the crash point unreached.
+    # The numeric setting selects a tree, or at the top of its range the phase that follows them,
+    # both of which precede the commit. Cover both ends: the top of the range is where a scaling
+    # mistake lands on a point that is never reached.
     crash_points = [
         ('before_checkpoint_commit',
             dict(debug_config='checkpoint_crash_trigger_point=before_checkpoint_commit',
@@ -78,6 +79,18 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
         # Expected to kill this process.
         self.session.checkpoint('debug=(%s)' % self.debug_config)
 
+    def assert_crashed(self, returncode):
+        # WiredTiger kills the process outright on POSIX and aborts on Windows, so the exit status
+        # is platform specific. Where the two are distinguishable, insist on the kill: an abort
+        # means we stopped somewhere we did not ask to, such as the checkpoint teardown assertion.
+        if os.name == 'nt':
+            self.assertNotEqual(returncode, 0)
+        else:
+            self.assertEqual(returncode, -signal.SIGKILL)
+
+    # run_subprocess_function does not pass --hook through, so under the disagg hook the crash
+    # would be taken on a local database and then verified against a disaggregated connection.
+    @wttest.skip_for_hook("disagg", "the subprocess does not inherit the hook")
     def test_checkpoint_crash(self):
         self.conn.close()
 
@@ -85,9 +98,7 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
             'test_checkpoint_crash01.test_checkpoint_crash01.subprocess_func',
             silent=True, scenario=self.scenario_number)
 
-        # A clean exit means the crash point was never reached; any other signal means we crashed
-        # somewhere we did not ask to, such as the checkpoint teardown assertion.
-        self.assertEqual(returncode, -9)
+        self.assert_crashed(returncode)
 
         conn = wiredtiger.wiredtiger_open(home, self.conn_config())
         try:
