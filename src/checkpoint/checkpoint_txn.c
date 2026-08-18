@@ -1008,8 +1008,8 @@ __checkpoint_update_disagg_database_size(
      * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
      * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
      * added during the checkpoint. Negative deltas occur when data is removed reducing the total
-     * storage footprint. A negative delta that would drop below the checkpoint buffer is clamped
-     * there.
+     * storage footprint. Undershooting the checkpoint buffer is an accounting bug: diagnostic
+     * builds abort, production logs an error and clamps so a wrapped uint64 is not published.
      */
     if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
         uint64_t db;
@@ -1026,12 +1026,12 @@ __checkpoint_update_disagg_database_size(
             uint64_t sub, new_size;
 
             sub = (uint64_t)(-delta);
+            WT_ASSERT(session, db >= sub && db - sub >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
             if (db < sub || db - sub < WT_DISAGG_CHECKPOINT_SIZE_BUFFER) {
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "disaggregated database size invalid value/underflow: decrementing %" PRIu64
-                  " from %" PRIu64 ", clamped to %" PRIu64,
+                  "disaggregated database size would fall below the checkpoint buffer: "
+                  "decrementing %" PRIu64 " from %" PRIu64 ", clamped to %" PRIu64,
                   sub, db, (uint64_t)WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
-                WT_ASSERT(session, db >= sub && db - sub >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
                 new_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
             } else
                 new_size = db - sub;
