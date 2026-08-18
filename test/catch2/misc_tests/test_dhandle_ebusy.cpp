@@ -67,16 +67,16 @@ TEST_CASE("skip reopening a dhandle closed by sweep", "[dhandle][dhandle_skip_re
         REQUIRE(__wt_session_get_dhandle(session_impl, "file:t.wt", nullptr, nullptr, 0) == 0);
 
         WT_DATA_HANDLE *dhandle = session_impl->dhandle;
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, false) == 0);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, false, true, false) == 0);
         REQUIRE(__wt_session_release_dhandle(session_impl) == 0);
-        CHECK_FALSE(F_ISSET(dhandle, WT_DHANDLE_OPEN));
+        CHECK(F_ISSET(dhandle, WT_DHANDLE_DEAD));
 
         WT_SESSION_IMPL *session_impl_b = conn.create_session();
         int ret = __wt_session_get_dhandle(
           session_impl_b, "file:t.wt", nullptr, nullptr, WT_DHANDLE_SKIP_REOPEN);
         CHECK(ret == EBUSY);
         CHECK(session_impl_b->dhandle == nullptr);
-        CHECK_FALSE(F_ISSET(dhandle, WT_DHANDLE_OPEN));
+        CHECK(F_ISSET(dhandle, WT_DHANDLE_DEAD));
     }
 
     utils::wiredtiger_cleanup(home);

@@ -943,8 +943,11 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
         /* Try to lock the handle. */
         WT_ERR(__wt_session_lock_dhandle(session, flags, &is_dead));
-        if (is_dead)
+        if (is_dead) {
+            if (LF_ISSET(WT_DHANDLE_SKIP_REOPEN))
+                WT_ERR(EBUSY);
             continue;
+        }
 
         /* A handle closed by sweep is already durable, so do not reopen it for a dhandle walk. */
         if (LF_ISSET(WT_DHANDLE_SKIP_REOPEN) && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
