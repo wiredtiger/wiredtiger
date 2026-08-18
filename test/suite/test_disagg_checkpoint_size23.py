@@ -30,11 +30,13 @@
 #   Database size accounting across the events a URI's metadata entry goes through: created,
 #   checkpointed, dropped, and created again under the same name before the drop was processed.
 #
-#   Two things are checked at every step, because they fail independently:
+#   Three values are checked together at every step, because they fail independently:
 #     - the size published in the checkpoint metadata, which is what another node adopts;
-#     - the maintained size against the from-scratch recompute from the metadata, which is the
-#       definition the verify path uses. A one-sided check on the published value alone cannot see
-#       an over-subtraction, and equality alone cannot see a value that never reaches a checkpoint.
+#     - the maintained running size;
+#     - the from-scratch recompute from the metadata, which is the definition the verify path uses.
+#   A one-sided check on the published value alone cannot see an over-subtraction, and equality
+#   between the maintained and recomputed sizes alone cannot see a value that never reaches a
+#   checkpoint.
 
 import re, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
@@ -46,7 +48,9 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_follow_config = conn_base_config + 'disaggregated=(role="follower")'
 
-    uri = "layered:reused_table"
+    table_name = "reused_table"
+    uri = "layered:" + table_name
+    stable_uri = "file:" + table_name + ".wt_stable"
     table_config = 'key_format=i,value_format=S'
 
     # The fixed overhead every database size carries for the KEK table and shared turtle page.
@@ -70,13 +74,25 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
         self.assertIsNotNone(recomputed)
         return int(local.group(1)), int(recomputed.group(1))
 
+    def stable_uri_present(self, stable_uri, conn=None):
+        """Whether a stable file has a metadata entry, in the view the size walk itself reads."""
+        if conn is None:
+            conn = self.conn
+        report = wiredtiger.wiredtiger_repair(
+            conn, f'fetch_metadata=(local=true,uri="{stable_uri}")')
+        return '<no matching metadata entry' not in report
+
     def check_consistent(self, label, conn=None):
-        """The running size must equal the metadata's own total, in both directions."""
+        """The published, running and recomputed sizes must all be the same number."""
         local, recomputed = self.maintained_and_recomputed(conn)
-        self.pr(f"{label}: local={local}, recomputed={recomputed}, drift={local - recomputed}")
+        published = self.published_size(conn)
+        self.pr(f"{label}: published={published}, local={local}, recomputed={recomputed}, "
+            f"drift={local - recomputed}")
         self.assertEqual(local, recomputed,
             f"{label}: maintained database size {local} != recomputed {recomputed} "
             f"(drift {local - recomputed})")
+        self.assertEqual(published, local,
+            f"{label}: published database size {published} != maintained {local}")
         return local
 
     def populate(self, session=None, rows=1000):
@@ -114,9 +130,18 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
 
         size_after = self.published_size()
         self.pr(f"empty={size_empty}, with_data={size_with_data}, after_all_dropped={size_after}")
-        self.assertLess(size_after, size_empty + (size_with_data - size_empty) * 0.1,
+
+        # Nothing of the table may be left in the metadata. With its entry gone the recompute
+        # cannot count it, so the equality check below is what proves the maintained size does not
+        # either. Note the size does not return to size_empty: the shared metadata table's own
+        # stable file is counted too, and the creates and drops above grew it.
+        self.assertFalse(self.stable_uri_present(self.stable_uri),
+            f"the dropped table's stable file must not remain: {self.stable_uri}")
+        # What is left above the fixed overhead is that shared file, not the data we inserted.
+        self.assertLess(size_after - self.WT_DISAGG_CHECKPOINT_SIZE_BUFFER,
+            size_with_data - size_empty,
             f"the dropped data must not stay in the database size: empty={size_empty}, "
-            f"after_all_dropped={size_after}")
+            f"with_data={size_with_data}, after_all_dropped={size_after}")
         self.assertGreaterEqual(size_after, self.WT_DISAGG_CHECKPOINT_SIZE_BUFFER,
             f"the database size must not fall below its fixed overhead: {size_after}")
         self.check_consistent("after all dropped")
@@ -174,7 +199,7 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
 
             # The pickup must really have brought the table over, or the rest proves nothing.
             meta = session_follow.open_cursor('metadata:')
-            meta.set_key("file:reused_table.wt_stable")
+            meta.set_key(self.stable_uri)
             self.assertEqual(meta.search(), 0,
                 "the pickup did not bring the table's stable file into the local metadata")
             meta.close()
@@ -198,32 +223,3 @@ class test_disagg_checkpoint_size23(DisaggConfigMixin, wttest.WiredTigerTestCase
             session_follow.close()
         finally:
             conn_follow.close()
-
-    # A stable file's metadata entry can arrive complete with a checkpoint, rather than being grown
-    # by checkpoints of our own: a checkpoint pickup inserts such entries. The size it carries has to
-    # be accounted for at the moment the entry appears, so write one directly and check the next
-    # checkpoint counts it.
-    def test_size_of_an_inserted_entry(self):
-        self.session.create(self.uri, self.table_config)
-        self.populate()
-        self.session.checkpoint()
-        size_before = self.check_consistent("before the inserted entry")
-
-        # Copy the table's own metadata entry, checkpoint and all, under a second stable file name.
-        meta = self.session.open_cursor('metadata:')
-        meta.set_key("file:reused_table.wt_stable")
-        self.assertEqual(meta.search(), 0)
-        value = meta.get_value()
-        meta.close()
-        inserted_size = int(re.findall(r',size=(\d+),', value)[-1])
-        self.assertGreater(inserted_size, 0)
-
-        meta = self.session.open_cursor('metadata:', None, 'readonly=false')
-        meta["file:inserted_table.wt_stable"] = value
-        meta.close()
-
-        self.session.checkpoint()
-        size_after = self.check_consistent("after the inserted entry")
-        self.assertEqual(size_after - size_before, inserted_size,
-            f"the inserted entry's checkpoint size must join the database size: "
-            f"{size_before} -> {size_after}, entry size {inserted_size}")

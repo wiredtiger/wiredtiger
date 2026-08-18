@@ -989,7 +989,7 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session, bool database
 
         /* A mismatch means a stable file's metadata changed outside
          * __wt_metadata_insert/update/remove. */
-        WT_RET(__wt_disagg_get_database_size(session, &walked_size));
+        WT_RET(__wt_disagg_file_sizes_from_metadata(session, &walked_size));
         walked_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
         WT_ASSERT_ALWAYS(session, walked_size == database_size,
           "disagg database size: recorded per-file total %" PRIu64

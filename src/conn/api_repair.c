@@ -67,7 +67,7 @@ __repair_fetch_database_size(WT_SESSION_IMPL *session, WT_ITEM *report, bool is_
         WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(local): %" PRIu64,
           S2C(session)->disaggregated_storage.database_size));
     else {
-        WT_RET(__wt_disagg_get_database_size(session, &database_size));
+        WT_RET(__wt_disagg_file_sizes_from_metadata(session, &database_size));
         WT_RET(__wt_buf_catfmt(session, report, "fetch_database_size(recompute): %" PRIu64,
           database_size + WT_DISAGG_CHECKPOINT_SIZE_BUFFER));
     }

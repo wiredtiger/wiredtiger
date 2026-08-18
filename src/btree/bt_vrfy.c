@@ -277,67 +277,6 @@ err:
 }
 
 /*
- * __disagg_database_size_walk --
- *     Sum the most recent checkpoint size of every stable file the metadata holds.
- */
-static int
-__disagg_database_size_walk(WT_SESSION_IMPL *session, uint64_t *sizep)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    uint64_t ckpt_size, total_size;
-    const char *uri, *value;
-
-    cursor = NULL;
-    total_size = 0;
-
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &uri));
-
-        /* Only consider file URIs as only they contribute to database_size. */
-        if (!WT_PREFIX_MATCH(uri, "file:") || !WT_SUFFIX_MATCH(uri, ".wt_stable"))
-            continue;
-
-        /* Look up the metadata string and extract the most recent checkpoint size. */
-        WT_ERR(cursor->get_value(cursor, &value));
-        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &ckpt_size), true);
-        if (ret == WT_NOTFOUND)
-            continue;
-
-        total_size += ckpt_size;
-    }
-    /*
-     * A not found error is okay. cursor->next() returns it once it goes through all the metadata
-     * entries.
-     */
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    *sizep = total_size;
-
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
-}
-
-/*
- * __wt_disagg_get_database_size --
- *     Recompute the disaggregated database size from the metadata, excluding the fixed overhead for
- *     the KEK table and shared turtle page. Reads uncommitted, as all metadata reads do.
- */
-int
-__wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
-{
-    WT_DECL_RET;
-
-    WT_WITH_TXN_ISOLATION(
-      session, WT_ISO_READ_UNCOMMITTED, ret = __disagg_database_size_walk(session, sizep));
-
-    return (ret);
-}
-
-/*
  * __wt_verify_disagg_database_size --
  *     Verify the database size for disaggregated storage. Walk the metadata and sum the most recent
  *     checkpoint size for every file, then compare the total against the stored database size.
@@ -359,7 +298,7 @@ __wt_verify_disagg_database_size(WT_SESSION_IMPL *session)
     conn = S2C(session);
     database_size = conn->disaggregated_storage.database_size;
 
-    WT_RET(__wt_disagg_get_database_size(session, &total_size));
+    WT_RET(__wt_disagg_file_sizes_from_metadata(session, &total_size));
 
     /*
      * Three cases to consider after the metadata walk:

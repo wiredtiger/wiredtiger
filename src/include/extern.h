@@ -600,9 +600,9 @@ extern int __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, cons
   bool deferred, const char *stable_value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_file_size_update(WT_SESSION_IMPL *session, const char *uri,
   const char *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_disagg_file_sizes_sum(WT_SESSION_IMPL *session, uint64_t *sizep)
+extern int __wt_disagg_file_sizes_from_metadata(WT_SESSION_IMPL *session, uint64_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_disagg_get_database_size(WT_SESSION_IMPL *session, uint64_t *sizep)
+extern int __wt_disagg_file_sizes_sum(WT_SESSION_IMPL *session, uint64_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
   WT_DISAGG_METADATA *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

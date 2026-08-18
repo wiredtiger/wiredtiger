@@ -295,12 +295,14 @@ __disagg_file_size_tracked(WT_SESSION_IMPL *session, const char *uri)
 }
 
 /*
- * __disagg_file_size_set --
- *     Record a stable file's checkpoint size, replacing any size recorded for it.
+ * __disagg_file_size_set_locked --
+ *     Record a stable file's checkpoint size, replacing any size recorded for it. The caller holds
+ *     the file sizes lock.
  */
 static int
-__disagg_file_size_set(WT_SESSION_IMPL *session, const char *uri, uint64_t size)
+__disagg_file_size_set_locked(WT_SESSION_IMPL *session, const char *uri, uint64_t size)
 {
+    WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     WT_DISAGG_FILE_SIZE *entry;
     uint64_t bucket;
@@ -317,12 +319,112 @@ __disagg_file_size_set(WT_SESSION_IMPL *session, const char *uri, uint64_t size)
             return (0);
         }
 
-    WT_RET(__wt_calloc_one(session, &entry));
-    WT_RET(__wt_strdup(session, uri, &entry->uri));
+    WT_ERR(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, uri, &entry->uri));
     entry->size = size;
     TAILQ_INSERT_HEAD(&disagg->file_sizes[bucket], entry, hashq);
 
+    if (0) {
+err:
+        __wt_free(session, entry);
+    }
+    return (ret);
+}
+
+/*
+ * __disagg_file_size_set --
+ *     Record a stable file's checkpoint size, replacing any size recorded for it. Shaped as a walk
+ *     action so the fill can record what it walks.
+ */
+static int
+__disagg_file_size_set(WT_SESSION_IMPL *session, const char *uri, uint64_t size, void *cookie)
+{
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    WT_UNUSED(cookie);
+
+    disagg = &S2C(session)->disaggregated_storage;
+
+    __wt_spin_lock(session, &disagg->file_sizes_lock);
+    /* Before the sizes are filled there is nothing to record into; the fill will see this write. */
+    if (disagg->file_sizes != NULL)
+        ret = __disagg_file_size_set_locked(session, uri, size);
+    __wt_spin_unlock(session, &disagg->file_sizes_lock);
+
+    return (ret);
+}
+
+/*
+ * __disagg_file_size_sum --
+ *     Walk action: add a stable file's checkpoint size to a running total.
+ */
+static int
+__disagg_file_size_sum(WT_SESSION_IMPL *session, const char *uri, uint64_t size, void *cookie)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(uri);
+
+    *(uint64_t *)cookie += size;
+
     return (0);
+}
+
+/*
+ * __disagg_stable_files_walk --
+ *     Apply a function to every stable file the metadata holds, passing the size recorded by the
+ *     file's most recent checkpoint, or zero when it has none.
+ */
+static int
+__disagg_stable_files_walk(WT_SESSION_IMPL *session,
+  int (*file_func)(WT_SESSION_IMPL *, const char *, uint64_t, void *), void *cookie)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t size;
+    const char *uri, *value;
+
+    cursor = NULL;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+        if (!__disagg_file_size_tracked(session, uri))
+            continue;
+        WT_ERR(cursor->get_value(cursor, &value));
+
+        /* A file that has not been checkpointed yet holds no size, and so contributes none. */
+        size = 0;
+        WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &size), false);
+
+        WT_ERR(file_func(session, uri, size, cookie));
+    }
+    /*
+     * A not found error is okay. cursor->next() returns it once it goes through all the metadata
+     * entries.
+     */
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __disagg_stable_files_apply --
+ *     Walk the stable files in the metadata. Reads uncommitted, as all metadata reads do, so the
+ *     walk sees the same state the recording hook saw.
+ */
+static int
+__disagg_stable_files_apply(WT_SESSION_IMPL *session,
+  int (*file_func)(WT_SESSION_IMPL *, const char *, uint64_t, void *), void *cookie)
+{
+    WT_DECL_RET;
+
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __disagg_stable_files_walk(session, file_func, cookie));
+
+    return (ret);
 }
 
 /*
@@ -332,24 +434,15 @@ __disagg_file_size_set(WT_SESSION_IMPL *session, const char *uri, uint64_t size)
 int
 __wt_disagg_file_size_update(WT_SESSION_IMPL *session, const char *uri, const char *value)
 {
-    WT_DECL_RET;
     uint64_t size;
 
     if (!__disagg_file_size_tracked(session, uri))
         return (0);
 
-    /* Before the sizes are filled there is nothing to record into; the fill will see this write. */
-    if (S2C(session)->disaggregated_storage.file_sizes == NULL)
-        return (0);
-
     size = 0;
     WT_RET_NOTFOUND_OK(__wt_ckpt_last_size(session, value, &size));
 
-    __wt_spin_lock(session, &S2C(session)->disaggregated_storage.file_sizes_lock);
-    ret = __disagg_file_size_set(session, uri, size);
-    __wt_spin_unlock(session, &S2C(session)->disaggregated_storage.file_sizes_lock);
-
-    return (ret);
+    return (__disagg_file_size_set(session, uri, size, NULL));
 }
 
 /*
@@ -409,39 +502,9 @@ __wt_disagg_file_sizes_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __disagg_file_sizes_walk --
- *     Record every stable file the metadata holds.
- */
-static int
-__disagg_file_sizes_walk(WT_SESSION_IMPL *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    const char *uri, *value;
-
-    cursor = NULL;
-
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &uri));
-        if (!__disagg_file_size_tracked(session, uri))
-            continue;
-        WT_ERR(cursor->get_value(cursor, &value));
-        WT_ERR(__wt_disagg_file_size_update(session, uri, value));
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
-}
-
-/*
  * __disagg_file_sizes_fill --
  *     Fill the sizes from the metadata. Needed once per connection: a database that is opened
- *     rather than created gets its entries from recovery, not through a metadata write. The walk
- *     reads uncommitted, as all metadata reads do, so it sees the same state the recording hook
- *     saw.
+ *     rather than created gets its entries from recovery, not through a metadata write.
  */
 static int
 __disagg_file_sizes_fill(WT_SESSION_IMPL *session)
@@ -457,10 +520,7 @@ __disagg_file_sizes_fill(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &disagg->file_sizes_lock);
     WT_RET(ret);
 
-    WT_WITH_TXN_ISOLATION(
-      session, WT_ISO_READ_UNCOMMITTED, ret = __disagg_file_sizes_walk(session));
-
-    return (ret);
+    return (__disagg_stable_files_apply(session, __disagg_file_size_set, NULL));
 }
 
 /*
@@ -491,6 +551,23 @@ __wt_disagg_file_sizes_sum(WT_SESSION_IMPL *session, uint64_t *sizep)
     __wt_spin_unlock(session, &disagg->file_sizes_lock);
 
     *sizep = total;
+    return (0);
+}
+
+/*
+ * __wt_disagg_file_sizes_from_metadata --
+ *     Recompute the disaggregated database size from the metadata, excluding the fixed overhead for
+ *     the KEK table and shared turtle page.
+ */
+int
+__wt_disagg_file_sizes_from_metadata(WT_SESSION_IMPL *session, uint64_t *sizep)
+{
+    uint64_t total;
+
+    total = 0;
+    WT_RET(__disagg_stable_files_apply(session, __disagg_file_size_sum, &total));
+    *sizep = total;
+
     return (0);
 }
 
