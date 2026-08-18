@@ -162,8 +162,12 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
         self.session.checkpoint()
 
-        self.assertGreater(self.rstat(stat.dsrc.btree_row_internal, uri), 0)
-        self.assertGreater(self.rstat(stat.dsrc.btree_row_leaf, uri), 1)
+        # Confirm the checkpoint really did write the leaf as several blocks —
+        # without that the tree stays one leaf deep and the internal-page check
+        # below is never reached. Assert on the reconciliation counter rather than
+        # btree_row_leaf: the latter is a tree-walk stat over the in-memory tree,
+        # which still holds a single unsplit leaf until something evicts it.
+        self.assertGreaterEqual(self.rstat(stat.dsrc.rec_multiblock_leaf, uri), 1)
 
         # Delete every row but a trailing block. The survivors keep the last leaf
         # populated, so the root retains more than one child while the leftmost
