@@ -795,13 +795,12 @@ err:
 
 /*
  * __disagg_drop_local_layered --
- *     Discard this node's state for a layered table that has been dropped elsewhere. The ordinary
- *     schema drop tears down the handles, the constituents and the local metadata rows, while the
- *     local flag keeps it from publishing the removal or releasing shared storage that the drop
- *     already released.
+ *     Discard this node's state for a layered table that has been dropped elsewhere. Dropping the
+ *     table reaches the layered table and its constituents through the column group, and a layered
+ *     table created without one is dropped by name; whichever is absent drops as a no-op.
  */
 static int
-__disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *name, bool has_table_entry)
+__disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *name)
 {
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
@@ -809,18 +808,16 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *name, bool has
 
     WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
 
-    /* Dropping the table reaches the layered table and its constituents through the column group.
-     */
-    if (has_table_entry)
-        WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", name));
-    else
-        WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", name));
-
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     /* The table is already gone from the shared metadata, so this drop keeps to itself. */
     F_SET(session, WT_SESSION_DROP_LOCAL_ONLY);
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", name));
     ret = __wt_schema_drop(session, uri_buf->data, drop_cfg, false);
+    if (ret == 0) {
+        WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", name));
+        ret = __wt_schema_drop(session, uri_buf->data, drop_cfg, false);
+    }
     F_CLR(session, WT_SESSION_DROP_LOCAL_ONLY);
     WT_ERR_MSG_CHK(session, ret, "Failed to discard the dropped layered table \"%s\"", name);
 
@@ -850,51 +847,23 @@ __disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped
 }
 
 /*
- * __disagg_dropped_apply_locked --
+ * __disagg_dropped_apply --
  *     Drop every recorded table as one tracked unit, so that the handles are discarded and the
  *     files removed together rather than one metadata sync at a time.
- */
-static int
-__disagg_dropped_apply_locked(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped)
-{
-    WT_DECL_ITEM(uri_buf);
-    WT_DECL_RET;
-    size_t i;
-    char *table_value;
-    bool has_table_entry;
-
-    table_value = NULL;
-
-    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
-    WT_ERR(__wt_meta_track_on(session));
-
-    for (i = 0; i < dropped->count; i++) {
-        WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", dropped->names[i]));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, uri_buf->data, &table_value), true);
-        has_table_entry = ret == 0;
-        __wt_free(session, table_value);
-
-        WT_ERR(__disagg_drop_local_layered(session, dropped->names[i], has_table_entry));
-    }
-
-err:
-    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
-    __wt_free(session, table_value);
-    __wt_scr_free(session, &uri_buf);
-    return (ret);
-}
-
-/*
- * __disagg_dropped_apply --
- *     Drop every recorded table, holding the table lock across the tracked unit: the handles are
- *     discarded when the unit completes, which is a schema-changing operation.
  */
 static int
 __disagg_dropped_apply(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped)
 {
     WT_DECL_RET;
+    size_t i;
 
-    WT_WITH_TABLE_WRITE_LOCK(session, ret = __disagg_dropped_apply_locked(session, dropped));
+    WT_RET(__wt_meta_track_on(session));
+
+    for (i = 0; i < dropped->count; i++)
+        WT_ERR(__disagg_drop_local_layered(session, dropped->names[i]));
+
+err:
+    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
     return (ret);
 }
 
@@ -1912,7 +1881,9 @@ __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     if (dropped.count == 0)
         goto err;
 
-    WT_ERR(__disagg_dropped_apply(session, &dropped));
+    /* Discarding the handles happens when the unit completes, which changes the schema. */
+    WT_WITH_TABLE_WRITE_LOCK(session, ret = __disagg_dropped_apply(session, &dropped));
+    WT_ERR(ret);
     __disagg_dropped_free(session, &dropped);
 
     WT_ERR(__disagg_adopt_checkpoint_meta_pass(session, ckpt_meta, metadata, is_startup, &dropped));
