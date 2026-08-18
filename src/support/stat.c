@@ -2210,6 +2210,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips ingest btrees in disagg",
   "cache: eviction server skips internal pages as it has an active child",
   "cache: eviction server skips metadata pages with history",
+  "cache: eviction server skips pages on an outdated disaggregated read-only btree that a reader "
+  "still has open",
   "cache: eviction server skips pages that are written with transactions greater than the "
   "checkpoint timestamp",
   "cache: eviction server skips pages that are written with transactions greater than the last "
@@ -3361,6 +3363,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_ingest_trees = 0;
     stats->eviction_server_skip_intl_page_with_active_child = 0;
     stats->eviction_server_skip_metatdata_with_history = 0;
+    stats->eviction_server_skip_stale_disagg_pages_busy = 0;
     stats->eviction_server_skip_pages_checkpoint_timestamp = 0;
     stats->eviction_server_skip_pages_last_running = 0;
     stats->eviction_server_skip_pages_prune_timestamp = 0;
@@ -4498,6 +4501,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_with_active_child);
     to->eviction_server_skip_metatdata_with_history +=
       WT_STAT_CONN_READ(from, eviction_server_skip_metatdata_with_history);
+    to->eviction_server_skip_stale_disagg_pages_busy +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_stale_disagg_pages_busy);
     to->eviction_server_skip_pages_checkpoint_timestamp +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_checkpoint_timestamp);
     to->eviction_server_skip_pages_last_running +=
