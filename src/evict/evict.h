@@ -16,9 +16,9 @@
  */
 struct __wt_evict_timeline {
     uint64_t evict_start;
+    uint64_t evict_finish;
     uint64_t reentry_hs_evict_start;
     uint64_t reentry_hs_evict_finish;
-    uint64_t evict_finish;
     bool reentry_hs_eviction;
 
     /* Filled in by the reconciliation this eviction drove, if it ran one. */

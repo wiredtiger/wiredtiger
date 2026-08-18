@@ -32,11 +32,11 @@
 
 /* The important timestamps of each stage in a reconciliation, owned by the reconciliation. */
 struct __wt_reconcile_timeline {
-    uint64_t reconcile_start;
-    uint64_t image_build_start;
-    uint64_t image_build_finish;
     uint64_t hs_wrapup_start;
     uint64_t hs_wrapup_finish;
+    uint64_t image_build_start;
+    uint64_t image_build_finish;
+    uint64_t reconcile_start;
     uint64_t reconcile_finish;
 };
 
