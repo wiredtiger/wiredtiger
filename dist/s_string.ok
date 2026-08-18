@@ -1110,6 +1110,7 @@ fstream
 fsync
 fsyncLock
 fsyncUnlock
+fsynced
 fsyncing
 ftruncate
 func
@@ -1643,6 +1644,7 @@ reconfigurations
 reconfigures
 reconfiguring
 reconfigwt
+recoverability
 recsize
 rectype
 recurse
@@ -1946,6 +1948,7 @@ unnamespaced
 unpackv
 unposition
 unpositioned
+unreached
 unredact
 unredacted
 unredacts
