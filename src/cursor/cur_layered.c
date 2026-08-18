@@ -484,12 +484,14 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
             op->write_target = WTI_CLAYERED_WRITE_BOTH;
         else if (op->ingest != NULL) {
             /*
-             * The only leader write that bypasses the stable constituent is to a table created
-             * inside the step-down window, which has no stable constituent: its writes meet any
-             * conflicting write in the ingest tree instead. Anything else reaching here would
-             * silently skip the mirror.
+             * A live leader write bypasses the stable constituent only for a table created inside
+             * the step-down window, which has no stable constituent. A stale leader dispatch can
+             * also lose the stable cursor during demotion. In either case, the write meets any
+             * conflicting write in the ingest tree instead; anything else would silently skip the
+             * mirror.
              */
-            WT_ASSERT_ALWAYS(CUR2S(clayered), F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED),
+            WT_ASSERT_ALWAYS(CUR2S(clayered),
+              F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED) || step_down_ts != WT_TS_NONE,
               "leader write routed to ingest alone on a table with a stable constituent");
             op->write_target = WTI_CLAYERED_WRITE_INGEST;
         } else
