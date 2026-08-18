@@ -51,7 +51,8 @@ class test_checkpoint39(wttest.WiredTigerTestCase):
 
     # Keep writes, checkpoints and eviction overlapping until eviction declines a snapshot. How many
     # declines accumulate in a window depends on how often eviction runs; the batch cap bounds the
-    # runtime.
+    # runtime. Run at least 50 batches so the read-back at the end still covers pages reconciled
+    # under a live checkpoint.
     nrows = 200
     nbatches = 1500
     min_batches = 50
