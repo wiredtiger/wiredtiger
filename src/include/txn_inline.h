@@ -892,7 +892,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     /*
      * The metadata is tracked specially because of optimizations for checkpoints.
      */
-    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
+    if (session->dhandle != NULL && WT_IS_ANY_METADATA(session->dhandle))
         return (__wt_atomic_load_uint64_v_relaxed(&txn_global->metadata_pinned));
 
     /*
