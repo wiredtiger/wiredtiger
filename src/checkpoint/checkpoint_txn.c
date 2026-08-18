@@ -1566,8 +1566,22 @@ static int
 __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
 {
 
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM cval, tval;
     u_int crash_point;
+
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_trigger_point", &tval));
+    crash_point = (u_int)cval.val;
+
+    /*
+     * The two settings select crash points on opposite sides of the checkpoint transaction commit,
+     * and therefore disagree about whether the checkpoint survives. Refuse rather than silently
+     * honoring one of them, and refuse before applying either, so that the error path leaves no
+     * crash point behind for __checkpoint_teardown to trip over.
+     */
+    if (crash_point > 0 && tval.len > 0)
+        WT_RET_MSG(session, EINVAL,
+          "checkpoint_crash_point and checkpoint_crash_trigger_point are mutually exclusive");
 
     /*
      * Perform a crash while checkpointing an individual tree. The input ranges from 1 to 1000 and
@@ -1575,8 +1589,6 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
      * precedes the checkpoint transaction commit, so the checkpoint is never recoverable, with or
      * without logging: callers that want a post-commit crash use the trigger points below.
      */
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
-    crash_point = (u_int)cval.val;
     if (crash_point > 0) {
         /*
          * A checkpoint that gathered no handles never enters the loop that honors the crash point,
@@ -1586,35 +1598,30 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
         if (session->ckpt.handle_next == 0)
             __wt_debug_crash(session);
 
+        /*
+         * Scale onto the handles that exist, so that the top of the range selects the last one. A
+         * crash point past the last handle would never be reached and would survive to the teardown
+         * assertion.
+         */
         session->ckpt.crash_point =
-          (((crash_point - 1) * session->ckpt.handle_next) / (WT_THOUSAND - 1)) + 1;
+          (((crash_point - 1) * (session->ckpt.handle_next - 1)) / (WT_THOUSAND - 1)) + 1;
     }
 
     /* Perform a crash at a specific point in checkpoint. */
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_trigger_point", &cval));
-    if (cval.len > 0) {
-        /*
-         * The two settings select crash points on opposite sides of the checkpoint transaction
-         * commit, and therefore disagree about whether the checkpoint survives. Refuse rather than
-         * silently honoring one of them.
-         */
-        if (session->ckpt.crash_point != 0)
-            WT_RET_MSG(session, EINVAL,
-              "checkpoint_crash_point and checkpoint_crash_trigger_point are mutually exclusive");
-
-        if (WT_CONFIG_LIT_MATCH("before_metadata_sync", cval))
+    if (tval.len > 0) {
+        if (WT_CONFIG_LIT_MATCH("before_metadata_sync", tval))
             session->ckpt.crash_trigger_point = CKPT_CRASH_BEFORE_METADATA_SYNC;
-        else if (WT_CONFIG_LIT_MATCH("before_checkpoint_commit", cval))
+        else if (WT_CONFIG_LIT_MATCH("before_checkpoint_commit", tval))
             session->ckpt.crash_trigger_point = CKPT_CRASH_BEFORE_CKPT_COMMIT;
-        else if (WT_CONFIG_LIT_MATCH("before_key_rotation", cval))
+        else if (WT_CONFIG_LIT_MATCH("before_key_rotation", tval))
             session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION;
-        else if (WT_CONFIG_LIT_MATCH("during_key_rotation", cval))
+        else if (WT_CONFIG_LIT_MATCH("during_key_rotation", tval))
             session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_DURING_KEY_ROTATION;
-        else if (WT_CONFIG_LIT_MATCH("after_key_rotation", cval))
+        else if (WT_CONFIG_LIT_MATCH("after_key_rotation", tval))
             session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION;
         else
             WT_RET_MSG(session, EINVAL, "Debug checkpoint crash point %.*s is invalid",
-              (int)cval.len, cval.str);
+              (int)tval.len, tval.str);
     }
     return (0);
 }
