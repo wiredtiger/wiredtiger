@@ -1778,8 +1778,14 @@ __disagg_pick_up_checkpoint(
 
     /*
      * Part 3: Do the bookkeeping.
+     *
+     * A node with no live stable epoch is not gating schema operations, so the adopted checkpoint
+     * covers the whole queue and it is cleared.
      */
-    __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
+    __wti_disagg_shared_metadata_queue_prune(session,
+      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE ?
+        WT_SCHEMA_EPOCH_NONE :
+        metadata.schema_epoch);
 
     /*
      * The merge is complete: a failure from here leaves the local metadata resolving to the new
