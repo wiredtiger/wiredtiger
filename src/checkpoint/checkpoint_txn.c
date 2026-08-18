@@ -1773,27 +1773,33 @@ __checkpoint_disagg_get_write_epoch(
   WT_SESSION_IMPL *session, wt_timestamp_t live_epoch, wt_timestamp_t *write_epochp)
 {
     WT_CONNECTION_IMPL *conn;
-    wt_timestamp_t last_written_epoch;
+    wt_timestamp_t last_ckpt_epoch;
     char epoch_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
-    last_written_epoch =
+    last_ckpt_epoch =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_schema_epoch);
 
-    /*
-     * An unset epoch means the application has stopped gating schema operations, so carry the
-     * written epoch forward. Clearing it would tell every reader this is the legacy world.
-     */
-    *write_epochp = live_epoch == WT_SCHEMA_EPOCH_NONE ? last_written_epoch : live_epoch;
+    /* Only a leader writes an epoch. A follower can legitimately sit below the last checkpoint. */
+    if (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
+        *write_epochp = live_epoch;
+        return (0);
+    }
 
-    /* Only a leader writes an epoch. A follower can legitimately sit below it. */
-    if (*write_epochp < last_written_epoch &&
-      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+    if (live_epoch == WT_SCHEMA_EPOCH_NONE)
+        /*
+         * The application has stopped gating schema operations, so carry the epoch forward.
+         * Clearing it would tell every reader this is the legacy world.
+         */
+        *write_epochp = last_ckpt_epoch;
+    else if (live_epoch >= last_ckpt_epoch)
+        *write_epochp = live_epoch;
+    else
         WT_RET_MSG(session, EINVAL,
           "the stable disaggregated schema epoch %s is older than the schema epoch %s written by "
           "the last checkpoint",
           __wt_timestamp_to_string(live_epoch, epoch_string[0]),
-          __wt_timestamp_to_string(last_written_epoch, epoch_string[1]));
+          __wt_timestamp_to_string(last_ckpt_epoch, epoch_string[1]));
 
     return (0);
 }
