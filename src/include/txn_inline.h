@@ -110,7 +110,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     op = txn->mod + txn->mod_count - 1;
 
     if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
-      WT_IS_METADATA(op->btree->dhandle))
+      WT_IS_ANY_METADATA(op->btree->dhandle))
         return;
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL);
@@ -144,7 +144,7 @@ __txn_op_need_set_key(WT_TXN *txn, WT_TXN_OP *op)
         return (false);
 
     /* Metadata writes cannot be prepared. */
-    if (WT_IS_METADATA(op->btree->dhandle))
+    if (WT_IS_ANY_METADATA(op->btree->dhandle))
         return (false);
 
     /* Auto transactions cannot be prepared. */
@@ -2481,7 +2481,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */
-    if (!WT_IS_METADATA(cbt->dhandle)) {
+    if (!WT_IS_ANY_METADATA(cbt->dhandle)) {
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)

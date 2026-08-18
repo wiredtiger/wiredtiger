@@ -1201,7 +1201,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         cursor->modify = __curfile_modify;
 
     /* Cursors on metadata should not be cached, doing so interferes with named checkpoints. */
-    if (cacheable && strcmp(WT_METAFILE_URI, cursor->internal_uri) != 0)
+    if (cacheable && !WT_IS_URI_METADATA(cursor->internal_uri))
         F_SET(cursor, WT_CURSTD_CACHEABLE);
 
     WT_ERR(__wt_cursor_init(cursor, cursor->internal_uri, owner, cfg, cursorp));
