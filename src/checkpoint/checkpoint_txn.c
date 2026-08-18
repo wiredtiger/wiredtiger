@@ -1008,8 +1008,11 @@ __checkpoint_update_disagg_database_size(
      * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
      * added during the checkpoint. Negative deltas occur when data is removed reducing the total
      * storage footprint. Guard against overflow/underflow in both cases.
+     *
+     * A drop size is an independent input: a checkpoint that only drops tables has no size delta of
+     * its own, so gating on the delta alone loses the drop.
      */
-    if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
+    if (!recomputed && (session->ckpt.ckpt_size_delta != 0 || drop_size != 0)) {
         uint64_t db;
         int64_t delta;
 
