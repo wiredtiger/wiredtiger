@@ -14,6 +14,8 @@ the durable state against per-operation record files.
 - In epoch mode, creates and drops have separate operation and publish events, allowing checkpoints
   and crashes to land between the two. In legacy mode each schema operation is complete without a
   publish event. Inserts are generated only after the create is complete.
+- A slot freed by a published drop is not recreated until the stable schema epoch passes the drop's
+  epoch; WiredTiger panics otherwise.
 - Leaders write checkpoints to the shared page log; followers adopt them. Role changes are events in
   the same stream, so all earlier work is drained before the connection is reconfigured.
 

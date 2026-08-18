@@ -42,6 +42,8 @@ generator_emit(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
  *     Advance one slot of the given worker thread through the table lifecycle, taking one of its
  *     state's valid moves at random. Reports whether an event was emitted; taking no move is valid,
  *     and lingering widens the window a checkpoint can land in.
+ *
+ * A recreate waits until the stable schema epoch passes the slot's published drop.
  */
 static bool
 generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
@@ -50,18 +52,28 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
     WT_RAND_STATE *rnd = &state->gen_rnd[t];
     const uint32_t slot = __wt_random(rnd) % state->cfg->pool_size;
     TABLE_STATE *slot_state = &state->workers[t].table[slot].state;
+    uint64_t *drop_epoch = &state->workers[t].table[slot].drop_epoch;
     /* Set when no checkpoint of this phase can cover the insert; such a slot is not droppable. */
     bool *uncovered_insert = &state->workers[t].table[slot].uncovered_insert;
 
     SCHEMA_EVENT ev = {0}; /* EVENT_NONE until a move is taken */
     switch (*slot_state) {
-    case TABLE_NONE:
+    case TABLE_NONE: {
+        /* Linger: recreating before the stable epoch passes the published drop is a violation. */
+        const uint64_t published_drop = __wt_atomic_load_uint64(drop_epoch);
+        if (published_drop != 0) {
+            if (published_drop == UINT64_MAX ||
+              query_ts(state->conn, TS_STABLE_SCHEMA_EPOCH) < published_drop)
+                break;
+            __wt_atomic_store_uint64(drop_epoch, 0);
+        }
         /* A legacy create is complete immediately; epoch mode publishes it in a later event. */
         ev.type = EVENT_CREATE;
         *slot_state = state->cfg->epoch_less ? TABLE_PUBLISHED : TABLE_CREATED;
         if (state->cfg->unique_tables)
             ++state->workers[t].table[slot].gen;
         break;
+    }
     case TABLE_CREATED:
         testutil_assert(!state->cfg->epoch_less);
         switch (__wt_random(rnd) % 3) {
@@ -108,6 +120,9 @@ generator_op(WORKLOAD_STATE *state, uint32_t t, GENERATOR_PHASE phase)
         ev.key_min = DATA_KEY_MIN;
         ev.key_max = DATA_KEY_MAX;
     }
+    /* The worker assigns the epoch when it applies the publish. */
+    if (ev.type == EVENT_PUBLISH_DROP && !state->cfg->unique_tables)
+        __wt_atomic_store_uint64(drop_epoch, UINT64_MAX);
 
     generator_emit(state, &ev);
     return (true);
@@ -201,6 +216,8 @@ generator_flush_publishes(WORKLOAD_STATE *state)
               slot, state->workers[t].table[slot].gen);
 
             *slot_state = *slot_state == TABLE_CREATED ? TABLE_PUBLISHED : TABLE_NONE;
+            if (ev.type == EVENT_PUBLISH_DROP && !state->cfg->unique_tables)
+                __wt_atomic_store_uint64(&state->workers[t].table[slot].drop_epoch, UINT64_MAX);
             generator_emit(state, &ev);
         }
 }

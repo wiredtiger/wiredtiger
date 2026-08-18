@@ -254,6 +254,8 @@ typedef struct {
             TABLE_STATE state;
             /* Advanced by every create under -q, so a slot's table name is never reused. */
             uint32_t gen;
+            /* Published drop's epoch, or UINT64_MAX while its publish is queued; atomic access. */
+            uint64_t drop_epoch;
             /* Inserted data is uncovered yet. Not droppable until a checkpoint. */
             bool uncovered_insert;
         } table[MAX_POOL_SIZE];

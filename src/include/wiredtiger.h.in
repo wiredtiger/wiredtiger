@@ -1461,6 +1461,9 @@ struct __wt_session {
      * before they are published are not visible to other connections until they are published.
      * A client is not allowed to have any stable updates in an unpublished table.
      *
+     * Once a dropped table has been recreated, a checkpoint must not run with a schema epoch below
+     * the drop's published epoch.
+     *
      * @exclusive
      *
      * @not_transactional

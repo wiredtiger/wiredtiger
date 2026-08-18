@@ -781,6 +781,48 @@ __disagg_handle_create_remove_pairing(WT_SESSION_IMPL *session, WT_CONNECTION_IM
 }
 
 /*
+ * __disagg_remove_is_checkpoint_violation --
+ *     Return whether a table visible at the checkpoint epoch is dropped and recreated at a future
+ *     epoch. This is an API violation because the checkpoint refers to the dropped table, while the
+ *     later CREATE refers to a different table with the same name.
+ */
+static bool
+__disagg_remove_is_checkpoint_violation(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn,
+  WT_DISAGG_METADATA_OP *entry, wt_timestamp_t schema_epoch)
+{
+    /* Only a published drop can invalidate the checkpoint. */
+    if (entry->metadata_op != WT_SHARED_METADATA_REMOVE ||
+      entry->schema_epoch == WT_SCHEMA_EPOCH_UNPUBLISHED)
+        return (false);
+
+    WT_DISAGGREGATED_STORAGE *disagg = &conn->disaggregated_storage;
+    WT_ASSERT_SPINLOCK_OWNED(session, &disagg->shared_metadata_queue_lock);
+
+    /* Check whether the final operation after the REMOVE recreates the table. */
+    WT_DISAGG_METADATA_OP *op;
+    bool recreated = false;
+
+    for (op = TAILQ_NEXT(entry, q); op != NULL; op = TAILQ_NEXT(op, q)) {
+        if (op->deferred || strcmp(op->stable_uri, entry->stable_uri) != 0)
+            continue;
+        recreated = op->metadata_op == WT_SHARED_METADATA_CREATE;
+    }
+
+    /* No recreate means no API violation. */
+    if (!recreated)
+        return (false);
+
+    /* Exempt a table created and dropped entirely after the checkpoint epoch. */
+    for (op = TAILQ_FIRST(&disagg->shared_metadata_qh); op != entry; op = TAILQ_NEXT(op, q)) {
+        if (op->metadata_op == WT_SHARED_METADATA_CREATE && op->schema_epoch > schema_epoch &&
+          strcmp(op->stable_uri, entry->stable_uri) == 0)
+            return (false);
+    }
+
+    return (true);
+}
+
+/*
  * __disagg_requeue_skipped_creates --
  *     Return parked create entries to the head of the shared metadata queue, restoring their
  *     original order, so a later checkpoint revisits them.
@@ -844,6 +886,15 @@ __wt_disagg_shared_metadata_queue_process(
 
         /* Defer entries based on the schema epoch. */
         if (cur_schema_epoch != WT_SCHEMA_EPOCH_NONE && entry->schema_epoch > cur_schema_epoch) {
+            if (__disagg_remove_is_checkpoint_violation(session, conn, entry, cur_schema_epoch)) {
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "API violation: table \"%s\" was dropped at schema epoch %" PRIu64
+                  " and recreated, above the checkpoint's schema epoch %" PRIu64
+                  ": the checkpoint refers to the dropped generation",
+                  entry->table_name, entry->schema_epoch, cur_schema_epoch);
+                WT_ERR_PANIC(session, EINVAL,
+                  "API violation: checkpoint schema epoch refers to a dropped and recreated table");
+            }
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Defer metadata operation %s for table \"%s\" with schema epoch %" PRIu64,
               __wti_disagg_shared_metadata_op_to_string(entry->metadata_op), entry->table_name,
