@@ -178,7 +178,11 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
 
-        /* Entries at or below the last checkpoint's epoch should have been pruned. */
+        /*
+         * Entries at or below the last checkpoint's epoch should have been pruned. Published
+         * entries carry a nonzero epoch and unpublished ones the maximum, so the check also holds
+         * when no checkpoint has written an epoch yet.
+         */
         WT_ASSERT(session, entry->schema_epoch > last_ckpt_epoch);
 
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
