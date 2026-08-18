@@ -195,7 +195,7 @@ class test_layered_schema21(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.set_stable_epoch(8)
         self.leader_checkpoint(11)
 
-    def test_drop_published_with_uncheckpoint_stable_data(self):
+    def test_drop_published_with_uncheckpointed_stable_data(self):
         # Create and publish at epoch 5.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) +
             ',oldest_timestamp=' + self.timestamp_str(1))
