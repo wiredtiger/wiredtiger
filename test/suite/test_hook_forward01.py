@@ -41,7 +41,7 @@ class test_hook_forward01(wttest.WiredTigerTestCase, suite_subprocess):
     # Subprocess body: report the hooks this process was started with.
     def subprocess_report_hooks(self):
         with open(self.hooks_file, 'w') as f:
-            f.write('\n'.join(self.hook_names))
+            f.write('\n'.join(self.hook_specs))
 
     def test_hook_forward(self):
         [returncode, home] = self.run_subprocess_function('SUBPROCESS_report_hooks',
@@ -49,5 +49,5 @@ class test_hook_forward01(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(returncode, 0)
 
         with open(os.path.join(home, self.hooks_file), 'r') as f:
-            subprocess_names = f.read().split()
-        self.assertEqual(sorted(subprocess_names), sorted(self.hook_names))
+            subprocess_specs = f.read().split()
+        self.assertEqual(sorted(subprocess_specs), sorted(self.hook_specs))

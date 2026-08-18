@@ -194,8 +194,12 @@ class suite_subprocess:
         # Restrict the subprocess to a single scenario if specified, so that each scenario is
         # exercised (and asserted) independently.
         scenario_args = [ '-s', str(scenario) ] if scenario is not None else []
+        # The subprocess runs under the same hooks as this process, otherwise it would exercise
+        # none of what the hooks are meant to exercise, and a hook that alters the database layout
+        # would leave us unable to reopen what the subprocess wrote.
+        hook_args = [ arg for spec in self.hook_specs for arg in [ '--hook', spec ] ]
         procargs = [ sys.executable, runscript, '-p', '--dir', directory,
-            *scenario_args, funcname]
+            *hook_args, *scenario_args, funcname]
 
         returncode = -1
         os.makedirs(directory)
