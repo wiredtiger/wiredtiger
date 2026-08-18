@@ -342,7 +342,6 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
      * step_down_ts.
      */
     g.timestamp += 2;
-    WT_RELEASE_WRITE_WITH_BARRIER(g.stepdown_ts, step_down_ts);
     testutil_snprintf(config, sizeof(config), "step_down_timestamp=%" PRIx64, step_down_ts);
     testutil_check(g.wts_conn->set_timestamp(g.wts_conn, config));
     lock_writeunlock(session, &g.timestamp_lock);
@@ -425,7 +424,6 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
     follower_read_latest_checkpoint();
 
     /* Re-enable worker writes; they now run as follower writes into ingest. */
-    g.stepdown_ts = WT_TS_NONE;
     WT_RELEASE_WRITE_WITH_BARRIER(g.stepdown_pause_writes, false);
 
     /* Reset the quit flags now that the threads are joined. */

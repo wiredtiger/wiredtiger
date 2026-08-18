@@ -317,9 +317,6 @@ typedef struct {
      */
     RWLOCK timestamp_lock;
 
-    /* Boundary timestamp while a step-down is in progress. */
-    wt_timestamp_t stepdown_ts;
-
     /* Pause worker writes for the step-down checkpoint and role transition. */
     volatile bool stepdown_pause_writes;
 
