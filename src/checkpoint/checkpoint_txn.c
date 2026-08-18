@@ -1574,27 +1574,34 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
     crash_point = (u_int)cval.val;
 
     /*
-     * Perform a crash while checkpointing an individual tree. The input ranges from 1 to 1000 and
-     * selects proportionally which of the gathered data handles to stop on. Every such crash
-     * precedes the checkpoint transaction commit, so the checkpoint is never recoverable, with or
-     * without logging: callers that want a post-commit crash use the trigger points below.
+     * Perform a crash at a relative point in checkpoint. The input ranges from 1 to 1000 and
+     * selects proportionally one of the gathered data handles to stop on, or one of the phases that
+     * follow them. The range stops short of CKPT_CRASH_ENUM_MAY_RECOVER, so every point it can
+     * select precedes the checkpoint transaction commit and the checkpoint is never recoverable,
+     * with or without logging. Callers that want a crash the checkpoint can survive name it
+     * instead.
      */
     if (crash_point > 0) {
-        /*
-         * A checkpoint that gathered no handles never enters the loop that honors the crash point,
-         * so crash here instead. This is still ahead of the commit, which is all the caller asked
-         * for.
-         */
-        if (session->ckpt.handle_next == 0)
-            __wt_debug_crash(session);
+        u_int scaled, total;
+
+        total = session->ckpt.handle_next + CKPT_CRASH_ENUM_MAY_RECOVER - 1;
 
         /*
-         * Scale onto the handles that exist, so that the top of the range selects the last one. A
-         * crash point past the last handle would never be reached and would survive to the teardown
+         * Scale onto the points that exist, so that the top of the range selects the last one. A
+         * point past the last one would never be reached and would survive to the teardown
          * assertion.
          */
-        session->ckpt.crash_point =
-          (((crash_point - 1) * (session->ckpt.handle_next - 1)) / (WT_THOUSAND - 1)) + 1;
+        scaled = (((crash_point - 1) * (total - 1)) / (WT_THOUSAND - 1)) + 1;
+
+        /*
+         * Past the handles, what remains indexes the phases that follow them. A checkpoint that
+         * gathered no handles lands there for every input, which is what we want: the per-tree loop
+         * has no crash site to stop on.
+         */
+        if (scaled > session->ckpt.handle_next)
+            session->ckpt.crash_trigger_point = scaled - session->ckpt.handle_next;
+        else
+            session->ckpt.crash_point = scaled;
     }
 
     /* Perform a crash at a specific point in checkpoint. */

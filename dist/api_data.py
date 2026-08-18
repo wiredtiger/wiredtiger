@@ -2197,11 +2197,12 @@ methods = {
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
         Config('checkpoint_crash_point', '0', r'''
-            A value between 1 and 1000 will trigger a controlled crash while an individual tree is
-            being checkpointed, selecting proportionally which tree to stop on. Every such crash
-            precedes the checkpoint transaction commit, so the checkpoint is never recoverable;
-            use \c checkpoint_crash_trigger_point to crash in the final phase. Cannot be combined
-            with \c checkpoint_crash_trigger_point''', type='int', min='0', max='1000'),
+            A value between 1 and 1000 will trigger a controlled crash during the checkpoint,
+            selecting proportionally which tree to stop on or, at the top of the range, the phase
+            that follows them. Every point it can select precedes the checkpoint transaction
+            commit, so the checkpoint is never recoverable; use \c checkpoint_crash_trigger_point
+            to crash where the checkpoint can survive. Cannot be combined with
+            \c checkpoint_crash_trigger_point''', type='int', min='0', max='1000'),
         Config('checkpoint_crash_trigger_point', '', r'''
             enable code that performs a crash during the checkpoint process with a goal of
             uncovering race conditions at unexpected times. This option is intended for use with
