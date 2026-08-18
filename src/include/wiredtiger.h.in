@@ -10698,24 +10698,26 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_BYTES_WRITE			4001
 /*! session: dhandle lock wait time (usecs) */
 #define	WT_STAT_SESSION_LOCK_DHANDLE_WAIT		4002
-/*! session: dirty bytes in this txn */
-#define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4003
+/*! session: dirty bytes from updates in this txn */
+#define	WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY		4003
+/*! session: dirty bytes in this txn, from both updates and fast-truncate */
+#define	WT_STAT_SESSION_TXN_BYTES_DIRTY			4004
 /*! session: dirty bytes pinned by fast-truncate in this txn */
-#define	WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY	4004
+#define	WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY	4005
 /*! session: number of updates in this txn */
-#define	WT_STAT_SESSION_TXN_UPDATES			4005
+#define	WT_STAT_SESSION_TXN_UPDATES			4006
 /*! session: page read from disk to cache time (usecs) */
-#define	WT_STAT_SESSION_READ_TIME			4006
+#define	WT_STAT_SESSION_READ_TIME			4007
 /*! session: page write from cache to disk time (usecs) */
-#define	WT_STAT_SESSION_WRITE_TIME			4007
+#define	WT_STAT_SESSION_WRITE_TIME			4008
 /*! session: schema lock wait time (usecs) */
-#define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4008
+#define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4009
 /*! session: time waiting for cache (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME			4009
+#define	WT_STAT_SESSION_CACHE_TIME			4010
 /*! session: time waiting for cache interruptible eviction (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME_INTERRUPTIBLE	4010
+#define	WT_STAT_SESSION_CACHE_TIME_INTERRUPTIBLE	4011
 /*! session: time waiting for mandatory cache eviction (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME_MANDATORY		4011
+#define	WT_STAT_SESSION_CACHE_TIME_MANDATORY		4012
 /*! @} */
 /*
  * Statistics section: END

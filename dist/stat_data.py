@@ -1610,8 +1610,9 @@ session_stats = [
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
-    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn', 'no_clear,no_scale,size'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn, from both updates and fast-truncate', 'no_clear,no_scale,size'),
     SessionStat('txn_truncate_bytes_dirty', 'dirty bytes pinned by fast-truncate in this txn', 'no_clear,no_scale,size'),
     SessionStat('txn_updates', 'number of updates in this txn', 'no_clear,no_scale,size'),
+    SessionStat('txn_updates_bytes_dirty', 'dirty bytes from updates in this txn', 'no_clear,no_scale,size'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]

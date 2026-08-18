@@ -5662,7 +5662,8 @@ static const char *const __stats_session_desc[] = {
   "session: bytes read into cache",
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
-  "session: dirty bytes in this txn",
+  "session: dirty bytes from updates in this txn",
+  "session: dirty bytes in this txn, from both updates and fast-truncate",
   "session: dirty bytes pinned by fast-truncate in this txn",
   "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
@@ -5693,6 +5694,7 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
+    /* not clearing txn_updates_bytes_dirty */
     /* not clearing txn_bytes_dirty */
     /* not clearing txn_truncate_bytes_dirty */
     /* not clearing txn_updates */

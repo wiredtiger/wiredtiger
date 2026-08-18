@@ -1905,6 +1905,7 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
 
     WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
     WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_SESSION_INCRV(session, txn_updates_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
 }
@@ -1921,10 +1922,12 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
     session->txn->update_dirty_bytes = 0;
     session->txn->truncate_dirty_bytes = 0;
 
-    val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates_bytes_dirty);
     if (val != 0) {
         WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
-        WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+        WT_STAT_SESSION_SET(session, txn_updates_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);

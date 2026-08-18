@@ -1952,6 +1952,7 @@ struct __wt_session_stats {
     int64_t bytes_read;
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
+    int64_t txn_updates_bytes_dirty;
     int64_t txn_bytes_dirty;
     int64_t txn_truncate_bytes_dirty;
     int64_t txn_updates;

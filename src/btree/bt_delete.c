@@ -233,6 +233,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         WT_STAT_CONN_INCRV_ATOMIC(
           session, cache_truncate_txn_uncommitted_bytes, (int64_t)footprint);
         WT_STAT_SESSION_INCRV(session, txn_truncate_bytes_dirty, (int64_t)footprint);
+        WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)footprint);
 
         /*
          * The delete is complete and registered as a transaction operation, so transaction rollback
