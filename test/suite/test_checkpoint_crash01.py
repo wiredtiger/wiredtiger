@@ -88,9 +88,9 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.assertEqual(returncode, -signal.SIGKILL)
 
-    # run_subprocess_function does not pass --hook through, so under the disagg hook the crash
-    # would be taken on a local database and then verified against a disaggregated connection.
-    @wttest.skip_for_hook("disagg", "the subprocess does not inherit the hook")
+    # FIXME-WT-16920: the disagg hook tracks layered uris per test case, so the parent cannot name a
+    # table the subprocess created.
+    @wttest.skip_for_hook("disagg", "the parent cannot name a table created in the subprocess")
     def test_checkpoint_crash(self):
         self.conn.close()
 
