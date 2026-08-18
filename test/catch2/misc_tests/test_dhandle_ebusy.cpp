@@ -73,7 +73,7 @@ TEST_CASE("skip reopening a dhandle closed by sweep", "[dhandle][dhandle_skip_re
 
         WT_SESSION_IMPL *session_impl_b = conn.create_session();
         int ret = __wt_session_get_dhandle(
-          session_impl_b, "file:t.wt", nullptr, nullptr, WT_DHANDLE_SKIP_REOPEN);
+          session_impl_b, "file:t.wt", nullptr, nullptr, WT_DHANDLE_SKIP_OPEN);
         CHECK(ret == EBUSY);
         CHECK(session_impl_b->dhandle == nullptr);
         CHECK(F_ISSET(dhandle, WT_DHANDLE_DEAD));

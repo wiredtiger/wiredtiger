@@ -753,7 +753,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
      * stop other internal code dropping the handle.
      */
     if ((ret = __wt_session_get_dhandle(
-           session, dhandle->name, dhandle->checkpoint, NULL, WT_DHANDLE_SKIP_REOPEN)) != 0)
+           session, dhandle->name, dhandle->checkpoint, NULL, WT_DHANDLE_SKIP_OPEN)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
     time_start = WT_SESSION_IS_CHECKPOINT(session) ? __wt_clock(session) : 0;
