@@ -1611,11 +1611,11 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
         else if (WT_CONFIG_LIT_MATCH("before_checkpoint_commit", tval))
             session->ckpt.crash_trigger_point = CKPT_CRASH_BEFORE_CKPT_COMMIT;
         else if (WT_CONFIG_LIT_MATCH("before_key_rotation", tval))
-            session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION;
+            session->ckpt.crash_trigger_point = CKPT_CRASH_KEY_PROVIDER_BEFORE_KEY_ROTATION;
         else if (WT_CONFIG_LIT_MATCH("during_key_rotation", tval))
-            session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_DURING_KEY_ROTATION;
+            session->ckpt.crash_trigger_point = CKPT_CRASH_KEY_PROVIDER_DURING_KEY_ROTATION;
         else if (WT_CONFIG_LIT_MATCH("after_key_rotation", tval))
-            session->ckpt.crash_trigger_point = KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION;
+            session->ckpt.crash_trigger_point = CKPT_CRASH_KEY_PROVIDER_AFTER_KEY_ROTATION;
         else
             WT_RET_MSG(session, EINVAL, "Debug checkpoint crash point %.*s is invalid",
               (int)tval.len, tval.str);
