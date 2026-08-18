@@ -93,7 +93,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
 
         # Drop and recreate the table on the leader with an identical configuration: the new table
         # gets a new btree id. The follower never applies the drop, so its local entries still
-        # describe the incarnation that is gone.
+        # describe the table that is gone.
         self.dropUntilSuccess(self.session, self.uri)
         self.session.create(self.uri, self.table_config)
         cursor = self.session.open_cursor(self.uri)
@@ -104,7 +104,7 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint(conn_follow)
 
-        # The follower reads the new incarnation, so it discarded the dead one rather than
+        # The follower reads the new table, so it discarded the old one rather than
         # interpreting the checkpoint under the wrong btree identity.
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
         cursor = session_follow.open_cursor(self.uri)

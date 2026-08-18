@@ -92,7 +92,7 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
         /* TODO: Should check to make sure this is the right type of block */
         /*
          * The block's page log handle belongs to one table ID, so matching on the name alone would
-         * serve a recreated table the previous incarnation's pages.
+         * serve a recreated table the pages of the table it replaced.
          */
         if (strcmp(filename, block->name) == 0 && ((WT_BLOCK_DISAGG *)block)->tableid == tableid) {
             ++block->ref;

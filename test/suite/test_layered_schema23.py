@@ -28,10 +28,10 @@
 
 # Checkpoint pickup lets go of a layered table the leader has dropped. The discard runs while the
 # application is still using the node, so a cursor open on the table holds the adoption up until it
-# closes, and a table the follower created itself must not be mistaken for a dead incarnation.
+# closes, and a table the follower created itself must not be mistaken for one already dropped.
 
-import time
-import wiredtiger, wttest
+import re
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
 
@@ -73,6 +73,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.dropUntilSuccess(self.session, self.uri)
         self.leader_checkpoint(3)
         self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
 
         self.assertFalse(self.stable_in_local_metadata(conn_follow, self.uri))
         self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
@@ -84,11 +85,14 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         the drop cannot take the exclusive handle it needs, so the adoption is retried rather than
         applied in part. The node moves on once the application is done with the table.
         """
-        self.ignoreStdoutPattern('deferred checkpoint pickup failed|Picking up the same checkpoint')
+        # Only the busy handle may hold the adoption up, so any other reason is a failure.
+        self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
+                                 'Picking up the same checkpoint')
 
         self.session.create(self.uri, self.table_config)
         self.write_one('before the recreate', 2)
         self.leader_checkpoint(2)
+        first_id = self.stable_btree_id(self.conn, self.uri)
 
         conn_follow, session_follow = self.open_follower()
         held = session_follow.open_cursor(self.uri)
@@ -99,31 +103,28 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.session.create(self.uri, self.table_config)
         self.write_one('after the recreate', 4)
         self.leader_checkpoint(4)
+        second_id = self.stable_btree_id(self.conn, self.uri)
+        self.assertGreater(second_id, first_id)
         self.disagg_advance_checkpoint(conn_follow)
 
-        # The held cursor still reads its own incarnation, and no new one has been adopted.
+        # Reading the metadata rather than the held cursor is what makes this an observation of the
+        # node: a cursor answers from the table it was pinned to whether or not the pickup ran.
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
         self.assertEqual(held[1], 'before the recreate')
         held.close()
 
-        # With the table free the adoption goes through, but the retry that carries it runs in the
-        # background, so give it a bounded number of checkpoints to land.
-        value = None
-        for attempt in range(20):
-            self.leader_checkpoint(5 + attempt)
-            self.disagg_advance_checkpoint(conn_follow)
-            session_follow.close()
-            session_follow = conn_follow.open_session('')
-            cursor = session_follow.open_cursor(self.uri)
-            value = cursor[1]
-            cursor.close()
-            if value == 'after the recreate':
-                break
-            time.sleep(0.1)
+        # With the table free the adoption goes through on the retry that runs in the background.
+        self.disagg_wait_for_adoption(conn_follow)
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), second_id)
 
-        self.assertEqual(value, 'after the recreate')
+        session_follow.close()
+        session_follow = conn_follow.open_session('')
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor[1], 'after the recreate')
+        cursor.close()
         self.close_follower(conn_follow, session_follow)
 
-    def test_follower_create_is_not_a_dead_incarnation(self):
+    def test_follower_create_is_not_a_dropped_table(self):
         """
         A table the follower creates itself has no stable constituent, so the leader's entry is
         adopted rather than compared against a local btree id that was never assigned here.
@@ -143,4 +144,128 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         cursor = session_follow.open_cursor(self.uri)
         self.assertEqual(cursor[1], 'from the leader')
         cursor.close()
+        self.close_follower(conn_follow, session_follow)
+
+    def stable_btree_id(self, conn, uri):
+        """Return the btree id recorded for a table's stable constituent."""
+        config = self.stable_config(conn, uri)
+        match = re.search(r'(?:^|,)id=(\d+)', config)
+        self.assertIsNotNone(match, f'no btree id in {config}')
+        return int(match.group(1))
+
+    def test_uncheckpointed_recreate_yields_to_the_checkpoint(self):
+        """
+        A table recreated on a node that never checkpointed it was never published, so the
+        checkpoint's btree id is the durable one. The pickup discards the local table and adopts the
+        checkpoint's, even though the local btree id is the larger of the two.
+        """
+        self.session.create(self.uri, self.table_config)
+        self.write_one('from the first leader', 2)
+        self.leader_checkpoint(2)
+        first_id = self.stable_btree_id(self.conn, self.uri)
+
+        conn_follow, session_follow = self.open_follower()
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
+
+        # The follower briefly leads and recreates the table, but never checkpoints the recreate.
+        self.step_down()
+        self.step_up(conn_follow)
+        self.dropUntilSuccess(session_follow, self.uri)
+        session_follow.create(self.uri, self.table_config)
+        self.write_one('from the second leader', 4, session=session_follow)
+        second_id = self.stable_btree_id(conn_follow, self.uri)
+        self.assertGreater(second_id, first_id)
+        self.step_down(conn_follow)
+
+        # The original leader takes over again and checkpoints the table it still holds, so the
+        # newest checkpoint names the smaller id. The unpublished recreate loses to it.
+        self.step_up()
+        self.leader_checkpoint(6)
+        self.assertEqual(self.stable_btree_id(self.conn, self.uri), first_id)
+
+        self.disagg_advance_checkpoint(conn_follow)
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
+
+        session_follow.close()
+        session_follow = conn_follow.open_session('')
+        cursor = session_follow.open_cursor(self.uri)
+        self.assertEqual(cursor[1], 'from the first leader')
+        cursor.close()
+
+        self.close_follower(conn_follow, session_follow)
+
+    def test_strict_validation_accepts_a_discarded_table(self):
+        """
+        Strict validation treats a table held only by the shared metadata as a difference the
+        operation queue has to account for. A table the same pickup has just let go of is accounted
+        for by the pickup itself, so it is adopted instead of being read as an unexplained
+        divergence. Tables the pickup did not discard are still validated, which the strict tests in
+        test_layered_schema17 cover.
+        """
+        self.session.create(self.uri, self.table_config)
+        self.write_one('from the first leader', 2)
+        self.leader_checkpoint(2)
+        first_id = self.stable_btree_id(self.conn, self.uri)
+
+        conn_follow, session_follow = self.open_follower()
+        conn_follow.reconfigure('disaggregated=(strict_checkpoint_metadata=true)')
+
+        # The follower briefly leads and recreates the table, but never checkpoints the recreate.
+        self.step_down()
+        self.step_up(conn_follow)
+        self.dropUntilSuccess(session_follow, self.uri)
+        session_follow.create(self.uri, self.table_config)
+        self.write_one('from the second leader', 4, session=session_follow)
+        self.assertGreater(self.stable_btree_id(conn_follow, self.uri), first_id)
+        self.step_down(conn_follow)
+
+        # The original leader checkpoints the table it still holds, so the pickup has to discard the
+        # unpublished recreate and adopt the checkpoint's table with strict validation on.
+        self.step_up()
+        self.leader_checkpoint(6)
+        self.disagg_advance_checkpoint(conn_follow)
+        self.disagg_wait_for_adoption(conn_follow)
+
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
+        self.close_follower(conn_follow, session_follow)
+
+    def test_recreate_published_before_a_graceful_step_down(self):
+        """
+        A graceful step-down declares a step-down timestamp and has to land its checkpoint on it, so
+        a table the outgoing leader recreated is published and reaches the shared metadata. Both
+        nodes therefore settle on the recreated table's btree id and no local table is left
+        disagreeing with the checkpoint.
+        """
+        self.session.create(self.uri, self.table_config)
+        self.write_one('from the first leader', 2)
+        self.leader_checkpoint(2)
+        first_id = self.stable_btree_id(self.conn, self.uri)
+
+        conn_follow, session_follow = self.open_follower()
+        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
+
+        # Hand leadership over and recreate the table under a new btree id.
+        self.step_down()
+        self.step_up(conn_follow)
+        self.set_stable_epoch(1, conn_follow)
+        self.dropUntilSuccess(session_follow, self.uri)
+        session_follow.create(self.uri, self.table_config)
+        self.write_one('from the second leader', 4, session=session_follow)
+        second_id = self.stable_btree_id(conn_follow, self.uri)
+        self.assertGreater(second_id, first_id)
+
+        # Publish the recreate, then step down on a declared boundary: the checkpoint has to land on
+        # the step-down timestamp, so it carries the recreate with it.
+        self.publish(self.uri, 10, session=session_follow)
+        self.set_stable_epoch(10, conn_follow)
+        conn_follow.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+                                  ',stable_timestamp=' + self.timestamp_str(5) +
+                                  ',step_down_timestamp=' + self.timestamp_str(5))
+        session_follow.checkpoint()
+        conn_follow.reconfigure('disaggregated=(role="follower")')
+
+        # The first leader adopts the recreated table before it may lead again.
+        self.disagg_advance_checkpoint(self.conn, conn_follow)
+        self.assertEqual(self.stable_btree_id(self.conn, self.uri), second_id)
+
         self.close_follower(conn_follow, session_follow)
