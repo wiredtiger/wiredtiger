@@ -824,7 +824,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
              * can't discard the uncommitted updates.
              */
             if (upd_select->upd != NULL) {
-                WT_ASSERT_ALWAYS(session, WT_IS_METADATA(session->dhandle),
+                WT_ASSERT_ALWAYS(session, WT_IS_ANY_METADATA(session->dhandle),
                   "Uncommitted update followed by committed update in a non-metadata file");
                 return (__wt_set_return(session, EBUSY));
             }
@@ -991,7 +991,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
          * with read uncommitted isolation and we may see a committed update followed by uncommitted
          * updates
          */
-        if (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle))
+        if (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_ANY_METADATA(session->dhandle))
             break;
     }
 
@@ -1064,8 +1064,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
             continue;
         }
-        /* Give up if the update is from this transaction and on the metadata file. */
-        if (WT_IS_METADATA(session->dhandle) && session_txnid != WT_TXN_NONE &&
+        /* Give up if the update is from this transaction and on a metadata tree. */
+        if (WT_IS_ANY_METADATA(session->dhandle) && session_txnid != WT_TXN_NONE &&
           upd->txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
         /* Track the first update in the chain that is not aborted */
@@ -1100,7 +1100,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
              * can't discard the uncommitted updates.
              */
             if (upd_select->upd != NULL) {
-                WT_ASSERT_ALWAYS(session, WT_IS_METADATA(session->dhandle),
+                WT_ASSERT_ALWAYS(session, WT_IS_ANY_METADATA(session->dhandle),
                   "Uncommitted update followed by committed update in a non-metadata file");
                 return (__wt_set_return(session, EBUSY));
             }
