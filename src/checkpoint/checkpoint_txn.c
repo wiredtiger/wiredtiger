@@ -3265,7 +3265,7 @@ fake:
      * that case, we need to sync the file here or we could roll forward the metadata in recovery
      * and open a checkpoint that isn't yet durable.
      */
-    if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
+    if (WT_IS_ANY_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR_MSG_CHK(
           session, __wt_checkpoint_sync(session, NULL), "checkpoint failed during file sync");
 
