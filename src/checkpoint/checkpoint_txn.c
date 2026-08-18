@@ -1584,14 +1584,15 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
     if (crash_point > 0) {
         u_int scaled, total;
 
+        /* Every gathered handle is a crash site, as is each phase below the sentinel. */
         total = session->ckpt.handle_next + CKPT_CRASH_ENUM_MAY_RECOVER - 1;
 
         /*
-         * Scale onto the points that exist, so that the top of the range selects the last one. A
-         * point past the last one would never be reached and would survive to the teardown
-         * assertion.
+         * Give every site an equal share of the range. Dividing by the width of the range rather
+         * than by its last value keeps the result from running past the last site, which would
+         * never be reached and would survive to the teardown assertion.
          */
-        scaled = (((crash_point - 1) * (total - 1)) / (WT_THOUSAND - 1)) + 1;
+        scaled = (((crash_point - 1) * total) / WT_THOUSAND) + 1;
 
         /*
          * Past the handles, what remains indexes the phases that follow them. A checkpoint that
