@@ -1358,7 +1358,7 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t last_ckpt_ts;
+    wt_timestamp_t last_ckpt_ts, stable_disagg_epoch;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
@@ -1371,14 +1371,17 @@ __checkpoint_can_skip(WT_SESSION_IMPL *session, WT_CHECKPOINT_DB_CONFIG *ckpt_cf
      * If the checkpoint is using timestamps, and the stable timestamp hasn't been updated since the
      * last checkpoint there is nothing more that could be written. Except when a non timestamped
      * file has been modified, as such if the connection has been modified it is currently unsafe to
-     * skip checkpoints. Also, don't skip if the stable disaggregated schema epoch changed, as the
-     * metadata operation queue may have entries to flush even without new committed data.
+     * skip checkpoints. Also, don't skip if this node gates schema operations and the stable
+     * disaggregated schema epoch changed, as the metadata operation queue may have entries to flush
+     * even without new committed data. A node with no live stable epoch carries the last written
+     * epoch forward, so the epoch cannot have changed.
      */
     last_ckpt_ts = __wt_atomic_load_uint64_relaxed(&txn_global->last_ckpt_timestamp);
+    stable_disagg_epoch = __wt_get_stable_disaggregated_schema_epoch(session);
     if (!conn->modified && ckpt_cfg->use_timestamp && last_ckpt_ts != WT_TS_NONE &&
       last_ckpt_ts == __wt_get_stable_timestamp(session) &&
-      txn_global->last_ckpt_disaggregated_schema_epoch ==
-        __wt_get_stable_disaggregated_schema_epoch(session)) {
+      (stable_disagg_epoch == WT_SCHEMA_EPOCH_NONE ||
+        txn_global->last_ckpt_disaggregated_schema_epoch == stable_disagg_epoch)) {
         ckpt_cfg->can_skip = true;
         return (0);
     }
@@ -1818,7 +1821,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts, ckpt_disagg_schema_epoch, ckpt_disagg_write_epoch;
     uint64_t drop_size, generation;
-    char schema_epoch_string[WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
+    char epoch_string[2][WT_TS_INT_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
     bool failed, tracking;
 
     WT_CLEAR(ckpt_cfg);
@@ -1952,9 +1955,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
           session, ckpt_disagg_schema_epoch, &ckpt_disagg_write_epoch));
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Starting disaggregated storage checkpoint with timestamp: %" PRIu64
-          " %s and schema epoch: %" PRIu64 " %s",
+          " %s, stable schema epoch: %" PRIu64 " %s and write schema epoch: %" PRIu64 " %s",
           ckpt_tmp_ts, __wt_timestamp_to_string(ckpt_tmp_ts, ts_string), ckpt_disagg_schema_epoch,
-          __wt_timestamp_to_string(ckpt_disagg_schema_epoch, schema_epoch_string));
+          __wt_timestamp_to_string(ckpt_disagg_schema_epoch, epoch_string[0]),
+          ckpt_disagg_write_epoch,
+          __wt_timestamp_to_string(ckpt_disagg_write_epoch, epoch_string[1]));
     }
     conn->disaggregated_storage.cur_write_schema_epoch = ckpt_disagg_write_epoch;
 

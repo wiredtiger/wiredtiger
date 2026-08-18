@@ -444,7 +444,7 @@ __wti_disagg_shared_metadata_queue_prune(WT_SESSION_IMPL *session, wt_timestamp_
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
         /*
-         * When EPOCH_NONE is passed (a checkpoint that doesn't use schema epochs), prune everything
+         * When EPOCH_NONE is passed (the node is not gating schema operations), prune everything
          * unconditionally. The legacy path rebuilds stable constituents directly from local
          * metadata rather than replaying queue entries, so the queue is no longer needed.
          */

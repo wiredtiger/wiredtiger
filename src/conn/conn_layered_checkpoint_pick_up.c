@@ -1760,8 +1760,17 @@ __disagg_pick_up_checkpoint(
 
     /*
      * Part 3: Do the bookkeeping.
+     *
+     * A node with no live stable epoch is not gating schema operations, so the checkpoint it just
+     * adopted covers the whole queue and the queue is cleared. The checkpoint's own epoch cannot
+     * signal that, because a formerly gating node carries the written epoch forward. This relies on
+     * the application never pairing a gating leader with a non-gating node, as a gating leader can
+     * defer queue entries its checkpoint does not cover.
      */
-    __wti_disagg_shared_metadata_queue_prune(session, metadata.schema_epoch);
+    __wti_disagg_shared_metadata_queue_prune(session,
+      __wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE ?
+        WT_SCHEMA_EPOCH_NONE :
+        metadata.schema_epoch);
 
     /*
      * The merge is complete: a failure from here leaves the local metadata resolving to the new
