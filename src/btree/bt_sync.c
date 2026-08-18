@@ -368,7 +368,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 ++leaf_pages;
                 reconcile_start = __wt_clock(session);
                 WT_ERR(__wt_reconcile(session, walk, NULL,
-                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub)));
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), NULL));
                 reconcile_time += __wt_clock(session) - reconcile_start;
             }
         }
@@ -552,7 +552,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             } else {
                 reconcile_start = __wt_clock(session);
                 WT_ERR(__wt_reconcile(session, walk, NULL,
-                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub)));
+                  __sync_page_rec_flags(session, page, rec_flags, checkpoint_scrub), NULL));
                 reconcile_time += __wt_clock(session) - reconcile_start;
             }
 
