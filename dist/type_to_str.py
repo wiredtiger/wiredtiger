@@ -66,7 +66,8 @@ if __name__ == '__main__':
         generate_string_conversion('Convert a page type to its string representation.',
                                    'page_type',
                                    # Also match comments/space at end to avoid non-page constants.
-                                   r'^#define\s+(WT_PAGE_(?:INVALID|BLOCK_MANAGER|COL_FIX|COL_INT|COL_VAR|OVFL|ROW_INT|ROW_LEAF|TYPE_COUNT))\s+[0-9]+\s+/\*',
+                                   r'^#define\s+(WT_PAGE_(?:INVALID|BLOCK_MANAGER|COL_FIX|COL_INT|'
+                                   r'COL_VAR|OVFL|ROW_INT|ROW_LEAF|TYPE_COUNT))\s+[0-9]+\s+/\*',
                                    'src/include/btmem.h',
                                    tfile)
 
