@@ -1028,8 +1028,8 @@ __checkpoint_update_disagg_database_size(
             sub = (uint64_t)(-delta);
             if (db < sub || db - sub < WT_DISAGG_CHECKPOINT_SIZE_BUFFER) {
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "disaggregated database size underflow: decrementing %" PRIu64 " from %" PRIu64
-                  ", clamped to %" PRIu64,
+                  "disaggregated database size invalid value/underflow: decrementing %" PRIu64
+                  " from %" PRIu64 ", clamped to %" PRIu64,
                   sub, db, (uint64_t)WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
                 WT_ASSERT(session, db >= sub && db - sub >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
                 new_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
