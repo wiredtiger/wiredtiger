@@ -2038,15 +2038,12 @@ err:
  *     stable constituent operation not marked with a completed ingest mirror. Return WT_ROLLBACK
  *     and have the application retry as a new transaction, whose writes mirror.
  *
- * The caller supplies the step-down timestamp. At commit it is read under the step-down lock, which
- *     is held until the transaction resolves. At a cursor write it is the same sample that routes
- *     the write, so an operation that routes as an unmirrored stable write saw the timestamp unset,
- *     and any later operation of the transaction that sees it set is rejected here. The role
- *     generation catches an unmirrored writer after step-down completion clears the timestamp.
+ * The caller supplies the step-down timestamp sampled for the operation. The role generation catches
+ *     an unmirrored writer after step-down completion clears the timestamp.
  */
 static WT_INLINE int
-__wt_txn_stepdown_straddler_check(
-  WT_SESSION_IMPL *session, bool is_writer, wt_timestamp_t stepdown_ts)
+__wt_txn_stepdown_straddler_check_state(WT_SESSION_IMPL *session, bool is_writer,
+  wt_timestamp_t stepdown_ts, bool unmirrored_stable, bool wrote_ingest)
 {
     WT_TXN *txn = session->txn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -2066,6 +2063,33 @@ __wt_txn_stepdown_straddler_check(
     if (!is_writer || (stepdown_ts == WT_TS_NONE && !role_changed))
         return (0);
 
+    if (wrote_ingest && stepdown_ts != WT_TS_NONE &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+      txn->first_commit_timestamp <= stepdown_ts)
+        WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the step down timestamp %s",
+          __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(stepdown_ts, ts_string[1]));
+
+    if (!unmirrored_stable && (!role_changed || completed_step_down))
+        return (0);
+
+    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s",
+      "step-down straddler rollback: unmirrored stable content crossed the step-down boundary");
+    WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
+    __wt_session_set_last_error(
+      session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
+    return (WT_ROLLBACK);
+}
+
+/*
+ * __wt_txn_stepdown_straddler_check --
+ *     Check a transaction's constituent operations for an unmirrored stable operation.
+ */
+static WT_INLINE int
+__wt_txn_stepdown_straddler_check(
+  WT_SESSION_IMPL *session, bool is_writer, wt_timestamp_t stepdown_ts)
+{
+    WT_TXN *txn = session->txn;
     WT_TXN_OP *op;
     u_int i;
     bool unmirrored_stable, wrote_ingest;
@@ -2086,22 +2110,8 @@ __wt_txn_stepdown_straddler_check(
             wrote_ingest = true;
     }
 
-    if (wrote_ingest && stepdown_ts != WT_TS_NONE &&
-      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
-      txn->first_commit_timestamp <= stepdown_ts)
-        WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the step down timestamp %s",
-          __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(stepdown_ts, ts_string[1]));
-
-    if (!unmirrored_stable && (!role_changed || completed_step_down))
-        return (0);
-
-    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s",
-      "step-down straddler rollback: unmirrored stable content crossed the step-down boundary");
-    WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
-    __wt_session_set_last_error(
-      session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
-    return (WT_ROLLBACK);
+    return (__wt_txn_stepdown_straddler_check_state(
+      session, is_writer, stepdown_ts, unmirrored_stable, wrote_ingest));
 }
 
 /*
