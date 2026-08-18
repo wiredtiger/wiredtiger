@@ -42,7 +42,8 @@ from wtscenario import make_scenarios
 # children.
 @disagg_test_class
 class test_layered_delta17(wttest.WiredTigerTestCase):
-    uri = "table:test_layered_delta17"
+    test_name = __qualname__
+    uri = test_name
     conn_base_config = ('statistics=(all),transaction_sync=(enabled,method=fsync),'
                         'page_delta=(delta_pct=100,leaf_page_delta=true),precise_checkpoint=true,')
     disagg_storages = gen_disagg_storages(disagg_only=True)
@@ -51,22 +52,22 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
     nitems = 10
 
     # Row count and surviving tail for the multi-child tree below.
-    split_uri = "table:test_layered_delta17_split"
+    split_uri = test_name + '_split'
     split_nitems = 400
     split_keep = 20
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
-    def rstat(self, key, uri=None):
-        with wttest.open_cursor(self.session, "statistics:" + (uri or self.uri)) as c:
+    def rstat(self, key, uri):
+        with wttest.open_cursor(self.session, "statistics:" + uri) as c:
             return c[key][2]
 
-    def evict(self, key, uri=None):
+    def evict(self, key, uri):
         # Force the page holding key out of cache so the next access rebuilds it
         # from its base image and deltas.
         s = self.conn.open_session("debug=(release_evict_page)")
-        c = s.open_cursor(uri or self.uri, None, None)
+        c = s.open_cursor(uri, None, None)
         s.begin_transaction()
         c.set_key(key)
         c.search_near()
@@ -75,13 +76,14 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
         s.close()
 
     def test_empty_reconstructed_page(self):
-        self.session.create(self.uri, "key_format=S,value_format=S,block_manager=disagg")
+        uri = 'table:' + self.uri
+        self.session.create(uri, "key_format=S,value_format=S,block_manager=disagg")
         value = "a" * 20
 
         # Populate the leaf, delete every key, and checkpoint with the oldest
         # timestamp still behind the delete. The tombstones are retained and
         # written into the leaf's base image.
-        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor = self.session.open_cursor(uri, None, None)
         for i in range(self.nitems):
             self.session.begin_transaction()
             cursor[str(i)] = value
@@ -93,7 +95,7 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
-        self.evict(str(0))
+        self.evict(str(0), uri)
 
         # Add and then remove a throwaway key, checkpointing each change so the
         # page carries leaf deltas on top of the tombstone-bearing base image:
@@ -105,14 +107,14 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(12)}')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(12))
         self.session.checkpoint()
-        self.assertGreaterEqual(self.rstat(stat.dsrc.rec_page_delta_leaf), 1)
+        self.assertGreaterEqual(self.rstat(stat.dsrc.rec_page_delta_leaf, uri), 1)
         self.session.begin_transaction()
         cursor.set_key('zzz')
         cursor.remove()
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(14)}')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(14))
         self.session.checkpoint()
-        self.evict(str(0))
+        self.evict(str(0), uri)
 
         # Make every delete globally visible, then read the page back. The read
         # rebuilds it from the base image and deltas; every key is dropped and the
@@ -121,7 +123,7 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
                                 ',stable_timestamp=' + self.timestamp_str(20))
 
         cursor.close()
-        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor = self.session.open_cursor(uri, None, None)
 
         # Forward and backward scans see nothing.
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
@@ -134,7 +136,7 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
         cursor.close()
 
         # The empty reconstructed page verifies and checkpoints cleanly.
-        self.session.verify(self.uri, None)
+        self.session.verify(uri, None)
         self.session.checkpoint()
 
     def test_empty_reconstructed_leftmost_page(self):
@@ -145,7 +147,7 @@ class test_layered_delta17(wttest.WiredTigerTestCase):
         # Here the leftmost leaf rebuilds empty while its siblings keep their
         # keys, leaving no largest key recorded by the time the second entry is
         # checked.
-        uri = self.split_uri
+        uri = 'table:' + self.split_uri
         self.session.create(
             uri, "key_format=S,value_format=S,block_manager=disagg,leaf_page_max=4KB")
         value = "a" * 100
