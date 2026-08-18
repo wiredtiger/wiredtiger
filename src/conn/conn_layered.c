@@ -162,10 +162,6 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    stable_schema_epoch =
-      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-    WT_UNUSED(stable_schema_epoch); /* Only read by the assertion below. */
-
     /*
      * Use the legacy method whenever this node is not gating schema operations. A checkpoint can
      * still carry an epoch while the application has stopped setting one, and such a node rebuilds
@@ -173,6 +169,10 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
      */
     if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (__layered_create_missing_stable_tables_legacy(session));
+
+    stable_schema_epoch =
+      __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
+    WT_UNUSED(stable_schema_epoch); /* Only read by the assertion below. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
