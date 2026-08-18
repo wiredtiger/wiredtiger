@@ -156,7 +156,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
-    wt_timestamp_t stable_schema_epoch;
+    wt_timestamp_t last_ckpt_epoch;
 
     conn = S2C(session);
 
@@ -170,17 +170,17 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     if (__wt_get_stable_disaggregated_schema_epoch(session) == WT_SCHEMA_EPOCH_NONE)
         return (__layered_create_missing_stable_tables_legacy(session));
 
-    stable_schema_epoch =
+    last_ckpt_epoch =
       __wt_atomic_load_uint64_acquire(&conn->txn_global.last_ckpt_disaggregated_schema_epoch);
-    WT_UNUSED(stable_schema_epoch); /* Only read by the assertion below. */
+    WT_UNUSED(last_ckpt_epoch); /* Only read by the assertion below. */
 
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH (entry, &conn->disaggregated_storage.shared_metadata_qh, q) {
 
-        /* When the stable epoch is known, entries older than it should have been pruned. */
+        /* Entries at or below the last checkpoint's epoch should have been pruned. */
         WT_ASSERT(session,
-          entry->schema_epoch > stable_schema_epoch || stable_schema_epoch == WT_SCHEMA_EPOCH_NONE);
+          entry->schema_epoch > last_ckpt_epoch || last_ckpt_epoch == WT_SCHEMA_EPOCH_NONE);
 
         if (entry->metadata_op != WT_SHARED_METADATA_CREATE)
             continue;
