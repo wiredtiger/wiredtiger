@@ -112,9 +112,10 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             conn.close()
 
+# The two crash point settings name points on opposite sides of the commit, so they disagree about
+# the outcome rather than refining each other.
+class test_checkpoint_crash01_conflict(wttest.WiredTigerTestCase):
     def test_checkpoint_crash_settings_conflict(self):
-        # The two settings name crash points on opposite sides of the commit, so they disagree
-        # about the outcome rather than refining each other.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint(
                 'debug=(checkpoint_crash_point=500,'
