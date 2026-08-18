@@ -1442,7 +1442,7 @@ __evict_snapshot_setup(
      * snapshot when evicting those trees.
      */
     app_thread = !F_ISSET(session, WT_SESSION_EVICTION | WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle) && !WT_IS_DISAGG_META(session->dhandle);
+      !WT_IS_ANY_METADATA(session->dhandle);
 
     if (F_ISSET(session, WT_SESSION_EVICTION))
         *snap_statep = __evict_snapshot_evict_thread(session, flagsp);
