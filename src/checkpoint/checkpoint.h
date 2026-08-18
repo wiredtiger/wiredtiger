@@ -11,10 +11,12 @@
 #include "checkpoint_private.h"
 
 /*
- * Points at which a checkpoint can be made to crash, in the order they are reached. Everything up
- * to and including CKPT_CRASH_BEFORE_CKPT_COMMIT precedes the checkpoint transaction commit, so the
- * checkpoint is never recoverable; CKPT_CRASH_BEFORE_METADATA_SYNC follows both the commit and the
- * log flush, so with logging enabled recovery always rolls the checkpoint forward.
+ * Points at which a checkpoint can be made to crash. Everything up to and including
+ * CKPT_CRASH_BEFORE_CKPT_COMMIT precedes the checkpoint transaction commit, so the checkpoint is
+ * never recoverable; CKPT_CRASH_BEFORE_METADATA_SYNC follows both the commit and the log flush, so
+ * with logging enabled recovery always rolls the checkpoint forward. The key rotation points are
+ * taken wherever the disaggregated key provider runs, on the per-tree path as well as after the
+ * metadata sync, so they hold no position in that order.
  */
 enum {
     CKPT_CRASH_NONE = 0,
