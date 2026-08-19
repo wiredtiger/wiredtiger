@@ -1982,9 +1982,27 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *tmp_mod;
+    bool prepared_reserved;
     txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
+    prepared_reserved = false;
+
     WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
+
+    if (__wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &txn_global->step_down_lock);
+        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE) {
+            __wt_readunlock(session, &txn_global->step_down_lock);
+            WT_RET_MSG(session, EBUSY,
+              "prepared transactions are not supported while the step-down timestamp is set");
+        }
+        (void)__wt_atomic_add_uint64(&txn_global->step_down_prepared_count, 1);
+        prepared_reserved = true;
+        __wt_readunlock(session, &txn_global->step_down_lock);
+    }
+
     txn->time_point.prepared_id = prepared_id;
     txn->time_point.prepare_timestamp = prepared_item->prepare_timestamp;
     F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE);
@@ -2006,62 +2024,104 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
-    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
+    ret = __wt_prepared_discover_remove_item(session, prepared_id);
+    if (ret != 0)
+        goto err;
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
     return (ret);
+
+err:
+    if (prepared_reserved)
+        (void)__wt_atomic_sub_uint64(&txn_global->step_down_prepared_count, 1);
+    return (ret);
 }
 
 /*
- * __wt_txn_stepdown_straddler_check --
+ * __wt_txn_stepdown_straddler_check_state --
  *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
- *     checkpointed at that timestamp, and everything committed after it must go to the ingest
- *     constituent to survive the role change. Transactions that begin once the timestamp is set
- *     mirror their writes accordingly. A write transaction that began before then routed its writes
- *     to stable, so if it is still running it "straddles" the boundary: its commit can land above
- *     the step-down timestamp, yet its content sits in stable, where nothing above the checkpoint
- *     survives. Rather than risk losing the writes, return WT_ROLLBACK and have the application
- *     retry it as a new transaction, which mirrors to ingest. For read operations only the
- *     assertion applies.
+ *     checkpointed at that timestamp, and everything committed after it must be mirrored to the
+ *     ingest constituent to survive the role change. A transaction whose stable writes all predate
+ *     the timestamp being set has no such mirror, so if it commits above the timestamp its content
+ *     sits only in stable, where nothing above the checkpoint survives. Detect that by shape: a
+ *     stable constituent operation not marked with a completed ingest mirror. Return WT_ROLLBACK
+ *     and have the application retry as a new transaction, whose writes mirror.
+ *
+ * The caller supplies the step-down timestamp sampled for the operation. The role generation
+ *     catches an unmirrored writer after step-down completion clears the timestamp.
  */
 static WT_INLINE int
-__wt_txn_stepdown_straddler_check(WT_SESSION_IMPL *session, bool is_writer)
+__wt_txn_stepdown_straddler_check_state(WT_SESSION_IMPL *session, bool is_writer,
+  wt_timestamp_t stepdown_ts, bool unmirrored_stable, bool wrote_ingest)
 {
     WT_TXN *txn = session->txn;
-    /*
-     * A relaxed load suffices: for cursor operations rejecting a straddler here is only an
-     * optimization ahead of the commit-time check, and at commit the caller holds the step-down
-     * lock, which orders this read against the timestamp being set.
-     */
-    wt_timestamp_t stepdown_ts =
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp);
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool completed_step_down, role_changed;
 
-    /*
-     * While the step-down timestamp is set, layered operations must run in explicit snapshot
-     * transactions. Explicit, because an implicit (autocommit) transaction only begins inside the
-     * constituent operation, after this check and the constituent routing have made their
-     * decisions, so it would evade both. Snapshot, because a transaction decides once, at begin,
-     * whether its reads consult ingest, and that decision only stays correct while it keeps reading
-     * the state it saw at begin: under read-committed or read-uncommitted it would see newer
-     * commits without looking in the table they went to. The assertion comes before the early
-     * return so it also covers read operations.
-     */
-    WT_ASSERT(session,
-      stepdown_ts == WT_TS_NONE ||
-        (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_AUTOCOMMIT) &&
-          txn->isolation == WT_ISO_SNAPSHOT));
-
-    if (!is_writer || stepdown_ts == WT_TS_NONE || txn->stepdown_ts_set)
+    if (F_ISSET(
+          session, WT_SESSION_INTERNAL | WT_SESSION_CHECKPOINT | WT_SESSION_CHECKPOINT_WORKER))
         return (0);
 
-    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-      "step-down straddler rollback: txn began before stepdown timestamp was set %" PRIu64,
-      stepdown_ts);
+    role_changed = F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) != 0 &&
+      __wt_session_gen(session, WT_GEN_DISAGG_ROLE) != __wt_gen(session, WT_GEN_DISAGG_ROLE);
+    completed_step_down = role_changed && txn->disagg_role_leader &&
+      !__wt_atomic_load_bool_acquire(&S2C(session)->layered_table_manager.leader) &&
+      __wt_gen(session, WT_GEN_DISAGG_ROLE) == __wt_session_gen(session, WT_GEN_DISAGG_ROLE) + 1;
+
+    if (!is_writer || (stepdown_ts == WT_TS_NONE && !role_changed))
+        return (0);
+
+    if (wrote_ingest && stepdown_ts != WT_TS_NONE &&
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+      txn->first_commit_timestamp <= stepdown_ts)
+        WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the step down timestamp %s",
+          __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(stepdown_ts, ts_string[1]));
+
+    if (!unmirrored_stable && (!role_changed || completed_step_down))
+        return (0);
+
+    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s",
+      "step-down straddler rollback: unmirrored stable content crossed the step-down boundary");
     WT_STAT_CONN_INCR(session, txn_rollback_stepdown);
     __wt_session_set_last_error(
       session, WT_ROLLBACK, WT_STEP_DOWN, WT_TXN_ROLLBACK_REASON_STEP_DOWN);
     return (WT_ROLLBACK);
+}
+
+/*
+ * __wt_txn_stepdown_straddler_check --
+ *     Check a transaction's constituent operations for an unmirrored stable operation.
+ */
+static WT_INLINE int
+__wt_txn_stepdown_straddler_check(
+  WT_SESSION_IMPL *session, bool is_writer, wt_timestamp_t stepdown_ts)
+{
+    WT_TXN *txn = session->txn;
+    WT_TXN_OP *op;
+    u_int i;
+    bool unmirrored_stable, wrote_ingest;
+
+    unmirrored_stable = wrote_ingest = false;
+    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        if (op->type == WT_TXN_OP_NONE || op->btree == NULL)
+            continue;
+        /*
+         * System tables (the shared metadata table, the history store) carry stable-suffixed URIs
+         * but hold no application content subject to the mirror invariant.
+         */
+        if (WT_IS_DISAGG_META(op->btree->dhandle) || WT_IS_HS(op->btree->dhandle))
+            continue;
+        if (WT_URI_IS_STABLE(op->btree->dhandle->name)) {
+            unmirrored_stable |= !F_ISSET(op, WT_TXN_OP_LAYERED_MIRRORED);
+        } else if (WT_URI_IS_INGEST(op->btree->dhandle->name))
+            wrote_ingest = true;
+    }
+
+    return (__wt_txn_stepdown_straddler_check_state(
+      session, is_writer, stepdown_ts, unmirrored_stable, wrote_ingest));
 }
 
 /*
@@ -2081,7 +2141,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->time_point.commit_timestamp = WT_TS_NONE;
     txn->time_point.durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
-    txn->stepdown_ts_set = false;
     txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -2114,26 +2173,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
           __wt_evict_app_assist_worker_check(session, false, true, true, false, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
-    }
-
-    /*
-     * Record whether the step-down timestamp was set when this transaction started; the commit-time
-     * check rolls back write transactions that started before it was set.
-     *
-     * Read it after taking the snapshot: it is also used to determine whether cursors should access
-     * the ingest table. Since snapshots are synchronized, reading a snapshot that contains ingest
-     * changes made after the step-down timestamp was set guarantees the timestamp is observed as
-     * set here as well.
-     *
-     * Read it under the step-down lock: the commit-time check runs under the same lock, so reading
-     * the timestamp as set also makes the writes of transactions that committed before it was set
-     * visible.
-     */
-    if (__wt_conn_is_disagg(session)) {
-        __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        txn->stepdown_ts_set = __wt_atomic_load_uint64_relaxed(
-                                 &S2C(session)->txn_global.step_down_timestamp) != WT_TS_NONE;
-        __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
     }
 
     F_SET(txn, WT_TXN_RUNNING);

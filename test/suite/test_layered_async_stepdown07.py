@@ -150,7 +150,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 20), {'below': 'v', 'at': 'v'})
         self.assertEqual(self.read_kvs_at(self.uri, 21), {'below': 'v', 'at': 'v', 'above': 'v'})
 
-        # Ground truth: the above-cutoff write is mirrored. A follower cannot open the live stable
+        # Ground truth: the above-cutoff write was mirrored. A follower cannot open the live stable
         # table, so read its checkpoint view.
         self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30),
             {'below', 'at', 'above'})
@@ -249,8 +249,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-    # search_near works when only one constituent has content: all of it in ingest over an empty
-    # stable table, and nothing anywhere.
+    # search_near works when both constituents have the same mirrored content, and when both are
+    # empty.
     def test_search_near_with_empty_constituent(self):
         empty_uri = f'layered:{self.test_name}_empty'
         self.set_global_ts(1, 1)
@@ -259,7 +259,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.set_step_down_ts(20)
 
-        # Every key lives in ingest and is mirrored to stable.
+        # Every key is mirrored to both constituents.
         self.write_at(self.uri, {'b': 'i', 'd': 'i'}, 30)
         self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'b', 'd'})
 
@@ -434,9 +434,9 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
 
     uri = f'layered:{test_name}'
 
-    # A transaction that began before the cutoff was set rolls back on its first write, whichever
-    # write it is, and leaves nothing behind in either constituent.
-    def test_straddler_write_rolls_back(self):
+    # A transaction that began before the cutoff but writes for the first time afterward mirrors its
+    # write to both constituents. Reserve is the exception: it only creates a transient reservation.
+    def test_late_first_write_mirrors(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
@@ -446,13 +446,32 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
 
         self.set_step_down_ts(20)
 
-        self.assert_step_down_rollback(lambda: self.do_op(cursor, 'k1'))
-        self.session.rollback_transaction()
+        self.do_op(cursor, 'k1')
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
 
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'base'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
+        expected_ingest = set() if self.do_op is _op_reserve else {'k1'}
+        expected_stable = {'k1'} if self.do_op is not _op_remove else set()
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), expected_ingest)
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
+
+    # An autocommit write samples the cutoff before its implicit transaction starts and still mirrors.
+    def test_autocommit_write_mirrors(self):
+        self.set_global_ts(1, 1)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.write_at(self.uri, {'base': 'stable'}, 10)
+
+        self.set_step_down_ts(20)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor['key'] = 'mirrored'
+        cursor.close()
+
+        self.assertEqual(self.read_kvs_at(self.uri, 30),
+            {'base': 'stable', 'key': 'mirrored'})
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'key'})
+        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 30),
+            {'base': 'stable', 'key': 'mirrored'})
 
 # Write-conflict detection around the cutoff and the demotion, plus a checkpoint taken while the
 # cutoff is set.

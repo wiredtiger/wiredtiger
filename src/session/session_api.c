@@ -1974,15 +1974,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
           WT_TS_NONE,
       "prepared transactions are not supported while the step-down timestamp is set");
 
-    /*
-     * The straddler checks at cursor operations are only an optimization to roll back early: they
-     * read the step-down timestamp without taking the step-down lock and may miss it even when it
-     * is set. This check is the guarantee: under the step-down lock it always observes a set
-     * timestamp, so no straddler commits after the timestamp is in place.
-     */
-    if (txn->mod_count != 0 && !txn->stepdown_ts_set && __wt_conn_is_disagg(session)) {
+    if (txn->mod_count != 0 && __wt_conn_is_disagg(session)) {
         __wt_readlock(session, &S2C(session)->txn_global.step_down_lock);
-        ret = __wt_txn_stepdown_straddler_check(session, true);
+        ret = __wt_txn_stepdown_straddler_check(session, true,
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp));
         __wt_readunlock(session, &S2C(session)->txn_global.step_down_lock);
         WT_ERR(ret);
     }
@@ -2040,19 +2035,38 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_TXN_GLOBAL *txn_global;
+    bool prepared_reserved;
 
     session = (WT_SESSION_IMPL *)wt_session;
+    txn_global = &S2C(session)->txn_global;
+    prepared_reserved = false;
     SESSION_API_CALL(session, ret, prepare_transaction, config, cfg, true);
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    if (__wt_conn_is_disagg(session)) {
+        __wt_readlock(session, &txn_global->step_down_lock);
+        if (__wt_atomic_load_uint64_relaxed(&txn_global->step_down_timestamp) != WT_TS_NONE) {
+            __wt_readunlock(session, &txn_global->step_down_lock);
+            WT_ERR_MSG(session, EBUSY,
+              "prepared transactions are not supported while the step-down timestamp is set");
+        }
+        (void)__wt_atomic_add_uint64(&txn_global->step_down_prepared_count, 1);
+        prepared_reserved = true;
+        __wt_readunlock(session, &txn_global->step_down_lock);
+    }
+
     F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_ERR(__wt_txn_prepare(session, cfg));
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
+    prepared_reserved = false;
 
 err:
+    if (prepared_reserved)
+        (void)__wt_atomic_sub_uint64(&txn_global->step_down_prepared_count, 1);
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_prepare_transaction(session, config, ret));
 #endif
