@@ -31,6 +31,7 @@
 # the application is still using the node, so a cursor open on the table holds the adoption up
 # until it closes, and a table the follower created itself must not be mistaken for a stale one.
 
+import re
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, DisaggSchemaEpochMixin
 from wtscenario import make_scenarios
@@ -118,13 +119,19 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.write_one('from the leader', 3)
         self.leader_checkpoint(3)
         self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
 
         self.assertTrue(self.stable_in_local_metadata(conn_follow, self.uri))
         cursor = session_follow.open_cursor(self.uri)
         self.assertEqual(cursor[1], 'from the leader')
         cursor.close()
         self.close_follower(conn_follow, session_follow)
+
+    def stable_btree_id(self, conn, uri):
+        """Return the btree id recorded for a table's stable constituent."""
+        config = self.stable_config(conn, uri)
+        match = re.search(r'(?:^|,)id=(\d+)', config)
+        self.assertIsNotNone(match, f'no btree id in {config}')
+        return int(match.group(1))
 
     def test_uncheckpointed_recreate_yields_to_the_checkpoint(self):
         """
@@ -156,7 +163,6 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.assertEqual(self.stable_btree_id(self.conn, self.uri), first_id)
 
         self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
         self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
 
         session_follow.close()

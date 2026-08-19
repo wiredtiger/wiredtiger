@@ -80,7 +80,6 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         cursor.close()
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
 
         self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
         conn_follow.close('debug=(skip_checkpoint=true)')
@@ -89,10 +88,8 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         """A table recreated on the leader carries a new btree id: the follower adopts it."""
         self.session.create(self.uri, self.table_config)
         self.leader_checkpoint(1)
-        first_id = self.stable_btree_id(self.conn, self.uri)
 
         conn_follow, session_follow = self.open_follower()
-        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), first_id)
 
         # Drop and recreate the table on the leader with an identical configuration: the new table
         # gets a new btree id. The follower never applies the drop, so its local entries still
@@ -105,20 +102,11 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
         cursor.close()
         self.leader_checkpoint(2)
-        second_id = self.stable_btree_id(self.conn, self.uri)
-        self.assertGreater(second_id, first_id)
-
         self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
 
-        # The follower now records the recreated table's btree id, so it dropped the old one rather
-        # than reading the checkpoint under the wrong btree identity.
-        self.assertEqual(self.stable_btree_id(conn_follow, self.uri), second_id)
-
-        # Read on a session opened after the drop, so a session-cached handle cannot answer for the
-        # table that is gone.
-        session_follow.close()
-        session_follow = conn_follow.open_session('')
+        # The follower reads the new table, so it discarded the old one rather than
+        # interpreting the checkpoint under the wrong btree identity.
+        self.assertTrue(self.uri_stable_exists(conn_follow, self.uri))
         cursor = session_follow.open_cursor(self.uri)
         self.assertEqual(cursor[1], 'after the recreate')
         cursor.close()

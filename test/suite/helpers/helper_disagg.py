@@ -937,13 +937,6 @@ class DisaggSchemaEpochMixin:
         session.close()
         return config
 
-    def stable_btree_id(self, conn, uri):
-        """Return the btree id recorded for a table's stable constituent."""
-        config = self.stable_config(conn, uri)
-        match = re.search(r'(?:^|,)id=(\d+)', config)
-        assert match is not None, f'no btree id in {config}'
-        return int(match.group(1))
-
     def inject_stable_entry(self, conn, key, config):
         """
         Write a stable file entry straight into a node's local metadata, bypassing the read-only
