@@ -26,9 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Checkpoint pickup lets go of a layered table the leader has dropped. The discard runs while the
-# application is still using the node, so a cursor open on the table holds the adoption up until it
-# closes, and a table the follower created itself must not be mistaken for one already dropped.
+# Checkpoint pickup lets go of a local layered table the checkpoint describes under a different
+# btree id, which is what a drop and a create under the same name produce. The discard runs while
+# the application is still using the node, so a cursor open on the table holds the adoption up
+# until it closes, and a table the follower created itself must not be mistaken for a stale one.
 
 import re
 import wttest
@@ -60,24 +61,6 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         cursor[1] = value
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
-
-    def test_dropped_table_is_let_go(self):
-        """A table dropped on the leader leaves nothing behind on the follower."""
-        self.session.create(self.uri, self.table_config)
-        self.write_one('before the drop', 2)
-        self.leader_checkpoint(2)
-
-        conn_follow, session_follow = self.open_follower()
-        self.assertTrue(self.stable_in_local_metadata(conn_follow, self.uri))
-
-        self.dropUntilSuccess(self.session, self.uri)
-        self.leader_checkpoint(3)
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
-
-        self.assertFalse(self.stable_in_local_metadata(conn_follow, self.uri))
-        self.assertFalse(self.uri_in_local_metadata(conn_follow, self.uri))
-        self.close_follower(conn_follow, session_follow)
 
     def test_open_cursor_holds_up_the_pickup(self):
         """
