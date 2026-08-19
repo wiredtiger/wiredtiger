@@ -486,8 +486,8 @@ __wti_disagg_table_latest_create_remove(WT_SESSION_IMPL *session, const char *ta
 /*
  * __disagg_shared_metadata_op_helper --
  *     Perform the remove/update operation in the shared metadata table. When drop_sizep is set, a
- *     REMOVE reads the checkpoint size from the row being deleted and adds it; a missing row
- *     contributes nothing.
+ *     REMOVE sets it to the checkpoint size of the row it deletes, and leaves it alone when the row
+ *     carries no size; the caller owns the default.
  */
 static int
 __disagg_shared_metadata_op_helper(WT_SESSION_IMPL *session, const char *key, const char *value,
@@ -520,15 +520,14 @@ __disagg_shared_metadata_op_helper(WT_SESSION_IMPL *session, const char *key, co
          * some lookups to return WT_NOTFOUND.
          */
         if (drop_sizep != NULL) {
-            size = 0;
             WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
             if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
                 WT_ERR(cursor->get_value(cursor, &config));
                 WT_ERR_NOTFOUND_OK(__wt_ckpt_last_size(session, config, &size), true);
                 if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-                    *drop_sizep += size;
+                    *drop_sizep = size;
                     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-                      "Accumulated drop size %" PRIu64 " for stable URI \"%s\"", size, key);
+                      "Drop size %" PRIu64 " for stable URI \"%s\"", size, key);
                 }
                 WT_ERR(cursor->remove(cursor));
             }
@@ -559,7 +558,8 @@ err:
 
 /*
  * __disagg_shared_metadata_op --
- *     Remove/update all relevant metadata entries of a table in the shared metadata table.
+ *     Remove/update all relevant metadata entries of a table in the shared metadata table,
+ *     returning the checkpoint size a REMOVE took out of the shared metadata table.
  */
 static int
 __disagg_shared_metadata_op(
@@ -567,6 +567,9 @@ __disagg_shared_metadata_op(
 {
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
+
+    /* Only the stable constituent carries a size, and only a REMOVE takes one out. */
+    *drop_sizep = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
     WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
@@ -687,6 +690,7 @@ __wt_disagg_shared_metadata_queue_process(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry, *skipped, *tmp;
+    uint64_t entry_drop_size;
 
     WT_ASSERT(session, drop_sizep != NULL);
     conn = S2C(session);
@@ -734,7 +738,8 @@ __wt_disagg_shared_metadata_queue_process(
         }
 
         WT_STAT_CONN_INCR(session, checkpoint_disagg_metadata_apply);
-        WT_ERR(__disagg_shared_metadata_op(session, entry, drop_sizep));
+        WT_ERR(__disagg_shared_metadata_op(session, entry, &entry_drop_size));
+        *drop_sizep += entry_drop_size;
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_queue_free(session, &entry);

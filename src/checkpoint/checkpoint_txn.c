@@ -1023,8 +1023,13 @@ __checkpoint_update_disagg_database_size(
         delta = session->ckpt.ckpt_size_delta - (int64_t)drop_size;
 
         if (delta > 0) {
-            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
-            __wt_disagg_set_database_size(session, db + (uint64_t)delta);
+            uint64_t add;
+
+            add = (uint64_t)delta;
+            WT_ASSERT_ALWAYS(session, UINT64_MAX - db >= add,
+              "disaggregated database size overflow: incrementing %" PRIu64 " by %" PRIu64, db,
+              add);
+            __wt_disagg_set_database_size(session, db + add);
         } else if (delta < 0) {
             uint64_t sub, new_size;
 
