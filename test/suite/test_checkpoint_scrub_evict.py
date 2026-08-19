@@ -59,8 +59,11 @@ class test_checkpoint_scrub_evict(wttest.WiredTigerTestCase):
 
     uri = 'table:scrub_evict'
 
-    # Turn scrub on rather than letting the auto cache-pressure heuristic decide for 
-    # precise checkpoints to make the assertion deterministic the test.
+    # Turn scrub on rather than letting the auto cache-pressure heuristic decide for precise
+    # checkpoints. These tests need eviction engaged to consume the retained images and eviction
+    # in scrub mode to produce them, and auto only scrubs below the dirty and updates
+    # target/trigger midpoints while dirty eviction only runs above their targets. That is a
+    # narrow window that makes auto unreliable for these tests.
     ckpt_precision = [
         ('precise', dict(precise=True,
                          ckpt_cfg='precise_checkpoint=true,'
