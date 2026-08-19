@@ -823,20 +823,15 @@ retry:
     /*
      * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a
      * read timestamp below it: reads silently lose keys whose newest visible version was removed as
-     * obsolete. Nothing prevents an adoption from passing an active reader's timestamp (new readers
-     * are bounded by the oldest timestamp, which the application advances to the adopted
-     * checkpoint's before the pickup), and a stale read is only possible through a bind, so refuse
-     * the bind here. Detection is the agreed response: such readers are expected to be rare, kept
-     * so by the application's history window.
+     * obsolete.
      */
-    WT_ASSERT_ALWAYS(session,
-      WT_SESSION_TXN_SHARED(session) == NULL ||
-        WT_SESSION_TXN_SHARED(session)->read_timestamp == WT_TS_NONE ||
-        WT_SESSION_TXN_SHARED(session)->read_timestamp >=
-          __wt_atomic_load_uint64_acquire(
-            &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp),
-      "binding the stable cursor to a checkpoint that cannot serve the transaction's read "
-      "timestamp");
+    if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ)) {
+        WT_ASSERT_ALWAYS(session,
+          WT_SESSION_TXN_SHARED(session)->read_timestamp >=
+            __wt_atomic_load_uint64_acquire(
+              &S2C(session)->disaggregated_storage.last_checkpoint_oldest_timestamp),
+          "advancing stable to a checkpoint that cannot serve the transaction's read timestamp");
+    }
 
 err:
     __wt_scr_free(session, &last_ckpt_uri);
