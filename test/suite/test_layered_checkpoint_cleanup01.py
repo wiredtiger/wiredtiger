@@ -30,21 +30,18 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# Verify the checkpoint cleanup thread lifecycle across role transitions:
-#   - opening as a follower leaves the thread stopped (leader-only work),
-#   - opening as a leader starts the thread once,
-#   - step-up starts the thread, step-down stops it,
-#   - reconfigure to the current role is a no-op.
-@disagg_test_class
-class test_layered_checkpoint_cleanup01(wttest.WiredTigerTestCase):
+# Verify the checkpoint cleanup thread lifecycle under disaggregated storage.
+# Progress is checked via the checkpoint_cleanup_thread_start and
+# checkpoint_cleanup_thread_stop connection statistics.
+class checkpoint_cleanup_role_base(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),'
+    initial_role = None
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
     scenarios = make_scenarios(disagg_storages)
 
-    # Open as a follower by default; leader-open tests override via wiredtiger_open below.
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="follower"),'
+        return self.conn_base_config + f'disaggregated=(role="{self.initial_role}"),'
 
     def get_conn_stat(self, stat_key):
         c = self.session.open_cursor('statistics:')
@@ -58,12 +55,19 @@ class test_layered_checkpoint_cleanup01(wttest.WiredTigerTestCase):
     def stop_count(self):
         return self.get_conn_stat(wiredtiger.stat.conn.checkpoint_cleanup_thread_stop)
 
+
+# Verify the cleanup thread lifecycle when the initial role is follower: opening leaves the
+# thread stopped, step-up starts it, step-down stops it, and same-role reconfigure is a no-op.
+@disagg_test_class
+class test_layered_checkpoint_cleanup01(checkpoint_cleanup_role_base):
+    initial_role = 'follower'
+
     def test_follower_open_leaves_thread_stopped(self):
-        # Opening as a follower must not launch the cleanup thread: it is leader-only work.
+        # Checkpoint cleanup is leader-only work; a follower open must not launch the thread.
         self.assertEqual(self.start_count(), 0)
         self.assertEqual(self.stop_count(), 0)
 
-        # Reconfiguring to the same role is a no-op.
+        # Same-role reconfigure is a no-op.
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.assertEqual(self.start_count(), 0)
         self.assertEqual(self.stop_count(), 0)
@@ -77,7 +81,7 @@ class test_layered_checkpoint_cleanup01(wttest.WiredTigerTestCase):
         self.assertEqual(self.start_count(), 1)
         self.assertEqual(self.stop_count(), 0)
 
-        # Reconfiguring to leader again is a no-op.
+        # Same-role reconfigure is a no-op.
         self.conn.reconfigure('disaggregated=(role="leader")')
         self.assertEqual(self.start_count(), 1)
         self.assertEqual(self.stop_count(), 0)
@@ -100,20 +104,8 @@ class test_layered_checkpoint_cleanup01(wttest.WiredTigerTestCase):
 
 # Verify the cleanup thread launches once at open when the initial role is leader.
 @disagg_test_class
-class test_layered_checkpoint_cleanup01_leader_open(wttest.WiredTigerTestCase):
-    conn_base_config = 'statistics=(all),'
-
-    disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
-
-    def get_conn_stat(self, stat_key):
-        c = self.session.open_cursor('statistics:')
-        val = c[stat_key][2]
-        c.close()
-        return val
+class test_layered_checkpoint_cleanup01_leader_open(checkpoint_cleanup_role_base):
+    initial_role = 'leader'
 
     def test_leader_open_starts_thread_once(self):
         self.assertEqual(self.start_count(), 1)
