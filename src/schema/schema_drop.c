@@ -199,12 +199,17 @@ __drop_layered_check_ingest_durable(WT_SESSION_IMPL *session, const char *ingest
     /*
      * An ingest tree is in-memory, so closing it discards its content instead of taking the
      * dirty-data path that refuses to close a durable tree. A follower has no other copy of writes
-     * the leader has not yet checkpointed, so bound the drop by the same rule sweep uses before it
-     * closes an ingest tree: the maximum write timestamp is a possibly conservative upper bound on
-     * the durable timestamps the tree holds, and the checkpoint must cover it.
+     * the leader has not yet checkpointed, so bound the drop by the maximum write timestamp, a
+     * possibly conservative upper bound on the durable timestamps the tree holds, which the
+     * checkpoint must cover.
+     *
+     * The bound is the adopted disaggregated checkpoint, not the last local one: a local checkpoint
+     * persists nothing of an in-memory tree, so its timestamp says nothing about whether these
+     * writes survive the close.
      */
     max_write_ts = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
-    ckpt_ts = __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.last_ckpt_timestamp);
+    ckpt_ts = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     if (max_write_ts != WT_TS_NONE && max_write_ts > ckpt_ts)
         WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
           "the table has ingested data that no checkpoint covers and must not be dropped yet");
