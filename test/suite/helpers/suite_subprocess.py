@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import print_function
-import os, re, subprocess, sys
+import os, re, signal, subprocess, sys
 from run import wt_builddir
 from wttest import WiredTigerTestCase
 import wttest
@@ -217,6 +217,30 @@ class suite_subprocess:
         new_home_dir = os.path.join(directory,
             testparts[1] + '.0')
         return [ returncode, new_home_dir ]
+
+    # Assert that a subprocess was stopped by WiredTiger's debug crash.
+    def assert_crashed(self, returncode):
+        # WiredTiger kills the process outright on POSIX and aborts on Windows, so the exit status
+        # is platform specific. Where the two are distinguishable, insist on the kill: an abort
+        # means we stopped somewhere we did not ask to, such as a checkpoint teardown assertion
+        # catching a crash point that was configured but never reached.
+        if os.name == 'nt':
+            self.assertNotEqual(returncode, 0)
+        else:
+            self.assertEqual(returncode, -signal.SIGKILL)
+
+    # Run a method as a subprocess that is expected to crash, and return the WiredTiger home
+    # directory it left behind.
+    def crash_in_subprocess(self, directory, funcname, scenario=-1):
+        # Default to this test's own scenario, so that each is crashed and asserted independently.
+        # Running the child over the whole list instead crashes it in the first scenario and never
+        # reaches the others.
+        if scenario == -1:
+            scenario = getattr(self, 'scenario_number', None)
+        [ returncode, home ] = self.run_subprocess_function(directory, funcname, silent=True,
+            scenario=scenario)
+        self.assert_crashed(returncode)
+        return home
 
     # Merge a connection configuration string into a wt argument list, combining with an existing
     # -C value when present.
