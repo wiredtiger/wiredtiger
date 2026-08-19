@@ -202,8 +202,14 @@ class suite_subprocess:
         # per test case rather than per home directory, so reading it back as 'table:' in this
         # process still fails. See FIXME-WT-16920 in hook_disagg.py.
         hook_args = [ arg for spec in self.hook_specs for arg in [ '--hook', spec ] ]
+        # A hook that skips the function in the subprocess would otherwise leave us nothing to
+        # look at: the subprocess exits zero and the skipped test removes its home directory. The
+        # report file cannot live under the directory, which run.py clears as it starts.
+        skipfile = directory + '.skip'
+        if os.path.exists(skipfile):
+            os.remove(skipfile)
         procargs = [ sys.executable, runscript, '-p', '--dir', directory,
-            *hook_args, *scenario_args, funcname]
+            '--skip-report', skipfile, *hook_args, *scenario_args, funcname]
 
         returncode = -1
         os.makedirs(directory)
@@ -220,6 +226,12 @@ class suite_subprocess:
                         "Warning: run_subprocess_function " + funcname + \
                         " returned error code " + str(returncode),
                         [ "subprocess.out", "subprocess.err" ])
+
+        # Whatever stopped the subprocess function from running applies to this test as well.
+        if os.path.exists(skipfile):
+            with open(skipfile, 'r') as f:
+                reason = f.read()
+            self.skipTest(funcname + ' was skipped in the subprocess: ' + reason)
 
         # Running a scenario will default create directory starting with 0.
         new_home_dir = os.path.join(directory,
