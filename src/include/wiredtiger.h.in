@@ -6880,7 +6880,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: eviction server skips pages on an outdated disaggregated read-
  * only btree that a reader still has open
  */
-#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_STALE_DISAGG_PAGES_BUSY	1164
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_STALE_DISAGG_PAGES	1164
 /*!
  * cache: eviction server skips pages that are written with transactions
  * greater than the checkpoint timestamp

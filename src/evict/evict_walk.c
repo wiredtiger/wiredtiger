@@ -1262,7 +1262,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      */
     if (__wt_btree_is_stale_disagg(session) && !__wt_page_evict_clean(page) &&
       __wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 1) {
-        WT_STAT_CONN_INCR(session, eviction_server_skip_stale_disagg_pages_busy);
+        WT_STAT_CONN_INCR(session, eviction_server_skip_stale_disagg_pages);
         return;
     }
 
