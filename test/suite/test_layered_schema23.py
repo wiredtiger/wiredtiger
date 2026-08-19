@@ -81,9 +81,9 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     def test_open_cursor_holds_up_the_pickup(self):
         """
-        A cursor open on a table the leader has replaced keeps the node on its current checkpoint:
-        the drop cannot take the exclusive handle it needs, so the adoption is retried rather than
-        applied in part. The node moves on once the application is done with the table.
+        A cursor open on a table the leader has replaced keeps the node on its current checkpoint,
+        because the drop cannot take the exclusive handle it needs. The node moves on once the
+        application is done with the table.
         """
         # Only the busy handle may hold the adoption up, so any other reason is a failure.
         self.ignoreStdoutPattern('deferred checkpoint pickup failed: Device or resource busy|' +
@@ -125,10 +125,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         self.close_follower(conn_follow, session_follow)
 
     def test_follower_create_is_not_a_dropped_table(self):
-        """
-        A table the follower creates itself has no stable constituent, so the leader's entry is
-        adopted rather than compared against a local btree id that was never assigned here.
-        """
+        """A table the follower created itself has no stable constituent to disagree with."""
         self.leader_checkpoint(1)
 
         conn_follow, session_follow = self.open_follower()
@@ -155,9 +152,8 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     def test_uncheckpointed_recreate_yields_to_the_checkpoint(self):
         """
-        A table recreated on a node that never checkpointed it was never published, so the
-        checkpoint's btree id is the durable one. The pickup discards the local table and adopts the
-        checkpoint's, even though the local btree id is the larger of the two.
+        A recreate that was never checkpointed was never published, so the checkpoint's btree id
+        wins even though the local one is larger.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
@@ -196,11 +192,9 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     def test_strict_validation_accepts_a_discarded_table(self):
         """
-        Strict validation treats a table held only by the shared metadata as a difference the
-        operation queue has to account for. A table the same pickup has just let go of is accounted
-        for by the pickup itself, so it is adopted instead of being read as an unexplained
-        divergence. Tables the pickup did not discard are still validated, which the strict tests in
-        test_layered_schema17 cover.
+        Strict validation asks the operation queue to account for a table held only by the shared
+        metadata. One the same pickup let go of is accounted for by the pickup itself. Tables it did
+        not discard are still validated, which test_layered_schema17 covers.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
@@ -231,10 +225,8 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
 
     def test_recreate_published_before_a_graceful_step_down(self):
         """
-        A graceful step-down declares a step-down timestamp and has to land its checkpoint on it, so
-        a table the outgoing leader recreated is published and reaches the shared metadata. Both
-        nodes therefore settle on the recreated table's btree id and no local table is left
-        disagreeing with the checkpoint.
+        A graceful step-down lands its checkpoint on the step-down timestamp, so a table the
+        outgoing leader recreated is published and both nodes settle on its btree id.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)

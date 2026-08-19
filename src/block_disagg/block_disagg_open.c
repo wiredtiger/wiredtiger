@@ -90,10 +90,7 @@ __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const ch
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
         /* TODO: Should check to make sure this is the right type of block */
-        /*
-         * The block's page log handle belongs to one table ID, so matching on the name alone would
-         * serve a recreated table the pages of the table it replaced.
-         */
+        /* Matching the name alone would serve a recreated table its predecessor's pages. */
         if (strcmp(filename, block->name) == 0 && ((WT_BLOCK_DISAGG *)block)->tableid == tableid) {
             ++block->ref;
             *blockp = block;
