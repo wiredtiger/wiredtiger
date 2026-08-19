@@ -69,8 +69,8 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.uri, 40), before | after)
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), after)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), before,
-            'later writes must not reach the stable table')
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), before | after,
+            'transition-window writes must be mirrored to stable')
 
     # Update, modify and remove of stable keys route to ingest, like insert.
     def test_update_modify_remove_routing_after_step_down_ts(self):
@@ -105,11 +105,11 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(kv.get('k3'), 'vase')
         self.assertNotIn('k2', kv)
 
-        # All three landed in ingest, the remove as a tombstone shadowing stable.
+        # The transition-window writes are mirrored to stable; remove also records an ingest tombstone.
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2', 'k3'})
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'base', 'k2': 'base', 'k3': 'base'},
-            'these writes must not touch the stable table')
+            {'k1': 'updated', 'k3': 'vase'},
+            'transition-window writes must be mirrored to stable')
 
         # The update, modify and tombstone all survive the completed step-down.
         self.complete_step_down(20)
@@ -133,8 +133,8 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri1), 40), {'c'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri2), 40), {'d'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), {'a'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri1), 40), {'a', 'c'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri2), 40), {'b', 'd'})
         self.assertEqual(self.read_kvs_at(uri1, 40), {'a': 'stable', 'c': 'ingest'})
         self.assertEqual(self.read_kvs_at(uri2, 40), {'b': 'stable', 'd': 'ingest'})
 
@@ -195,7 +195,7 @@ class test_layered_async_stepdown01(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'updated'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1', 'k2'})
         self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40),
-            {'k1': 'base', 'k2': 'base'})
+            {'k1': 'updated'})
 
         # Both writes survive the completed step-down.
         self.complete_step_down(20)

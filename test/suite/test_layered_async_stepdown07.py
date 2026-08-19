@@ -150,9 +150,10 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(self.uri, 20), {'below': 'v', 'at': 'v'})
         self.assertEqual(self.read_kvs_at(self.uri, 21), {'below': 'v', 'at': 'v', 'above': 'v'})
 
-        # Ground truth: the content split exactly at the cutoff. A follower cannot open the
-        # live stable table, so read its checkpoint view.
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30), {'below', 'at'})
+        # Ground truth: the above-cutoff write is mirrored. A follower cannot open the live stable
+        # table, so read its checkpoint view.
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30),
+            {'below', 'at', 'above'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
 
     # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
@@ -258,9 +259,9 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.set_step_down_ts(20)
 
-        # Every key lives in ingest; the stable table was never written.
+        # Every key lives in ingest and is mirrored to stable.
         self.write_at(self.uri, {'b': 'i', 'd': 'i'}, 30)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'b', 'd'})
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -583,7 +584,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(checkpointed, {'b': 's', 'd': 's'})
 
         self.assertEqual(self.read_kvs_at(self.uri, 50), before)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'b', 'd'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'a', 'b', 'd', 'z'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'a', 'z'})
 
         # A write after that checkpoint still routes to ingest, and the step-down still completes.

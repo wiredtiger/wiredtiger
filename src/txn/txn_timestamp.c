@@ -798,7 +798,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
 
         /*
-         * A transaction that began after the step-down timestamp was set commits to the ingest
+         * A transaction that began after the step-down timestamp was set writes the ingest
          * constituent, which lives strictly above that timestamp, so supplying a commit timestamp
          * at or below it is a contradiction. A transaction that began before the timestamp was set
          * passes here: the straddler guard rolls it back at commit, and one racing the set past
