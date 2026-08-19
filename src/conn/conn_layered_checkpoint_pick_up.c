@@ -526,7 +526,6 @@ err:
     __wt_free(session, sh_merge);
     return (ret);
 }
-
 #else
 /*
  * __disagg_check_meta_id --
