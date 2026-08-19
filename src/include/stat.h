@@ -1541,6 +1541,8 @@ struct __wt_dsrc_stats {
     int64_t btree_size_leaf_hist_6;
     int64_t btree_size_leaf_hist_7;
     int64_t btree_size_leaf_hist_8;
+    int64_t btree_size_leaf_hist_buckets;
+    int64_t btree_size_leaf_hist_ceiling;
     int64_t btree_size_leaf_pages;
     int64_t btree_size_overflow_bytes;
     int64_t btree_size_overflow_pages;
