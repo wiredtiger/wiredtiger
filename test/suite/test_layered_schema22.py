@@ -148,9 +148,13 @@ class test_layered_schema22(wttest.WiredTigerTestCase, suite_subprocess, DisaggS
         conn_follow, session_follow = self.open_follower()
         session_follow.close()
 
-        # Recreate the table with a different nested encryption keyid.
-        self.dropUntilSuccess(self.session, self.uri)
-        self.session.create(self.uri, self.table_config + ',encryption=(name=none,keyid=second)')
+        # Plant the divergent nested field on the follower rather than recreating the table on the
+        # leader: a recreate carries a new btree id, which the pickup settles by adopting the
+        # checkpoint's table, leaving nothing for the field comparison to reject.
+        config = self.stable_config(conn_follow, self.uri)
+        self.inject_stable_entry(conn_follow, self.stable_uri(self.uri),
+                                 config.replace('keyid=first', 'keyid=second'))
+
         self.leader_checkpoint(2)
         self.disagg_advance_checkpoint(conn_follow)
 
