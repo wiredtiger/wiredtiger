@@ -661,15 +661,15 @@ err:
  *     table and copy the shared metadata entries into the local metadata.
  */
 static int
-__disagg_pick_up_new_layered(WT_SESSION_IMPL *session, WT_CURSOR **sh_cursors,
-  WT_CURSOR *md_write_cursor, const bool *sh_has, bool is_startup,
-  WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids, uint32_t *new_ingestp, bool force_ingest)
+__disagg_pick_up_new_layered(WT_SESSION_IMPL *session, WT_CURSOR **sh_cursors, const bool *sh_has,
+  bool is_startup, WT_DISAGG_STABLE_BTREE_IDS *stable_btree_ids, uint32_t *new_ingestp)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    char *layered_ingest_uri;
+    char *ingest_value, *layered_ingest_uri;
     const char *metadata_value;
 
+    ingest_value = NULL;
     layered_ingest_uri = NULL;
 
     WT_ERR(sh_cursors[WT_DISAGG_CURSOR_LAYERED]->get_value(
@@ -679,12 +679,11 @@ __disagg_pick_up_new_layered(WT_SESSION_IMPL *session, WT_CURSOR **sh_cursors,
         WT_ERR(__wt_calloc_def(session, cval.len + 1, &layered_ingest_uri));
         memcpy(layered_ingest_uri, cval.str, cval.len);
         layered_ingest_uri[cval.len] = '\0';
-        if (force_ingest)
-            ret = WT_NOTFOUND;
-        else {
-            md_write_cursor->set_key(md_write_cursor, layered_ingest_uri);
-            WT_ERR_NOTFOUND_OK(md_write_cursor->search(md_write_cursor), true);
-        }
+        /*
+         * Read the metadata rather than the walk's cursor: a table dropped during this walk is
+         * still present to a cursor opened before the drop.
+         */
+        WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, layered_ingest_uri, &ingest_value), true);
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG_CHK(session,
               __layered_create_missing_ingest_table(
@@ -704,6 +703,7 @@ __disagg_pick_up_new_layered(WT_SESSION_IMPL *session, WT_CURSOR **sh_cursors,
         WT_ERR(__disagg_insert_meta(session, sh_cursors[WT_DISAGG_CURSOR_TABLE], stable_btree_ids));
 
 err:
+    __wt_free(session, ingest_value);
     __wt_free(session, layered_ingest_uri);
     return (ret);
 }
@@ -928,8 +928,7 @@ static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   wt_timestamp_t ckpt_schema_epoch, bool is_startup)
 {
-    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *md_write_cursor,
-      *sh_cursors[WT_DISAGG_CURSOR_COUNT];
+    WT_CURSOR *md_cursors[WT_DISAGG_CURSOR_COUNT], *sh_cursors[WT_DISAGG_CURSOR_COUNT];
     WT_DECL_ITEM(current_buf);
     WT_DECL_ITEM(drop_buf);
     WT_DECL_ITEM(metadata_uri_buf);
@@ -939,19 +938,18 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     WT_SHARED_METADATA_OP latest_op;
     WT_TIMER apply_timer;
     wt_timestamp_t latest_epoch;
+    size_t current_len;
     uint64_t apply_elapsed_ms;
     uint32_t dropped_tables, dup_id, existing_tables, new_tables, new_ingest;
-    size_t current_len;
     int i;
     char *first_uri, *second_uri;
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
-    const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     const char *current;
+    const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
     bool id_differs, md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT], strict;
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
-    md_write_cursor = NULL;
     WT_CLEAR(stable_btree_ids);
 
     metadata_checkpoint_name = NULL;
@@ -1001,7 +999,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
      */
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_cursors[i]));
-    WT_ERR(__wt_metadata_cursor_open(session, NULL, &md_write_cursor));
 
     /* Open the cursors on the shared metadata table. */
     WT_ERR(__wt_scr_alloc(session, 0, &current_buf));
@@ -1093,8 +1090,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR(ret);
                 ++dropped_tables;
 
-                WT_ERR(__disagg_pick_up_new_layered(session, sh_cursors, md_write_cursor, sh_has,
-                  is_startup, &stable_btree_ids, &new_ingest, true));
+                WT_ERR(__disagg_pick_up_new_layered(
+                  session, sh_cursors, sh_has, is_startup, &stable_btree_ids, &new_ingest));
                 continue;
             }
         }
@@ -1207,8 +1204,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 WT_ERR_MSG(session, EINVAL,
                   "Unexpected local metadata entries for new layered table \"%s\"", current);
 
-            WT_ERR(__disagg_pick_up_new_layered(session, sh_cursors, md_write_cursor, sh_has,
-              is_startup, &stable_btree_ids, &new_ingest, false));
+            WT_ERR(__disagg_pick_up_new_layered(
+              session, sh_cursors, sh_has, is_startup, &stable_btree_ids, &new_ingest));
             ++new_tables;
         } else if (md_has[WT_DISAGG_CURSOR_LAYERED] && !sh_has[WT_DISAGG_CURSOR_LAYERED]) {
             /*
@@ -1354,8 +1351,6 @@ err:
     __wt_scr_free(session, &drop_buf);
     __wt_scr_free(session, &metadata_uri_buf);
 
-    if (md_write_cursor != NULL)
-        WT_TRET(md_write_cursor->close(md_write_cursor));
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++) {
         if (md_cursors[i] != NULL)
             WT_TRET(md_cursors[i]->close(md_cursors[i]));
