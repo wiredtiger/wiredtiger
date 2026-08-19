@@ -274,7 +274,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     }
 
     /* Append the new entry into the update list. */
-    WT_RELEASE_WRITE_WITH_BARRIER(upd->next, append);
+    __wt_atomic_store_ptr_release(&upd->next, append);
 
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
