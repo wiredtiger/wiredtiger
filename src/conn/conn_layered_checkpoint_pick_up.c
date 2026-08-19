@@ -745,10 +745,11 @@ __disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *stable_uri
     WT_DECL_ITEM(name_buf);
     WT_DECL_ITEM(prefix_buf);
     WT_DECL_RET;
-    bool found;
 
     WT_RET(__wt_scr_alloc(session, 0, &prefix_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &name_buf));
+
+    /* A view is named for the checkpoint it reads, as "<stable uri>/<checkpoint>". */
     WT_ERR(__wt_buf_fmt(session, prefix_buf, "%s/", stable_uri));
 
     /*
@@ -756,19 +757,18 @@ __disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *stable_uri
      * was given, so neither a position in the list nor a pointer into it survives the call.
      */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, {
-        do {
-            found = false;
-            TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q) {
-                if (F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-                  !WT_PREFIX_MATCH(dhandle->name, (const char *)prefix_buf->data))
-                    continue;
-                found = true;
-                if ((ret = __wt_buf_set(
-                       session, name_buf, dhandle->name, strlen(dhandle->name) + 1)) == 0)
-                    ret = __wt_conn_dhandle_close_all(session, name_buf->data, true, true, false);
+        while (ret == 0) {
+            TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q)
+                if (!F_ISSET(dhandle, WT_DHANDLE_DEAD) &&
+                  WT_PREFIX_MATCH(dhandle->name, (const char *)prefix_buf->data))
+                    break;
+            if (dhandle == NULL)
                 break;
-            }
-        } while (found && ret == 0);
+
+            ret = __wt_buf_set(session, name_buf, dhandle->name, strlen(dhandle->name) + 1);
+            if (ret == 0)
+                ret = __wt_conn_dhandle_close_all(session, name_buf->data, true, true, false);
+        }
     });
     WT_ERR(ret);
 
@@ -820,25 +820,16 @@ err:
 /*
  * __disagg_dropped_add --
  *     Record the URI of a layered table this node has to let go of. The drop runs once the merge is
- *     over, by which point the cursors that say which entry owns the table are gone.
+ *     over, by which point the cursors this URI came from have moved on.
  */
 static int
-__disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped, const char *name,
-  bool has_table_entry)
+__disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped, const char *uri)
 {
-    WT_DECL_ITEM(uri_buf);
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "%s%s", has_table_entry ? "table:" : "layered:", name));
-
-    WT_ERR(__wt_realloc_def(session, &dropped->allocated, dropped->count + 1, &dropped->uris));
-    WT_ERR(__wt_strdup(session, uri_buf->data, &dropped->uris[dropped->count]));
+    WT_RET(__wt_realloc_def(session, &dropped->allocated, dropped->count + 1, &dropped->uris));
+    WT_RET(__wt_strdup(session, uri, &dropped->uris[dropped->count]));
     ++dropped->count;
 
-err:
-    __wt_scr_free(session, &uri_buf);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1144,8 +1135,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
             WT_ERR(__disagg_file_id_differs(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
               md_cursors[WT_DISAGG_CURSOR_FILE], &id_differs));
             if (id_differs) {
-                WT_ERR(
-                  __disagg_dropped_add(session, dropped, current, md_has[WT_DISAGG_CURSOR_TABLE]));
+                WT_ERR(__disagg_dropped_add(session, dropped,
+                  md_has[WT_DISAGG_CURSOR_TABLE] ? md_keys[WT_DISAGG_CURSOR_TABLE] :
+                                                   md_keys[WT_DISAGG_CURSOR_LAYERED]));
                 ++dropped_tables;
                 continue;
             }
@@ -1303,7 +1295,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
                 continue;
             }
 
-            WT_ERR(__disagg_dropped_add(session, dropped, current, md_has[WT_DISAGG_CURSOR_TABLE]));
+            WT_ERR(__disagg_dropped_add(session, dropped,
+              md_has[WT_DISAGG_CURSOR_TABLE] ? md_keys[WT_DISAGG_CURSOR_TABLE] :
+                                               md_keys[WT_DISAGG_CURSOR_LAYERED]));
             ++dropped_tables;
         } else {
             /*
