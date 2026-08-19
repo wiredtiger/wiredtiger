@@ -1977,6 +1977,15 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 
     /* If off-page, the pointer references a WT_ADDR structure. */
     if (__wt_off_page(page, addr)) {
+        /*
+         * A zero-length address copies nothing, so the caller would proceed on whatever its buffer
+         * already held. Abort while the reference and the parent's image are still intact; the
+         * block manager only catches this several frames later, with nothing naming the reference.
+         */
+        WT_ASSERT_ALWAYS(session, addr->block_cookie_size != 0,
+          "%s: off-page ref address has zero length: ref %p, state %d",
+          session->dhandle == NULL ? "[no dhandle]" : session->dhandle->name, (void *)ref,
+          (int)WT_REF_GET_STATE(ref));
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
         copy->type = addr->type;
         memcpy(copy->addr, addr->block_cookie, copy->size = addr->block_cookie_size);
@@ -1985,6 +1994,18 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
+
+    /*
+     * As above. The address copy holds the length in a single byte, so an oversized length is
+     * silently truncated rather than rejected. Zero-length address cells exist only as
+     * WT_CELL_ADDR_DEL_VISIBLE_ALL, which the delta merge drops before the image is materialized.
+     */
+    WT_ASSERT_ALWAYS(session, unpack->size != 0 && unpack->size <= WT_ADDR_MAX_COOKIE,
+      "%s: on-page ref address cell has unusable length %" PRIu32
+      ": ref %p, state %d, cell type %" PRIu8,
+      session->dhandle == NULL ? "[no dhandle]" : session->dhandle->name, unpack->size, (void *)ref,
+      (int)WT_REF_GET_STATE(ref), unpack->raw);
+
     WT_TIME_AGGREGATE_COPY(&copy->ta, &unpack->ta);
 
     switch (unpack->raw) {
