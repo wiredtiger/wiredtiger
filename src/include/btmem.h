@@ -270,7 +270,13 @@ struct __wt_page_block_meta {
     uint64_t page_id;
     uint64_t disagg_lsn;
 
+    /*
+     * LSN of the previous write this one links back to: the immediately preceding delta or base
+     * image for a delta, or the previous full image for a full page. Zero for a page's first write,
+     * including the first write after a discard.
+     */
     uint64_t backlink_lsn;
+    /* LSN of the base page at the bottom of the delta chain; 0 for a base page. */
     uint64_t base_lsn;
 
     uint32_t checksum;
@@ -367,21 +373,21 @@ struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
     wt_shared uint64_t first_dirty_txn;
 
-    /* The transaction state last time eviction was attempted. */
-    uint64_t last_evict_pass_gen;
-    uint64_t last_eviction_id;
-    wt_timestamp_t last_eviction_timestamp;
+    /* The transaction state as of the last eviction attempt, successful or not. */
+    uint64_t rec_evict_attempt_pass_gen;
+    uint64_t rec_evict_attempt_oldest_id;
+    wt_timestamp_t rec_evict_attempt_pinned_ts;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */
-    uint64_t last_oldest_id;
+    uint64_t rec_last_oldest_id;
 #endif
 
     /* Avoid checking for obsolete updates during checkpoints. */
     uint64_t obsolete_check_txn;
     wt_timestamp_t obsolete_check_timestamp;
 
-    /* The largest transaction and timestamp seen on the page by reconciliation. */
+    /* The largest transaction and timestamp seen on the page by a successful reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
@@ -391,6 +397,12 @@ struct __wt_page_modify {
      * when no new content could be written.
      */
     wt_timestamp_t rec_pinned_stable_timestamp;
+
+    /*
+     * Published checkpoint snapshot generation for precise checkpoints. Lets checkpoint skip
+     * re-reconciling pages already reconciled by eviction.
+     */
+    uint64_t rec_ckpt_snap_gen;
 
     /*
      * Track the prune timestamp used for the most recent reconciliation. It's useful to avoid
@@ -536,6 +548,9 @@ struct __wt_page_modify {
 #define WT_PAGE_DIRTY_FIRST 1
     wt_shared uint32_t page_state;
 
+    /* Size of the disk image checkpoint scrub is keeping in cache, zero if none is tracked. */
+    uint32_t scrub_image_bytes;
+
     /* Kept with the trailing byte fields to avoid alignment padding before inst_updates. */
     bool instantiated; /* True if this is a newly instantiated page. */
 
@@ -547,10 +562,14 @@ struct __wt_page_modify {
 #define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 
-/* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
+/*
+ * Flags set while the page is held exclusive; the exclusive and reconciling flags catch invalid
+ * updates to page_state, even in release builds.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
-#define WT_PAGE_MODIFY_RECONCILING 0x2u
+#define WT_PAGE_MODIFY_INSTANTIATING 0x2u
+#define WT_PAGE_MODIFY_RECONCILING 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -870,6 +889,7 @@ struct __wt_page {
 struct __wt_page_walk_skip_stats {
     size_t total_del_pages_skipped;
     size_t total_inmem_del_pages_skipped;
+    uint64_t total_skip_lock_contended;
 };
 
 /*

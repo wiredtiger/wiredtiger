@@ -73,12 +73,13 @@ is_major_release()
 bflag()
 {
     # Return if the branch's format command takes the -B flag for backward compatibility.
-    test "$1" = "develop" && echo "-B "
+    test "$1" = "develop" && echo "-B"
+    test "$1" = "mongodb-9.0" && echo "-B"
     test "$1" = "mongodb-8.3" && echo "-B"
     test "$1" = "mongodb-8.2" && echo "-B"
     test "$1" = "mongodb-8.0" && echo "-B"
-    test "$1" = "mongodb-7.0" && echo "-B "
-    test "$1" = "mongodb-6.0" && echo "-B "
+    test "$1" = "mongodb-7.0" && echo "-B"
+    test "$1" = "mongodb-6.0" && echo "-B"
     return 0
 }
 
@@ -743,6 +744,7 @@ upgrade_to_latest=false
 # then the branch name itself will be used for the checkout
 declare -A gittags
 gittags['develop']="develop"
+gittags['mongodb-9.0']="mongodb-9.0"
 gittags['mongodb-8.3']="mongodb-8.3"
 gittags['mongodb-8.0']="mongodb-8.0"
 gittags['mongodb-7.0']="mongodb-7.0"
@@ -771,6 +773,7 @@ newer_release_branches=($NEWER_RELEASE_BRANCHES)
 patch_version_upgrade_downgrade_release_branches=($PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 test_checkpoint_release_branches=($TEST_CHECKPOINT_RELEASE_BRANCHES)
 upgrade_to_latest_upgrade_downgrade_release_branches=($UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
+dirty_restart_release_branches=($DIRTY_RESTART_RELEASE_BRANCHES)
 
 declare -A scopes
 scopes[dirty_restart]="start from an unclean shutdown of a different version"
@@ -1144,7 +1147,7 @@ if [ "$upgrade_to_latest" = true ]; then
 fi
 
 if [ "$dirty_restart" = true ]; then
-    for b in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
+    for b in "${dirty_restart_release_branches[@]}"; do
         create_configs "$b"
         pushd .
         build_branch "$b"
@@ -1153,8 +1156,8 @@ if [ "$dirty_restart" = true ]; then
 
     # Go over the release branches, from pair to pair. If a pair has the LHS different to the RHS,
     # treat that as a combination worth testing.
-    for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
-        for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
+    for b1 in "${dirty_restart_release_branches[@]}"; do
+        for b2 in "${dirty_restart_release_branches[@]}"; do
             if [[ "$b1" != "$b2" ]]; then
                 test_dirty_restart "$b1" "$b2"
             fi

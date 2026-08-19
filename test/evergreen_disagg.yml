@@ -78,7 +78,7 @@ functions:
               export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
               export TESTUTIL_MSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ TSan ]]; then
-              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3:history_size=7:print_suppressions=0:suppressions=$WT_TOPDIR/test/evergreen/tsan_warnings.supp"
               export TESTUTIL_TSAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ UBSan ]]; then
               export UBSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_stacktrace=1"
@@ -143,8 +143,14 @@ functions:
           fi
 
           echo "mongodbtoolchain $MDB_TOOLCHAIN_REV not installed, downloading..."
+
+          # The pinned toolchain tarball sources a script that it does not contain.
+          # pipefail preserves the installer's real exit status.
+          # FIXME-WT-18153: Remove this filter once the toolchain has been fixed.
+          set -o pipefail
           curl -fsSL https://s3.amazonaws.com/mongodbtoolchain.build.10gen.cc/installer.sh \
-              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV"
+              | bash -s -- --revision-id "$MDB_TOOLCHAIN_REV" 2>&1 \
+              | sed -E '/scripts\/installer\.sh: No such file or directory/d; /return: can only .return. from a function or sourced script/d'
 
   "dump stacktraces": &dump_stacktraces
     command: shell.exec
@@ -543,6 +549,21 @@ functions:
           fi
         done
 
+  "schema disagg abort":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/schema_disagg_abort"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        build_dir=$(cd ../../../ && pwd)
+        for i in $(seq ${times|10}); do
+          echo "Iteration $i/${times|10}"
+          ./test_schema_disagg_abort -b "$build_dir" ${schema_args} -T 12 -u 64 -t 300
+        done
+
   "timestamp abort disagg":
     command: shell.exec
     params:
@@ -586,7 +607,6 @@ variables:
           # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
           format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000 ops.pct.delete=0
           times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   - &format-stress-test-disagg-multi-data-validation
     depends_on:
@@ -599,7 +619,6 @@ variables:
           # FIXME-WT-17278 Enable removes in disagg multi mode once the related issues have been resolved.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 disagg.preserve=1 runs.ops=500000:2000000 ops.pct.delete=0
           times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
   - &format-stress-test-disagg-multi-delete-enabled
@@ -611,7 +630,6 @@ variables:
         vars:
           format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
           times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   # FIXME-WT-17278 We can get rid of this task once the issues related to removes in disagg multi mode have been resolved.
   - &format-stress-test-disagg-multi-delete-enabled-data-validation
@@ -624,7 +642,27 @@ variables:
           # Validate data with a non-layered table.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 disagg.preserve=1 runs.ops=500000:2000000
           times: 5
-          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  # Long-running randomized stress for snapshot transactions without a read timestamp racing
+  # checkpoint pickups on a follower: multi-node runs verify pre-commit re-reads through freshly
+  # opened cursors, exercising the stable bind checks and the deferral queue. The operation mix is
+  # left to format: the reader threads do their own reads, so what matters from the workers is
+  # churn, and a randomized mix covers more shapes across the iterations than a pinned one.
+  - &format-stress-test-disagg-snapshot
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # The row and operation counts are load-bearing, not decoration: the reproduction needs
+          # enough rows for a scan window to contain a changed key, and enough operations for a
+          # pickup to land inside a reader's transaction. Trimming them to the defaults stops the
+          # stress reproducing the violation at all.
+          format_args: >-
+            disagg.multi=1 disagg.multi_validation=1 disagg.snapshot_read=1
+            runs.predictable_replay=1 runs.rows=50000:200000 runs.ops=500000:2000000
+          times: 10
 
   - &timestamp-abort-test-disagg
     depends_on:
@@ -635,7 +673,7 @@ variables:
         vars:
           times: 50
 
-  - &schema-disagg-abort-test-disagg
+  - &schema-disagg-abort-smoke-test-disagg
     depends_on:
         - name: compile
     exec_timeout_secs: 7200
@@ -649,12 +687,10 @@ variables:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            build_dir=$(cd ../../../ && pwd)
-            for i in $(seq ${times|10}); do
-              echo "Iteration $i/${times|10}"
-              # Max out pool size (-s) and schema threads (-T) for maximum schema churn.
-              ./test_schema_disagg_abort -b "$build_dir" -s 64 -T 12 -t 300
-            done
+            # The full mode matrix in short runs: single node, lone follower, role switches,
+            # kills, and both two-node topologies. The two-node switch modes at the end are
+            # EXPECTED to fail until FIXME-WT-18068 and FIXME-WT-17746 land.
+            bash ./smoke.sh
 
   # Configure flags for builtins.
   - &configure_flags_with_builtins
@@ -713,6 +749,12 @@ tasks:
   - <<: *format-stress-test-disagg-multi-delete-enabled-data-validation
     name: format-stress-test-disagg-multi-delete-enabled-validation-2
     tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-snapshot
+    name: format-stress-test-disagg-snapshot-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-snapshot
+    name: format-stress-test-disagg-snapshot-2
+    tags: ["stress-test-disagg-fail"]
 
   - <<: *timestamp-abort-test-disagg
     name: timestamp-abort-test-disagg-1
@@ -721,8 +763,129 @@ tasks:
     name: timestamp-abort-test-disagg-2
     tags: ["stress-test-disagg-fail"]
 
-  - <<: *schema-disagg-abort-test-disagg
-    name: schema-disagg-abort-test-disagg-1
+  # The schema-disagg-abort matrix. The kill variants cover their graceful counterparts, since a
+  # kill lands halfway through the run and everything before it is the graceful workload.
+  - name: schema-disagg-abort-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          # One node leading throughout, SIGKILLed at 150s, then recovered and verified.
+          schema_args: -r l -k 150
+
+  - name: schema-disagg-abort-switch-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          # One node stepping down and back up every 30 seconds.
+          schema_args: -r l -s 30
+
+  - name: schema-disagg-abort-multi-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          # Leader and follower, each killed in turn, so each survivor carries on alone.
+          schema_args: -r lf -k l100 -k f200
+
+  - name: schema-disagg-abort-multi-switch-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          # Two nodes swapping roles every 30s, killing whoever leads at 150s: a step-up over a
+          # table the peer created, with a crash on top.
+          schema_args: -r lf -s 30 -k l150
+
+  - name: schema-disagg-abort-follower-stepup-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          # A lone follower generates its own workload and never checkpoints, then steps up over
+          # the operations it accumulated: the way a fresh node bootstraps its own tables before
+          # taking leadership.
+          schema_args: -r f -s 30
+
+  # FIXME-WT-18403: Remove these tasks once all the known create/drop/create issues are gone.
+  - name: schema-disagg-abort-unique-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          schema_args: -r l -k 150 -q
+
+  - name: schema-disagg-abort-unique-switch-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          schema_args: -r l -s 30 -q
+
+  - name: schema-disagg-abort-unique-multi-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          schema_args: -r lf -k l100 -k f200 -q
+
+  - name: schema-disagg-abort-unique-multi-switch-crash-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          schema_args: -r lf -s 30 -k l150 -q
+
+  - name: schema-disagg-abort-unique-follower-stepup-test-disagg-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+    depends_on:
+        - name: compile
+    exec_timeout_secs: 7200
+    commands:
+      - func: "fetch artifacts"
+      - func: "schema disagg abort"
+        vars:
+          schema_args: -r f -s 30 -q
+
+  - <<: *schema-disagg-abort-smoke-test-disagg
+    name: schema-disagg-abort-smoke-test-disagg-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
 
 #######################################

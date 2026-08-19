@@ -304,7 +304,8 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Ignore internal pages, these are taken care of during reconciliation. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
-          "%p: skipping internal page with parent: %p", (void *)ref, (void *)ref->home);
+          "%p: skipping internal page with parent: %p", (void *)ref,
+          (void *)__wt_atomic_load_ptr_relaxed(&ref->home));
         return (0);
     }
 
@@ -513,7 +514,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     btree = S2BT(session);
 
     /* Skip read-only btrees. */
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
         goto err;
 
     /* There is nothing to do on an empty tree. */
@@ -521,7 +522,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         goto err;
 
     /* Ignore tables that are empty or is currently in a bulk-load phase. */
-    if (btree->original)
+    if (__wt_atomic_load_uint8_relaxed(&btree->original))
         goto err;
 
     /* Walk the tree. */
@@ -662,7 +663,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * counters upon restart. Transaction IDs from a previous run can be detected using the write
      * generation number.
      */
-    if (write_gen < S2C(session)->base_write_gen)
+    if (write_gen < __wt_atomic_load_uint64_relaxed(&S2C(session)->base_write_gen))
         newest_txn = WT_TXN_NONE;
 
     /*
@@ -858,7 +859,8 @@ __checkpoint_cleanup(void *arg)
         __wt_seconds(session, &now);
 
         /* Skip running checkpoint cleanup if we are the follower. */
-        if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
+        if (__wt_conn_is_disagg(session) &&
+          !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
             continue;
 
         /*

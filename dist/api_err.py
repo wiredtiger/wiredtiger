@@ -196,6 +196,16 @@ sub_errors = [
         "Conflict with disaggregated storage", '''
         This sub-level error indicates that an operation or configuration conflicts with
         disaggregated storage.'''),
+    Error('WT_STEP_DOWN', -32015,
+        "Write transaction straddled the step-down timestamp setting boundary", '''
+        This sub-level error indicates that a transaction was rolled back because it was in
+        flight when the step-down timestamp was set.'''),
+    Error('WT_TXN_TOO_LARGE_FOR_CACHE', -32016,
+        "Transaction dirty content alone exceeds the eviction updates or dirty trigger", '''
+        This sub-level error indicates that a single transaction has dirtied more cache
+        than the eviction updates trigger or the eviction dirty trigger allows. Eviction
+        cannot reclaim content pinned by an uncommitted transaction, so the transaction
+        cannot succeed against the configured cache size and has been rolled back.'''),
 ]
 
 # Update the #defines in the wiredtiger.h.in file.
@@ -210,7 +220,7 @@ for line in open('../src/include/wiredtiger.h.in', 'r'):
 tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.h.in')
 
-# Output the wiredtiger_strerror and wiredtiger_sterror_r code.
+# Output the wiredtiger_strerror and __wt_wiredtiger_error code.
 tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 tfile.write('''/* DO NOT EDIT: automatically built by dist/api_err.py. */

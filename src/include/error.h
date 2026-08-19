@@ -375,6 +375,21 @@ __wt_tret_error_ok(int *pret, int a, int e)
     } while (0)
 
 /*
+ * WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP --
+ *	Application threads must not run schema operations during a step-up, because step-up code
+ *	concurrently modifies layered-table state. Step-down holds the schema lock, so schema
+ *	operations serialize with it instead. Internal sessions perform the transition and are
+ *	exempt.
+ *
+ * FIXME-WT-18240: Remove the assertion once we have asynchronous step-up.
+ */
+#define WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session)                   \
+    WT_ASSERT_ALWAYS(session,                                            \
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECONFIGURING_STEP_UP) || \
+        F_ISSET(session, WT_SESSION_INTERNAL),                           \
+      "schema operation performed during step-up")
+
+/*
  * WT_ERR_ASSERT --
  *  Assert an expression. If the relevant assertion category is
  *  enabled abort the program, otherwise print a message and return WT_ERR.

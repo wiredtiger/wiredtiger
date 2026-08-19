@@ -157,7 +157,7 @@ __btree_pin_hs_dhandle_and_get_meta_checkpoint(WT_SESSION_IMPL *session, WT_BTRE
         WT_ASSERT(session, !WT_IS_URI_HS(dhandle_name));
         return (__wt_set_return(session, EBUSY));
     }
-    F_SET(btree, WT_BTREE_READONLY);
+    F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
 err:
     /*
@@ -186,7 +186,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *dhandle_name, *checkpoint;
-    bool creation, forced_salvage, has_ckpt;
+    bool forced_salvage, has_ckpt, empty_ckpt;
 
     btree = S2BT(session);
     dhandle = session->dhandle;
@@ -204,6 +204,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
     __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
+    F_CLR_ATOMIC_32(btree, WT_BTREE_READONLY | WT_BTREE_SKIP_CKPT);
 
     /* Set the data handle first, our called functions reasonably use it. */
     btree->dhandle = dhandle;
@@ -211,7 +212,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* Checkpoint and verify files are readonly. */
     if (WT_DHANDLE_IS_CHECKPOINT(dhandle) || F_ISSET(btree, WT_BTREE_VERIFY) ||
       F_ISSET(S2C(session), WT_CONN_READONLY))
-        F_SET(btree, WT_BTREE_READONLY);
+        F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
     /* For disaggregated stable tree opens, separate any trailing checkpoint indicator. */
     WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
@@ -245,8 +246,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
      * code for a discussion.
      */
-    creation = ckpt.raw.size == 0;
-    if (!creation && F_ISSET(btree, WT_BTREE_BULK))
+    empty_ckpt = ckpt.raw.size == 0;
+    if (!empty_ckpt && F_ISSET(btree, WT_BTREE_BULK))
         WT_ERR_MSG(session, EINVAL, "bulk-load is only supported on newly created objects");
 
     /* Handle salvage configuration. */
@@ -299,9 +300,9 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
          * checkpoint is for an empty file).
          */
         WT_ERR(bm->checkpoint_load(bm, session, ckpt.raw.data, ckpt.raw.size, root_addr,
-          &root_addr_size, F_ISSET(btree, WT_BTREE_READONLY)));
-        if (creation || root_addr_size == 0)
-            WT_ERR(__btree_tree_open_empty(session, creation));
+          &root_addr_size, F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY)));
+        if (empty_ckpt || root_addr_size == 0)
+            WT_ERR(__btree_tree_open_empty(session, empty_ckpt));
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
@@ -331,7 +332,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * eviction, it must either clear the evict-disabled-open flag or restore the eviction
      * configuration when finished so that handle close behaves correctly.
      */
-    if (btree->original || F_ISSET(btree, WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+    if (__wt_atomic_load_uint8_relaxed(&btree->original) ||
+      F_ISSET(btree, WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
         btree->evict_disabled_open = true;
     }
@@ -610,6 +612,32 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         if (WT_URI_IS_STABLE(btree->dhandle->name) || WT_CONFIG_LIT_MATCH("disagg", cval)) {
             F_SET(btree, WT_BTREE_DISAGGREGATED);
 
+            /*
+             * A follower must not open a live stable tree: it reads checkpoint views. The shared
+             * history store and the shared metadata table are exceptions, a follower still opens
+             * them live today. FIXME-WT-18356: stop keeping a live shared history store handle on a
+             * follower.
+             *
+             * A step-down can race with anyone opening a live tree: the open was dispatched on a
+             * leader-role read and completes on a follower. The schema lock decides that race: a
+             * role change holds it across the whole transition, and every fresh open holds it too,
+             * so the two never interleave and the role read below is the current role, never a
+             * stale one. An open that lost the race sees the follower role here and returns EBUSY.
+             * The layered cursor, for example, converts this EBUSY to a rollback, and the
+             * application's retry reopens the checkpoint view. FIXME-WT-18357: assert a follower
+             * holds no writable live stable handle, and separate a raced open from an open that
+             * begins on a follower.
+             */
+            if (!__wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) &&
+              WT_URI_IS_STABLE(btree->dhandle->name) &&
+              !WT_URI_IS_STABLE_CHECKPOINT(btree->dhandle->name) &&
+              !WT_IS_URI_METADATA(btree->dhandle->name) && !WT_IS_URI_HS(btree->dhandle->name)) {
+                WT_ASSERT(session, __wt_conn_is_disagg(session));
+                WT_STAT_CONN_INCR(session, layered_stable_live_open_refused);
+                WT_RET_SUB(session, EBUSY, WT_CONFLICT_DISAGG,
+                  "a live stable table cannot be opened on a follower");
+            }
+
             WT_RET(__btree_setup_page_log(session, btree));
 
             /* A page log service and a storage source cannot both be enabled. */
@@ -625,14 +653,22 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * If we use schema epochs in disaggregated storage, the btree starts in memory, so that we
      * cannot write any pages until the table is published - not even an empty root page.
      */
-    awaits_publish = ckpt->raw.size == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      !WT_IS_URI_HS(btree->dhandle->name) && !WT_IS_URI_METADATA(btree->dhandle->name) &&
+    awaits_publish = F_ISSET(session, WT_SESSION_CREATE_BTREE) &&
+      F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_IS_URI_HS(btree->dhandle->name) &&
+      !WT_IS_URI_METADATA(btree->dhandle->name) &&
       (__wt_get_stable_disaggregated_schema_epoch(session) != WT_SCHEMA_EPOCH_NONE);
 
-    if (awaits_publish)
+    if (awaits_publish) {
         F_SET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
-    else
+        /*
+         * Disable eviction because it can leave pages clean without a durable address, causing the
+         * publishing checkpoint to skip them.
+         */
+        WT_RET(__wt_evict_file_exclusive_on(session));
+    } else if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH)) {
         F_CLR_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH);
+        __wt_evict_file_exclusive_off(session);
+    }
 
     /*
      * This option allows the tree to be reconciled by eviction. But we only replace the disk image
@@ -775,7 +811,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Configure read-only. */
     WT_RET(__wt_config_gets(session, cfg, "readonly", &cval));
     if (cval.val)
-        F_SET(btree, WT_BTREE_READONLY);
+        F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
 
     /* Configure disaggregated storage tier. */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_tier", &cval));
@@ -810,16 +846,33 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * for every subsequent open, we want to reuse it. This so that we're still able to read
      * transaction ids from the previous time a btree was open in the same run.
      */
-    btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
+    btree->write_gen =
+      WT_MAX(ckpt->write_gen + 1, __wt_atomic_load_uint64_relaxed(&conn->base_write_gen));
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
     /*
-     *  If this is the first time opening the tree this run.
-     *  FIXME-WT-17763: The runtime write generation should not always be updated in disagg mode,
-     *  the proper conditional is more narrow and needs to be implemented here.
+     * Reset the runtime write generation when the checkpoint's transaction ids are not usable in
+     * this run: an imported tree, or a checkpoint whose generations precede this run's base write
+     * generation. A stable tree opened at a specific checkpoint by name (a
+     * "...wt_stable/checkpoint" URI) also resets: it is a follower's view of a checkpoint another
+     * node wrote, and the ids are meaningless in this node's id space. A leader's live tree keeps
+     * its own ids, so a checkpoint it reopens in the same run stays readable.
+     *
+     * For a checkpoint that carries the write generation high-water mark, the run_write_gen <
+     * base_write_gen comparison usually makes the WT_URI_IS_STABLE_CHECKPOINT clause below
+     * redundant: the follower lifts its base write generation past the mark at pickup, so the
+     * mark's checkpoint has run_write_gen < base_write_gen. The WT_URI_IS_STABLE_CHECKPOINT clause
+     * is still required for two cases the comparison does not cover. A checkpoint written before
+     * the mark existed (an old-format or cross-version checkpoint) has no mark to adopt, and the
+     * follower cannot scan to derive a base (that is leader-only), so its base stays low and the
+     * comparison does not fire. And at the very first generations the base and a checkpoint's
+     * run_write_gen can both still be at their initial value, where the strict comparison also does
+     * not fire. In both cases the WT_URI_IS_STABLE_CHECKPOINT clause is what treats the foreign
+     * checkpoint's ids as cross-run.
      */
-    if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen ||
-      F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+    if (F_ISSET(session, WT_SESSION_IMPORT) ||
+      ckpt->run_write_gen < __wt_atomic_load_uint64_relaxed(&conn->base_write_gen) ||
+      (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && WT_URI_IS_STABLE_CHECKPOINT(btree->dhandle->name)))
         btree->run_write_gen = btree->write_gen;
     else
         btree->run_write_gen = ckpt->run_write_gen;
@@ -935,7 +988,8 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
         F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     if (ret != 0)
-        __wt_err(session, ret, "unable to read root page from %s", session->dhandle->name);
+        __wt_err(session, ret, "unable to read root page from %s (address %s)",
+          session->dhandle->name, (const char *)tmp->data);
     /*
      * Failure to open metadata means that the database is unavailable. Try to provide a helpful
      * failure message.
@@ -976,7 +1030,7 @@ err:
  *     Create an empty in-memory tree.
  */
 static int
-__btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
+__btree_tree_open_empty(WT_SESSION_IMPL *session, bool empty_ckpt)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -992,8 +1046,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
      * Newly created objects can be used for cursor inserts or for bulk loads; set a flag that's
      * cleared when a row is inserted into the tree.
      */
-    if (creation)
-        btree->original = 1;
+    if (empty_ckpt)
+        __wt_atomic_store_uint8_relaxed(&btree->original, 1);
 
     /*
      * A note about empty trees: the initial tree is a single root page. It has a single reference
@@ -1011,7 +1065,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
         WT_INTL_INDEX_GET_SAFE(root, pindex);
         ref = pindex->index[0];
-        ref->home = root;
+        __wt_atomic_store_ptr_relaxed(&ref->home, root);
         ref->page = NULL;
         ref->addr = NULL;
         F_SET(ref, WT_REF_FLAG_LEAF);
@@ -1024,7 +1078,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
         WT_INTL_INDEX_GET_SAFE(root, pindex);
         ref = pindex->index[0];
-        ref->home = root;
+        __wt_atomic_store_ptr_relaxed(&ref->home, root);
         ref->page = NULL;
         ref->addr = NULL;
         F_SET(ref, WT_REF_FLAG_LEAF);
@@ -1344,7 +1398,7 @@ __wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t objectid)
 
     btree = S2BT(session);
     /* If the btree is readonly, there is nothing to do. */
-    if (F_ISSET(btree, WT_BTREE_READONLY))
+    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
         return (0);
 
     /*

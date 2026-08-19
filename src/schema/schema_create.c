@@ -373,7 +373,13 @@ __create_file(
      * read/used by underlying functions.
      *
      * Turn off bulk-load for imported files.
+     *
+     * Mark the session so the btree layer can tell this open is a genuine create rather than a
+     * reopen. Import brings in existing data and is not a from-scratch create. The flag is cleared
+     * at the end of the function so it never leaks into a later open on this reused session.
      */
+    if (!import)
+        F_SET(session, WT_SESSION_CREATE_BTREE);
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
 
     if (session->import_list == NULL && import)
@@ -385,6 +391,7 @@ __create_file(
         WT_ERR(__wt_session_release_dhandle(session));
 
 err:
+    F_CLR(session, WT_SESSION_CREATE_BTREE);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     __wt_scr_free(session, &buf);
     __wt_scr_free(session, &val);
@@ -1091,7 +1098,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_fmt(session, tmp, "file:%s.wt_stable", tablename));
             WT_ERR(__wt_disagg_enqueue_metadata_operation(session, tmp->data, tablename,
-              WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
+              WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
         }
 
 err:
@@ -1121,8 +1128,10 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    wt_timestamp_t step_down_ts;
     char *meta_value;
     char *tablecfg;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
@@ -1198,14 +1207,29 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
     __wt_free(session, constituent_cfg);
 
-    if (conn->layered_table_manager.leader) {
-        stable_cfg[1] = disagg_config->data;
+    /*
+     * Once the step-down timestamp is set, all writes go to the ingest constituent, so a stable
+     * constituent would stay empty. Create the table in the follower shape instead, and the next
+     * step-up creates the missing constituent. A leader checkpoint therefore covers only the tables
+     * created below the boundary. The schema lock held here serializes the timestamp, making the
+     * relaxed load safe.
+     */
+    step_down_ts = __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
+    if (__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader)) {
+        if (step_down_ts == WT_TS_NONE) {
+            stable_cfg[1] = disagg_config->data;
 
-        /* Disable logging on the stable table to ensure we have timestamps. */
-        stable_cfg[3] = "log=(enabled=false)";
-        WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
-        __wt_free(session, constituent_cfg);
+            /* Disable logging on the stable table to ensure we have timestamps. */
+            stable_cfg[3] = "log=(enabled=false)";
+            WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+            WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+            __wt_free(session, constituent_cfg);
+        } else {
+            WT_STAT_CONN_INCR(session, disagg_step_down_window_creates);
+            __wt_verbose_info(session, WT_VERB_LAYERED,
+              "%s: created without a stable constituent, the step-down timestamp %s is set", uri,
+              __wt_timestamp_to_string(step_down_ts, ts_string));
+        }
     }
 
     /*
@@ -1215,7 +1239,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * of a table creation, it would result in doing extra work.
      */
     WT_ERR(__wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-      WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
+      WT_SHARED_METADATA_CREATE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
 
 err:
     __wt_scr_free(session, &disagg_config);
@@ -1750,6 +1774,8 @@ __wt_schema_create_internal(
      * acquired by us.
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+
+    WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config, open_dhandle);

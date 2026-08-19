@@ -77,6 +77,13 @@ __wt_wiredtiger_error(int error)
           "restore");
     case WT_CONFLICT_DISAGG:
         return ("WT_CONFLICT_DISAGG: Conflict with disaggregated storage");
+    case WT_STEP_DOWN:
+        return (
+          "WT_STEP_DOWN: Write transaction straddled the step-down timestamp setting boundary");
+    case WT_TXN_TOO_LARGE_FOR_CACHE:
+        return (
+          "WT_TXN_TOO_LARGE_FOR_CACHE: Transaction dirty content alone exceeds the eviction "
+          "updates or dirty trigger");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

@@ -87,6 +87,9 @@
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
+#define FOLLOWER_READ_ROWS 200  /* rows one follower snapshot read scans */
+#define FOLLOWER_READ_PASSES 12 /* times it re-reads them */
+
 #define FORMAT_PAD_BYTE '-'  /* modify pad byte */
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 #define REALLOC_MAX_TABLES 5 /* maximum number of tables with realloc_exact and realloc_malloc */
@@ -106,7 +109,7 @@
 #define MIN_TIMESTAMP 2 /* Minimum timestamp */
 
 /* Capacity of the static push-mode key rotation history. */
-#define KEY_PUSH_HISTORY_MAX WT_THOUSAND
+#define KEY_PUSH_HISTORY_MAX 10 * WT_THOUSAND
 
 #include "format_config.h"
 extern CONFIG configuration_list[];
@@ -288,6 +291,7 @@ typedef struct {
 
     wt_timestamp_t replay_cached_committed; /* Our committed timestamp, cached */
     uint32_t replay_calculate_committed;    /* Times before recalculating cached committed */
+    wt_timestamp_t reopen_timestamp;        /* Timestamp recovered when reopening the database */
     wt_timestamp_t replay_start_timestamp;  /* Timestamp at the beginning of a run */
     FILE *replay_op_log;                    /* Predictable replay per-run operation log */
     wt_timestamp_t stop_timestamp;          /* If non-zero, stop when stable reaches this */
@@ -475,8 +479,9 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET follower(void *);
+WT_THREAD_RET follower_read_no_ts(void *);
 WT_THREAD_RET disagg_key_rotation(void *);
-void disagg_key_push_initial(WT_CONNECTION *);
+void disagg_key_push_initial(WT_CONNECTION *, bool);
 void disagg_key_history_clear(void);
 void disagg_key_validate_after_checkpoint(WT_SESSION *);
 int follower_fetch_full_metadata(WT_SESSION *, WT_PAGE_LOG *, const WT_ITEM *, WT_ITEM *);
@@ -523,6 +528,7 @@ void snap_init(TINFO *);
 void snap_op_init(TINFO *, wt_timestamp_t, bool);
 void snap_repeat_stable(WT_SESSION *, TINFO **, size_t);
 void snap_repeat_single(TINFO *);
+wt_timestamp_t snap_repeat_ts_span(void);
 int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_teardown(TINFO *);

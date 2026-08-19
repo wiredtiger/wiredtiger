@@ -23,15 +23,76 @@ static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
 static int __rec_wrapup_decrease_disagg_size(
   WT_SESSION_IMPL *, WTI_RECONCILE *, const uint8_t *, size_t);
-static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
-static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
+static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_RECONCILE_TIMELINE *);
+static int __reconcile(
+  WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *, WT_RECONCILE_TIMELINE *);
+
+/*
+ * __rec_save_disk_image --
+ *     Return true if reconciliation should save a disk image for in-memory re-instantiation.
+ */
+static WT_INLINE bool
+__rec_save_disk_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi, bool last_block)
+{
+    /*
+     * Save the image if configured to always do that, or reconciliation saved updates that will
+     * need to be restored on a new image.
+     */
+    if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS) || F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
+        return (true);
+
+    if (!F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN))
+        return (false);
+
+    /*
+     * Only a 1-for-1 page swap should save an image. Check this is the final block and no earlier
+     * block was written.
+     */
+    if (!last_block || r->multi_next != 1)
+        return (false);
+
+    /*
+     * Best-effort save: skip the image if the page will be left dirty. The swap eviction path
+     * requires WT_PAGE_CLEAN, so a dirty page's image would never be used.
+     */
+    if (r->leave_dirty) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_skipped_dirty);
+        return (false);
+    }
+
+    return (true);
+}
+
+/*
+ * __rec_track_saved_image --
+ *     Account for a clean image retained by checkpoint scrub. Called after the page's clean or
+ *     dirty state is final, so the image lands in the totals matching that state. Images eviction
+ *     asked for are consumed by that eviction, so they are not tracked.
+ */
+static WT_INLINE void
+__rec_track_saved_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_PAGE_MODIFY *mod;
+
+    mod = r->page->modify;
+
+    /* The disk image shares a union with the multi-block array, so check the result first. */
+    if (!F_ISSET(r, WT_REC_SAVE_IMAGE_CLEAN) || mod->rec_result != WT_PM_REC_REPLACE ||
+      mod->mod_disk_image == NULL)
+        return;
+
+    mod->scrub_image_bytes = ((WT_PAGE_HEADER *)mod->mod_disk_image)->mem_size;
+    __wt_cache_scrub_image_incr(session, mod->scrub_image_bytes);
+    __wt_cache_page_footprint_incr(session, r->page, mod->scrub_image_bytes);
+}
 
 /*
  * __wt_reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
 int
-__wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
+__wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
+  WT_RECONCILE_TIMELINE *reconcile_timelinep)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -40,6 +101,12 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     btree = S2BT(session);
     page = ref->page;
+
+    WT_ASSERT(session, !LF_ISSET(WT_REC_SAVE_IMAGE_CLEAN) || page->type == WT_PAGE_ROW_LEAF);
+
+    /* The caller decides whether to retain a clean image for scrub eviction. */
+    if (LF_ISSET(WT_REC_SAVE_IMAGE_CLEAN))
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub_checkpoint);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -71,8 +138,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     else
         WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_gt500);
 
-    WT_ASSERT_ALWAYS(
-      session, !F_ISSET(btree, WT_BTREE_READONLY), "Attempting reconciliation on a read-only page");
+    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY),
+      "Attempting reconciliation on a read-only page");
 
     /*
      * Sanity check flags.
@@ -88,7 +155,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     /* Can't do history store eviction for history store itself or for metadata. */
     WT_ASSERT(session,
-      !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle)));
+      !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_ANY_METADATA(btree->dhandle)));
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
@@ -126,7 +193,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
      * that information.
      */
-    ret = __reconcile(session, ref, salvage, flags, &page_locked);
+    ret = __reconcile(session, ref, salvage, flags, &page_locked, reconcile_timelinep);
 
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
@@ -160,9 +227,9 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * this state changes.
      */
     if (LF_ISSET(WT_REC_EVICT)) {
-        mod->last_eviction_id = oldest_id;
-        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
-        mod->last_evict_pass_gen =
+        mod->rec_evict_attempt_oldest_id = oldest_id;
+        __wt_txn_pinned_timestamp(session, &mod->rec_evict_attempt_pinned_ts);
+        mod->rec_evict_attempt_pass_gen =
           __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
     }
 
@@ -171,8 +238,8 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * Check that transaction time always moves forward for a given page. If this check fails,
      * reconciliation can free something that a future reconciliation will need.
      */
-    WT_ASSERT(session, mod->last_oldest_id <= oldest_id);
-    mod->last_oldest_id = oldest_id;
+    WT_ASSERT(session, mod->rec_last_oldest_id <= oldest_id);
+    mod->rec_last_oldest_id = oldest_id;
 #endif
 }
 
@@ -207,7 +274,7 @@ __reconcile_post_wrapup(
         WT_STAT_CONN_DSRC_INCR(session, cache_write_hs);
     if (r->cache_write_restore_invisible)
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_invisible);
-    else if (F_ISSET(r, WT_REC_SCRUB))
+    else if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS | WT_REC_SAVE_IMAGE_CLEAN))
         WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub);
     if (!WT_IS_HS(btree->dhandle)) {
         if (r->rec_page_cell_with_txn_id)
@@ -246,19 +313,31 @@ __reconcile_post_wrapup(
 }
 
 /*
+ * __rec_timeline_publish --
+ *     Stamp a reconciliation as finished. Eviction reports these timings after reconciliation
+ *     returns, and does so whether or not it succeeded.
+ */
+static WT_INLINE void
+__rec_timeline_publish(WT_SESSION_IMPL *session, WT_RECONCILE_TIMELINE *timeline)
+{
+    timeline->reconcile_finish = __wt_clock(session);
+}
+
+/*
  * __reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
 static int
 __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
-  bool *page_lockedp)
+  bool *page_lockedp, WT_RECONCILE_TIMELINE *reconcile_timelinep)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_RECONCILE_TIMELINE _timeline, *timeline;
     WTI_RECONCILE *r;
-    uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start;
+    uint64_t rec, rec_hs_wrapup, rec_img_build, rec_reentry_hs, rec_start;
     void *addr;
 
     btree = S2BT(session);
@@ -276,14 +355,20 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Initialize the reconciliation structures for each new run. */
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
-    WT_CLEAR(session->reconcile_timeline);
-    session->reconcile_timeline.reconcile_start = rec_start;
+
+    /*
+     * Fill in the caller's timeline where it wants one, otherwise a throwaway. The timeline is
+     * per-call state: reconciliation nests, and writing a root page reconciles the replacement root
+     * before this call has read its own timings.
+     */
+    timeline = reconcile_timelinep != NULL ? reconcile_timelinep : &_timeline;
+    WT_CLEAR(*timeline);
+    timeline->reconcile_start = rec_start;
+    rec_reentry_hs = session->total_reentry_hs_eviction_time;
 
     r = session->reconcile;
 
-    /* Only update if we are in the first entry into eviction. */
-    if (!session->evict_timeline.reentry_hs_eviction)
-        session->reconcile_timeline.image_build_start = __wt_clock(session);
+    timeline->image_build_start = __wt_clock(session);
 
     /* Reconcile the page. */
     switch (page->type) {
@@ -313,8 +398,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-    if (!session->evict_timeline.reentry_hs_eviction)
-        session->reconcile_timeline.image_build_finish = __wt_clock(session);
+    timeline->image_build_finish = __wt_clock(session);
 
     if (F_ISSET(r, WT_REC_CHECKPOINT))
         WT_STAT_CONN_SET(session, checkpoint_rec_blkcache_write, r->blkcache_write_time);
@@ -377,6 +461,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
           "Reconciliation trying to free the page that has been written to disk");
         WT_IGNORE_RET(__rec_write_err(session, r, page));
         WT_IGNORE_RET(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
+
+        /* Publish what was measured before the failure; stale timings are worse than partial. */
+        __rec_timeline_publish(session, timeline);
+
         /*
          * This return statement covers non-panic error scenarios; any failure beyond this point is
          * a panic. Conversely, no return prior to this point should use the "err" label.
@@ -388,7 +476,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       session, WT_VERB_RECONCILE, "finished building disk image for %p", (void *)ref);
 
     /* Wrap up the page reconciliation. Panic on failure. */
-    WT_ERR(__rec_write_wrapup(session, r));
+    WT_ERR(__rec_write_wrapup(session, r, timeline));
     __rec_write_page_status(session, r);
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_COMPACTION_WRITE))
         WT_STAT_CONN_INCRV(
@@ -410,6 +498,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
         if (ret != 0)
             goto err;
+
+        /* The nested root write measured a different page; report this one. */
+        __rec_timeline_publish(session, timeline);
         return (0);
     }
 
@@ -424,20 +515,15 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
      * (it's just a statistic).
      */
-    rec_finish = __wt_clock(session);
-    session->reconcile_timeline.reconcile_finish = rec_finish;
+    __rec_timeline_publish(session, timeline);
 
-    rec_hs_wrapup = WT_CLOCKDIFF_MS(
-      session->reconcile_timeline.hs_wrapup_finish, session->reconcile_timeline.hs_wrapup_start);
-    rec_img_build = WT_CLOCKDIFF_MS(session->reconcile_timeline.image_build_finish,
-      session->reconcile_timeline.image_build_start);
-    rec = WT_CLOCKDIFF_MS(rec_finish, rec_start);
+    rec_hs_wrapup = WT_CLOCKDIFF_MS(timeline->hs_wrapup_finish, timeline->hs_wrapup_start);
+    rec_img_build = WT_CLOCKDIFF_MS(timeline->image_build_finish, timeline->image_build_start);
+    rec = WT_CLOCKDIFF_MS(timeline->reconcile_finish, rec_start);
 
-    /*
-     * Sanity check timings (WT_DAY is in seconds, and we have milliseconds). FIXME-WT-12192
-     * rec_hs_wrapup and rec_img_build should also have an assertion here.
-     */
+    /* Sanity check timings (WT_DAY is in seconds, and we have milliseconds). */
     WT_ASSERT(session, rec < WT_DAY * WT_THOUSAND);
+    WT_ASSERT(session, rec_hs_wrapup <= rec && rec_img_build <= rec);
 
     if (rec_hs_wrapup > conn->rec_maximum_hs_wrapup_milliseconds)
         conn->rec_maximum_hs_wrapup_milliseconds = rec_hs_wrapup;
@@ -445,20 +531,28 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->rec_maximum_image_build_milliseconds = rec_img_build;
     if (rec > conn->rec_maximum_milliseconds)
         conn->rec_maximum_milliseconds = rec;
-    if (session->reconcile_timeline.total_reentry_hs_eviction_time >
-      conn->evict->reentry_hs_eviction_ms)
-        conn->evict->reentry_hs_eviction_ms =
-          session->reconcile_timeline.total_reentry_hs_eviction_time;
+    /* The session counter only ever grows, so this reconciliation's share is the difference. */
+    rec_reentry_hs = session->total_reentry_hs_eviction_time - rec_reentry_hs;
+    if (rec_reentry_hs > conn->evict->reentry_hs_eviction_ms)
+        conn->evict->reentry_hs_eviction_ms = rec_reentry_hs;
 
 err:
-    if (ret != 0)
+    if (ret != 0) {
+        /*
+         * The reconcile-local block array is normally freed by cleanup when wrapping up the
+         * reconciliation, which this path skips. If cleanup has not run, free it here.
+         */
+        if (r->multi != NULL)
+            WT_TRET(__rec_cleanup(session, r));
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
+    }
     return (ret);
 }
 
 /*
  * __rec_write_page_status --
- *     Set the page status after reconciliation.
+ *     Set the page status after reconciliation, and account for any image retained by checkpoint
+ *     scrub: that accounting depends on the clean or dirty state settled here.
  */
 static void
 __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
@@ -484,6 +578,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * reconciliation.
      */
     mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
+    mod->rec_ckpt_snap_gen = r->rec_ckpt_snap_gen;
     mod->rec_prune_timestamp = r->rec_prune_timestamp;
 
     /* Track the page's most recent LSN. */
@@ -541,8 +636,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         WT_ASSERT(session,
           !F_ISSET(r, WT_REC_EVICT) ||
-            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle) ||
-              WT_IS_DISAGG_META(btree->dhandle)));
+            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_ANY_METADATA(btree->dhandle)));
     } else {
         /*
          * We set the page state to mark it as having been dirtied for the first time prior to
@@ -561,6 +655,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_ASSERT_ALWAYS(
               session, !F_ISSET(r, WT_REC_EVICT), "Page state has been modified during eviction");
     }
+
+    __rec_track_saved_image(session, r);
 }
 
 /*
@@ -626,7 +722,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 
         WT_ERR(__wt_multi_to_ref(session, NULL, next, &mod->mod_multi[i], mod->mod_multi_entries,
           &pindex->index[i], NULL, false, false));
-        pindex->index[i]->home = next;
+        __wt_atomic_store_ptr_relaxed(&pindex->index[i]->home, next);
     }
 
     /*
@@ -647,7 +743,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      * Fake up a reference structure, and write the next root page.
      */
     __wt_root_ref_init(session, &fake_ref, next, page->type == WT_PAGE_COL_INT);
-    return (__wt_reconcile(session, &fake_ref, NULL, flags));
+    return (__wt_reconcile(session, &fake_ref, NULL, flags, NULL));
 
 err:
     __wt_page_out(session, &next);
@@ -721,6 +817,16 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     else
         r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
+    /*
+     * Remember the checkpoint snapshot identity only when eviction reconciles under the published
+     * checkpoint snapshot. Any other reconciliation clears the page's stamp.
+     */
+    if (LF_ISSET(WT_REC_EVICT) && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+        r->rec_ckpt_snap_gen = session->txn->ckpt_snap_gen;
+    else
+        r->rec_ckpt_snap_gen = WT_CKPT_SNAP_GEN_NONE;
+
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
         r->rec_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
     else
@@ -743,7 +849,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         } else
             r->rec_start_pinned_id = __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
 
-        if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
+        if (WT_IS_ANY_METADATA(session->dhandle)) {
             uint64_t ckpt_txn;
             WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
             if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_pinned_id)
@@ -874,7 +980,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->hs_clear_on_tombstone = F_ISSET(r, WT_REC_HS) &&
       !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
-      !WT_IS_METADATA(btree->dhandle);
+      !WT_IS_ANY_METADATA(btree->dhandle);
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
@@ -1269,7 +1375,7 @@ __wti_rec_split_init(
         if (__wt_ref_is_root(ref))
             WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
         else
-            __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
+            __wt_ref_key_home(ref, &chunk->key.data, &chunk->key.size);
     } else
         chunk->recno = recno;
 
@@ -2699,7 +2805,7 @@ copy_image:
      * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
      * copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
+    if (__rec_save_disk_image(session, r, multi, last_block))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
@@ -2728,7 +2834,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
      * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
      * code for a discussion.
      */
-    if (!btree->original)
+    if (!__wt_atomic_load_uint8_relaxed(&btree->original))
         WT_RET_MSG(session, EINVAL, "bulk-load is only possible for newly created trees");
 
     /*
@@ -2774,11 +2880,11 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     }
 
     WT_ERR(__wti_rec_split_finish(session, r));
-    WT_ERR(__rec_write_wrapup(session, r));
+    WT_ERR(__rec_write_wrapup(session, r, NULL));
     __rec_write_page_status(session, r);
 
     /* Mark the page's parent and the tree dirty. */
-    parent = r->ref->home;
+    parent = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&r->ref->home);
     WT_ERR(__wt_page_modify_init(session, parent));
     __wt_page_modify_set(session, parent);
 
@@ -2974,7 +3080,7 @@ __rec_wrapup_decrease_disagg_size(
  *     Finish the reconciliation.
  */
 static int
-__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIMELINE *timeline)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -3005,9 +3111,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * fail, so try before clearing the page's previous reconciliation state.
      */
     if (F_ISSET(r, WT_REC_HS)) {
-        session->reconcile_timeline.hs_wrapup_start = __wt_clock(session);
+        /* Only reconciliation proper reaches the history store, and it always times the wrapup. */
+        WT_ASSERT(session, timeline != NULL);
+        timeline->hs_wrapup_start = __wt_clock(session);
         ret = __rec_hs_wrapup(session, r);
-        session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
+        timeline->hs_wrapup_finish = __wt_clock(session);
         WT_RET(ret);
     }
 
@@ -3143,7 +3251,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
         mod->mod_replace.block_cookie_size = 0;
-        __wt_free(session, mod->mod_disk_image);
+        __wt_cache_page_footprint_decr(session, page, mod->scrub_image_bytes);
+        __wt_page_image_discard(session, mod);
         break;
     default:
         return (__wt_illegal_value(session, mod->rec_result));
@@ -3234,11 +3343,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 WT_ASSERT(session, F_ISSET(r->multi, WT_MULTI_SKIP_WRITE));
                 /*
                  * Skip-write with no cookie: the previous reconciliation reset rec_result to 0, so
-                 * no prior cookie was copied. Under scrub, carry the disk image forward so the page
+                 * no prior cookie was copied. When saving the image, carry it forward so the page
                  * is re-instantiated in cache rather than discarded ahead of the materialization
                  * frontier.
                  */
-                if (F_ISSET(r, WT_REC_SCRUB)) {
+                if (F_ISSET(r, WT_REC_SAVE_IMAGE_ALWAYS | WT_REC_SAVE_IMAGE_CLEAN)) {
                     mod->mod_disk_image = r->multi->disk_image;
                     r->multi->disk_image = NULL;
                 } else
@@ -3405,13 +3514,22 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page->disagg_info->block_meta.cumulative_size = 0;
         __wt_free(session, page->modify->mod_replace.block_cookie);
         page->modify->mod_replace.block_cookie_size = 0;
-        __wt_free(session, page->modify->mod_disk_image);
+        __wt_cache_page_footprint_decr(session, page, page->modify->scrub_image_bytes);
+        __wt_page_image_discard(session, page->modify);
         /*
          * ref->addr still carries a cookie for the now-dead page id; a later wrapup that tries to
          * free it would produce a second discard in the chain and fail. Clear the stale reference
          * so the next reconciliation's wrapup sees no address to free.
          */
         __wt_ref_addr_free(session, r->ref);
+        /*
+         * The page has no address left, in the replacement or in the reference, so it can no longer
+         * claim a replacement result: the parent's reconciliation reads the reference address for
+         * such a child and would write an address cell from nothing. Present the page as never
+         * reconciled instead. It stays dirty, so the parent leaves it out of the current checkpoint
+         * and a later reconciliation gives it an address again.
+         */
+        page->modify->rec_result = 0;
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
@@ -3439,15 +3557,12 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     /* Set a flag in the session to track that we're in HS wrapup */
     F_SET(session, WT_SESSION_HS_WRAPUP);
-    session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
 
     /*
-     * Sanity check: Can't insert updates into history store from the history store itself, the
-     * metadata file, or the disagg shared metadata file.
+     * Sanity check: Can't insert updates into history store from the history store itself or from
+     * either metadata tree.
      */
-    WT_ASSERT_ALWAYS(session,
-      !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
-        !WT_IS_DISAGG_META(btree->dhandle),
+    WT_ASSERT_ALWAYS(session, !WT_IS_HS(btree->dhandle) && !WT_IS_ANY_METADATA(btree->dhandle),
       "Attempting to write updates from the history store, the metadata file, or the disagg shared "
       "metadata file into the history store");
 
@@ -3472,9 +3587,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             }
         }
     }
-
-    WT_STAT_CONN_INCRV(
-      session, rec_hs_wrapup_next_prev_calls, session->reconcile_stats.hs_wrapup_next_prev_calls);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE,
       "finished moving updates to the history store for %p", (void *)r->ref);

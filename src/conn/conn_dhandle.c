@@ -303,7 +303,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
                  * previous leader era.
                  */
                 if (WT_DHANDLE_BTREE(dhandle) &&
-                  F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
+                  F_ISSET_ATOMIC_32((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
                     if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0 ||
                       !WT_URI_IS_STABLE_CHECKPOINT(dhandle->name))
                         continue;
@@ -752,7 +752,8 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
      * We need to pull the handle into the session handle cache and make sure it's referenced to
      * stop other internal code dropping the handle.
      */
-    if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
+    if ((ret = __wt_session_get_dhandle(
+           session, dhandle->name, dhandle->checkpoint, NULL, WT_DHANDLE_SKIP_OPEN)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
     time_start = WT_SESSION_IS_CHECKPOINT(session) ? __wt_clock(session) : 0;
@@ -817,7 +818,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
               F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
-              WT_IS_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
+              WT_IS_ANY_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -1095,7 +1096,7 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
          * transaction ids of the pages will be reset when loaded from disk to memory.
          */
         btree->write_gen = btree->base_write_gen = btree->run_write_gen =
-          WT_MAX(btree->write_gen, conn->base_write_gen);
+          WT_MAX(btree->write_gen, __wt_atomic_load_uint64_relaxed(&conn->base_write_gen));
 
         /*
          * Clear out any transaction IDs that might have been already loaded and cached, as they are

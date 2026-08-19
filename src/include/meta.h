@@ -84,6 +84,8 @@
  */
 #define WT_IS_METADATA(dh) F_ISSET((dh), WT_DHANDLE_IS_METADATA)
 #define WT_IS_DISAGG_META(dh) F_ISSET(dh, WT_DHANDLE_DISAGG_META)
+/* Either metadata tree: prefer this unless one of them alone is meant. */
+#define WT_IS_ANY_METADATA(dh) F_ISSET((dh), WT_DHANDLE_DISAGG_META | WT_DHANDLE_IS_METADATA)
 
 /*
  * Optimize comparisons against the history store URI, flag handles that reference the history store
@@ -165,6 +167,7 @@ typedef struct __wt_disagg_metadata {
     wt_timestamp_t oldest_timestamp;     /* Oldest timestamp */
     wt_timestamp_t schema_epoch;         /* Disaggregated schema epoch at the time of checkpoint */
     uint32_t largest_file_id;            /* High water mark of allocated file IDs */
+    uint64_t max_write_gen; /* Largest write generation used when the checkpoint was written */
 
     const char *key_provider; /* Key provider metadata string */
     size_t key_provider_len;  /* Length of key provider metadata string */

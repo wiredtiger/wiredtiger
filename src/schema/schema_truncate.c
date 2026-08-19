@@ -131,6 +131,8 @@ __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
+    WT_ASSERT_NO_SCHEMA_OP_DURING_STEP_UP(session);
+
     tablename = uri;
 
     if (WT_PREFIX_MATCH(uri, "file:"))
@@ -253,7 +255,7 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     } else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __wt_table_range_truncate(trunc_info);
     else if (WT_PREFIX_MATCH(uri, "layered:") &&
-      (S2C(session)->layered_table_manager.leader ||
+      (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) ||
         !FLD_ISSET(S2C(session)->debug.flags, WT_CONN_DEBUG_DISAGG_SLOW_TRUNCATE_FOLLOWER)))
         ret = __layered_range_truncate(trunc_info);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL && dsrc->range_truncate != NULL)

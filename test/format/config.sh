@@ -6,7 +6,13 @@
 fc="format_config_def.c"
 fh="format_config.h"
 
-if ! command -v clang-format > /dev/null 2>&1; then
+# Locate clang-format the same way dist/s_clang_format does: prefer one on PATH,
+# otherwise fall back to the one shipped with the clang toolchain.
+clang_format=$(command -v clang-format)
+if [ -z "$clang_format" ] && command -v clang > /dev/null 2>&1; then
+    clang_format=$(clang -print-prog-name=clang-format)
+fi
+if [ ! -x "$clang_format" ]; then
     echo "error: clang-format not found; please install it and ensure it is on PATH"
     exit 1
 fi
@@ -210,6 +216,8 @@ CONFIG configuration_list[] = {
 {"disagg.preserve", "preserve layered table constituents after data mismatches", C_IGNORE | C_BOOL, 100, 1, 0}
 
 {"disagg.stepdown_async", "use async step-down instead of synchronous", C_IGNORE | C_BOOL, 0, 0, 0}
+
+{"disagg.snapshot_read", "run background transactions checking snapshot isolation on a follower", C_IGNORE | C_BOOL, 0, 0, 0}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 

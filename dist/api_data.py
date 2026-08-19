@@ -155,6 +155,18 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
+    Config('strict_checkpoint_metadata', '', r'''
+        validate at checkpoint pickup that the local and shared metadata contain the same
+        layered tables, panicking on any difference that is not explained by a pending
+        metadata update with a schema epoch greater than the schema epoch of the picked-up
+        checkpoint. At startup the mode must be off: the startup pickup populates an empty
+        node from the checkpoint. Turn it on after startup, provided table creates and drops
+        reach this node through replicated operations and publish() rather than through
+        pickup. After a step-down,
+        turn it off until the unpublished tables left behind (step-down discards their
+        pending metadata updates) have been dropped. Preserved across calls to reconfigure
+        that do not name it''',
+        choices=['false', 'true'], undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
@@ -162,11 +174,25 @@ disaggregated_config_common = [
         by layered tables to back their stable component in shared/object based storage''',
         type='string', undoc=True),
 ]
+# Disaggregated options accepted only at wiredtiger_open, never at reconfigure.
+connection_disaggregated_config_open = [
+    Config('legacy_tombstone_encoding_break_glass', '', r'''
+        break-glass override for whether values written to the stable table that begin with
+        the reserved ingest tombstone marker are escaped on disk. Do not set this in normal
+        operation: the mode is detected from the data, adopted from the picked-up checkpoint's
+        compatible version (a checkpoint predating the unescaped format used the legacy escaped
+        encoding), and a new database stores values unescaped. An explicit setting forces the
+        mode for the life of the connection, overriding detection with a warning when the two
+        disagree; forcing the wrong mode corrupts reads of marker-prefixed values. For testing
+        and for recovering from faulty format detection only. Ingest-table encoding is
+        unaffected''',
+        choices=['false', 'true'], undoc=True),
+]
 connection_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this connection''',
         type='category', subconfig=connection_disaggregated_config_common +\
-              disaggregated_config_common),
+              connection_disaggregated_config_open + disaggregated_config_common),
 ]
 table_disaggregated_config = [
     Config('storage_tier', 'none', r'''
@@ -779,6 +805,17 @@ connection_runtime_config = [
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
                 min=1, max=64),
+            Config('checkpoint_scrub_eviction', 'auto',
+                r'''Control whether checkpoint replaces a reconciled leaf page in cache with a clean
+                copy of its just-written on-disk image. \c on always attempts the replacement,
+                \c off never does, and \c auto lets eviction decide based on cache pressure.
+                Most applications should leave this at \c auto.''',
+                choices=['auto', 'off', 'on']),
+            Config('checkpoint_scrub_image_max', '10', r'''
+                maximum percentage of the cache that checkpoint may consume with the clean
+                images it retains for that replacement. Checkpoint stops retaining new images
+                once the limit is reached; a value of \c 0 disables retention entirely''',
+                min=0, max=100),
             Config('evict_sample_inmem', 'true', r'''
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
@@ -1032,7 +1069,9 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
+        'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
+        'evict_reposition',
+        'failpoint_disagg_checkpoint_apply',
         'failpoint_disagg_checkpoint_queue_drain', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts',
         'failpoint_page_log_handle_put', 'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
@@ -1592,12 +1631,7 @@ cursor_runtime_config = [
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist. On a follower of a layered table with no read timestamp, \c overwrite set to
-        \c true causes WT_CURSOR::remove to write a tombstone to the ingest table without checking
-        the stable table; the caller must guarantee that the key being removed exists. If the key is
-        already deleted in ingest or by the truncate list, the operation violates that guarantee.
-        A write conflict with a concurrent, not-yet-visible change to the same key can still fail
-        the call. This layered-follower remove behavior does not apply on a leader.''',
+        not exist''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
@@ -1789,7 +1823,7 @@ methods = {
                     ''',
                     type='boolean', undoc=True),
                 Config('cross_key', 'false', r'''
-                    Allow version cursos to walk across keys while calling next().
+                    Allow version cursors to walk across keys while calling next().
                     ''',
                     type='boolean', undoc=True),
                 Config('show_prepared_rollback', 'false', r'''
@@ -2163,7 +2197,7 @@ methods = {
             checkpoint, while higher values will result in crashes in the final phase of the
             checkpoint process''', type='int', min='0', max='1000'),
         Config('checkpoint_crash_trigger_point', '', r'''
-            enable code that performs a crash duriing checkpoint process with a goal of uncovering
+            enable code that performs a crash during checkpoint process with a goal of uncovering
             race conditions at unexpected times. This option is intended for use with internal
             testing of WiredTiger.''', undoc=True,
             choices=['before_metadata_sync', 'before_metadata_update',
@@ -2349,10 +2383,25 @@ methods = {
         checkpoints will not include commits that are newer than the specified timestamp in tables
         configured with \c "log=(enabled=false)". Values must be monotonically increasing. The value
         must not be older than the current oldest timestamp. See @ref timestamp_global_api'''),
+    Config('step_down_disaggregated_schema_epoch', '', r'''
+        the schema epoch that marks the planned step-down boundary in disaggregated storage.
+        May only be supplied together with \c step_down_timestamp, and should accompany it
+        whenever schema epochs are in use. Schema operations published at or below this epoch
+        are covered by the final checkpoint taken before the step-down; operations published
+        above it are deferred until after the next step-up. The value must not be older than
+        the current stable disaggregated schema epoch, and before stepping down the application
+        must advance the stable disaggregated schema epoch to equal it. Cannot be changed while
+        set'''),
     Config('step_down_timestamp', '', r'''
-        the cutover timestamp for a planned step-down of disaggregated storage: committed writes
-        after this timestamp are directed to the ingest constituent and writes at or before it to
-        the stable constituent. Only valid on a leader'''),
+        the timestamp that prepares for a planned step-down in disaggregated storage. The
+        application must ensure the timestamp is newer than every commit timestamp
+        already allocated, and that no new timestamp is allocated until this call returns. Once
+        set, write transactions that start after it is set are kept locally so their content
+        survives the step-down, and their commit timestamps must be after this timestamp;
+        in-flight write transactions are rolled back for the application to retry. Before stepping
+        down, the application must advance the stable timestamp to equal it and checkpoint at that
+        boundary. When schema epochs are in use, \c step_down_disaggregated_schema_epoch should
+        be supplied in the same call. Cannot be changed while set; only valid on a leader'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([

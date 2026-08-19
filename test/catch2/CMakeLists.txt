@@ -10,16 +10,22 @@ else()
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_cell_fast_truncate_unpack.cpp
         misc_tests/test_cell_prepared_time_window.cpp
+        misc_tests/test_checkpoint_log_cleanup.cpp
         misc_tests/test_checkpoint_skip.cpp
+        misc_tests/test_ckpt_eviction_snapshot.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_dhandle_ebusy.cpp
         misc_tests/test_disagg_block_header_version.cpp
         misc_tests/test_disagg_meta_config.cpp
+        misc_tests/test_disagg_replace_checkpoint.cpp
         misc_tests/test_error.cpp
+        misc_tests/test_evict_bounded_wait.cpp
+        misc_tests/test_evict_updates_trigger_reconfigure.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_page_delta_merge_empty_value.cpp
         misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
@@ -27,11 +33,16 @@ else()
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_layered_incomplete_table.cpp
         misc_tests/test_layered_ingest_uri.cpp
+        misc_tests/test_layered_snapshot_pickup.cpp
+        misc_tests/test_layered_snapshot_stress.cpp
         misc_tests/test_semaphore.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
+        misc_tests/test_txn_config.cpp
+        misc_tests/test_txn_pinned_timestamp_stat.cpp
         misc_tests/test_verify_compare_page_id_lists.cpp
+        misc_tests/test_verify_progress.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
@@ -53,6 +64,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        cursors/unit/test_curstat_size.cpp
         cursors/unit/test_layered_op.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
@@ -113,6 +125,7 @@ set(unittest_sources
     wrappers/connection_wrapper.cpp
     wrappers/item_wrapper.cpp
     wrappers/mock_connection.cpp
+    wrappers/mock_metadata_cursor.cpp
     wrappers/mock_session.cpp
     truncate/truncate_list_helpers.cpp
     ${unittests}
