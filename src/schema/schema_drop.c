@@ -222,13 +222,9 @@ __drop_layered(
     }
 
     /*
-     * Snapshot the stable table's configuration before the local metadata is removed. The shared
-     * metadata REMOVE enqueued below needs it for drop-size accounting, and by then the local rows
-     * are gone. The stable table may have no local row on a follower or for a table created after
-     * the step-down timestamp was set.
-     *
-     * FIXME-WT-18322: Read the size from the shared metadata table when the REMOVE is applied,
-     * removing the need for this snapshot.
+     * Read the stable table's configuration before the local rows go away: the enqueue below would
+     * otherwise look it up in local metadata and find nothing. The stable table may have no local
+     * row on a follower or for a table created after the step-down timestamp was set.
      */
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, stable_uri, &stable_value), false);
 
