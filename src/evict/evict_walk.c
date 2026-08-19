@@ -1251,7 +1251,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         return;
 
     /*
-     * A stale-disagg page that is not clean-evictable is ignored for queuing. Unlike ordinary
+     * An outdated-disagg page that is not clean-evictable is ignored for queuing. Unlike ordinary
      * pages, whose content remains readable from storage after eviction, this page's content cannot
      * be reproduced once discarded: it belongs to an outdated checkpoint that shared storage no
      * longer serves. A reader positioned elsewhere on this tree may still navigate back to it, so
@@ -1260,7 +1260,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
      * The walk itself holds one session_inuse reference on the tree it is currently visiting, so a
      * genuine external reader shows up as a count greater than one.
      */
-    if (__wt_btree_is_stale_disagg(session) && !__wt_page_evict_clean(page) &&
+    if (__wt_btree_is_outdated_disagg(session) && !__wt_page_evict_clean(page) &&
       __wt_atomic_load_int32_relaxed(&session->dhandle->session_inuse) > 1) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_stale_disagg_pages);
         return;
