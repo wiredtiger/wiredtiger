@@ -176,6 +176,44 @@ err:
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
+
+/*
+ * __drop_layered_check_ingest_durable --
+ *     Refuse to drop a follower's layered table while its ingest constituent holds writes the
+ *     node's last picked-up checkpoint does not cover.
+ */
+static int
+__drop_layered_check_ingest_durable(WT_SESSION_IMPL *session, const char *ingest_uri)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    wt_timestamp_t ckpt_ts, max_write_ts;
+
+    ret = __wt_session_get_dhandle(session, ingest_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+    if (ret == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+    WT_RET(ret);
+
+    btree = S2BT(session);
+
+    /*
+     * An ingest tree is in-memory, so closing it discards its content instead of taking the
+     * dirty-data path that refuses to close a durable tree. A follower has no other copy of writes
+     * the leader has not yet checkpointed, so bound the drop by the same rule sweep uses before it
+     * closes an ingest tree: the maximum write timestamp is a possibly conservative upper bound on
+     * the durable timestamps the tree holds, and the checkpoint must cover it.
+     */
+    max_write_ts = __wt_atomic_load_uint64_relaxed(&btree->max_ingest_write_ts);
+    ckpt_ts = __wt_atomic_load_uint64_acquire(&S2C(session)->txn_global.last_ckpt_timestamp);
+    if (max_write_ts != WT_TS_NONE && max_write_ts > ckpt_ts)
+        WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
+          "the table has ingested data that no checkpoint covers and must not be dropped yet");
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
 /*
  * __drop_layered --
  *     WT_SESSION::drop for a layered table.
@@ -189,7 +227,9 @@ __drop_layered(
     WT_DECL_RET;
     char *stable_value;
     const char *ingest_uri, *stable_uri, *tablename;
+    bool leader;
 
+    leader = __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader);
     stable_value = NULL;
 
     WT_UNUSED(force);
@@ -207,11 +247,19 @@ __drop_layered(
     stable_uri = stable_uri_buf->data;
 
     /*
+     * Refuse a follower's drop while its ingest constituent holds writes no picked-up checkpoint
+     * covers. A leader reaches the equivalent guard through the stable constituent, which is
+     * durable and refuses to close while it holds uncheckpointed data.
+     */
+    if (!leader)
+        WT_ERR(__drop_layered_check_ingest_durable(session, ingest_uri));
+
+    /*
      * Only the leader can issue a trim command, and only for a constituent that exists: a table
      * created after the step-down timestamp was set has no stable pages to trim. The schema lock
      * held here serializes the timestamp, making the relaxed loads safe.
      */
-    if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+    if (leader) {
         WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
         if (WT_CHECK_AND_RESET(ret, ENOENT) &&
           __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
@@ -239,8 +287,7 @@ __drop_layered(
      * leader outside that window always has the constituent, so treat ENOENT as an error there.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
-    if (WT_CHECK_AND_RESET(ret, ENOENT) &&
-      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
+    if (WT_CHECK_AND_RESET(ret, ENOENT) && leader &&
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
