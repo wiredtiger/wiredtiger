@@ -2029,7 +2029,7 @@ err:
 }
 
 /*
- * __wt_txn_stepdown_straddler_check --
+ * __wt_txn_stepdown_straddler_check_state --
  *     Setting the step-down timestamp announces a planned step-down: the stable constituent will be
  *     checkpointed at that timestamp, and everything committed after it must be mirrored to the
  *     ingest constituent to survive the role change. A transaction whose stable writes all predate
@@ -2038,8 +2038,8 @@ err:
  *     stable constituent operation not marked with a completed ingest mirror. Return WT_ROLLBACK
  *     and have the application retry as a new transaction, whose writes mirror.
  *
- * The caller supplies the step-down timestamp sampled for the operation. The role generation catches
- *     an unmirrored writer after step-down completion clears the timestamp.
+ * The caller supplies the step-down timestamp sampled for the operation. The role generation
+ *     catches an unmirrored writer after step-down completion clears the timestamp.
  */
 static WT_INLINE int
 __wt_txn_stepdown_straddler_check_state(WT_SESSION_IMPL *session, bool is_writer,
