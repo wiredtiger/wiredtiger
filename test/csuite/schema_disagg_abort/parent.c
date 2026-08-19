@@ -110,7 +110,7 @@ spawn_node(const TEST_CONFIG *cfg, const char *self_path, uint32_t node_id, bool
     argv[n++] = "-u";
     argv[n++] = pool_arg;
     if (cfg->unique_tables)
-        argv[n++] = "-U";
+        argv[n++] = "-q";
     /* The node bounds how far its generator runs ahead so a hand-over drains inside a period. */
     if (cfg->switch_interval != 0) {
         argv[n++] = "-s";
