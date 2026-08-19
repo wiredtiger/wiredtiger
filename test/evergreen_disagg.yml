@@ -549,9 +549,6 @@ functions:
           fi
         done
 
-  # Every schema-disagg-abort task runs this loop and sets schema_args to pick the topology, the
-  # role switches, the kills and the table naming it exercises. The schema threads and the
-  # per-thread URI pool are maxed out throughout, for maximum schema churn.
   "schema disagg abort":
     command: shell.exec
     params:
@@ -831,9 +828,6 @@ tasks:
           # taking leadership.
           schema_args: -r f -s 30
 
-  # The same shapes with -U, where no table name is ever reused. Name reuse is what reaches
-  # create-drop-recreate of one table, so these runs isolate the rest of the schema behavior
-  # from it.
   # FIXME-WT-18403: Remove these tasks once all the known create/drop/create issues are gone.
   - name: schema-disagg-abort-unique-crash-test-disagg-1
     tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]

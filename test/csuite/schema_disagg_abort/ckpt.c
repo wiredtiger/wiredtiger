@@ -85,11 +85,8 @@ ckpt_lsn_stat(WT_SESSION *session, int stat_key)
 
 /*
  * ckpt_adopt_latest --
- *     Adopt the latest checkpoint before stepping up. A pick-up that lands while readers are still
- *     on an older checkpoint is deferred rather than applied, and stepping up discards a pending
- *     deferral, so wait until everything delivered to this connection has been adopted. Delivery is
- *     what a deferral outlives, so both sides of the comparison come from the connection rather
- *     than from the page log, which this thread may have read at a different time.
+ *     Adopt the latest checkpoint before stepping up. A pick-up can be deferred, and stepping up
+ *     discards a pending deferral, so wait for the adopted LSN to catch up with the delivered one.
  */
 void
 ckpt_adopt_latest(WORKLOAD_STATE *state)
