@@ -34,6 +34,7 @@ from suite_subprocess import suite_subprocess
 #    A subprocess started by run_subprocess_function runs under the same hooks as its parent.
 # Without that, a test running under a hook silently exercises none of it in the subprocess, and a
 # hook that alters the database layout leaves the parent unable to reopen what the subprocess wrote.
+# Forwarding also means a hook can skip the subprocess, which has to become a skip here.
 class test_hook_forward01(wttest.WiredTigerTestCase, suite_subprocess):
     test_name = __qualname__
     hooks_file = 'subprocess_hooks.txt'
@@ -43,6 +44,10 @@ class test_hook_forward01(wttest.WiredTigerTestCase, suite_subprocess):
         with open(self.hooks_file, 'w') as f:
             f.write('\n'.join(self.hook_specs))
 
+    # Subprocess body: skipped, as a hook skips it once it is forwarded there.
+    def subprocess_skip(self):
+        self.skipTest('the subprocess has nothing to do')
+
     def test_hook_forward(self):
         [returncode, home] = self.run_subprocess_function('SUBPROCESS_report_hooks',
             f'{self.test_name}.{self.test_name}.subprocess_report_hooks')
@@ -51,3 +56,8 @@ class test_hook_forward01(wttest.WiredTigerTestCase, suite_subprocess):
         with open(os.path.join(home, self.hooks_file), 'r') as f:
             subprocess_specs = f.read().split()
         self.assertEqual(sorted(subprocess_specs), sorted(self.hook_specs))
+
+    def test_hook_forward_subprocess_skip(self):
+        self.run_subprocess_function('SUBPROCESS_skip',
+            f'{self.test_name}.{self.test_name}.subprocess_skip')
+        self.fail('a subprocess that skipped should have skipped this test')
