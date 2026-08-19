@@ -1631,12 +1631,7 @@ cursor_runtime_config = [
         configures whether the cursor's insert and update methods check the existing state of
         the record. If \c overwrite is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
         if the record exists, and WT_CURSOR::update fails with ::WT_NOTFOUND if the record does
-        not exist. On a follower of a layered table with no read timestamp, \c overwrite set to
-        \c true causes WT_CURSOR::remove to write a tombstone to the ingest table without checking
-        the stable table; the caller must guarantee that the key being removed exists. If the key is
-        already deleted in ingest or by the truncate list, the operation violates that guarantee.
-        A write conflict with a concurrent, not-yet-visible change to the same key can still fail
-        the call. This layered-follower remove behavior does not apply on a leader.''',
+        not exist''',
         type='boolean'),
     Config('prefix_search', 'false', r'''
         this option is no longer supported, retained for backward compatibility.''',
@@ -1828,7 +1823,7 @@ methods = {
                     ''',
                     type='boolean', undoc=True),
                 Config('cross_key', 'false', r'''
-                    Allow version cursos to walk across keys while calling next().
+                    Allow version cursors to walk across keys while calling next().
                     ''',
                     type='boolean', undoc=True),
                 Config('show_prepared_rollback', 'false', r'''
@@ -2204,10 +2199,10 @@ methods = {
             to crash where the checkpoint can survive. Cannot be combined with
             \c checkpoint_crash_trigger_point''', type='int', min='0', max='1000'),
         Config('checkpoint_crash_trigger_point', '', r'''
-            enable code that performs a crash during the checkpoint process with a goal of
-            uncovering race conditions at unexpected times. This option is intended for use with
-            internal testing of WiredTiger.''', undoc=True,
-            choices=['before_checkpoint_commit', 'before_metadata_sync',
+            enable code that performs a crash during checkpoint process with a goal of uncovering
+            race conditions at unexpected times. This option is intended for use with internal
+            testing of WiredTiger.''', undoc=True,
+            choices=['before_metadata_sync', 'before_metadata_update',
                 'before_key_rotation', 'during_key_rotation', 'after_key_rotation']),
         Config('database_size_fix', 'false', r'''
             if true, recompute the disaggregated database size from the sum of all the collections'
