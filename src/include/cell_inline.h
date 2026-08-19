@@ -1162,8 +1162,13 @@ __cell_unpack_addr_cell(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_
          * only partially deleted. Preserve that value for internal cells because it aggregates
          * child pages, but normalize it for leaf cells when live values remain.
          */
-        if (unpack_addr->raw != WT_CELL_ADDR_INT && ta->newest_stop_ts == WT_TS_MAX)
+        if (unpack_addr->raw != WT_CELL_ADDR_INT && ta->newest_stop_ts == WT_TS_MAX) {
+            __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+              "resetting legacy page stop durable timestamp: cell_type=%u, stop_ts=%" PRIu64
+              ", page_stop_durable_ts=%" PRIu64,
+              unpack_addr->raw, ta->newest_stop_ts, ta->newest_page_stop_durable_ts);
             ta->newest_page_stop_durable_ts = WT_TS_NONE;
+        }
         WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
     }
 

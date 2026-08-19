@@ -2591,6 +2591,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     /* Initialize the address (set the addr type for the parent). */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
+    if (chunk->ta.newest_page_stop_durable_ts != WT_TS_NONE)
+        __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+          "writing address with page stop durable timestamp: page_type=%u, "
+          "page_stop_durable_ts=%" PRIu64 ", newest_stop_ts=%" PRIu64,
+          page->type, chunk->ta.newest_page_stop_durable_ts, chunk->ta.newest_stop_ts);
 
     switch (page->type) {
     case WT_PAGE_COL_VAR:

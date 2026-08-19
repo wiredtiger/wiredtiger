@@ -216,16 +216,26 @@
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
                 (ta)->newest_page_stop_durable_ts =                                            \
                   WT_MAX((tw)->durable_stop_ts, (ta)->newest_page_stop_durable_ts);            \
-            else                                                                               \
+            else {                                                                             \
+                __wt_verbose_debug1(session, WT_VERB_RECONCILE,                                \
+                  "clearing page stop durable timestamp during aggregate update: "             \
+                  "stop_ts=%" PRIu64 ", page_stop_durable_ts=%" PRIu64,                        \
+                  (ta)->newest_stop_ts, (ta)->newest_page_stop_durable_ts);                    \
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
+            }                                                                                  \
         } else {                                                                               \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts);        \
             (ta)->newest_durable_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_durable_ts);  \
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
                 (ta)->newest_page_stop_durable_ts =                                            \
                   WT_MAX((tw)->stop_prepare_ts, (ta)->newest_page_stop_durable_ts);            \
-            else                                                                               \
+            else {                                                                             \
+                __wt_verbose_debug1(session, WT_VERB_RECONCILE,                                \
+                  "clearing page stop durable timestamp during prepared aggregate update: "    \
+                  "stop_ts=%" PRIu64 ", page_stop_durable_ts=%" PRIu64,                        \
+                  (ta)->newest_stop_ts, (ta)->newest_page_stop_durable_ts);                    \
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
+            }                                                                                  \
         }                                                                                      \
         if ((tw)->stop_txn != WT_TXN_MAX && (tw)->stop_txn != WT_TXN_NONE)                     \
             (ta)->oldest_stop_txn = WT_MIN((tw)->stop_txn, (ta)->oldest_stop_txn);             \
