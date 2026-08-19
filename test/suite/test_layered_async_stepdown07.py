@@ -152,7 +152,8 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # Ground truth: the content split exactly at the cutoff. A follower cannot open the
         # live stable table, so read its checkpoint view.
-        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30), {'below', 'at'})
+        self.assertEqual(self.read_keys_at(self.stable_checkpoint_uri(self.uri), 30),
+            {'below', 'at', 'above'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 30), {'above'})
 
     # Set up a straddler's uncommitted delete on stable and probe it with a later remove of the
@@ -260,7 +261,7 @@ class test_layered_async_stepdown07(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         # Every key lives in ingest; the stable table was never written.
         self.write_at(self.uri, {'b': 'i', 'd': 'i'}, 30)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'b', 'd'})
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -433,9 +434,9 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
 
     uri = f'layered:{test_name}'
 
-    # A transaction that began before the cutoff was set rolls back on its first write, whichever
-    # write it is, and leaves nothing behind in either constituent.
-    def test_straddler_write_rolls_back(self):
+    # A transaction that began before the cutoff but writes for the first time afterward mirrors its
+    # write to both constituents. Reserve is the exception: it only creates a transient reservation.
+    def test_late_first_write_mirrors(self):
         self.set_global_ts(1, 1)
         self.session.create(self.uri, 'key_format=S,value_format=S')
         self.write_at(self.uri, {'k1': 'base'}, 10)
@@ -445,13 +446,14 @@ class test_layered_async_stepdown07_straddler_ops(LayeredStepdownMixin, wttest.W
 
         self.set_step_down_ts(20)
 
-        self.assert_step_down_rollback(lambda: self.do_op(cursor, 'k1'))
-        self.session.rollback_transaction()
+        self.do_op(cursor, 'k1')
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
 
-        self.assertEqual(self.read_kvs_at(self.uri, 40), {'k1': 'base'})
-        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), set())
-        self.assertEqual(self.read_kvs_at(self.stable_uri(self.uri), 40), {'k1': 'base'})
+        expected_ingest = set() if self.do_op is _op_reserve else {'k1'}
+        expected_stable = {'k1'} if self.do_op is not _op_remove else set()
+        self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), expected_ingest)
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), expected_stable)
 
     # An autocommit write samples the cutoff before its implicit transaction starts and still mirrors.
     def test_autocommit_write_mirrors(self):
@@ -601,7 +603,7 @@ class test_layered_async_stepdown07_write_conflicts(LayeredStepdownMixin,
         self.assertEqual(checkpointed, {'b': 's', 'd': 's'})
 
         self.assertEqual(self.read_kvs_at(self.uri, 50), before)
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'b', 'd'})
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 50), {'a', 'b', 'd', 'z'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 50), {'a', 'z'})
 
         # A write after that checkpoint still routes to ingest, and the step-down still completes.
