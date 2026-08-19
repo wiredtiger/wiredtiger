@@ -231,14 +231,13 @@ class suite_subprocess:
 
     # Run a method as a subprocess that is expected to crash, and return the WiredTiger home
     # directory it left behind.
-    def crash_in_subprocess(self, directory, funcname, scenario=-1):
-        # Default to this test's own scenario, so that each is crashed and asserted independently.
-        # Running the child over the whole list instead crashes it in the first scenario and never
-        # reaches the others.
-        if scenario == -1:
-            scenario = getattr(self, 'scenario_number', None)
+    def crash_in_subprocess(self, directory, funcname):
+        # Restrict the subprocess to this test's own scenario, so that each is crashed and asserted
+        # independently. Running the child over the whole list instead crashes it in the first
+        # scenario and never reaches the others. A test without scenarios has no attribute, and
+        # run_subprocess_function takes None to mean it should not restrict the child at all.
         [ returncode, home ] = self.run_subprocess_function(directory, funcname, silent=True,
-            scenario=scenario)
+            scenario=getattr(self, 'scenario_number', None))
         self.assert_crashed(returncode)
         return home
 
