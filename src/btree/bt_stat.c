@@ -556,10 +556,19 @@ __wti_size_stat_page(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * Bucket the uncompressed leaf image against the pre-compression leaf budget published at
-     * reset. Equal-width slices of [0, ceiling); the final bucket is at or above that ceiling.
+     * reset. Equal-width slices of [0, ceiling); the final bucket is at or above that ceiling. Use
+     * the first counter slot: summing every slot on each leaf is wasted, and stats may not be
+     * allocated.
      */
-    uint64_t ceiling =
-      (uint64_t)WT_STAT_DSRC_READ(session->dhandle->stats, btree_size_leaf_hist_ceiling);
+    uint64_t ceiling = 0;
+    if (session->dhandle != NULL && session->dhandle->stat_array != NULL &&
+      session->dhandle->stats[0] != NULL)
+        ceiling = (uint64_t)session->dhandle->stats[0]->btree_size_leaf_hist_ceiling;
+    if (ceiling == 0) {
+        ceiling = S2BT(session)->maxleafpage_precomp;
+        if (ceiling == 0)
+            ceiling = S2BT(session)->maxleafpage;
+    }
     uint64_t bucket_width = ceiling / (WT_SIZE_STAT_HIST_BUCKETS - 1);
     size_t hist_bucket;
     if (bucket_width == 0)

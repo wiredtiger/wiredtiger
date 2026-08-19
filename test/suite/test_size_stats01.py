@@ -98,7 +98,9 @@ class test_size_stats01(wttest.WiredTigerTestCase):
             hist_buckets=g(stat.dsrc.btree_size_leaf_hist_buckets),
             hist_ceiling=g(stat.dsrc.btree_size_leaf_hist_ceiling),
         )
-        s['hist'] = [g(getattr(stat.dsrc, 'btree_size_leaf_hist_%d' % i)) for i in range(9)]
+        s['hist'] = [
+            g(getattr(stat.dsrc, 'btree_size_leaf_hist_%d' % i)) for i in range(s['hist_buckets'])
+        ]
         statc.close()
 
         s['scanned'] = scanned
