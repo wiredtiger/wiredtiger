@@ -556,8 +556,7 @@ __disagg_check_meta_id(
  * __disagg_check_meta_match --
  *     Verify that the immutable configuration fields of a metadata entry agree between the local
  *     and the shared metadata. A divergence means the checkpoint would be interpreted under the
- *     wrong schema or btree identity, silently corrupting reads, so panic instead. The entries must
- *     describe the same table: one dropped and created again under the name gets a new btree id.
+ *     wrong schema or btree identity, silently corrupting reads, so panic instead.
  */
 static int
 __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor)
@@ -598,12 +597,14 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
 #endif
 }
 
-/*
- * The URIs this node has to let go of. A table is owned by its "table:" entry when it has one and
- * by its "layered:" entry otherwise, so the walk records whichever one owns it.
- */
+/* A layered table this node has to let go of, and the URI of the entry that owns it. */
 typedef struct {
-    char **uris;
+    char *name;
+    char *uri;
+} WT_DISAGG_DROPPED_TABLE;
+
+typedef struct {
+    WT_DISAGG_DROPPED_TABLE *tables;
     size_t allocated;
     size_t count;
 } WT_DISAGG_DROPPED_TABLES;
@@ -757,7 +758,10 @@ __disagg_close_checkpoint_views(WT_SESSION_IMPL *session, const char *stable_uri
     WT_RET(__wt_scr_alloc(session, 0, &prefix_buf));
     WT_ERR(__wt_buf_fmt(session, prefix_buf, "%s/", stable_uri));
 
-    /* One write lock over both steps, so no handle can appear between them. */
+    /*
+     * Copy the names before closing anything: a close frees the handle it was given the name of.
+     * One write lock covers both steps, so no view can appear between them.
+     */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, {
         TAILQ_FOREACH (dhandle, &S2C(session)->dhqh, q) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
@@ -783,32 +787,16 @@ err:
 }
 
 /*
- * __disagg_dropped_name --
- *     Return the table name behind the scheme of a recorded URI.
- */
-static const char *
-__disagg_dropped_name(WT_SESSION_IMPL *session, const char *uri)
-{
-    const char *name;
-
-    name = uri;
-    if (!WT_PREFIX_SKIP(name, "table:"))
-        WT_PREFIX_SKIP_REQUIRED(session, name, "layered:");
-    return (name);
-}
-
-/*
  * __disagg_drop_local_layered --
  *     Discard this node's state for a layered table dropped elsewhere. Dropping the owning entry
  *     carries away the layered table and both constituents.
  */
 static int
-__disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *uri)
+__disagg_drop_local_layered(WT_SESSION_IMPL *session, const WT_DISAGG_DROPPED_TABLE *table)
 {
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
-    const char *name;
 
     WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
 
@@ -816,16 +804,15 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *uri)
 
     /* The table is already gone from the shared metadata, so this drop keeps to itself. */
     F_SET(session, WT_SESSION_DROP_LOCAL_ONLY);
-    WT_ERR_MSG_CHK(session, __wt_schema_drop(session, uri, drop_cfg, false),
-      "Failed to discard the dropped layered table \"%s\"", uri);
+    WT_ERR_MSG_CHK(session, __wt_schema_drop(session, table->uri, drop_cfg, false),
+      "Failed to discard the dropped layered table \"%s\"", table->uri);
 
     /* The drop does not reach the stable constituent's checkpoint views. */
-    name = __disagg_dropped_name(session, uri);
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", name));
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", table->name));
     WT_ERR(__disagg_close_checkpoint_views(session, uri_buf->data));
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Discarded the local state of the dropped layered table \"%s\"", uri);
+      "Discarded the local state of the dropped layered table \"%s\"", table->uri);
 
 err:
     /* Both paths land here, so a failed drop cannot leave the flag set. */
@@ -845,12 +832,15 @@ __disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped
 {
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
+    WT_DISAGG_DROPPED_TABLE *table;
 
     WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
     WT_ERR(__wt_buf_fmt(session, uri_buf, "%s%s", has_table_entry ? "table:" : "layered:", name));
 
-    WT_ERR(__wt_realloc_def(session, &dropped->allocated, dropped->count + 1, &dropped->uris));
-    WT_ERR(__wt_strdup(session, uri_buf->data, &dropped->uris[dropped->count]));
+    WT_ERR(__wt_realloc_def(session, &dropped->allocated, dropped->count + 1, &dropped->tables));
+    table = &dropped->tables[dropped->count];
+    WT_ERR(__wt_strdup(session, name, &table->name));
+    WT_ERR(__wt_strdup(session, uri_buf->data, &table->uri));
     ++dropped->count;
 
 err:
@@ -863,13 +853,12 @@ err:
  *     Report whether a table name was recorded to be let go of.
  */
 static bool
-__disagg_dropped_contains(
-  WT_SESSION_IMPL *session, const WT_DISAGG_DROPPED_TABLES *dropped, const char *name)
+__disagg_dropped_contains(const WT_DISAGG_DROPPED_TABLES *dropped, const char *name)
 {
     size_t i;
 
     for (i = 0; i < dropped->count; i++)
-        if (strcmp(__disagg_dropped_name(session, dropped->uris[i]), name) == 0)
+        if (strcmp(dropped->tables[i].name, name) == 0)
             return (true);
     return (false);
 }
@@ -888,7 +877,7 @@ __disagg_dropped_apply(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropp
     WT_RET(__wt_meta_track_on(session));
 
     for (i = 0; i < dropped->count; i++)
-        WT_ERR(__disagg_drop_local_layered(session, dropped->uris[i]));
+        WT_ERR(__disagg_drop_local_layered(session, &dropped->tables[i]));
 
 err:
     WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -897,16 +886,18 @@ err:
 
 /*
  * __disagg_dropped_free --
- *     Release the recorded URIs.
+ *     Release the recorded tables.
  */
 static void
 __disagg_dropped_free(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped)
 {
     size_t i;
 
-    for (i = 0; i < dropped->count; i++)
-        __wt_free(session, dropped->uris[i]);
-    __wt_free(session, dropped->uris);
+    for (i = 0; i < dropped->count; i++) {
+        __wt_free(session, dropped->tables[i].name);
+        __wt_free(session, dropped->tables[i].uri);
+    }
+    __wt_free(session, dropped->tables);
     dropped->allocated = dropped->count = 0;
 }
 
@@ -1244,7 +1235,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * A name this pick-up let go of is missing locally because the pick-up made it so, and
              * the queue describes the incarnation that went, not the one the checkpoint names.
              */
-            if (!__disagg_dropped_contains(session, dropped, current)) {
+            if (!__disagg_dropped_contains(dropped, current)) {
                 __wt_spin_lock(
                   session, &S2C(session)->disaggregated_storage.shared_metadata_queue_lock);
                 latest_entry = __wti_disagg_table_latest_create_remove(session, current);
