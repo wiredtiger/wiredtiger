@@ -116,10 +116,10 @@ class test_layered_checkpoint_cleanup01_leader_open(wttest.WiredTigerTestCase):
         return val
 
     def test_leader_open_starts_thread_once(self):
-        self.assertEqual(self.get_conn_stat(wiredtiger.stat.conn.checkpoint_cleanup_thread_start), 1)
-        self.assertEqual(self.get_conn_stat(wiredtiger.stat.conn.checkpoint_cleanup_thread_stop), 0)
+        self.assertEqual(self.start_count(), 1)
+        self.assertEqual(self.stop_count(), 0)
 
         # Step down: exactly one stop.
         self.conn.reconfigure('disaggregated=(role="follower")')
-        self.assertEqual(self.get_conn_stat(wiredtiger.stat.conn.checkpoint_cleanup_thread_start), 1)
-        self.assertEqual(self.get_conn_stat(wiredtiger.stat.conn.checkpoint_cleanup_thread_stop), 1)
+        self.assertEqual(self.start_count(), 1)
+        self.assertEqual(self.stop_count(), 1)
