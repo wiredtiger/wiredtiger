@@ -895,7 +895,14 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_cond_alloc(conn->cc_cleanup.session, "checkpoint cleanup", &conn->cc_cleanup.cond));
 
-    return (__wt_checkpoint_cleanup_start(session));
+    /*
+     * Checkpoint cleanup is leader-only work under disaggregated storage; a follower will start the
+     * thread on step-up. Non-disaggregated connections always run the thread.
+     */
+    if (conn->disaggregated_storage.npage_log == NULL ||
+      __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
+        return (__wt_checkpoint_cleanup_start(session));
+    return (0);
 }
 
 /*
@@ -910,11 +917,6 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    /*
-     * The session field is only written by connection open/close, but tid_set is written by
-     * step-up/step-down and read without a lock by __wt_checkpoint_cleanup_trigger, so use an
-     * atomic load here to keep TSan happy and prevent torn/stale reads on weakly ordered CPUs.
-     */
     if (conn->cc_cleanup.session == NULL ||
       __wt_atomic_load_bool_relaxed(&conn->cc_cleanup.tid_set))
         return (0);
