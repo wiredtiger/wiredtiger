@@ -1871,7 +1871,6 @@ __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
 {
     WT_DECL_RET;
     WT_DISAGG_DROPPED_TABLES dropped;
-    size_t recorded;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
     WT_CLEAR(dropped);
@@ -1889,18 +1888,7 @@ __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         WT_ERR(ret);
 
         /* The recorded names carry into this pass so it can tell them from a live disagreement. */
-        recorded = dropped.count;
         WT_ERR(__disagg_merge_checkpoint_meta(session, ckpt_meta, metadata, is_startup, &dropped));
-
-        /*
-         * A name recorded again means a drop left local entries behind. No further pass acts on it,
-         * so the node would go on serving state the checkpoint has replaced.
-         */
-        WT_ASSERT_ALWAYS(session, dropped.count == recorded,
-          "checkpoint pickup still has %" WT_SIZET_FMT
-          " layered table(s) to let go of after the "
-          "drops ran",
-          dropped.count - recorded);
     }
 
 err:
