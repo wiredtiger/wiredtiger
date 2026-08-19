@@ -899,7 +899,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Checkpoint cleanup is leader-only work under disaggregated storage; a follower will start the
      * thread on step-up. Non-disaggregated connections always run the thread.
      */
-    if (conn->disaggregated_storage.npage_log == NULL ||
+    if (!__wt_conn_is_disagg(session) ||
       __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader))
         return (__wt_checkpoint_cleanup_start(session));
     return (0);
