@@ -2199,10 +2199,10 @@ methods = {
             to crash where the checkpoint can survive. Cannot be combined with
             \c checkpoint_crash_trigger_point''', type='int', min='0', max='1000'),
         Config('checkpoint_crash_trigger_point', '', r'''
-            enable code that performs a crash during checkpoint process with a goal of uncovering
-            race conditions at unexpected times. This option is intended for use with internal
-            testing of WiredTiger.''', undoc=True,
-            choices=['before_metadata_sync', 'before_metadata_update',
+            enable code that performs a crash during the checkpoint process with a goal of
+            uncovering race conditions at unexpected times. This option is intended for use with
+            internal testing of WiredTiger.''', undoc=True,
+            choices=['before_checkpoint_commit', 'before_metadata_sync',
                 'before_key_rotation', 'during_key_rotation', 'after_key_rotation']),
         Config('database_size_fix', 'false', r'''
             if true, recompute the disaggregated database size from the sum of all the collections'
