@@ -1770,10 +1770,9 @@ err:
 
 /*
  * __disagg_adopt_checkpoint_meta --
- *     Merge the checkpoint's metadata into the local metadata as one tracked unit, so the merge
- *     either completes or leaves no trace. A table the checkpoint describes under a different btree
- *     id is dropped on the way past, on a session of its own so the drop's handle locks are
- *     released before the name is reused.
+ *     Merge the checkpoint's metadata into the local metadata as one tracked unit: on failure the
+ *     tracking unrolls every update already made, including any ingest tables created along the
+ *     way, so the merge either completes or leaves no trace.
  */
 static int
 __disagg_adopt_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
@@ -1930,9 +1929,8 @@ __disagg_pick_up_checkpoint(
      * Part 2: Merge the checkpoint's metadata into the local metadata. The merge runs under
      * metadata tracking, so a failure unrolls the updates already made and leaves the node on its
      * previous checkpoint, retryable; a crash mid-merge relies on the node discarding its local
-     * state on restart. A table dropped along the way is not restored by an unroll, which costs
-     * only a table the checkpoint no longer describes under that identity. Data handles marked
-     * outdated stay marked, which costs reopening them.
+     * state on restart. Data handles marked outdated along the way stay marked across an unroll,
+     * which only costs reopening them.
      */
     WT_WITH_SCHEMA_LOCK(
       session, ret = __disagg_adopt_checkpoint_meta(session, ckpt_meta, &metadata, is_startup));
