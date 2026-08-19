@@ -990,7 +990,8 @@ __checkpoint_update_disagg_database_size(
      * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
      * succeeded, unless the recompute above already replaced it. Positive deltas occur when data is
      * added during the checkpoint. Negative deltas occur when data is removed reducing the total
-     * storage footprint. Guard against overflow/underflow in both cases.
+     * storage footprint. Undershooting the checkpoint buffer is an accounting bug: diagnostic
+     * builds abort, production logs an error and clamps so a wrapped uint64 is not published.
      */
     if (!recomputed && session->ckpt.ckpt_size_delta != 0) {
         uint64_t db;
@@ -1003,9 +1004,22 @@ __checkpoint_update_disagg_database_size(
         if (delta > 0) {
             WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
             __wt_disagg_set_database_size(session, db + (uint64_t)delta);
-        } else {
-            WT_ASSERT(session, db >= (uint64_t)(-delta));
-            __wt_disagg_set_database_size(session, db - (uint64_t)(-delta));
+        } else if (delta < 0) {
+            uint64_t sub, new_size;
+
+            sub = (uint64_t)(-delta);
+            WT_ASSERT(session, db >= sub && db - sub >= WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+            /* FIXME-WT-18039: Replace this clamp and the assert above with WT_ASSERT_ALWAYS. */
+            if (db < sub || db - sub < WT_DISAGG_CHECKPOINT_SIZE_BUFFER) {
+                __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "disaggregated database size would fall below the checkpoint buffer: "
+                  "decrementing %" PRIu64 " from %" PRIu64
+                  ", clamped to the checkpoint size buffer %" PRIu64,
+                  sub, db, (uint64_t)WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
+                new_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+            } else
+                new_size = db - sub;
+            __wt_disagg_set_database_size(session, new_size);
         }
     }
 
