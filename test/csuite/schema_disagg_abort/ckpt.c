@@ -64,11 +64,11 @@ ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session)
 }
 
 /*
- * ckpt_lsn_stat --
- *     Return one of the connection's checkpoint metadata LSN statistics.
+ * ckpt_adopted_lsn --
+ *     Return the checkpoint metadata LSN the connection has adopted.
  */
 static uint64_t
-ckpt_lsn_stat(WT_SESSION *session, int stat_key)
+ckpt_adopted_lsn(WT_SESSION *session)
 {
     WT_CURSOR *stat_cursor;
     uint64_t lsn;
@@ -76,7 +76,7 @@ ckpt_lsn_stat(WT_SESSION *session, int stat_key)
     const char *desc, *pvalue;
 
     testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &stat_cursor));
-    stat_cursor->set_key(stat_cursor, stat_key);
+    stat_cursor->set_key(stat_cursor, WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN);
     testutil_check(stat_cursor->search(stat_cursor));
     testutil_check(stat_cursor->get_value(stat_cursor, &desc, &pvalue, &value));
     lsn = (uint64_t)value;
@@ -89,34 +89,32 @@ ckpt_lsn_stat(WT_SESSION *session, int stat_key)
  * ckpt_adopt_latest --
  *     Adopt the latest checkpoint before stepping up. A pick-up that lands while readers are still
  *     on an older checkpoint is deferred rather than applied, and stepping up discards a pending
- *     deferral, so wait until everything delivered to this connection has been adopted. Delivery is
- *     what a deferral outlives, so both sides of the comparison come from the connection rather
- *     than from the page log, which this thread may have read at a different time.
+ *     deferral, so retry until the connection reports the checkpoint adopted.
  */
 void
 ckpt_adopt_latest(WORKLOAD_STATE *state)
 {
     WT_CONNECTION *conn = state->conn;
     struct timespec start;
-    uint64_t adopted, delivered;
+    uint64_t target;
 
     WT_SESSION *session;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     __wt_epoch(NULL, &start);
+    target = 0;
     for (;;) {
-        (void)ckpt_pick_up(state, session);
-        delivered = ckpt_lsn_stat(session, WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN);
-        adopted = ckpt_lsn_stat(session, WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN);
-        if (adopted >= delivered)
+        if (ckpt_pick_up(state, session))
+            target = state->adopted_ckpt_lsn;
+        if (target == 0 || ckpt_adopted_lsn(session) >= target)
             break;
 
         struct timespec now;
         __wt_epoch(NULL, &now);
         if (WT_TIMEDIFF_SEC(now, start) > MAX_OP_WAIT)
             testutil_die(ETIMEDOUT,
-              "checkpoint metadata LSN %" PRIu64 " not adopted after %d seconds, stalled at %" PRIu64,
-              delivered, MAX_OP_WAIT, adopted);
+              "checkpoint metadata LSN %" PRIu64 " not adopted after %d seconds", target,
+              MAX_OP_WAIT);
         __wt_sleep(0, 10 * WT_THOUSAND);
     }
 
