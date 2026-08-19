@@ -1032,7 +1032,7 @@ __checkpoint_update_disagg_database_size(
                 __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "disaggregated database size would fall below the checkpoint buffer: "
                   "decrementing %" PRIu64 " from %" PRIu64
-                  ", clamped to the checkpoint buffer %" PRIu64,
+                  ", clamped to the checkpoint size buffer %" PRIu64,
                   sub, db, (uint64_t)WT_DISAGG_CHECKPOINT_SIZE_BUFFER);
                 new_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
             } else
