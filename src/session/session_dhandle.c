@@ -64,6 +64,19 @@ __wt_session_dhandle_writeunlock(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_dhandle_exclusive_unlock --
+ *     Clear exclusive ownership and unlock a data handle.
+ */
+static void
+__session_dhandle_exclusive_unlock(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+{
+    dhandle->excl_session = NULL;
+    dhandle->excl_ref = 0;
+    F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
+    WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
+}
+
+/*
  * __wt_session_dhandle_try_writelock --
  *     Try to acquire write lock for the session's current dhandle.
  */
@@ -949,13 +962,14 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
             continue;
         }
 
-        /* A handle closed by sweep is already durable, so do not reopen it for a dhandle walk. */
+        /*
+         * A handle closed by sweep is already durable, so do not reopen it for a dhandle walk.
+         * __wt_session_lock_dhandle gives us exclusive ownership for a closed handle; release it
+         * before returning EBUSY.
+         */
         if (LF_ISSET(WT_DHANDLE_SKIP_OPEN) && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
             WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
-            dhandle->excl_session = NULL;
-            dhandle->excl_ref = 0;
-            F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
+            __session_dhandle_exclusive_unlock(session, dhandle);
             WT_ERR(EBUSY);
         }
 
@@ -975,10 +989,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
          * enforce this.
          */
         if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {
-            dhandle->excl_session = NULL;
-            dhandle->excl_ref = 0;
-            F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-            WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
+            __session_dhandle_exclusive_unlock(session, dhandle);
 
             /*
              * FIXME-WT-16477: work around to ensure we always acquire the checkpoint lock before
@@ -1019,10 +1030,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
          * If we got the handle exclusive to open it but only want ordinary access, drop our lock
          * and retry the open.
          */
-        dhandle->excl_session = NULL;
-        dhandle->excl_ref = 0;
-        F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
-        WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
+        __session_dhandle_exclusive_unlock(session, dhandle);
         WT_ERR(ret);
     }
 
