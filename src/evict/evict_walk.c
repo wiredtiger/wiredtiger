@@ -1251,7 +1251,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         return;
 
     /*
-     * A busy stale-disagg page that is not clean-evictable is ignored for queuing. Unlike ordinary
+     * A stale-disagg page that is not clean-evictable is ignored for queuing. Unlike ordinary
      * pages, whose content remains readable from storage after eviction, this page's content cannot
      * be reproduced once discarded: it belongs to an outdated checkpoint that shared storage no
      * longer serves. A reader positioned elsewhere on this tree may still navigate back to it, so
