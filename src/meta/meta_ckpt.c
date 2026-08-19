@@ -1035,7 +1035,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
             ckpt->ta.newest_durable_ts = (uint64_t)a.val;
         else {
             ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
-            WT_RET_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, true);
             if (ret != WT_NOTFOUND && a.len != 0)
                 ckpt->ta.newest_durable_ts = (uint64_t)a.val;
         }
@@ -1066,7 +1066,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
             ckpt->ta.newest_durable_ts = WT_MAX(ckpt->ta.newest_durable_ts, (uint64_t)a.val);
         else {
             ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
-            WT_RET_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, true);
             if (ret != WT_NOTFOUND && a.len != 0)
                 ckpt->ta.newest_durable_ts = WT_MAX(ckpt->ta.newest_durable_ts, (uint64_t)a.val);
         }
