@@ -415,7 +415,7 @@ disagg_async_stepdown(wt_thread_t *checkpoint_tid, wt_thread_t *timestamp_tid)
 
     /* Complete the role transition while the workers are read-only. */
     track("[role change] leader -> follower (async)", 0ULL);
-    g.disagg_leader = false;
+    WT_RELEASE_WRITE_WITH_BARRIER(g.disagg_leader, false);
     testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=follower)"));
 
     /*
@@ -465,7 +465,7 @@ disagg_switch_roles(void)
     wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
 
     /* Perform step-up or step-down. */
-    g.disagg_leader = !g.disagg_leader;
+    WT_RELEASE_WRITE_WITH_BARRIER(g.disagg_leader, !g.disagg_leader);
 
     if (!g.disagg_leader) {
         /* Stepping down: [leader -> follower]. */

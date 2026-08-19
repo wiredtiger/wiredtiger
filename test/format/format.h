@@ -346,8 +346,8 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
-    bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
-    pid_t follower_pid; /* For multi-node disagg follower process */
+    volatile bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid;          /* For multi-node disagg follower process */
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
     DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
     int disagg_multi_sync_socket;               /* Socket for leader-follower sync */

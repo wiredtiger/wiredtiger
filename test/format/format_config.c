@@ -1479,17 +1479,19 @@ config_disagg_storage(void)
             config_single(NULL, "debug.disagg_slow_truncate_follower=on", false);
 
         /*
-         * The async step-down is triggered off the timer (fourths), not the operation count. A
-         * worker that stops on thread_ops before the timer fires would never commit again, so the
-         * step-down drain would never trigger or would stall waiting for it. Reject an explicit,
-         * conflicting runs.ops, otherwise force it off so the randomly chosen default doesn't
-         * silently create the same race.
+         * The async step-down fires off the timer, and its drain needs the workers to keep
+         * committing until it completes. Anything that stops them early stalls the drain: an
+         * operation count, or the global stop timestamp predictable replay posts as it winds down.
          */
-        if (GV(DISAGG_STEPDOWN_ASYNC) && !GV(RUNS_PREDICTABLE_REPLAY)) {
+        if (GV(DISAGG_STEPDOWN_ASYNC)) {
+            if (GV(RUNS_PREDICTABLE_REPLAY))
+                testutil_die(EINVAL,
+                  "Invalid configuration: disagg.stepdown_async is incompatible with "
+                  "runs.predictable_replay.");
             if (config_explicit(NULL, "runs.ops") && GV(RUNS_OPS) != 0)
                 testutil_die(EINVAL,
                   "Invalid configuration: disagg.stepdown_async with disagg.mode=switch requires "
-                  "a timer-based run; set runs.ops=0 (or enable runs.predictable_replay).");
+                  "a timer-based run; set runs.ops=0.");
             if (!config_explicit(NULL, "runs.ops"))
                 config_single(NULL, "runs.ops=0", false);
         }
