@@ -118,7 +118,8 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.write_at(uri, {'b': 's', 'd': 's', 'f': 's'}, 10)
         self.set_step_down_ts(20)
         self.write_at(uri, {'a': 'i', 'c': 'i', 'e': 'i'}, 30)
-        self.assertEqual(self.read_keys_at(self.stable_uri(uri), 40), {'b', 'd', 'f'})
+        # Transition-window writes are mirrored, so stable holds both generations.
+        self.assertEqual(self.read_keys_at(self.stable_uri(uri), 40), {'a', 'b', 'c', 'd', 'e', 'f'})
 
         cursor = self.session.open_cursor(uri, None, None)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(40))
@@ -169,8 +170,9 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         self.assertEqual(self.read_kvs_at(uri, 40), {'old': 'ingest', 'fresh': 'ingest'})
 
-        # Ground truth: both writes landed in ingest; the stable version is untouched.
-        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 40), {'old': 'stable'})
+        # Ground truth: both writes landed in ingest and were mirrored to stable.
+        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 40),
+            {'old': 'ingest', 'fresh': 'ingest'})
 
     # Reverse iteration and largest_key on either side of the step-down timestamp; largest_key is
     # non-transactional.
@@ -326,10 +328,10 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
 
         check_oracle('leader')
 
-        # Ground truth: nothing in the ingest phase touched stable; the remove of 'gone' is a
-        # marker record in ingest that hides the stable value at merge time.
+        # Ground truth: the ingest phase mirrored every write to stable, including the remove of
+        # 'gone'; ingest additionally records the remove as a marker record.
         self.assertEqual(self.read_kvs_at(self.stable_uri(uri), 50),
-            {'gone': 's', 'upd': 's', 'keep': 's'})
+            {'reborn': 'i', 'upd': 'i2', 'keep': 's', 'new': 'i'})
         self.assertEqual(self.read_keys_at(self.ingest_uri(uri), 50),
             {'gone', 'reborn', 'upd', 'new'})
 
@@ -427,9 +429,9 @@ class test_layered_async_stepdown02(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_kvs_at(uri, snapshot_ts), snapshot,
             'reading at the old frontier must be unaffected by the later writes')
 
-        # Ground truth: the churn afterwards never touched the stable table.
-        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), self.ts), snapshot,
-            'later writes must not leak into the stable table')
+        # Ground truth: the churn afterwards was mirrored, so stable matches the merged view.
+        self.assertEqual(self.read_kvs_at(self.stable_uri(uri), self.ts), dict(expected),
+            'transition-window writes must be mirrored to the stable table')
 
         cursor.close()
 

@@ -65,7 +65,7 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.session.rollback_transaction()
         cursor.close()
 
-        # A retry after the timestamp is set routes cleanly to ingest.
+        # A retry after the timestamp is set mirrors to both constituents.
         cursor = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction()
         cursor['straddle'] = 'after'
@@ -75,7 +75,8 @@ class test_layered_async_stepdown03(LayeredStepdownMixin, wttest.WiredTigerTestC
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'straddle'})
         self.assertEqual(self.read_keys_at(self.uri, 40), {'straddle'})
 
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'straddle'},
+            'transition-window writes must be mirrored to stable')
 
     # Straddler rollback applies to any write; remove rolls back like insert.
     def test_straddler_rollback_remove(self):

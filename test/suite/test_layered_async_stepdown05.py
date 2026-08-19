@@ -97,10 +97,10 @@ class test_layered_async_stepdown05(LayeredStepdownMixin, wttest.WiredTigerTestC
             lambda: self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(25)),
             '/must not advance past the step down timestamp/')
 
-        # Routing took effect from the same call.
+        # Routing took effect from the same call: the write is mirrored to both constituents.
         self.write_at(self.uri, {'k1': 'v'}, 30)
         self.assertEqual(self.read_keys_at(self.ingest_uri(self.uri), 40), {'k1'})
-        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), set())
+        self.assertEqual(self.read_keys_at(self.stable_uri(self.uri), 40), {'k1'})
 
     # A cutoff below the current stable must be rejected: stable may never sit past it.
     def test_step_down_ts_below_stable_rejected(self):

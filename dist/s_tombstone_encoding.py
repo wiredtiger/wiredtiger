@@ -160,6 +160,7 @@ TOMBSTONE_ALLOWED = {
     "__clayered_value_in_tombstone_namespace",
     "__clayered_deleted_encode",
     "__clayered_deleted_decode",
+    "__clayered_remove_mirror",
     "__wt_clayered_stable_value_stat",
     "__wt_clayered_ingest_to_stable_value",
 }
@@ -226,21 +227,20 @@ CALLGRAPH_REACHABILITY = (
 # this inventory updated.
 CALLGRAPH_GOLDEN_CALLERS = {
     ENCODE_FN: frozenset({
-        "__clayered_insert", "__clayered_modify_ingest", "__clayered_modify_stable",
-        "__clayered_update", STABLE_TO_INGEST_FN}),
+        "__clayered_modify_stable", "__clayered_put", "__clayered_update_ingest_value",
+        STABLE_TO_INGEST_FN}),
     DECODE_FN: frozenset({
-        "__clayered_decode_current", "__clayered_insert", "__clayered_modify_stable",
-        "__clayered_modify_try_ingest", INGEST_TO_STABLE_FN}),
+        "__clayered_assert_mirrored_values", "__clayered_decode_current", "__clayered_insert",
+        "__clayered_modify_stable", "__clayered_modify_try_ingest", INGEST_TO_STABLE_FN}),
     DECODE_CURRENT_FN: frozenset({
         "__clayered_copy_duplicate_kv", "__clayered_iterate", "__clayered_modify",
-        "__clayered_modify_ingest", "__clayered_next_random", "__clayered_search",
-        "__clayered_search_near", "__clayered_update"}),
+        "__clayered_modify_both", "__clayered_modify_ingest", "__clayered_next_random",
+        "__clayered_search", "__clayered_search_near", "__clayered_update"}),
     INGEST_TO_STABLE_FN: frozenset({"__layered_copy_ingest_table"}),
     STABLE_TO_INGEST_FN: frozenset({"__prepare_discover_alloc_upd"}),
     # Not a conversion helper: it stores bytes its callers already encoded, so it is exempt from
     # rule D4 and its caller set is pinned here instead.
-    "__clayered_put": frozenset({
-        "__clayered_insert", "__clayered_reserve", "__clayered_update"}),
+    "__clayered_put_constituent": frozenset({"__clayered_put", "__clayered_remove_mirror"}),
 }
 
 # Rules D3/D4 anchor on behavior rather than names, using the tool's ///content-regex form: every
@@ -263,8 +263,8 @@ CALLGRAPH_STORE_BODY = (
 # longer matches any site is reported so the lists cannot go stale.
 CALLGRAPH_DECODE_EXEMPT = {}
 CALLGRAPH_ENCODE_EXEMPT = {
-    "__clayered_put": "stores bytes its callers already encoded; the callers are pinned in "
-                      "CALLGRAPH_GOLDEN_CALLERS",
+    "__clayered_put_constituent": "stores bytes its callers already encoded; the callers are pinned"
+                                  " in CALLGRAPH_GOLDEN_CALLERS",
     "__clayered_remove_from_ingest": "records a delete by storing the raw tombstone marker",
     "__clayered_remove_from_stable": "removes the stable row and stores no value",
 }
