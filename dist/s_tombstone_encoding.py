@@ -163,6 +163,7 @@ TOMBSTONE_ALLOWED = {
     "__clayered_deleted_encode",
     "__clayered_deleted_decode",
     "__clayered_remove_mirror",
+    "__clayered_assert_mirrored_remove",
     "__wt_clayered_stable_value_stat",
     "__wt_clayered_ingest_to_stable_value",
 }

@@ -2006,6 +2006,7 @@ unittests
 unlink
 unlogged
 unmap
+unmirrored
 unmodify
 unmount
 unn

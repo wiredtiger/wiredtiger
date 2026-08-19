@@ -11,7 +11,8 @@
 
 static int __clayered_copy_bounds(WTI_CURSOR_LAYERED *);
 static int __clayered_update_ingest(WTI_CURSOR_LAYERED *, uint32_t);
-static int __clayered_update_stable(WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE);
+static int __clayered_update_stable(
+  WTI_CURSOR_LAYERED *, uint32_t, WTI_CLAYERED_ROLE, wt_timestamp_t);
 static int __clayered_lookup(WTI_CLAYERED_OP *, WT_ITEM *);
 static int __clayered_open_ingest(WT_SESSION_IMPL *, WTI_CURSOR_LAYERED *, WT_CURSOR **);
 static int __clayered_reset_cursors(WTI_CURSOR_LAYERED *, bool);
@@ -161,21 +162,35 @@ __clayered_deleted_decode(WT_SESSION_IMPL *session, WT_ITEM *value, bool from_st
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __clayered_assert_mirrored_values --
- *     Check that stable and ingest contain the same logical value.
+ *     Check that a stable value and its ingest mirror have the same decoded value.
  */
 static WT_INLINE void
-__clayered_assert_mirrored_values(
-  WT_SESSION_IMPL *session, const WT_ITEM *stable_value, const WT_ITEM *ingest_value)
+__clayered_assert_mirrored_values(WT_SESSION_IMPL *session, const WT_ITEM *stable_value,
+  const WT_ITEM *ingest_value, const char *op)
 {
-    WT_ITEM stable_decoded = *stable_value;
-    WT_ITEM ingest_decoded = *ingest_value;
+    WT_ITEM stable_decoded, ingest_decoded;
 
+    stable_decoded = *stable_value;
+    ingest_decoded = *ingest_value;
     __clayered_deleted_decode(session, &stable_decoded, true);
     __clayered_deleted_decode(session, &ingest_decoded, false);
-    WT_ASSERT(session,
+    WT_ASSERT_ALWAYS(session,
       stable_decoded.size == ingest_decoded.size &&
         (stable_decoded.size == 0 ||
-          memcmp(stable_decoded.data, ingest_decoded.data, stable_decoded.size) == 0));
+          memcmp(stable_decoded.data, ingest_decoded.data, stable_decoded.size) == 0),
+      "mirrored %s produced diverging constituent values", op);
+}
+
+/*
+ * __clayered_assert_mirrored_remove --
+ *     Check that a stable remove is represented by an ingest tombstone.
+ */
+static WT_INLINE void
+__clayered_assert_mirrored_remove(WT_SESSION_IMPL *session, const WT_ITEM *ingest_value)
+{
+    WT_ITEM stable_value = __wt_tombstone;
+
+    __clayered_assert_mirrored_values(session, &stable_value, ingest_value, "remove");
 }
 #endif
 
@@ -419,10 +434,9 @@ __clayered_skip_stable(
  *     Derive the enter-time control flags from the operation mode and resolved role.
  */
 static WT_INLINE uint32_t
-__clayered_enter_flags(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
+__clayered_enter_flags(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode,
+  WTI_CLAYERED_ROLE role, wt_timestamp_t step_down_ts)
 {
-    WT_SESSION_IMPL *session = CUR2S(clayered);
     uint32_t flags = 0;
 
     if (mode == WTI_CLAYERED_MODE_SEARCH_NEAR || mode == WTI_CLAYERED_MODE_SEARCH)
@@ -438,9 +452,9 @@ __clayered_enter_flags(
           role == WTI_CLAYERED_ROLE_LEADER ? CLAYERED_ENTER_STEP_UP : CLAYERED_ENTER_STEP_DOWN);
 
     /*
-     * A transaction that started with the step-down timestamp set mirrors leader writes to both
-     * constituents to detect write conflicts. Reads behave like a follower: it reads the ingest
-     * constituent over the still-live stable table.
+     * While the step-down timestamp is set, a leader's writes mirror to both constituents, so a
+     * write needs the ingest cursor open. Reads do not: every mirrored write also lands on stable,
+     * which therefore remains the complete image throughout the window.
      *
      * A table created inside the step-down window has no stable constituent at all, so its cursors
      * use ingest whenever the transaction began. That covers a transaction from before the
@@ -449,9 +463,11 @@ __clayered_enter_flags(
      * largest_key always consults ingest, regardless of role or transaction: it ignores visibility
      * by contract.
      */
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || session->txn->stepdown_ts_set ||
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER ||
       F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) ||
-      mode == WTI_CLAYERED_MODE_LARGEST_KEY)
+      mode == WTI_CLAYERED_MODE_LARGEST_KEY ||
+      (mode == WTI_CLAYERED_MODE_WRITE && role == WTI_CLAYERED_ROLE_LEADER &&
+        step_down_ts != WT_TS_NONE))
         LF_SET(CLAYERED_ENTER_OPEN_INGEST);
 
     return (flags);
@@ -463,7 +479,7 @@ __clayered_enter_flags(
  */
 static WT_INLINE void
 __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t flags,
-  WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role)
+  WTI_CLAYERED_OP_MODE mode, WTI_CLAYERED_ROLE role, wt_timestamp_t step_down_ts)
 {
     WT_LAYERED_TABLE *table = (WT_LAYERED_TABLE *)clayered->dhandle;
 
@@ -473,24 +489,22 @@ __clayered_op_init(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP *op, uint32_t f
     op->stable = LF_ISSET(CLAYERED_ENTER_SKIP_STABLE) ? NULL : clayered->stable_cursor;
     op->truncate_list = &table->truncate_list;
     op->collator = table->collator;
-
     if (mode != WTI_CLAYERED_MODE_WRITE) {
         op->write_target = WTI_CLAYERED_WRITE_NONE;
         return;
     }
-    if (role == WTI_CLAYERED_ROLE_FOLLOWER || F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED)) {
-        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
+    if (role == WTI_CLAYERED_ROLE_FOLLOWER)
         op->write_target = WTI_CLAYERED_WRITE_INGEST;
-        return;
-    }
-    WT_ASSERT(CUR2S(clayered), role == WTI_CLAYERED_ROLE_LEADER && op->stable != NULL);
-    if (CUR2S(clayered)->txn->stepdown_ts_set) {
-        WT_ASSERT(CUR2S(clayered), op->ingest != NULL);
+    else if (op->ingest != NULL && op->stable != NULL && step_down_ts != WT_TS_NONE)
         op->write_target = WTI_CLAYERED_WRITE_BOTH;
-        return;
-    }
-    WT_ASSERT(CUR2S(clayered), op->ingest == NULL);
-    op->write_target = WTI_CLAYERED_WRITE_STABLE;
+    else if (op->ingest != NULL) {
+        /* A stale leader dispatch can lose the stable cursor during demotion. */
+        WT_ASSERT_ALWAYS(CUR2S(clayered),
+          F_ISSET(table, WT_LAYERED_TABLE_STEP_DOWN_CREATED) || step_down_ts != WT_TS_NONE,
+          "leader write routed to ingest alone on a table with a stable constituent");
+        op->write_target = WTI_CLAYERED_WRITE_INGEST;
+    } else
+        op->write_target = WTI_CLAYERED_WRITE_STABLE;
 }
 
 /*
@@ -545,7 +559,16 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WTI_CLAYERED_ROLE role = __wt_atomic_load_bool_acquire(&conn->layered_table_manager.leader) ?
       WTI_CLAYERED_ROLE_LEADER :
       WTI_CLAYERED_ROLE_FOLLOWER;
-    uint32_t flags = __clayered_enter_flags(clayered, mode, role);
+    /*
+     * Sample the step-down timestamp once and route the whole operation off that one value. The
+     * straddler check and the write-target decision must agree: if they loaded the timestamp
+     * independently, an operation could pass the check against an unset timestamp yet route as a
+     * mirrored write, or the reverse, and either way a write escapes the mirror invariant the
+     * commit-time check relies on.
+     */
+    wt_timestamp_t step_down_ts =
+      __wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp);
+    uint32_t flags = __clayered_enter_flags(clayered, mode, role, step_down_ts);
 
     __clayered_assert_role_change(clayered, mode, role, flags);
 
@@ -554,7 +577,8 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
      * result does not depend on the transaction.
      */
     if (mode != WTI_CLAYERED_MODE_LARGEST_KEY)
-        WT_RET(__wt_txn_stepdown_straddler_check(session, mode == WTI_CLAYERED_MODE_WRITE));
+        WT_RET(__wt_txn_stepdown_straddler_check(
+          session, mode == WTI_CLAYERED_MODE_WRITE, step_down_ts));
 
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
@@ -572,12 +596,12 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     WT_RET(__clayered_update_ingest(clayered, flags));
 
     /* Manage the stable: open it, advance to a newer checkpoint, or reopen on role change. */
-    WT_RET(__clayered_update_stable(clayered, flags, role));
+    WT_RET(__clayered_update_stable(clayered, flags, role, step_down_ts));
 
     __clayered_update_state(clayered, role);
     __clayered_assert_stable_mode(clayered);
 
-    __clayered_op_init(clayered, op, flags, mode, role);
+    __clayered_op_init(clayered, op, flags, mode, role, step_down_ts);
     if (mode == WTI_CLAYERED_MODE_WRITE)
         WT_ASSERT(session, op->write_target != WTI_CLAYERED_WRITE_NONE);
     else
@@ -594,6 +618,22 @@ __clayered_enter(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_OP_MODE mode, WTI_CL
     }
 
     return (0);
+}
+
+/*
+ * __clayered_mark_stable_mirrored --
+ *     Mark stable operations whose ingest counterpart was installed successfully.
+ */
+static WT_INLINE void
+__clayered_mark_stable_mirrored(WT_SESSION_IMPL *session, uint32_t first, uint32_t last)
+{
+    WT_TXN_OP *op;
+
+    for (; first < last; ++first) {
+        op = &session->txn->mod[first];
+        WT_ASSERT(session, op->btree != NULL && WT_URI_IS_STABLE(op->btree->dhandle->name));
+        F_SET(op, WT_TXN_OP_LAYERED_MIRRORED);
+    }
 }
 
 /*
@@ -1222,7 +1262,8 @@ __clayered_update_ingest(WTI_CURSOR_LAYERED *clayered, uint32_t flags)
  *     cursor closed like a follower's missing checkpoint.
  */
 static bool
-__clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret)
+__clayered_ignore_missing_stable(
+  WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE role, int ret, wt_timestamp_t step_down_ts)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
@@ -1239,7 +1280,7 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
      * WT_LAYERED_TABLE_STEP_DOWN_CREATED skips opening the stable constituent for tables created
      * during the step-down window.
      */
-    return (__wt_atomic_load_uint64_relaxed(&conn->txn_global.step_down_timestamp) != WT_TS_NONE ||
+    return (step_down_ts != WT_TS_NONE ||
       !__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader));
 }
 
@@ -1252,8 +1293,8 @@ __clayered_ignore_missing_stable(WT_SESSION_IMPL *session, WTI_CLAYERED_ROLE rol
  *     checkpoint than the cursor holds.
  */
 static int
-__clayered_open_stable_first(
-  WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role, uint64_t conn_lsn)
+__clayered_open_stable_first(WTI_CURSOR_LAYERED *clayered, WTI_CLAYERED_ROLE role,
+  uint64_t conn_lsn, wt_timestamp_t step_down_ts)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *const session = CUR2S(clayered);
@@ -1265,7 +1306,7 @@ __clayered_open_stable_first(
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
     ret = __clayered_open_stable(clayered, false, role);
     /* A leader can miss here legitimately: a table created after the step-down has no stable. */
-    if (__clayered_ignore_missing_stable(session, role, ret))
+    if (__clayered_ignore_missing_stable(session, role, ret, step_down_ts))
         ret = 0;
     WT_RET(ret);
 
@@ -1281,7 +1322,8 @@ __clayered_open_stable_first(
  *     checkpoint, or reopen it in a different mode after a role change.
  */
 static int
-__clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role)
+__clayered_update_stable(
+  WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYERED_ROLE role, wt_timestamp_t step_down_ts)
 {
     WT_SESSION_IMPL *const session = CUR2S(clayered);
     WT_CONNECTION_IMPL *const conn = S2C(session);
@@ -1294,7 +1336,7 @@ __clayered_update_stable(WTI_CURSOR_LAYERED *clayered, uint32_t flags, WTI_CLAYE
         /* Open stable the first time if needed, unless the constituent does not exist yet. */
         if (!F_ISSET((WT_LAYERED_TABLE *)clayered->dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED) &&
           (role == WTI_CLAYERED_ROLE_LEADER || !LF_ISSET(CLAYERED_ENTER_SKIP_STABLE)))
-            WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn));
+            WT_RET(__clayered_open_stable_first(clayered, role, conn_lsn, step_down_ts));
     } else if (LF_ISSET(CLAYERED_ENTER_ROLE_CHANGE) ||
       __clayered_can_advance_stable(clayered, conn_lsn, LF_ISSET(CLAYERED_ENTER_ITERATION), role)) {
         /*
@@ -2472,7 +2514,8 @@ __clayered_lookup_lazy_stable_open(WTI_CLAYERED_OP *op)
 
     WT_RET(__clayered_open_stable_first(clayered, WTI_CLAYERED_ROLE_FOLLOWER,
       __wt_atomic_load_uint64_acquire(
-        &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn)));
+        &S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn),
+      WT_TS_NONE));
     op->stable = clayered->stable_cursor;
 
     return (0);
@@ -3024,41 +3067,39 @@ __clayered_put_both(
     WT_ITEM ingest_value, stable_value;
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     WT_DECL_RET;
+    uint32_t stable_mod_begin, stable_mod_end;
 
     WT_CLEAR(ingest_value);
     WT_CLEAR(stable_value);
 
+    stable_mod_begin = session->txn->mod_count;
     /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
     F_CLR(op->clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
-    /*
-     * Build both table-specific encodings before writing either table. The stable write may consume
-     * the input value, so the ingest encoding must already be available. A reserve has no value to
-     * encode, but must still be installed on both update chains.
-     */
+    /* Build both encodings before either write because the stable write may consume the value. */
     if (put_op != WTI_CLAYERED_PUT_RESERVE) {
         WT_ERR(__clayered_deleted_encode(session, value, true, &stable_value, &stable_buf));
         WT_ERR(__clayered_deleted_encode(session, value, false, &ingest_value, &ingest_buf));
     }
 
-    /*
-     * Write to stable first to detect conflict and exit early, also leaving ingest clean of aborted
-     * transaction markers had we written to ingest first.
-     */
-    WT_ERR(__clayered_put_constituent(op, op->stable, key, &stable_value, put_op));
+    /* Stable must be updated first so the engine's conflict check is authoritative. */
+    WT_ERR(__clayered_put_constituent(
+      op, op->stable, key, put_op == WTI_CLAYERED_PUT_RESERVE ? NULL : &stable_value, put_op));
+    stable_mod_end = session->txn->mod_count;
 
-    /*
-     * Once stable is written the mirror is mandatory: stable content above the cutover survives
-     * only through its ingest copy, so a failed mirror must abort the transaction.
-     */
+    /* Once stable is written the mirror is mandatory. */
     ret = __clayered_put_constituent(op, op->ingest, key, &ingest_value, put_op);
-    WT_ASSERT(
-      session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
-    WT_ERR(ret);
+    if (ret != 0)
+        F_SET(session->txn, WT_TXN_ERROR);
+    else {
+        __clayered_mark_stable_mirrored(session, stable_mod_begin, stable_mod_end);
+        WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
 #ifdef HAVE_DIAGNOSTIC
-    if (put_op != WTI_CLAYERED_PUT_RESERVE)
-        __clayered_assert_mirrored_values(session, &op->stable->value, &op->ingest->value);
+        if (put_op != WTI_CLAYERED_PUT_RESERVE)
+            __clayered_assert_mirrored_values(
+              session, &op->stable->value, &op->ingest->value, "put");
 #endif
+    }
 
 err:
     __wt_scr_free(session, &ingest_buf);
@@ -3171,13 +3212,16 @@ __clayered_modify_check(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WTI_CURSOR_LAYERED *clayered = op->clayered;
     WT_SESSION_IMPL *session = CUR2S(clayered);
 
-    /* No read timestamp means every update is visible; nothing to probe. */
-    if (!F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+    /* A read timestamp can position reads below committed updates. */
+    bool has_read_ts = F_ISSET(session->txn, WT_TXN_SHARED_TS_READ);
+    /* Otherwise every snapshot-visible update is current; there is nothing to check. */
+    if (!has_read_ts)
         return (0);
 
     /*
-     * Only a write routed to ingest can conflict with committed history in the stable constituent:
-     * a write routed to stable is covered by the stable cursor's own check.
+     * Only a write routed to ingest alone can conflict with committed history in the stable
+     * constituent: a write that touches stable, exclusively or as a mirror, is covered by the
+     * stable cursor's own check.
      */
     if (op->write_target != WTI_CLAYERED_WRITE_INGEST)
         return (0);
@@ -3293,10 +3337,22 @@ __clayered_remove_mirror(WTI_CLAYERED_OP *op, const WT_ITEM *key)
     WT_SESSION_IMPL *session = CUR2S(op->clayered);
     WT_CURSOR *c_ingest = op->ingest;
     WT_DECL_RET;
+    uint32_t stable_mod_begin;
+
+    WT_ASSERT(session, session->txn->mod_count > 0);
+    stable_mod_begin = session->txn->mod_count - 1;
 
     ret = __clayered_put_constituent(op, c_ingest, key, &__wt_tombstone, WTI_CLAYERED_PUT_UPDATE);
-    WT_ASSERT(
-      session, !(ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT));
+    if (ret == 0) {
+        __clayered_mark_stable_mirrored(session, stable_mod_begin, stable_mod_begin + 1);
+        WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
+#ifdef HAVE_DIAGNOSTIC
+        __clayered_assert_mirrored_remove(session, &c_ingest->value);
+#endif
+    }
+    /* A failed mirror leaves the stable-side removal without its ingest counterpart. */
+    if (ret != 0)
+        F_SET(session->txn, WT_TXN_ERROR);
     return (ret);
 }
 
@@ -4039,7 +4095,7 @@ __clayered_modify_ingest(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries, 
 
 #ifdef HAVE_DIAGNOSTIC
     if (mirroring)
-        __clayered_assert_mirrored_values(session, &op->stable->value, &c_ingest->value);
+        __clayered_assert_mirrored_values(session, &op->stable->value, &c_ingest->value, "modify");
 #endif
 
     /*
@@ -4065,13 +4121,23 @@ static int
 __clayered_modify_both(WTI_CLAYERED_OP *op, WT_MODIFY *entries, int nentries)
 {
     WTI_CURSOR_LAYERED *clayered = op->clayered;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    uint32_t stable_mod_begin, stable_mod_end;
+    WT_DECL_RET;
 
     /* Ensure the stable cursor position is not reused incorrectly after a mirrored write. */
     F_CLR(clayered, WTI_CLAYERED_ITERATE_NEXT | WTI_CLAYERED_ITERATE_PREV);
 
     /* Write to stable first to detect conflict and exit early. */
-    WT_RET(__clayered_modify_stable(op, entries, nentries));
-    return (__clayered_modify_ingest(op, entries, nentries, true));
+    stable_mod_begin = session->txn->mod_count;
+    WT_ERR(__clayered_modify_stable(op, entries, nentries));
+    stable_mod_end = session->txn->mod_count;
+    WT_ERR(__clayered_modify_ingest(op, entries, nentries, true));
+    __clayered_mark_stable_mirrored(session, stable_mod_begin, stable_mod_end);
+    WT_STAT_CONN_INCR(session, disagg_step_down_mirrored_writes);
+
+err:
+    return (ret);
 }
 
 /*
