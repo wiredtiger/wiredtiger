@@ -597,7 +597,7 @@ __disagg_check_meta_match(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CUR
 #endif
 }
 
-/* The URIs this node has to let go of, each naming the entry that owns its table. */
+/* The URIs this node has to drop, each naming the entry that owns its table. */
 typedef struct {
     char **uris;
     size_t allocated;
@@ -819,8 +819,8 @@ err:
 
 /*
  * __disagg_dropped_add --
- *     Record the URI of a layered table this node has to let go of. The drop runs once the merge is
- *     over, by which point the cursors that say which entry owns the table are gone.
+ *     Record the URI of a layered table this node has to drop. The drop runs once the merge is
+ *     over, because the walk cannot adopt the checkpoint's table under a name it is removing.
  */
 static int
 __disagg_dropped_add(WT_SESSION_IMPL *session, WT_DISAGG_DROPPED_TABLES *dropped, const char *name,
@@ -843,7 +843,7 @@ err:
 
 /*
  * __disagg_dropped_contains --
- *     Report whether a table was recorded to be let go of, by the name behind its URI scheme.
+ *     Report whether a table was recorded to be dropped, by the name behind its URI scheme.
  */
 static bool
 __disagg_dropped_contains(
@@ -983,7 +983,7 @@ err:
 /*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint. Tables
- *     this node has to let go of are added to the recorded list rather than dropped.
+ *     this node has to drop are recorded rather than dropped here.
  */
 static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
@@ -1227,7 +1227,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
              * The shared metadata has a layered: entry but the local metadata does not. This could
              * be a new layered table that we should pick up, but it could also mean that we have
              * already dropped the table locally and should not recreate it as a result. A name this
-             * pick-up let go of is missing locally because the pick-up made it so, and the queue
+             * pick-up dropped is missing locally because the pick-up made it so, and the queue
              * describes the incarnation that went, not the one the checkpoint names.
              */
             if (!__disagg_dropped_contains(session, dropped, current)) {
@@ -1828,8 +1828,8 @@ err:
 /*
  * __disagg_merge_checkpoint_meta --
  *     Merge the checkpoint's metadata into the local metadata as one tracked unit, so the merge
- *     either completes or leaves no trace. Tables to let go of are recorded rather than dropped,
- *     because the walk holds cursors over the entries a drop would remove.
+ *     either completes or leaves no trace. Tables to drop are recorded rather than dropped here,
+ *     because the walk cannot adopt the checkpoint's table under a name it is removing.
  */
 static int
 __disagg_merge_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
@@ -1850,7 +1850,7 @@ __disagg_merge_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
       session, ckpt_meta, metadata->schema_epoch, is_startup, dropped));
 
 err:
-    /* A merge that found something to let go of serves only to find it, so leave no trace. */
+    /* A merge that found something to drop serves only to find it, so leave no trace. */
     WT_TRET(__wt_meta_track_off(session, true, ret != 0 || dropped->count != recorded));
     return (ret);
 }
@@ -1858,10 +1858,10 @@ err:
 /*
  * __disagg_adopt_checkpoint_meta --
  *     Merge the checkpoint's metadata into the local metadata, dropping any table the leader has
- *     dropped. A merge that finds tables to let go of unrolls itself, so the drops get a tracked
- *     unit of their own and a second merge adopts the checkpoint. The drops need that separate unit
- *     because a drop defers its file removal to the end of the unit and matches by name, so sharing
- *     one would remove the file the merge just created. A failure can leave the drops without the
+ *     dropped. A merge that finds tables to drop unrolls itself, so the drops get a tracked unit of
+ *     their own and a second merge adopts the checkpoint. The drops need that separate unit because
+ *     a drop defers its file removal to the end of the unit and matches by name, so sharing one
+ *     would remove the file the merge just created. A failure can leave the drops without the
  *     merge, which costs a table the leader has already dropped and leaves the node on the
  *     checkpoint it was serving.
  */
@@ -2030,7 +2030,7 @@ __disagg_pick_up_checkpoint(
      * Part 2: Merge the checkpoint's metadata into the local metadata. The merge runs under
      * metadata tracking, so a failure unrolls the updates already made and leaves the node on its
      * previous checkpoint, retryable; a crash mid-merge relies on the node discarding its local
-     * state on restart. A table let go of along the way is not restored by an unroll, which costs
+     * state on restart. A table dropped along the way is not restored by an unroll, which costs
      * only a table the checkpoint no longer describes under that identity. Data handles marked
      * outdated stay marked, which costs reopening them.
      */

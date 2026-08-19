@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# Checkpoint pickup lets go of a local layered table the checkpoint describes under a different
+# Checkpoint pickup drops a local layered table the checkpoint describes under a different
 # btree id, which is what a drop and a create under the same name produce. The discard runs while
 # the application is still using the node, so a cursor open on the table holds the adoption up
 # until it closes, and a table the follower created itself must not be mistaken for a stale one.
@@ -176,7 +176,7 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
     def test_strict_validation_accepts_a_discarded_table(self):
         """
         Strict validation asks the operation queue to account for a table held only by the shared
-        metadata. One the same pickup let go of is accounted for by the pickup itself. Tables it did
+        metadata. One the same pickup dropped is accounted for by the pickup itself. Tables it did
         not discard are still validated, which test_layered_schema17 covers.
         """
         self.session.create(self.uri, self.table_config)
