@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, signal
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -35,7 +34,8 @@ from wtscenario import make_scenarios
 # transaction commits always loses the checkpoint. A crash taken after it keeps the checkpoint
 # whenever connection logging made the committed metadata durable, because recovery replays it.
 class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
-    uri = 'table:test_checkpoint_crash01'
+    test_name = __qualname__
+    uri = f'table:{test_name}'
 
     # The numeric setting selects a tree, or at the top of its range the phase that follows them,
     # both of which precede the commit. Cover both ends: the top of the range is where a scaling
@@ -79,26 +79,14 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
         # Expected to kill this process.
         self.session.checkpoint('debug=(%s)' % self.debug_config)
 
-    def assert_crashed(self, returncode):
-        # WiredTiger kills the process outright on POSIX and aborts on Windows, so the exit status
-        # is platform specific. Where the two are distinguishable, insist on the kill: an abort
-        # means we stopped somewhere we did not ask to, such as the checkpoint teardown assertion.
-        if os.name == 'nt':
-            self.assertNotEqual(returncode, 0)
-        else:
-            self.assertEqual(returncode, -signal.SIGKILL)
-
     # FIXME-WT-16920: the disagg hook tracks layered uris per test case, so the parent cannot name a
     # table the subprocess created.
     @wttest.skip_for_hook("disagg", "the parent cannot name a table created in the subprocess")
     def test_checkpoint_crash(self):
         self.conn.close()
 
-        [returncode, home] = self.run_subprocess_function('SUBPROCESS',
-            'test_checkpoint_crash01.test_checkpoint_crash01.subprocess_func',
-            silent=True, scenario=self.scenario_number)
-
-        self.assert_crashed(returncode)
+        home = self.crash_in_subprocess('SUBPROCESS',
+            f'{self.test_name}.{self.test_name}.subprocess_func')
 
         conn = wiredtiger.wiredtiger_open(home, self.conn_config())
         try:
