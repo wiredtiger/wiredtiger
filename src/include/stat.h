@@ -741,6 +741,7 @@ struct __wt_connection_stats {
     int64_t cache_pages_inuse;
     int64_t cache_pages_inuse_ingest;
     int64_t cache_pages_inuse_stable;
+    int64_t cache_truncate_txn_uncommitted_bytes;
     int64_t cache_eviction_dirty_obsolete_tw;
     int64_t cache_eviction_ahead_of_last_materialized_lsn;
     int64_t eviction_pages_in_parallel_with_checkpoint;
@@ -1492,6 +1493,7 @@ struct __wt_connection_stats {
     int64_t txn_commit;
     int64_t txn_rollback;
     int64_t txn_rollback_too_large_for_cache;
+    int64_t txn_truncate_dirty_cache_rollback;
     int64_t txn_update_conflict;
     int64_t txn_rollback_stepdown;
 };
@@ -1952,7 +1954,9 @@ struct __wt_session_stats {
     int64_t bytes_read;
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
+    int64_t txn_updates_bytes_dirty;
     int64_t txn_bytes_dirty;
+    int64_t txn_truncate_bytes_dirty;
     int64_t txn_updates;
     int64_t read_time;
     int64_t write_time;
