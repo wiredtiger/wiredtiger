@@ -146,8 +146,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
         cursors = self.check_data_follower(value_prefix0)
         self.close_cursors(cursors)
 
@@ -162,8 +161,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
         follower_cursors = self.check_data_follower(value_prefix1)
         # keep the follower cursors
 
@@ -179,8 +177,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
 
         # Check data in the follower
         self.close_cursors(follower_cursors)
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
         follower_cursors = self.check_data_follower(value_prefix2)
         # keep the follower cursors
 
@@ -197,8 +194,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         # Check data in the follower after a reset. Reset first: the positioned cursors' snapshots
         # would defer the adoption.
         self.reset_cursors(follower_cursors)
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
         follower_cursors = self.check_data_follower(value_prefix3, cursors=follower_cursors)
 
         #
@@ -234,8 +230,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         # With the snapshots gone, the delivery is no longer blocked, but it may still be picked up
         # by the pickup server rather than inline, so wait for the adoption before reading.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
         follower_cursors = self.scan_data_follower(value_prefix4, uris=self.layered_uris)
 
         #
@@ -253,8 +248,7 @@ class test_layered_checkpoint02(wttest.WiredTigerTestCase):
         # their snapshots would defer the adoption we are about to wait for.
         self.reset_cursors(follower_cursors)
 
-        self.disagg_advance_checkpoint(conn_follow)
-        self.disagg_wait_for_adoption(conn_follow)
+        self.disagg_advance_checkpoint_and_wait(conn_follow)
 
         # At this point, we have two connections, our old leader and the follower that is
         # becoming the new leader. Close the old leader first so there's no confusion within this test.
