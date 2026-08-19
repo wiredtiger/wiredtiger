@@ -166,6 +166,7 @@ typedef struct {
     char page_log_home[PATH_MAX];
     uint32_t nth;
     uint32_t pool_size;
+    /* FIXME-WT-18403: Remove -U once all the known create/drop/create issues are gone. */
     bool unique_tables;               /* -U: never reuse a table name */
     uint32_t total_time;              /* -t: graceful stop after this many seconds */
     uint32_t switch_interval;         /* -s: switch roles every N seconds; 0: never */
