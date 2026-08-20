@@ -1494,6 +1494,14 @@ config_disagg_storage(void)
                   "a timer-based run; set runs.ops=0.");
             if (!config_explicit(NULL, "runs.ops"))
                 config_single(NULL, "runs.ops=0", false);
+
+            /*
+             * Workers are throttled while a step-down pauses their writes, whether or not
+             * ops.throttle is on; pin the sleep so the randomly chosen default cannot make that
+             * throttle meaningless.
+             */
+            if (!config_explicit(NULL, "ops.throttle.sleep_us"))
+                config_single(NULL, "ops.throttle.sleep_us=1000", false);
         }
     } else {
         g.disagg_leader = strcmp(mode, "leader") == 0;

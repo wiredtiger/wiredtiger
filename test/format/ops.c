@@ -1172,7 +1172,13 @@ ops(void *arg)
     truncate_op = mmrand(&tinfo->data_rnd, 100, 10 * WT_THOUSAND);
 
     for (intxn = false; !tinfo->quit;) {
-        if (GV(OPS_THROTTLE)) {
+        /*
+         * Also throttle while a step-down pauses writes: the workers become full-time readers and,
+         * unthrottled, can monopolize the page log's reader-writer locks and starve the step-down
+         * checkpoint's writes.
+         */
+        WT_ACQUIRE_READ_WITH_BARRIER(pause_writes, g.stepdown_pause_writes);
+        if (GV(OPS_THROTTLE) || pause_writes) {
             /* Sleep first to avoid burst when all threads start. */
             throttle_delay = mmrand(&tinfo->extra_rnd, 0, throttle_delay_max);
             __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
