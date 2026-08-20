@@ -2309,10 +2309,11 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
             continue;
 
         /*
-         * A tombstone stands for the pair, so only it is marked. The value beneath it also drops
-         * any mark left by an earlier write, so that a rollback taking the tombstone away leaves
-         * the value looking changed and the next write includes it again: both a prepared tombstone
-         * and a committed one whose stop is newer than the stable timestamp can be rolled back.
+         * When a tombstone and the value below it are written together, mark only the tombstone,
+         * and drop any mark the value was given by an earlier write. A rollback can still take the
+         * tombstone away, whether it is prepared or committed with a stop newer than the stable
+         * timestamp, and the value it brings back to life must then look changed so that the next
+         * write includes it again.
          */
         if (tombstone != NULL)
             F_CLR(upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE);

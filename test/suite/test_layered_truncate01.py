@@ -30,7 +30,7 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_truncate_rts01.py
+# test_layered_truncate01.py
 #   Rolling back a committed-but-unstable truncate on a disaggregated leader
 #   must restore every truncated key.
 #
@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 #   as per-key stop tombstones, into the stable constituent. Correctness then
 #   relies on rollback_to_stable() undoing it.
 @disagg_test_class
-class test_layered_truncate_rts01(wttest.WiredTigerTestCase):
+class test_layered_truncate01(wttest.WiredTigerTestCase):
 
     # The constants are tuned to the leaf layout: leaf_page_max=32KB with this value
     # gives ~56 leaves, the first holding keys 1..165 and the last 9719..10000. The
@@ -47,7 +47,7 @@ class test_layered_truncate_rts01(wttest.WiredTigerTestCase):
     # Instantiating only those reproduces the failure; reading the whole range shifts
     # cache pressure and hides it.
     conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="leader"),'
-    uri = 'layered:test_layered_truncate_rts01'
+    uri = 'layered:test_layered_truncate01'
     create_cfg = 'key_format=i,value_format=S,leaf_page_max=32KB'
 
     value = "abcdefghijklmnopqrstuvwxyz" * 3
@@ -101,7 +101,7 @@ class test_layered_truncate_rts01(wttest.WiredTigerTestCase):
             inst.reset()
         inst.close()
 
-        # Advance stable below the truncate's durable timestamp (prepare only).
+        # Advance stable below the durable timestamp of the truncate (prepare only).
         if self.prepare:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(4) +
                                     ',stable_timestamp=' + self.timestamp_str(4))

@@ -265,8 +265,8 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
         append->upd_durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
         /*
-         * A stop in the disk image can be rolled back, so the value beneath it stays unmarked and
-         * the tombstone standing above it carries the mark instead.
+         * A stop in the disk image can be rolled back, which brings the value below it back to
+         * life, so only mark the value durable when nothing above it can disappear.
          */
         if (is_disagg && !WT_TIME_WINDOW_HAS_STOP(&unpack->tw))
             F_SET(append, WT_UPDATE_DURABLE);
@@ -417,8 +417,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
                 return (true);
 
             /*
-             * A durable tombstone stands for the pair, so the value beneath it is never marked and
-             * needs no check of its own.
+             * When a tombstone and the value below it are written together, only the tombstone is
+             * marked durable, so there is nothing left to check on the value itself.
              */
         } else if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
             /*
