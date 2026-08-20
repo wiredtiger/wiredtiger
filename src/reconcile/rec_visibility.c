@@ -264,7 +264,11 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
         append->upd_start_ts = unpack->tw.start_ts;
         append->upd_durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
-        if (is_disagg)
+        /*
+         * A stop in the disk image can be rolled back, so the value beneath it stays unmarked and
+         * the tombstone standing above it carries the mark instead.
+         */
+        if (is_disagg && !WT_TIME_WINDOW_HAS_STOP(&unpack->tw))
             F_SET(append, WT_UPDATE_DURABLE);
     }
 
@@ -411,9 +415,12 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
             if (F_ISSET(upd_select->tombstone, WT_UPDATE_PREPARE_DURABLE) &&
               !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw))
                 return (true);
-        }
 
-        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
+            /*
+             * A durable tombstone stands for the pair, so the value beneath it is never marked and
+             * needs no check of its own.
+             */
+        } else if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
             /*
              * Save the update if we haven't deleted the key from the disk image. We may have
              * written the tombstone to disk already but we still need to do another delta to remove
