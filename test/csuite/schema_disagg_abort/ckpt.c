@@ -164,15 +164,20 @@ thread_ckpt_run(void *arg)
 
 /*
  * workers_min --
- *     Return the minimum completed timestamp across all worker threads: the frontier with no
- *     unfinished publish or commit at or below it. Returns 0 if any worker has not yet completed an
- *     operation this phase.
+ *     Return the frontier: the lowest completed timestamp among the workers that still have
+ *     something to apply. A worker with an empty queue has finished everything it was given, so its
+ *     last timestamp is history rather than a limit and must not cap the frontier. The delivered
+ *     timestamp is the ceiling, which is the answer when no worker has work left. Returns 0 when no
+ *     frontier can be set yet.
  */
 static uint64_t
 workers_min(WORKLOAD_STATE *state)
 {
-    uint64_t min_val = UINT64_MAX;
+    uint64_t min_val = __wt_atomic_load_uint64(&state->delivered_ts);
     for (uint32_t i = 0; i < state->nth_workers; i++) {
+        if (evq_is_empty(state, i) && !__wt_atomic_load_bool(&state->workers[i].busy))
+            continue;
+
         const uint64_t val = __wt_atomic_load_uint64(&state->workers[i].completed_ts);
         if (val == 0)
             return (0);

@@ -235,6 +235,8 @@ typedef struct {
     uint64_t current_ts;
     uint64_t emitted; /* generator: how many events have been emitted */
     uint64_t applied; /* worker: how many events have been applied; atomic access */
+    /* The highest timestamp the reader has queued. Anything undelivered is above it. Atomic. */
+    uint64_t delivered_ts;
     uint32_t nth_workers;
 
     /* Per-worker-thread state; the reader fills the queue, the slot model is the generator's. */

@@ -69,6 +69,10 @@ evq_enqueue(WORKLOAD_STATE *state, const SCHEMA_EVENT *ev)
     EVENT_QUEUE *q = &state->workers[ev->thread_id].evq;
     while (!evq_push(q, ev) && workload_active(state, STAGE_WORKERS))
         __wt_sleep(0, WT_THOUSAND);
+
+    /* Publish the delivery once queued, so anything undelivered stays above it. */
+    if (ev->event_ts != 0)
+        __wt_atomic_store_uint64(&state->delivered_ts, ev->event_ts);
 }
 
 /*
