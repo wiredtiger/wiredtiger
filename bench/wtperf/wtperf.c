@@ -1256,7 +1256,7 @@ monitor(void *arg)
         cur_updates = (updates - last_updates) / opts->sample_interval;
 
         (void)fprintf(fp,
-          "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%c%" PRIu64
+          "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%c,%" PRIu64
           ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64
           ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n",
           buf, wtperf->totalsec, cur_inserts, cur_modifies, cur_reads, cur_updates,
