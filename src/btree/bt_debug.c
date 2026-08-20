@@ -533,8 +533,9 @@ __wt_debug_disagg_page_id(
                   "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
             else
                 __wt_errx(session,
-                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, page_id,
-                  lsn);
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64
+                  ": {REDACTED} (use -u to dump)",
+                  i, page_id, lsn);
             WT_TRET(WT_ERROR);
             continue;
         }
@@ -549,8 +550,9 @@ __wt_debug_disagg_page_id(
                   "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
             else
                 __wt_errx(session,
-                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, page_id,
-                  lsn);
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64
+                  ": {REDACTED} (use -u to dump)",
+                  i, page_id, lsn);
             WT_TRET(WT_ERROR);
             continue;
         }
@@ -579,9 +581,9 @@ err:
 /*
  * __wt_debug_disagg_page_id_raw --
  *     Fetch a page by (table_id, page_id, lsn) directly off the connection page log, without
- *     opening the table, and dump each result as raw bytes. Used when the checkpoint is unreadable
- *     so the table cannot be opened; without a btree the on-disk formats are unknown, so no attempt
- *     is made to decode page contents.
+ *     opening the table, and dump each result as raw bytes when unredacted. Used when the
+ *     checkpoint is unreadable so the table cannot be opened; without a btree the on-disk formats
+ *     are unknown, so no attempt is made to decode page contents.
  */
 int
 __wt_debug_disagg_page_id_raw(
@@ -614,7 +616,8 @@ __wt_debug_disagg_page_id_raw(
                   lsn);
             else
                 __wt_errx(session,
-                  "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}",
+                  "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64
+                  ": {REDACTED} (use -u to dump)",
                   count - 1, page_id, lsn);
         } else {
             if (unredact)
@@ -622,8 +625,9 @@ __wt_debug_disagg_page_id_raw(
                   "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
             else
                 __wt_errx(session,
-                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, count - 1,
-                  page_id, lsn);
+                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64
+                  ": {REDACTED} (use -u to dump)",
+                  i, count - 1, page_id, lsn);
         }
     }
 

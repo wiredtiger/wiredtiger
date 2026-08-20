@@ -157,7 +157,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         _, stderr = self._run_wt_page('-?')
         self.assertIn('-p page_id', stderr)
         self.assertIn('-l lsn', stderr)
-        self.assertIn('-u', stderr)
+        self.assertIn('unredact application data', stderr)
 
     def test_unknown_page_id(self):
         self._skip_if_not_diagnostic()
@@ -180,6 +180,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertEqual(self._assert_chain_header(stdout, page), 1)
         self.assertIn("- row-store ", stdout)
+        self.assertNotIn("secret_key", stdout)
         self.assertNotIn("s3cr3t_v4lue", stdout)
         self.assertIn("{REDACTED}", stdout)
 
@@ -190,12 +191,8 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         stdout, _ = self._run_wt_page(
             "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertEqual(self._assert_chain_header(stdout, page), 1)
+        self.assertIn("secret_key", stdout)
         self.assertIn("s3cr3t_v4lue", stdout)
-        # With -u nothing on this page should still show as redacted. If
-        # this fails while the secret IS present, it's likely an unrelated
-        # field legitimately printing "{REDACTED}" (e.g. a history-store or
-        # modify path) rather than an implementation bug — drop this line
-        # rather than chase it.
         self.assertNotIn("{REDACTED}", stdout)
 
     def test_delta_chain(self):
@@ -211,6 +208,10 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertIn("delta_op: update", stdout)
         self.assertNotIn("s3cr3t_v4lue_v2", stdout)
         self.assertIn("{REDACTED}", stdout)
+        # Marker from __debug_cell_delta_leaf's tagged "V" value dump: proves
+        # the delta path's own unredact gate is exercised, not just the base
+        # image's (the line above passes regardless of the delta gate).
+        self.assertIn("V: {REDACTED}", stdout)
 
     def test_delta_chain_unredact(self):
         self._skip_if_not_diagnostic()
@@ -223,6 +224,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertGreater(result_count, 1)
         self.assertIn("delta_op: update", stdout)
         self.assertIn("s3cr3t_v4lue_v2", stdout)
+        self.assertNotIn("{REDACTED}", stdout)
 
     def test_delta_chain_with_deletes(self):
         self._skip_if_not_diagnostic()

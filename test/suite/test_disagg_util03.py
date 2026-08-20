@@ -127,7 +127,7 @@ class test_disagg_util03(wttest.WiredTigerTestCase, suite_subprocess,
         self._populate()
         table_id, page_id, lsn = self._find_base_image_page()
         self.corrupt_checkpoint_metadata_page()
-        out, err = self._run_wt(
+        _, err = self._run_wt(
             'page', '-u', '-t', str(table_id), '-p', str(page_id), '-l', str(lsn))
         self.assertIn('proceeding with empty metadata', err)
         self.assertIn(f"base of 0 delta(s): page_id {page_id}", err)
