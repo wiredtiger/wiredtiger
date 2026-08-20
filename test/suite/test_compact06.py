@@ -79,9 +79,8 @@ class test_compact06(compact_util):
         # Background compaction should have skipped the HS file as it is less than 1MB.
         assert self.get_bg_compaction_files_skipped() == 1
 
-        # Enable background and configure it to run once. Don't use the helper function as the
-        # server may go to sleep before we have the time to check it is actually running.
-        self.session.compact(None, 'background=true,run_once=true')
+        # Enable background and configure it to run once.
+        self.turn_on_bg_compact('run_once=true')
 
         # Wait for background compaction to start and skip the HS file again.
         while self.get_bg_compaction_files_skipped() == 1:
