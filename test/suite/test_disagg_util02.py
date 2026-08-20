@@ -95,6 +95,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.session.begin_transaction()
         for i in range(self.nrows):
             c[f"k{i:08}"] = f"v{i:08}"
+        c["secret_key"] = "s3cr3t_v4lue"
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
         c.close()
         self.session.checkpoint()
@@ -106,20 +107,21 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.session.begin_transaction()
         for i in range(0, self.nrows, max(1, self.nrows // 8)):
             c[f"k{i:08}"] = f"V{i:08}"
+        c["secret_key"] = "s3cr3t_v4lue_v2"
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.ts_count))
         c.close()
         self.session.checkpoint()
 
-    # Find the newest page chain entry matching where_clause. Shells out to
-    # the sqlite3 binary built alongside palite; the system Python sqlite3
-    # may be too old to parse the palite schema.
-    def _find_page(self, where_clause, description):
+    # Find the page chain entry matching where_clause, highest order_by first.
+    # Shells out to the sqlite3 binary built alongside palite; the system
+    # Python sqlite3 may be too old to parse the palite schema.
+    def _find_page(self, where_clause, description, order_by="lsn DESC"):
         table_id = get_table_id(self.session, self.stable_uri)
         db = os.path.join(self.home, 'kv_home',
                           f'pages_{get_shard_id(table_id):02d}.db')
         sql = (f"SELECT page_id, lsn, base_lsn, backlink_lsn, flags "
                f"FROM pages WHERE table_id={table_id} AND {where_clause} "
-               f"ORDER BY lsn DESC LIMIT 1;")
+               f"ORDER BY {order_by} LIMIT 1;")
         sqlite_exe = os.path.join(wt_builddir, 'sqlite3')
         out = subprocess.run([sqlite_exe, '-json', db, sql],
                              capture_output=True, text=True, check=True).stdout
@@ -131,7 +133,11 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
                           r['backlink_lsn'], r['flags'])
 
     def _find_base_image_page(self):
-        return self._find_page("base_lsn=0 AND backlink_lsn=0", "base-image")
+        # Order by page size, not lsn: the root is written after (and is much
+        # smaller than) the leaf it points to, so "newest" would pick the
+        # root instead of the leaf holding the application data.
+        return self._find_page("base_lsn=0 AND backlink_lsn=0", "base-image",
+                                order_by="length(page_data) DESC")
 
     def _find_delta_page(self):
         return self._find_page(
@@ -150,6 +156,7 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         _, stderr = self._run_wt_page('-?')
         self.assertIn('-p page_id', stderr)
         self.assertIn('-l lsn', stderr)
+        self.assertIn('-u', stderr)
 
     def test_unknown_page_id(self):
         self._skip_if_not_diagnostic()
@@ -172,6 +179,23 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
             "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
         self.assertEqual(self._assert_chain_header(stdout, page), 1)
         self.assertIn("- row-store ", stdout)
+        self.assertNotIn("s3cr3t_v4lue", stdout)
+        self.assertIn("{REDACTED}", stdout)
+
+    def test_full_image_unredact(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        page = self._find_base_image_page()
+        stdout, _ = self._run_wt_page(
+            "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        self.assertEqual(self._assert_chain_header(stdout, page), 1)
+        self.assertIn("s3cr3t_v4lue", stdout)
+        # With -u nothing on this page should still show as redacted. If
+        # this fails while the secret IS present, it's likely an unrelated
+        # field legitimately printing "{REDACTED}" (e.g. a history-store or
+        # modify path) rather than an implementation bug — drop this line
+        # rather than chase it.
+        self.assertNotIn("{REDACTED}", stdout)
 
     def test_delta_chain(self):
         self._skip_if_not_diagnostic()
@@ -184,6 +208,20 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         self.assertGreater(result_count, 1)
         self.assertEqual(stdout.count("- delta page"), result_count - 1)
         self.assertIn("delta_op: update", stdout)
+        self.assertNotIn("s3cr3t_v4lue_v2", stdout)
+        self.assertIn("{REDACTED}", stdout)
+
+    def test_delta_chain_unredact(self):
+        self._skip_if_not_diagnostic()
+        self._populate()
+        self._dirty_and_checkpoint()
+        page = self._find_delta_page()
+        stdout, _ = self._run_wt_page(
+            "-u", "-p", str(page.page_id), "-l", str(page.lsn), self.stable_uri)
+        result_count = self._assert_chain_header(stdout, page)
+        self.assertGreater(result_count, 1)
+        self.assertIn("delta_op: update", stdout)
+        self.assertIn("s3cr3t_v4lue_v2", stdout)
 
     def test_delta_chain_with_deletes(self):
         self._skip_if_not_diagnostic()

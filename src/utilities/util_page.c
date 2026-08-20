@@ -20,9 +20,10 @@ usage(void)
       "required: numeric LSN (decimal or 0x-prefixed hex)", "-t table_id",
       "numeric table id to read directly off the page server without opening the table (use when "
       "the checkpoint is unreadable)",
-      "-?", "show this message", NULL, NULL};
+      "-u", "unredact application data when dumping the page", "-?", "show this message", NULL,
+      NULL};
 
-    util_usage("page -p page_id -l lsn [-t table_id] [uri]", "options:", options);
+    util_usage("page [-u] -p page_id -l lsn [-t table_id] [uri]", "options:", options);
     return (1);
 }
 
@@ -38,18 +39,19 @@ util_page(WT_SESSION *session, int argc, char *argv[])
     uint64_t lsn, page_id, table_id;
     int ch;
     char *uri;
-    bool have_lsn, have_page_id, have_table_id;
+    bool have_lsn, have_page_id, have_table_id, unredact;
 
     session_impl = (WT_SESSION_IMPL *)session;
     have_lsn = false;
     have_page_id = false;
     have_table_id = false;
+    unredact = false;
     lsn = 0;
     page_id = 0;
     table_id = 0;
     uri = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "l:p:t:?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "l:p:t:u?")) != EOF)
         switch (ch) {
         case 'l':
             if (util_str2num(session, __wt_optarg, true, &lsn) != 0)
@@ -65,6 +67,9 @@ util_page(WT_SESSION *session, int argc, char *argv[])
             if (util_str2num(session, __wt_optarg, true, &table_id) != 0)
                 return (usage());
             have_table_id = true;
+            break;
+        case 'u':
+            unredact = true;
             break;
         case '?':
             usage();
@@ -91,20 +96,21 @@ util_page(WT_SESSION *session, int argc, char *argv[])
      */
 #ifdef HAVE_DIAGNOSTIC
     if (have_table_id) {
-        ret = __wt_debug_disagg_page_id_raw(session_impl, table_id, page_id, lsn);
+        ret = __wt_debug_disagg_page_id_raw(session_impl, table_id, page_id, lsn, unredact);
     } else {
         if (argc != 1)
             return (usage());
         if ((uri = util_uri(session, *argv, "file")) == NULL)
             return (1);
         if ((ret = __wt_session_get_dhandle(session_impl, uri, NULL, NULL, 0)) == 0) {
-            ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL);
+            ret = __wt_debug_disagg_page_id(session_impl, page_id, lsn, NULL, unredact);
             WT_TRET(__wt_session_release_dhandle(session_impl));
         }
     }
 #else
     WT_UNUSED(have_table_id);
     WT_UNUSED(session_impl);
+    WT_UNUSED(unredact);
     fprintf(stderr,
       "%s: page: this subcommand requires a diagnostic build "
       "(rebuild WiredTiger with -DHAVE_DIAGNOSTIC=1)\n",

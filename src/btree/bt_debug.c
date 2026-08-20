@@ -54,7 +54,7 @@ static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *, uint32_t);
 static int __debug_disagg_image(
   WT_SESSION_IMPL *, uint64_t, WT_ITEM *, WT_ITEM **, const WT_PAGE_HEADER **);
 static int __debug_disk_delta(
-  WT_SESSION_IMPL *, const WT_PAGE_HEADER *, const WT_PAGE_HEADER *, const char *);
+  WT_SESSION_IMPL *, const WT_PAGE_HEADER *, const WT_PAGE_HEADER *, const char *, bool);
 static int __debug_modify(WT_DBG *, const uint8_t *);
 static int __debug_page(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *);
@@ -478,7 +478,7 @@ __debug_disagg_image(WT_SESSION_IMPL *session, uint64_t page_id, WT_ITEM *result
  */
 int
 __wt_debug_disagg_page_id(
-  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile)
+  WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, const char *ofile, bool unredact)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
     WT_BTREE *btree;
@@ -528,8 +528,13 @@ __wt_debug_disagg_page_id(
             __wt_errx(session,
               "wt page: result %u: magic 0x%02" PRIx8 " does not match expected 0x%02" PRIx8, i,
               swap.magic, expected_magic);
-            __wt_log_data_dump(session, results[i].data, size,
-              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            if (unredact)
+                __wt_log_data_dump(session, results[i].data, size,
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            else
+                __wt_errx(session,
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, page_id,
+                  lsn);
             WT_TRET(WT_ERROR);
             continue;
         }
@@ -539,8 +544,13 @@ __wt_debug_disagg_page_id(
               F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
               swap.checksum)) {
             __wt_errx(session, "wt page: result %u: header checksum mismatch", i);
-            __wt_log_data_dump(session, results[i].data, size,
-              "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            if (unredact)
+                __wt_log_data_dump(session, results[i].data, size,
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64, i, page_id, lsn);
+            else
+                __wt_errx(session,
+                  "corrupt result %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, page_id,
+                  lsn);
             WT_TRET(WT_ERROR);
             continue;
         }
@@ -549,11 +559,11 @@ __wt_debug_disagg_page_id(
         if (i == 0) {
             WT_ERR(__debug_disagg_image(
               session, page_id, &results[i], &base_decompressed, &base_display));
-            WT_TRET(__wti_debug_disk(session, base_display, ofile, false, false));
+            WT_TRET(__wti_debug_disk(session, base_display, ofile, unredact, false));
         } else {
             WT_ERR(__debug_disagg_image(
               session, page_id, &results[i], &delta_decompressed, &delta_display));
-            WT_TRET(__debug_disk_delta(session, base_display, delta_display, ofile));
+            WT_TRET(__debug_disk_delta(session, base_display, delta_display, ofile, unredact));
             __wt_scr_free(session, &delta_decompressed);
         }
     }
@@ -575,7 +585,7 @@ err:
  */
 int
 __wt_debug_disagg_page_id_raw(
-  WT_SESSION_IMPL *session, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+  WT_SESSION_IMPL *session, uint64_t table_id, uint64_t page_id, uint64_t lsn, bool unredact)
 {
     WT_DECL_RET;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
@@ -596,13 +606,26 @@ __wt_debug_disagg_page_id_raw(
       get_args.backlink_checkpoint_id, get_args.delta_count));
     WT_ERR(__wt_msg(session, "results: count=%u", count));
 
-    for (i = 0; i < count; i++)
-        if (i == 0)
-            __wt_log_data_dump(session, results[i].data, results[i].size,
-              "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64, count - 1, page_id, lsn);
-        else
-            __wt_log_data_dump(session, results[i].data, results[i].size,
-              "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
+    for (i = 0; i < count; i++) {
+        if (i == 0) {
+            if (unredact)
+                __wt_log_data_dump(session, results[i].data, results[i].size,
+                  "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64, count - 1, page_id,
+                  lsn);
+            else
+                __wt_errx(session,
+                  "base of %u delta(s): page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}",
+                  count - 1, page_id, lsn);
+        } else {
+            if (unredact)
+                __wt_log_data_dump(session, results[i].data, results[i].size,
+                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64, i, count - 1, page_id, lsn);
+            else
+                __wt_errx(session,
+                  "delta %u of %u: page_id %" PRIu64 ", lsn %" PRIu64 ": {REDACTED}", i, count - 1,
+                  page_id, lsn);
+        }
+    }
 
 err:
     for (i = 0; i < WT_ELEMENTS(results); i++)
@@ -988,7 +1011,7 @@ __debug_cell_delta_int(WT_DBG *ds, WT_CELL_UNPACK_DELTA_INT *unpack)
  */
 static int
 __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
-  const WT_PAGE_HEADER *delta_dsk, const char *ofile)
+  const WT_PAGE_HEADER *delta_dsk, const char *ofile, bool unredact)
 {
     WT_DBG *ds, _ds;
     WT_DECL_RET;
@@ -996,7 +1019,7 @@ __debug_disk_delta(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *base_dsk,
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
     ds = &_ds;
-    WT_RET(__debug_config(session, ds, ofile, 0));
+    WT_RET(__debug_config(session, ds, ofile, unredact ? WT_DEBUG_UNREDACT_ALL : 0));
 
     WT_ERR(ds->f(ds,
       "- delta page (underlying: %s)\n"
