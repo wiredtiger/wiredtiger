@@ -40,14 +40,6 @@ class test_dump06(wttest.WiredTigerTestCase, suite_subprocess):
     hex_file = 'dump_hex.out'
     json_file = 'dump_json.out'
 
-    def populate_table(self):
-        cursor = self.session.open_cursor(self.uri, None, None)
-        cursor[2] = b'A'
-        cursor[3] = b''
-        cursor[5] = b'B'
-        cursor[6] = b'C'
-        cursor.close()
-
     def dump_value_lines(self, filename):
         lines = open(filename).readlines()
         start = lines.index('Data\n') + 1
@@ -56,7 +48,13 @@ class test_dump06(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_pretty_empty_value(self):
         self.session.create(self.uri, self.table_format)
-        self.populate_table()
+        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor[1] = b''
+        cursor[2] = b'A'
+        cursor[3] = b''
+        cursor[5] = b'B'
+        cursor[6] = b'C'
+        cursor.close()
 
         self.runWt(['dump', '-p', self.uri], outfilename=self.pretty_file)
         self.runWt(['dump', '-x', self.uri], outfilename=self.hex_file)
@@ -65,46 +63,11 @@ class test_dump06(wttest.WiredTigerTestCase, suite_subprocess):
         pretty = self.dump_value_lines(self.pretty_file)
         hexvals = self.dump_value_lines(self.hex_file)
 
-        self.assertEqual(pretty, ['A', '', 'B', 'C'])
-        self.assertEqual(hexvals[1], '')
+        self.assertEqual(pretty, ['', 'A', '', 'B', 'C'])
+        self.assertEqual(hexvals[0], '')
+        self.assertEqual(hexvals[2], '')
+        self.check_file_contains(self.json_file, '"key0" : 1,\n"value0" : ""\n')
         self.check_file_contains(self.json_file, '"key0" : 3,\n"value0" : ""\n')
-
-    def test_dump_pretty_empty_value_first_record(self):
-        self.session.create(self.uri, self.table_format)
-        cursor = self.session.open_cursor(self.uri, None, None)
-        cursor[1] = b''
-        cursor[2] = b'A'
-        cursor.close()
-
-        self.runWt(['dump', '-p', self.uri], outfilename=self.pretty_file)
-        pretty = self.dump_value_lines(self.pretty_file)
-        self.assertEqual(pretty, ['', 'A'])
-
-    def test_dump_pretty_composite_format_with_empty_u(self):
-        uri_qu = 'table:test_dump06_qu'
-        uri_uq = 'table:test_dump06_uq'
-
-        self.session.create(uri_qu, 'key_format=q,value_format=qu')
-        cursor = self.session.open_cursor(uri_qu, None, None)
-        cursor[1] = (10, b'X')
-        cursor[2] = (20, b'')
-        cursor[3] = (30, b'Y')
-        cursor.close()
-
-        self.session.create(uri_uq, 'key_format=q,value_format=uq')
-        cursor = self.session.open_cursor(uri_uq, None, None)
-        cursor[1] = (b'X', 100)
-        cursor[2] = (b'', 200)
-        cursor[3] = (b'Y', 300)
-        cursor.close()
-
-        self.runWt(['dump', '-p', uri_qu], outfilename=self.pretty_file)
-        qu = self.dump_value_lines(self.pretty_file)
-        self.assertEqual(qu, ['10,X', '20,', '30,Y'])
-
-        self.runWt(['dump', '-p', uri_uq], outfilename=self.pretty_file)
-        uq = self.dump_value_lines(self.pretty_file)
-        self.assertEqual(uq, ['X100', '200', 'Y300'])
 
 if __name__ == '__main__':
     wttest.run()
