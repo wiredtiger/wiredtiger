@@ -27,11 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 
 # Repeatedly create and drop indices
-class test_schema06(TieredConfigMixin, wttest.WiredTigerTestCase):
+class test_schema06(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
@@ -41,8 +40,7 @@ class test_schema06(TieredConfigMixin, wttest.WiredTigerTestCase):
         ('normal', { 'type': 'normal', 'idx_config' : '' }),
     ]
 
-    tiered_storage_sources = gen_tiered_storage_sources()
-    scenarios = make_scenarios(tiered_storage_sources, types)
+    scenarios = make_scenarios(types)
 
     def flip(self, inum, val):
         """

@@ -26,17 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# Tests import of tiered tables using backup:export cursor and metadata_file import option.
+# Tests import using backup:export cursor and metadata_file import option.
 #
 
-import glob, os, random, re, shutil, string
-import wiredtiger, wttest
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
-from wtscenario import make_scenarios
+import glob, os, random, shutil, string
+import wttest
 from wiredtiger import stat
 
 # Shared base class used by import tests.
-class test_import_base(TieredConfigMixin, wttest.WiredTigerTestCase):
+class test_import_base(wttest.WiredTigerTestCase):
 
     # Insert or update a key/value at the supplied timestamp.
     def update(self, uri, key, value, ts):
@@ -86,22 +84,13 @@ class test_import_base(TieredConfigMixin, wttest.WiredTigerTestCase):
                 shutil.copy(file, dest_dir)
 
     def copy_files(self, src_dir, dest_dir):
-        self.copy_files_by_pattern('*.wtobj', src_dir, dest_dir)
         self.copy_files_by_pattern('*.wt', src_dir, dest_dir)
-
-    def checkpoint_and_flush_tier(self):
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled)')
-        else:
-            self.session.checkpoint()
 
 # test_import11
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_import11(test_import_base):
     uri_a = 'table:test_a'
     uri_b = 'table:test_b'
-    bucket = 'bucket1'
-    cache_bucket = 'cache-bucket1'
 
     nrows = 100
     ntables = 10
@@ -110,12 +99,7 @@ class test_import11(test_import_base):
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
     create_config = 'allocation_size=512,key_format=u,value_format=u'
-
-    tiered_storage_sources = gen_tiered_storage_sources()
-    scenarios = make_scenarios(tiered_storage_sources)
-
-    def conn_config(self):
-        return self.tiered_conn_config() + ',statistics=(all)'
+    conn_config = 'statistics=(all)'
 
     def create_and_populate(self, uri):
         self.session.create(uri, self.create_config)
@@ -125,14 +109,14 @@ class test_import11(test_import_base):
         max_idx = len(self.keys) // 3
         for i in range(min_idx, max_idx):
             self.update(uri, self.keys[i], self.values[i], self.ts[i])
-        self.checkpoint_and_flush_tier()
+        self.session.checkpoint()
 
         # Add more data and checkpoint again.
         min_idx = max_idx
         max_idx = 2*len(self.keys) // 3
         for i in range(min_idx, max_idx):
             self.update(uri, self.keys[i], self.values[i], self.ts[i])
-        self.checkpoint_and_flush_tier()
+        self.session.checkpoint()
 
         return max_idx
 
@@ -155,60 +139,26 @@ class test_import11(test_import_base):
 
         # Make a bunch of files and fill them with data.
         self.populate(self.ntables, self.nrows)
-        self.checkpoint_and_flush_tier()
+        self.session.checkpoint()
 
         # Bring forward the oldest to be past or equal to the timestamps we'll be importing.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[max_idx]))
 
         # Copy over the datafiles for the object we want to import.
         self.copy_files('.', newdir)
-        self.copy_files(self.bucket, os.path.join(newdir, self.bucket))
-        self.copy_files(self.cache_bucket, os.path.join(newdir, self.cache_bucket))
-
-        # Export the metadata for the current file object 2.
-        table_config=""
-        meta_c = self.session.open_cursor('metadata:', None, None)
-        for k, v in meta_c:
-            if k.startswith(self.uri_a):
-                table_config = cursor[k]
-        meta_c.close()
-
-        # The file_metadata configuration should not be allowed in the tiered storage scenario.
-        if self.is_tiered_scenario():
-            msg = "/import for tiered storage is incompatible with the 'file_metadata' setting/"
-
-            # Test we cannot use the file_metadata with a tiered table.
-            invalid_config = 'import=(enabled,repair=false,file_metadata=(' + table_config + '))'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_config), msg)
-            failed_imports = self.get_stat(stat.conn.session_table_create_import_fail)
-            self.assertTrue(failed_imports == 1)
-
-            # Test we cannot use the file_metadata with a tiered table and an export file.
-            invalid_config = 'import=(enabled,repair=false,file_metadata=(' + table_config + '),metadata_file="WiredTiger.export")'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_config), msg)
-            failed_imports = self.get_stat(stat.conn.session_table_create_import_fail)
-            self.assertTrue(failed_imports == 2)
-
-            msg = "/Invalid argument/"
-
-            # Test importing a tiered table with no import configuration.
-            invalid_config = 'import=(enabled,repair=false)'
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.create(self.uri_a, invalid_config), msg)
-            failed_imports = self.get_stat(stat.conn.session_table_create_import_fail)
-            self.assertTrue(failed_imports == 3)
 
         import_config = 'import=(enabled,repair=false,metadata_file="WiredTiger.export")'
 
         # Import the files.
         self.session.create(self.uri_a, import_config)
-        self.checkpoint_and_flush_tier()
+        self.session.checkpoint()
 
         # Check the number of files imported after doing an import operation.
         files_imported_prev = self.get_stat(stat.conn.session_table_create_import_success)
         self.assertTrue(files_imported_prev == 1)
 
         self.session.create(self.uri_b, import_config)
-        self.checkpoint_and_flush_tier()
+        self.session.checkpoint()
 
         # Check the number of files imported has increased after doing another import operation.
         files_imported = self.get_stat(stat.conn.session_table_create_import_success)
@@ -217,10 +167,6 @@ class test_import11(test_import_base):
         # Remove WiredTiger.export file.
         export_file_path = os.path.join('IMPORT_DB', 'WiredTiger.export')
         os.remove(export_file_path)
-
-        # FIXME verification is disabled because it fails on tiered storage.
-        # Verify object.
-        #self.verifyUntilSuccess(self.session, self.uri_a, None)
 
         # Check that the previously inserted values survived the import.
         self.check(self.uri_a, self.keys[:max_idx], self.values[:max_idx])
@@ -234,4 +180,4 @@ class test_import11(test_import_base):
         self.check(self.uri_a, self.keys, self.values)
 
         # Perform a checkpoint.
-        self.checkpoint_and_flush_tier()
+        self.session.checkpoint()

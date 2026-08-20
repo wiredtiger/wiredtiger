@@ -33,19 +33,16 @@
 #   directory, and then performing operation on the backup directory.
 
 from helper import copy_wiredtiger_home
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
 from wtscenario import make_scenarios
 import os, shutil, wttest
 
-class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
+class test_export01(wttest.WiredTigerTestCase):
     dir = 'backup.dir'
 
     types = [
         ('table', dict(type = 'table:')),
     ]
-    tiered_storage_sources = gen_tiered_storage_sources()
-
-    scenarios = make_scenarios(tiered_storage_sources, types)
+    scenarios = make_scenarios(types)
 
     def test_export(self):
         uri_a = self.type + "exporta"
@@ -71,9 +68,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         c3.close()
 
         self.session.checkpoint()
-
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled)')
 
         # Open a special backup cursor for export operation.
         export_cursor = self.session.open_cursor('backup:export', None, None)
@@ -111,9 +105,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled)')
-
         # Open a special backup cursor for export operation.
         main_cursor = self.session.open_cursor('backup:export', None, None)
 
@@ -138,9 +129,6 @@ class test_export01(TieredConfigMixin, wttest.WiredTigerTestCase):
         c6.close()
 
         self.session.checkpoint()
-
-        if self.is_tiered_scenario():
-            self.session.checkpoint('flush_tier=(enabled,force=true)')
 
         self.session.drop(uri_b)
 
