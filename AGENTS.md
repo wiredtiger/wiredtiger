@@ -126,7 +126,6 @@ A single green run is not evidence. Before submitting:
 
 1. **Confirm the test fails without the fix.** A test that cannot fail is worse than no test.
 2. **Run it repeatedly** — `for i in $(seq 100); do python3 ../test/suite/run.py <test> || break; done` — for anything touching background threads.
-3. **Run an Evergreen patch build.** The ASan, TSan, and slower variants are where timing assumptions break, and they are not reproducible locally.
 
 ### Style
 
