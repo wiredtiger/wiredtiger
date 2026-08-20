@@ -41,7 +41,9 @@ static const char *const __stats_dsrc_desc[] = {
   "btree-size: leaf page-size histogram bucket 5",
   "btree-size: leaf page-size histogram bucket 6",
   "btree-size: leaf page-size histogram bucket 7",
-  "btree-size: leaf page-size histogram bucket 8 (>= maximum leaf page size)",
+  "btree-size: leaf page-size histogram bucket 8 (>= pre-compression leaf page budget)",
+  "btree-size: leaf page-size histogram bucket count",
+  "btree-size: leaf page-size histogram ceiling",
   "btree-size: leaf pages",
   "btree-size: overflow page bytes",
   "btree-size: overflow pages",
@@ -555,6 +557,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_size_leaf_hist_6 = 0;
     stats->btree_size_leaf_hist_7 = 0;
     stats->btree_size_leaf_hist_8 = 0;
+    stats->btree_size_leaf_hist_buckets = 0;
+    stats->btree_size_leaf_hist_ceiling = 0;
     stats->btree_size_leaf_pages = 0;
     stats->btree_size_overflow_bytes = 0;
     stats->btree_size_overflow_pages = 0;
@@ -1014,6 +1018,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_size_leaf_hist_6 += from->btree_size_leaf_hist_6;
     to->btree_size_leaf_hist_7 += from->btree_size_leaf_hist_7;
     to->btree_size_leaf_hist_8 += from->btree_size_leaf_hist_8;
+    if (from->btree_size_leaf_hist_buckets > to->btree_size_leaf_hist_buckets)
+        to->btree_size_leaf_hist_buckets = from->btree_size_leaf_hist_buckets;
+    if (from->btree_size_leaf_hist_ceiling > to->btree_size_leaf_hist_ceiling)
+        to->btree_size_leaf_hist_ceiling = from->btree_size_leaf_hist_ceiling;
     to->btree_size_leaf_pages += from->btree_size_leaf_pages;
     to->btree_size_overflow_bytes += from->btree_size_overflow_bytes;
     to->btree_size_overflow_pages += from->btree_size_overflow_pages;
@@ -1507,6 +1515,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_size_leaf_hist_6 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_6);
     to->btree_size_leaf_hist_7 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_7);
     to->btree_size_leaf_hist_8 += WT_STAT_DSRC_READ(from, btree_size_leaf_hist_8);
+    if ((v = WT_STAT_DSRC_READ(from, btree_size_leaf_hist_buckets)) >
+      to->btree_size_leaf_hist_buckets)
+        to->btree_size_leaf_hist_buckets = v;
+    if ((v = WT_STAT_DSRC_READ(from, btree_size_leaf_hist_ceiling)) >
+      to->btree_size_leaf_hist_ceiling)
+        to->btree_size_leaf_hist_ceiling = v;
     to->btree_size_leaf_pages += WT_STAT_DSRC_READ(from, btree_size_leaf_pages);
     to->btree_size_overflow_bytes += WT_STAT_DSRC_READ(from, btree_size_overflow_bytes);
     to->btree_size_overflow_pages += WT_STAT_DSRC_READ(from, btree_size_overflow_pages);
@@ -2210,6 +2224,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips ingest btrees in disagg",
   "cache: eviction server skips internal pages as it has an active child",
   "cache: eviction server skips metadata pages with history",
+  "cache: eviction server skips pages on an outdated disaggregated read-only btree that a reader "
+  "still has open",
   "cache: eviction server skips pages that are written with transactions greater than the "
   "checkpoint timestamp",
   "cache: eviction server skips pages that are written with transactions greater than the last "
@@ -3363,6 +3379,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_ingest_trees = 0;
     stats->eviction_server_skip_intl_page_with_active_child = 0;
     stats->eviction_server_skip_metatdata_with_history = 0;
+    stats->eviction_server_skip_stale_disagg_pages = 0;
     stats->eviction_server_skip_pages_checkpoint_timestamp = 0;
     stats->eviction_server_skip_pages_last_running = 0;
     stats->eviction_server_skip_pages_prune_timestamp = 0;
@@ -4502,6 +4519,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_intl_page_with_active_child);
     to->eviction_server_skip_metatdata_with_history +=
       WT_STAT_CONN_READ(from, eviction_server_skip_metatdata_with_history);
+    to->eviction_server_skip_stale_disagg_pages +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_stale_disagg_pages);
     to->eviction_server_skip_pages_checkpoint_timestamp +=
       WT_STAT_CONN_READ(from, eviction_server_skip_pages_checkpoint_timestamp);
     to->eviction_server_skip_pages_last_running +=

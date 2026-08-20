@@ -1106,8 +1106,12 @@ __txn_prepare_rollback_restore_hs_update(
             break;
     }
 
-    /* Append the update to the end of the chain. */
-    __wt_atomic_store_ptr_relaxed(&upd_chain->next, upd);
+    /*
+     * Append the update to the end of the chain. Readers walk this chain with relaxed loads, so the
+     * link must be published with a release store to order it after the update's initializing
+     * stores above.
+     */
+    __wt_atomic_store_ptr_release(&upd_chain->next, upd);
 
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
@@ -1207,7 +1211,11 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UP
     while (upd_chain->next != NULL)
         upd_chain = upd_chain->next;
 
-    __wt_atomic_store_ptr_relaxed(&upd_chain->next, tombstone);
+    /*
+     * Readers walk this chain with relaxed loads, so the link must be published with a release
+     * store to order it after the tombstone's initializing stores above.
+     */
+    __wt_atomic_store_ptr_release(&upd_chain->next, tombstone);
 
     __wt_cache_page_inmem_incr(session, page, size, false);
 
