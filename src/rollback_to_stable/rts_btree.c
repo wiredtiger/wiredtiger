@@ -113,7 +113,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * holds a value that no longer belongs there, even though an earlier write may have already
          * marked the stable update as written.
          */
-        if (!dryrun)
+        if (!dryrun && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
             F_CLR(stable_upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE);
 
         /*
