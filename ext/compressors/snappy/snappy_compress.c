@@ -160,6 +160,12 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *sr
 
     wt_api = ((SNAPPY_COMPRESSOR *)compressor)->wt_api;
 
+    if (src_len < SNAPPY_PREFIX) {
+        (void)wt_api->err_printf(
+          wt_api, session, "WT_COMPRESSOR.decompress: source size is smaller than the size prefix");
+        return (WT_ERROR);
+    }
+
     /*
      * Retrieve the saved length, handling little- to big-endian conversion as necessary.
      */
@@ -167,7 +173,13 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *sr
 #ifdef WORDS_BIGENDIAN
     snaplen = snappy_bswap64(snaplen);
 #endif
-    if (snaplen + SNAPPY_PREFIX > src_len) {
+
+    /*
+     * The stored length is only as trustworthy as the bytes on disk, so bound it with a
+     * subtraction: adding the prefix wraps for stored lengths within SNAPPY_PREFIX of UINT64_MAX,
+     * which would hand the decompressor an input limit far beyond the end of the block.
+     */
+    if (snaplen > src_len - SNAPPY_PREFIX) {
         (void)wt_api->err_printf(
           wt_api, session, "WT_COMPRESSOR.decompress: stored size exceeds source size");
         return (WT_ERROR);
