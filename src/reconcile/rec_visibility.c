@@ -265,8 +265,9 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
         append->upd_durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
         /*
-         * A stop in the disk image can be rolled back, which brings the value below it back to
-         * life, so only mark the value durable when nothing above it can disappear.
+         * A fuzzy checkpoint writes a stop that is newer than the stable timestamp, so rollback to
+         * stable can take that stop away and bring the value below it back to life. Only mark the
+         * value durable when there is no stop above it to disappear.
          */
         if (is_disagg && !WT_TIME_WINDOW_HAS_STOP(&unpack->tw))
             F_SET(append, WT_UPDATE_DURABLE);
