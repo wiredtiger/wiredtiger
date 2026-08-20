@@ -413,7 +413,7 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
     new_image->size += packed_size;
 
     /*
-     * Remember the full key for the next prefix compression comparison. The first pfx bytes
+     * Remember the full key for the next prefix compression comparison. The first prefix bytes
      * already match what's stored in last_key, so only copy the suffix.
      */
     if (btree->prefix_compression) {
