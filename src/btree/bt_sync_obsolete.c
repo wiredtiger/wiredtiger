@@ -907,8 +907,8 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_checkpoint_cleanup_start --
- *     Start the checkpoint cleanup thread if it isn't running. The session and condition variable
- *     persist across a stop, so a stopped server can be started again.
+ *     Start the checkpoint cleanup thread if it isn't running. All the WT_CHECKPOINT_CLEANUP
+ *     components except the thread persist across the stop, so the thread can be restarted.
  */
 int
 __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
@@ -934,8 +934,8 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
 
 /*
  * __wt_checkpoint_cleanup_stop --
- *     Stop the checkpoint cleanup thread, keeping the session and condition variable so it can be
- *     started again.
+ *     Stop the checkpoint cleanup thread, keeping the WT_CHECKPOINT_CLEANUP components intact
+ *     (except the thread itself) so the thread can be restarted.
  */
 int
 __wt_checkpoint_cleanup_stop(WT_SESSION_IMPL *session)
