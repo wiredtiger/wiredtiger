@@ -137,6 +137,8 @@ struct __wt_ckpt_block_mods;
 typedef struct __wt_ckpt_block_mods WT_CKPT_BLOCK_MODS;
 struct __wt_ckpt_connection;
 typedef struct __wt_ckpt_connection WT_CKPT_CONNECTION;
+struct __wt_ckpt_eviction_snap;
+typedef struct __wt_ckpt_eviction_snap WT_CKPT_EVICTION_SNAP;
 struct __wt_ckpt_session;
 typedef struct __wt_ckpt_session WT_CKPT_SESSION;
 struct __wt_ckpt_snapshot;
@@ -233,6 +235,8 @@ struct __wt_dhandle_clear_event;
 typedef struct __wt_dhandle_clear_event WT_DHANDLE_CLEAR_EVENT;
 struct __wt_dhandle_clear_log;
 typedef struct __wt_dhandle_clear_log WT_DHANDLE_CLEAR_LOG;
+struct __wt_disagg_deferred_ckpt;
+typedef struct __wt_disagg_deferred_ckpt WT_DISAGG_DEFERRED_CKPT;
 struct __wt_disagg_metadata_op;
 typedef struct __wt_disagg_metadata_op WT_DISAGG_METADATA_OP;
 struct __wt_disagg_pending_crypt_key;
@@ -375,8 +379,6 @@ struct __wt_prefetch_queue_entry;
 typedef struct __wt_prefetch_queue_entry WT_PREFETCH_QUEUE_ENTRY;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
-struct __wt_reconcile_stats;
-typedef struct __wt_reconcile_stats WT_RECONCILE_STATS;
 struct __wt_reconcile_timeline;
 typedef struct __wt_reconcile_timeline WT_RECONCILE_TIMELINE;
 struct __wt_recovery_timeline;
@@ -627,6 +629,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
+#include "../reconcile/reconcile.h"
 #include "../evict/evict.h"
 #include "capacity.h"
 #include "cell.h"
@@ -647,7 +650,6 @@ typedef uint64_t wt_timestamp_t;
 #include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
-#include "../reconcile/reconcile.h"
 #include "rollback_to_stable.h"
 #include "schema.h"
 #include "tiered.h"

@@ -145,6 +145,13 @@ __sweep_close_dhandle_locked(WT_SESSION_IMPL *session)
     WT_ASSERT(session, FLD_ISSET(dhandle->lock_flags, WT_DHANDLE_LOCK_WRITE));
 
     /*
+     * A tree awaiting publication holds the only copy of its contents, and that state cannot be
+     * recovered once the handle is closed.
+     */
+    if (btree != NULL && F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH))
+        return (0);
+
+    /*
      * Sweep only closes clean trees, with one exception: an ingest btree whose entire contents are
      * known to be durable in the stable table.
      */
@@ -554,7 +561,8 @@ __sweep_server(void *arg)
         __sweep_check_session_sweep(session, now);
 
         /* On a stepped-up leader, mark the shared disk cache dead once its reuse window elapses. */
-        if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
+        if (__wt_conn_is_disagg(session) &&
+          __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) &&
           __wt_atomic_load_uint8_acquire(&conn->cache->shared_dsk_cache.state) ==
             WT_DSK_CACHE_READONLY) {
             uint64_t readonly_since =

@@ -16,7 +16,8 @@
 static WT_INLINE bool
 __prepared_discover_is_follower_stable_walk(WT_SESSION_IMPL *session, const char *uri)
 {
-    return (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader &&
+    return (__wt_conn_is_disagg(session) &&
+      !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
       WT_URI_IS_STABLE(uri));
 }
 
@@ -317,12 +318,14 @@ __prepared_discover_tree_walk_skip(
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK_ADDR vpack;
+    WT_PAGE *home;
     WT_PAGE_DELETED *page_del;
     WT_TIME_AGGREGATE *ta;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
     addr = ref->addr;
+    home = (WT_PAGE *)__wt_atomic_load_ptr_relaxed(&ref->home);
 
     *skipp = false; /* Default to reading */
 
@@ -360,9 +363,9 @@ __prepared_discover_tree_walk_skip(
     /*
      * Check whether this on-disk page or it's children has any prepared content.
      */
-    if (!__wt_off_page(ref->home, addr)) {
+    if (!__wt_off_page(home, addr)) {
         /* Check if the page is obsolete using the page disk address. */
-        __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
+        __wt_cell_unpack_addr(session, home->dsk, (WT_CELL *)addr, &vpack);
         /* Retrieve the time aggregate from the unpacked address cell. */
         __wt_cell_get_ta(&vpack, &ta);
         if (!ta->prepare)
@@ -442,8 +445,8 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
-        /* Only interested in btree handles that aren't the metadata */
-        if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
+        /* Only interested in btree handles that aren't a metadata tree */
+        if (!WT_BTREE_PREFIX(uri) || WT_IS_URI_METADATA(uri))
             continue;
         WT_ERR_NOTFOUND_OK(cursor->get_value(cursor, &config), true);
         if (ret == WT_NOTFOUND)

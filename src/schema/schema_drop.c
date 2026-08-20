@@ -72,7 +72,8 @@ __drop_file(
      */
     WT_ERR(ret);
     if (id_found && !F_ISSET(conn, WT_CONN_IN_MEMORY) && F_ISSET_ATOMIC_32(conn, WT_CONN_READY) &&
-      (!__wt_conn_is_disagg(session) || conn->layered_table_manager.leader ||
+      (!__wt_conn_is_disagg(session) ||
+        __wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
         !WT_BTREE_ID_SHARED(id)))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
@@ -186,7 +187,10 @@ __drop_layered(
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
+    char *stable_value;
     const char *ingest_uri, *stable_uri, *tablename;
+
+    stable_value = NULL;
 
     WT_UNUSED(force);
 
@@ -202,24 +206,42 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    /* Only the leader can issue a trim command. */
-    if (S2C(session)->layered_table_manager.leader)
-        WT_ERR(__drop_issue_trim(session, stable_uri));
-
-    /* Remove all the associated metadata from shared metadata table. */
-    WT_SAVE_DHANDLE(session,
-      ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true));
-    WT_ERR(ret);
+    /*
+     * Only the leader can issue a trim command, and only for a constituent that exists: a table
+     * created after the step-down timestamp was set has no stable pages to trim. The schema lock
+     * held here serializes the timestamp, making the relaxed loads safe.
+     */
+    if (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader)) {
+        WT_ERR_ERROR_OK(__drop_issue_trim(session, stable_uri), ENOENT, true);
+        if (WT_CHECK_AND_RESET(ret, ENOENT) &&
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) ==
+            WT_TS_NONE)
+            WT_ERR_MSG(session, ENOENT,
+              "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri,
+              uri);
+    }
 
     /*
-     * Drop the layered table constituents. The stable table may not exist locally on a follower
-     * (followers don't create stable tables); that is fine because the shared metadata removal is
-     * handled by the enqueued REMOVE operation. Leaders always have the stable constituent, so
-     * treat ENOENT as an error for them.
+     * Snapshot the stable table's configuration before the local metadata is removed. The shared
+     * metadata REMOVE enqueued below needs it for drop-size accounting, and by then the local rows
+     * are gone. The stable table may have no local row on a follower or for a table created after
+     * the step-down timestamp was set.
+     *
+     * FIXME-WT-18322: Read the size from the shared metadata table when the REMOVE is applied,
+     * removing the need for this snapshot.
+     */
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, stable_uri, &stable_value), false);
+
+    /*
+     * Drop the layered table constituents. The stable table may not exist locally: a follower never
+     * creates one, and neither does a leader for a table created after the step-down timestamp was
+     * set. Either way the shared metadata removal is handled by the enqueued REMOVE operation. A
+     * leader outside that window always has the constituent, so treat ENOENT as an error there.
      */
     WT_ERR_ERROR_OK(__wt_schema_drop(session, stable_uri, cfg, check_visibility), ENOENT, true);
-    if (WT_CHECK_AND_RESET(ret, ENOENT) && S2C(session)->layered_table_manager.leader)
+    if (WT_CHECK_AND_RESET(ret, ENOENT) &&
+      __wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader) &&
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.step_down_timestamp) == WT_TS_NONE)
         WT_ERR_MSG(session, ENOENT,
           "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri, uri);
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
@@ -234,9 +256,20 @@ __drop_layered(
      * No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
 
+    /*
+     * Remove all the associated metadata from the shared metadata table. The queue entry is outside
+     * metadata tracking, so enqueue it only after the local drop can no longer fail. Should the
+     * enqueue itself fail, metadata tracking unrolls the local drop, keeping both sides consistent.
+     */
+    WT_SAVE_DHANDLE(session,
+      ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
+        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, stable_value));
+    WT_ERR(ret);
+
 err:
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
+    __wt_free(session, stable_value);
 
     return (ret);
 }

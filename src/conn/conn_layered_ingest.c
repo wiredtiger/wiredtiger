@@ -133,29 +133,26 @@ static int
 __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_RET;
-#ifdef WT_STANDALONE_BUILD
     uint32_t orig_flags;
-#endif
 
     WT_ASSERT(session, WT_URI_IS_INGEST(uri));
 
     /*
      * Clearing the ingest table is final and owned by no transaction. The session flag makes the
      * truncate write globally visible tombstones that are immediately visible to every reader.
+     * Ignoring the cache size ensures the scan completes during step-up rather than being rolled
+     * back by application eviction.
+     *
+     * FIXME-WT-18058: Replace the whole-table clear with incremental per-page draining.
+     * FIXME-WT-18381: Remove the ignore cache size flag once the draining cache stuck is fixed.
      */
-#ifdef WT_STANDALONE_BUILD
-    /* FIXME-WT-18058: Replace the whole-table clear with incremental per-page draining. */
-    /* The scan must complete during step-up rather than be rolled back by application eviction. */
     orig_flags = F_MASK(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
-#endif
     F_SET(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
     ret = session->iface.truncate(&session->iface, uri, NULL, NULL, NULL);
     F_CLR(session, WT_SESSION_NON_TRANSACTIONAL_TRUNCATE);
-#ifdef WT_STANDALONE_BUILD
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
     F_SET(session, orig_flags);
-#endif
 
     return (ret);
 }
@@ -328,6 +325,7 @@ __layered_fix_prepared_transaction_callback(
         op->u.op_upd->txnid = WT_TXN_ABORTED;
         /* Point the operation to the stable btree. */
         op->btree = cookie->stable_btree;
+        WT_ASSERT(session, WT_URI_IS_STABLE(op->btree->dhandle->name));
 
         /*
          * Transfer the session_inuse reference from the ingest btree to the stable btree. The
@@ -541,6 +539,13 @@ __layered_copy_ingest_table(
                                 (durable_start_ts > from_ts && durable_start_ts <= to_ts);
         if (in_ts_range) {
             /*
+             * Drained updates bypass the commit path that tracks the unpublished minimum, so do it
+             * here.
+             */
+            if (F_ISSET_ATOMIC_32(stable_btree, WT_BTREE_AWAITS_PUBLISH))
+                __wt_btree_update_unpublished_min(stable_btree, durable_start_ts);
+
+            /*
              * If the "preserve prepared" option is enabled and the ingest btree contains a resolved
              * prepared update for this key whose prepared timestamp is less than or equal to the
              * last checkpoint timestamp, the stable btree must still contain an unresolved prepared
@@ -616,8 +621,14 @@ __layered_copy_ingest_table(
                  */
                 if (__wt_clayered_deleted(value))
                     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                else
+                else {
+                    /*
+                     * The ingest value is tombstone-escaped; store it in the stable table's form so
+                     * an unescaped stable table does not inherit the encoding on disk.
+                     */
+                    __wt_clayered_ingest_to_stable_value(session, value);
                     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+                }
                 /*
                  * If the prepared update is aborted, move the aborted update to the stable table
                  * because we may write a prepared update to the disk in a future reconciliation.

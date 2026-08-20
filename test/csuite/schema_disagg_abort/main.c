@@ -55,22 +55,23 @@ query_ts(WT_CONNECTION *conn, const char *name)
 }
 
 /*
- * set_ts --
- *     Set one of the connection's timestamps from an integer.
+ * set_stepdown_ts --
+ *     Set connection's step-down timestamps.
  */
 void
-set_ts(WT_CONNECTION *conn, const char *name, uint64_t ts)
+set_stepdown_ts(WT_CONNECTION *conn, uint64_t ts)
 {
-    char config[64];
-    testutil_snprintf(config, sizeof(config), "%s=%" PRIx64, name, ts);
+    char config[128];
+    testutil_snprintf(config, sizeof(config),
+      "step_down_timestamp=%" PRIx64 ",step_down_disaggregated_schema_epoch=%" PRIx64, ts, ts);
     testutil_check(conn->set_timestamp(conn, config));
 }
 
 /*
  * set_frontier --
  *     Move the connection's frontier - the oldest and stable timestamps and the stable schema epoch
- *     - to one allocator value. The three always advance together: a single counter feeds both the
- *     timestamp and the epoch axis, so everything at or below the value is committed and published.
+ *     - to one timestamp. The three always advance together, so everything at or below that
+ *     timestamp is committed and published.
  */
 void
 set_frontier(WT_CONNECTION *conn, uint64_t ts)
@@ -84,6 +85,42 @@ set_frontier(WT_CONNECTION *conn, uint64_t ts)
 }
 
 /*
+ * adopted_lsn_publish --
+ *     Report the latest adopted checkpoint LSN for a stepping-down peer to wait on.
+ */
+void
+adopted_lsn_publish(uint32_t node_id, uint64_t lsn)
+{
+    /* Write to a temporary file first, so a reader never sees a partial value */
+    char tmp[64];
+    testutil_snprintf(tmp, sizeof(tmp), ADOPTED_LSN_FILE ".%" PRIu32, node_id);
+
+    FILE *fp;
+    testutil_assert_errno((fp = fopen(tmp, "w")) != NULL);
+    testutil_assert(fprintf(fp, "%" PRIu64 "\n", lsn) > 0);
+    testutil_check(fclose(fp));
+    /* Publish the LSN. */
+    testutil_assert_errno(rename(tmp, ADOPTED_LSN_FILE) == 0);
+}
+
+/*
+ * adopted_lsn_read --
+ *     Return the peer's last reported adopted checkpoint LSN; zero when none yet.
+ */
+uint64_t
+adopted_lsn_read(void)
+{
+    FILE *fp = fopen(ADOPTED_LSN_FILE, "r");
+    if (fp == NULL)
+        return (0);
+
+    uint64_t lsn = 0;
+    (void)fscanf(fp, "%" SCNu64, &lsn);
+    testutil_check(fclose(fp));
+    return (lsn);
+}
+
+/*
  * usage --
  *     Print the command-line usage and exit. The -A/-i/-R/-W options and the "-r node" value are
  *     internal: the parent uses them to spawn its nodes.
@@ -93,7 +130,7 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s [-b build-dir] [-h dir] [-k [l|f]N] [-p] [-r l|f|lf] [-s N] [-T threads] "
-      "[-t time] [-u pool] [-v]\n",
+      "[-t time] [-q] [-u pool] [-v]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-b build directory (required for PALite extension)\n"
@@ -105,6 +142,7 @@ usage(void)
       "\t-s switch roles every N seconds\n"
       "\t-T number of schema threads\n"
       "\t-t total run time in seconds; the nodes stop gracefully unless killed\n"
+      "\t-q give every create a fresh table name, so no name is ever reused\n"
       "\t-u URI pool size per thread\n"
       "\t-v verify only\n");
     exit(EXIT_FAILURE);
@@ -188,10 +226,10 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
 
     *rand_thp = *rand_timep = true;
 
-    testutil_parse_begin_opt(argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:", cfg->opts);
+    testutil_parse_begin_opt(argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:q", cfg->opts);
 
     int ch;
-    while ((ch = __wt_getopt(progname, argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "A:b:h:i:k:pP:r:R:s:t:T:u:vW:q")) != EOF)
         switch (ch) {
         case 'A':
             if (strcmp(__wt_optarg, "l") == 0)
@@ -223,6 +261,9 @@ parse_args(TEST_CONFIG *cfg, int argc, char *argv[], bool *rand_thp, bool *rand_
         case 'T':
             *rand_thp = false;
             cfg->nth = parse_uint_in_range(__wt_optarg, 1, MAX_TH, "Thread count");
+            break;
+        case 'q':
+            cfg->unique_tables = true;
             break;
         case 'u':
             pool_size_set = true;
