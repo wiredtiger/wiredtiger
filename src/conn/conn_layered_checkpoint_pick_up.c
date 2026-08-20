@@ -714,8 +714,8 @@ err:
  *     btree IDs, which means they describe different tables that happen to share a name.
  */
 static int
-__disagg_file_id_differs(
-  WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor, bool *differsp)
+__disagg_file_id_differs(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor,
+  int64_t *md_idp, int64_t *sh_idp, bool *differsp)
 {
     WT_CONFIG_ITEM md_id, sh_id;
     const char *md_value, *sh_value;
@@ -725,6 +725,8 @@ __disagg_file_id_differs(
     WT_RET(__wt_config_getones(session, sh_value, "id", &sh_id));
     WT_RET(__wt_config_getones(session, md_value, "id", &md_id));
 
+    *md_idp = md_id.val;
+    *sh_idp = sh_id.val;
     *differsp = sh_id.val != md_id.val;
     return (0);
 }
@@ -940,6 +942,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     wt_timestamp_t latest_epoch;
     size_t current_len;
     uint64_t apply_elapsed_ms;
+    int64_t md_btree_id, sh_btree_id;
     uint32_t dropped_tables, dup_id, existing_tables, new_tables, new_ingest;
     int i;
     char *first_uri, *second_uri;
@@ -1079,8 +1082,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         if (md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED] &&
           md_has[WT_DISAGG_CURSOR_FILE] && sh_has[WT_DISAGG_CURSOR_FILE]) {
             WT_ERR(__disagg_file_id_differs(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
-              md_cursors[WT_DISAGG_CURSOR_FILE], &id_differs));
+              md_cursors[WT_DISAGG_CURSOR_FILE], &md_btree_id, &sh_btree_id, &id_differs));
             if (id_differs) {
+                __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Replacing layered table \"%s\": the local btree ID %" PRId64
+                  " is not the checkpoint's %" PRId64,
+                  current, md_btree_id, sh_btree_id);
+
                 WT_ERR(__wt_scr_alloc(session, 0, &drop_buf));
                 WT_ERR(__wt_buf_fmt(session, drop_buf, "%s%s",
                   md_has[WT_DISAGG_CURSOR_TABLE] ? "table:" : "layered:", current));
