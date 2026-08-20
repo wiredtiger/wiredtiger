@@ -824,6 +824,13 @@ retry:
      * An adopted checkpoint discards all history below its oldest timestamp, so it cannot serve a
      * read timestamp below it: reads silently lose keys whose newest visible version was removed as
      * obsolete.
+     *
+     * The value read here is never older than the bound checkpoint's oldest timestamp: the pickup
+     * publishes it while holding the checkpoint lock, the first open of the checkpoint's stable
+     * dhandle takes that lock (see FIXME-WT-16477 in the dhandle open path), and every later use
+     * acquires the dhandle lock the opener released. A newer pickup completing mid-bind can only
+     * make the comparison stricter, against an oldest timestamp the reader must satisfy on its next
+     * advance anyway.
      */
     if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ)) {
         WT_ASSERT_ALWAYS(session,
