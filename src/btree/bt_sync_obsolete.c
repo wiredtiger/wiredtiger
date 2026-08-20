@@ -860,6 +860,16 @@ err:
 }
 
 /*
+ * __checkpoint_cleanup_needed --
+ *     Return whether checkpoint cleanup is needed.
+ */
+static bool
+__checkpoint_cleanup_needed(WT_SESSION_IMPL *session)
+{
+    return (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_READONLY));
+}
+
+/*
  * __wt_checkpoint_cleanup_create --
  *     Start the checkpoint cleanup thread.
  */
@@ -872,7 +882,7 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+    if (!__checkpoint_cleanup_needed(session))
         return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
@@ -917,9 +927,12 @@ __wt_checkpoint_cleanup_start(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->cc_cleanup.session == NULL ||
+    if (!__checkpoint_cleanup_needed(session) ||
       __wt_atomic_load_bool_relaxed(&conn->cc_cleanup.tid_set))
         return (0);
+
+    WT_ASSERT_ALWAYS(
+      session, conn->cc_cleanup.session != NULL, "Checkpoint cleanup session is not initialized");
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
