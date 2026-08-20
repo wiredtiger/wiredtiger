@@ -412,9 +412,16 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *k
     }
     new_image->size += packed_size;
 
-    /* Remember the full key for the next prefix compression comparison. */
-    if (btree->prefix_compression)
-        WT_RET(__wt_buf_set(session, s->last_key, key_data, key_size));
+    /*
+     * Remember the full key for the next prefix compression comparison. The first pfx bytes
+     * already match what's stored in last_key, so only copy the suffix.
+     */
+    if (btree->prefix_compression) {
+        WT_RET(__wt_buf_grow(session, s->last_key, key_size));
+        memcpy((uint8_t *)s->last_key->mem + pfx, (const uint8_t *)key_data + pfx, key_size - pfx);
+        s->last_key->data = s->last_key->mem;
+        s->last_key->size = key_size;
+    }
 
     return (0);
 }
