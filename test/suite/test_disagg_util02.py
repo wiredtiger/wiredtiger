@@ -136,8 +136,9 @@ class test_disagg_wt_page(wttest.WiredTigerTestCase, suite_subprocess, DisaggCon
         # Order by page size, not lsn: the root is written after (and is much
         # smaller than) the leaf it points to, so "newest" would pick the
         # root instead of the leaf holding the application data.
-        return self._find_page("base_lsn=0 AND backlink_lsn=0", "base-image",
-                                order_by="length(page_data) DESC")
+        return self._find_page(
+            "base_lsn=0 AND backlink_lsn=0", "base-image",
+            order_by="length(page_data) DESC")
 
     def _find_delta_page(self):
         return self._find_page(
