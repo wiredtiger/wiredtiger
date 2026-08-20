@@ -110,7 +110,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     op = txn->mod + txn->mod_count - 1;
 
     if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
-      WT_IS_METADATA(op->btree->dhandle))
+      WT_IS_ANY_METADATA(op->btree->dhandle))
         return;
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL);
@@ -144,7 +144,7 @@ __txn_op_need_set_key(WT_TXN *txn, WT_TXN_OP *op)
         return (false);
 
     /* Metadata writes cannot be prepared. */
-    if (WT_IS_METADATA(op->btree->dhandle))
+    if (WT_IS_ANY_METADATA(op->btree->dhandle))
         return (false);
 
     /* Auto transactions cannot be prepared. */
@@ -843,6 +843,13 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
         ref->page_del->pg_del_start_ts = session->replay_trunc_ctx.commit_ts;
         ref->page_del->pg_del_durable_ts = session->replay_trunc_ctx.durable_ts;
         ref->page_del->committed = true;
+
+        /*
+         * Fast truncate only takes pages with a disk address, which a tree awaiting publication
+         * never has, so there is no unpublished minimum to maintain here.
+         */
+        WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_AWAITS_PUBLISH),
+          "fast truncate of a table awaiting publication");
         return (0);
     }
 
@@ -885,7 +892,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     /*
      * The metadata is tracked specially because of optimizations for checkpoints.
      */
-    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
+    if (session->dhandle != NULL && WT_IS_ANY_METADATA(session->dhandle))
         return (__wt_atomic_load_uint64_v_relaxed(&txn_global->metadata_pinned));
 
     /*
@@ -1007,7 +1014,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * retain all data on the ingest btree up to that point.
      */
     if (__wt_conn_is_disagg(session) &&
-      (!conn->layered_table_manager.leader ||
+      (!__wt_atomic_load_bool_relaxed(&conn->layered_table_manager.leader) ||
         F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING_STEP_UP))) {
         checkpoint_ts =
           __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
@@ -1807,7 +1814,7 @@ retry:
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (!__wt_btree_stays_in_memory(S2BT(session)) &&
       F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
-      !F_ISSET(session->dhandle, WT_DHANDLE_HS) && !WT_IS_METADATA(session->dhandle)) {
+      !F_ISSET(session->dhandle, WT_DHANDLE_HS) && !WT_IS_ANY_METADATA(session->dhandle)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
          * on every random 100th iteration when this is enabled.
@@ -1894,8 +1901,11 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
     if (__wt_session_gen(session, WT_GEN_EVICT) != 0)
         return;
 
+    session->txn->update_dirty_bytes += size;
+
     WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
     WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_SESSION_INCRV(session, txn_updates_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
 }
@@ -1909,10 +1919,21 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 {
     int64_t val;
 
-    val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    session->txn->update_dirty_bytes = 0;
+    session->txn->truncate_dirty_bytes = 0;
+
+    WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates_bytes_dirty);
     if (val != 0) {
         WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
-        WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+        WT_STAT_SESSION_SET(session, txn_updates_bytes_dirty, 0);
+    }
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_truncate_bytes_dirty);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_truncate_txn_uncommitted_bytes, val);
+        WT_STAT_SESSION_SET(session, txn_truncate_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
@@ -2090,7 +2111,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
          * WT_SESSION.begin_transaction API can't, continue on.
          */
         WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, true, NULL), WT_ROLLBACK);
+          __wt_evict_app_assist_worker_check(session, false, true, true, false, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -2167,7 +2188,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID) &&
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, NULL));
+        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, false, NULL));
 
     return (0);
 }
@@ -2470,7 +2491,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */
-    if (!WT_IS_METADATA(cbt->dhandle)) {
+    if (!WT_IS_ANY_METADATA(cbt->dhandle)) {
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)

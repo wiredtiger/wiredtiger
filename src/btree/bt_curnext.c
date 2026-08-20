@@ -650,13 +650,14 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     total_skipped = 0;
     walk_skip_stats.total_del_pages_skipped = 0;
     walk_skip_stats.total_inmem_del_pages_skipped = 0;
+    walk_skip_stats.total_skip_lock_contended = 0;
     WT_NOT_READ(time_start, 0);
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 
     /* Track next calls during HS wrapup */
     if (F_ISSET(session, WT_SESSION_HS_WRAPUP))
-        session->reconcile_stats.hs_wrapup_next_prev_calls++;
+        WT_STAT_CONN_INCR(session, rec_hs_wrapup_next_prev_calls);
 
     flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */
     if (truncating)
@@ -819,6 +820,9 @@ err:
     if (walk_skip_stats.total_inmem_del_pages_skipped != 0)
         WT_STAT_CONN_DSRC_INCRV(session, cursor_tree_walk_inmem_del_page_skip,
           walk_skip_stats.total_inmem_del_pages_skipped);
+    if (walk_skip_stats.total_skip_lock_contended != 0)
+        WT_STAT_CONN_DSRC_INCRV(
+          session, cursor_tree_walk_skip_lock_contended, walk_skip_stats.total_skip_lock_contended);
 
     /*
      * If we positioned the cursor using bounds, which is similar to a search, update the read

@@ -29,7 +29,7 @@
 # helper_layered_stepdown.py
 #   Shared helpers for the async (planned) step-down layered table tests.
 
-import wiredtiger
+import errno, os, re, wiredtiger
 from wiredtiger import stat
 
 # Shared helpers for the layered async step-down test suite.
@@ -39,9 +39,13 @@ class LayeredStepdownMixin:
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(oldest) +
                                 ',stable_timestamp=' + self.timestamp_str(stable))
 
-    # Set the planned step-down timestamp at the given cutoff.
-    def set_step_down_ts(self, ts):
-        self.conn.set_timestamp('step_down_timestamp=' + self.timestamp_str(ts))
+    # Set the planned step-down timestamp at the given cutoff. When schema epochs are in use the
+    # boundary must be declared in epoch space too, so pass the step-down epoch alongside.
+    def set_step_down_ts(self, ts, epoch=None):
+        config = 'step_down_timestamp=' + self.timestamp_str(ts)
+        if epoch is not None:
+            config += ',step_down_disaggregated_schema_epoch=' + self.timestamp_str(epoch)
+        self.conn.set_timestamp(config)
 
     # Complete a planned step-down: advance stable to the cutoff, take the step-down checkpoint
     # and demote to follower.
@@ -59,6 +63,60 @@ class LayeredStepdownMixin:
     # The file URI of a layered table's stable constituent.
     def stable_uri(self, uri):
         return 'file:' + uri.split(':', 1)[1] + '.wt_stable'
+
+    # Every layered table URI in the connection's local metadata.
+    def layered_tables(self, conn=None):
+        session = (conn or self.conn).open_session('')
+        cursor = session.open_cursor('metadata:')
+        uris = [k for k, _ in cursor if k.startswith('layered:')]
+        cursor.close()
+        session.close()
+        return uris
+
+    # The local metadata configuration of a layered table's stable constituent, or None when the
+    # constituent has no row. Read the metadata directly: opening a cursor on the constituent
+    # reports any error as absence, which cannot be told apart from a transactional failure.
+    def stable_metadata(self, conn, uri):
+        session = (conn or self.conn).open_session('')
+        cursor = session.open_cursor('metadata:')
+        cursor.set_key(self.stable_uri(uri))
+        config = cursor.get_value() if cursor.search() == 0 else None
+        cursor.close()
+        session.close()
+        return config
+
+    # The checkpoint-view URI of a layered table's stable constituent: the only form a
+    # follower may open directly. Requires the constituent to be checkpointed.
+    def stable_checkpoint_uri(self, uri, conn=None):
+        config = self.stable_metadata(conn, uri)
+        m = re.search(r'checkpoint=\((WiredTigerCheckpoint\.\d+)=', config or '')
+        self.assertIsNotNone(m, f'no checkpoint in stable metadata: {config}')
+        return f'{self.stable_uri(uri)}/{m.group(1)}'
+
+    # Whether a layered table's stable constituent has a row in the local metadata.
+    def stable_constituent_exists(self, conn, uri):
+        return self.stable_metadata(conn, uri) is not None
+
+    # Whether a layered table's stable constituent has been checkpointed. A constituent can exist
+    # without a checkpoint: a checkpoint withholds the pages of a table awaiting publication.
+    def stable_is_checkpointed(self, conn, uri):
+        config = self.stable_metadata(conn, uri)
+        return config is not None and 'checkpoint=(' in config
+
+    # Assert all three states of a layered table at once. They are maintained by different code and
+    # can legally disagree, so a test that checks one of them proves little.
+    def assert_table_state(self, conn, uri, constituent, checkpointed, shared):
+        actual = (self.stable_constituent_exists(conn, uri),
+                  self.stable_is_checkpointed(conn, uri),
+                  self.uri_in_shared_metadata(conn, uri))
+        self.assertEqual(actual, (constituent, checkpointed, shared),
+            f'{uri}: expected (constituent, checkpointed, shared) '
+            f'{(constituent, checkpointed, shared)}, got {actual}')
+
+    # Assert the local metadata holds exactly the expected layered tables. Per-table assertions only
+    # cover the tables a test names, so enumerate to catch one drifting into the wrong state.
+    def assert_no_unexpected_tables(self, conn, expected):
+        self.assertEqual(sorted(self.layered_tables(conn)), sorted(expected))
 
     # The connection's all_durable timestamp as an integer.
     def all_durable(self):
@@ -84,13 +142,14 @@ class LayeredStepdownMixin:
         cursor.close()
 
     # The key/value map visible through a cursor on uri at read_ts.
-    def read_kvs_at(self, uri, read_ts):
-        cursor = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
+    def read_kvs_at(self, uri, read_ts, session=None):
+        session = session or self.session
+        cursor = session.open_cursor(uri, None, None)
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         kv = {}
         while cursor.next() == 0:
             kv[cursor.get_key()] = cursor.get_value()
-        self.session.rollback_transaction()
+        session.rollback_transaction()
         cursor.close()
         return kv
 
@@ -113,12 +172,29 @@ class LayeredStepdownMixin:
         stat_cursor.close()
         return value
 
+    # Whether the connection currently has a step-down disaggregated schema epoch set.
+    def step_down_epoch_is_set(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        value = stat_cursor[stat.conn.txn_stepdown_epoch_set][2]
+        stat_cursor.close()
+        return value
+
     # The connection-wide count of step-down transaction rollbacks.
     def get_step_down_rollback_count(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         count = stat_cursor[stat.conn.txn_rollback_stepdown][2]
         stat_cursor.close()
         return count
+
+    # Whether an exception is a WT_ROLLBACK, of any reason. Classifies the exception itself so
+    # it works before deciding whether to roll back, when get_last_error is not yet safe to call.
+    def is_rollback(self, exception):
+        return wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(exception)
+
+    # Whether an exception is an EBUSY, of any reason. Match on the strerror text, which differs
+    # across platforms.
+    def is_busy(self, exception):
+        return os.strerror(errno.EBUSY) in str(exception)
 
     # Run op and expect WT_ROLLBACK, with no claim about the reason.
     def expect_rollback(self, op):

@@ -89,8 +89,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
+    WT_PAGE *parent;
     WT_REF_STATE previous_state;
+    size_t footprint;
     WT_BTREE *btree = S2BT(session);
+    bool parent_was_clean;
 
     *skipp = false;
 
@@ -179,6 +182,11 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * This action dirties the parent page: mark it dirty now, there's no future reconciliation of
      * the child leaf page that will dirty it as we write the tree.
      */
+    parent = ref->home;
+
+    /* If we are the first to dirty the parent, this truncate pulled it into dirty cache. */
+    parent_was_clean = !__wt_page_is_modified(parent);
+
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
     /*
@@ -205,7 +213,40 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
-    return (0);
+
+    /*
+     * A newly dirtied parent internal page stays pinned until the truncate is stable. Account for
+     * it and let the transaction's cache-pressure check roll the truncate back if it has pinned too
+     * much; the delete just performed unwinds normally on rollback.
+     *
+     * Skipped for the history store, whose truncation is non-transactional: there would be no
+     * transaction to bound, and none to resolve and give back the bytes counted below.
+     */
+    if (parent_was_clean && !WT_IS_HS(session->dhandle)) {
+        footprint = __wt_atomic_load_size_relaxed(&parent->memory_footprint);
+        session->txn->truncate_dirty_bytes += footprint;
+
+        /*
+         * These pages are dirty content the transaction has not resolved, tracked separately from
+         * update content: a truncate creates no updates.
+         */
+        WT_STAT_CONN_INCRV_ATOMIC(
+          session, cache_truncate_txn_uncommitted_bytes, (int64_t)footprint);
+        WT_STAT_SESSION_INCRV(session, txn_truncate_bytes_dirty, (int64_t)footprint);
+        WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)footprint);
+
+        /*
+         * The delete is complete and registered as a transaction operation, so transaction rollback
+         * frees page_del and restores the ref: return directly rather than through the error path
+         * below.
+         */
+        ret = __wt_txn_is_blocking(session);
+        if (ret == WT_ROLLBACK)
+            __wt_verbose_warning(session, WT_VERB_TRANSACTION, "%s",
+              "rolling back a truncate that is pinning too much dirty cache");
+    }
+
+    return (ret);
 
 err:
     __wt_free(session, ref->page_del);
@@ -580,12 +621,6 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     /* We just read the page and it's still locked. The append list should be empty. */
     WT_ASSERT(session, WT_COL_APPEND(page) == NULL);
 
-    /*
-     * The modify code marks the page dirty. Mark it back to clean as instantiated deleted page
-     * should be clean.
-     */
-    __wt_page_modify_clear(session, page);
-
 err:
     __wt_free(session, upd);
 
@@ -702,17 +737,17 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Give the page a modify structure. We need it to remember that the page has been instantiated.
      * We do not need to mark the page dirty here. (It used to be necessary because evicting a clean
-     * instantiated page would lose the delete information; but that is no longer the case.) Note
-     * though that because VLCS instantiation goes through col_modify it will mark the page dirty
-     * regardless, except in read-only trees where attempts to mark things dirty are ignored.
-     * Therefore, we explicitly mark it as clean. (Row- store instantiation adds the tombstones by
-     * hand and so does not need to mark the page dirty.)
+     * instantiated page would lose the delete information; but that is no longer the case.) VLCS
+     * instantiation goes through col_modify, which would otherwise dirty the page and the tree, so
+     * flag the page to keep the modify path from doing so. (Row-store instantiation adds the
+     * tombstones by hand and so does not need to mark the page dirty.)
      *
      * Note that partially visible truncates that may need instantiation can appear in read-only
      * trees (whether a read-only open of the live database or via a checkpoint cursor) if they were
      * not yet globally visible when the tree was checkpointed.
      */
     WT_RET(__wt_page_modify_init(session, page));
+    F_SET(page->modify, WT_PAGE_MODIFY_INSTANTIATING);
 
     /*
      * If the truncate operation is not yet resolved and the btree is not read-only, count how many
@@ -723,7 +758,8 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * don't need to also store the length. No need to do this for read-only btrees as we will never
      * resolve the updates.
      */
-    if (!F_ISSET(S2BT(session), WT_BTREE_READONLY) && page_del != NULL && !page_del->committed) {
+    if (!F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY) && page_del != NULL &&
+      !page_del->committed) {
         count = 0;
         switch (page->type) {
         case WT_PAGE_COL_VAR:
@@ -736,7 +772,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 ++count;
             break;
         }
-        WT_RET(__wt_calloc_def(session, count + 1, &update_list));
+        WT_ERR(__wt_calloc_def(session, count + 1, &update_list));
     }
 
     /*
@@ -757,9 +793,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     page->modify->instantiated = true;
     page->modify->inst_updates = update_list;
-
-    /* The instantiated deleted page should be clean. */
-    WT_ASSERT(session, !__wt_page_is_modified(page));
+    update_list = NULL;
 
     /*
      * We will leave the WT_PAGE_DELETED structure in the ref; all of its information has been
@@ -767,9 +801,12 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * page reconciliation until the instantiated page is itself successfully reconciled.
      */
 
-    return (0);
-
 err:
+    F_CLR(page->modify, WT_PAGE_MODIFY_INSTANTIATING);
+
+    /* The instantiated deleted page should be clean. */
+    WT_ASSERT(session, !__wt_page_is_modified(page));
+
     __wt_free(session, update_list);
     return (ret);
 }

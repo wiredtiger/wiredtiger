@@ -228,7 +228,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
          * Therefore, no need to reconcile the page again if it remains clean.
          */
         __wt_free(session, mod->mod_replace.block_cookie);
-        __wt_free(session, mod->mod_disk_image);
+        __wt_page_image_discard(session, mod);
         break;
     }
 
@@ -324,7 +324,7 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
      * new parent, which would mean that our ref->addr must have been instantiated and thus we are
      * safe to free it at the end of this function.
      */
-    WT_ACQUIRE_READ_WITH_BARRIER(home, ref->home);
+    home = (WT_PAGE *)__wt_atomic_load_ptr_acquire(&ref->home);
     do {
         WT_ACQUIRE_READ_WITH_BARRIER(ref_addr, ref->addr);
         if (ref_addr == NULL)

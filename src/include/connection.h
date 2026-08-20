@@ -145,11 +145,7 @@ struct __wt_layered_table_manager {
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
     size_t entries_allocated_bytes;
 
-    /*
-     * FIXME-WT-18205: written on role reconfigure while other threads read it unsynchronised;
-     * convert to atomic accesses.
-     */
-    bool leader;
+    wt_shared bool leader; /* The node's disaggregated role, written on role reconfigure */
 };
 
 /*
@@ -159,8 +155,16 @@ struct __wt_layered_table_manager {
  * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
  */
 #define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
-#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 2
 #define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+/*
+ * A checkpoint whose stable tables omit tombstone encoding cannot be read by a node that still
+ * strips the escape byte; such readers are version 2 or newer. Checkpoints that keep the encoding
+ * stay compatible with every reader. The compatible version doubles as the format indicator: a
+ * reader below this version would strip escape bytes that are not there, so a checkpoint at or
+ * above it carries raw stable values and an older one carries escaped values.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_STABLE_UNENCODED 2
 
 /*
  * Turtle/checkpoint metadata version constants:
@@ -215,6 +219,18 @@ struct __wt_disagg_pending_crypt_key {
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
+
+/*
+ * The checkpoint generation encoding of an LSN: the LSN plus one. The generation manager starts
+ * connection generations at one and reserves zero in a session slot for "not entered", so the
+ * initial generation is exactly the encoding of "no checkpoint" and a published pin of an
+ * un-delivered node covers nothing. A pin covers an LSN when its generation exceeds it, and a
+ * generation-active query at an LSN finds exactly the pins that do not cover it.
+ */
+#define WT_DISAGG_CKPT_GEN(lsn) ((lsn) + 1)
+
+/* The backoff between retries of a blocked checkpoint adoption. */
+#define WT_DISAGG_RETRY_SLEEP_USECS (100 * WT_THOUSAND)
 
 /*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
@@ -277,6 +293,17 @@ struct __wt_repair {
 };
 
 /*
+ * WT_DISAGG_DEFERRED_CKPT --
+ *      A checkpoint whose adoption is deferred while transactional snapshots that predate it are
+ *      active.
+ */
+struct __wt_disagg_deferred_ckpt {
+    uint64_t lsn; /* Checkpoint metadata LSN */
+    char *meta;   /* Checkpoint metadata configuration */
+    TAILQ_ENTRY(__wt_disagg_deferred_ckpt) q;
+};
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -291,12 +318,44 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
+    /*
+     * The LSN of the newest checkpoint received, published before its adoption begins. A snapshot
+     * established after a checkpoint's arrival may pin it even though the adoption has not
+     * completed: arrival implies the checkpoint's content is already replayed into the ingest
+     * tables, so such a snapshot covers it. Only ever moves forward.
+     */
+    wt_shared uint64_t pending_checkpoint_meta_lsn;
+
+    /*
+     * Checkpoints whose adoption is deferred while transactional snapshots that predate them are
+     * active, oldest first. Keeping every checkpoint not yet adopted lets the node adopt
+     * incrementally up to the newest one no active snapshot predates, so a reader only ever blocks
+     * the checkpoints newer than its own snapshot.
+     */
+    WT_SPINLOCK deferred_ckpt_lock; /* Protects the deferred checkpoint queue */
+    TAILQ_HEAD(__wt_disagg_deferred_ckpt_qh, __wt_disagg_deferred_ckpt) deferred_ckpt_qh;
+
+    /*
+     * Server adopting a deferred checkpoint once the transactions blocking it end; it sleeps until
+     * a pinning transaction finishes or a checkpoint is deferred.
+     */
+    WT_CONDVAR *deferred_pickup_cond;
+    WT_SESSION_IMPL *deferred_pickup_session;
+    wt_thread_t deferred_pickup_tid;
+
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
-    wt_timestamp_t cur_schema_epoch;         /* The schema epoch of the in-progress checkpoint. */
+
+    /*
+     * Three schema epochs. The current epoch is the live stable schema epoch and decides what this
+     * node gates. The write epoch is what the checkpoint writes to its metadata for other nodes,
+     * and never moves backwards. The last checkpoint's epoch is what this node wrote or picked up.
+     */
+    wt_timestamp_t cur_schema_epoch;
+    wt_timestamp_t cur_write_schema_epoch;
+
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
-    wt_shared wt_timestamp_t
-      last_checkpoint_schema_epoch; /* The schema epoch of the last checkpoint. */
+    wt_shared wt_timestamp_t last_checkpoint_schema_epoch;
 
     /*
      * The LSN of the last metadata page written in the global metadata "table" which we use to
@@ -335,6 +394,32 @@ struct __wt_disaggregated_storage {
     bool base_write_gen_missing;
 
     /*
+     * !!!
+     * Stable tombstone encoding mode transitions, per connection. The mode itself lives in the
+     * WT_DISAGG_STABLE_TOMBSTONE_ENCODING flag; the decision tree below has no other transitions,
+     * and reconfigure never changes the mode: the break-glass option is not part of the
+     * reconfigure schema. The states are in-memory; the durable truth is each checkpoint's
+     * compatible version ("compat" below: < 2 escaped, >= 2 unescaped, absent fields default 1).
+     *
+     * wiredtiger_open:
+     * - break_glass=true -> Forced legacy (escaped);
+     *   break_glass=false -> Forced new (unescaped):
+     *   - fixed for the connection's life; any pickup keeps the mode, a disagreeing pickup warns.
+     * - option unset -> Unadopted (encoding off), then the first of:
+     *   - pickup with compat < 2, OR with absent version fields -> Adopted legacy (escaped);
+     *   - pickup with compat >= 2, OR a leader starting on empty storage (a new database)
+     *     -> Adopted new (unescaped);
+     *   and on every later pickup:
+     *   - the same compat side -> re-adopt, a no-op;
+     *   - the other compat side -> PANIC: the storage was rewritten in the other format, and a
+     *     restart re-detects from the data.
+     *
+     * This flag records the adoption: true once automatic mode has adopted from a pickup or a new
+     * database. Unused while the mode is forced (WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED).
+     */
+    bool stable_tombstone_encoding_adopted;
+
+    /*
      * Total size of all stable tables in the database, along with other components such as the KEK
      * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
      */
@@ -353,9 +438,14 @@ struct __wt_disaggregated_storage {
      * (really, per block-manager) so it's easy to accidentally miss a file when doing it that way,
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
+    /* Set while the deferred pickup server thread exists; placed here to pack with the flags. */
+    bool deferred_pickup_tid_set;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DISAGG_NO_LOCAL_DURABILITY 0x1u
-#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x2u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING 0x2u
+#define WT_DISAGG_STABLE_TOMBSTONE_ENCODING_FORCED 0x4u
+#define WT_DISAGG_STRICT_CHECKPOINT_METADATA 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -880,6 +970,23 @@ struct __wt_conn_evict_config {
 };
 
 /*
+ * WT_CKPT_EVICTION_SNAP --
+ *     A buffer holding the snapshot a precise checkpoint publishes, so that eviction can reconcile
+ *     with accurate visibility without holding a lock. Readers hold WT_GEN_HAS_CKPT_SNAPSHOT across
+ *     their use of it.
+ */
+struct __wt_ckpt_eviction_snap {
+    WT_TXN_SNAPSHOT snap;
+    uint64_t *snap_array;
+    size_t snap_capacity;
+    /*
+     * The generation of the checkpoint that published this buffer. Eviction stamps the pages it
+     * reconciles with this, so that checkpoint can identify its own work and skip it.
+     */
+    wt_shared uint64_t gen;
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -1024,16 +1131,13 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
 
     /*
-     * Snapshot buffers holding the checkpoint snapshot so eviction can use it for accurate
-     * visibility without holding any lock. Two buffers alternate so eviction always has a valid
-     * snapshot; readers hold WT_GEN_HAS_CKPT_SNAPSHOT.
+     * Two buffers alternate so eviction always has a valid snapshot to read. The published flag is
+     * the synchronization point: a checkpoint sets it once it has written the inactive buffer and
+     * clears it before releasing the snapshot, and readers acquire it before reading the index.
      */
-    WT_TXN_SNAPSHOT ckpt_eviction_snap[2];
-    uint64_t *ckpt_eviction_snap_array[2];
-    size_t ckpt_eviction_snap_capacity[2];
-    wt_shared uint32_t ckpt_eviction_snap_idx;
-    wt_shared bool
-      ckpt_eviction_snap_published; /* true once the first snapshot has been published */
+    WT_CKPT_EVICTION_SNAP ckpt_eviction_snap[2];
+    wt_shared uint32_t ckpt_eviction_snap_idx;   /* Buffer holding the published snapshot */
+    wt_shared bool ckpt_eviction_snap_published; /* Whether a checkpoint has published one */
 
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
@@ -1257,14 +1361,15 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x0004u
 #define WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS 0x0008u
 #define WT_CONN_SERVER_COMPACT 0x0010u
-#define WT_CONN_SERVER_EVICTION 0x0020u
-#define WT_CONN_SERVER_LAYERED 0x0040u
-#define WT_CONN_SERVER_LOG 0x0080u
-#define WT_CONN_SERVER_PREFETCH 0x0100u
-#define WT_CONN_SERVER_RTS 0x0200u
-#define WT_CONN_SERVER_STATISTICS 0x0400u
-#define WT_CONN_SERVER_SWEEP 0x0800u
-#define WT_CONN_SERVER_TIERED 0x1000u
+#define WT_CONN_SERVER_DISAGG_PICKUP 0x0020u
+#define WT_CONN_SERVER_EVICTION 0x0040u
+#define WT_CONN_SERVER_LAYERED 0x0080u
+#define WT_CONN_SERVER_LOG 0x0100u
+#define WT_CONN_SERVER_PREFETCH 0x0200u
+#define WT_CONN_SERVER_RTS 0x0400u
+#define WT_CONN_SERVER_STATISTICS 0x0800u
+#define WT_CONN_SERVER_SWEEP 0x1000u
+#define WT_CONN_SERVER_TIERED 0x2000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

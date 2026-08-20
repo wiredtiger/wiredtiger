@@ -950,10 +950,18 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
      * error.
      */
     WT_UNUSED(btree);
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY));
 
     /* We don't handle in-memory prepare resolution here. */
     WT_ASSERT(session, !__wt_btree_stays_in_memory(btree));
+
+    /*
+     * The prepared updates are already on disk, so the page must not end up dirty. The modify path
+     * would otherwise dirty the page and the tree; flag the page so it stays clean. The page isn't
+     * yet reachable by other threads, so the flag needs no synchronization.
+     */
+    WT_RET(__wt_page_modify_init(session, page));
+    F_SET(page->modify, WT_PAGE_MODIFY_INSTANTIATING);
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -1016,16 +1024,15 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     }
 
-    /*
-     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
-     * updates to avoid reconciling the page every time.
-     */
-    __wt_page_modify_clear(session, page);
-
     if (0) {
 err:
         __wt_free_update_list(session, &upd);
     }
+    F_CLR(page->modify, WT_PAGE_MODIFY_INSTANTIATING);
+
+    /* The page with re-instantiated prepared updates should be clean. */
+    WT_ASSERT(session, !__wt_page_is_modified(page));
+
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_scr_free(session, &value);
     return (ret);
@@ -1391,7 +1398,8 @@ __inmem_col_var(
         }
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
+        if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) &&
+          WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
             instantiate_upd = true;
 
         indx++;
@@ -1435,7 +1443,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
     hint = 0;
     WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
         ref = *refp;
-        ref->home = page;
+        __wt_atomic_store_ptr_relaxed(&ref->home, page);
         ref->pindex_hint = hint++;
 
         switch (unpack.type) {
@@ -1690,7 +1698,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
         }
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
+        if (!F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
             instantiate_prepare_upd = true;
     }
     WT_CELL_FOREACH_END;

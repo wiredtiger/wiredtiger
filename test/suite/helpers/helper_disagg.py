@@ -29,7 +29,7 @@
 
 import re
 import wiredtiger
-import functools, json, os, shutil, subprocess, wttest
+import functools, json, os, shutil, subprocess, time, wttest
 from run import wt_builddir
 
 # These routines help run the various page log sources used by disaggregated storage.
@@ -225,10 +225,41 @@ class DisaggConfigMixin:
         (_, _, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
         return m
 
-    # Let the follower pick up the latest checkpoint
+    # Deliver the newest checkpoint to the follower. Adopting it is asynchronous while transaction
+    # snapshots that predate it are active, so a caller that needs the adoption observed must end
+    # those snapshots and deliver again.
     def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
+
+    # Wait until every checkpoint delivered to the follower has been adopted. A caller that asserts
+    # on state the adoption produces needs this: a delivery that raced a snapshot's release is
+    # adopted by the pickup server rather than inline. Snapshots that predate a delivery block it
+    # indefinitely, so end them before waiting.
+    def disagg_wait_for_adoption(self, conn_follower, timeout=60):
+        session = conn_follower.open_session('')
+        try:
+            deadline = time.time() + timeout
+            while True:
+                cursor = session.open_cursor('statistics:')
+                delivered = cursor[wiredtiger.stat.conn.disagg_checkpoint_delivered_lsn][2]
+                adopted = cursor[wiredtiger.stat.conn.disagg_checkpoint_meta_lsn][2]
+                cursor.close()
+                if adopted >= delivered:
+                    return
+                if time.time() > deadline:
+                    raise Exception(f'checkpoint {delivered} not adopted within {timeout}s, ' +
+                                    f'newest adopted is {adopted}')
+                time.sleep(0.01)
+        finally:
+            session.close()
+
+    # Deliver the newest checkpoint to the follower and wait until it is adopted. Use this wherever
+    # the test reads data the new checkpoint carries; the reader's own snapshot does not force the
+    # adoption. Any snapshot that predates the delivery blocks it, so end them first.
+    def disagg_advance_checkpoint_and_wait(self, conn_follower, conn_leader=None, timeout=60):
+        self.disagg_advance_checkpoint(conn_follower, conn_leader)
+        self.disagg_wait_for_adoption(conn_follower, timeout)
 
     # Switch the leader and the follower
     def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
@@ -808,6 +839,33 @@ class DisaggSchemaEpochMixin:
         tablename = uri[len('layered:'):]
         return 'file:' + tablename + '.wt_stable'
 
+    def stable_in_local_metadata(self, conn, uri):
+        """
+        Return True if uri's stable constituent has a row in conn's local metadata.
+
+        This reads the metadata table directly, so unlike opening a cursor on the constituent the
+        answer cannot be confused with a transactional failure.
+        """
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        cursor.set_key(self.stable_uri(uri))
+        found = cursor.search() != wiredtiger.WT_NOTFOUND
+        cursor.close()
+        session.close()
+        return found
+
+    def step_down(self, conn=None):
+        """Reconfigure the given (or main) connection to the follower role."""
+        if conn is None:
+            conn = self.conn
+        conn.reconfigure('disaggregated=(role="follower")')
+
+    def step_up(self, conn=None):
+        """Reconfigure the given (or main) connection to the leader role."""
+        if conn is None:
+            conn = self.conn
+        conn.reconfigure('disaggregated=(role="leader")')
+
     def uri_in_shared_metadata(self, conn, uri):
         """Return True if uri's stable constituent is present in the shared metadata table."""
         session = conn.open_session('')
@@ -819,14 +877,15 @@ class DisaggSchemaEpochMixin:
         return found
 
     def uri_stable_exists(self, conn, uri):
-        """Return True if uri's stable constituent is present in conn's local metadata."""
+        """Return True if uri's stable constituent is present in conn's local metadata.
+
+        Read the metadata directly: a follower cannot open the live stable table, and a
+        cursor-open error cannot be told apart from absence."""
         session = conn.open_session('')
-        exists = True
-        try:
-            c = session.open_cursor(self.stable_uri(uri))
-            c.close()
-        except wiredtiger.WiredTigerError:
-            exists = False
+        cursor = session.open_cursor('metadata:')
+        cursor.set_key(self.stable_uri(uri))
+        exists = cursor.search() == 0
+        cursor.close()
         session.close()
         return exists
 
@@ -863,11 +922,51 @@ class DisaggSchemaEpochMixin:
         session = conn.open_session('')
         return conn, session
 
+    def close_follower(self, conn, session=None):
+        """Close a follower opened by open_follower without taking a final checkpoint."""
+        if session is not None:
+            session.close()
+        conn.close('debug=(skip_checkpoint=true)')
+
     def open_follower_epoch(self, epoch=1):
         """Open a follower already in epoch world (stable schema epoch set), ready to publish."""
         conn, session = self.open_follower()
         self.set_stable_epoch(epoch, conn)
         return conn, session
+
+    def stable_config(self, conn, uri):
+        """Return the local metadata configuration of a table's stable constituent."""
+        session = conn.open_session('')
+        cursor = session.open_cursor('metadata:')
+        cursor.set_key(self.stable_uri(uri))
+        assert cursor.search() == 0, f'no local metadata for {self.stable_uri(uri)}'
+        config = cursor.get_value()
+        cursor.close()
+        session.close()
+        return config
+
+    def inject_stable_entry(self, conn, key, config):
+        """
+        Write a stable file entry straight into a node's local metadata, bypassing the read-only
+        metadata cursor. Used to plant metadata a node could not have reached legitimately.
+        """
+        session = conn.open_session('')
+        cursor = session.open_cursor('file:WiredTiger.wt')
+        cursor.set_key(key)
+        cursor.set_value(config)
+        cursor.insert()
+        cursor.close()
+        session.close()
+
+    def run_panic_subprocess(self, name, expected_message):
+        """
+        Run subprocess_<name> in a subprocess and assert it died from the expected panic rather
+        than an unrelated failure. Requires the test class to mix in suite_subprocess.
+        """
+        [returncode, home] = self.run_subprocess_function(f'SUBPROCESS_{name}',
+            f'{self.test_name}.{self.test_name}.subprocess_{name}', silent=True)
+        self.assertNotEqual(returncode, 0)
+        self.check_file_contains(os.path.join(home, 'stderr.txt'), expected_message)
 
 class DisaggSizeTestMixin:
     def conn_extensions(self, extlist):

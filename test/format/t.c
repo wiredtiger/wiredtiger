@@ -300,10 +300,10 @@ main(int argc, char *argv[])
         config_single(NULL, *argv, true);
 
     /*
-     * Let the command line -q flag override values configured from other sources. Regardless, don't
-     * go all verbose if we're not talking to a terminal.
+     * Let the command line -q flag override values configured from other sources. Multi-node runs
+     * retain configured verbosity for their separate leader and follower logs.
      */
-    if (quiet_flag || !isatty(1))
+    if ((quiet_flag || !isatty(1)) && !disagg_is_multi_node())
         GV(QUIET) = 1;
 
     /* Configure the random number generators. */
@@ -348,12 +348,12 @@ main(int argc, char *argv[])
         /* For disagg follower node pick up the latest checkpoint. */
         if (g.disagg_storage_config && !g.disagg_leader)
             follower_read_latest_checkpoint();
-        timestamp_init();
         /* Update the oldest and stable timestamps if they have been previously set. */
         ret = timestamp_query("get=oldest_timestamp", &g.oldest_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         ret = timestamp_query("get=stable_timestamp", &g.stable_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        timestamp_init();
         locks_init(g.wts_conn);
     } else {
         wts_create_home();
