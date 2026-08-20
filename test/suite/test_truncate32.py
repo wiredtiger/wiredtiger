@@ -27,18 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered_truncate01.py
-#   Rolling back a committed-but-unstable truncate on a disaggregated leader
-#   must restore every truncated key.
-#
-#   A checkpoint persists a truncate whose durable timestamp is ahead of stable,
-#   as per-key stop tombstones, into the stable constituent. Correctness then
-#   relies on rollback_to_stable() undoing it.
-@disagg_test_class
-class test_layered_truncate01(wttest.WiredTigerTestCase):
+# Test that rolling back a committed-but-unstable truncate restores every truncated
+# key. A checkpoint persists the truncate, whose durable timestamp is ahead of
+# stable, as per-key stop tombstones, and correctness then relies on
+# rollback_to_stable() undoing it. Run under the disagg hook, this covers a leader.
+class test_truncate32(wttest.WiredTigerTestCase):
 
     # The constants are tuned to the leaf layout: leaf_page_max=32KB with this value
     # gives ~56 leaves, the first holding keys 1..165 and the last 9719..10000. The
@@ -46,20 +41,17 @@ class test_layered_truncate01(wttest.WiredTigerTestCase):
     # instantiate keys cover the first, a middle and the last truncated leaf.
     # Instantiating only those reproduces the failure; reading the whole range shifts
     # cache pressure and hides it.
-    conn_config = 'cache_size=10MB,statistics=(all),disaggregated=(role="leader"),'
-    uri = 'layered:test_layered_truncate01'
+    conn_config = 'cache_size=10MB,statistics=(all)'
+    uri = 'table:test_truncate32'
     create_cfg = 'key_format=i,value_format=S,leaf_page_max=32KB'
 
     value = "abcdefghijklmnopqrstuvwxyz" * 3
     instantiate_keys = [5, 165, 5000, 9719, 10000]
 
-    prepare_values = [
+    scenarios = make_scenarios([
         ('prepare', dict(prepare=True)),
-        ('noprepare', dict(prepare=False)),
-    ]
-
-    disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, prepare_values)
+        ('no_prepare', dict(prepare=False)),
+    ])
 
     nrows = 10000
 
@@ -67,7 +59,7 @@ class test_layered_truncate01(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.create_cfg)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
 
-        # Insert the base data and flush it into the stable constituent.
+        # Insert the base data and write it out.
         c = self.session.open_cursor(self.uri)
         for i in range(1, self.nrows + 1):
             self.session.begin_transaction()
@@ -112,7 +104,7 @@ class test_layered_truncate01(wttest.WiredTigerTestCase):
         # RTS aborts the in-memory tombstones, leaving the durable values.
         self.conn.rollback_to_stable()
 
-        # Force every stable leaf to reconcile and evict.
+        # Force every leaf to reconcile and evict.
         ev = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
         while ev.next() == 0:
             pass
