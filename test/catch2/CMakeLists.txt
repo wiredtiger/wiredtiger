@@ -50,6 +50,7 @@ else()
         block/unit/test_block_bitflip.cpp
         block/unit/test_block_ckpt.cpp
         block/unit/test_block_file.cpp
+        block/unit/test_block_header_report.cpp
         block/unit/test_block_other.cpp
         block/unit/test_block_session_bms.cpp
         block/unit/test_block_session_ext.cpp

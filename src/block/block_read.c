@@ -90,6 +90,66 @@ err:
 }
 
 /*
+ * __block_header_report --
+ *     Decode the headers of a block that failed its checksum into a diagnostic string. The size the
+ *     block declares for itself is the discriminator: a block agreeing with the address cookie is
+ *     the block we asked for with damaged bytes, while a block disagreeing with it is a
+ *     structurally valid block of a different size sitting at that offset, which implicates the
+ *     storage stack rather than the media and needs an entirely different remediation.
+ */
+static void
+__block_header_report(
+  const void *image, const WT_BLOCK_HEADER *blk, uint32_t size, char *dst, size_t dst_size)
+{
+    WT_PAGE_HEADER dsk;
+
+    /*
+     * The page header is only byte-swapped once a block passes its checksum, so decode a copy of
+     * it. The block header is the caller's byte-swapped copy: the one in the image may already have
+     * had its checksum cleared.
+     */
+    memcpy(&dsk, image, sizeof(dsk));
+    __wt_page_header_byteswap(&dsk);
+
+    /*
+     * None of these fields is trusted enough to size or index anything with, so every one of them
+     * is formatted as a fixed-width integer or a bounded string.
+     */
+    WT_IGNORE_RET(__wt_snprintf(dst, dst_size,
+      "%s%s: block header disk_size %" PRIu32 ", requested size %" PRIu32 ", flags %#" PRIx8
+      "; page header mem_size %" PRIu32 ", write_gen %" PRIu64 ", entries %" PRIu32 ", type %" PRIu8
+      " (%s), flags %#" PRIx8 ", version %" PRIu8,
+      blk->disk_size == size ? "HEADER_SIZE_MATCH" : "HEADER_SIZE_MISMATCH",
+      F_ISSET(&dsk, WT_PAGE_COMPRESSED) && dsk.mem_size <= blk->disk_size ?
+        " IMPLAUSIBLE_MEM_SIZE" :
+        "",
+      blk->disk_size, size, blk->flags, dsk.mem_size, dsk.write_gen, dsk.u.entries, dsk.type,
+      __wt_page_type_str(dsk.type), dsk.flags, dsk.version));
+}
+
+/*
+ * __block_checksum_bitflip_detect --
+ *     Check whether the checksum stored in the block header differs from the expected checksum by
+ *     exactly one bit. Scanning the block cannot answer this, because a scan assumes the stored
+ *     checksum is the one the write path computed.
+ */
+static bool
+__block_checksum_bitflip_detect(uint32_t stored, uint32_t expected, size_t *bit_position)
+{
+    size_t bit;
+    uint32_t diff;
+
+    diff = stored ^ expected;
+    if (diff == 0 || (diff & (diff - 1)) != 0)
+        return (false);
+
+    for (bit = 0; (diff & (1U << bit)) == 0; ++bit)
+        ;
+    *bit_position = bit;
+    return (true);
+}
+
+/*
  * __block_bitflip_detect --
  *     Check if flipping a single bit in the data would match the expected checksum. This helps
  *     diagnose single-bit memory corruption. Skip check for blocks larger than a defined size to
@@ -172,7 +232,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
-    size_t bufsize, check_size;
+    size_t bit_position, bufsize, check_size;
     uint64_t time_start, time_stop;
     bool full_checksum_mismatch;
 
@@ -231,6 +291,8 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     }
 
     if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
+        char header_report[512];
+
         if (full_checksum_mismatch)
             __wt_errx_id(session, 1538000,
               "%s: potential hardware corruption, read checksum error for %" PRIu32
@@ -245,6 +307,16 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
 
         /*
+         * Report what the block says about itself. The classification this gives us is only
+         * available while the block is in hand: these events happen once and cannot be repeated,
+         * and the raw dump below is often unusable because it can hold user data.
+         */
+        __block_header_report(buf->mem, &swap, size, header_report, sizeof(header_report));
+        __wt_errx_id(session, 1843300,
+          "%s: read checksum error diagnostic for %" PRIu32 "B block at offset %" PRIuMAX ": %s",
+          block->name, size, (uintmax_t)offset, header_report);
+
+        /*
          * Dump the corrupted block for analysis prior to bitflip detection in case detection takes
          * too long.
          */
@@ -256,11 +328,13 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
         __fs_free_space_dump(session, block);
 
         /*
-         * Attempt to detect single-bit flips in the data. This can help diagnose memory corruption
-         * issues.
+         * Attempt to detect single-bit flips. On the full mismatch branch the stored checksum
+         * agreed with the cookie, so any flip has to be in the block itself; on the block header
+         * branch the stored checksum is what disagreed, so the only single-bit explanation is a
+         * flip in that field, which no scan of the block can find.
          */
+        bit_position = 0;
         if (full_checksum_mismatch) {
-            size_t bit_position = 0;
             if (__block_bitflip_detect(buf->mem, check_size, checksum, &bit_position))
                 __wt_errx(session,
                   "%s: single-bit flip detected at bit position %" WT_SIZET_FMT
@@ -270,6 +344,16 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
             else
                 __wt_errx(session, "%s: bitflip detection performed but no single-bit flip found",
                   block->name);
+        } else if (__block_checksum_bitflip_detect(swap.checksum, checksum, &bit_position)) {
+            __wt_errx(session,
+              "%s: single-bit flip detected in the stored block header checksum at bit "
+              "position %" WT_SIZET_FMT,
+              block->name, bit_position);
+        } else {
+            __wt_errx(session,
+              "%s: the stored block header checksum is not a single-bit flip of the expected "
+              "checksum",
+              block->name);
         }
     }
 
@@ -344,5 +428,18 @@ __ut_block_bitflip_detect(
   void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
 {
     return (__block_bitflip_detect(data, check_size, expected_checksum, bit_position));
+}
+
+void
+__ut_block_header_report(
+  const void *image, const WT_BLOCK_HEADER *blk, uint32_t size, char *dst, size_t dst_size)
+{
+    __block_header_report(image, blk, size, dst, dst_size);
+}
+
+bool
+__ut_block_checksum_bitflip_detect(uint32_t stored, uint32_t expected, size_t *bit_position)
+{
+    return (__block_checksum_bitflip_detect(stored, expected, bit_position));
 }
 #endif

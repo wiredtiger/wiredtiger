@@ -315,3 +315,45 @@ TEST_CASE("Block bitflip detection: data integrity", "[block_bitflip]")
         }
     }
 }
+
+TEST_CASE("Block bitflip detection: the stored checksum itself", "[block_bitflip]")
+{
+    size_t bit_position = 0;
+
+    SECTION("A stored checksum one bit away from the expected one is detected")
+    {
+        for (size_t bit = 0; bit < 32; ++bit) {
+            uint32_t expected = 0xdeadbeef;
+            uint32_t stored = expected ^ (UINT32_C(1) << bit);
+
+            bit_position = 0;
+            CHECK(__ut_block_checksum_bitflip_detect(stored, expected, &bit_position) == true);
+            CHECK(bit_position == bit);
+        }
+    }
+
+    SECTION("A stored checksum matching the expected one is not a flip")
+    {
+        CHECK(__ut_block_checksum_bitflip_detect(0xdeadbeef, 0xdeadbeef, &bit_position) == false);
+    }
+
+    SECTION("A stored checksum two bits away from the expected one is not a flip")
+    {
+        CHECK(
+          __ut_block_checksum_bitflip_detect(0xdeadbeef ^ 0x9, 0xdeadbeef, &bit_position) == false);
+    }
+
+    SECTION("An unrelated stored checksum is not a flip")
+    {
+        CHECK(__ut_block_checksum_bitflip_detect(0, 0xdeadbeef, &bit_position) == false);
+    }
+
+    SECTION("The highest and lowest bits are both reachable")
+    {
+        CHECK(__ut_block_checksum_bitflip_detect(0x1, 0x0, &bit_position) == true);
+        CHECK(bit_position == 0);
+
+        CHECK(__ut_block_checksum_bitflip_detect(0x80000000, 0x0, &bit_position) == true);
+        CHECK(bit_position == 31);
+    }
+}

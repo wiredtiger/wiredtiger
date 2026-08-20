@@ -2740,6 +2740,8 @@ extern WT_EXT *__ut_block_off_srch_last(WT_EXT **head, WT_EXT ***stack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_bitflip_detect(void *data, size_t check_size, uint32_t expected_checksum,
   size_t *bit_position) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __ut_block_checksum_bitflip_detect(uint32_t stored, uint32_t expected,
+  size_t *bit_position) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_disagg_header_version_compatible(uint8_t compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size,
@@ -2799,6 +2801,8 @@ extern int __ut_layered_derive_layered_uri(WT_SESSION_IMPL *session, const char 
 extern int __ut_verify_compare_page_id_lists(WT_SESSION_IMPL *session, uint64_t *btree_ids,
   size_t num_btree, const uint64_t *pali_ids, size_t num_pali)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __ut_block_header_report(
+  const void *image, const WT_BLOCK_HEADER *blk, uint32_t size, char *dst, size_t dst_size);
 extern void __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off);
 extern void __ut_block_off_srch_pair(
   WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **afterp);
