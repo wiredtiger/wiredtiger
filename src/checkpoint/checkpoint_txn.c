@@ -495,6 +495,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     /* Should not be called with anything other than a live btree handle. */
     WT_ASSERT(session, WT_DHANDLE_BTREE(session->dhandle) && !WT_READING_CHECKPOINT(session));
 
+    /* Both handle walks skip the metadata trees; they are checkpointed on their own at the end. */
+    WT_ASSERT(session, !WT_IS_ANY_METADATA(session->dhandle));
+
     btree = S2BT(session);
 
     /*
@@ -513,9 +516,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
-        /* Skip the shared metadata table for disaggregated storage; we'll checkpoint it later. */
-        if (WT_IS_DISAGG_META(btree->dhandle))
-            return (0);
         /* Skip checkpointing shared tables if we are not a leader. */
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
           !__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
@@ -546,7 +546,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         S2C(session)->ckpt.handle_stats.meta_check_time += time_diff;
         if (ret == WT_ROLLBACK) {
             /*
-             * If create or drop or any schema operation of a table is with in an user transaction
+             * If create or drop or any schema operation of a table is within an user transaction
              * then checkpoint can see the dhandle before the commit, which will lead to the
              * rollback error. We will ignore this dhandle as part of this checkpoint by returning
              * from here.
@@ -2186,6 +2186,11 @@ err:
     if (failed) {
         conn->modified = true;
         WT_STAT_CONN_INCR(session, checkpoints_total_failed);
+        /*
+         * Roll back any parallel-checkpoint worker transactions before any early-return path below
+         * can skip the coordinator's own rollback and leave them running until connection teardown.
+         */
+        WT_TRET(__wti_checkpoint_parallel_rollback(session));
     }
 
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
@@ -3324,7 +3329,7 @@ fake:
      * that case, we need to sync the file here or we could roll forward the metadata in recovery
      * and open a checkpoint that isn't yet durable.
      */
-    if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
+    if (WT_IS_ANY_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR_MSG_CHK(
           session, __wt_checkpoint_sync(session, NULL), "checkpoint failed during file sync");
 
