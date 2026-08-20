@@ -1085,7 +1085,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
               md_cursors[WT_DISAGG_CURSOR_FILE], &md_btree_id, &sh_btree_id, &id_differs));
             if (id_differs) {
                 __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "Replacing layered table \"%s\": the local btree ID %" PRId64
+                  "Dropping and recreating stale layered table \"%s\": the local btree ID %" PRId64
                   " is not the checkpoint's %" PRId64,
                   current, md_btree_id, sh_btree_id);
 
