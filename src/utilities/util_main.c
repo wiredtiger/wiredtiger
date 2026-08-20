@@ -507,7 +507,7 @@ open:
       !util_func_allowed_disagg(func)) {
         fprintf(
           stderr, "%s: %s is not supported in disaggregated storage mode\n", progname, command);
-        goto done;
+        goto err;
     }
 
     if (secretkey != NULL) {

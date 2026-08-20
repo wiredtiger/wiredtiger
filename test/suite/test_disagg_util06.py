@@ -33,24 +33,22 @@ from run import wt_builddir
 from suite_subprocess import suite_subprocess
 
 # Verify the wt CLI rejects global flags that are not supported in
-# disaggregated storage mode before wiredtiger_open runs.
+# disaggregated storage mode.
 @disagg_test_class
 class test_disagg_util06(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'disaggregated=(role="leader")'
 
-    # Message emitted by src/utilities/util_main.c when a rejected flag is
-    # combined with -C 'disaggregated=(...)'.
     REJECT_MSG = 'is not supported in disaggregated storage mode'
 
-    # (flag, extra_argv) — extra_argv covers flags that take an argument.
-    REJECTED = [
-        ('-B', []),
-        ('-E', ['dummy_key']),
-        ('-L', []),
-        ('-l', ['/tmp/wt17345-nonexistent']),
-        ('-R', []),
-        ('-S', []),
-    ]
+    def _rejected_cases(self):
+        return [
+            ('-B', []),
+            ('-E', ['dummy_key']),
+            ('-L', []),
+            ('-l', [os.path.join(self.home, 'no-such-live-restore')]),
+            ('-R', []),
+            ('-S', []),
+        ]
 
     def _disagg_extension_path(self):
         ext_dir = os.path.join(wt_builddir, 'ext', 'page_log', self.ds_name)
@@ -66,8 +64,7 @@ class test_disagg_util06(wttest.WiredTigerTestCase, suite_subprocess):
 
         follower_home = os.path.join(self.home, name)
         os.mkdir(follower_home)
-        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'),
-            target_is_directory=True)
+        os.symlink('../kv_home', os.path.join(follower_home, 'kv_home'), target_is_directory=True)
 
         ext_path = self._disagg_extension_path()
         page_log = self.page_log()
@@ -78,9 +75,7 @@ class test_disagg_util06(wttest.WiredTigerTestCase, suite_subprocess):
 
     def _leader_prepare_checkpoint(self):
         # A completed checkpoint is required so the follower could otherwise
-        # attach cleanly; the point of these tests is that we reject before
-        # ever getting to open, but keeping the leader-side state realistic
-        # ensures we're rejecting for the right reason.
+        # attach and fail cleanly.
         self.session.create('layered:test_disagg_util06', 'key_format=S,value_format=S')
         self.session.checkpoint()
 
@@ -88,7 +83,7 @@ class test_disagg_util06(wttest.WiredTigerTestCase, suite_subprocess):
         self._leader_prepare_checkpoint()
         follower_home, config = self._follower_setup('wt-follower')
 
-        for flag, flag_args in self.REJECTED:
+        for flag, flag_args in self._rejected_cases():
             outfile = f'wt{flag}.out'
             errfile = f'wt{flag}.err'
             self.runWt(
@@ -101,7 +96,6 @@ class test_disagg_util06(wttest.WiredTigerTestCase, suite_subprocess):
                 f"expected reject message for {flag}, got stderr:\n{err}")
 
     def test_accept_supported_flag(self):
-        # Regression guard: a permitted global flag (-v) must not be rejected.
         self._leader_prepare_checkpoint()
         follower_home, config = self._follower_setup('wt-follower-ok')
 

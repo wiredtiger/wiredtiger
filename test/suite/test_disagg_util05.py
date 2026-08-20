@@ -69,9 +69,10 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(len(candidates), 1)
         return candidates[0]
 
-    def _run_wt_follower(self, follower_home, follower_config, wt_args):
+    def _run_wt_follower(self, follower_home, follower_config, wt_args, failure=False):
         self.runWt(['-h', follower_home, '-C', follower_config] + list(wt_args),
-                   outfilename='wt.out', errfilename='wt.err', closeconn=False)
+                   outfilename='wt.out', errfilename='wt.err', closeconn=False,
+                   failure=failure)
         with open('wt.out') as f:
             out = f.read()
         with open('wt.err') as f:
@@ -98,8 +99,10 @@ class test_disagg_util05(wttest.WiredTigerTestCase, suite_subprocess):
         for cmd in subcmds:
             if cmd in self.NO_STORAGE_ACCESS:
                 continue
-            _, stderr = self._run_wt_follower(follower_home, follower_config, [cmd, '-?'])
-            if cmd in self.ALLOWED:
-                self.assertNotIn(self.REJECT_MSG, stderr)
-            else:
+            rejected = cmd not in self.ALLOWED
+            _, stderr = self._run_wt_follower(follower_home, follower_config, [cmd, '-?'],
+                                              failure=rejected)
+            if rejected:
                 self.assertIn(self.REJECT_MSG, stderr)
+            else:
+                self.assertNotIn(self.REJECT_MSG, stderr)
