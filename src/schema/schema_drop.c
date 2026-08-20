@@ -187,10 +187,7 @@ __drop_layered(
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
-    char *stable_value;
     const char *ingest_uri, *stable_uri, *tablename;
-
-    stable_value = NULL;
 
     WT_UNUSED(force);
 
@@ -220,13 +217,6 @@ __drop_layered(
               "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri,
               uri);
     }
-
-    /*
-     * Read the stable table's configuration before the local rows go away: the enqueue below would
-     * otherwise look it up in local metadata and find nothing. The stable table may have no local
-     * row on a follower or for a table created after the step-down timestamp was set.
-     */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, stable_uri, &stable_value), false);
 
     /*
      * Drop the layered table constituents. The stable table may not exist locally: a follower never
@@ -259,13 +249,12 @@ __drop_layered(
      */
     WT_SAVE_DHANDLE(session,
       ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, stable_value));
+        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
     WT_ERR(ret);
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
-    __wt_free(session, stable_value);
 
     return (ret);
 }

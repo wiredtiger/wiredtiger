@@ -518,6 +518,10 @@ __disagg_shared_metadata_op_helper(WT_SESSION_IMPL *session, const char *key, co
          *
          * Since either form may appear depending on how the table was created, it is acceptable for
          * some lookups to return WT_NOTFOUND.
+         *
+         * Only the stable constituent carries a checkpoint size, so only that lookup asks for one.
+         * Take it from the row being deleted: that is the size the metadata walk stops counting,
+         * and deleting the row keeps the subtraction to one per dropped table.
          */
         if (drop_sizep != NULL) {
             WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
