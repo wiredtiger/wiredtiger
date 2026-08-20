@@ -1142,7 +1142,9 @@ __wti_verbose_dump_handles(WT_SESSION_IMPL *session)
         if (dhandle->excl_ref != 0)
             WT_RET(
               __wt_msg(session, "  Session with exclusive use: %p", (void *)dhandle->excl_session));
-        WT_RET(__wt_msg(session, "  Flags: 0x%08" PRIx32, dhandle->flags));
+        /* Sweep can concurrently update the flags of a handle we're dumping. */
+        WT_RET(__wt_msg(
+          session, "  Flags: 0x%08" PRIx16, __wt_atomic_load_uint16_relaxed(&dhandle->flags)));
     }
     return (0);
 }
