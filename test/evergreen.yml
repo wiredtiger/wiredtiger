@@ -3277,36 +3277,6 @@ tasks:
         vars:
           unit_test_args: -v 2 --hook timing_stress_log_conn_close
 
-  - name: unit-test-hook-tiered
-    tags: ["python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --hook tiered
-
-  - name: unit-test-hook-tiered-with-delays
-    tags: ["python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --hook 'tiered=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=1,delay_ms=10,verbose=1))'
-
-  - name: unit-test-hook-tiered-timestamp
-    tags: ["python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --hook tiered --hook timestamp
-
   - name: unit-test-hook-timestamp
     tags: ["python"]
     depends_on:
@@ -3316,18 +3286,6 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --hook timestamp
-
-  # A version of the tiered, timestamp hook test, scaled down for running during pull requests.
-  # A small (1 out of N) random sample is run.
-  - name: unit-test-hook-tiered-timestamp-quick
-    tags: ["pull_request", "python"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --hook tiered --hook timestamp --random-sample 20
 
   # The test_prepare_hs03.py test, when run with timestamp hooks, is run multiple times to facilitate
   # catching intermittent problems in the test.
@@ -3949,22 +3907,6 @@ tasks:
             else
               ./test_fops
             fi
-
-  - name: bench-tiered-push-pull
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/bench/tiered"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            # By default the test_push_pull uses dir_store as a storage source.
-            ./test_push_pull -PT
 
   - name: compatibility-test-dirty-restart
     commands:
@@ -5040,23 +4982,6 @@ tasks:
           tiered: 0       # Don't enable tiered storage
           times: 1        # Number of times to run the loop
 
-  - name: checkpoint-stress-test-tiered
-    exec_timeout_secs: 86400
-    depends_on: *s-all-dep
-    commands:
-      - command: timeout.update
-        params:
-          timeout_secs: 86400
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-      - func: "checkpoint stress test"
-        vars:
-          no_of_procs: 5  # Number of processes to run in the background
-          tiered: 1       # Enable tiered storage
-          times: 1        # Number of times to run the loop
-
   - name: precise-checkpoint-stress-test
     tags: ["stress-test-1"]
     exec_timeout_secs: 86400
@@ -5075,25 +5000,6 @@ tasks:
           wt_config: cache_size=1000M
           no_of_procs: 10 # Number of processes to run in the background
           tiered: 0       # Don't enable tiered storage
-          times: 1        # Number of times to run the loop
-
-  - name: precise-checkpoint-stress-test-tiered
-    exec_timeout_secs: 86400
-    depends_on: *s-all-dep
-    commands:
-      - command: timeout.update
-        params:
-          timeout_secs: 86400
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-      - func: "checkpoint stress test"
-        vars:
-          timestamp_config: -e -x
-          wt_config: cache_size=1000M
-          no_of_procs: 5  # Number of processes to run in the background
-          tiered: 1       # Enable tiered storage
           times: 1        # Number of times to run the loop
 
   - name: skiplist-stress-test
@@ -7085,9 +6991,6 @@ buildvariants:
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
     - name: unit-test-hook-parallel-checkpoint
-    - name: unit-test-hook-tiered
-    - name: unit-test-hook-tiered-with-delays
-    - name: unit-test-hook-tiered-timestamp
     - name: unit-test-hook-timing-stress-log
     - name: unit-test-hook-timestamp
     - name: test-prepare-hs03-hook-timestamp
@@ -7105,7 +7008,6 @@ buildvariants:
     - name: format-failure-configs-test
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
-    - name: bench-tiered-push-pull
     - name: ".workgen-test"
       batchtime: 120 # every 2 hours
     - name: model-unit-test
@@ -7332,8 +7234,6 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
-    - name: checkpoint-stress-test-tiered
-    - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # twice a day
