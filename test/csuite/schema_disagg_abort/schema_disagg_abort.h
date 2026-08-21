@@ -236,7 +236,6 @@ typedef struct {
     bool handover_received;    /* the term was handed over this phase; atomic access */
     uint32_t stop_stage;       /* how far the phase's shutdown has progressed; atomic access */
     uint64_t adopted_ckpt_lsn; /* skip re-adopting the same checkpoint; reset on role change */
-    uint64_t adopted_ckpt_ts;  /* the adopted checkpoint's timestamp: a frontier floor; atomic */
     uint32_t switch_gen;       /* how many role transitions this node has completed */
 
     /* Step-down state, zero outside a transition; atomic access. */

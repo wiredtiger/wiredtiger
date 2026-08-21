@@ -15,8 +15,6 @@
 
 #include "schema_disagg_abort.h"
 
-static uint64_t workers_min(WORKLOAD_STATE *state);
-
 /*
  * ckpt_latest --
  *     Read the latest complete checkpoint. False when none found; the caller frees the metadata
@@ -75,10 +73,11 @@ ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session)
     }
 
     /*
-     * Never adopt a checkpoint ahead of the applied frontier: operations still in flight would land
-     * behind what the checkpoint claims to cover. Replication gates its installs the same way.
+     * Never adopt a checkpoint ahead of the node's clock: epochs handed out afterwards would fall
+     * at or below what the checkpoint already claims to cover. Replication gates its checkpoint
+     * installs on apply progress the same way.
      */
-    if (workers_min(state) < ckpt_args.checkpoint_timestamp) {
+    if (__wt_atomic_load_uint64(&state->current_ts) < ckpt_args.checkpoint_timestamp) {
         free(ckpt_args.checkpoint_metadata.mem);
         return (false);
     }
@@ -110,9 +109,6 @@ ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session)
     }
 
     state->adopted_ckpt_lsn = ckpt_args.checkpoint_lsn;
-
-    /* The adopted checkpoint floors the stable frontier. */
-    __wt_atomic_store_uint64(&state->adopted_ckpt_ts, ckpt_args.checkpoint_timestamp);
     return (true);
 }
 
@@ -175,8 +171,8 @@ thread_ckpt_run(void *arg)
 /*
  * workers_min --
  *     Return the minimum completed timestamp across all worker threads: the frontier with no
- *     unfinished publish or commit at or below it. The frontier carries across role changes.
- *     Returns 0 if any worker has never completed an operation.
+ *     unfinished publish or commit at or below it. Returns 0 if any worker has not yet completed an
+ *     operation this phase.
  */
 static uint64_t
 workers_min(WORKLOAD_STATE *state)
@@ -211,10 +207,9 @@ thread_ts_run(void *arg)
         if (__wt_atomic_load_uint64(&state->stepdown_ts) == 0) {
             /*
              * The single frontier serves both schema and data operations: everything at or below it
-             * is published and committed, and it never falls behind an adopted checkpoint.
+             * is published and committed.
              */
-            const uint64_t frontier =
-              WT_MAX(workers_min(state), __wt_atomic_load_uint64(&state->adopted_ckpt_ts));
+            const uint64_t frontier = workers_min(state);
             if (frontier != 0) {
                 const uint64_t cur_stable = query_ts(state->conn, TS_STABLE);
                 if (frontier >= cur_stable)

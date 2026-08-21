@@ -255,11 +255,9 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->emitted = state->applied = 0;
     state->stepdown_ts = state->stepdown_ckpt_lsn = 0;
 
-    /*
-     * Reset workers' per-phase state. Tables' state and the completed frontier survive role
-     * transitions: what a node applied stays applied.
-     */
+    /* Reset workers' state. Note: tables' state survives role transitioning. */
     for (uint32_t i = 0; i < cfg->nth; i++) {
+        state->workers[i].completed_ts = 0;
         state->workers[i].busy = false;
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
         memset(state->workers[i].stepdown_insert, 0, sizeof(state->workers[i].stepdown_insert));
