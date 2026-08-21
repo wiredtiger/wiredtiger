@@ -2017,8 +2017,8 @@ methods = {
         when considered together''',
         type='boolean'),
     Config('fix_btree_size', 'false', r'''
-        When \c true, verify overwrites the checkpoint metadata size with the size derived from
-        walking the tree if they differ, and logs the correction. When \c false (the default), a
+        When set to true, verify overwrites the checkpoint metadata size with the size derived from
+        walking the tree if they differ, and logs the correction. When set to false (the default), a
         mismatch logs a warning only''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
