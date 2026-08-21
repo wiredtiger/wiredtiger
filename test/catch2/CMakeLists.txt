@@ -152,9 +152,5 @@ if(NOT HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
     )
 endif()
 
-if(WT_POSIX)
-    add_dependencies(catch2-unittests wiredtiger_dir_store)
-endif()
-
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
