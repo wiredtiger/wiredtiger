@@ -30,6 +30,7 @@ import wttest
 from wtscenario import make_scenarios
 
 # Smoke-test the session alter operations.
+@wttest.skip_for_hook("disagg", "session.alter is not supported in disaggregated storage")
 class test_alter01(wttest.WiredTigerTestCase):
     name = "alter01"
     entries = 100

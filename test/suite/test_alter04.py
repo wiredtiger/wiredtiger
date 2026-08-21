@@ -31,6 +31,7 @@ from wtscenario import make_scenarios
 
 # Smoke-test the session alter operations.
 # This test confirms os_cache_dirty_max and os_cache_max.
+@wttest.skip_for_hook("disagg", "session.alter is not supported in disaggregated storage")
 class test_alter04(wttest.WiredTigerTestCase):
     name = "alter04"
     entries = 100

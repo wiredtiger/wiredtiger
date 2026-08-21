@@ -29,6 +29,7 @@
 import wiredtiger, wttest
 
 # Check the alter command succeeds even if the file is modified.
+@wttest.skip_for_hook("disagg", "session.alter is not supported in disaggregated storage")
 class test_alter05(wttest.WiredTigerTestCase):
     name = "alter05"
     conn_config = 'statistics=(all)'

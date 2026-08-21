@@ -29,6 +29,7 @@
 import wiredtiger, wttest
 
 # Check if app_metadata can be altered.
+@wttest.skip_for_hook("disagg", "session.alter is not supported in disaggregated storage")
 class test_alter03(wttest.WiredTigerTestCase):
     name = "alter03"
 
