@@ -27,12 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # test_layered_drop01.py
-# Dropping a layered table on a leader must not read from the page log.
-#
-# A replicated drop holds an oplog slot for the duration of the call, so any
-# synchronous page-log read it performs shows up as replication lag. When the
-# table's data handle is not currently open, the drop has to open it, and
-# opening the stable btree fetches its root page.
+# Dropping a layered table must not read from the page log.
+# If an existing table has been closed by the connection sweep, we want to make
+# sure that a drop does not reopen the table while getting exclusive access to it.
 
 import time
 import wiredtiger, wttest
@@ -62,13 +59,14 @@ class test_layered_drop01(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
-    # The number of page-log reads a drop performs, measured with nothing else
-    # running against the table.
+    # Returns the number of block reads a drop performs
     def reads_during_drop(self):
         before = self.get_stat(stat.conn.disagg_block_get)
         self.session.drop(self.uri, None)
         after = self.get_stat(stat.conn.disagg_block_get)
 
+        # Ensure that the table has really been dropped,
+        # expect an error on reopen.
         with self.assertRaises(wiredtiger.WiredTigerError):
             self.session.open_cursor(self.uri, None, None)
 
@@ -77,8 +75,7 @@ class test_layered_drop01(wttest.WiredTigerTestCase):
     def test_drop_after_conn_reopen(self):
         self.populate_and_checkpoint()
 
-        # Reopening the connection leaves the table's data handles closed, the
-        # state the drop must not have to read its way out of.
+        # Reopening the connection leaves the table's data handles closed.
         self.reopen_conn()
 
         self.assertEqual(self.reads_during_drop(), 0,
@@ -87,10 +84,8 @@ class test_layered_drop01(wttest.WiredTigerTestCase):
     def test_drop_after_sweep(self):
         self.populate_and_checkpoint()
 
-        # Wait for the sweep server to close the idle data handles. Everything
-        # created above is clean and unreferenced once the cursor is closed and
-        # the checkpoint has run, so the handle count returns to what the
-        # connection needs for its own metadata.
+        # Wait for the sweep server to close idle data handles.  The populated
+        # table has no cursors open, so it should be closed.
         baseline = self.get_stat(stat.conn.dh_conn_handle_count)
         deadline = time.time() + 30
         while True:
@@ -106,8 +101,7 @@ class test_layered_drop01(wttest.WiredTigerTestCase):
             'dropping a layered table with a swept data handle read from the page log')
 
     def test_drop_with_open_handle(self):
-        # A control for the two cases above: with the data handle still open the
-        # drop reads nothing, so a read there is attributable to the reopen.
+        # With the data handle still open we expect the drop to read nothing.
         self.populate_and_checkpoint()
 
         self.assertEqual(self.reads_during_drop(), 0,
