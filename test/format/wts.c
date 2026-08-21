@@ -350,52 +350,6 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 }
 
 /*
- * configure_tiered_storage --
- *     Configure tiered storage settings for opening a connection.
- */
-static void
-configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, size_t ext_cfg_size)
-{
-    TEST_OPTS opts;
-    char tiered_cfg[1024];
-
-    if (!g.tiered_storage_config) {
-        testutil_assert(ext_cfg_size > 0);
-        ext_cfg[0] = '\0';
-        return;
-    }
-
-    memset(&opts, 0, sizeof(opts));
-    opts.tiered_storage = true;
-
-    /*
-     * We need to cast these values. Normally, testutil allocates and fills these strings based on
-     * command line arguments and frees them when done. Format doesn't use the standard test command
-     * line parser and doesn't rely on testutil to free anything in this struct. We're only using
-     * the options struct on a temporary basis to help create the tiered storage configuration.
-     */
-    opts.tiered_storage_source = (char *)GVS(TIERED_STORAGE_STORAGE_SOURCE);
-    opts.home = (char *)home;
-    opts.build_dir = (char *)BUILDDIR;
-
-    /*
-     * Have testutil create the bucket directory for us when using the directory store.
-     */
-    opts.make_bucket_dir = true;
-
-    /*
-     * Use an absolute path for the bucket directory when using the directory store. Then we can
-     * create copies of the home directory to be used for backup, and we'll be able to find the
-     * bucket.
-     */
-    opts.absolute_bucket_dir = true;
-
-    testutil_tiered_storage_configuration(
-      &opts, home, tiered_cfg, sizeof(tiered_cfg), ext_cfg, ext_cfg_size);
-    CONFIG_APPEND(*p, ",%s", tiered_cfg);
-}
-
-/*
  * configure_prefetch --
  *     Configure prefetch settings for opening a connection. When enabled, this allows sessions to
  *     use the prefetch feature.
@@ -444,11 +398,11 @@ configure_obsolete_cleanup(char **p, size_t max)
  *     entries are present and so no extension goes missing on reopen.
  */
 static void
-configure_extensions(char **p, size_t max, const char *disagg_ext_cfg, const char *tiered_ext_cfg)
+configure_extensions(char **p, size_t max, const char *disagg_ext_cfg)
 {
     CONFIG_APPEND(*p,
       ",extensions_strict=true,extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s]",
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s]",
       /* Collators. */
       REVERSE_PATH,
       /* Compressors. */
@@ -457,9 +411,7 @@ configure_extensions(char **p, size_t max, const char *disagg_ext_cfg, const cha
       /* Encryptors. */
       EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
       /* Page log. */
-      disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"",
-      /* Storage source. */
-      tiered_ext_cfg[0] != '\0' ? tiered_ext_cfg : "\"\"");
+      disagg_ext_cfg[0] != '\0' ? disagg_ext_cfg : "\"\"");
 }
 
 /*
@@ -471,7 +423,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], disagg_ext_cfg[1024], *p, tiered_ext_cfg[1024];
+    char config[8 * 1024], disagg_ext_cfg[1024], *p;
     const char *s, *sources;
 
     p = config;
@@ -564,9 +516,6 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional disaggregated storage. */
     configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
-    /* Optional tiered storage. */
-    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
-
     /* Optional prefetch. */
     configure_prefetch(&p, max);
 
@@ -574,7 +523,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     configure_obsolete_cleanup(&p, max);
 
     /* Extensions. */
-    configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
+    configure_extensions(&p, max, disagg_ext_cfg);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -767,7 +716,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], disagg_ext_cfg[1024], *p, tiered_ext_cfg[1024];
+    char config[8 * 1024], disagg_ext_cfg[1024], *p;
     const char *enc, *s;
 
     *connp = NULL;
@@ -776,7 +725,6 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     max = sizeof(config);
     config[0] = '\0';
     disagg_ext_cfg[0] = '\0';
-    tiered_ext_cfg[0] = '\0';
 
     /* Configuration settings that are not persistent between open calls. */
     enc = encryptor_at_open();
@@ -798,9 +746,6 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     /* Optional disaggregated storage. */
     configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
-    /* Optional tiered storage. */
-    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
-
     /* Optional live restore. */
     configure_live_restore(&p, max);
 
@@ -811,7 +756,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     configure_obsolete_cleanup(&p, max);
 
     /* Extensions. */
-    configure_extensions(&p, max, disagg_ext_cfg, tiered_ext_cfg);
+    configure_extensions(&p, max, disagg_ext_cfg);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (GV(RUNS_IN_MEMORY) != 0)
