@@ -56,20 +56,27 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         ('dont_corrupt_table', dict(corrupt=False))
     ]
 
-    # The impact of corrupting the database file can depend on the number of bytes overwritten,
-    # depending on what the rest of the test does and expects. The amount of data that
-    # is corrupted by the 'string-row' test is much larger, as that increases the chance of interactions
-    # with, for example, the results of combining timestamp hooks into the test.
+    # The impact of corrupting the database file depends on how much of the file is overwritten,
+    # depending on what the rest of the test does and expects. A fraction of the table keeps this
+    # proportionate however well the values happen to compress; a fraction of zero corrupts a
+    # single block. The amount of data that is corrupted by the 'string-row' tests is much larger,
+    # as that increases the chance of interactions with, for example, the results of combining
+    # timestamp hooks into the test.
+    corrupt_fraction = 0.033
+
+    # A dictionary collapses this test's uniform values by more than an order of magnitude, which
+    # exercises salvage against a far denser file.
     format_values = [
-        ('column', dict(key_format='r', data_to_corrupt_with='Bad!' * 1024)),
-        ('string-row', dict(key_format='S', data_to_corrupt_with='Bad!' * 100 * 1024)),
+        ('column', dict(key_format='r', corrupt_fraction=0, dictionary=False)),
+        ('string-row', dict(key_format='S', dictionary=False)),
+        ('string-row-dictionary', dict(key_format='S', dictionary=True)),
     ]
 
     value_format='u'
 
     # Every key checked by this test passes through three values: an untimestamped initial load, a
     # committed update, and a prepared update that is never resolved.
-    load_rows = 10000
+    load_end = 10000
     load_value = b"aaaaa" * 100
     commit_value = b"bbbbb" * 100
     prepare_value = b"ccccc" * 100
@@ -84,10 +91,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # committed update. Only the keys the initial load wrote have such an older value, and only
         # a corrupted table can send salvage looking for one. The prepared value is never
         # acceptable: it must not be visible below the prepare timestamp.
-        return self.corrupt and i < self.load_rows and value == self.load_value
+        return self.corrupt and i < self.load_end and value == self.load_value
 
-    def corrupt_table(self, data_to_corrupt_with):
-        tablename=f"{self.test_name}.wt"
+    def corrupt_table(self):
+        # Resolve the table against the connection's home: after the simulated crash the connection
+        # is open on the copied directory, and a relative name would corrupt the database the test
+        # has already finished with rather than the one it is about to salvage.
+        tablename=os.path.join(self.home, f"{self.test_name}.wt")
         self.assertEqual(os.path.exists(tablename), True)
 
         # Leave the checkpoint's extent-list blocks intact. Salvage cannot recover a corrupt extent
@@ -96,7 +106,10 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # the test whenever the file layout happens to place an extent-list block in the range below.
         protect = sorted(checkpoint_extent_list_blocks(self.session, 'file:' + self.test_name + '.wt'))
         start = 1024
-        data = bytes(data_to_corrupt_with, 'latin-1')
+        # Overwrite at least one block however small the table turned out to be.
+        size = max(4096, int(os.path.getsize(tablename) * self.corrupt_fraction))
+        pattern = b'Bad!'
+        data = (pattern * (size // len(pattern) + 1))[:size]
         end = start + len(data)
         with open(tablename, 'r+b') as f:
             pos = start
@@ -118,8 +131,8 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # clear the dirty data, but eviction can re-dirty the cache between the checkpoint and the
         # open attempt, we have to loop.
         self.session.checkpoint()
-        if self.corrupt == True:
-            self.corrupt_table(self.data_to_corrupt_with)
+        if self.corrupt:
+            self.corrupt_table()
         while True:
             if not self.raisesBusy(lambda: self.session.salvage(self.uri, "force")):
                 break
@@ -129,14 +142,15 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 break
             self.session.checkpoint()
 
-    def check_data(self, ds, message, nkeys, nrows, timestamp):
+    def check_data(self, ds, message, nkeys_end, nrows, timestamp):
         # Search for the keys inserted with commit timestamp
         cursor = self.session.open_cursor(self.uri)
         self.pr('check_data: {}'.format(message))
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(timestamp))
         nkeys_checked = 0
+        nkeys_stale = 0
         unexpected = []
-        for i in range(1, nkeys):
+        for i in range(1, nkeys_end):
             key = nrows + i
             cursor.set_key(ds.key(key))
             # It is not guaranteed that salvage recovers all the data in the table, so count the
@@ -145,11 +159,29 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 self.pr('Key {} not found'.format(key))
                 continue
             nkeys_checked += 1
-            # Report the value a key came back with, not just how many keys disagreed.
-            if not self.value_is_acceptable(i, cursor.get_value()):
-                unexpected.append((key, cursor.get_value()[:16]))
-        self.pr("nkeys_checked = {}, unexpected = {}".format(nkeys_checked, len(unexpected)))
+            value = cursor.get_value()
+            # Report the value a key came back with, not just how many keys disagreed. Count the
+            # keys salvage rebuilt from an older image separately: accepting them is necessary but
+            # it is also the tolerance most likely to hide a real regression, so it must be
+            # visible rather than silent.
+            if value == self.load_value:
+                nkeys_stale += 1
+            if not self.value_is_acceptable(i, value):
+                unexpected.append((key, value[:16]))
+        self.pr("nkeys_checked = {}, nkeys_stale = {}, unexpected = {}".format(
+            nkeys_checked, nkeys_stale, len(unexpected)))
         self.assertEqual(unexpected, [], 'unexpected values: {}'.format(unexpected[:10]))
+        # Bound how much salvage is allowed to lose. Counting only the keys a search finds says
+        # nothing about how many it found, so without a floor this passes having recovered one key.
+        nkeys_expected = nkeys_end - 1
+        if self.corrupt:
+            # A key whose only copy was in the corrupted range is gone for good, but the corruption
+            # covers a small fraction of the file, so losing most of the table means salvage
+            # discarded data it could have kept.
+            self.assertGreaterEqual(nkeys_checked, nkeys_expected // 2,
+                'salvage recovered {} of {} keys'.format(nkeys_checked, nkeys_expected))
+        else:
+            self.assertEqual(nkeys_checked, nkeys_expected)
         cursor.close()
         self.session.commit_transaction()
 
@@ -223,7 +255,9 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             if cursor.search() != 0:
                 continue
             # A read below the prepare timestamp sees the committed value, never the prepared one.
-            self.assertTrue(self.value_is_acceptable(i, cursor.get_value()))
+            value = cursor.get_value()
+            self.assertTrue(self.value_is_acceptable(i, value),
+                'key {} holds unexpected value {}'.format(nrows + i, value[:16]))
         cursor.close()
 
         # Close all sessions (and cursors), this will cause prepared updates to be rolled back.
@@ -255,15 +289,18 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # corrupted table and call verify
         self.corrupt_salvage_verify()
 
+        self.check_data(ds, "(step 5)", nsessions * nkeys, nrows, timestamp_later)
+
     def test_prepare_hs(self):
         nrows = 100
         ds = SimpleDataSet(
-            self, self.uri, nrows, key_format=self.key_format, value_format=self.value_format)
+            self, self.uri, nrows, key_format=self.key_format, value_format=self.value_format,
+            config='dictionary=1' if self.dictionary else '')
         ds.populate()
 
         # Initially load huge data
         cursor = self.session.open_cursor(self.uri)
-        for i in range(1, self.load_rows):
+        for i in range(1, self.load_end):
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(self.load_value)
             self.assertEqual(cursor.insert(), 0)
