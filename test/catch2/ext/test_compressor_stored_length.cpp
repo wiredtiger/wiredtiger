@@ -13,6 +13,7 @@
 #include <catch2/catch.hpp>
 
 #include "utils.h"
+#include "wrappers/connection_wrapper.h"
 
 #include "wiredtiger.h"
 #include "wt_internal.h"
@@ -65,7 +66,7 @@ guard_rejected(WT_COMPRESSOR *c, WT_SESSION *session, std::vector<uint8_t> &src,
  * which would otherwise mean producing a block whose checksum verifies.
  */
 struct compressor_fixture {
-    WT_CONNECTION *conn = nullptr;
+    connection_wrapper conn{DB_HOME, "create,in_memory", &capture_handler};
     WT_SESSION *session = nullptr;
     WT_COMPRESSOR *compressor = nullptr;
 
@@ -73,22 +74,14 @@ struct compressor_fixture {
     {
         WT_NAMED_COMPRESSOR *ncomp;
 
-        utils::wiredtiger_cleanup(DB_HOME);
-        REQUIRE(mkdir(DB_HOME, 0700) == 0);
-        REQUIRE(wiredtiger_open(DB_HOME, &capture_handler, "create,in_memory", &conn) == 0);
-        REQUIRE(conn->open_session(conn, nullptr, nullptr, &session) == 0);
-        REQUIRE(init(conn, nullptr) == 0);
+        REQUIRE(conn.get_wt_connection()->open_session(
+                  conn.get_wt_connection(), nullptr, nullptr, &session) == 0);
+        REQUIRE(init(conn.get_wt_connection(), nullptr) == 0);
 
-        TAILQ_FOREACH (ncomp, &((WT_CONNECTION_IMPL *)conn)->ext.compqh, q)
+        TAILQ_FOREACH (ncomp, &conn.get_wt_connection_impl()->ext.compqh, q)
             if (std::strcmp(ncomp->name, name) == 0)
                 compressor = ncomp->compressor;
         REQUIRE(compressor != nullptr);
-    }
-
-    ~compressor_fixture()
-    {
-        conn->close(conn, "");
-        utils::wiredtiger_cleanup(DB_HOME);
     }
 };
 
