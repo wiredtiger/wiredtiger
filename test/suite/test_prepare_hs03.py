@@ -94,7 +94,10 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         return self.corrupt and i < self.load_end and value == self.load_value
 
     def corrupt_table(self):
-        tablename=f"{self.test_name}.wt"
+        # Resolve the table against the connection's home: after the simulated crash the connection
+        # is open on the copied directory, and a relative name would corrupt the database the test
+        # has already finished with rather than the one it is about to salvage.
+        tablename=os.path.join(self.home, f"{self.test_name}.wt")
         self.assertEqual(os.path.exists(tablename), True)
 
         # Leave the checkpoint's extent-list blocks intact. Salvage cannot recover a corrupt extent
@@ -284,10 +287,9 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         # After simulating a crash, corrupt the table, call salvage to recover data from the
         # corrupted table and call verify
-        # FIXME-WT-18449: The connection is now open on the copied directory, but corrupt_table
-        # builds a relative file name and so overwrites the pre-restart file. This salvages an
-        # intact table, and the post-crash corruption path is untested.
         self.corrupt_salvage_verify()
+
+        self.check_data(ds, "(step 5)", nsessions * nkeys, nrows, timestamp_later)
 
     def test_prepare_hs(self):
         nrows = 100
