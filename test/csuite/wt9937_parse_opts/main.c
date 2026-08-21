@@ -67,13 +67,11 @@ typedef struct {
  * modified by this program.
  */
 typedef struct {
-    const char *build_dir;             /* Build directory path */
-    const char *tiered_storage_source; /* Tiered storage source */
-    uint64_t data_seed;                /* Random seed for data ops */
-    uint64_t extra_seed;               /* Random seed for read ops */
-    bool tiered_storage;               /* Configure tiered storage */
-    bool verbose;                      /* Run in verbose mode */
-    uint64_t nthreads;                 /* Number of threads */
+    const char *build_dir; /* Build directory path */
+    uint64_t data_seed;    /* Random seed for data ops */
+    uint64_t extra_seed;   /* Random seed for read ops */
+    bool verbose;          /* Run in verbose mode */
+    uint64_t nthreads;     /* Number of threads */
 } SUBSET_TEST_OPTS;
 
 /*
@@ -104,43 +102,40 @@ typedef struct {
  *
  */
 static TEST_DRIVER driver[] = {
-  {{"parse_opts", "-b", "builddir", "-T", "21", NULL},
-    {"builddir", NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-b", "builddir", "-T", "21", NULL}, {"builddir", NONZERO, NONZERO, false, 21},
+    {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-bbuilddir", "-T21", NULL},
-    {"builddir", NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-bbuilddir", "-T21", NULL}, {"builddir", NONZERO, NONZERO, false, 21},
+    {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-T21", NULL}, {NULL, NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-T21", NULL}, {NULL, NONZERO, NONZERO, false, 21}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-v", NULL}, {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-v", NULL}, {NULL, NONZERO, NONZERO, true, 0}, {NULL, 0, 0, 0}},
 
   /* Setting random seeds can be done together or separately. */
-  {{"parse_opts", "-PSE2345,D1234", NULL}, {NULL, NULL, 1234, 2345, false, false, 0},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-PSE2345,D1234", NULL}, {NULL, 1234, 2345, false, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PSD1234", "-PSE2345", NULL}, {NULL, NULL, 1234, 2345, false, false, 0},
-    {NULL, 0, 0, 0}},
+  {{"parse_opts", "-PSD1234", "-PSE2345", NULL}, {NULL, 1234, 2345, false, 0}, {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PSD1234", NULL}, {NULL, NULL, 1234, NONZERO, false, false, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-PSD1234", NULL}, {NULL, 1234, NONZERO, false, 0}, {NULL, 0, 0, 0}},
 
   /*
    * From here on, we are using some "extended" options, see previous comment. We set the argv[0] to
    * "parse_single_opt" to indicate to use the extended parsing idiom.
    */
-  {{"parse_single_opt", "-vd", "-c", "string_opt", NULL},
-    {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-vd", "-c", "string_opt", NULL}, {NULL, NONZERO, NONZERO, true, 0},
+    {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-dv", "-cstring_opt", NULL},
-    {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-dv", "-cstring_opt", NULL}, {NULL, NONZERO, NONZERO, true, 0},
+    {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-ev", "-cstring_opt", "-f", "22", NULL},
-    {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {(char *)"string_opt", false, true, 22}},
+  {{"parse_single_opt", "-ev", "-cstring_opt", "-f", "22", NULL}, {NULL, NONZERO, NONZERO, true, 0},
+    {(char *)"string_opt", false, true, 22}},
 
-  {{"parse_single_opt", "-evd", "-f22", NULL}, {NULL, NULL, NONZERO, NONZERO, false, true, 0},
+  {{"parse_single_opt", "-evd", "-f22", NULL}, {NULL, NONZERO, NONZERO, true, 0},
     {NULL, true, true, 22}},
 
-  {{"parse_single_opt", "-v", NULL}, {NULL, NULL, NONZERO, NONZERO, false, true, 0},
-    {NULL, false, false, 0}},
+  {{"parse_single_opt", "-v", NULL}, {NULL, NONZERO, NONZERO, true, 0}, {NULL, false, false, 0}},
 };
 
 /*
@@ -163,13 +158,11 @@ report(const TEST_OPTS *opts, FICTIONAL_OPTS *fiction_opts)
 
     REPORT_STR(opts, home);
     REPORT_STR(opts, build_dir);
-    REPORT_STR(opts, tiered_storage_source);
     REPORT_INT(opts, table_type);
     REPORT_INT(opts, data_seed);
     REPORT_INT(opts, extra_seed);
     REPORT_INT(opts, do_data_ops);
     REPORT_INT(opts, preserve);
-    REPORT_INT(opts, tiered_storage);
     REPORT_INT(opts, verbose);
     REPORT_INT(opts, nrecords);
     REPORT_INT(opts, nops);
@@ -292,18 +285,14 @@ verify_expect(
     } while (0)
 
     /*
-     * opts->home is always set, even without -h on the command line, so don't check it here. If
-     * tiered_storage is set then build_dir is deduced from the test program.
+     * opts->home is always set, even without -h on the command line, so don't check it here.
      */
-    if (opts->tiered_storage != true)
-        VERIFY_STR(opts, expect, build_dir);
-    VERIFY_STR(opts, expect, tiered_storage_source);
+    VERIFY_STR(opts, expect, build_dir);
     VERIFY_INT(opts, expect, table_type);
     VERIFY_RANDOM_INT(opts, expect, data_seed);
     VERIFY_RANDOM_INT(opts, expect, extra_seed);
     VERIFY_INT(opts, expect, do_data_ops);
     VERIFY_INT(opts, expect, preserve);
-    VERIFY_INT(opts, expect, tiered_storage);
     VERIFY_INT(opts, expect, verbose);
     VERIFY_INT(opts, expect, nrecords);
     VERIFY_INT(opts, expect, nops);
@@ -381,8 +370,6 @@ main(int argc, char *argv[])
             subset = &driver[i].subset_expected;
             WT_CLEAR(expect);
             expect.build_dir = (char *)subset->build_dir;
-            expect.tiered_storage_source = (char *)subset->tiered_storage_source;
-            expect.tiered_storage = subset->tiered_storage;
             expect.verbose = subset->verbose;
             expect.nthreads = subset->nthreads;
             expect.data_seed = subset->data_seed;

@@ -108,9 +108,8 @@ typedef struct {
     const char *argv0; /* Exec name */
     char usage[512];   /* Usage string for this parser */
 
-    const char *progname;        /* Truncated program name */
-    char *build_dir;             /* Build directory path */
-    char *tiered_storage_source; /* Tiered storage source */
+    const char *progname; /* Truncated program name */
+    char *build_dir;      /* Build directory path */
 
     enum {
         TABLE_NOT_SET = 0, /* Not explicitly set */
@@ -139,7 +138,6 @@ typedef struct {
     bool make_bucket_dir;      /* Create bucket when it is a directory */
     bool preserve;             /* Don't remove files on exit */
     bool tiered_begun;         /* Tiered storage ready */
-    bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */

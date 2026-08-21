@@ -222,7 +222,6 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->progress_file_name);
     free(opts->home);
     free(opts->build_dir);
-    free(opts->tiered_storage_source);
 }
 
 /*
