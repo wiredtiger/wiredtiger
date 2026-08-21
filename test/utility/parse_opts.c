@@ -193,11 +193,11 @@ parse_and_set_disagg_opt(TEST_OPTS *opts)
 }
 
 /*
- * parse_tiered_opt --
- *     Parse a command line option for the tiered storage configurations.
+ * parse_p_opt --
+ *     Parse -P sub-options: -PS seeds, -Pd delays, and -Pe errors.
  */
 static int
-parse_tiered_opt(TEST_OPTS *opts)
+parse_p_opt(TEST_OPTS *opts)
 {
     switch (*__wt_optarg++) {
     case 'd':
@@ -341,8 +341,8 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
     case 'o': /* Number of operations */
         opts->nops = (uint64_t)atoll(__wt_optarg);
         break;
-    case 'P': /* Tiered storage options follow */
-        if (parse_tiered_opt(opts) != 0)
+    case 'P': /* -PS / -Pd / -Pe */
+        if (parse_p_opt(opts) != 0)
             return (1);
         break;
     case 'p': /* Preserve directory contents */
