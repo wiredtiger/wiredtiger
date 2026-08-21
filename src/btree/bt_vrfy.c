@@ -456,20 +456,32 @@ __verify_one_checkpoint(
     /* Account for the root page in the accumulated total block size. */
     WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
+    /*
+     * The size in the checkpoint metadata is a running counter, incremented on write and
+     * decremented on discard, and is never recomputed from the tree. Derive it here and compare, so
+     * if there's a drift in database size it's visible.
+     *
+     * Disaggregated trees have no extent-list blocks, so the derived size must match the metadata
+     * exactly. Tiered trees are skipped: the metadata counter tracks the active object, but the
+     * tree also references blocks in objects that have already been flushed.
+     */
+    if (!bm->is_multi_handle && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      ckpt->size != vs->total_block_size) {
+        __wt_verbose_warning(session, WT_VERB_VERIFY,
+          "%s: checkpoint size %" PRIu64 " does not match the size derived from the tree %" PRIu64,
+          name, ckpt->size, vs->total_block_size);
 #ifdef HAVE_DIAGNOSTIC
-    /* Validate the size of the btree. */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size)
         /*
-         * FIXME-WT-18038: We are seeing mismatches due to nuanced reconciliation issues, where
-         * bytes_total increments happen before the reconciliation panic boundary, leaving us in an
-         * inconsistent state if reconciliation fails after the increment but before completion.
-         * Only fail in diagnostic builds for now; enable this branch in production builds once this
-         * is resolved.
+         * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
+         * increments happen before the boundary, so a reconciliation that fails after the increment
+         * but before completion leaves the counter inconsistent. Fail in diagnostic builds so the
+         * drift is caught during testing; production builds only warn.
          */
         WT_ERR_MSG(session, WT_ERROR,
           "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
           vs->total_block_size);
 #endif
+    }
 
     /*
      * The checkpoints are in time-order, so the last one in the list is the most recent. If this is
