@@ -73,9 +73,8 @@ ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session)
     }
 
     /*
-     * Never adopt a checkpoint ahead of the node's clock: epochs handed out afterwards would fall
-     * at or below what the checkpoint already claims to cover. Replication gates its checkpoint
-     * installs on apply progress the same way.
+     * Never adopt a checkpoint the node has not caught up with, the way replication gates its
+     * checkpoint installs on apply progress.
      */
     if (__wt_atomic_load_uint64(&state->current_ts) < ckpt_args.checkpoint_timestamp) {
         free(ckpt_args.checkpoint_metadata.mem);
