@@ -1325,7 +1325,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1} "${wt_config|cache_size=100M}" "${timestamp_config|}"
+        ../../../test/evergreen/checkpoint_stress_test.sh ${times|1} ${no_of_procs|1} "${wt_config|cache_size=100M}" "${timestamp_config|}"
 
   "model test":
     command: shell.exec
@@ -4979,7 +4979,6 @@ tasks:
       - func: "checkpoint stress test"
         vars:
           no_of_procs: 10 # Number of processes to run in the background
-          tiered: 0       # Don't enable tiered storage
           times: 1        # Number of times to run the loop
 
   - name: precise-checkpoint-stress-test
@@ -4999,7 +4998,6 @@ tasks:
           timestamp_config: -e -x
           wt_config: cache_size=1000M
           no_of_procs: 10 # Number of processes to run in the background
-          tiered: 0       # Don't enable tiered storage
           times: 1        # Number of times to run the loop
 
   - name: skiplist-stress-test
