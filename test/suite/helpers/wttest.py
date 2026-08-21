@@ -173,8 +173,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def globalSetup(command_line_vars, preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
-                    printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
-                    ss_random_prefix = 0, timeout = 0):
+                    printOutput = False, seedw = 0, seedz = 0, hookmgr = None, timeout = 0):
         # Make a readonly view of the command line options passed in.
         # This view will be shared by all test cases.
         WiredTigerTestCase._command_line_vars = ReadonlySimpleNamespace(command_line_vars)
@@ -188,7 +187,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase._extralongtest = extralongtest
         WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._concurrent = False
-        WiredTigerTestCase._ss_random_prefix = ss_random_prefix
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
         WiredTigerTestCase._timeout = timeout
@@ -637,17 +635,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.platform_api.tearDown(self)
         except:
             self.pr('ERROR: failed to tear down the platform API')
-            self.prexception(sys.exc_info())
-
-        # Download the files from the bucket for tiered tests if the test fails or preserve is
-        # turned on.
-        try:
-            if hasattr(self, 'ss_name') and not self.skipped and \
-                (not passed or WiredTigerTestCase._preserveFiles):
-                    self.pr('downloading object files')
-                    self.download_objects(self.bucket, self.bucket_prefix)
-        except:
-            self.pr('ERROR: failed to download objects')
             self.prexception(sys.exc_info())
 
         self.pr('finishing')

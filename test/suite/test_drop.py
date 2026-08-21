@@ -115,7 +115,6 @@ class test_drop(wttest.WiredTigerTestCase):
 
         # SimpleIndexDataSet: A table with an index
         # Try almost all test combinations.
-        # Skip if tiered since indices don't work for tiered.
         if self.uri == "table:":
             for with_cursor in [False, True]:
                 for reopen in [False, True]:
@@ -127,7 +126,6 @@ class test_drop(wttest.WiredTigerTestCase):
 
         # ComplexDataSet: A complex, multi-file table object.
         # Try all test combinations.
-        # Skip if tiered since column groups don't work for tiered.
         if self.uri == "table:":
             for with_cursor in [False, True]:
                 for reopen in [False, True]:
@@ -139,8 +137,6 @@ class test_drop(wttest.WiredTigerTestCase):
 
     # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):
-        if 'tiered' in self.hook_names:
-            self.skipTest("negative tests for drop do not work in tiered storage")
         uri = self.uri + self.name
         cguri = 'colgroup:' + self.name
         idxuri = 'index:' + self.name + ':indexname'
