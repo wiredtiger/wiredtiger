@@ -150,6 +150,17 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 unexpected.append((key, cursor.get_value()[:16]))
         self.pr("nkeys_checked = {}, unexpected = {}".format(nkeys_checked, len(unexpected)))
         self.assertEqual(unexpected, [], 'unexpected values: {}'.format(unexpected[:10]))
+        # Bound how much salvage is allowed to lose. Counting only the keys a search finds says
+        # nothing about how many it found, so without a floor this passes having recovered one key.
+        nkeys_expected = nkeys - 1
+        if self.corrupt:
+            # A key whose only copy was in the corrupted range is gone for good, but the corruption
+            # covers a small fraction of the file, so losing most of the table means salvage
+            # discarded data it could have kept.
+            self.assertGreaterEqual(nkeys_checked, nkeys_expected // 2,
+                'salvage recovered {} of {} keys'.format(nkeys_checked, nkeys_expected))
+        else:
+            self.assertEqual(nkeys_checked, nkeys_expected)
         cursor.close()
         self.session.commit_transaction()
 
