@@ -3091,6 +3091,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_RECONCILE_TIME
     uint32_t i;
     bool disagg_page_free_required;
     bool disagg_page_is_valid;
+    bool skipped_write;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -3401,8 +3402,17 @@ split:
      * will wait for it; and if we are checkpointing the leaf, we can't simultaneously be
      * checkpointing the parent, and we can't be evicting the parent either because internal pages
      * can't be evicted while they have in-memory children.
+     *
+     * The exception is a reconciliation that skipped the write: nothing was written, so the on-disk
+     * state still predates the instantiation and the parent's existing cell may be a fast-truncate
+     * proxy cell. Keep the instantiated flag and the page-delete information, parent reconciliation
+     * needs them to evaluate the child as it was before instantiation and write the proxy cell out
+     * again. Eviction is excluded: it changes the ref state and may rewrite the page in memory, and
+     * neither of those paths carries pre-instantiation state onto the new page.
      */
-    if (mod->instantiated) {
+    skipped_write =
+      r->multi_next == 1 && F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && !F_ISSET(r, WT_REC_EVICT);
+    if (mod->instantiated && !skipped_write) {
         /*
          * Unfortunately, it seems we need to lock the ref at this point. Ultimately the page_del
          * structure and the instantiated flag need to both be cleared simultaneously (otherwise

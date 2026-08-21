@@ -306,15 +306,7 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                 cmsp->hazard = true;
             }
 
-            /*
-             * The child is potentially modified if the page's modify structure has been created. If
-             * the modify structure exists and the page has been reconciled, set that state.
-             */
             mod = ref->page->modify;
-            if (mod != NULL && mod->rec_result != 0) {
-                cmsp->state = WTI_CHILD_MODIFIED;
-                goto done;
-            }
 
             /*
              * Deleted page instantiation can happen at any time during a checkpoint. If we found
@@ -333,9 +325,13 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
              * be able to ignore the page entirely. We keep the original fast-truncate information
              * in the ref after instantiation to make the visibility check possible.
              *
-             * The key is the page-modify.instantiated flag, removed during page reconciliation. If
-             * it's set, instantiation happened after checkpoint passed the leaf page and we treat
-             * this page like a WT_REF_DELETED page, evaluating it as it was before instantiation.
+             * The key is the page-modify.instantiated flag, removed when page reconciliation writes
+             * a new image. If it's set, the on-disk state still predates the instantiation and we
+             * treat this page like a WT_REF_DELETED page, evaluating it as it was before
+             * instantiation. Check it before the reconciliation result: a reconciliation that
+             * skipped the write (disaggregated storage) sets a result but leaves the on-disk state
+             * unchanged, and if the parent's existing cell is a fast-truncate proxy cell, the
+             * page-delete information is required to write it out again.
              *
              * We need to lock the ref for it to be safe to examine the page_del structure, in case
              * the transaction in it is unresolved and tries to roll back (which discards the
@@ -369,6 +365,15 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                 ret = __rec_child_deleted(session, r, ref, cmsp);
                 WT_REF_SET_STATE(ref, WT_REF_MEM);
                 WT_RET(ret);
+                goto done;
+            }
+
+            /*
+             * The child is potentially modified if the page's modify structure has been created. If
+             * the modify structure exists and the page has been reconciled, set that state.
+             */
+            if (mod != NULL && mod->rec_result != 0) {
+                cmsp->state = WTI_CHILD_MODIFIED;
                 goto done;
             }
 
