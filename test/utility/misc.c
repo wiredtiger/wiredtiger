@@ -372,11 +372,10 @@ testutil_print_command_line(int argc, char *const *argv)
  */
 void
 testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
-  WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
+  WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun)
 {
     char buf[1024], disagg_cfg[512], disagg_ext_cfg[512];
 
-    WT_UNUSED(benchmarkrun);
     testutil_disagg_storage_configuration(
       opts, home, disagg_cfg, sizeof(disagg_cfg), disagg_ext_cfg, sizeof(disagg_ext_cfg));
 

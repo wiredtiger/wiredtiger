@@ -125,10 +125,10 @@ typedef struct {
     uint64_t data_seed;      /* Random seed for data ops */
     uint64_t extra_seed;     /* Random seed for extra ops */
 
-    uint64_t delay_ms;        /* Average length of delay when simulated */
-    uint64_t error_ms;        /* Average length of delay when simulated */
-    uint64_t force_delay;     /* Force a simulated network delay every N operations */
-    uint64_t force_error;     /* Force a simulated network error every N operations */
+    uint64_t delay_ms;    /* Average length of delay when simulated */
+    uint64_t error_ms;    /* Average length of delay when simulated */
+    uint64_t force_delay; /* Force a simulated network delay every N operations */
+    uint64_t force_error; /* Force a simulated network error every N operations */
 
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
@@ -623,7 +623,7 @@ void testutil_format_item(WT_ITEM *item, const char *fmt, ...)
 void testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(
-  TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
+  TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool);
 uint64_t testutil_time_us(WT_SESSION *);
 #ifndef _WIN32
 void testutil_timeout_wait(uint32_t, pid_t);

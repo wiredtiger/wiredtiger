@@ -893,7 +893,7 @@ run_workload(void)
         strcat(envconf, ENV_CONFIG_SWEEP);
 
     /* Open WiredTiger without recovery. */
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &event_handler, &conn, false, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &event_handler, &conn, false);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -1223,7 +1223,7 @@ main(int argc, char *argv[])
     /*
      * Open the connection which forces recovery to be run.
      */
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &event_handler, &conn, true, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, NULL, &event_handler, &conn, true);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*

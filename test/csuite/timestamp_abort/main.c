@@ -940,7 +940,7 @@ run_workload(uint32_t workload_iteration)
     if (opts->disagg.is_enabled)
         strcat(envconf, ",disaggregated=(lose_all_my_data=true)");
 
-    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &other_event, &conn, false, false);
+    testutil_wiredtiger_open(opts, WT_HOME_DIR, envconf, &other_event, &conn, false);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
@@ -1163,7 +1163,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          */
         testutil_wiredtiger_open(opts, verify_dir,
           opts->disagg.is_enabled ? "create=true,disaggregated=(lose_all_my_data=true)" : NULL,
-          &reopen_event, &conn, true, false);
+          &reopen_event, &conn, true);
         printf("Connection open and recovery complete. Verify content\n");
         /*
          * Only call this when index is 0 because it calls back into here to verify a specific
@@ -1191,7 +1191,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          * statistics thread at a time.
          */
         printf("Recover_and_verify: Open %s with config %s\n", verify_dir, open_cfg);
-        testutil_wiredtiger_open(opts, verify_dir, open_cfg, &other_event, &conn, true, false);
+        testutil_wiredtiger_open(opts, verify_dir, open_cfg, &other_event, &conn, true);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */

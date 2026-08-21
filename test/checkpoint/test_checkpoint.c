@@ -439,7 +439,7 @@ wt_connect(const char *config_open)
 
     printf("WT open config: %s\n", config);
     fflush(stdout);
-    testutil_wiredtiger_open(&g.opts, g.home, config, &event_handler, &g.conn, false, false);
+    testutil_wiredtiger_open(&g.opts, g.home, config, &event_handler, &g.conn, false);
 }
 
 /*
