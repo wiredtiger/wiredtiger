@@ -709,13 +709,14 @@ err:
 }
 
 /*
- * __disagg_file_id_differs --
- *     Report whether the local and the shared file: entry at the cursor positions carry different
- *     btree IDs, which means they describe different tables that happen to share a name.
+ * __disagg_file_id_cmp --
+ *     Compare the btree IDs of the local and the shared file: entry at the cursor positions,
+ *     reporting the local ID against the shared one. A difference means the entries describe
+ *     different tables that happen to share a name.
  */
 static int
-__disagg_file_id_differs(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor,
-  int64_t *md_idp, int64_t *sh_idp, bool *differsp)
+__disagg_file_id_cmp(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURSOR *md_cursor,
+  int64_t *md_idp, int64_t *sh_idp, int *cmpp)
 {
     WT_CONFIG_ITEM md_id, sh_id;
     const char *md_value, *sh_value;
@@ -727,7 +728,7 @@ __disagg_file_id_differs(WT_SESSION_IMPL *session, WT_CURSOR *sh_cursor, WT_CURS
 
     *md_idp = md_id.val;
     *sh_idp = sh_id.val;
-    *differsp = sh_id.val != md_id.val;
+    *cmpp = md_id.val < sh_id.val ? -1 : (md_id.val > sh_id.val ? 1 : 0);
     return (0);
 }
 
@@ -826,6 +827,13 @@ __disagg_drop_on_helper_session(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *drop_session;
+
+    /*
+     * The helper stands in for this thread, so the locks it needs have to be held here already:
+     * taking them again on the same thread would deadlock, which is why they are inherited.
+     */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
     drop_session = NULL;
     WT_RET(__wt_open_internal_session(
@@ -944,12 +952,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
     uint64_t apply_elapsed_ms;
     int64_t md_btree_id, sh_btree_id;
     uint32_t dropped_tables, dup_id, existing_tables, new_tables, new_ingest;
-    int i;
+    int i, id_cmp;
     char *first_uri, *second_uri;
     const char *cfg[2], *metadata_checkpoint_name, *metadata_value;
     const char *current;
     const char *md_keys[WT_DISAGG_CURSOR_COUNT], *sh_keys[WT_DISAGG_CURSOR_COUNT];
-    bool id_differs, md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT], strict;
+    bool md_has[WT_DISAGG_CURSOR_COUNT], sh_has[WT_DISAGG_CURSOR_COUNT], strict;
 
     for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
         md_cursors[i] = sh_cursors[i] = NULL;
@@ -1078,12 +1086,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
          * FIXME-WT-18310: an unpublished create for the name stays queued once its table is gone,
          * and drains a dead incarnation's metadata on a later step-up.
          */
-        id_differs = false;
+        id_cmp = 0;
         if (md_has[WT_DISAGG_CURSOR_LAYERED] && sh_has[WT_DISAGG_CURSOR_LAYERED] &&
           md_has[WT_DISAGG_CURSOR_FILE] && sh_has[WT_DISAGG_CURSOR_FILE]) {
-            WT_ERR(__disagg_file_id_differs(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
-              md_cursors[WT_DISAGG_CURSOR_FILE], &md_btree_id, &sh_btree_id, &id_differs));
-            if (id_differs) {
+            WT_ERR(__disagg_file_id_cmp(session, sh_cursors[WT_DISAGG_CURSOR_FILE],
+              md_cursors[WT_DISAGG_CURSOR_FILE], &md_btree_id, &sh_btree_id, &id_cmp));
+            if (id_cmp != 0) {
                 __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
                   "Dropping and recreating stale layered table \"%s\": the local btree ID %" PRId64
                   " is not the checkpoint's %" PRId64,
@@ -1144,7 +1152,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPO
         }
 
         /* The immutable fields have to agree before the checkpoint is adopted. */
-        WT_ASSERT(session, !id_differs);
+        WT_ASSERT(session, id_cmp == 0);
         for (i = 0; i < WT_DISAGG_CURSOR_COUNT; i++)
             if (md_has[i] && sh_has[i])
                 WT_ERR(__disagg_check_meta_match(session, sh_cursors[i], md_cursors[i]));
