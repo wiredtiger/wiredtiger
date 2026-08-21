@@ -932,7 +932,7 @@ functions:
 
             (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         else
-            # Some hooks prune out specific tests if we don't give them a list, e.g. hook_tiered.
+            # Some hooks prune out specific tests if we don't give them a list.
             # But if there's anything in the list, they'll run that directly instead of pruning, so
             # generate an empty list.
             echo > $do_run
@@ -7046,7 +7046,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
+    - name: ".pull_request !.pull_request_compilers !.python !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7840,7 +7840,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long

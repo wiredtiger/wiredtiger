@@ -129,15 +129,11 @@ typedef struct {
     uint64_t error_ms;        /* Average length of delay when simulated */
     uint64_t force_delay;     /* Force a simulated network delay every N operations */
     uint64_t force_error;     /* Force a simulated network error every N operations */
-    uint32_t local_retention; /* Local retention for tiered storage */
 
-    bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
     bool do_data_ops;          /* Have schema ops use data */
     bool inmem;                /* In-memory */
-    bool make_bucket_dir;      /* Create bucket when it is a directory */
     bool preserve;             /* Don't remove files on exit */
-    bool tiered_begun;         /* Tiered storage ready */
     bool verbose;              /* Run in verbose mode */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
@@ -145,9 +141,6 @@ typedef struct {
     uint64_t n_append_threads; /* Number of append threads */
     uint64_t n_read_threads;   /* Number of read threads */
     uint64_t n_write_threads;  /* Number of write threads */
-
-    uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
-    uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
 
 /* Key provider modes for the disagg.key_provider configuration. */
 #define DISAGG_KEY_PROVIDER_OFF 0

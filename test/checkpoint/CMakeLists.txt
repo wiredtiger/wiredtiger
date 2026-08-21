@@ -10,7 +10,7 @@ create_test_executable(test_checkpoint
 # Use C++ linker for building this target.
 # When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
 # to link against the C++ sanitizer runtimes.
-# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# Some extensions (PALite) require C++ runtime to be linked
 # for sanitizers to work correctly.
 set_target_properties(test_checkpoint PROPERTIES LINKER_LANGUAGE CXX)
 
