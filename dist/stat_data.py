@@ -520,6 +520,8 @@ conn_stats = [
     CheckpointCleanupStat('checkpoint_cleanup_handle_processed', 'most recent handles processed'),
     CheckpointCleanupStat('checkpoint_cleanup_inmem_pages_visited', 'most recent in-memory pages visited'),
     CheckpointCleanupStat('checkpoint_cleanup_success', 'successful calls'),
+    CheckpointCleanupStat('checkpoint_cleanup_thread_start', 'checkpoint cleanup thread started'),
+    CheckpointCleanupStat('checkpoint_cleanup_thread_stop', 'checkpoint cleanup thread stopped'),
 
     ##########################################
     # Checkpoint statistics
