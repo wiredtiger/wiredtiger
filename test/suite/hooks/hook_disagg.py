@@ -386,7 +386,6 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_import",          "Can't import a disagg table"),
             ("test_salvage",         "Salvage is not currently supported for disagg"), # FIXME-WT-14740
-            ("tiered",               "Tiered tests do not apply to disagg"),
         ]
 
         for (skip_string, skip_reason) in skip_categories:
