@@ -283,8 +283,7 @@ tiered_config = [
         type='category', subconfig=[
         Config('name', 'none', r'''
             permitted values are \c "none" or a custom storage source name created with
-            WT_CONNECTION::add_storage_source. See @ref custom_storage_sources for more
-            information'''),
+            WT_CONNECTION::add_storage_source'''),
         Config('auth_token', '', r'''
             authentication string identifier'''),
         Config('bucket', '', r'''
@@ -2216,7 +2215,7 @@ methods = {
         prior to the start of the backup cannot be dropped''',
         type='list'),
     Config('flush_tier', '', r'''
-        configure flushing objects to tiered storage after checkpoint. See @ref tiered_storage''',
+        configure flushing objects to tiered storage after checkpoint''',
         type='category', subconfig= [
             Config('enabled', 'false', r'''
                 if true and tiered storage is in use, perform one iteration of object switching
