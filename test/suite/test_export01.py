@@ -85,7 +85,6 @@ class test_export01(wttest.WiredTigerTestCase):
         # The export file should exist in the backup directory.
         self.assertTrue(os.path.isfile(os.path.join(self.dir, "WiredTiger.export")))
 
-    @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_export_restart(self):
         uri_a = self.type + "exporta"
         uri_b = self.type + "exportb"

@@ -33,7 +33,6 @@ from wtdataset import SimpleIndexDataSet
 from wtscenario import make_scenarios
 
 # session level drop operation
-@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_drop(wttest.WiredTigerTestCase):
     test_name = __qualname__
     name = test_name

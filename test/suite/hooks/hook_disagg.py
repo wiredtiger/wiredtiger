@@ -104,9 +104,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     if 'compatibility=' in conn_config:
         skip_test("cannot run disagg hook on a test that requires compatibility in the config string")
 
-    if 'tiered_storage=' in conn_config:
-        skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
-
     page_log_extension = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(page_log_extension) == 0:
         raise RuntimeError(page_log_name + ' storage source extension not found')
