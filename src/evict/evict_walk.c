@@ -1247,8 +1247,8 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     }
 
     /*
-     * Skip while the prune timestamp is stalled: one that never advances floods the queue and pins
-     * the eviction server on this tree forever.
+     * Skip while the prune timestamp is stalled for leaf pages, one that never advances floods the
+     * queue and pins the eviction server on this tree forever.
      */
     if (modified && F_ISSET(ref, WT_REF_FLAG_LEAF) && F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
       __wti_evict_prune_ts_unmoved(session, page)) {
