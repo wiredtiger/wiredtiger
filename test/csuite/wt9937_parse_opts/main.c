@@ -98,7 +98,7 @@ typedef struct {
  * We've chosen tests to cover:
  *  - string options both appearing as "-b option" and "-boption"
  *  - int options also appearing both as "-T 21" and "-T21"
- *  - tiered storage multiple character options starting with "-P", like "-PT" and "-Po name".
+ *  - multiple character options starting with "-P", like "-PSD1234,E2345".
  *  - flag options like "-v".
  *  - our set of "fictional" arguments.
  *
@@ -111,47 +111,36 @@ static TEST_DRIVER driver[] = {
     {"builddir", NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
 
   {{"parse_opts", "-T21", NULL}, {NULL, NULL, NONZERO, NONZERO, false, false, 21}, {NULL, 0, 0, 0}},
-  /*
-   * If -PT is used, the tiered_storage source is set to dir_store, even if -Po is not used. Also
-   * when -PT is used, random seeds are initialized to some non-zero value.
-   */
-  {{"parse_opts", "-v", "-PT", NULL}, {NULL, "dir_store", NONZERO, NONZERO, true, true, 0},
-    {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-v", "-Po", "dir_store", "-PT", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
-
-  {{"parse_opts", "-vPodir_store", "-PT", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, 0, 0, 0}},
+  {{"parse_opts", "-v", NULL}, {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {NULL, 0, 0, 0}},
 
   /* Setting random seeds can be done together or separately. */
-  {{"parse_opts", "-PT", "-PSE2345,D1234", NULL}, {NULL, "dir_store", 1234, 2345, true, false, 0},
+  {{"parse_opts", "-PSE2345,D1234", NULL}, {NULL, NULL, 1234, 2345, false, false, 0},
     {NULL, 0, 0, 0}},
 
-  {{"parse_opts", "-PT", "-PSD1234", "-PSE2345", NULL},
-    {NULL, "dir_store", 1234, 2345, true, false, 0}, {NULL, 0, 0, 0}},
-
-  {{"parse_opts", "-PT", "-PSD1234", NULL}, {NULL, "dir_store", 1234, NONZERO, true, false, 0},
+  {{"parse_opts", "-PSD1234", "-PSE2345", NULL}, {NULL, NULL, 1234, 2345, false, false, 0},
     {NULL, 0, 0, 0}},
+
+  {{"parse_opts", "-PSD1234", NULL}, {NULL, NULL, 1234, NONZERO, false, false, 0}, {NULL, 0, 0, 0}},
 
   /*
    * From here on, we are using some "extended" options, see previous comment. We set the argv[0] to
    * "parse_single_opt" to indicate to use the extended parsing idiom.
    */
-  {{"parse_single_opt", "-vd", "-Podir_store", "-c", "string_opt", "-PT", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-vd", "-c", "string_opt", NULL},
+    {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-dv", "-Podir_store", "-cstring_opt", "-PT", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", true, false, 0}},
+  {{"parse_single_opt", "-dv", "-cstring_opt", NULL},
+    {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {(char *)"string_opt", true, false, 0}},
 
-  {{"parse_single_opt", "-ev", "-cstring_opt", "-Podir_store", "-PT", "-f", "22", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {(char *)"string_opt", false, true, 22}},
+  {{"parse_single_opt", "-ev", "-cstring_opt", "-f", "22", NULL},
+    {NULL, NULL, NONZERO, NONZERO, false, true, 0}, {(char *)"string_opt", false, true, 22}},
 
-  {{"parse_single_opt", "-evd", "-Podir_store", "-PT", "-f22", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, true, true, 22}},
+  {{"parse_single_opt", "-evd", "-f22", NULL}, {NULL, NULL, NONZERO, NONZERO, false, true, 0},
+    {NULL, true, true, 22}},
 
-  {{"parse_single_opt", "-v", "-Podir_store", "-PT", NULL},
-    {NULL, "dir_store", NONZERO, NONZERO, true, true, 0}, {NULL, false, false, 0}},
+  {{"parse_single_opt", "-v", NULL}, {NULL, NULL, NONZERO, NONZERO, false, true, 0},
+    {NULL, false, false, 0}},
 };
 
 /*

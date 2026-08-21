@@ -33,7 +33,7 @@ extern int __wt_optopt;
 extern int __wt_optreset;
 
 /*
- * This is called when parsing a sub-option like the 'o' in -Po, which expects an argument. We need
+ * This is called when parsing a sub-option like the 'd' in -Pd, which expects an argument. We need
  * to update the option argument to point to that argument.
  */
 #define EXPECT_OPTIONAL_ARG_IN_SUB_PARSE(opts)                            \
@@ -212,21 +212,8 @@ parse_tiered_opt(TEST_OPTS *opts)
             testutil_die(EINVAL, "-Pe option requires an argument");
         parse_tiered_artificial_errors(opts, __wt_optarg);
         break;
-    case 'o':
-        EXPECT_OPTIONAL_ARG_IN_SUB_PARSE(opts);
-        if (__wt_optarg == NULL || *__wt_optarg == '\0')
-            testutil_die(EINVAL, "-Po option requires an argument");
-
-        if (strcmp(__wt_optarg, DIR_STORE) != 0)
-            testutil_die(EINVAL, "-Po not a valid argument");
-
-        opts->tiered_storage_source = dstrdup(__wt_optarg);
-        break;
     case 'S':
         parse_tiered_random_seeds(opts, __wt_optarg);
-        break;
-    case 'T':
-        opts->tiered_storage = true;
         break;
     default:
         return (1); /* Caller can print complete usage. */
@@ -268,8 +255,8 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
       USAGE_STR('G', " [-G Enable disaggregated storage]"), USAGE_STR('m', " [-m]"),
       USAGE_STR('n', " [-n record count]"), USAGE_STR('o', " [-o op count]"),
       USAGE_STR('P',
-        " [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
-        " [-Pe <force_error>,<error_ms>] [-Po storage source]"),
+        " [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
+        " [-Pe <force_error>,<error_ms>]"),
       USAGE_STR('p', " [-p]"), USAGE_STR('R', " [-R read thread count]"),
       USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|r table type]"),
       USAGE_STR('v', " [-v]"), USAGE_STR('W', " [-W write thread count]"));
@@ -306,12 +293,7 @@ testutil_parse_end_opt(TEST_OPTS *opts)
     opts->uri = dmalloc(len);
     testutil_snprintf(opts->uri, len, "table:%s", opts->progname);
 
-    if (opts->tiered_storage) {
-        if (opts->tiered_storage_source == NULL)
-            opts->tiered_storage_source = dstrdup(DIR_STORE);
-    }
-
-    if (opts->tiered_storage || opts->disagg.is_enabled) {
+    if (opts->disagg.is_enabled) {
         /* Deduce the build directory (for extension loading). */
         testutil_deduce_build_dir(opts);
     }

@@ -68,10 +68,6 @@ extern "C" {
 #include "windows_shim.h"
 #endif
 
-#define DIR_STORE_BUCKET_NAME "bucket"
-
-#define DIR_STORE "dir_store"
-
 #define TESTUTIL_ENV_CONFIG_DISAGG                               \
     ",disaggregated=(role=%s,page_log=%s,drain_threads=%" PRIu64 \
     ")"                                                          \
@@ -84,15 +80,6 @@ extern "C" {
 #define TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT                        \
     ",\"%s/ext/test/key_provider/libwiredtiger_key_provider.so\"=(" \
     "early_load=true,config=(version=%d,key_expires=60,verbose=-1))"
-#define TESTUTIL_ENV_CONFIG_TIERED               \
-    ",tiered_storage=(bucket=%s"                 \
-    ",bucket_prefix=%s,local_retention=%" PRIu32 \
-    ",name=%s"                                   \
-    ",auth_token=%s)"
-#define TESTUTIL_ENV_CONFIG_TIERED_EXT                                         \
-    "\"%s/ext/storage_sources/%s/libwiredtiger_%s.so\"=("                      \
-    "config=\"(delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
-    ",force_error=%" PRIu64 ",verbose=0)\")"
 #define TESTUTIL_ENV_CONFIG_REC \
     ",log=(recover=on,remove=false),statistics=(all),statistics_log=(json,on_close,wait=1)"
 #define TESTUTIL_ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
@@ -587,7 +574,6 @@ void op_create_unique(void *);
 void op_cursor(void *);
 void op_drop(void *);
 bool testutil_is_flag_set(const char *);
-bool testutil_is_dir_store(TEST_OPTS *);
 void testutil_backup_create_full(WT_CONNECTION *, const char *, int, bool, uint32_t, int *);
 void testutil_backup_create_incremental(
   WT_CONNECTION *, const char *, int, int, bool, int *, int *, int *);
@@ -647,12 +633,6 @@ void testutil_system_internal(const char *function, uint32_t line, const char *f
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)));
 void testutil_wiredtiger_open(
   TEST_OPTS *, const char *, const char *, WT_EVENT_HANDLER *, WT_CONNECTION **, bool, bool);
-void testutil_tiered_begin(TEST_OPTS *);
-void testutil_tiered_end(TEST_OPTS *);
-void testutil_tiered_flush_complete(TEST_OPTS *, WT_SESSION *, void *);
-void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
-void testutil_tiered_storage_configuration(
-  TEST_OPTS *, const char *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
 #ifndef _WIN32
 void testutil_timeout_wait(uint32_t, pid_t);
