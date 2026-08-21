@@ -462,11 +462,9 @@ __verify_one_checkpoint(
      * if there's a drift in database size it's visible.
      *
      * Disaggregated trees have no extent-list blocks, so the derived size must match the metadata
-     * exactly. Tiered trees are skipped: the metadata counter tracks the active object, but the
-     * tree also references blocks in objects that have already been flushed.
+     * exactly.
      */
-    if (!bm->is_multi_handle && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-      ckpt->size != vs->total_block_size) {
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
         __wt_verbose_warning(session, WT_VERB_VERIFY,
           "%s: checkpoint size %" PRIu64 " does not match the size derived from the tree %" PRIu64,
           name, ckpt->size, vs->total_block_size);
