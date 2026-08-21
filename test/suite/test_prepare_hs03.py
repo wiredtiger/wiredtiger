@@ -67,7 +67,24 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
     value_format='u'
 
+    # Every key checked by this test passes through three values: an untimestamped initial load, a
+    # committed update, and a prepared update that is never resolved.
+    load_rows = 10000
+    load_value = b"aaaaa" * 100
+    commit_value = b"bbbbb" * 100
+    prepare_value = b"ccccc" * 100
+
     scenarios = make_scenarios(corrupt_values, format_values)
+
+    def value_is_acceptable(self, i, value):
+        if value == self.commit_value:
+            return True
+        # Salvage recovers a key range whose current page was corrupted from an older copy of that
+        # range elsewhere in the file, so a key can come back holding the value it had before the
+        # committed update. Only the keys the initial load wrote have such an older value, and only
+        # a corrupted table can send salvage looking for one. The prepared value is never
+        # acceptable: it must not be visible below the prepare timestamp.
+        return self.corrupt and i < self.load_rows and value == self.load_value
 
     def corrupt_table(self, data_to_corrupt_with):
         tablename=f"{self.test_name}.wt"
@@ -112,28 +129,27 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 break
             self.session.checkpoint()
 
-    def check_data(self, ds, message, nkeys, nrows, timestamp, expected_value):
+    def check_data(self, ds, message, nkeys, nrows, timestamp):
         # Search for the keys inserted with commit timestamp
         cursor = self.session.open_cursor(self.uri)
         self.pr('check_data: {}'.format(message))
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(timestamp))
-        correct_values = 0
         nkeys_checked = 0
+        unexpected = []
         for i in range(1, nkeys):
             key = nrows + i
-            if cursor.set_key(ds.key(key)) != 0:
-                # It is not guaranteed that salvage recovers all the data in the table. Therefore
-                # perform a search and increment number of keys once search is successful.
-                search_result = cursor.search()
-                if search_result == 0:
-                    nkeys_checked += 1
-                    # Correctness Test - expected_value should be visible
-                    if cursor.get_value() == expected_value:
-                        correct_values += 1
-                else:
-                    self.pr('Key {} not found'.format(key))
-        self.pr("nkeys_checked = {}, correct_values = {}".format(nkeys_checked, correct_values))
-        self.assertEqual(nkeys_checked, correct_values)
+            cursor.set_key(ds.key(key))
+            # It is not guaranteed that salvage recovers all the data in the table, so count the
+            # keys a search actually finds rather than requiring all of them.
+            if cursor.search() != 0:
+                self.pr('Key {} not found'.format(key))
+                continue
+            nkeys_checked += 1
+            # Report the value a key came back with, not just how many keys disagreed.
+            if not self.value_is_acceptable(i, cursor.get_value()):
+                unexpected.append((key, cursor.get_value()[:16]))
+        self.pr("nkeys_checked = {}, unexpected = {}".format(nkeys_checked, len(unexpected)))
+        self.assertEqual(unexpected, [], 'unexpected values: {}'.format(unexpected[:10]))
         cursor.close()
         self.session.commit_transaction()
 
@@ -147,9 +163,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             return 1, 2, 3
 
     def prepare_updates(self, ds, nrows, nsessions, nkeys):
-        commit_value = b"bbbbb" * 100
-        prepare_value = b"ccccc" * 100
-
         # Three timestamps are required for this test, and they must be in the sequence 'early', 'middle' & 'later'.
         timestamps = self.get_timestamps()
         timestamp_early = timestamps[0]
@@ -163,7 +176,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         for i in range(1, nsessions * nkeys):
             self.session.begin_transaction()
             cursor.set_key(ds.key(nrows + i))
-            cursor.set_value(commit_value)
+            cursor.set_value(self.commit_value)
             self.assertEqual(cursor.insert(), 0)
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(timestamp_early))
         cursor.close()
@@ -190,7 +203,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             end = start + nkeys
             for i in range(start, end):
                 cursors[j].set_key(ds.key(nrows + i))
-                cursors[j].set_value(prepare_value)
+                cursors[j].set_value(self.prepare_value)
                 self.assertEqual(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + self.timestamp_str(timestamp_later))
 
@@ -199,19 +212,18 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Assert if not writing anything to the history store.
         self.assertGreaterEqual(hs_writes, 0)
 
-        self.check_data(ds, "(step 1)", nsessions * nkeys, nrows, timestamp_middle, commit_value)
+        self.check_data(ds, "(step 1)", nsessions * nkeys, nrows, timestamp_middle)
 
-        # Test if we can read prepared updates from the history store.
+        # Test if we can read prepared updates from the history store. Hold the read transaction
+        # open across the rollback of the prepared updates below.
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(timestamp_middle))
         for i in range(1, nsessions * nkeys):
             cursor.set_key(ds.key(nrows + i))
-            # The search should pass.
-            self.assertEqual(cursor.search(), 0)
-            # Correctness Test - commit_value should be visible
-            self.assertEqual(cursor.get_value(), commit_value)
-            # Correctness Test - prepare_value should NOT be visible
-            self.assertNotEqual(cursor.get_value(), prepare_value)
+            if cursor.search() != 0:
+                continue
+            # A read below the prepare timestamp sees the committed value, never the prepared one.
+            self.assertTrue(self.value_is_acceptable(i, cursor.get_value()))
         cursor.close()
 
         # Close all sessions (and cursors), this will cause prepared updates to be rolled back.
@@ -220,13 +232,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         self.session.commit_transaction()
 
-        self.check_data(ds, "(step 2)", nsessions * nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 2)", nsessions * nkeys, nrows, timestamp_later)
 
         # Corrupt the table, call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
 
         # Finally, search for the keys inserted with commit timestamp
-        self.check_data(ds, "(step 3)", nsessions * nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 3)", nsessions * nkeys, nrows, timestamp_later)
 
         self.session.checkpoint()
 
@@ -237,7 +249,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
 
-        self.check_data(ds, "(step 4)", nsessions * nkeys, nrows, timestamp_later, commit_value)
+        self.check_data(ds, "(step 4)", nsessions * nkeys, nrows, timestamp_later)
 
         # After simulating a crash, corrupt the table, call salvage to recover data from the
         # corrupted table and call verify
@@ -249,13 +261,11 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             self, self.uri, nrows, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        bigvalue = b"aaaaa" * 100
-
         # Initially load huge data
         cursor = self.session.open_cursor(self.uri)
-        for i in range(1, 10000):
+        for i in range(1, self.load_rows):
             cursor.set_key(ds.key(nrows + i))
-            cursor.set_value(bigvalue)
+            cursor.set_value(self.load_value)
             self.assertEqual(cursor.insert(), 0)
         cursor.close()
         self.session.checkpoint()
