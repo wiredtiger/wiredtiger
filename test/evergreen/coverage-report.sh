@@ -74,7 +74,7 @@ git worktree add --detach wiredtiger_previous "${github_commit}"
 cd wiredtiger_previous
 if [[ $is_patch == true ]]; then
 # Checkout the point at which this patch/branch diverged from the project branch
-git checkout "$(git merge-base "${base_ref}" HEAD)"
+git checkout "$(git merge-base -- "${base_ref}" HEAD)"
 else
 # Checkout the previous commit
 git checkout HEAD~

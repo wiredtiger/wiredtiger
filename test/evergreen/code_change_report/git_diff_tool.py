@@ -68,7 +68,7 @@ def resolve_base_branch_ref(git_working_tree_dir: str, base_branch: str) -> str:
 def get_merge_base_commit(git_working_tree_dir: str, base_branch: str) -> str:
     base_ref = resolve_base_branch_ref(git_working_tree_dir, base_branch)
     merge_base_commit = run_command(
-        git_working_tree_dir, f"git merge-base {shlex.quote(base_ref)} HEAD").strip()
+        git_working_tree_dir, f"git merge-base -- {shlex.quote(base_ref)} HEAD").strip()
     return merge_base_commit
 
 
