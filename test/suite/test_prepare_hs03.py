@@ -56,13 +56,22 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         ('dont_corrupt_table', dict(corrupt=False))
     ]
 
-    # The impact of corrupting the database file can depend on the number of bytes overwritten,
-    # depending on what the rest of the test does and expects. The amount of data that
-    # is corrupted by the 'string-row' test is much larger, as that increases the chance of interactions
-    # with, for example, the results of combining timestamp hooks into the test.
+    # The impact of corrupting the database file depends on how much of the file is overwritten,
+    # depending on what the rest of the test does and expects. Sizing this as a fraction of the
+    # table rather than as a byte count keeps it proportionate however well the values happen to
+    # compress. The amount of data that is corrupted by the 'string-row' test is much larger, as
+    # that increases the chance of interactions with, for example, the results of combining
+    # timestamp hooks into the test.
     format_values = [
-        ('column', dict(key_format='r', data_to_corrupt_with='Bad!' * 1024)),
-        ('string-row', dict(key_format='S', data_to_corrupt_with='Bad!' * 100 * 1024)),
+        ('column', dict(key_format='r', corrupt_fraction=0.0003)),
+        ('string-row', dict(key_format='S', corrupt_fraction=0.033)),
+    ]
+
+    # A dictionary collapses this test's uniform values by more than an order of magnitude, which
+    # exercises salvage against a far denser file.
+    dictionary_values = [
+        ('no_dictionary', dict(dictionary=False)),
+        ('dictionary', dict(dictionary=True)),
     ]
 
     value_format='u'
@@ -74,7 +83,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
     commit_value = b"bbbbb" * 100
     prepare_value = b"ccccc" * 100
 
-    scenarios = make_scenarios(corrupt_values, format_values)
+    scenarios = make_scenarios(corrupt_values, format_values, dictionary_values)
 
     def value_is_acceptable(self, i, value):
         if value == self.commit_value:
@@ -86,7 +95,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # acceptable: it must not be visible below the prepare timestamp.
         return self.corrupt and i < self.load_rows and value == self.load_value
 
-    def corrupt_table(self, data_to_corrupt_with):
+    def corrupt_table(self):
         tablename=f"{self.test_name}.wt"
         self.assertEqual(os.path.exists(tablename), True)
 
@@ -96,7 +105,10 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # the test whenever the file layout happens to place an extent-list block in the range below.
         protect = sorted(checkpoint_extent_list_blocks(self.session, 'file:' + self.test_name + '.wt'))
         start = 1024
-        data = bytes(data_to_corrupt_with, 'latin-1')
+        # Overwrite at least one block however small the table turned out to be.
+        size = max(4096, int(os.path.getsize(tablename) * self.corrupt_fraction))
+        pattern = b'Bad!'
+        data = (pattern * (size // len(pattern) + 1))[:size]
         end = start + len(data)
         with open(tablename, 'r+b') as f:
             pos = start
@@ -118,8 +130,8 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # clear the dirty data, but eviction can re-dirty the cache between the checkpoint and the
         # open attempt, we have to loop.
         self.session.checkpoint()
-        if self.corrupt == True:
-            self.corrupt_table(self.data_to_corrupt_with)
+        if self.corrupt:
+            self.corrupt_table()
         while True:
             if not self.raisesBusy(lambda: self.session.salvage(self.uri, "force")):
                 break
@@ -269,7 +281,8 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
     def test_prepare_hs(self):
         nrows = 100
         ds = SimpleDataSet(
-            self, self.uri, nrows, key_format=self.key_format, value_format=self.value_format)
+            self, self.uri, nrows, key_format=self.key_format, value_format=self.value_format,
+            config='dictionary=1' if self.dictionary else '')
         ds.populate()
 
         # Initially load huge data
