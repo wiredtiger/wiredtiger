@@ -31,6 +31,8 @@ typedef int (*util_func_t)(WT_SESSION *, int, char *[]);
 static util_func_t disagg_supported[] = {
   util_dump, util_list, util_page, util_read, util_stat, util_turtle, util_verify};
 
+static const char disagg_supported_flags[] = {'C', 'h', 'm', 'p', 'q', 'V', 'v', '?'};
+
 /*
  * wt_explicit_zero --
  *     Clear a buffer, with precautions against being optimized away.
@@ -162,6 +164,43 @@ util_func_allowed_disagg(util_func_t util_func)
 }
 
 /*
+ * util_flag_allowed_disagg --
+ *     Whether a wt global option is allowed in disaggregated storage mode.
+ */
+static bool
+util_flag_allowed_disagg(int ch)
+{
+    for (size_t i = 0; i < WT_ELEMENTS(disagg_supported_flags); i++)
+        if (ch == disagg_supported_flags[i])
+            return (true);
+    return (false);
+}
+
+/*
+ * util_config_is_disagg --
+ *     Whether a wiredtiger_open configuration string configures disaggregated storage.
+ */
+static bool
+util_config_is_disagg(const char *config)
+{
+    WT_CONFIG_ITEM value;
+    WT_CONFIG_PARSER *parser;
+    bool disagg;
+
+    if (config == NULL)
+        return (false);
+
+    /* A configuration string this malformed fails in wiredtiger_open, which reports it better. */
+    if (wiredtiger_config_parser_open(NULL, config, strlen(config), &parser) != 0)
+        return (false);
+
+    disagg = parser->get(parser, "disaggregated.page_log", &value) == 0 && value.len > 0;
+    (void)parser->close(parser);
+
+    return (disagg);
+}
+
+/*
  * usage --
  *     Display a usage message for the wt utility.
  */
@@ -210,13 +249,14 @@ main(int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION *session;
     size_t len;
-    int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
+    int ch, disagg_bad_flag, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
     const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *rec_config,
       *session_config;
     bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
+    disagg_bad_flag = 0;
     p = NULL;
 
     /* Get the program name. */
@@ -246,7 +286,7 @@ main(int argc, char *argv[])
       false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpqRrSVv?")) != EOF) {
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -306,6 +346,10 @@ main(int argc, char *argv[])
             usage();
             goto err;
         }
+
+        if (disagg_bad_flag == 0 && !util_flag_allowed_disagg(ch))
+            disagg_bad_flag = ch;
+    }
     if ((logoff && recover) || (logoff && salvage) || (recover && salvage)) {
         fprintf(stderr, "Only one of -L, -R, and -S is allowed.\n");
         goto err;
@@ -314,26 +358,11 @@ main(int argc, char *argv[])
         fprintf(stderr, "-R and -S cannot be used with -r\n");
         goto err;
     }
-    /* Reject the global flags that don't apply in disaggregated storage mode. */
-    if (cmd_config != NULL && strstr(cmd_config, "disaggregated=") != NULL) {
-        const char *unsupported = NULL;
-        if (backward_compatible)
-            unsupported = "-B";
-        else if (secretkey != NULL)
-            unsupported = "-E";
-        else if (logoff)
-            unsupported = "-L";
-        else if (live_restore_path != NULL)
-            unsupported = "-l";
-        else if (recover)
-            unsupported = "-R";
-        else if (salvage)
-            unsupported = "-S";
-        if (unsupported != NULL) {
-            fprintf(stderr, "%s: %s is not supported in disaggregated storage mode\n", progname,
-              unsupported);
-            goto err;
-        }
+    /* Reject the global options that are not supported in disaggregated storage mode. */
+    if (disagg_bad_flag != 0 && util_config_is_disagg(cmd_config)) {
+        fprintf(stderr, "%s: -%c is not supported in disaggregated storage mode\n", progname,
+          disagg_bad_flag);
+        goto err;
     }
     argc -= __wt_optind;
     argv += __wt_optind;
