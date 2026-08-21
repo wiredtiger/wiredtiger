@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import print_function
-import os, re, subprocess, sys
+import os, re, signal, subprocess, sys
 from run import wt_builddir
 from wttest import WiredTigerTestCase
 import wttest
@@ -217,6 +217,30 @@ class suite_subprocess:
         new_home_dir = os.path.join(directory,
             testparts[1] + '.0')
         return [ returncode, new_home_dir ]
+
+    # Assert that a subprocess was stopped by the given signal. WiredTiger raises the signal on
+    # POSIX and aborts on Windows, so the exit status is platform specific. Where the two are
+    # distinguishable, insist on the signal: any other one means the subprocess stopped somewhere
+    # it was not asked to, such as an assertion catching a crash point that was configured but
+    # never reached.
+    def assert_crashed(self, returncode, expected_signal):
+        if os.name == 'nt':
+            self.assertNotEqual(returncode, 0)
+        else:
+            self.assertEqual(returncode, -expected_signal)
+
+    # Run a method as a subprocess that is expected to crash, and return the WiredTiger home
+    # directory it left behind. The signal differs by how WiredTiger stops: __wt_debug_crash kills
+    # the process, an assertion or a panic aborts it.
+    def crash_in_subprocess(self, directory, funcname, expected_signal):
+        # Restrict the subprocess to this test's own scenario, so that each is crashed and asserted
+        # independently. Running the child over the whole list instead crashes it in the first
+        # scenario and never reaches the others. A test without scenarios has no attribute, and
+        # run_subprocess_function takes None to mean it should not restrict the child at all.
+        [ returncode, home ] = self.run_subprocess_function(directory, funcname, silent=True,
+            scenario=getattr(self, 'scenario_number', None))
+        self.assert_crashed(returncode, expected_signal)
+        return home
 
     # Merge a connection configuration string into a wt argument list, combining with an existing
     # -C value when present.
