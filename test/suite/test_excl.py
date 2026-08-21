@@ -30,6 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # Test session.create with the exclusive configuration.
+@wttest.skip_for_hook("disagg", "Exclusive create is not supported with disagg layered tables")
 class test_create_excl(wttest.WiredTigerTestCase):
     types = [
         ('file', dict(type = 'file:')),

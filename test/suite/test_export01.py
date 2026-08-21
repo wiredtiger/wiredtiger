@@ -36,6 +36,7 @@ from helper import copy_wiredtiger_home
 from wtscenario import make_scenarios
 import os, shutil, wttest
 
+@wttest.skip_for_hook("disagg", "backup:export is not supported with disagg storage")
 class test_export01(wttest.WiredTigerTestCase):
     dir = 'backup.dir'
 

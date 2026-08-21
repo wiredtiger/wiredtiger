@@ -44,6 +44,7 @@ expected_out = [
 ]
 
 # Test that tables are reconciled correctly when they are empty.
+@wttest.skip_for_hook("disagg", "Disagg rewrites table: creates; this test assumes ordinary tables")
 class test_schema01(wttest.WiredTigerTestCase):
     test_name = __qualname__
 

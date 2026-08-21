@@ -30,6 +30,7 @@ import wttest
 from wtscenario import make_scenarios
 
 # Repeatedly create and drop indices
+@wttest.skip_for_hook("disagg", "Disagg rewrites table: creates; this test assumes ordinary tables")
 class test_schema06(wttest.WiredTigerTestCase):
     """
     Test basic operations

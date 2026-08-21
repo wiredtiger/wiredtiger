@@ -194,6 +194,7 @@ class idxconfig:
             colpos += 1
         return keys
 
+@wttest.skip_for_hook("disagg", "Disagg rewrites table: creates; this test assumes ordinary tables")
 class test_schema03(wttest.WiredTigerTestCase):
     """
     Test schemas - a 'predictably random' assortment of columns,

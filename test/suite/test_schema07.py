@@ -29,6 +29,7 @@
 import wttest
 
 # Test that long-running tests don't fill the cache with metadata
+@wttest.skip_for_hook("disagg", "Disagg rewrites table: creates; this test assumes ordinary tables")
 class test_schema07(wttest.WiredTigerTestCase):
     test_name = __qualname__
     tablename = f'table:{test_name}'

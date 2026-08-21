@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 # After doing the operation, create a backup copy of the directory,
 # walk the log recording each LSN, truncate the backup copy of the
 # log walking backward from the LSNs and then run recovery.
+@wttest.skip_for_hook("disagg", "Log recovery is not supported with disagg storage")
 class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
     # We want to copy, truncate and run recovery so keep the log
     # file small and don't pre-allocate any. We expect a small log.

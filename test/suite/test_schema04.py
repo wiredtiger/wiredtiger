@@ -30,6 +30,7 @@ import wttest
 from wtscenario import make_scenarios
 
 # Test indices with duplicates
+@wttest.skip_for_hook("disagg", "Disagg rewrites table: creates; this test assumes ordinary tables")
 class test_schema04(wttest.WiredTigerTestCase):
     """
     Test indices with duplicates.

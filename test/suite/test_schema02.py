@@ -30,6 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # Columns, column groups, indexes
+@wttest.skip_for_hook("disagg", "Column groups are not supported with disagg layered tables")
 class test_schema02(wttest.WiredTigerTestCase):
     """
     Test basic operations
