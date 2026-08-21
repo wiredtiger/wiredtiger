@@ -72,10 +72,7 @@ ckpt_pick_up(WORKLOAD_STATE *state, WT_SESSION *session)
         return (false);
     }
 
-    /*
-     * Never adopt a checkpoint the node has not caught up with, the way replication gates its
-     * checkpoint installs on apply progress.
-     */
+    /* Never adopt a checkpoint the node has not caught up with. */
     if (__wt_atomic_load_uint64(&state->current_ts) < ckpt_args.checkpoint_timestamp) {
         free(ckpt_args.checkpoint_metadata.mem);
         return (false);
