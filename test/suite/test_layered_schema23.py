@@ -137,6 +137,10 @@ class test_layered_schema23(wttest.WiredTigerTestCase, DisaggSchemaEpochMixin):
         """
         A recreate that was never checkpointed was never published, so the checkpoint's btree id
         wins even though the local one is larger.
+
+        The step-down here declares no timestamp, which is what leaves the recreate unpublished.
+        A graceful step-down would carry it into the checkpoint instead, which
+        test_recreate_published_before_a_graceful_step_down covers.
         """
         self.session.create(self.uri, self.table_config)
         self.write_one('from the first leader', 2)
