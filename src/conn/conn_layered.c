@@ -17,11 +17,11 @@ static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
  */
 static int
 __layered_file_config_from_ingest(
-  WT_SESSION_IMPL *session, const char *layered_cfg, char **projectedp)
+  WT_SESSION_IMPL *session, const char *layered_cfg, char **file_cfgp)
 {
     WT_DECL_RET;
     char *ingest_meta = NULL;
-    *projectedp = NULL;
+    *file_cfgp = NULL;
 
     /* Determine the ingest URI. */
     WT_DECL_ITEM(ingest_uri);
@@ -39,7 +39,7 @@ __layered_file_config_from_ingest(
     cfg[0] = WT_CONFIG_BASE(session, file_config);
     cfg[1] = ingest_meta;
     cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, projectedp));
+    WT_ERR(__wt_config_collapse(session, cfg, file_cfgp));
 
 err:
     __wt_free(session, ingest_meta);
@@ -92,10 +92,10 @@ __layered_stable_config_from_ingest(
   WT_SESSION_IMPL *session, const char *layered_cfg, const char **stable_cfgp)
 {
     WT_DECL_RET;
-    char *page_log_cfg = NULL, *projected = NULL;
+    char *ingest_file_cfg = NULL, *page_log_cfg = NULL;
     *stable_cfgp = NULL;
 
-    WT_ERR(__layered_file_config_from_ingest(session, layered_cfg, &projected));
+    WT_ERR(__layered_file_config_from_ingest(session, layered_cfg, &ingest_file_cfg));
     WT_ERR(__layered_stable_page_log_config(session, layered_cfg, &page_log_cfg));
 
     /*
@@ -103,14 +103,14 @@ __layered_stable_config_from_ingest(
      * sibling settings such as storage_tier.
      */
     const char *cfg[4];
-    cfg[0] = projected;
+    cfg[0] = ingest_file_cfg;
     cfg[1] = "block_manager=disagg,in_memory=false,log=(enabled=false)";
     cfg[2] = page_log_cfg;
     cfg[3] = NULL;
     WT_ERR(__wt_config_merge(session, cfg, NULL, stable_cfgp));
 
 err:
-    __wt_free(session, projected);
+    __wt_free(session, ingest_file_cfg);
     __wt_free(session, page_log_cfg);
     return (ret);
 }
