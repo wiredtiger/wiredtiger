@@ -139,13 +139,12 @@ compress_buffer(WT_COMPRESSOR *c, WT_SESSION *session, std::vector<uint8_t> &raw
 }
 
 /*
- * check_round_trip --
- *     An untouched block decompresses back to the original, and a block too short to hold the
- *     stored-length prefix is rejected rather than read.
+ * check_decompresses_to_original --
+ *     An untouched block decompresses back to the bytes it was compressed from.
  */
 void
-check_round_trip(compressor_fixture &f, std::vector<uint8_t> &raw, std::vector<uint8_t> &comp,
-  std::vector<uint8_t> &out, size_t prefix_size)
+check_decompresses_to_original(compressor_fixture &f, std::vector<uint8_t> &raw,
+  std::vector<uint8_t> &comp, std::vector<uint8_t> &out)
 {
     WT_COMPRESSOR *c = f.compressor;
     size_t result_len = 0;
@@ -154,8 +153,17 @@ check_round_trip(compressor_fixture &f, std::vector<uint8_t> &raw, std::vector<u
               c, f.session, comp.data(), comp.size(), out.data(), out.size(), &result_len) == 0);
     REQUIRE(result_len == raw.size());
     REQUIRE(std::memcmp(out.data(), raw.data(), raw.size()) == 0);
+}
 
-    REQUIRE(guard_rejected(c, f.session, comp, prefix_size - 1, out));
+/*
+ * check_short_block_rejected --
+ *     A block too short to hold the stored-length prefix is rejected rather than read.
+ */
+void
+check_short_block_rejected(
+  compressor_fixture &f, std::vector<uint8_t> &comp, std::vector<uint8_t> &out, size_t prefix_size)
+{
+    REQUIRE(guard_rejected(f.compressor, f.session, comp, prefix_size - 1, out));
 }
 
 /*
@@ -171,7 +179,8 @@ check_guard_64(const char *name, extension_init_t init)
     std::vector<uint8_t> out(raw.size() * 2);
     std::vector<uint8_t> bad;
 
-    check_round_trip(f, raw, comp, out, sizeof(uint64_t));
+    check_decompresses_to_original(f, raw, comp, out);
+    check_short_block_rejected(f, comp, out, sizeof(uint64_t));
 
     /* A stored length larger than the block is rejected. */
     bad = comp;
@@ -206,7 +215,8 @@ check_guard_32(const char *name, extension_init_t init, size_t prefix_size)
     std::vector<uint8_t> out(raw.size() * 2);
     std::vector<uint8_t> bad;
 
-    check_round_trip(f, raw, comp, out, prefix_size);
+    check_decompresses_to_original(f, raw, comp, out);
+    check_short_block_rejected(f, comp, out, prefix_size);
 
     for (size_t i = 0; i <= prefix_size; ++i) {
         uint32_t stored = UINT32_MAX - static_cast<uint32_t>(i);
