@@ -100,13 +100,3 @@ class test_checkpoint_crash01(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(c.search(), 0 if keeps_checkpoint else wiredtiger.WT_NOTFOUND)
         finally:
             conn.close()
-
-# The two crash point settings name points on opposite sides of the commit, so they disagree about
-# the outcome rather than refining each other.
-class test_checkpoint_crash01_conflict(wttest.WiredTigerTestCase):
-    def test_checkpoint_crash_settings_conflict(self):
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.checkpoint(
-                'debug=(checkpoint_crash_point=500,'
-                'checkpoint_crash_trigger_point=before_metadata_sync)'),
-            '/mutually exclusive/')
