@@ -590,6 +590,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
     int64_t eviction_server_skip_metatdata_with_history;
+    int64_t eviction_server_skip_stale_disagg_pages;
     int64_t eviction_server_skip_pages_checkpoint_timestamp;
     int64_t eviction_server_skip_pages_last_running;
     int64_t eviction_server_skip_pages_prune_timestamp;
@@ -831,6 +832,8 @@ struct __wt_connection_stats {
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
     int64_t capacity_time_read;
+    int64_t checkpoint_cleanup_thread_start;
+    int64_t checkpoint_cleanup_thread_stop;
     int64_t checkpoint_cleanup_duration;
     int64_t checkpoint_cleanup_handle_processed;
     int64_t checkpoint_cleanup_inmem_pages_visited;
@@ -1540,6 +1543,8 @@ struct __wt_dsrc_stats {
     int64_t btree_size_leaf_hist_6;
     int64_t btree_size_leaf_hist_7;
     int64_t btree_size_leaf_hist_8;
+    int64_t btree_size_leaf_hist_buckets;
+    int64_t btree_size_leaf_hist_ceiling;
     int64_t btree_size_leaf_pages;
     int64_t btree_size_overflow_bytes;
     int64_t btree_size_overflow_pages;

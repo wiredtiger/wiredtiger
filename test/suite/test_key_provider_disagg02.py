@@ -25,6 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+import signal
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from helper_key_provider import KeyProviderBase
 from suite_subprocess import suite_subprocess
@@ -78,8 +79,8 @@ class test_key_provider_disagg02(KeyProviderBase, suite_subprocess):
         self.conn.close()
 
         subdir = 'SUBPROCESS'
-        [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
-            f'{self.test_name}.{self.test_name}.subprocess_func', silent=True)
+        new_home_dir = self.crash_in_subprocess(subdir,
+            f'{self.test_name}.{self.test_name}.subprocess_func', signal.SIGKILL)
 
         # The subprocess wrote to new_home_dir; its turtle reference survived the crash intact.
         self.validate_turtle_page(home=new_home_dir)

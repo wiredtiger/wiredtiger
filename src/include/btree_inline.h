@@ -37,11 +37,11 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_is_stale_disagg --
+ * __wt_btree_is_outdated_disagg --
  *     Return whether the current btree belongs to an outdated disaggregated generation.
  */
 static WT_INLINE bool
-__wt_btree_is_stale_disagg(WT_SESSION_IMPL *session)
+__wt_btree_is_outdated_disagg(WT_SESSION_IMPL *session)
 {
     return ((F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) ||
               F_ISSET_ATOMIC_32(S2BT(session), WT_BTREE_READONLY)) &&
