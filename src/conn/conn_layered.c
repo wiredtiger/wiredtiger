@@ -21,6 +21,7 @@ __layered_file_config_from_ingest(
 {
     WT_DECL_RET;
     char *ingest_meta = NULL;
+    *projectedp = NULL;
 
     /* Determine the ingest URI. */
     WT_DECL_ITEM(ingest_uri);
@@ -55,6 +56,7 @@ __layered_stable_page_log_config(
   WT_SESSION_IMPL *session, const char *layered_cfg, char **page_log_cfgp)
 {
     WT_DECL_RET;
+    *page_log_cfgp = NULL;
 
     WT_DECL_ITEM(buf);
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
@@ -91,6 +93,7 @@ __layered_stable_config_from_ingest(
 {
     WT_DECL_RET;
     char *page_log_cfg = NULL, *projected = NULL;
+    *stable_cfgp = NULL;
 
     WT_ERR(__layered_file_config_from_ingest(session, layered_cfg, &projected));
     WT_ERR(__layered_stable_page_log_config(session, layered_cfg, &page_log_cfg));
