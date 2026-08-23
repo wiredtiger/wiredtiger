@@ -263,9 +263,8 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
 #endif
 
     /*
-     * The stored length is only as trustworthy as the bytes on disk, so bound it with a
-     * subtraction: adding the prefix wraps for stored lengths within ZSTD_PREFIX of UINT64_MAX, and
-     * zstd tracks its remaining input as a counter, so it will read well past the end of the block.
+     * We avoid the risk of overflow by using subtraction in this check. The stored size comes from
+     * disk, and if it is corrupted it might be close to the maximum integer value.
      */
     if (zstd_len > src_len - ZSTD_PREFIX) {
         (void)wt_api->err_printf(

@@ -175,9 +175,8 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *sr
 #endif
 
     /*
-     * The stored length is only as trustworthy as the bytes on disk, so bound it with a
-     * subtraction: adding the prefix wraps for stored lengths within SNAPPY_PREFIX of UINT64_MAX,
-     * which would hand the decompressor an input limit far beyond the end of the block.
+     * We avoid the risk of overflow by using subtraction in this check. The stored size comes from
+     * disk, and if it is corrupted it might be close to the maximum integer value.
      */
     if (snaplen > src_len - SNAPPY_PREFIX) {
         (void)wt_api->err_printf(

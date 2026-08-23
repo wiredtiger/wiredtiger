@@ -188,9 +188,8 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, siz
 #endif
 
     /*
-     * The stored length is only as trustworthy as the bytes on disk, so bound it with a
-     * subtraction: where size_t is 32 bits, adding the prefix wraps for stored lengths close to
-     * UINT32_MAX.
+     * We avoid the risk of overflow by using subtraction in this check. The stored size comes from
+     * disk, and if it is corrupted it might be close to the maximum integer value.
      */
     if (prefix.compressed_len > src_len - sizeof(LZ4_PREFIX)) {
         (void)wt_api->err_printf(
