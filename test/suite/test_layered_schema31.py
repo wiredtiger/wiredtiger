@@ -41,16 +41,13 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
     test_name = __qualname__
     conn_config = 'disaggregated=(role="leader",lose_all_my_data=true)'
 
-    uri = f"layered:{test_name}"
-    ref_uri = f"layered:{test_name}_ref"
-
     # Create the table with a non-default value for every user-settable
     # immutable file setting, so the comparison exercises the full set of
     # fields the rebuild must preserve.
     # Encryption belongs to the same set but needs an encryptor extension, so
     # it is left out. The storage tier exercises the recursive merge of the
     # disaggregated category when the rebuild overrides the page log.
-    table_config = (
+    base_config = (
         "key_format=i,value_format=S,"
         "allocation_size=512B,"
         "block_allocation=first,"
@@ -74,23 +71,40 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
         "split_pct=80"
     )
 
+    uri_scenarios = [
+        (
+            "layered",
+            {
+                "uri": f"layered:{test_name}",
+                "ref_uri": f"layered:{test_name}_ref",
+                "table_config": base_config,
+            },
+        ),
+        (
+            "table",
+            {
+                "uri": f"table:{test_name}",
+                "ref_uri": f"table:{test_name}_ref",
+                "table_config": base_config + ",type=layered",
+            },
+        ),
+    ]
+
     def conn_extensions(self, extlist):
         self.add_scenario_config()
         extlist.extension("compressors", "snappy")
         return self.disagg_conn_extensions(extlist)
 
     disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, uri_scenarios)
 
-    def create_on_follower_then_step_up(self, config=None):
+    def create_on_follower_then_step_up(self, config):
         """
         Create and publish the table in the follower role, then step up to
         rebuild the missing stable constituent. A twin table created in the
         leader role first provides the reference stable constituent row the
         rebuild must reproduce.
         """
-        if config is None:
-            config = self.table_config
         self.set_stable_epoch(1)
         self.session.create(self.ref_uri, config)
         self.step_down()
@@ -176,7 +190,7 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
         )
 
     def test_stepup_rebuild_keeps_file_settings(self):
-        self.create_on_follower_then_step_up()
+        self.create_on_follower_then_step_up(self.table_config)
         self.set_stable_epoch(10)
         self.check_rebuild_keeps_file_settings()
 
@@ -189,36 +203,10 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
         Verify step-up uses the saved configuration rather than the
         ingest-derived fallback.
         """
-        self.create_on_follower_then_step_up("key_format=i,value_format=S")
+        config = self.table_config.replace("block_manager=disagg,", "")
+        self.create_on_follower_then_step_up(config)
         self.assert_matches_reference(
             self.read_stable_config(
                 self.conn, self.layered_stable_uri(self.uri)
             )
-        )
-
-    def test_stepup_rebuild_keeps_file_settings_table_prefix(self):
-        """
-        Verify creating a layered table through a URI starting with "table:"
-        preserves the saved configuration.
-        """
-        uri = f"table:{self.test_name}_tbl"
-        ref_uri = f"table:{self.test_name}_tbl_ref"
-        config = (
-            self.table_config.replace("block_manager=disagg,", "")
-            + ",type=layered"
-        )
-        stable_uri = self.layered_stable_uri(uri)
-
-        self.set_stable_epoch(1)
-        self.session.create(ref_uri, config)
-        self.step_down()
-
-        self.session.create(uri, config)
-        self.publish(uri, 5)
-        self.assertFalse(self.stable_exists_locally(self.conn, stable_uri))
-
-        self.step_up()
-        self.set_stable_epoch(10)
-        self.assert_matches_reference(
-            self.read_stable_config(self.conn, stable_uri), ref_uri
         )
