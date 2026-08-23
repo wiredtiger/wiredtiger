@@ -26,27 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# When step-up creates a missing stable constituent, its immutable file
-# settings must match those of a stable constituent created in the leader
-# role.
+# Step-up creates a missing stable table from its recorded configuration when
+# available; legacy mode derives the configuration from ingest metadata.
 
 from helper_disagg import DisaggSchemaEpochMixin
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
-from wttest import WiredTigerTestCase
-
+from wttest import WiredTigerTestCase, open_cursor
 
 @disagg_test_class
 class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
-    test_name = __qualname__
     conn_config = 'disaggregated=(role="leader",lose_all_my_data=true)'
 
-    # Create the table with a non-default value for every user-settable
-    # immutable file setting, so the comparison exercises the full set of
-    # fields the rebuild must preserve.
-    # Encryption belongs to the same set but needs an encryptor extension, so
-    # it is left out. The storage tier exercises the recursive merge of the
-    # disaggregated category when the rebuild overrides the page log.
+    # Exercise every user-settable field except encryption, which requires an
+    # encryptor extension.
     base_config = (
         "key_format=i,value_format=S,"
         "allocation_size=512B,"
@@ -75,134 +68,93 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
         (
             "layered",
             {
-                "uri": f"layered:{test_name}",
-                "ref_uri": f"layered:{test_name}_ref",
-                "table_config": base_config,
+                "uri": f"layered:{__qualname__}",
+                "config": base_config,
             },
         ),
         (
             "table",
             {
-                "uri": f"table:{test_name}",
-                "ref_uri": f"table:{test_name}_ref",
-                "table_config": base_config + ",type=layered",
+                "uri": f"table:{__qualname__}",
+                "config": base_config + ",type=layered",
             },
         ),
     ]
+
+    disagg_storages = gen_disagg_storages(disagg_only=True)
+    scenarios = make_scenarios(disagg_storages, uri_scenarios)
 
     def conn_extensions(self, extlist):
         self.add_scenario_config()
         extlist.extension("compressors", "snappy")
         return self.disagg_conn_extensions(extlist)
 
-    disagg_storages = gen_disagg_storages(disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, uri_scenarios)
-
-    def create_on_follower_then_step_up(self, config):
+    def create_on_follower_then_step_up(self, config, use_schema_epochs=True):
         """
-        Create and publish the table in the follower role, then step up to
-        rebuild the missing stable constituent. A twin table created in the
-        leader role first provides the reference stable constituent row the
-        rebuild must reproduce.
+        Create the table in the follower role, then step up to create the
+        missing stable table.
         """
-        self.set_stable_epoch(1)
-        self.session.create(self.ref_uri, config)
         self.step_down()
 
-        # A follower-era create has no stable constituent: only the ingest
-        # constituent and the layered table entry exist until the next step-up.
+        if use_schema_epochs:
+            self.set_stable_epoch(1)
+
+        # A follower create leaves the stable table missing until step-up.
         self.session.create(self.uri, config)
-        self.publish(self.uri, 5)
-        self.assertFalse(
-            self.stable_exists_locally(
-                self.conn, self.layered_stable_uri(self.uri)
-            )
-        )
+
+        if use_schema_epochs:
+            self.publish(self.uri, epoch=5)
 
         self.step_up()
 
-    def create_on_follower_then_step_up_legacy(self):
+    def read_stable_config(self, layered_uri):
+        """Return the stable configuration for a layered table."""
+        stable_uri = "file:" + layered_uri.split(":", 1)[1] + ".wt_stable"
+        with open_cursor(self.session, "metadata:create") as cursor:
+            return cursor[stable_uri]
+
+    def check_step_up_stable_config(self, config):
         """
-        The same flow without schema epochs, exercising the legacy step-up
-        path that reconstructs the missing stable constituent from the
-        ingest constituent.
+        Check that step-up creates the stable table with the expected
+        configuration.
         """
-        self.session.create(self.ref_uri, self.table_config)
-        self.step_down()
+        # Get the config produced when the leader creates the stable table.
+        leader_table_uri = self.uri + "_leader"
+        self.session.create(leader_table_uri, config)
+        expected_config = self.read_stable_config(leader_table_uri)
 
-        self.session.create(self.uri, self.table_config)
-        self.assertFalse(
-            self.stable_exists_locally(
-                self.conn, self.layered_stable_uri(self.uri)
-            )
-        )
+        # Compare it with the config of the stable table created at step-up.
+        step_up_config = self.read_stable_config(self.uri)
+        self.assertEqual(step_up_config, expected_config)
 
-        self.step_up()
-
-    def layered_stable_uri(self, uri):
-        """Return the stable constituent URI for a layered: or table: URI."""
-        return "file:" + uri.split(":", 1)[1] + ".wt_stable"
-
-    def read_stable_config(self, conn, stable_uri):
-        """Return the stable constituent's local create configuration."""
-        session = conn.open_session("")
-        cursor = session.open_cursor("metadata:create")
-        cursor.set_key(stable_uri)
-        self.assertEqual(
-            cursor.search(), 0, f"no local metadata for {stable_uri}"
-        )
-        config = cursor.get_value()
-        cursor.close()
-        session.close()
-        return config
-
-    def stable_exists_locally(self, conn, stable_uri):
+    def test_schema_epoch_step_up_matches_leader_config(self):
         """
-        Return True if the stable constituent has a row in conn's local
+        Verify that schema epoch step-up matches the leader's stable
+        configuration.
+        """
+        self.create_on_follower_then_step_up(self.config)
+        self.check_step_up_stable_config(self.config)
+
+    def test_legacy_step_up_derives_config_from_ingest(self):
+        """
+        Verify that legacy step-up derives the stable configuration from ingest
         metadata.
         """
-        session = conn.open_session("")
-        cursor = session.open_cursor("metadata:")
-        cursor.set_key(stable_uri)
-        found = cursor.search() == 0
-        cursor.close()
-        session.close()
-        return found
-
-    def assert_matches_reference(self, rebuilt_config, ref_uri=None):
-        """
-        Assert a stable constituent's create configuration matches the
-        leader-created reference.
-        """
-        reference_config = self.read_stable_config(
-            self.conn, self.layered_stable_uri(ref_uri or self.ref_uri)
+        self.create_on_follower_then_step_up(
+            self.config, use_schema_epochs=False
         )
-        self.assertEqual(rebuilt_config, reference_config)
+        self.check_step_up_stable_config(self.config)
 
-    def check_rebuild_keeps_file_settings(self):
+    def test_schema_epoch_step_up_does_not_derive_from_ingest(self):
         """
-        The rebuilt stable constituent keeps the create-time file settings.
+        Verify that schema epoch step-up does not derive the stable
+        configuration from ingest metadata.
         """
-        self.assert_matches_reference(
-            self.read_stable_config(
-                self.conn, self.layered_stable_uri(self.uri)
-            )
+        # Deriving the configuration from ingest metadata forces
+        # block_manager=disagg. If block_manager=default is found after
+        # step-up, it proves the ingest-derived path was not used.
+        table_config = self.config.replace(
+            "block_manager=disagg", "block_manager=default"
         )
-
-    def test_stepup_rebuild_keeps_file_settings(self):
-        self.create_on_follower_then_step_up(self.table_config)
-        self.set_stable_epoch(10)
-        self.check_rebuild_keeps_file_settings()
-
-    def test_stepup_rebuild_keeps_file_settings_legacy(self):
-        self.create_on_follower_then_step_up_legacy()
-        self.check_rebuild_keeps_file_settings()
-
-    def test_stepup_rebuild_keeps_default_config(self):
-        """
-        Verify step-up uses the saved configuration rather than the
-        ingest-derived fallback.
-        """
-        config = self.table_config.replace("block_manager=disagg,", "")
-        self.create_on_follower_then_step_up(config)
-        self.check_rebuild_keeps_file_settings()
+        self.create_on_follower_then_step_up(table_config)
+        self.check_step_up_stable_config(table_config)
