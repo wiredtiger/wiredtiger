@@ -125,17 +125,16 @@ __layered_create_missing_stable_table(
   WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg, const char *stable_create_cfg)
 {
     WT_DECL_RET;
-    bool free_required = false;
+    const char *config, *derived_config = NULL;
 
-    if (stable_create_cfg == NULL) {
-        WT_RET(__layered_stable_config_from_ingest(session, layered_cfg, &stable_create_cfg));
-        free_required = true; /* stable_create_cfg is now locally allocated. */
+    config = stable_create_cfg;
+    if (config == NULL) {
+        WT_RET(__layered_stable_config_from_ingest(session, layered_cfg, &derived_config));
+        config = derived_config; /* config now points to locally allocated memory. */
     }
 
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, stable_create_cfg));
-
-    if (free_required)
-        __wt_free(session, stable_create_cfg);
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, config));
+    __wt_free(session, derived_config);
 
     return (ret);
 }
