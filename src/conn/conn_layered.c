@@ -10,6 +10,15 @@
 
 static void __disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session);
 
+#define WT_DISAGG_SHARED_SYSTEM_BTREE_COUNT 2
+
+typedef struct {
+    WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
+} WT_DISAGG_SHARED_SYSTEM_BTREE;
+
+static int __disagg_retire_follower_btrees_then_step_up(WT_SESSION_IMPL *session);
+
 /*
  * __layered_create_missing_stable_table --
  *     Create a missing stable table from an existing layered table configuration.
@@ -1160,9 +1169,9 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      * validate against the old era and keep binding stable content across the transition. The
      * paired acquire is in the role read the stable bind dispatches on.
      */
-    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
-    __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, true);
-    WT_STAT_CONN_SET(session, disagg_role_leader, 1);
+    WT_WITH_SCHEMA_LOCK(
+      internal_session, ret = __disagg_retire_follower_btrees_then_step_up(internal_session));
+    WT_ERR(ret);
 
     /* A leader never adopts checkpoints: discard a pending deferred pickup. */
     __wti_disagg_clear_deferred_checkpoint_all(session);
@@ -1236,14 +1245,76 @@ err:
 }
 
 /*
- * __disagg_mark_btrees_readonly_then_step_down --
- *     Mark all disaggregated btrees readonly and outdated, then step down to follower mode. The
- *     outdated mark makes the next leader open fresh handles instead of reusing these stale ones.
+ * __disagg_make_btree_readonly_and_outdated --
+ *     Retire one open disaggregated btree without retaining the handle-list lock while eviction
+ *     drains.
  */
 static int
-__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+__disagg_make_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
+    bool dhandle_locked, eviction_exclusive, is_dead, pinned;
+
+    dhandle_locked = false;
+    eviction_exclusive = false;
+    pinned = false;
+    btree = NULL;
+
+    WT_ASSERT(session, session->dhandle == NULL);
+    session->dhandle = dhandle;
+    WT_ERR(__wt_session_lock_dhandle(session, 0, &is_dead));
+    if (is_dead) {
+        WT_DHANDLE_CLEAR(session);
+        return (0);
+    }
+    dhandle_locked = true;
+
+    if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+      F_ISSET(dhandle, WT_DHANDLE_OUTDATED))
+        goto done;
+
+    btree = (WT_BTREE *)dhandle->handle;
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        goto done;
+
+    WT_ERR(__wt_evict_file_exclusive_on(session));
+    eviction_exclusive = true;
+
+    F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
+    __wt_cursor_dhandle_incr_use(session);
+    pinned = true;
+    ret = __wt_session_release_dhandle(session);
+    dhandle_locked = false;
+    WT_ERR(ret);
+
+    /*
+     * The handle-list lock protects the dhandle state, but it must not cover the eviction drain.
+     * The pin keeps the btree open between releasing its lock and changing its state here.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, F_SET(dhandle, WT_DHANDLE_OUTDATED));
+
+done:
+err:
+    if (eviction_exclusive)
+        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    if (pinned)
+        WT_WITH_DHANDLE(session, dhandle, __wt_cursor_dhandle_decr_use(session));
+    if (dhandle_locked)
+        WT_TRET(__wt_session_release_dhandle(session));
+    else if (session->dhandle != NULL)
+        WT_DHANDLE_CLEAR(session);
+    return (ret);
+}
+
+/*
+ * __disagg_retire_btrees --
+ *     Make each matching open disaggregated btree read-only and outdated without retaining the
+ *     handle-list lock while eviction drains.
+ */
+static int
+__disagg_retire_btrees(WT_SESSION_IMPL *session, bool step_up)
+{
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
@@ -1251,42 +1322,189 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     for (dhandle = NULL;;) {
-        WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+        WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+          if (dhandle != NULL && dhandle->type == WT_DHANDLE_TYPE_LAYERED && !step_up)
+            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED));
         if (dhandle == NULL)
             break;
 
-        /* Clear the mark on tables created during the step-down window. */
-        if (dhandle->type == WT_DHANDLE_TYPE_LAYERED) {
-            F_CLR((WT_LAYERED_TABLE *)dhandle, WT_LAYERED_TABLE_STEP_DOWN_CREATED);
+        if (step_up) {
+            if (dhandle->checkpoint != NULL || WT_URI_IS_STABLE_CHECKPOINT(dhandle->name))
+                continue;
+        } else {
+            if (dhandle->checkpoint != NULL || WT_URI_IS_STABLE_CHECKPOINT(dhandle->name) ||
+              strcmp(dhandle->name, WT_HS_URI_SHARED) == 0 ||
+              strcmp(dhandle->name, WT_DISAGG_METADATA_URI) == 0)
+                continue;
+        }
+
+        WT_ERR(__disagg_make_btree_readonly_and_outdated(session, dhandle));
+    }
+
+    return (0);
+
+err:
+    WT_DHANDLE_RELEASE(dhandle);
+    return (ret);
+}
+
+/*
+ * __disagg_quiesce_shared_system_btrees --
+ *     Drain eviction from the live shared history-store and metadata handles while still leader.
+ *     Keep eviction disabled and the dhandles pinned until the follower role is visible.
+ */
+static int
+__disagg_quiesce_shared_system_btrees(WT_SESSION_IMPL *session,
+  WT_DISAGG_SHARED_SYSTEM_BTREE btrees[WT_DISAGG_SHARED_SYSTEM_BTREE_COUNT], size_t *countp)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    size_t count;
+    bool current_pinned, dhandle_locked, eviction_exclusive, is_dead;
+
+    conn = S2C(session);
+    count = 0;
+    current_pinned = false;
+    dhandle_locked = false;
+    eviction_exclusive = false;
+    btree = NULL;
+
+    for (dhandle = NULL;;) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+        if (dhandle == NULL)
+            break;
+
+        if (strcmp(dhandle->name, WT_HS_URI_SHARED) != 0 &&
+          strcmp(dhandle->name, WT_DISAGG_METADATA_URI) != 0)
+            continue;
+
+        WT_ASSERT(session, session->dhandle == NULL);
+        session->dhandle = dhandle;
+        WT_ERR(__wt_session_lock_dhandle(session, 0, &is_dead));
+        if (is_dead) {
+            WT_DHANDLE_CLEAR(session);
+            continue;
+        }
+        dhandle_locked = true;
+
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+          F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+            ret = __wt_session_release_dhandle(session);
+            dhandle_locked = false;
+            WT_ERR(ret);
             continue;
         }
 
-        /* Only care about open disaggregated btree dhandles. */
-        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-            continue;
-
         btree = (WT_BTREE *)dhandle->handle;
-
-        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || F_ISSET_ATOMIC_32(btree, WT_BTREE_READONLY))
+        if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            ret = __wt_session_release_dhandle(session);
+            dhandle_locked = false;
+            WT_ERR(ret);
             continue;
+        }
 
-        WT_WITH_BTREE(session, btree, ret = __wt_evict_file_exclusive_on(session));
-        WT_RET(ret);
-
-        /* Mark the disaggregated as readonly. */
+        WT_ERR(__wt_evict_file_exclusive_on(session));
+        eviction_exclusive = true;
         F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
+        __wt_cursor_dhandle_incr_use(session);
+        WT_DHANDLE_ACQUIRE(dhandle);
+        current_pinned = true;
 
-        /*
-         * Mark the handle outdated so that if we step back up as leader in the future, we open a
-         * fresh one rather than reusing this handle's resident pages. Carrying those pages into a
-         * new leader era lets the drain dirty a page that still holds an unresolved on-disk
-         * prepared cell before the drain resolves it, which reconciliation cannot represent (leaked
-         * prepared update).
-         */
-        F_SET(dhandle, WT_DHANDLE_OUTDATED);
+        WT_ASSERT_ALWAYS(session, count < WT_DISAGG_SHARED_SYSTEM_BTREE_COUNT,
+          "multiple live shared system btree handles");
+        ret = __wt_session_release_dhandle(session);
+        dhandle_locked = false;
+        WT_ERR(ret);
 
-        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+        btrees[count].btree = btree;
+        btrees[count].dhandle = dhandle;
+        ++count;
+
+        eviction_exclusive = false;
+        current_pinned = false;
     }
+
+    *countp = count;
+    return (0);
+
+err:
+    if (dhandle_locked)
+        WT_TRET(__wt_session_release_dhandle(session));
+    else if (session->dhandle != NULL)
+        WT_DHANDLE_CLEAR(session);
+    if (eviction_exclusive)
+        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    if (current_pinned) {
+        WT_WITH_DHANDLE(session, dhandle, __wt_cursor_dhandle_decr_use(session));
+        WT_DHANDLE_RELEASE(dhandle);
+    }
+    if (dhandle != NULL)
+        WT_DHANDLE_RELEASE(dhandle);
+    *countp = count;
+    return (ret);
+}
+
+/*
+ * __disagg_release_shared_system_btrees --
+ *     Mark quiesced shared system handles outdated and release their eviction barriers and pins.
+ */
+static void
+__disagg_release_shared_system_btrees(WT_SESSION_IMPL *session,
+  WT_DISAGG_SHARED_SYSTEM_BTREE btrees[WT_DISAGG_SHARED_SYSTEM_BTREE_COUNT], size_t count,
+  bool outdated)
+{
+    size_t i;
+
+    for (i = 0; i < count; ++i) {
+        if (outdated)
+            WT_WITH_HANDLE_LIST_READ_LOCK(session, F_SET(btrees[i].dhandle, WT_DHANDLE_OUTDATED));
+        else
+            F_CLR_ATOMIC_32(btrees[i].btree, WT_BTREE_READONLY);
+        WT_WITH_BTREE(session, btrees[i].btree, __wt_evict_file_exclusive_off(session));
+        WT_WITH_DHANDLE(session, btrees[i].dhandle, __wt_cursor_dhandle_decr_use(session));
+        WT_DHANDLE_RELEASE(btrees[i].dhandle);
+    }
+}
+
+/*
+ * __disagg_retire_follower_btrees_then_step_up --
+ *     Retire any live handles opened during the follower era before publishing the leader role.
+ */
+static int
+__disagg_retire_follower_btrees_then_step_up(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__disagg_retire_btrees(session, true));
+
+    __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
+    __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, true);
+    WT_STAT_CONN_SET(session, disagg_role_leader, 1);
+    return (0);
+}
+
+/*
+ * __disagg_mark_btrees_readonly_then_step_down --
+ *     Mark ordinary disaggregated btrees read-only and outdated, quiesce the shared system btrees,
+ *     then publish the follower role before retiring the shared handles.
+ */
+static int
+__disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_SHARED_SYSTEM_BTREE shared_btrees[WT_DISAGG_SHARED_SYSTEM_BTREE_COUNT];
+    size_t shared_btree_count;
+
+    conn = S2C(session);
+    shared_btree_count = 0;
+
+    WT_ERR(__disagg_retire_btrees(session, false));
+    WT_ERR(__disagg_quiesce_shared_system_btrees(session, shared_btrees, &shared_btree_count));
 
     /*
      * Step down to the follower mode, ending the role era before publishing the role. The release
@@ -1296,7 +1514,10 @@ __disagg_mark_btrees_readonly_then_step_down(WT_SESSION_IMPL *session)
     __wt_gen_next(session, WT_GEN_DISAGG_ROLE, NULL);
     __wt_atomic_store_bool_release(&conn->layered_table_manager.leader, false);
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
-    return (0);
+
+err:
+    __disagg_release_shared_system_btrees(session, shared_btrees, shared_btree_count, ret == 0);
+    return (ret);
 }
 
 /*
@@ -1329,9 +1550,7 @@ __disagg_step_down_int(WT_SESSION_IMPL *session)
      * eviction paths, especially parent split path, from dirtying pages during the step-down
      * window.
      */
-    WT_WITH_HANDLE_LIST_READ_LOCK(
-      session, ret = __disagg_mark_btrees_readonly_then_step_down(session));
-    WT_ERR(ret);
+    WT_ERR(__disagg_mark_btrees_readonly_then_step_down(session));
 
     /*
      * Re-enable the shared disk cache on step-down. Create the table only if this node never had
