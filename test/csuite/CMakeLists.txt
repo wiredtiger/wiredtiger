@@ -428,3 +428,16 @@ define_c_test(
 if(TARGET test_wt16990_disagg_checkpoint_panic)
     set_target_properties(test_wt16990_disagg_checkpoint_panic PROPERTIES LINKER_LANGUAGE CXX)
 endif()
+
+if(TARGET wiredtiger_palite AND WT_POSIX)
+    define_c_test(
+        TARGET test_stepdown_history_store_deadlock
+        SOURCES stepdown_history_store_deadlock/main.c
+        DIR_NAME stepdown_history_store_deadlock
+        ARGUMENTS -b ${CMAKE_BINARY_DIR} -G
+        LABEL "disagg"
+    )
+
+    # PALite requires the C++ runtime in sanitizer builds.
+    set_target_properties(test_stepdown_history_store_deadlock PROPERTIES LINKER_LANGUAGE CXX)
+endif()
