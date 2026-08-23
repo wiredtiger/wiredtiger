@@ -205,8 +205,4 @@ class test_layered_schema31(WiredTigerTestCase, DisaggSchemaEpochMixin):
         """
         config = self.table_config.replace("block_manager=disagg,", "")
         self.create_on_follower_then_step_up(config)
-        self.assert_matches_reference(
-            self.read_stable_config(
-                self.conn, self.layered_stable_uri(self.uri)
-            )
-        )
+        self.check_rebuild_keeps_file_settings()
