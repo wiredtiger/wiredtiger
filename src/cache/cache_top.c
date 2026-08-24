@@ -93,17 +93,19 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
     /*
      * Cache size divided by the slot count is the highest threshold we can justify: it guarantees
      * no more than that many trees can qualify. But on a deployment with far more trees than slots,
-     * even the largest tree is nowhere near that big, so start lower, from a multiple of the
-     * average resident tree, and let the threshold adjust upward or downward from there each time a
-     * report runs. Both the tree count and the cache-in-use figure are plain counters, so computing
-     * this costs no walk.
+     * even the largest tree is nowhere near that big, so start from the average resident tree size
+     * instead. Deliberately err low rather than high here: a threshold that starts too low fills
+     * the array, which corrects itself to the exact right value in one step (below, "count ==
+     * WT_CACHE_TOP_SLOTS"); one that starts too high leaves the array sparse or empty, which only
+     * approximates its way down a factor at a time and can take several reports to find any data at
+     * all. Both the tree count and the cache-in-use figure are plain counters, so computing this
+     * costs no walk.
      */
     trees = __wt_atomic_load_uint32_relaxed(&conn->open_btree_count);
     threshold = conn->cache_size / WT_CACHE_TOP_SLOTS;
     if (trees > WT_CACHE_TOP_SLOTS)
-        threshold = WT_MIN(
-          threshold, (__wt_cache_bytes_inuse(conn->cache) / trees) * WT_CACHE_TOP_SEED_MULTIPLIER);
-    threshold = WT_MAX(threshold, WT_MEGABYTE);
+        threshold = WT_MIN(threshold, __wt_cache_bytes_inuse(conn->cache) / trees);
+    threshold = WT_MAX(threshold, WT_CACHE_TOP_THRESHOLD_FLOOR);
 
     /*
      * Store it before returning. Some callers only act when a threshold is already set, so the
@@ -119,12 +121,12 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
  *     Return pointers to the stored value and clock backing a flow ranking (bytes read, bytes
  *     evicted), for a caller that needs to update them. The stored value is only decayed as of the
  *     clock it was last written with, not as of now; a caller that just wants the current value
- *     should use __cache_top_flow_value instead of decaying this itself. Both pointers come back
- *     NULL for a ranking that tracks a level, since a level has no decay state to point at.
+ *     should decay it rather than use this raw storage directly. Only bytes read and bytes evicted
+ *     are flows; asking for any other metric is a caller error, not something to handle quietly.
  */
 static void
-__cache_top_flow_storage(
-  WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, uint64_t **valuep, uint64_t **clockp)
+__cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric,
+  uint64_t **valuep, uint64_t **clockp)
 {
     switch (metric) {
     case WT_CACHE_TOP_READ:
@@ -138,6 +140,13 @@ __cache_top_flow_storage(
     case WT_CACHE_TOP_UPDATES:
     case WT_CACHE_TOP_DIRTY:
     case WT_CACHE_TOP_INMEM:
+    default:
+        /*
+         * -Wswitch-enum requires every metric listed above; this default is for the compiler, not
+         * for any value that can actually arrive here, and is what lets it see that every path sets
+         * both outputs, which the case labels above already guarantee on their own.
+         */
+        WT_ASSERT_ALWAYS(session, false, "cache top: %d does not track a flow", (int)metric);
         *valuep = *clockp = NULL;
         break;
     }
@@ -181,16 +190,15 @@ __cache_top_decay(
 
 /*
  * __cache_top_flow_value --
- *     Return a flow ranking's current value (bytes read, bytes evicted), decayed up to now. Unlike
- *     __cache_top_flow_storage, this has nothing to do with where the value is stored; it is a
- *     plain read for a caller that only wants a number.
+ *     Return a flow ranking's current value (bytes read, bytes evicted), decayed up to now: a plain
+ *     read for a caller that only wants a number, with no need to know where the value is stored.
  */
 static uint64_t
 __cache_top_flow_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric)
 {
     uint64_t *clockp, *valuep;
 
-    __cache_top_flow_storage(btree, metric, &valuep, &clockp);
+    __cache_top_flow_storage(session, btree, metric, &valuep, &clockp);
     return (__cache_top_decay(session, __wt_atomic_load_uint64_relaxed(valuep),
       __wt_atomic_load_uint64_relaxed(clockp), __wt_clock(session), NULL));
 }
@@ -273,9 +281,9 @@ __wt_cache_top_track(
     uint32_t slot;
 
     /*
-     * A tree excluded from this ranking (see __wt_cache_top_btree_open) has its recheck value
-     * pinned at UINT64_MAX, so its counter is never going to reach it and this function is never
-     * called for it in practice; there is nothing left to check here.
+     * A tree excluded from this ranking (decided once, at open) has its recheck value pinned at
+     * UINT64_MAX, so its counter is never going to reach it and this function is never called for
+     * it in practice; there is nothing left to check here.
      */
     array = &S2C(session)->cache->cache_top.arrays[metric];
     threshold = __cache_top_threshold(session, array);
@@ -375,8 +383,7 @@ __wt_cache_top_flow_incr(
     if (btree == NULL)
         return;
 
-    __cache_top_flow_storage(btree, metric, &valuep, &clockp);
-    WT_ASSERT_ALWAYS(session, valuep != NULL, "cache top: %d does not track a flow", (int)metric);
+    __cache_top_flow_storage(session, btree, metric, &valuep, &clockp);
 
     /*
      * Concurrent callers on the same tree can lose an increment here. The rankings are a diagnostic
@@ -517,9 +524,9 @@ __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
     if (count == WT_CACHE_TOP_SLOTS)
         threshold = smallest + 1;
     else if (count == 0)
-        threshold = WT_MAX(threshold / 8, WT_MEGABYTE);
+        threshold = WT_MAX(threshold / 8, WT_CACHE_TOP_THRESHOLD_FLOOR);
     else if (count < WT_CACHE_TOP_SLOTS / 2)
-        threshold = WT_MAX(threshold / 2, WT_MEGABYTE);
+        threshold = WT_MAX(threshold / 2, WT_CACHE_TOP_THRESHOLD_FLOOR);
     __wt_atomic_store_uint64_relaxed(&array->threshold, threshold);
 
 err:
