@@ -473,15 +473,13 @@ __verify_one_checkpoint(
 
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
         __wt_verbose_warning(session, WT_VERB_VERIFY,
-          "%s: checkpoint size %" PRIu64 " does not match the size derived from the tree %" PRIu64,
-          name, ckpt->size, vs->total_block_size);
+          "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
+          vs->total_block_size);
         /*
          * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
          * increments happen before the boundary, so a reconciliation that fails after the increment
-         * but before completion leaves the counter inconsistent. When fix_btree_size is set, verify
-         * overwrites the metadata with the derived size and logs the correction. When it is unset,
-         * production builds only warn. Diagnostic builds that haven't opted in to fix_btree_size
-         * still fail, so unexpected size drift from a new root cause is caught during testing.
+         * but before completion leaves the counter inconsistent. Fail in diagnostic builds so the
+         * drift is caught during testing; production builds only warn.
          */
         if (vs->fix_btree_size) {
             __wt_verbose(session, WT_VERB_VERIFY,
