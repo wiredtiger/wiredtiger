@@ -458,8 +458,8 @@ __verify_one_checkpoint(
 
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
         __wt_verbose_warning(session, WT_VERB_VERIFY,
-          "checkpoint size %" PRIu64 " does not match the size derived from the tree %" PRIu64,
-          ckpt->size, vs->total_block_size);
+          "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64, ckpt->size,
+          vs->total_block_size);
 #ifdef HAVE_DIAGNOSTIC
         /*
          * FIXME-WT-18038: Mismatches can arise from the reconciliation panic boundary: bytes_total
