@@ -798,17 +798,21 @@ __disagg_remove_is_checkpoint_violation(WT_SESSION_IMPL *session, WT_CONNECTION_
     WT_DISAGGREGATED_STORAGE *disagg = &conn->disaggregated_storage;
     WT_ASSERT_SPINLOCK_OWNED(session, &disagg->shared_metadata_queue_lock);
 
-    /* Check whether the final operation after the REMOVE recreates the table. */
+    /* Check whether a recreated table exists after considering all later operations. */
     WT_DISAGG_METADATA_OP *op;
     bool recreated = false;
 
     for (op = TAILQ_NEXT(entry, q); op != NULL; op = TAILQ_NEXT(op, q)) {
         if (op->deferred || strcmp(op->stable_uri, entry->stable_uri) != 0)
             continue;
+        /*
+         * Overwrite `recreated` each loop so a later REMOVE can cancel an earlier CREATE. Only the
+         * final value matters.
+         */
         recreated = op->metadata_op == WT_SHARED_METADATA_CREATE;
     }
 
-    /* No recreate means no API violation. */
+    /* No recreated table exists, so there is no API violation. */
     if (!recreated)
         return (false);
 
