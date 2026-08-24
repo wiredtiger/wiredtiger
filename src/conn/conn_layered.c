@@ -1284,15 +1284,17 @@ __disagg_make_btree_readonly_and_outdated(WT_SESSION_IMPL *session, WT_DATA_HAND
     F_SET_ATOMIC_32(btree, WT_BTREE_READONLY);
     __wt_cursor_dhandle_incr_use(session);
     pinned = true;
+
+    /*
+     * Publish the outdated state before releasing the dhandle lock. Otherwise application eviction
+     * can discard updates from an active transaction between the read-only transition and this
+     * state change.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, F_SET(dhandle, WT_DHANDLE_OUTDATED));
+
     ret = __wt_session_release_dhandle(session);
     dhandle_locked = false;
     WT_ERR(ret);
-
-    /*
-     * The handle-list lock protects the dhandle state, but it must not cover the eviction drain.
-     * The pin keeps the btree open between releasing its lock and changing its state here.
-     */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, F_SET(dhandle, WT_DHANDLE_OUTDATED));
 
 done:
 err:
