@@ -438,6 +438,7 @@ __wt_btree_discard(WT_SESSION_IMPL *session)
     ret = __btree_clear(session);
 
     btree = S2BT(session);
+    __wt_cache_top_btree_discard(session, btree);
     __wt_overwrite_and_free(session, btree);
     session->dhandle->handle = NULL;
 
