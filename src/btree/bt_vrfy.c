@@ -483,8 +483,8 @@ __verify_one_checkpoint(
          */
         if (vs->fix_btree_size) {
             __wt_verbose(session, WT_VERB_VERIFY,
-              "%s: correcting checkpoint size from %" PRIu64 " to %" PRIu64,
-              name, ckpt->size, vs->total_block_size);
+              "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+              ckpt->size, vs->total_block_size);
             ckpt->size = vs->total_block_size;
             /* Mark this checkpoint so its corrected size gets written to metadata. */
             F_SET(ckpt, WT_CKPT_UPDATE);
