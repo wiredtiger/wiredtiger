@@ -9,30 +9,47 @@
 #include "wt_internal.h"
 
 /*
- * The rankings answer "which tables are holding the cache" without walking either the cache or the
- * data handle list: a tree enters a ranking from the accounting path when it grows past a
- * threshold, and the report is a pass over the slots. Deployments with millions of tables are the
- * reason: any approach whose cost scales with the number of open handles is unusable on them.
+ * These rankings answer "which tables are holding the cache" without walking the cache or the data
+ * handle array. A tree adds itself to a ranking from the accounting path, once it grows past a
+ * threshold; producing a report is just a pass over a fixed number of slots. That matters on a
+ * deployment with millions of tables, where any per-handle walk is too expensive to run.
  */
 
 /*
- * Reported entry, populated under the list lock and formatted after dropping it. Names are copied
- * rather than referenced so the report can format them without holding the lock; the buffer is
- * generous because a truncated name loses the digits that distinguish one table from another.
+ * One line of a report, filled in under the array lock and printed after the lock is dropped. The
+ * name is copied into its own allocation, rather than referenced or copied into a fixed-size
+ * buffer, for two reasons: the tree it came from may be gone by the time we print it, and there is
+ * no fixed length that is both large enough for every table name and not wasteful for the common,
+ * short ones.
  */
-#define WT_CACHE_TOP_NAME_MAX 256
 struct __wt_cache_top_report_entry {
-    char name[WT_CACHE_TOP_NAME_MAX];
+    char *name; /* Freed by the caller; NULL when the slot is unused. */
     uint64_t value;
 };
 typedef struct __wt_cache_top_report_entry WT_CACHE_TOP_REPORT_ENTRY;
 
 /*
+ * __cache_top_entries_free --
+ *     Free the names owned by the first count entries of a report array, leaving the entries
+ *     themselves ready to reuse for the next ranking.
+ */
+static void
+__cache_top_entries_free(
+  WT_SESSION_IMPL *session, WT_CACHE_TOP_REPORT_ENTRY *entries, uint32_t count)
+{
+    uint32_t i;
+
+    for (i = 0; i < count; ++i)
+        __wt_free(session, entries[i].name);
+}
+
+/*
  * __cache_top_threshold --
- *     The value a tree must reach to be tracked.
+ *     Return the value a tree's metric must reach before the tree is added to this ranking,
+ *     computing it the first time it is needed for this ranking.
  */
 static uint64_t
-__cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_LIST *list)
+__cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t threshold;
@@ -40,36 +57,44 @@ __cache_top_threshold(WT_SESSION_IMPL *session, WT_CACHE_TOP_LIST *list)
 
     conn = S2C(session);
 
-    threshold = __wt_atomic_load_uint64_relaxed(&list->threshold);
+    threshold = __wt_atomic_load_uint64_relaxed(&array->threshold);
     if (threshold != 0)
         return (threshold);
 
     /*
-     * The cache divided by the slot count is the largest threshold that can be justified: no more
-     * than that many trees can be above it. On a deployment with far more trees than slots the
-     * largest tree is nowhere near that big, so start from a multiple of the average resident tree
-     * instead and let the adjustment at report time take it from there. Both terms are counters, so
-     * neither costs a walk.
+     * Cache size divided by the slot count is the highest threshold we can justify: it guarantees
+     * no more than that many trees can qualify. But on a deployment with far more trees than slots,
+     * even the largest tree is nowhere near that big, so start lower, from a multiple of the
+     * average resident tree, and let the threshold adjust upward or downward from there each time a
+     * report runs. Both the tree count and the cache-in-use figure are plain counters, so computing
+     * this costs no walk.
      */
     trees = __wt_atomic_load_uint32_relaxed(&conn->open_btree_count);
     threshold = conn->cache_size / WT_CACHE_TOP_SLOTS;
     if (trees > WT_CACHE_TOP_SLOTS)
-        threshold = WT_MIN(threshold, (__wt_cache_bytes_inuse(conn->cache) / trees) * 8);
+        threshold = WT_MIN(
+          threshold, (__wt_cache_bytes_inuse(conn->cache) / trees) * WT_CACHE_TOP_SEED_MULTIPLIER);
     threshold = WT_MAX(threshold, WT_MEGABYTE);
 
-    /* Publish it: paths that only react to a threshold already in force depend on seeing one. */
-    __wt_atomic_store_uint64_relaxed(&list->threshold, threshold);
+    /*
+     * Store it before returning. Some callers only act when a threshold is already set, so the
+     * first caller to compute one has to save it, not just use it.
+     */
+    __wt_atomic_store_uint64_relaxed(&array->threshold, threshold);
 
     return (threshold);
 }
 
 /*
- * __cache_top_flow_fields --
- *     The decayed value and its clock for a ranking that tracks a flow, NULL for one that tracks a
- *     level.
+ * __cache_top_flow_storage --
+ *     Return pointers to the stored value and clock backing a flow ranking (bytes read, bytes
+ *     evicted), for a caller that needs to update them. The stored value is only decayed as of the
+ *     clock it was last written with, not as of now; a caller that just wants the current value
+ *     should use __cache_top_flow_value instead of decaying this itself. Both pointers come back
+ *     NULL for a ranking that tracks a level, since a level has no decay state to point at.
  */
 static void
-__cache_top_flow_fields(
+__cache_top_flow_storage(
   WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, uint64_t **valuep, uint64_t **clockp)
 {
     switch (metric) {
@@ -84,7 +109,6 @@ __cache_top_flow_fields(
     case WT_CACHE_TOP_UPDATES:
     case WT_CACHE_TOP_DIRTY:
     case WT_CACHE_TOP_INMEM:
-    case WT_CACHE_TOP_METRICS:
         *valuep = *clockp = NULL;
         break;
     }
@@ -92,13 +116,16 @@ __cache_top_flow_fields(
 
 /*
  * __cache_top_decay --
- *     Apply the time decay for a ranking that tracks a flow. Decaying is what bounds the flow by
- *     the cache size, which the completeness of the ranking depends on.
+ *     Apply time decay to a value that tracks a flow (bytes read, bytes evicted) rather than a
+ *     level. Decay is what keeps a flow's total bounded by the cache size, which the completeness
+ *     of the ranking depends on.
  *
- * Decay moves in whole half-lives, so the caller must adopt the returned clock rather than the
- *     current one: advancing the clock past time that has not yet been charged would leave a tree
- *     touched more often than a half-life never decaying at all, and its value would grow without
- *     bound. Callers that only read pass NULL and leave the carried time in place.
+ * Decay only advances in whole half-lives, so it can leave up to one half-life of elapsed time
+ *     unaccounted for. The caller must save the clock this function returns, not the one it was
+ *     given: if a caller kept using the original clock, a tree touched more often than once per
+ *     half-life would never accumulate enough elapsed time to decay at all, and its value would
+ *     grow forever. A caller that only wants to read the current value, and does not intend to
+ *     store anything back, passes NULL and the time already recorded is left untouched.
  */
 static uint64_t
 __cache_top_decay(
@@ -120,18 +147,32 @@ __cache_top_decay(
     if (newclockp != NULL)
         *newclockp = clock + halvings * halflife;
 
-    return (halvings >= 64 ? 0 : value >> halvings);
+    return (halvings >= WT_CACHE_TOP_DECAY_MAX_HALVINGS ? 0 : value >> halvings);
+}
+
+/*
+ * __cache_top_flow_value --
+ *     Return a flow ranking's current value (bytes read, bytes evicted), decayed up to now. Unlike
+ *     __cache_top_flow_storage, this has nothing to do with where the value is stored; it is a
+ *     plain read for a caller that only wants a number.
+ */
+static uint64_t
+__cache_top_flow_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric)
+{
+    uint64_t *clockp, *valuep;
+
+    __cache_top_flow_storage(btree, metric, &valuep, &clockp);
+    return (__cache_top_decay(session, __wt_atomic_load_uint64_relaxed(valuep),
+      __wt_atomic_load_uint64_relaxed(clockp), __wt_clock(session), NULL));
 }
 
 /*
  * __cache_top_value --
- *     Read a tree's current value for a ranking.
+ *     Return a tree's current value for a ranking.
  */
 static uint64_t
 __cache_top_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric)
 {
-    uint64_t *clockp, *valuep;
-
     switch (metric) {
     case WT_CACHE_TOP_UPDATES:
         return (__wt_atomic_load_uint64_relaxed(&btree->bytes_updates));
@@ -141,11 +182,7 @@ __cache_top_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC
         return (__wt_atomic_load_uint64_relaxed(&btree->bytes_inmem));
     case WT_CACHE_TOP_READ:
     case WT_CACHE_TOP_EVICT:
-        __cache_top_flow_fields(btree, metric, &valuep, &clockp);
-        return (__cache_top_decay(session, __wt_atomic_load_uint64_relaxed(valuep),
-          __wt_atomic_load_uint64_relaxed(clockp), __wt_clock(session), NULL));
-    case WT_CACHE_TOP_METRICS:
-        break;
+        return (__cache_top_flow_value(session, btree, metric));
     }
 
     return (0);
@@ -153,10 +190,11 @@ __cache_top_value(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC
 
 /*
  * __cache_top_recheck_at_set --
- *     Set the value at which a tree is next considered for a ranking. Coming back only once the
- *     tree has grown by a fraction of the threshold is what bounds the number of visits a tree
- *     costs over its lifetime, however many bytes flow through it. Racing writers here are two
- *     threads storing two plausible values, and the loser only means one extra visit.
+ *     Set the value a tree must reach before it is considered for a ranking again. Waiting for the
+ *     tree to grow by a fraction of the threshold, rather than checking on every change, bounds how
+ *     many times a tree can cost a visit over its lifetime, no matter how much data moves through
+ *     it. Two threads can race to set this value for the same tree; the one that loses just causes
+ *     one extra, harmless visit later.
  */
 static void
 __cache_top_recheck_at_set(
@@ -168,20 +206,22 @@ __cache_top_recheck_at_set(
 
 /*
  * __cache_top_smallest --
- *     Find an unused slot, or failing that the slot holding the smallest value, refreshing the
- *     values as we go.
+ *     Return the index of an unused slot if one exists, or otherwise the index of the slot holding
+ *     the smallest value. Refreshes every slot's value along the way, since this is also the one
+ *     place that has to look at all of them.
  */
 static uint32_t
-__cache_top_smallest(WT_SESSION_IMPL *session, WT_CACHE_TOP_LIST *list, WT_CACHE_TOP_METRIC metric)
+__cache_top_smallest(
+  WT_SESSION_IMPL *session, WT_CACHE_TOP_ARRAY *array, WT_CACHE_TOP_METRIC metric)
 {
     uint32_t i, smallest;
 
     smallest = 0;
     for (i = 0; i < WT_CACHE_TOP_SLOTS; ++i) {
-        if (list->slots[i].btree == NULL)
+        if (array->slots[i].btree == NULL)
             return (i);
-        list->slots[i].value = __cache_top_value(session, list->slots[i].btree, metric);
-        if (list->slots[i].value < list->slots[smallest].value)
+        array->slots[i].value = __cache_top_value(session, array->slots[i].btree, metric);
+        if (array->slots[i].value < array->slots[smallest].value)
             smallest = i;
     }
 
@@ -190,75 +230,76 @@ __cache_top_smallest(WT_SESSION_IMPL *session, WT_CACHE_TOP_LIST *list, WT_CACHE
 
 /*
  * __wt_cache_top_track --
- *     Consider a tree for a ranking. Called from the accounting path once the tree has grown to the
- *     value it asked to be rechecked at, so the cost of the common case is the caller's comparison,
- *     not this function.
+ *     Decide whether a tree belongs in a ranking now. Called from the accounting path once a tree's
+ *     counter has reached the value it was told to wait for, so in the common case, where the
+ *     counter has not reached that value, the only cost paid is the caller's comparison, not a call
+ *     into this function at all.
  */
 void
 __wt_cache_top_track(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, uint64_t value)
 {
-    WT_CACHE_TOP_LIST *list;
+    WT_CACHE_TOP_ARRAY *array;
     uint64_t threshold;
-    uint32_t i, slot;
+    uint32_t slot;
 
     /*
-     * Metadata and the history store are tracked by the connection-level statistics and are never
-     * what an operator is looking for here. The exclusion is a permanent property of the tree, so
-     * record it as a recheck value no counter can reach: the history store is among the hottest
-     * trees under exactly the pressure this reporting targets, and it must not pay this call on
-     * every increment.
+     * A tree excluded from this ranking (see __wt_cache_top_btree_open) has its recheck value
+     * pinned at UINT64_MAX, so its counter is never going to reach it and this function is never
+     * called for it in practice; there is nothing left to check here.
      */
-    if (WT_IS_ANY_METADATA(btree->dhandle) || WT_IS_HS(btree->dhandle)) {
-        __wt_atomic_store_uint64_relaxed(&btree->cache_top_recheck_at[metric], UINT64_MAX);
-        return;
-    }
-
-    list = &S2C(session)->cache->cache_top.lists[metric];
-    threshold = __cache_top_threshold(session, list);
+    array = &S2C(session)->cache->cache_top.arrays[metric];
+    threshold = __cache_top_threshold(session, array);
 
     /*
-     * A tree below the threshold has nothing to say to the ranking, and the value it wants to be
-     * rechecked at is its own. That is the overwhelmingly common visit, so keep it off the list
-     * lock entirely.
+     * Most visits are a tree that is still below the threshold; it has nothing to add to the
+     * ranking, and the recheck value it needs depends only on its own size. Handle that case
+     * without touching the array lock at all.
      */
     if (value < threshold) {
         __cache_top_recheck_at_set(btree, metric, threshold, value);
         return;
     }
 
-    __wt_spin_lock(session, &list->lock);
+    __wt_spin_lock(session, &array->lock);
 
-    /* Already tracked: refresh the value in place. */
-    for (i = 0; i < WT_CACHE_TOP_SLOTS; ++i)
-        if (list->slots[i].btree == btree) {
-            list->slots[i].value = value;
-            goto done;
-        }
+    /*
+     * A tree remembers which slot it occupies, so refreshing an already-tracked tree is a direct
+     * update, not a search: this field is only ever written under this same lock, so once we hold
+     * the lock, the value we read here is guaranteed current, not merely a hint.
+     */
+    slot = __wt_atomic_load_uint8_relaxed(&btree->cache_top_slot[metric]);
+    if (slot < WT_CACHE_TOP_SLOTS) {
+        WT_ASSERT(session, array->slots[slot].btree == btree);
+        array->slots[slot].value = value;
+        goto done;
+    }
 
-    slot = __cache_top_smallest(session, list, metric);
-    if (list->slots[slot].btree != NULL && list->slots[slot].value >= value)
+    slot = __cache_top_smallest(session, array, metric);
+    if (array->slots[slot].btree != NULL && array->slots[slot].value >= value)
         goto done;
 
-    if (list->slots[slot].btree != NULL)
-        __wt_atomic_store_uint8_relaxed(&list->slots[slot].btree->cache_top_tracked[metric], 0);
-    list->slots[slot].btree = btree;
-    list->slots[slot].value = value;
-    __wt_atomic_store_uint8_relaxed(&btree->cache_top_tracked[metric], 1);
+    if (array->slots[slot].btree != NULL)
+        __wt_atomic_store_uint8_relaxed(
+          &array->slots[slot].btree->cache_top_slot[metric], WT_CACHE_TOP_NOT_TRACKED);
+    array->slots[slot].btree = btree;
+    array->slots[slot].value = value;
+    __wt_atomic_store_uint8_relaxed(&btree->cache_top_slot[metric], (uint8_t)slot);
 
 done:
     __cache_top_recheck_at_set(btree, metric, threshold, value);
 
-    __wt_spin_unlock(session, &list->lock);
+    __wt_spin_unlock(session, &array->lock);
 }
 
 /*
  * __cache_top_levels_refresh --
- *     Reconsider a tree's standing in the rankings that track a level, after a threshold change
- *     left the tree asking to be rechecked at a value it no longer has to reach. Growth is what
- *     normally earns a tree a look, so one that stopped growing before the threshold dropped would
- *     otherwise stay invisible; that it is being evicted from is the signal that it is still
- *     resident.
+ *     Give a tree another chance at the level rankings (update bytes, dirty bytes, resident bytes)
+ *     after a threshold has dropped below the value the tree was told to wait for. Normally only
+ *     growth gets a tree reconsidered, so a tree that stopped growing right before its threshold
+ *     fell would otherwise never be looked at again, even though it may now be large enough to
+ *     qualify. Eviction happening on the tree is the signal used to trigger this: it proves the
+ *     tree is still resident and worth a second look.
  */
 static void
 __cache_top_levels_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -275,16 +316,17 @@ __cache_top_levels_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree)
     for (i = 0; i < WT_ELEMENTS(levels); ++i) {
         metric = levels[i];
 
-        /* A tree already in the ranking has nothing to gain, and asking would cost a lock. */
-        if (__wt_atomic_load_uint8_relaxed(&btree->cache_top_tracked[metric]) != 0)
+        /* A tree already occupying a slot is already visible; checking again would only cost a
+         * lock. */
+        if (__wt_atomic_load_uint8_relaxed(&btree->cache_top_slot[metric]) < WT_CACHE_TOP_SLOTS)
             continue;
 
-        /* The maximum marks a tree excluded from the rankings, not one that is behind. */
+        /* The maximum value means this tree is permanently excluded, not merely overdue. */
         recheck_at = __wt_atomic_load_uint64_relaxed(&btree->cache_top_recheck_at[metric]);
         if (recheck_at == UINT64_MAX)
             continue;
 
-        threshold = __wt_atomic_load_uint64_relaxed(&top->lists[metric].threshold);
+        threshold = __wt_atomic_load_uint64_relaxed(&top->arrays[metric].threshold);
         if (threshold != 0 && recheck_at > threshold)
             __wt_atomic_store_uint64_relaxed(&btree->cache_top_recheck_at[metric], threshold);
     }
@@ -292,7 +334,8 @@ __cache_top_levels_refresh(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __wt_cache_top_flow_incr --
- *     Account for bytes flowing into or out of the cache for a tree.
+ *     Record that a tree just read or evicted some number of bytes, and check whether that changes
+ *     its standing in the corresponding ranking.
  */
 void
 __wt_cache_top_flow_incr(
@@ -303,7 +346,7 @@ __wt_cache_top_flow_incr(
     if (btree == NULL)
         return;
 
-    __cache_top_flow_fields(btree, metric, &valuep, &clockp);
+    __cache_top_flow_storage(btree, metric, &valuep, &clockp);
     WT_ASSERT_ALWAYS(session, valuep != NULL, "cache top: %d does not track a flow", (int)metric);
 
     /*
@@ -326,14 +369,42 @@ __wt_cache_top_flow_incr(
 }
 
 /*
+ * __wt_cache_top_btree_open --
+ *     Set up a tree's cache-consumer tracking state when it is opened (including a re-open, since
+ *     the tree's fields are cleared then too). Every tree starts out of every ranking's slots,
+ *     which has to be set explicitly because a slot index of 0 is valid and zero-initialization
+ *     would otherwise claim it. Metadata and the history store are excluded from every ranking here
+ *     as well, rather than being discovered by the accounting path later: they already have their
+ *     own connection-level statistics, are never the table an operator asking for the largest cache
+ *     consumers wants named, and the history store in particular is too hot a tree to be checking
+ *     its identity from that path on every byte it accounts for.
+ */
+void
+__wt_cache_top_btree_open(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    u_int metric;
+    bool excluded;
+
+    WT_UNUSED(session);
+    excluded = WT_IS_ANY_METADATA(btree->dhandle) || WT_IS_HS(btree->dhandle);
+
+    for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
+        btree->cache_top_slot[metric] = WT_CACHE_TOP_NOT_TRACKED;
+        if (excluded)
+            btree->cache_top_recheck_at[metric] = UINT64_MAX;
+    }
+}
+
+/*
  * __wt_cache_top_btree_discard --
- *     Stop tracking a tree. Must be called before the tree's memory is freed.
+ *     Remove a tree from every ranking it may be part of. Must be called before the tree's memory
+ *     is freed, since a ranking can otherwise be left holding a pointer to it.
  */
 void
 __wt_cache_top_btree_discard(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
-    WT_CACHE_TOP_LIST *list;
+    WT_CACHE_TOP_ARRAY *array;
     uint32_t i;
     u_int metric;
 
@@ -341,75 +412,78 @@ __wt_cache_top_btree_discard(WT_SESSION_IMPL *session, WT_BTREE *btree)
         return;
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
-        list = &cache->cache_top.lists[metric];
-        __wt_spin_lock(session, &list->lock);
+        array = &cache->cache_top.arrays[metric];
+        __wt_spin_lock(session, &array->lock);
         for (i = 0; i < WT_CACHE_TOP_SLOTS; ++i)
-            if (list->slots[i].btree == btree) {
-                __wt_atomic_store_uint8_relaxed(&btree->cache_top_tracked[metric], 0);
-                list->slots[i].btree = NULL;
-                list->slots[i].value = 0;
+            if (array->slots[i].btree == btree) {
+                __wt_atomic_store_uint8_relaxed(
+                  &btree->cache_top_slot[metric], WT_CACHE_TOP_NOT_TRACKED);
+                array->slots[i].btree = NULL;
+                array->slots[i].value = 0;
             }
-        __wt_spin_unlock(session, &list->lock);
+        __wt_spin_unlock(session, &array->lock);
     }
 }
 
 /*
  * __cache_top_snapshot --
- *     Copy a ranking's live values out from under its lock, dropping trees that have fallen below
- *     the threshold, and adjust the threshold to keep the ranking usefully full.
+ *     Copy one ranking's current entries into a caller-supplied array, ready to print once the
+ *     array lock is released. Along the way, drop any tracked tree that has fallen below the
+ *     threshold, and adjust the threshold so the ranking stays usefully full.
  */
-static void
+static int
 __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
   WT_CACHE_TOP_REPORT_ENTRY *entries, uint32_t *countp, uint64_t *thresholdp)
 {
-    WT_CACHE_TOP_LIST *list;
+    WT_CACHE_TOP_ARRAY *array;
     WT_CACHE_TOP_REPORT_ENTRY tmp;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
     uint64_t in_force, smallest, threshold, value;
     uint32_t count, i, j;
-    const char *name;
 
-    list = &S2C(session)->cache->cache_top.lists[metric];
-    in_force = threshold = __cache_top_threshold(session, list);
+    array = &S2C(session)->cache->cache_top.arrays[metric];
+    in_force = threshold = __cache_top_threshold(session, array);
     count = 0;
     smallest = UINT64_MAX;
 
-    __wt_spin_lock(session, &list->lock);
+    __wt_spin_lock(session, &array->lock);
     for (i = 0; i < WT_CACHE_TOP_SLOTS; ++i) {
-        if (list->slots[i].btree == NULL)
+        if (array->slots[i].btree == NULL)
             continue;
 
         /*
-         * A dropped or closed table keeps its handle until sweep gets to it. Naming a table that is
-         * no longer holding the cache, or no longer exists at all, is worse than saying nothing
-         * about it.
+         * A dropped or closed table's handle is not cleaned up right away; sweep does that later.
+         * Report it as holding nothing rather than naming a table that no longer exists or no
+         * longer holds any cache.
          */
-        dhandle = list->slots[i].btree->dhandle;
+        dhandle = array->slots[i].btree->dhandle;
         value = !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
             F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED) ?
           0 :
-          __cache_top_value(session, list->slots[i].btree, metric);
+          __cache_top_value(session, array->slots[i].btree, metric);
         if (value < threshold) {
-            __wt_atomic_store_uint8_relaxed(&list->slots[i].btree->cache_top_tracked[metric], 0);
-            list->slots[i].btree = NULL;
-            list->slots[i].value = 0;
+            __wt_atomic_store_uint8_relaxed(
+              &array->slots[i].btree->cache_top_slot[metric], WT_CACHE_TOP_NOT_TRACKED);
+            array->slots[i].btree = NULL;
+            array->slots[i].value = 0;
             continue;
         }
-        list->slots[i].value = value;
+        array->slots[i].value = value;
         smallest = WT_MIN(smallest, value);
 
-        name = list->slots[i].btree->dhandle->name;
-        WT_IGNORE_RET(__wt_snprintf(entries[count].name, sizeof(entries[count].name), "%s", name));
+        WT_ERR(__wt_strdup(session, dhandle->name, &entries[count].name));
         entries[count].value = value;
         ++count;
     }
 
     /*
-     * Keep the threshold close to the smallest table worth ranking. A full ranking gives us the
-     * answer directly: raise the bar just past its smallest entry and the bar sits where the data
-     * is, which also keeps the revisit rate down. A ranking nothing has reached says nothing at
-     * all, so drop the bar hard; a sparse one drops it gently, and either way a ranking only
-     * refills as trees grow into it.
+     * Adjust the threshold so it tracks the smallest table actually worth ranking. When the ranking
+     * is completely full, we know exactly where to put the bar: just above the smallest entry we
+     * kept, which also cuts down on how often trees get revisited. When nothing at all qualified,
+     * the threshold is telling us nothing useful, so drop it sharply; when only a few tables
+     * qualified, drop it more gently. Either way, the ranking only fills back up as trees grow into
+     * the new, lower threshold.
      */
     if (count == WT_CACHE_TOP_SLOTS)
         threshold = smallest + 1;
@@ -417,8 +491,15 @@ __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
         threshold = WT_MAX(threshold / 8, WT_MEGABYTE);
     else if (count < WT_CACHE_TOP_SLOTS / 2)
         threshold = WT_MAX(threshold / 2, WT_MEGABYTE);
-    __wt_atomic_store_uint64_relaxed(&list->threshold, threshold);
-    __wt_spin_unlock(session, &list->lock);
+    __wt_atomic_store_uint64_relaxed(&array->threshold, threshold);
+
+err:
+    __wt_spin_unlock(session, &array->lock);
+    if (ret != 0) {
+        /* This function owns whatever it allocated so far; it failed before telling the caller. */
+        __cache_top_entries_free(session, entries, count);
+        return (ret);
+    }
 
     /* Insertion sort, descending: the array is at most a slot count long. */
     for (i = 1; i < count; ++i)
@@ -432,12 +513,13 @@ __cache_top_snapshot(WT_SESSION_IMPL *session, WT_CACHE_TOP_METRIC metric,
 
     /* The threshold the entries were selected against, not the one adjusted for the next report. */
     *thresholdp = in_force;
+    return (0);
 }
 
 /*
  * __cache_top_emit --
- *     Emit one report line, to the log when the report was asked for and to the verbose category
- *     when it was volunteered.
+ *     Print one line of a report: to the log if the report was explicitly requested, or through the
+ *     verbose category if it was generated on our own initiative.
  */
 static int
 __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
@@ -451,10 +533,11 @@ __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
 
 /*
  * __cache_top_report --
- *     Report the rankings.
+ *     Build and print all of the rankings. Callers only reach this when they already intend to
+ *     print something, so it always does both.
  */
 static int
-__cache_top_report(WT_SESSION_IMPL *session, bool force, bool emit)
+__cache_top_report(WT_SESSION_IMPL *session, bool force)
 {
     static const char *metric_desc[] = {"update bytes", "dirty leaf bytes", "total cache bytes",
       "recent bytes read", "recent bytes evicted"};
@@ -464,31 +547,31 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force, bool emit)
     WT_CACHE *cache;
     WT_CACHE_TOP_REPORT_ENTRY *entries;
     WT_DECL_RET;
+    WT_ITEM *line;
     uint64_t listed, threshold;
     uint64_t connection_total = 0;
     u_int metric;
     uint32_t count, i;
-    char line[WT_CACHE_TOP_NAME_MAX + 128];
     bool has_total;
 
     cache = S2C(session)->cache;
     WT_RET(__wt_calloc_def(session, WT_CACHE_TOP_SLOTS, &entries));
+    WT_ERR(__wt_scr_alloc(session, 0, &line));
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric) {
-        __cache_top_snapshot(session, (WT_CACHE_TOP_METRIC)metric, entries, &count, &threshold);
-
-        if (!emit)
-            continue;
+        WT_ERR(
+          __cache_top_snapshot(session, (WT_CACHE_TOP_METRIC)metric, entries, &count, &threshold));
 
         for (i = 0, listed = 0; i < count; ++i)
             listed += entries[i].value;
 
         /*
-         * Rankings that track a level can say what fraction of the connection total the listed
-         * tables account for, which is how an operator tells a heavy hitter from usage that is
-         * simply spread thin. The decayed rankings have no connection-wide equivalent. Which of the
-         * two lines a ranking reports is a property of the ranking, not of the numbers, so that a
-         * reader never has to handle both shapes for the same ranking.
+         * A ranking that tracks a level (update bytes, dirty bytes, resident bytes) can show the
+         * listed tables as a fraction of a connection-wide total; that is how an operator tells a
+         * real heavy hitter from usage that is just spread across many tables. The decayed rankings
+         * have no connection-wide total to compare against. Whether a ranking has a total is fixed
+         * for that ranking, not something that varies report to report, so a reader always sees the
+         * same line format for a given ranking.
          */
         has_total = true;
         switch (metric) {
@@ -503,72 +586,79 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force, bool emit)
             break;
         case WT_CACHE_TOP_READ:
         case WT_CACHE_TOP_EVICT:
-        case WT_CACHE_TOP_METRICS:
             has_total = false;
             break;
         }
 
         if (has_total)
-            WT_ERR(__wt_snprintf(line, sizeof(line),
+            WT_ERR(__wt_buf_fmt(session, line,
               "cache top %s: %" PRIu32 " tables above %" PRIu64 "B hold %" PRIu64 "B of %" PRIu64
               "B",
               metric_desc[metric], count, threshold, listed, connection_total));
         else
-            WT_ERR(__wt_snprintf(line, sizeof(line),
+            WT_ERR(__wt_buf_fmt(session, line,
               "cache top %s: %" PRIu32 " tables above %" PRIu64 "B hold %" PRIu64 "B",
               metric_desc[metric], count, threshold, listed));
-        WT_ERR(__cache_top_emit(session, force, line));
+        WT_ERR(__cache_top_emit(session, force, (const char *)line->data));
 
         for (i = 0; i < count; ++i) {
-            WT_ERR(__wt_snprintf(
-              line, sizeof(line), "    %" PRIu64 "B %s", entries[i].value, entries[i].name));
-            WT_ERR(__cache_top_emit(session, force, line));
+            WT_ERR(__wt_buf_fmt(
+              session, line, "    %" PRIu64 "B %s", entries[i].value, entries[i].name));
+            WT_ERR(__cache_top_emit(session, force, (const char *)line->data));
         }
+
+        __cache_top_entries_free(session, entries, count);
     }
 
 err:
+    /*
+     * Every metric already processed has freed its own entries. Only the metric that was in
+     * progress when something failed, if any, still has names to clean up here.
+     */
+    __cache_top_entries_free(session, entries, count);
+    __wt_scr_free(session, &line);
     __wt_free(session, entries);
     return (ret);
 }
 
 /*
  * __wt_cache_top_report --
- *     Report the rankings unconditionally, for WT_CONNECTION::debug_info.
+ *     Print all of the rankings, unconditionally. Used by WT_CONNECTION::debug_info.
  */
 int
 __wt_cache_top_report(WT_SESSION_IMPL *session)
 {
-    return (__cache_top_report(session, true, true));
+    return (__cache_top_report(session, true));
 }
 
 /*
  * __wt_cache_top_maintain --
- *     Periodic maintenance. The rankings are aged and their thresholds adjusted on every pass,
- *     whether or not anyone is listening, because a threshold that never adjusts leaves an
- *     on-demand report answering against a bar that was set when the connection was idle. The
- *     report is emitted under update pressure as well as on request, so an incident does not depend
- *     on someone having enabled verbose output in advance.
+ *     Called periodically. Does nothing unless there is a reason to actually produce a report:
+ *     verbose output for this category is on, or update bytes are over the configured target. A
+ *     report always recomputes every ranking's thresholds and drops stale entries using live data,
+ *     so nothing is lost by skipping a quiet tick; the first report generated after a quiet spell
+ *     catches back up immediately, using whatever the connection looks like right then.
  */
 int
 __wt_cache_top_maintain(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t updates_target;
-    bool emit;
 
     conn = S2C(session);
     updates_target =
       (uint64_t)((double)conn->cache_size * conn->evict->eviction_updates_target / 100);
 
-    emit = WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CACHE_TOP, WT_VERBOSE_INFO) ||
-      __wt_cache_bytes_updates(conn->cache) > updates_target;
+    if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CACHE_TOP, WT_VERBOSE_INFO) &&
+      __wt_cache_bytes_updates(conn->cache) <= updates_target)
+        return (0);
 
-    return (__cache_top_report(session, false, emit));
+    return (__cache_top_report(session, false));
 }
 
 /*
  * __wti_cache_top_init --
- *     Initialize the cache consumption rankings.
+ *     Set up the cache consumption rankings for a newly created cache.
  */
 int
 __wti_cache_top_init(WT_SESSION_IMPL *session)
@@ -583,14 +673,14 @@ __wti_cache_top_init(WT_SESSION_IMPL *session)
     top->halflife_ticks = WT_MAX(top->halflife_ticks, 1);
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric)
-        WT_RET(__wt_spin_init(session, &top->lists[metric].lock, "cache top consumers"));
+        WT_RET(__wt_spin_init(session, &top->arrays[metric].lock, "cache top consumers"));
 
     return (0);
 }
 
 /*
  * __wti_cache_top_destroy --
- *     Discard the cache consumption rankings.
+ *     Tear down the cache consumption rankings when the cache is destroyed.
  */
 void
 __wti_cache_top_destroy(WT_SESSION_IMPL *session)
@@ -601,5 +691,5 @@ __wti_cache_top_destroy(WT_SESSION_IMPL *session)
     top = &S2C(session)->cache->cache_top;
 
     for (metric = 0; metric < WT_CACHE_TOP_METRICS; ++metric)
-        __wt_spin_destroy(session, &top->lists[metric].lock);
+        __wt_spin_destroy(session, &top->arrays[metric].lock);
 }
