@@ -349,8 +349,17 @@ __wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
     if (ret == 0) {
-        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        /*
+         * Update the flags word under the dhandle write lock, the same lock handle close holds.
+         * Don't wait for the lock: a cursor can hold the read lock indefinitely, and contention
+         * means a close is in progress, making the mark moot. A dead handle needs no mark for the
+         * same reason.
+         */
+        WT_WITH_DHANDLE_WRITE_LOCK_NOWAIT(session, ret,
+          if (!F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+            F_SET(session->dhandle, WT_DHANDLE_OUTDATED));
         WT_DHANDLE_RELEASE(session->dhandle);
+        WT_RET_BUSY_OK(ret);
     } else if (ret != WT_NOTFOUND)
         WT_RET(ret);
 
