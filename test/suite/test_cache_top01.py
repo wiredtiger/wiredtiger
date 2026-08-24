@@ -224,7 +224,7 @@ class test_cache_top01(wttest.WiredTigerTestCase):
             'threshold rose while nothing qualified: %s' % thresholds)
         self.assertLess(thresholds[-1], thresholds[0])
         # The threshold has a small nonzero floor, so it can fall only so far, not to zero.
-        self.assertGreaterEqual(thresholds[-1], 64 * 1024)
+        self.assertGreaterEqual(thresholds[-1], 4 * 1024)
 
     # Reading a table back into an empty cache puts it in the read ranking.
     def test_read_ranking(self):

@@ -142,9 +142,10 @@ __cache_top_flow_storage(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CACHE_TOP
     case WT_CACHE_TOP_INMEM:
     default:
         /*
-         * -Wswitch-enum requires every metric listed above; this default is for the compiler, not
-         * for any value that can actually arrive here, and is what lets it see that every path sets
-         * both outputs, which the case labels above already guarantee on their own.
+         * The default label is for the compiler: every real metric is already listed above, but
+         * without it, a build cannot prove the outputs are always set and warns accordingly. The
+         * assert below does not always abort, either - a unit-testing build lets it return so a
+         * test can confirm it fired - so the outputs still need a defined value on this path.
          */
         WT_ASSERT_ALWAYS(session, false, "cache top: %d does not track a flow", (int)metric);
         *valuep = *clockp = NULL;
@@ -237,8 +238,11 @@ static void
 __cache_top_recheck_at_set(
   WT_BTREE *btree, WT_CACHE_TOP_METRIC metric, uint64_t threshold, uint64_t value)
 {
-    __wt_atomic_store_uint64_relaxed(&btree->cache_top_recheck_at[metric],
-      WT_MAX(threshold, value + threshold / WT_CACHE_TOP_RECHECK_DIVISOR));
+    uint64_t spacing;
+
+    spacing = WT_MAX(threshold / WT_CACHE_TOP_RECHECK_DIVISOR, WT_CACHE_TOP_RECHECK_MIN_SPACING);
+    __wt_atomic_store_uint64_relaxed(
+      &btree->cache_top_recheck_at[metric], WT_MAX(threshold, value + spacing));
 }
 
 /*
@@ -554,8 +558,13 @@ err:
 
 /*
  * __cache_top_emit --
- *     Print one line of a report: to the log if the report was explicitly requested, or through the
- *     verbose category if it was generated on our own initiative.
+ *     Print one line of a report: to the log if the report was explicitly requested, or tagged with
+ *     the verbose category if it was generated on our own initiative. Either way, the decision to
+ *     print has already been made by the caller before a report ever starts, so this always emits:
+ *     it deliberately bypasses the usual check for whether the verbose category is on, because the
+ *     caller may have decided to print for a reason - update bytes over the target - that has
+ *     nothing to do with whether that category is on, and re-checking it here would silently drop
+ *     the very output that reason was meant to guarantee.
  */
 static int
 __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
@@ -563,7 +572,7 @@ __cache_top_emit(WT_SESSION_IMPL *session, bool force, const char *line)
     if (force)
         return (__wt_msg(session, "%s", line));
 
-    __wt_verbose_level(session, WT_VERB_CACHE_TOP, WT_VERBOSE_INFO, "%s", line);
+    __wt_verbose_worker(session, WT_VERB_CACHE_TOP, WT_VERBOSE_INFO, "%s", line);
     return (0);
 }
 

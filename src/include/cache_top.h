@@ -54,13 +54,23 @@ typedef enum {
 #define WT_CACHE_TOP_FLOW_HALFLIFE_US (30 * WT_MILLION)
 
 /*
- * The lowest a ranking's threshold is ever allowed to go. Not just cosmetic: a threshold of 0 would
- * make a tree's recheck spacing 0 too, so every single byte of growth would call back into the
- * tracking function, defeating the point of tracking a recheck value at all. Deliberately small,
- * not the megabyte-scale figures elsewhere in this file, so a connection whose real tables are
- * genuinely this size is not permanently unable to produce a nonempty ranking.
+ * The lowest a ranking's threshold is ever allowed to go. This has nothing to do with recheck
+ * spacing (see WT_CACHE_TOP_RECHECK_MIN_SPACING below, a separate concern) - it only keeps the
+ * threshold above zero, which the adjustment arithmetic in a report assumes. Deliberately small, so
+ * a connection whose real tables are genuinely this size is not permanently unable to produce a
+ * nonempty ranking.
  */
-#define WT_CACHE_TOP_THRESHOLD_FLOOR (64 * WT_KILOBYTE)
+#define WT_CACHE_TOP_THRESHOLD_FLOOR (4 * WT_KILOBYTE)
+
+/*
+ * The least a tree is ever allowed to grow before being reconsidered, regardless of how low the
+ * threshold itself has fallen. Deriving recheck spacing purely from threshold / RECHECK_DIVISOR
+ * would tie two unrelated things together: how small a table is worth naming, which can reasonably
+ * be quite small, and how often a busy table calls back into the tracking function, which must not
+ * scale down with it - a table growing at 100MB/s should not place tens of thousands of calls a
+ * second just because its ranking's threshold happens to be low.
+ */
+#define WT_CACHE_TOP_RECHECK_MIN_SPACING WT_MEGABYTE
 
 /*
  * The width, in bits, of the counters this decay operates on. Shifting a value right by this many
