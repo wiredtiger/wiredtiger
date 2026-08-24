@@ -531,6 +531,12 @@ __sweep_server(void *arg)
             continue;
         }
         WT_STAT_CONN_INCR(session, dh_sweeps);
+
+        /*
+         * Age the cache-consumer rankings and report them if the cache is under update pressure. A
+         * diagnostic report that cannot allocate is not a reason to lose the connection.
+         */
+        WT_IGNORE_RET(__wt_cache_top_maintain(session));
         /*
          * Mark handles with a time of death, and report whether any handles are marked dead. If
          * sweep_idle_time is 0, handles never become idle.
