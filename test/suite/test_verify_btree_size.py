@@ -113,20 +113,18 @@ class test_verify_btree_size(wttest.WiredTigerTestCase):
         self.ignoreStdoutPattern(r'WT_VERB_VERIFY.*checkpoint size')
         self.verifyUntilSuccess(self.session, self.uri, config='strict=true,fix_btree_size=true')
         corrected_size = self.get_ckpt_size()
-        self.assertNotEqual(corrected_size, 1,
-            "fix_btree_size did not overwrite the corrupted metadata size")
+        self.assertEqual(corrected_size, real_size,
+            "fix_btree_size should restore the size derived from the tree, which should match the "
+            "original checkpoint size")
 
         # The corrected size is visible via the repair API.
         meta = wiredtiger.wiredtiger_repair(
             self.conn, f'fetch_metadata=(local=true,uri="{self.stable_uri}")')
         sizes = re.findall(r',size=(\d+),', meta)
         self.assertGreater(len(sizes), 0, f"no size in fetch_metadata output: {meta}")
+        # The last size= value is the most recent checkpoint's size.
         self.assertEqual(int(sizes[-1]), corrected_size,
             f"fetch_metadata size {sizes[-1]} != corrected size {corrected_size}")
-
-        # Restore so teardown doesn't see corrupt metadata.
-        if self.get_ckpt_size() != real_size:
-            self.set_ckpt_size(real_size)
 
 if __name__ == "__main__":
     wttest.run()
