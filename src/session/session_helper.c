@@ -97,7 +97,7 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
       dump_session->compact_state == WT_COMPACT_NONE ?
         "none" :
         (dump_session->compact_state == WT_COMPACT_RUNNING ? "running" : "success")));
-    WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx64, dump_session->flags));
+    WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx32, dump_session->flags));
     WT_ERR(__wt_msg(session, "  Isolation level: %s",
       dump_session->isolation == WT_ISO_READ_COMMITTED ?
         "read-committed" :

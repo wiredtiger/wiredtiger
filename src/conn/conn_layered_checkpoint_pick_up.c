@@ -787,15 +787,15 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
-    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
+    /* The table is already gone from the shared metadata, so this drop keeps to itself. */
+    const char *drop_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true,local_only=true", NULL};
     const char *name;
 
     WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
-    /* The table is already gone from the shared metadata, so this drop keeps to itself. */
-    F_SET(session, WT_SESSION_DROP_LOCAL_ONLY);
     WT_ERR_MSG_CHK(session, __wt_schema_drop(session, uri, drop_cfg, false),
       "Failed to discard the dropped layered table \"%s\"", uri);
 
@@ -810,8 +810,6 @@ __disagg_drop_local_layered(WT_SESSION_IMPL *session, const char *uri)
       "Discarded the local state of the dropped layered table \"%s\"", uri);
 
 err:
-    /* Both paths land here, so a failed drop cannot leave the flag set. */
-    F_CLR(session, WT_SESSION_DROP_LOCAL_ONLY);
     __wt_scr_free(session, &uri_buf);
     return (ret);
 }

@@ -184,6 +184,7 @@ static int
 __drop_layered(
   WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
@@ -195,9 +196,12 @@ __drop_layered(
 
     /*
      * A local drop discards this node's state for a table that has already been removed elsewhere,
-     * so it neither publishes the removal nor releases shared storage.
+     * so it neither publishes the removal nor releases shared storage. It travels in the
+     * configuration because a layered table is reached through its column group, so the drop
+     * re-enters from the top for each constituent.
      */
-    local_only = F_ISSET(session, WT_SESSION_DROP_LOCAL_ONLY);
+    WT_RET(__wt_config_gets_def(session, cfg, "local_only", 0, &cval));
+    local_only = cval.val != 0;
 
     WT_UNUSED(force);
 

@@ -140,8 +140,7 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
     WT_DECL_RET;
     WT_THREAD *thread;
     size_t alloc;
-    uint64_t session_flags;
-    uint32_t i;
+    uint32_t i, session_flags;
 
     conn = S2C(session);
     thread = NULL;
