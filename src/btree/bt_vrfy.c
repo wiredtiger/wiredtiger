@@ -114,6 +114,13 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "fix_btree_size", &cval));
     vs->fix_btree_size = cval.val != 0;
+    if (vs->fix_btree_size) {
+        if (!__wt_atomic_load_bool_relaxed(&S2C(session)->layered_table_manager.leader))
+            WT_RET_MSG(
+              session, ENOTSUP, "fix_btree_size requires a disaggregated leader connection");
+        if (F_ISSET(S2C(session), WT_CONN_READONLY))
+            WT_RET_MSG(session, ENOTSUP, "fix_btree_size requires a writable connection");
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
@@ -464,14 +471,6 @@ __verify_one_checkpoint(
     /* Account for the root page in the accumulated total block size. */
     WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
-    /*
-     * The size in the checkpoint metadata is a running counter, incremented on write and
-     * decremented on discard, and is never recomputed from the tree. Derive it here and compare, so
-     * if there's a drift in database size it's visible.
-     *
-     * Disaggregated trees have no extent-list blocks, so the derived size must match the metadata
-     * exactly.
-     */
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
         __wt_verbose_warning(session, WT_VERB_VERIFY,
           "%s: checkpoint size %" PRIu64 " does not match the size derived from the tree %" PRIu64,
@@ -489,6 +488,7 @@ __verify_one_checkpoint(
               "%s: correcting checkpoint size from %" PRIu64 " to %" PRIu64,
               name, ckpt->size, vs->total_block_size);
             ckpt->size = vs->total_block_size;
+            /* Mark this checkpoint so its corrected size gets written to metadata. */
             F_SET(ckpt, WT_CKPT_UPDATE);
             vs->size_fixed = true;
         }
