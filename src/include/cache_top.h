@@ -50,20 +50,20 @@ typedef enum {
  */
 #define WT_CACHE_TOP_RECHECK_DIVISOR 8
 
-/*
- * On a deployment with far more trees than slots, cache size / slot count is nowhere near the size
- * of the trees actually worth ranking, so the very first threshold instead starts at this multiple
- * of the average resident tree size. Deliberately generous: a threshold that starts too high just
- * gets corrected down at the next report, while one that starts too low fills the ranking with
- * tables nobody would call large.
- */
-#define WT_CACHE_TOP_SEED_MULTIPLIER 8
-
 /* How long it takes a flow metric's value (bytes read, bytes evicted) to decay by half. */
 #define WT_CACHE_TOP_FLOW_HALFLIFE_US (30 * WT_MILLION)
 
 /*
- * The width, in bits, of the counters __cache_top_decay halves. Shifting a value right by this many
+ * The lowest a ranking's threshold is ever allowed to go. Not just cosmetic: a threshold of 0 would
+ * make a tree's recheck spacing 0 too, so every single byte of growth would call back into the
+ * tracking function, defeating the point of tracking a recheck value at all. Deliberately small,
+ * not the megabyte-scale figures elsewhere in this file, so a connection whose real tables are
+ * genuinely this size is not permanently unable to produce a nonempty ranking.
+ */
+#define WT_CACHE_TOP_THRESHOLD_FLOOR (64 * WT_KILOBYTE)
+
+/*
+ * The width, in bits, of the counters this decay operates on. Shifting a value right by this many
  * bits or more is undefined behavior in C, so it is also the point past which decay stops trying to
  * compute a shift and just reports zero; any real value reaches zero in far fewer halvings than
  * this.
