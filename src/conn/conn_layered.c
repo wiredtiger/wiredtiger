@@ -61,17 +61,9 @@ __layered_stable_page_log_config(
     WT_DECL_ITEM(buf);
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
-    /* Read the page_log field from the layered metadata, if present. */
+    /* Read the page_log field from the layered metadata. */
     WT_CONFIG_ITEM cval;
-    WT_ERR_NOTFOUND_OK(
-      __wt_config_getones(session, layered_cfg, "disaggregated.page_log", &cval), true);
-
-    if (ret != 0 || cval.len == 0) {
-        /* Fall back to the connection's page log. */
-        const char *conn_page_log = S2C(session)->disaggregated_storage.page_log;
-        cval.str = conn_page_log == NULL ? "" : conn_page_log;
-        cval.len = strlen(cval.str);
-    }
+    WT_ERR(__wt_config_getones(session, layered_cfg, "disaggregated.page_log", &cval));
 
     /* Format the selected page log for the final configuration. */
     WT_ERR(__wt_buf_fmt(session, buf, "disaggregated=(page_log=%.*s)", (int)cval.len, cval.str));
