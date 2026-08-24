@@ -9,51 +9,38 @@
 #include "wt_internal.h"
 
 /*
- * These rankings answer "which tables are holding the cache" without walking the cache or the data
- * handle array. That matters on a deployment with millions of open tables, where either walk is too
- * expensive to run on a live connection.
+ * This file answers "which tables are holding the cache" without walking the cache or the data
+ * handle list, which is what makes it usable when there are millions of open tables.
  *
- * Five rankings are kept, one per metric: update bytes, dirty leaf bytes, and resident bytes are
- * levels, read directly off a tree's own counters; recent bytes read and recent bytes evicted are
- * flows, computed from a per-tree value that is aged backward as it is read, so a burst from an
- * hour ago fades out instead of accumulating forever.
+ * Five rankings are kept: update bytes, dirty leaf bytes, and resident bytes are levels, read
+ * straight off a tree's own counters; recent bytes read and recent bytes evicted are flows, decayed
+ * on every read so old activity fades out instead of accumulating forever.
  *
- * Each ranking is a fixed array of slots, guarded by one spinlock, plus a threshold a tree's metric
- * must reach to be worth a slot. The threshold is what makes the ranking complete rather than a
- * sample: every metric is bounded by the cache size (that is what the decay on the flow metrics
- * buys), so a threshold of cache size / slot count guarantees at most that many trees can ever
- * qualify, and a tree missing from the array is provably below it. The very first threshold is
- * seeded from the average resident tree size, since on a deployment with far more trees than slots,
- * cache size / slot count alone is nowhere near the size of the trees actually worth naming; every
- * later value comes from adjusting it, each time a report runs, to keep the array usefully full.
+ * Each ranking is a fixed array of slots behind one lock, plus a threshold. Every metric is bounded
+ * by the cache size, so a threshold of cache size / slot count guarantees at most that many trees
+ * can ever qualify: the array is complete, not a sample, and a tree missing from it is provably
+ * below the threshold. The threshold starts at a multiple of the average tree size, since cache
+ * size / slot count alone is too coarse when there are far more trees than slots, and is adjusted
+ * at every report to keep the array usefully full.
  *
- * A tree enters the accounting path already knowing where it stands. Each tree carries, per metric,
- * the value it must grow past before it is worth another look at the ranking; until then, the
- * accounting path pays nothing but its own comparison. It also carries which slot it currently
- * occupies, if any, so refreshing an already-tracked tree is a direct update instead of a search;
- * only admitting a genuinely new tree costs a scan of the whole array, to find the entry to
- * displace. There is no symmetric hook on the decrement side: a tree that shrinks is not actively
- * removed. It does not need to be, because both the slot-selection scan and report generation
- * re-read every occupied slot's live value before acting on it, so a shrunk tree is correctly
- * treated as small, and dropped from the array once a report actually looks, whether that look was
- * triggered by a new tree contending for a slot or by a report being generated. Metadata and the
- * history store never enter any of this: they are excluded for good when a tree is opened, by
- * setting their values to one no counter can reach, rather than have the hot path discover the
- * exclusion on every byte it accounts for.
+ * Each tree remembers, per metric, the value it must grow past before it is worth another look, and
+ * which slot it currently occupies, if any. That makes the common case - below threshold, or
+ * already tracked - free of both the lock and any scan; only admitting a genuinely new tree needs a
+ * scan, to find the smallest entry to evict.
  *
- * A report walks every ranking's array under its lock, copying out entries that still clear the
- * threshold, adjusting the threshold for next time, and building lines to print once the lock is
- * dropped. It only runs when something will be printed: on demand, through a debug_info category,
- * or from the sweep server's periodic pass, which prints when the verbose category for this
- * reporting is on or update bytes are over the configured target. A quiet connection with neither
- * condition true does no work at all; nothing is lost by skipping those ticks, since the next
- * report that does run reads everything fresh and catches up immediately.
+ * Shrinking is not actively tracked. Nothing removes a tree the moment its value drops, but nothing
+ * needs to: both eviction-candidate selection and reporting always re-read live values before
+ * acting on them, so a shrunk tree is dropped the next time either happens. Metadata and the
+ * history store are excluded once, at open, rather than checked on every byte they account for.
  *
- * What this cannot see: a tree that was never touched after opening (no updates, no reads, no
- * eviction) has nothing to trigger its own consideration and so never enters a ranking even if it
- * is large, and a tracked tree with no activity at all similarly never gets re-examined. In
- * practice this does not matter for the case this file exists for, cache pressure, since a tree
- * under pressure is by definition being evicted from, which is what re-examines it.
+ * A report only runs when something will be printed - on demand, or when verbose logging or update
+ * pressure calls for it - so a quiet connection does no work. Nothing is lost by skipping those
+ * ticks: the next report reads everything live and catches up immediately.
+ *
+ * Limitation: a tree that is never evicted from, and never grows past its own recheck value, is
+ * never reconsidered and can go unseen even if large. That does not matter for cache-pressure
+ * diagnosis, the case this exists for, because pressure implies eviction, which is exactly what
+ * triggers reconsideration.
  */
 
 /*
@@ -71,16 +58,17 @@ typedef struct __wt_cache_top_report_entry WT_CACHE_TOP_REPORT_ENTRY;
 
 /*
  * __cache_top_entries_free --
- *     Free the names owned by the first count entries of a report array, leaving the entries
- *     themselves ready to reuse for the next ranking.
+ *     Free every name a report array currently owns, leaving it ready to reuse for the next
+ *     ranking. Always covers the whole array rather than trusting a caller's count of how many
+ *     entries are actually live: an unused entry's name is always NULL, and freeing NULL is a
+ *     no-op, so this is exactly as correct and cannot be handed a wrong count.
  */
 static void
-__cache_top_entries_free(
-  WT_SESSION_IMPL *session, WT_CACHE_TOP_REPORT_ENTRY *entries, uint32_t count)
+__cache_top_entries_free(WT_SESSION_IMPL *session, WT_CACHE_TOP_REPORT_ENTRY *entries)
 {
     uint32_t i;
 
-    for (i = 0; i < count; ++i)
+    for (i = 0; i < WT_CACHE_TOP_SLOTS; ++i)
         __wt_free(session, entries[i].name);
 }
 
@@ -538,7 +526,7 @@ err:
     __wt_spin_unlock(session, &array->lock);
     if (ret != 0) {
         /* This function owns whatever it allocated so far; it failed before telling the caller. */
-        __cache_top_entries_free(session, entries, count);
+        __cache_top_entries_free(session, entries);
         return (ret);
     }
 
@@ -654,15 +642,12 @@ __cache_top_report(WT_SESSION_IMPL *session, bool force)
             WT_ERR(__cache_top_emit(session, force, (const char *)line->data));
         }
 
-        __cache_top_entries_free(session, entries, count);
+        __cache_top_entries_free(session, entries);
     }
 
 err:
-    /*
-     * Every metric already processed has freed its own entries. Only the metric that was in
-     * progress when something failed, if any, still has names to clean up here.
-     */
-    __cache_top_entries_free(session, entries, count);
+    /* Whatever the metric in progress had allocated when something failed still needs freeing. */
+    __cache_top_entries_free(session, entries);
     __wt_scr_free(session, &line);
     __wt_free(session, entries);
     return (ret);
