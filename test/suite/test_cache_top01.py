@@ -29,6 +29,12 @@
 import re, time
 import wttest
 
+# The file constituent behind a table's name can carry a different suffix depending on the running
+# configuration (a layered table under the disagg hook uses "wt_stable" rather than "wt" for its
+# resident constituent), so any check for a specific table has to accept either.
+def table_names(base):
+    return ['file:%s.wt' % base, 'file:%s.wt_stable' % base]
+
 # The rankings of the tables consuming the most cache, as reported by
 # WT_CONNECTION::debug_info and by the cache_top verbose category.
 class test_cache_top01(wttest.WiredTigerTestCase):
@@ -109,6 +115,14 @@ class test_cache_top01(wttest.WiredTigerTestCase):
     def names(self, report, ranking):
         return [name for _, name in report[ranking]['entries']]
 
+    def assertTableIn(self, base, names):
+        self.assertTrue(any(n in names for n in table_names(base)),
+            '%s not found in %s' % (base, names))
+
+    def assertTableNotIn(self, base, names):
+        for n in table_names(base):
+            self.assertNotIn(n, names)
+
     # Every report is expected to hold together internally, whatever the workload.
     def check_report_consistent(self, report):
         for ranking in self.rankings:
@@ -159,8 +173,8 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         self.check_report_consistent(report)
 
         resident = self.names(report, 'total cache bytes')
-        self.assertIn('file:big.wt', resident)
-        self.assertNotIn('file:small.wt', resident)
+        self.assertTableIn('big', resident)
+        self.assertTableNotIn('small', resident)
 
     # Two tables both large enough to rank are both reported.
     def test_two_large_tables(self):
@@ -171,8 +185,8 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         self.check_report_consistent(report)
 
         resident = self.names(report, 'total cache bytes')
-        self.assertIn('file:first.wt', resident)
-        self.assertIn('file:second.wt', resident)
+        self.assertTableIn('first', resident)
+        self.assertTableIn('second', resident)
 
     # The tables WiredTiger keeps for itself are the connection statistics' business, not the
     # operator's, and are never named.
@@ -190,14 +204,14 @@ class test_cache_top01(wttest.WiredTigerTestCase):
     # with it.
     def test_drop_while_reported(self):
         self.populate_clean('table:doomed', 2500)
-        self.assertIn('file:doomed.wt', self.names(self.report(), 'total cache bytes'))
+        self.assertTableIn('doomed', self.names(self.report(), 'total cache bytes'))
 
         self.session.drop('table:doomed')
 
         report = self.report()
         self.check_report_consistent(report)
         for ranking in self.rankings:
-            self.assertNotIn('file:doomed.wt', self.names(report, ranking))
+            self.assertTableNotIn('doomed', self.names(report, ranking))
 
     # Many tables at once still produce a bounded, well-formed report.
     def test_many_tables(self):
@@ -237,7 +251,7 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
         report = self.report()
         self.check_report_consistent(report)
-        self.assertIn('file:reread.wt', self.names(report, 'recent bytes read'))
+        self.assertTableIn('reread', self.names(report, 'recent bytes read'))
 
     # A table being evicted from appears in the eviction ranking.
     def test_evict_ranking(self):
@@ -247,7 +261,7 @@ class test_cache_top01(wttest.WiredTigerTestCase):
 
         report = self.report()
         self.check_report_consistent(report)
-        self.assertIn('file:evicted.wt', self.names(report, 'recent bytes evicted'))
+        self.assertTableIn('evicted', self.names(report, 'recent bytes evicted'))
 
     # Update memory is attributed to the table that holds it.
     def test_update_ranking(self):
@@ -256,7 +270,7 @@ class test_cache_top01(wttest.WiredTigerTestCase):
         report = self.report()
         self.check_report_consistent(report)
 
-        self.assertIn('file:updates.wt', self.names(report, 'update bytes'))
+        self.assertTableIn('updates', self.names(report, 'update bytes'))
         self.assertLessEqual(report['update bytes']['listed'], report['update bytes']['total'])
 
     # Repeated reports neither drift nor crash.
@@ -322,7 +336,8 @@ class test_cache_top03(wttest.WiredTigerTestCase):
         out = self.readStdout(200000)
         self.cleanStdout()
         self.assertIn('cache top total cache bytes', out)
-        self.assertIn('file:inmemory.wt', out)
+        self.assertTrue(any(n in out for n in table_names('inmemory')),
+            'inmemory table not found in report')
 
 # Turning the rankings on and off on a running connection, which is how they are reached in the
 # field: the verbose category is part of the runtime configuration.
@@ -389,7 +404,8 @@ class test_cache_top06(wttest.WiredTigerTestCase):
     def test_long_table_name(self):
         name = 'a_long_table_name_' + 'x' * 120
         self.populate('table:' + name, 2500)
-        self.assertIn('file:%s.wt' % name, self.report_text())
+        text = self.report_text()
+        self.assertTrue(any(n in text for n in table_names(name)), 'long table name not found')
 
     # A column store is ranked the same way a row store is.
     def test_column_store(self):
@@ -400,7 +416,8 @@ class test_cache_top06(wttest.WiredTigerTestCase):
         c.close()
         self.session.checkpoint()
 
-        self.assertIn('file:columns.wt', self.report_text())
+        text = self.report_text()
+        self.assertTrue(any(n in text for n in table_names('columns')), 'columns table not found')
 
     # The rankings coexist with the rest of what debug_info prints.
     def test_combined_with_other_categories(self):
@@ -416,10 +433,13 @@ class test_cache_top06(wttest.WiredTigerTestCase):
     # The rankings belong to a connection and start empty on the next one.
     def test_reset_on_reopen(self):
         self.populate('table:transient', 2500)
-        self.assertIn('file:transient.wt', self.report_text())
+        text = self.report_text()
+        self.assertTrue(any(n in text for n in table_names('transient')),
+            'transient table not found')
 
         self.reopen_conn()
 
         out = self.report_text()
         self.assertIn('cache top ', out)
-        self.assertNotIn('file:transient.wt', out)
+        for n in table_names('transient'):
+            self.assertNotIn(n, out)
