@@ -4496,9 +4496,9 @@ tasks:
             pr_args+="--code_change_report_url $code_change_report_url "
 
             if [ ${is_patch|false} = true ]; then
-              ./test/evergreen/coverage-report.sh true ${python_binary|python3} ${github_commit} "${branch_name}" "$pr_args"
+              ./test/evergreen/coverage-report.sh true "${python_binary|python3}" "${github_commit}" "${branch_name}" "$pr_args"
             else
-              ./test/evergreen/coverage-report.sh false ${python_binary|python3} ${github_commit} "${branch_name}" "$pr_args"
+              ./test/evergreen/coverage-report.sh false "${python_binary|python3}" "${github_commit}" "${branch_name}" "$pr_args"
             fi
 
       - func: "code coverage publish report"
