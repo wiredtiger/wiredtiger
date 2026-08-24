@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,30 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from wiredtiger import stat
-from compact_util import compact_util
+import wiredtiger, wttest
 
-# This test checks that background compaction skips small files.
-class test_compact14(compact_util):
-    test_name = __qualname__
-    create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
-    conn_config = 'cache_size=100MB,statistics=(all)'
-
-    table_numkv = 1
-
-    def test_compact14(self):
-        # Create an table and populate small amount of data.
-        uri = f"table:{self.test_name}"
-        self.session.create(uri, self.create_params)
-        self.populate(uri, 0, self.table_numkv)
-
-        # Write to disk.
-        self.session.checkpoint()
-
-        # Enable background compaction.
-        bg_compact_config = 'free_space_target=1MB'
-        self.turn_on_bg_compact(bg_compact_config)
-
-        while self.get_bg_compaction_files_skipped() == 0:
-            time.sleep(0.1)
+# The two checkpoint crash point settings name points on opposite sides of the checkpoint
+# transaction commit, so they disagree about whether the checkpoint survives rather than refining
+# each other. Configuring both is rejected before the checkpoint starts.
+class test_checkpoint_crash02(wttest.WiredTigerTestCase):
+    def test_checkpoint_crash_settings_conflict(self):
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.checkpoint(
+                'debug=(checkpoint_crash_point=500,'
+                'checkpoint_crash_trigger_point=before_metadata_sync)'),
+            '/mutually exclusive/')

@@ -71,6 +71,18 @@ workload_active(WORKLOAD_STATE *state, uint32_t stage)
 }
 
 /*
+ * node_is_lone --
+ *     Whether this node runs without a peer at all, as opposed to having outlived one: a peered
+ *     node keeps its pipes for the process's life, so the read end tells the two apart even after
+ *     peer_alive is cleared.
+ */
+bool
+node_is_lone(const TEST_CONFIG *cfg)
+{
+    return (cfg->pipe_read_fd < 0);
+}
+
+/*
  * disagg_opts_init --
  *     Point the test options at the shared PALite page log: the single source of truth for the
  *     disaggregated configuration, used by the nodes and by the parent's recovery opens.
@@ -243,9 +255,12 @@ workload_start(WORKLOAD_STATE *state, bool as_leader)
     state->emitted = state->applied = 0;
     state->stepdown_ts = state->stepdown_ckpt_lsn = 0;
 
+    /* The frontier continues from the previous phase; nothing above it is completed yet. */
+    state->frontier_ts = state->current_ts;
+    memset(state->completed_ts, 0, sizeof(state->completed_ts));
+
     /* Reset workers' state. Note: tables' state survives role transitioning. */
     for (uint32_t i = 0; i < cfg->nth; i++) {
-        state->workers[i].completed_ts = 0;
         state->workers[i].busy = false;
         state->workers[i].evq.head = state->workers[i].evq.tail = 0;
         memset(state->workers[i].stepdown_insert, 0, sizeof(state->workers[i].stepdown_insert));
@@ -325,7 +340,7 @@ node_step_up(WORKLOAD_STATE *state, uint64_t final_ts)
 
     /* Restore the timestamps on the new leader's connection. */
     if (final_ts != 0)
-        set_frontier(state->conn, final_ts);
+        set_ts(state->conn, TS_FRONTIER, final_ts);
 }
 
 /*
@@ -419,7 +434,7 @@ node_main(TEST_CONFIG *cfg)
      * event's epoch is above the stable one.
      */
     workload_seed_counter(state, SCHEMA_EPOCH_BOOTSTRAP);
-    set_frontier(state->conn, SCHEMA_EPOCH_BOOTSTRAP);
+    set_ts(state->conn, TS_FRONTIER, SCHEMA_EPOCH_BOOTSTRAP);
     println("Node %" PRIu32 ": starting as %s", cfg->node_id, role->name);
 
     return (node_run(cfg, state, role));

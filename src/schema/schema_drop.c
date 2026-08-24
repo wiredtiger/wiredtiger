@@ -134,30 +134,62 @@ __drop_index(
 static int
 __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
 {
+    WT_BTREE *btree;
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
+    WT_PAGE_LOG *page_log;
+    uint32_t btree_id;
+    char *config;
+    const char *cfg[2];
 
-    /* Get the layered data handle. */
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+    config = NULL;
+
+    /* Lock the handle without opening it to avoid any storage accesses. */
+    ret = __wt_session_get_dhandle(
+      session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY);
     if (ret == EBUSY)
         WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_RET(ret);
 
-    WT_BTREE *btree = S2BT(session);
-
     /*
-     * A table awaiting publication has never been checkpointed, so closing its handle loses any
-     * committed data it holds. Refuse the drop until a checkpoint has persisted the data, so this
-     * table behaves like a regular table, which returns EBUSY when it holds uncheckpointed data.
+     * A handle that was never opened carries no configuration, so read the metadata directly. The
+     * caller expects ENOENT for an unknown table.
      */
-    if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
-      __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
-        WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
-          "the table has unpublished data and must be checkpointed before it can be dropped");
+    if ((ret = __wt_metadata_search(session, uri, &config)) != 0) {
+        if (ret == WT_NOTFOUND)
+            ret = __wt_set_return(session, ENOENT);
+        WT_ERR(ret);
+    }
 
-    if (btree->page_log == NULL)
+    cfg[0] = config;
+    cfg[1] = NULL;
+
+    WT_ERR(__wt_config_getones(session, config, "id", &cval));
+    btree_id = (uint32_t)cval.val;
+    WT_ERR(__wt_schema_page_log_from_config(session, cfg, &page_log));
+
+    /* If the btree was already opened, the configuration we just got must agree. */
+    if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN)) {
+        btree = S2BT(session);
+        WT_ASSERT(session, btree_id == btree->id && page_log == btree->page_log);
+
+        /*
+         * A table awaiting publication has never been checkpointed, so closing its handle loses any
+         * committed data it holds. Refuse the drop until a checkpoint has persisted the data, so
+         * this table behaves like a regular table, which returns EBUSY when it holds uncheckpointed
+         * data. Only an open handle can be awaiting publication: uncheckpointed data keeps sweep
+         * from closing it and does not survive a restart.
+         */
+        if (F_ISSET_ATOMIC_32(btree, WT_BTREE_AWAITS_PUBLISH) &&
+          __wt_atomic_load_uint64_relaxed(&btree->min_unpublished_durable_ts) != WT_TS_NONE)
+            WT_ERR_SUB(session, EBUSY, WT_DIRTY_DATA,
+              "the table has unpublished data and must be checkpointed before it can be dropped");
+    }
+
+    if (page_log == NULL)
         WT_ERR(ENOTSUP);
 
-    if (btree->page_log->pl_trim_table == NULL) {
+    if (page_log->pl_trim_table == NULL) {
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Trim table is not supported by the current PALI implementation");
         ret = 0;
@@ -170,9 +202,10 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
      *
      * FIXME-WT-16527: Set start LSN once implemented.
      */
-    WT_ERR(btree->page_log->pl_trim_table(btree->page_log, &session->iface, btree->id, 0, NULL));
+    WT_ERR(page_log->pl_trim_table(page_log, &session->iface, btree_id, 0, NULL));
 
 err:
+    __wt_free(session, config);
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
@@ -187,10 +220,7 @@ __drop_layered(
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
-    char *stable_value;
     const char *ingest_uri, *stable_uri, *tablename;
-
-    stable_value = NULL;
 
     WT_UNUSED(force);
 
@@ -220,17 +250,6 @@ __drop_layered(
               "stable constituent \"%s\" not found when dropping \"%s\" on leader", stable_uri,
               uri);
     }
-
-    /*
-     * Snapshot the stable table's configuration before the local metadata is removed. The shared
-     * metadata REMOVE enqueued below needs it for drop-size accounting, and by then the local rows
-     * are gone. The stable table may have no local row on a follower or for a table created after
-     * the step-down timestamp was set.
-     *
-     * FIXME-WT-18322: Read the size from the shared metadata table when the REMOVE is applied,
-     * removing the need for this snapshot.
-     */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, stable_uri, &stable_value), false);
 
     /*
      * Drop the layered table constituents. The stable table may not exist locally: a follower never
@@ -263,13 +282,12 @@ __drop_layered(
      */
     WT_SAVE_DHANDLE(session,
       ret = __wt_disagg_enqueue_metadata_operation(session, stable_uri, tablename,
-        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, stable_value));
+        WT_SHARED_METADATA_REMOVE, WT_SCHEMA_EPOCH_UNPUBLISHED, true, NULL));
     WT_ERR(ret);
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
-    __wt_free(session, stable_value);
 
     return (ret);
 }

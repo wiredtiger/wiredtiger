@@ -1149,6 +1149,7 @@ fstream
 fsync
 fsyncLock
 fsyncUnlock
+fsynced
 fsyncing
 ftruncate
 func
@@ -1701,6 +1702,7 @@ reconfigurations
 reconfigures
 reconfiguring
 reconfigwt
+recoverability
 recsize
 rectype
 rectypep

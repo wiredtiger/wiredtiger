@@ -69,6 +69,7 @@ else()
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
         ext/test_checkpoint_meta_version.cpp
+        ext/test_compressor_stored_length.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
@@ -150,6 +151,31 @@ if(NOT HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
         PRIVATE
             KEY_PROVIDER_EXTENSION="$<TARGET_FILE:wiredtiger_key_provider>"
     )
+endif()
+
+# The compressor tests load whichever compressors this build has, and skip the rest.
+if(ENABLE_SNAPPY)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            SNAPPY_EXTENSION="$<TARGET_FILE:wiredtiger_snappy>"
+    )
+    add_dependencies(catch2-unittests wiredtiger_snappy)
+endif()
+
+if(ENABLE_ZSTD)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            ZSTD_EXTENSION="$<TARGET_FILE:wiredtiger_zstd>"
+    )
+    add_dependencies(catch2-unittests wiredtiger_zstd)
+endif()
+
+if(ENABLE_LZ4)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            LZ4_EXTENSION="$<TARGET_FILE:wiredtiger_lz4>"
+    )
+    add_dependencies(catch2-unittests wiredtiger_lz4)
 endif()
 
 add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)
